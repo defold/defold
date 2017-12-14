@@ -85,6 +85,7 @@
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
+  (input debugger-execution-locations g/Any)
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
@@ -119,7 +120,8 @@
                                              (doseq [^Tab tab closed-tabs]
                                                (remove-tab tab-pane tab)))))
   (output keymap g/Any :cached (g/fnk []
-                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))}))))
+                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))})))
+  (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]

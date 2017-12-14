@@ -4,13 +4,14 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [pair split-lines]]
+            [editor.handler :as handler]
             [editor.prefs :as prefs]
+            [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.ui.fuzzy-choices-popup :as popup]
             [editor.util :as eutil]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [editor.handler :as handler]
             [internal.util :as util]
             [schema.core :as s])
   (:import (clojure.lang IPersistentVector)
@@ -98,7 +99,9 @@
 (def ^:private default-editor-color-scheme
   (let [^Color foreground-color (Color/valueOf "#DDDDDD")
         ^Color background-color (Color/valueOf "#27292D")
-        ^Color selection-background-color (Color/valueOf "#4E4A46")]
+        ^Color selection-background-color (Color/valueOf "#4E4A46")
+        ^Color execution-marker-color (Color/valueOf "#FBCE2F")
+        ^Color execution-marker-frame-color (.deriveColor execution-marker-color 0.0 1.0 1.0 0.5)]
     [["editor.foreground" foreground-color]
      ["editor.background" background-color]
      ["editor.cursor" Color/WHITE]
@@ -107,10 +110,14 @@
      ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]
      ["editor.tab.trigger.word.outline" (Color/valueOf "#A2B0BE")]
      ["editor.find.term.occurrence" (Color/valueOf "#60C1FF")]
+     ["editor.execution-marker.current" execution-marker-color]
+     ["editor.execution-marker.frame" execution-marker-frame-color]
      ["editor.gutter.foreground" (Color/valueOf "#A2B0BE")]
      ["editor.gutter.background" background-color]
      ["editor.gutter.cursor.line.background" (Color/valueOf "#393C41")]
      ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
+     ["editor.gutter.execution-marker.current" execution-marker-color]
+     ["editor.gutter.execution-marker.frame" execution-marker-frame-color]
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
      ["editor.matching.brace.outline" (Color/valueOf "#A2B0BE")]
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
@@ -211,7 +218,7 @@
     (.setStroke gc stroke)
     (.setLineWidth gc 1.0)
     (case type
-      :word (let [^Rect r (data/expand-rect (first rects) 1.0 0.0)]
+      :word (let [^Rect r (data/expand-rect (first rects) 1.5 0.5)]
               (assert (= 1 (count rects)))
               (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [polyline (cursor-range-outline rects)]
@@ -425,7 +432,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -581,15 +588,25 @@
 (g/defnk produce-visible-matching-braces [lines matching-braces layout]
   (data/visible-cursor-ranges lines layout (into [] (mapcat identity) matching-braces)))
 
-(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focused? layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word?]
+(defn- make-execution-marker-draw-info
+  [current-color frame-color {:keys [location-type] :as execution-marker}]
+  (case location-type
+    :current-line
+    (cursor-range-draw-info :word nil current-color execution-marker)
+
+    :current-frame
+    (cursor-range-draw-info :word nil frame-color execution-marker)))
+
+(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focused? layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
   (let [background-color (color-lookup color-scheme "editor.background")
         ^Color selection-background-color (color-lookup color-scheme "editor.selection.background")
         selection-background-color (if focused? selection-background-color (color-lookup color-scheme "editor.selection.background.inactive"))
         selection-occurrence-outline-color (color-lookup color-scheme "editor.selection.occurrence.outline")
         tab-trigger-word-outline-color (color-lookup color-scheme "editor.tab.trigger.word.outline")
         find-term-occurrence-color (color-lookup color-scheme "editor.find.term.occurrence")
-        gutter-breakpoint-color (color-lookup color-scheme "editor.gutter.breakpoint")
         matching-brace-outline-color (color-lookup color-scheme "editor.matching.brace.outline")
+        execution-marker-current-row-color (color-lookup color-scheme "editor.execution-marker.current")
+        execution-marker-frame-row-color (color-lookup color-scheme "editor.execution-marker.frame")
         active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
                                                    (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
@@ -600,10 +617,10 @@
       (concat
         (map (partial cursor-range-draw-info :range selection-background-color background-color)
              visible-cursor-ranges)
-        (map (partial cursor-range-draw-info :range nil gutter-breakpoint-color)
-             (visible-regions-by-type :breakpoint))
         (map (partial cursor-range-draw-info :range nil matching-brace-outline-color)
              visible-matching-braces)
+        (map (partial make-execution-marker-draw-info execution-marker-current-row-color execution-marker-frame-row-color)
+             execution-markers)
         (cond
           (seq active-tab-trigger-scope-ids)
           (keep (fn [tab-trigger-word-region]
@@ -627,20 +644,33 @@
 (g/defnk produce-minimap-layout [layout lines minimap-glyph-metrics tab-spaces]
   (data/minimap-layout-info layout (count lines) minimap-glyph-metrics tab-spaces))
 
-(g/defnk produce-minimap-cursor-range-draw-infos [color-scheme lines cursor-ranges minimap-layout highlighted-find-term find-case-sensitive? find-whole-word?]
-  (vec
-    (concat
-      (cond
-        (not (empty? highlighted-find-term))
-        (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.find.term.occurrence") nil)
-             (data/visible-occurrences lines minimap-layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
+(g/defnk produce-minimap-cursor-range-draw-infos [color-scheme lines cursor-ranges minimap-layout highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
+  (let [execution-marker-current-row-color (color-lookup color-scheme "editor.execution-marker.current")
+        execution-marker-frame-row-color (color-lookup color-scheme "editor.execution-marker.frame")]
+    (vec
+      (concat
+        (map (partial make-execution-marker-draw-info execution-marker-current-row-color execution-marker-frame-row-color)
+             execution-markers)
+        (cond
+          (not (empty? highlighted-find-term))
+          (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.find.term.occurrence") nil)
+               (data/visible-occurrences lines minimap-layout find-case-sensitive? find-whole-word? (split-lines highlighted-find-term)))
 
-        :else
-        (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.selection.occurrence.outline") nil)
-             (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout nil))))))
+          :else
+          (map (partial cursor-range-draw-info :range (color-lookup color-scheme "editor.selection.occurrence.outline") nil)
+               (data/visible-occurrences-of-selected-word lines cursor-ranges minimap-layout nil)))))))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
-  (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?)
+(g/defnk produce-execution-markers [lines debugger-execution-locations node-id+resource]
+  (when-some [path (some-> node-id+resource second resource/proj-path)]
+    (into []
+          (comp (filter #(= path (:file %)))
+                (map (fn [{:keys [^long line type]}]
+                       (data/execution-marker lines (dec line) type))))
+          debugger-execution-locations)))
+
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
+  (let [regions (into [] cat [regions execution-markers])]
+    (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers))
   nil)
 
 (defn- make-cursor-rectangle
@@ -724,6 +754,7 @@
   (input invalidated-rows r/InvalidatedRows)
   (input lines r/Lines)
   (input regions r/Regions)
+  (input debugger-execution-locations g/Any)
 
   (output indent-level-pattern Pattern :cached produce-indent-level-pattern)
   (output font Font :cached produce-font)
@@ -743,6 +774,7 @@
   (output minimap-glyph-metrics data/GlyphMetrics :cached produce-minimap-glyph-metrics)
   (output minimap-layout LayoutInfo :cached produce-minimap-layout)
   (output minimap-cursor-range-draw-infos CursorRangeDrawInfos :cached produce-minimap-cursor-range-draw-infos)
+  (output execution-markers r/Regions :cached produce-execution-markers)
   (output repaint-canvas SideEffect :cached produce-repaint-canvas)
   (output repaint-cursors SideEffect :cached produce-repaint-cursors))
 
@@ -1825,7 +1857,7 @@
 
 ;; -----------------------------------------------------------------------------
 
-(defn- setup-view! [resource-node view-node]
+(defn- setup-view! [resource-node view-node app-view]
   (let [glyph-metrics (g/node-value view-node :glyph-metrics)
         tab-spaces (g/node-value view-node :tab-spaces)
         tab-stops (data/tab-stops glyph-metrics tab-spaces)
@@ -1838,7 +1870,8 @@
         (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
         (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
         (g/connect resource-node :lines view-node :lines)
-        (g/connect resource-node :regions view-node :regions)))
+        (g/connect resource-node :regions view-node :regions)
+        (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)))
     view-node))
 
 (defn- cursor-opacity
@@ -1890,6 +1923,30 @@
                            (ui/send-event! canvas event)
                            (.consume event)))))))
 
+(defn- make-execution-marker-arrow
+  ([x y w h]
+   (make-execution-marker-arrow x y w h 0.5 0.4))
+  ([x y w h w-prop h-prop]
+   (let [x ^long x
+         y ^long y
+         w ^long w
+         h ^long h
+         w-body (* ^double w-prop w)
+         h-body (* ^double h-prop h)
+         ;; x coords used, left to right
+         x0 x
+         x1 (+ x0 w-body)
+         x2 (+ x0 w)
+         ;; y coords used, top to bottom
+         y0 y
+         y1 (+ y (* 0.5 (- h h-body)))
+         y2 (+ y (* 0.5 h))
+         y3 (+ y (- h (* 0.5 (- h h-body))))
+         y4 (+ y h)]
+     {:xs (double-array [x0 x1 x1 x2 x1 x1 x0])
+      :ys (double-array [y1 y1 y0 y2 y4 y3 y3])
+      :n  7})))
+
 (deftype CodeEditorGutterView []
   GutterView
 
@@ -1907,7 +1964,9 @@
           gutter-background-color (color-lookup color-scheme "editor.gutter.background")
           gutter-shadow-color (color-lookup color-scheme "editor.gutter.shadow")
           gutter-breakpoint-color (color-lookup color-scheme "editor.gutter.breakpoint")
-          gutter-cursor-line-background-color (color-lookup color-scheme "editor.gutter.cursor.line.background")]
+          gutter-cursor-line-background-color (color-lookup color-scheme "editor.gutter.cursor.line.background")
+          gutter-execution-marker-current-color (color-lookup color-scheme "editor.gutter.execution-marker.current")
+          gutter-execution-marker-frame-color (color-lookup color-scheme "editor.gutter.execution-marker.frame")]
 
       ;; Draw gutter background and shadow when scrolled horizontally.
       (when (neg? (.scroll-x layout))
@@ -1933,7 +1992,10 @@
             dropped-line-count (.dropped-line-count layout)
             source-line-count (count lines)
             indicator-diameter (- line-height 6.0)
-            breakpoint-rows (data/cursor-ranges->rows lines (filter data/breakpoint-region? regions))]
+            breakpoint-rows (data/cursor-ranges->rows lines (filter data/breakpoint-region? regions))
+            execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
+            execution-marker-current-rows (data/cursor-ranges->rows lines (:current-line execution-markers-by-type))
+            execution-marker-frame-rows (data/cursor-ranges->rows lines (:current-frame execution-markers-by-type))]
         (loop [drawn-line-index 0
                source-line-index dropped-line-count]
           (when (and (< drawn-line-index drawn-line-count)
@@ -1944,6 +2006,22 @@
                 (.fillOval gc
                            (+ (.x line-numbers-rect) (.w line-numbers-rect) 3.0)
                            (+ y 3.0) indicator-diameter indicator-diameter))
+              (when (contains? execution-marker-current-rows source-line-index)
+                (let [x (+ (.x line-numbers-rect) (.w line-numbers-rect) 4.0)
+                      y (+ y 4.0)
+                      w (- line-height 8.0)
+                      h (- line-height 8.0)
+                      {:keys [xs ys n]} (make-execution-marker-arrow x y w h)]
+                  (.setFill gc gutter-execution-marker-current-color)
+                  (.fillPolygon gc xs ys n)))
+              (when (contains? execution-marker-frame-rows source-line-index)
+                (let [x (+ (.x line-numbers-rect) (.w line-numbers-rect) 4.0)
+                      y (+ y 4.0)
+                      w (- line-height 8.0)
+                      h (- line-height 8.0)
+                      {:keys [xs ys n]} (make-execution-marker-arrow x y w h)]
+                  (.setFill gc gutter-execution-marker-frame-color)
+                  (.fillPolygon gc xs ys n)))
               (.setFill gc gutter-foreground-color)
               (.fillText gc (str (inc source-line-index))
                          (+ (.x line-numbers-rect) (.w line-numbers-rect))
@@ -1980,7 +2058,8 @@
                                              :undo-grouping-info undo-grouping-info
                                              :visible-indentation-guides? true
                                              :visible-minimap? true
-                                             :visible-whitespace? true))
+                                             :visible-whitespace? true)
+                               (:app-view opts))
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
