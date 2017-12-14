@@ -87,7 +87,7 @@
             (.. debugger-call-stack getItems clear)
             (.. debugger-call-stack getSelectionModel clearSelection)))))))
 
-(g/defnk produce-active-locations
+(g/defnk produce-execution-locations
   [suspension-state]
   (when-some [frames (-> suspension-state :stack)]
     (into []
@@ -111,7 +111,7 @@
 
   (output update-available-controls g/Any :cached update-available-controls!)
   (output update-call-stack g/Any :cached update-call-stack!)
-  (output active-locations g/Any :cached produce-active-locations))
+  (output execution-locations g/Any :cached produce-execution-locations))
 
 
 (defonce view-state (atom nil))
@@ -304,7 +304,9 @@
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
-  (g/connect! app-view :active-resource debug-view :active-resource)
+  (g/transact
+    [(g/connect app-view :active-resource debug-view :active-resource)
+     (g/connect debug-view :execution-locations app-view :debugger-execution-locations)])
   debug-view)
 
 (defn make-view!
