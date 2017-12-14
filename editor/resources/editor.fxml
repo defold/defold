@@ -208,6 +208,18 @@
                                     </AnchorPane>
                                 </items>
                               </SplitPane>
+                              <SplitPane id="debugger-data-split" visible="false" dividerPositions="0.33" orientation="VERTICAL" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                  <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
+                                      <TitledPane animated="false" collapsible="false" text="Call Stack" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                          <ListView id="debugger-call-stack"/>
+                                      </TitledPane>
+                                  </AnchorPane>
+                                  <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                                      <TitledPane animated="false" collapsible="false" text="Variables" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                          <TreeView id="debugger-variables"/>
+                                      </TitledPane>
+                                  </AnchorPane>
+                              </SplitPane>
                            </children>
                         </AnchorPane>
                     </items>
