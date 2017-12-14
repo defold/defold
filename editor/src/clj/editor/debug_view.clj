@@ -130,10 +130,10 @@
           frame (current-stack-frame debug-view)]
       (.clear input)
       (assert (= :suspended (mobdebug/state debug-session)))
-      (console/append-console-line! (str "❯ " code))
+      (console/append-console-entry! :eval-expression code)
       (let [ret (mobdebug/eval debug-session code frame)
             s (some->> ret :result vals (str/join ", "))]
-        (console/append-console-line! (str "❮ " s))))))
+        (console/append-console-entry! :eval-result (or s "nil"))))))
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar]
