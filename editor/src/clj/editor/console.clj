@@ -333,7 +333,8 @@
                                              :grammar console-grammar
                                              :gutter-view (ConsoleGutterView.)
                                              :highlighted-find-term (.getValue find-term-property)
-                                             :line-height-factor 1.2))
+                                             :line-height-factor 1.2
+                                             :resize-reference :bottom))
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node)
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (.isSelected console-tab)
