@@ -1891,6 +1891,17 @@
       (when (not-any? #(Character/isISOControl ^char %) typed)
         (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
 
+(defn execution-marker? [region]
+  (= :execution-marker (:type region)))
+
+(defn execution-marker [lines ^long row location-type]
+  (let [line-start (text-start lines row)
+        line-end (count (lines row))]
+    (assoc (->CursorRange (->Cursor row line-start)
+                          (->Cursor row line-end))
+           :type :execution-marker
+           :location-type location-type)))
+
 (defn breakpoint [lines ^long row]
   (let [line-start (text-start lines row)
         line-end (count (lines row))]
