@@ -1703,4 +1703,26 @@ namespace dmRig
         }
     }
 
+#define DM_RIG_TRAMPOLINE1(ret, name, t1) \
+    ret Rig_##name(t1 a1)\
+    {\
+        return name(a1);\
+    }\
+
+#define DM_RIG_TRAMPOLINE2(ret, name, t1, t2) \
+    ret Rig_##name(t1 a1, t2 a2)\
+    {\
+        return name(a1, a2);\
+    }\
+
+#define DM_RIG_TRAMPOLINE3(ret, name, t1, t2, t3) \
+    ret Rig_##name(t1 a1, t2 a2, t3 a3)\
+    {\
+        return name(a1, a2, a3);\
+    }\
+
+    DM_RIG_TRAMPOLINE1(Result, NewContext, const NewContextParams&);
+    DM_RIG_TRAMPOLINE1(void, DeleteContext, HRigContext);
+    DM_RIG_TRAMPOLINE2(Result, Update, HRigContext, float);
+
 }

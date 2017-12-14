@@ -54,6 +54,7 @@
    "${DYNAMO-HOME}/ext/lib/x86_64-linux/libPVRTexLib.so"      "x86_64-linux/lib/libPVRTexLib.so"
 
    "${DYNAMO-HOME}/ext/lib/x86_64-darwin/libPVRTexLib.dylib"  "x86_64-darwin/lib/libPVRTexLib.dylib"
+   "${DYNAMO-HOME}/lib/x86_64-darwin/librig_shared.dylib"     "x86_64-darwin/lib/librig_shared.dylib"   
    "${DYNAMO-HOME}/ext/bin/x86_64-darwin/luajit"              "x86_64-darwin/bin/luajit"
 
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
