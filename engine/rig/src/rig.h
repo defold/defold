@@ -290,9 +290,18 @@ namespace dmRig
         HRigInstance m_Instance;
     };
 
-    Result NewContext(const NewContextParams& params);
-    void DeleteContext(HRigContext context);
-    Result Update(HRigContext context, float dt);
+#define DM_RIG_PROTO(ret, name,  ...) \
+    \
+    ret name(__VA_ARGS__);\
+    extern "C" DM_DLLEXPORT ret Rig_##name(__VA_ARGS__)
+
+
+    // Result NewContext(const NewContextParams& params);
+    DM_RIG_PROTO(Result, NewContext, const NewContextParams& params);
+    // void DeleteContext(HRigContext context);
+    DM_RIG_PROTO(void, DeleteContext, HRigContext context);
+    // Result Update(HRigContext context, float dt);
+    DM_RIG_PROTO(Result, Update, HRigContext context, float dt);
 
     Result InstanceCreate(const InstanceCreateParams& params);
     Result InstanceDestroy(const InstanceDestroyParams& params);
