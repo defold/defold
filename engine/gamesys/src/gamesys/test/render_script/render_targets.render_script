@@ -13,6 +13,7 @@ function init( self )
     local w = 256
     local h = 128
 
+    self.frame = 0
     self.tile_pred = render.predicate({"tile"})
 
     -------------------------------------------------------------------
@@ -155,13 +156,20 @@ function init( self )
 end
 
 function update( self )
-    for k,v in pairs(self.valid_rts) do
-        render.enable_render_target(v)
-        render.draw(self.tile_pred)
-        render.disable_render_target(v)
+    -- first frame we render to the render targets
+    -- then we delete them on the next frame
+    self.frame = self.frame + 1
 
-        -- cleanup here since render scripts don't have a final function
-        render.delete_render_target(v)
+    for k,v in pairs(self.valid_rts) do
+        if self.frame == 1 then
+            render.enable_render_target(v)
+            render.draw(self.tile_pred)
+            render.disable_render_target(v)
+        elseif self.frame == 2 then
+            -- cleanup here since render scripts don't have a final function
+            render.delete_render_target(v)
+        end
     end
+
 end
 
