@@ -710,7 +710,7 @@
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
   (property focused? g/Bool (default false) (dynamic visible (g/constantly false)))
 
-  (property font-name g/Str (default "Dejavu Sans Mono"))
+  (property font-name g/Str (default "DejaVu Sans Mono"))
   (property font-size g/Num (default 12.0))
   (property line-height-factor g/Num (default 1.0))
   (property indent-string g/Str (default "\t"))
