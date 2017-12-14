@@ -723,12 +723,12 @@
                    (let [^double old-value (or old-value 0.0)
                          ^double new-value new-value
                          scroll-y (g/node-value self :scroll-y evaluation-context)
-                         lines (g/node-value self :lines evaluation-context)
                          layout (g/node-value self :layout evaluation-context)
+                         line-count (count (g/node-value self :lines evaluation-context))
                          resize-reference (g/node-value self :resize-reference evaluation-context)
-                         new-scroll-y (data/limit-scroll-y layout lines (case resize-reference
-                                                                          :bottom (- ^double scroll-y (- old-value new-value))
-                                                                          :top scroll-y))]
+                         new-scroll-y (data/limit-scroll-y layout line-count (case resize-reference
+                                                                               :bottom (- ^double scroll-y (- old-value new-value))
+                                                                               :top scroll-y))]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
