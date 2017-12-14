@@ -755,16 +755,19 @@ TEST_P(RenderScriptTest, Test)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    // Render once
-    dmRender::RenderListBegin(m_RenderContext);
-    dmGameObject::Render(m_Collection);
-    dmRender::DispatchRenderScriptInstance(render_script->m_Instance);
-    dmRender::RenderListEnd(m_RenderContext);
-    dmRender::UpdateRenderScriptInstance(render_script->m_Instance);
+    // Call update twice (once for enabling rt, once to cleanup)
+    for (int i = 0; i < 2; i++)
+    {
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::DispatchRenderScriptInstance(render_script->m_Instance);
+        dmRender::RenderListEnd(m_RenderContext);
+        dmRender::UpdateRenderScriptInstance(render_script->m_Instance);
 
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
-    dmGraphics::Flip(m_GraphicsContext);
+        dmGraphics::Flip(m_GraphicsContext);
+    }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmResource::Release(m_Factory, render_script);
