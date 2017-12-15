@@ -105,6 +105,10 @@ namespace dmRig
             return false;
         }
 
+        dmDDF::FreeMessage((void*)instance->m_Skeleton);
+        dmDDF::FreeMessage((void*)instance->m_MeshSet);
+        dmDDF::FreeMessage((void*)instance->m_AnimationSet);
+
         return true;
     }
 
