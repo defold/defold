@@ -17,12 +17,7 @@
 
 (set! *warn-on-reflection* true)
 
-(vertex/defvertex vertex-format
-  (vec3 position)
-  (vec4.ubyte color true)
-  (vec2.ushort texcoord0 true))
-
-(defn- create-context
+(defn- create-context!
   [max-rig-instance-count]
   (let [params (RigLibrary$NewContextParams. (int max-rig-instance-count))
         ret (RigLibrary/Rig_NewContext params)]
@@ -30,15 +25,25 @@
       (.getValue (.context params))
       (throw (Exception. "Rig_NewContext")))))
 
-(defn- delete-context
+(defn- delete-context!
   [context]
   (RigLibrary/Rig_DeleteContext context))
+
+(defn update-context!
+  [context dt]
+  (let [ret (RigLibrary/Rig_Update context dt)]
+    (if (= ret RigLibrary$Result/RESULT_OK)
+      context
+      (throw (Exception. "Rig_Update")))))
 
 
 (comment
 
-  (def c (create-context 4))
+  (def c (create-context! 4))
 
-  (delete-context c)
+  (update-context! c 0.016)
+
+  
+  (delete-context! c)
 
   )
