@@ -12,6 +12,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
+            [editor.gl.vertex2 :as vtx2]
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -28,6 +29,7 @@
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.rig :as rig]
+            [editor.rig-lib :as rig-lib]
             [service.log :as log])
   (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
@@ -658,13 +660,22 @@
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
     (map (partial get verts) (:indices mesh))))
 
+(vtx2/defvertex vtx-pos-tex-col
+  (vec3 position)
+  (vec2 texcoord0)
+  (vec4.ubyte color true))
+
+
 (defn gen-vb [renderables]
-  (let [meshes (mapcat renderable->meshes renderables)
-        vcount (reduce + 0 (map (comp count :indices) meshes))]
-    (when (> vcount 0)
-      (let [vb (render/->vtx-pos-tex-col vcount)
-            verts (mapcat mesh->verts meshes)]
-        (persistent! (reduce conj! vb verts))))))
+  (let [renderable (first renderables)
+        {:keys [spine-scene-pb]} (:user-data renderable)]
+    (when spine-scene-pb
+      (let [rig-player (rig-lib/make-rig-player spine-scene-pb)
+            _ (rig-lib/update-rig-player rig-player 0.0167)
+            buf (rig-lib/vertex-data! rig-player)
+            _ (rig-lib/destroy-rig-player rig-player)
+            vbuf (vtx2/make-overlay-vertex-buffer vtx-pos-tex-col buf :static)]
+        (vtx2/flip! vbuf)))))
 
 (def color [1.0 1.0 1.0 1.0])
 
@@ -703,21 +714,23 @@
                   blend-mode (:blend-mode user-data)
                   gpu-texture (:gpu-texture user-data)
                   shader (get user-data :shader render/shader-tex-tint)
-                  vertex-binding (vtx/use-with ::spine-trans vb shader)]
+                  vertex-binding (vtx2/use-with ::spine-trans vb shader)]
               (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
                 (case blend-mode
                   :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
                   (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
                   :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+                (prn :drawing (count vb))
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
-          (when-let [vb (gen-skeleton-vb renderables)]
+          #_(when-let [vb (gen-skeleton-vb renderables)]
             (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
               (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
                 (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
       (= pass pass/selection)
-      (when-let [vb (gen-vb renderables)]
+      nil
+      #_(when-let [vb (gen-vb renderables)]
         (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
