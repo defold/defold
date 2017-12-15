@@ -74,6 +74,7 @@
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
+  (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
 
@@ -547,11 +548,8 @@
                              {:label :separator}
                              {:label "Open Assets..."
                               :command :open-asset}
-                             {:label "Search in Files"
+                             {:label "Search in Files..."
                               :command :search-in-files}
-                             {:label :separator}
-                             {:label "Hot Reload"
-                              :command :hot-reload}
                              {:label :separator}
                              {:label "Close"
                               :command :close}
@@ -559,6 +557,13 @@
                               :command :close-all}
                              {:label "Close Others"
                               :command :close-other}
+                             {:label :separator}
+                             {:label "Referencing Files..."
+                              :command :referencing-files}
+                             {:label "Dependencies..."
+                              :command :dependencies}
+                             {:label "Hot Reload"
+                              :command :hot-reload}
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
@@ -593,6 +598,18 @@
                               :command :move-down}
                              {:label :separator
                               :id ::edit-end}]}
+                 {:label "View"
+                  :id ::view
+                  :children [{:label "Show Console"
+                              :command :show-console}
+                             {:label "Show Curve Editor"
+                              :command :show-curve-editor}
+                             {:label "Show Build Errors"
+                              :command :show-build-errors}
+                             {:label "Show Search Results"
+                              :command :show-search-results}
+                             {:label :separator
+                              :id ::view-end}]}
                  {:label "Help"
                   :children [{:label "Profiler"
                               :children [{:label "Measure"
@@ -623,9 +640,9 @@
                   :command :copy-project-path}
                  {:label "Copy Full Path"
                   :command :copy-full-path}
-                 {:label "Referencing Files"
+                 {:label "Referencing Files..."
                   :command :referencing-files}
-                 {:label "Dependencies"
+                 {:label "Dependencies..."
                   :command :dependencies}
                  {:label "Hot Reload"
                   :command :hot-reload}
@@ -713,12 +730,12 @@
     second
     :resource-node))
 
-(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
+(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
-    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
+    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
       (-> tab-pane
           (.getSelectionModel)
           (.selectedItemProperty)
@@ -921,6 +938,28 @@
   (run [selection app-view prefs workspace project] (when-let [r (context-resource-file app-view selection)]
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
+
+(defn- select-tool-tab! [app-view tab-id]
+  (let [^TabPane tool-tab-pane (g/node-value app-view :tool-tab-pane)
+        tabs (.getTabs tool-tab-pane)
+        tab-index (first (keep-indexed (fn [i ^Tab tab] (when (= tab-id (.getId tab)) i)) tabs))]
+    (if (some? tab-index)
+      (.select (.getSelectionModel tool-tab-pane) ^long tab-index)
+      (throw (ex-info (str "Tab id not found: " tab-id)
+                      {:tab-id tab-id
+                       :tab-ids (mapv #(.getId ^Tab %) tabs)})))))
+
+(handler/defhandler :show-console :global
+  (run [app-view] (select-tool-tab! app-view "console-tab")))
+
+(handler/defhandler :show-curve-editor :global
+  (run [app-view] (select-tool-tab! app-view "curve-editor-tab")))
+
+(handler/defhandler :show-build-errors :global
+  (run [app-view] (select-tool-tab! app-view "build-errors-tab")))
+
+(handler/defhandler :show-search-results :global
+  (run [app-view] (select-tool-tab! app-view "search-results-tab")))
 
 (defn- put-on-clipboard!
   [s]
