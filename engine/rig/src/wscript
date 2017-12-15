@@ -11,7 +11,7 @@ def build(bld):
                            protoc_includes = '../proto',
                            target = 'rig',
                            uselib = 'DDF DLIB PLATFORM_SOCKET',
-                           source = 'rig.cpp ../proto/rig/rig_ddf.proto')
+                           source = 'rig.cpp rig_util.cpp ../proto/rig/rig_ddf.proto')
 
 
     rig_shared = bld.new_task_gen(features = 'cxx cshlib ddf',
@@ -19,7 +19,7 @@ def build(bld):
                                   target = 'rig_shared',
                                   protoc_includes = '../proto',
                                   uselib = 'DDF DLIB PLATFORM_SOCKET',
-                                  source = 'rig.cpp ../proto/rig/rig_ddf.proto')
+                                  source = 'rig.cpp rig_util.cpp ../proto/rig/rig_ddf.proto')
 
     bld.install_files('${PREFIX}/include/rig', 'rig.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/rig/rig_ddf.proto')
