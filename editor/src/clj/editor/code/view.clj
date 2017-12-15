@@ -1522,12 +1522,45 @@
 (defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^SimpleBooleanProperty visible-indentation-guides-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^SimpleBooleanProperty visible-minimap-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^SimpleBooleanProperty visible-whitespace-property (doto (SimpleBooleanProperty.) (.setValue true)))
 
 (defonce ^StringBinding highlighted-find-term-property
   (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
                                   (Bindings/equal (name :replace) bar-ui-type-property)))
       (.then find-term-property)
       (.otherwise "")))
+
+(defn- init-property-and-bind-preference! [^Property property prefs preference default]
+  (.setValue property (prefs/get-prefs prefs preference default))
+  (ui/observe property (fn [_ _ new] (prefs/set-prefs prefs preference new))))
+
+(defn initialize! [prefs]
+  (init-property-and-bind-preference! find-term-property prefs "code-editor-find-term" "")
+  (init-property-and-bind-preference! find-replacement-property prefs "code-editor-find-replacement" "")
+  (init-property-and-bind-preference! find-whole-word-property prefs "code-editor-find-whole-word" false)
+  (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
+  (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true)
+  (init-property-and-bind-preference! visible-indentation-guides-property prefs "code-editor-visible-indentation-guides" true)
+  (init-property-and-bind-preference! visible-minimap-property prefs "code-editor-visible-minimap" true)
+  (init-property-and-bind-preference! visible-whitespace-property prefs "code-editor-visible-whitespace" true))
+
+;; -----------------------------------------------------------------------------
+;; View Settings
+;; -----------------------------------------------------------------------------
+
+(handler/defhandler :toggle-indentation-guides :new-console
+  (run [] (.setValue visible-indentation-guides-property (not (.getValue visible-indentation-guides-property))))
+  (state [] (.getValue visible-indentation-guides-property)))
+
+(handler/defhandler :toggle-minimap :new-console
+  (run [] (.setValue visible-minimap-property (not (.getValue visible-minimap-property))))
+  (state [] (.getValue visible-minimap-property)))
+
+(handler/defhandler :toggle-visible-whitespace :new-console
+  (run [] (.setValue visible-whitespace-property (not (.getValue visible-whitespace-property))))
+  (state [] (.getValue visible-whitespace-property)))
 
 ;; -----------------------------------------------------------------------------
 ;; Go to Line
@@ -1613,17 +1646,6 @@
 ;; -----------------------------------------------------------------------------
 ;; Find & Replace
 ;; -----------------------------------------------------------------------------
-
-(defn- init-property-and-bind-preference! [^Property property prefs preference default]
-  (.setValue property (prefs/get-prefs prefs preference default))
-  (ui/observe property (fn [_ _ new] (prefs/set-prefs prefs preference new))))
-
-(defn initialize! [prefs]
-  (init-property-and-bind-preference! find-term-property prefs "code-editor-find-term" "")
-  (init-property-and-bind-preference! find-replacement-property prefs "code-editor-find-replacement" "")
-  (init-property-and-bind-preference! find-whole-word-property prefs "code-editor-find-whole-word" false)
-  (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
-  (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true))
 
 (defn- setup-find-bar! [^GridPane find-bar view-node]
   (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) bar-ui-type-property))
@@ -1827,7 +1849,11 @@
                  {:command :toggle-breakpoint          :label "Toggle Breakpoint"}])
 
 (ui/extend-menu ::menubar :editor.app-view/view-end
-                [{:command :goto-line                  :label "Go to Line..."}])
+                [{:command :toggle-minimap             :label "Minimap" :check true}
+                 {:command :toggle-indentation-guides  :label "Indentation Guides" :check true}
+                 {:command :toggle-visible-whitespace  :label "Visible Whitespace" :check true}
+                 {:label :separator}
+                 {:command :goto-line                  :label "Go to Line..."}])
 
 ;; -----------------------------------------------------------------------------
 
@@ -1984,9 +2010,9 @@
                                              :suggestions-list-view suggestions-list-view
                                              :suggestions-popup suggestions-popup
                                              :undo-grouping-info undo-grouping-info
-                                             :visible-indentation-guides? true
-                                             :visible-minimap? true
-                                             :visible-whitespace? true))
+                                             :visible-indentation-guides? (.getValue visible-indentation-guides-property)
+                                             :visible-minimap? (.getValue visible-minimap-property)
+                                             :visible-whitespace? (.getValue visible-whitespace-property)))
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
@@ -2041,10 +2067,16 @@
     ;; Highlight occurrences of search term while find bar is open.
     (let [highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
           find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
-          find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)]
+          find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)
+          visible-indentation-guides-setter (make-property-change-setter view-node :visible-indentation-guides?)
+          visible-minimap-setter (make-property-change-setter view-node :visible-minimap?)
+          visible-whitespace-setter (make-property-change-setter view-node :visible-whitespace?)]
       (.addListener highlighted-find-term-property highlighted-find-term-setter)
       (.addListener find-case-sensitive-property find-case-sensitive-setter)
       (.addListener find-whole-word-property find-whole-word-setter)
+      (.addListener visible-indentation-guides-property visible-indentation-guides-setter)
+      (.addListener visible-minimap-property visible-minimap-setter)
+      (.addListener visible-whitespace-property visible-whitespace-setter)
 
       ;; Remove callbacks when our tab is closed.
       (ui/on-closed! tab (fn [_]
@@ -2054,7 +2086,10 @@
                            (dispose-replace-bar! replace-bar)
                            (.removeListener highlighted-find-term-property highlighted-find-term-setter)
                            (.removeListener find-case-sensitive-property find-case-sensitive-setter)
-                           (.removeListener find-whole-word-property find-whole-word-setter))))
+                           (.removeListener find-whole-word-property find-whole-word-setter)
+                           (.removeListener visible-indentation-guides-property visible-indentation-guides-setter)
+                           (.removeListener visible-minimap-property visible-minimap-setter)
+                           (.removeListener visible-whitespace-property visible-whitespace-setter))))
 
     ;; Start repaint timer.
     (ui/timer-start! repainter)
