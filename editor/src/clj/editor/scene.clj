@@ -689,6 +689,7 @@
       (set-camera! camera local-cam end-camera animate?))))
 
 (handler/defhandler :frame-selection :global
+  (active? [app-view] (active-scene-view app-view))
   (enabled? [app-view] (when-let [view (active-scene-view app-view)]
                          (let [selected (g/node-value view :selection)]
                            (not (empty? selected)))))
@@ -696,33 +697,30 @@
                     (frame-selection view true))))
 
 (handler/defhandler :realign-camera :global
-  (enabled? [app-view] (active-scene-view app-view))
+  (active? [app-view] (active-scene-view app-view))
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
-(handler/defhandler :move-whole-pixels :global
+(handler/defhandler :toggle-move-whole-pixels :global
   (active? [app-view] (active-scene-view app-view))
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 
-(ui/extend-menu ::menubar :editor.app-view/edit
-                [{:label "Scene"
-                  :id ::scene
-                  :children [{:label "Play"
-                              :command :scene-play}
-                             {:label "Stop"
-                              :command :scene-stop}
-                             {:label :separator}
-                             {:label "Frame Selection"
-                              :command :frame-selection}
-                             {:label "Realign Camera"
-                              :command :realign-camera}
-                             {:label :separator}
-                             {:label "Move Whole Pixels"
-                              :command :move-whole-pixels
-                              :check true}
-                             {:label :separator
-                              :id ::scene-end}]}])
+(ui/extend-menu ::menubar :editor.app-view/edit-end
+                [{:label "Move Whole Pixels"
+                  :command :toggle-move-whole-pixels
+                  :check true}])
+
+(ui/extend-menu ::menubar :editor.app-view/view-end
+                [{:label "Play"
+                  :command :scene-play}
+                 {:label "Stop"
+                  :command :scene-stop}
+                 {:label :separator}
+                 {:label "Frame Selection"
+                  :command :frame-selection}
+                 {:label "Realign Camera"
+                  :command :realign-camera}])
 
 (defn dispatch-input [input-handlers action user-data]
   (reduce (fn [action [node-id label]]

@@ -1815,8 +1815,6 @@
                  {:command :replace-text               :label "Replace..."}
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
-                 {:command :goto-line                  :label "Go to Line..."}
-                 {:label :separator}
                  {:command :reindent                   :label "Reindent Lines"}
                  {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
@@ -1827,6 +1825,9 @@
                  {:command :split-selection-into-lines :label "Split Selection Into Lines"}
                  {:label :separator}
                  {:command :toggle-breakpoint          :label "Toggle Breakpoint"}])
+
+(ui/extend-menu ::menubar :editor.app-view/view-end
+                [{:command :goto-line                  :label "Go to Line..."}])
 
 ;; -----------------------------------------------------------------------------
 
