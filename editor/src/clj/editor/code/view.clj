@@ -24,7 +24,7 @@
            (java.util Collection)
            (java.util.regex Pattern)
            (javafx.beans.binding Bindings StringBinding)
-           (javafx.beans.property Property SimpleBooleanProperty SimpleStringProperty)
+           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleStringProperty)
            (javafx.beans.value ChangeListener)
            (javafx.geometry HPos Point2D VPos)
            (javafx.scene Node Parent)
@@ -38,6 +38,8 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defonce ^:private default-font-size 12.0)
 
 (defprotocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
@@ -716,7 +718,7 @@
   (property focused? g/Bool (default false) (dynamic visible (g/constantly false)))
 
   (property font-name g/Str (default "Dejavu Sans Mono"))
-  (property font-size g/Num (default 12.0))
+  (property font-size g/Num (default (g/constantly default-font-size)))
   (property line-height-factor g/Num (default 1.0))
   (property indent-string g/Str (default "\t"))
   (property tab-spaces g/Num (default 4))
@@ -1522,6 +1524,7 @@
 (defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^SimpleDoubleProperty font-size-property (doto (SimpleDoubleProperty.) (.setValue default-font-size)))
 (defonce ^SimpleBooleanProperty visible-indentation-guides-property (doto (SimpleBooleanProperty.) (.setValue true)))
 (defonce ^SimpleBooleanProperty visible-minimap-property (doto (SimpleBooleanProperty.) (.setValue true)))
 (defonce ^SimpleBooleanProperty visible-whitespace-property (doto (SimpleBooleanProperty.) (.setValue true)))
@@ -1542,6 +1545,7 @@
   (init-property-and-bind-preference! find-whole-word-property prefs "code-editor-find-whole-word" false)
   (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
   (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true)
+  (init-property-and-bind-preference! font-size-property prefs "code-editor-font-size" default-font-size)
   (init-property-and-bind-preference! visible-indentation-guides-property prefs "code-editor-visible-indentation-guides" true)
   (init-property-and-bind-preference! visible-minimap-property prefs "code-editor-visible-minimap" true)
   (init-property-and-bind-preference! visible-whitespace-property prefs "code-editor-visible-whitespace" true))
@@ -1549,6 +1553,19 @@
 ;; -----------------------------------------------------------------------------
 ;; View Settings
 ;; -----------------------------------------------------------------------------
+
+(handler/defhandler :zoom-out :new-console
+  (enabled? [] (<= 4.0 ^double (.getValue font-size-property)))
+  (run [] (when (<= 4.0 ^double (.getValue font-size-property))
+            (.setValue font-size-property (dec ^double (.getValue font-size-property))))))
+
+(handler/defhandler :zoom-in :new-console
+  (enabled? [] (>= 32.0 ^double (.getValue font-size-property)))
+  (run [] (when (>= 32.0 ^double (.getValue font-size-property))
+            (.setValue font-size-property (inc ^double (.getValue font-size-property))))))
+
+(handler/defhandler :reset-zoom :new-console
+  (run [] (.setValue font-size-property default-font-size)))
 
 (handler/defhandler :toggle-indentation-guides :new-console
   (run [] (.setValue visible-indentation-guides-property (not (.getValue visible-indentation-guides-property))))
@@ -1853,6 +1870,10 @@
                  {:command :toggle-indentation-guides  :label "Indentation Guides" :check true}
                  {:command :toggle-visible-whitespace  :label "Visible Whitespace" :check true}
                  {:label :separator}
+                 {:command :zoom-in                    :label "Increase Font Size"}
+                 {:command :zoom-out                   :label "Decrease Font Size"}
+                 {:command :reset-zoom                 :label "Reset Font Size"}
+                 {:label :separator}
                  {:command :goto-line                  :label "Go to Line..."}])
 
 ;; -----------------------------------------------------------------------------
@@ -2003,6 +2024,7 @@
                                (g/make-node! graph CodeEditorView
                                              :canvas canvas
                                              :color-scheme code-color-scheme
+                                             :font-size (.getValue font-size-property)
                                              :grammar (:grammar opts)
                                              :gutter-view (CodeEditorGutterView.)
                                              :highlighted-find-term (.getValue highlighted-find-term-property)
@@ -2065,15 +2087,17 @@
                     (ui/run-later (.requestFocus canvas)))))
 
     ;; Highlight occurrences of search term while find bar is open.
-    (let [highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
-          find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
+    (let [find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
           find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)
+          font-size-setter (make-property-change-setter view-node :font-size)
+          highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
           visible-indentation-guides-setter (make-property-change-setter view-node :visible-indentation-guides?)
           visible-minimap-setter (make-property-change-setter view-node :visible-minimap?)
           visible-whitespace-setter (make-property-change-setter view-node :visible-whitespace?)]
-      (.addListener highlighted-find-term-property highlighted-find-term-setter)
       (.addListener find-case-sensitive-property find-case-sensitive-setter)
       (.addListener find-whole-word-property find-whole-word-setter)
+      (.addListener font-size-property font-size-setter)
+      (.addListener highlighted-find-term-property highlighted-find-term-setter)
       (.addListener visible-indentation-guides-property visible-indentation-guides-setter)
       (.addListener visible-minimap-property visible-minimap-setter)
       (.addListener visible-whitespace-property visible-whitespace-setter)
@@ -2084,9 +2108,10 @@
                            (dispose-goto-line-bar! goto-line-bar)
                            (dispose-find-bar! find-bar)
                            (dispose-replace-bar! replace-bar)
-                           (.removeListener highlighted-find-term-property highlighted-find-term-setter)
                            (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                            (.removeListener find-whole-word-property find-whole-word-setter)
+                           (.removeListener font-size-property font-size-setter)
+                           (.removeListener highlighted-find-term-property highlighted-find-term-setter)
                            (.removeListener visible-indentation-guides-property visible-indentation-guides-setter)
                            (.removeListener visible-minimap-property visible-minimap-setter)
                            (.removeListener visible-whitespace-property visible-whitespace-setter))))
