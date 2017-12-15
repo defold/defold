@@ -44,4 +44,25 @@ namespace dmRig
         return rig_instance;
     }
 
+    bool InstanceDestroy(HRigContext context, HRigInstance instance)
+    {
+        assert(context);
+        assert(instance);
+
+        delete instance->m_PoseIdxToInfluence;
+        delete instance->m_TrackIdxToPose;
+        delete instance->m_BindPose;
+
+        InstanceDestroyParams destroy_params;
+        destroy_params.m_Context = context;
+        destroy_params.m_Instance = instance;
+        Result r = InstanceDestroy(destroy_params);
+        if (r != RESULT_OK)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
 }

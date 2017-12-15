@@ -1740,5 +1740,7 @@ namespace dmRig
 
     DM_RIG_TRAMPOLINE7(void*, GenerateVertexData, HRigContext, HRigInstance, const Matrix4&, const Matrix4&, const Vector4, RigVertexFormat, void*);
     DM_RIG_TRAMPOLINE1(uint32_t, GetVertexCount, HRigInstance);
+
     DM_RIG_TRAMPOLINE6(HRigInstance, InstanceCreate, HRigContext, dmRigDDF::Skeleton*, const dmRigDDF::MeshSet*, const dmRigDDF::AnimationSet*, dmhash_t, dmhash_t);
+    DM_RIG_TRAMPOLINE2(bool, InstanceDestroy, HRigContext, HRigInstance);
 }
