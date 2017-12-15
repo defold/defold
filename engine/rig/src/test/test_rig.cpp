@@ -1828,12 +1828,7 @@ TEST_F(RigInstanceTest, MultipleRigInfluences2)
     ASSERT_VERT_NORM(n_up, data[2]); // v2
 
     // Cleanup after second rig instance
-    dmRig::InstanceDestroyParams destroy_params = {0};
-    destroy_params.m_Context = m_Context;
-    destroy_params.m_Instance = second_instance;
-    if (dmRig::RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
-        dmLogError("Could not delete second rig instance!");
-    }
+    ASSERT_TRUE(InstanceDestroy(m_Context, second_instance));
     DeleteRigData(mesh_set, skeleton, animation_set);
 }
 

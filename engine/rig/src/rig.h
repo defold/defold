@@ -338,7 +338,7 @@ namespace dmRig
     // FIXME
     // HRigInstance InstanceCreate(HRigContext context, dmRigDDF::Skeleton* skeleton, const dmRigDDF::MeshSet* mesh_set, const dmRigDDF::AnimationSet* animation_set, dmhash_t mesh_id, dmhash_t default_animation);
     DM_RIG_PROTO(HRigInstance, InstanceCreate, HRigContext context, dmRigDDF::Skeleton* skeleton, const dmRigDDF::MeshSet* mesh_set, const dmRigDDF::AnimationSet* animation_set, dmhash_t mesh_id, dmhash_t default_animation);
-    // Result InstanceDestroy(const InstanceDestroyParams& params);
+    DM_RIG_PROTO(bool, InstanceDestroy, HRigContext context, HRigInstance instance);
 }
 
 #endif // DM_RIG_H
