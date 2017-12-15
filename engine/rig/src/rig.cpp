@@ -1733,6 +1733,12 @@ namespace dmRig
         return name(a1, a2, a3, a4, a5, a6, a7);\
     }\
 
+#define DM_RIG_TRAMPOLINE9(ret, name, t1, t2, t3, t4, t5, t6, t7, t8, t9) \
+    ret Rig_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8, t9 a9)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6, a7, a8, a9);\
+    }\
+
 
     DM_RIG_TRAMPOLINE1(Result, NewContext, const NewContextParams&);
     DM_RIG_TRAMPOLINE1(void, DeleteContext, HRigContext);
@@ -1741,7 +1747,8 @@ namespace dmRig
     DM_RIG_TRAMPOLINE7(void*, GenerateVertexData, HRigContext, HRigInstance, const Matrix4&, const Matrix4&, const Vector4, RigVertexFormat, void*);
     DM_RIG_TRAMPOLINE1(uint32_t, GetVertexCount, HRigInstance);
 
-    DM_RIG_TRAMPOLINE6(HRigInstance, InstanceCreate, HRigContext, dmRigDDF::Skeleton*, const dmRigDDF::MeshSet*, const dmRigDDF::AnimationSet*, dmhash_t, dmhash_t);
+    // DM_RIG_TRAMPOLINE6(HRigInstance, InstanceCreate, HRigContext, dmRigDDF::Skeleton*, const dmRigDDF::MeshSet*, const dmRigDDF::AnimationSet*, dmhash_t, dmhash_t);
+    DM_RIG_TRAMPOLINE9(HRigInstance, InstanceCreate, HRigContext, const void*, uint32_t, const void*, uint32_t, const void*, uint32_t, dmhash_t, dmhash_t);
     DM_RIG_TRAMPOLINE2(bool, InstanceDestroy, HRigContext, HRigInstance);
 
     DM_RIG_TRAMPOLINE1(float*, GetPoseMatrices, HRigInstance);
