@@ -42,6 +42,11 @@ public class RigLibrary {
         public static final int RIG_MODEL = 2;
     }
 
+    public static interface RigVertexFormat {
+        public static final int RIG_VERTEX_FORMAT_SPINE = 0;
+        public static final int RIG_VERTEX_FORMAT_MODEL = 1;
+    }
+
     public static class NewContextParams extends Structure {
         public PointerByReference context;
         public int maxRigInstanceCount;
@@ -58,33 +63,10 @@ public class RigLibrary {
 
     public static native int Rig_NewContext(NewContextParams params);
     public static native void Rig_DeleteContext(Pointer context);
+    public static native int Rig_Update(Pointer context, float dt);
 
-
-    public static class Vector3 extends Structure {
-
-        public Vector3() {
-        }
-
-        public Vector3(float x, float y, float z) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
-
-        public Vector3(Pointer position) {
-            super(position);
-        }
-
-        public float x;
-        public float y;
-        public float z;
-        public float pad;
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("x", "y", "z", "pad");
-        }
-    }
+    public static native Buffer Rig_GenerateVertexData(Pointer context, Pointer instance, Matrix4 modelMatrix, Matrix4 normal_matrix, Vector4 color, int vertexFormat, Buffer vertexDataOut);
+    public static native int Rig_GetVertexCount(Pointer instance);
 
     public static class Vector4 extends Structure {
 
@@ -100,29 +82,6 @@ public class RigLibrary {
 
         public Vector4(Pointer position) {
             super(position);
-        }
-
-        public float x;
-        public float y;
-        public float z;
-        public float w;
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("x", "y", "z", "w");
-        }
-    }
-
-    public static class Quat extends Structure {
-
-        public Quat() {
-        }
-
-        public Quat(float x, float y, float z, float w) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.w = w;
         }
 
         public float x;
