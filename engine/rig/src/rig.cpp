@@ -1743,4 +1743,7 @@ namespace dmRig
 
     DM_RIG_TRAMPOLINE6(HRigInstance, InstanceCreate, HRigContext, dmRigDDF::Skeleton*, const dmRigDDF::MeshSet*, const dmRigDDF::AnimationSet*, dmhash_t, dmhash_t);
     DM_RIG_TRAMPOLINE2(bool, InstanceDestroy, HRigContext, HRigInstance);
+
+    DM_RIG_TRAMPOLINE1(float*, GetPoseMatrices, HRigInstance);
+    DM_RIG_TRAMPOLINE1(void, ReleasePoseMatrices, float*);
 }
