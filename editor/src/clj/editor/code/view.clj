@@ -46,7 +46,7 @@
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
 (defn- cursor-range-draw-info [type fill stroke cursor-range]
-  (assert (case type (:range :word) true false))
+  (assert (case type (:range :underline :word) true false))
   (assert (or (nil? fill) (instance? Paint fill)))
   (assert (or (nil? stroke) (instance? Paint stroke)))
   (assert (instance? CursorRange cursor-range))
@@ -112,7 +112,7 @@
      ["editor.gutter.cursor.line.background" (Color/valueOf "#393C41")]
      ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
-     ["editor.matching.brace.outline" (Color/valueOf "#A2B0BE")]
+     ["editor.matching.brace" (Color/valueOf "#A2B0BE")]
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
      ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
@@ -190,7 +190,8 @@
               (assert (= 1 (count rects)))
               (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [^Rect r rects]
-               (.fillRect gc (.x r) (.y r) (.w r) (.h r))))))
+               (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
+      :underline nil)))
 
 (defn- stroke-opaque-polyline! [^GraphicsContext gc xs ys]
   ;; The strokePolyLine method slows down considerably when the shape covers a large
@@ -216,7 +217,12 @@
               (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [polyline (cursor-range-outline rects)]
                (let [[xs ys] polyline]
-                 (stroke-opaque-polyline! gc (double-array xs) (double-array ys)))))))
+                 (stroke-opaque-polyline! gc (double-array (drop 2 xs)) (double-array (drop 2 ys)))))
+      :underline (doseq [^Rect r rects]
+                   (let [sx (.x r)
+                         ex (+ sx (.w r))
+                         y (+ (.y r) (.h r))]
+                     (.strokeLine gc sx y ex y))))))
 
 (defn- draw-cursor-ranges! [^GraphicsContext gc layout lines cursor-range-draw-infos]
   (let [draw-calls (mapv (fn [^CursorRangeDrawInfo draw-info]
@@ -248,8 +254,7 @@
         (recur lines (dec row))))))
 
 (defn- find-prior-indentation-guide-positions [^LayoutInfo layout lines]
-  (let [dropped-line-count (.dropped-line-count layout)
-        drawn-line-count (.drawn-line-count layout)]
+  (let [dropped-line-count (.dropped-line-count layout)]
     (loop [row (find-prior-unindented-row lines dropped-line-count)
            guide-positions []]
       (let [line (get lines row)]
@@ -589,7 +594,7 @@
         tab-trigger-word-outline-color (color-lookup color-scheme "editor.tab.trigger.word.outline")
         find-term-occurrence-color (color-lookup color-scheme "editor.find.term.occurrence")
         gutter-breakpoint-color (color-lookup color-scheme "editor.gutter.breakpoint")
-        matching-brace-outline-color (color-lookup color-scheme "editor.matching.brace.outline")
+        matching-brace-color (color-lookup color-scheme "editor.matching.brace")
         active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
                                                    (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
@@ -602,7 +607,7 @@
              visible-cursor-ranges)
         (map (partial cursor-range-draw-info :range nil gutter-breakpoint-color)
              (visible-regions-by-type :breakpoint))
-        (map (partial cursor-range-draw-info :range nil matching-brace-outline-color)
+        (map (partial cursor-range-draw-info :underline nil matching-brace-color)
              visible-matching-braces)
         (cond
           (seq active-tab-trigger-scope-ids)
