@@ -66,6 +66,10 @@
               (.order ByteOrder/LITTLE_ENDIAN))]
     (->VertexBuffer vertex-description usage buf 0)))
 
+(defn make-overlay-vertex-buffer
+  [vertex-description ^ByteBuffer buf usage]
+  (->VertexBuffer vertex-description usage buf 0))
+
 
 ;; vertex description
 
