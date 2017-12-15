@@ -334,6 +334,11 @@ namespace dmRig
     // used in rig tests and loading rig resources.
     void CreateBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose);
     void FillBoneListArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence);
+
+    // FIXME
+    // HRigInstance InstanceCreate(HRigContext context, dmRigDDF::Skeleton* skeleton, const dmRigDDF::MeshSet* mesh_set, const dmRigDDF::AnimationSet* animation_set, dmhash_t mesh_id, dmhash_t default_animation);
+    DM_RIG_PROTO(HRigInstance, InstanceCreate, HRigContext context, dmRigDDF::Skeleton* skeleton, const dmRigDDF::MeshSet* mesh_set, const dmRigDDF::AnimationSet* animation_set, dmhash_t mesh_id, dmhash_t default_animation);
+    // Result InstanceDestroy(const InstanceDestroyParams& params);
 }
 
 #endif // DM_RIG_H
