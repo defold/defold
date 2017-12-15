@@ -68,6 +68,9 @@ public class RigLibrary {
     public static native Buffer Rig_GenerateVertexData(Pointer context, Pointer instance, Matrix4 modelMatrix, Matrix4 normal_matrix, Vector4 color, int vertexFormat, Buffer vertexDataOut);
     public static native int Rig_GetVertexCount(Pointer instance);
 
+    public static native Pointer Rig_InstanceCreate(Pointer context, Buffer skeleton, int skeletonSize, Buffer meshSet, int meshSetSize, Buffer animationSet, int animationSetSize, long meshId, long defaultAnimation);
+    public static native boolean Rig_InstanceDestroy(Pointer context, Pointer instance);
+
     public static class Vector4 extends Structure {
 
         public Vector4() {
@@ -124,6 +127,10 @@ public class RigLibrary {
             return m;
         }
 
+        // public static Matrix4 fromMatrix4d(Matrix4d m) {
+            
+        // }
+        
         public float m00;
         public float m10;
         public float m20;
