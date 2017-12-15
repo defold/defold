@@ -1777,60 +1777,60 @@ TEST_F(RigInstanceTest, MultipleRigInfluences)
 
 
 // FIXME document
-TEST_F(RigInstanceTest, MultipleRigInfluences2)
-{
-    // We need to setup a separate rig instance than m_Instance, but without any animation set.
-    dmRig::HRigInstance second_instance = 0x0;
+// TEST_F(RigInstanceTest, MultipleRigInfluences2)
+// {
+//     // We need to setup a separate rig instance than m_Instance, but without any animation set.
+//     dmRig::HRigInstance second_instance = 0x0;
 
-    dmRigDDF::Skeleton* skeleton     = new dmRigDDF::Skeleton();
-    dmRigDDF::MeshSet* mesh_set      = new dmRigDDF::MeshSet();
-    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+//     dmRigDDF::Skeleton* skeleton     = new dmRigDDF::Skeleton();
+//     dmRigDDF::MeshSet* mesh_set      = new dmRigDDF::MeshSet();
+//     dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
 
-    dmArray<dmRig::RigBone> bind_pose;
-    dmArray<uint32_t>       pose_to_influence;
-    dmArray<uint32_t>       track_idx_to_pose;
-    SetUpSimpleRig(bind_pose, skeleton, mesh_set, animation_set, pose_to_influence, track_idx_to_pose);
+//     dmArray<dmRig::RigBone> bind_pose;
+//     dmArray<uint32_t>       pose_to_influence;
+//     dmArray<uint32_t>       track_idx_to_pose;
+//     SetUpSimpleRig(bind_pose, skeleton, mesh_set, animation_set, pose_to_influence, track_idx_to_pose);
 
-    // Second rig instance data
-    second_instance = dmRig::InstanceCreate(m_Context, skeleton, mesh_set, animation_set, dmHashString64((const char*)"test"), 0x0);
-    ASSERT_NE((void*)0x0, second_instance);
+//     // Second rig instance data
+//     second_instance = dmRig::InstanceCreate(m_Context, skeleton, mesh_set, animation_set, dmHashString64((const char*)"test"), 0x0);
+//     ASSERT_NE((void*)0x0, second_instance);
 
-    // Play animation on first rig instance.
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+//     // Play animation on first rig instance.
+//     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+//     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
 
-    dmRig::RigModelVertex data[4];
-    dmRig::RigModelVertex* data_end = data + 4;
+//     dmRig::RigModelVertex data[4];
+//     dmRig::RigModelVertex* data_end = data + 4;
 
-    // Comparison values
-    Vector3 n_up(0.0f, 1.0f, 0.0f);
-    Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);
+//     // Comparison values
+//     Vector3 n_up(0.0f, 1.0f, 0.0f);
+//     Vector3 n_neg_right(-1.0f, 0.0f, 0.0f);
 
-    // sample 0 - Both rigs are in their bind pose.
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
-    ASSERT_VERT_NORM(n_up, data[0]);
-    ASSERT_VERT_NORM(n_up, data[1]);
-    ASSERT_VERT_NORM(n_up, data[2]);
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
-    ASSERT_VERT_NORM(n_up, data[0]);
-    ASSERT_VERT_NORM(n_up, data[1]);
-    ASSERT_VERT_NORM(n_up, data[2]);
+//     // sample 0 - Both rigs are in their bind pose.
+//     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+//     ASSERT_VERT_NORM(n_up, data[0]);
+//     ASSERT_VERT_NORM(n_up, data[1]);
+//     ASSERT_VERT_NORM(n_up, data[2]);
+//     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+//     ASSERT_VERT_NORM(n_up, data[0]);
+//     ASSERT_VERT_NORM(n_up, data[1]);
+//     ASSERT_VERT_NORM(n_up, data[2]);
 
-    // sample 1 - First rig instance should be animating, while the second one should still be in its bind pose.
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
-    ASSERT_VERT_NORM(n_up,        data[0]); // v0
-    ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
-    ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
-    ASSERT_VERT_NORM(n_up, data[0]); // v0
-    ASSERT_VERT_NORM(n_up, data[1]); // v1
-    ASSERT_VERT_NORM(n_up, data[2]); // v2
+//     // sample 1 - First rig instance should be animating, while the second one should still be in its bind pose.
+//     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+//     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+//     ASSERT_VERT_NORM(n_up,        data[0]); // v0
+//     ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
+//     ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
+//     ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, second_instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)data));
+//     ASSERT_VERT_NORM(n_up, data[0]); // v0
+//     ASSERT_VERT_NORM(n_up, data[1]); // v1
+//     ASSERT_VERT_NORM(n_up, data[2]); // v2
 
-    // Cleanup after second rig instance
-    ASSERT_TRUE(InstanceDestroy(m_Context, second_instance));
-    DeleteRigData(mesh_set, skeleton, animation_set);
-}
+//     // Cleanup after second rig instance
+//     ASSERT_TRUE(InstanceDestroy(m_Context, second_instance));
+//     DeleteRigData(mesh_set, skeleton, animation_set);
+// }
 
 TEST_F(RigInstanceTest, AnimatedDrawOrder)
 {

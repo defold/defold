@@ -336,7 +336,7 @@ namespace dmRig
     void FillBoneListArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence);
 
     // FIXME - Functions specific for Ed2 preivew
-    DM_RIG_PROTO(HRigInstance, InstanceCreate, HRigContext context, dmRigDDF::Skeleton* skeleton, const dmRigDDF::MeshSet* mesh_set, const dmRigDDF::AnimationSet* animation_set, dmhash_t mesh_id, dmhash_t default_animation);
+    DM_RIG_PROTO(HRigInstance, InstanceCreate, HRigContext context, const void* buffer_skeleton, uint32_t buffer_skeleton_size, const void* buffer_meshset, uint32_t buffer_meshset_size, const void* buffer_animationset, uint32_t buffer_animationset_size, dmhash_t mesh_id, dmhash_t default_animation);
     DM_RIG_PROTO(bool, InstanceDestroy, HRigContext context, HRigInstance instance);
     DM_RIG_PROTO(float*, GetPoseMatrices, HRigInstance instance);
     DM_RIG_PROTO(void, ReleasePoseMatrices, float* matrices);
