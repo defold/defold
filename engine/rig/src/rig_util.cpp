@@ -112,44 +112,38 @@ namespace dmRig
         return true;
     }
 
-    float* GetPoseMatrices(HRigInstance instance)
+    Matrix4* GetPoseMatrices(HRigContext context, HRigInstance instance)
     {
         assert(instance);
+        assert(instance->m_Skeleton);
 
         const uint32_t bone_count = instance->m_Skeleton->m_Bones.m_Count;
-        const uint32_t pose_matrices_size = bone_count * 4 * 4;
-        float* pose_matrices = new float[pose_matrices_size];
 
-        for (int i = 0; i < bone_count; ++i)
-        {
-            dmTransform::Transform bone_trans = instance->m_Pose[i];
-            Vectormath::Aos::Matrix4 bone_matrix = dmTransform::ToMatrix4(bone_trans);
-            pose_matrices[i*4*4+ 0] = bone_matrix.getCol0().getX();
-            pose_matrices[i*4*4+ 1] = bone_matrix.getCol0().getY();
-            pose_matrices[i*4*4+ 2] = bone_matrix.getCol0().getZ();
-            pose_matrices[i*4*4+ 3] = bone_matrix.getCol0().getW();
+        Matrix4* pose_matrices = new Matrix4[bone_count];
+        dmArray<Matrix4> pose_matrices_array(pose_matrices, bone_count, bone_count);
 
-            pose_matrices[i*4*4+ 4] = bone_matrix.getCol1().getX();
-            pose_matrices[i*4*4+ 5] = bone_matrix.getCol1().getY();
-            pose_matrices[i*4*4+ 6] = bone_matrix.getCol1().getZ();
-            pose_matrices[i*4*4+ 7] = bone_matrix.getCol1().getW();
+        const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
+        const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
+        if (skeleton->m_LocalBoneScaling) {
 
-            pose_matrices[i*4*4+ 8] = bone_matrix.getCol2().getX();
-            pose_matrices[i*4*4+ 9] = bone_matrix.getCol2().getY();
-            pose_matrices[i*4*4+10] = bone_matrix.getCol2().getZ();
-            pose_matrices[i*4*4+11] = bone_matrix.getCol2().getW();
+            dmArray<dmTransform::Transform>& pose_transforms = context->m_ScratchPoseTransformBuffer;
+            if (pose_transforms.Capacity() < bone_count) {
+                pose_transforms.OffsetCapacity(bone_count - pose_transforms.Capacity());
+            }
+            pose_transforms.SetSize(bone_count);
 
-            pose_matrices[i*4*4+12] = bone_matrix.getCol3().getX();
-            pose_matrices[i*4*4+13] = bone_matrix.getCol3().getY();
-            pose_matrices[i*4*4+14] = bone_matrix.getCol3().getZ();
-            pose_matrices[i*4*4+15] = bone_matrix.getCol3().getW();
+            PoseToModelSpace(skeleton, pose, pose_transforms);
+            PoseToMatrix(pose_transforms, pose_matrices_array);
+        } else {
+            PoseToMatrix(pose, pose_matrices_array);
+            PoseToModelSpace(skeleton, pose_matrices_array, pose_matrices_array);
         }
 
         return pose_matrices;
     }
 
 
-    void ReleasePoseMatrices(float* matrices)
+    void ReleasePoseMatrices(Matrix4* matrices)
     {
         assert(matrices);
 

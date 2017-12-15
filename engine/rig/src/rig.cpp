@@ -1192,7 +1192,7 @@ namespace dmRig
         return out_buffer;
     }
 
-    static void PoseToMatrix(const dmArray<dmTransform::Transform>& pose, dmArray<Matrix4>& out_matrices)
+    void PoseToMatrix(const dmArray<dmTransform::Transform>& pose, dmArray<Matrix4>& out_matrices)
     {
         uint32_t bone_count = pose.Size();
         for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -1201,7 +1201,7 @@ namespace dmRig
         }
     }
 
-    static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<dmTransform::Transform>& pose, dmArray<dmTransform::Transform>& out_pose)
+    void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<dmTransform::Transform>& pose, dmArray<dmTransform::Transform>& out_pose)
     {
         const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
@@ -1226,7 +1226,7 @@ namespace dmRig
         }
     }
 
-    static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<Matrix4>& pose, dmArray<Matrix4>& out_pose)
+    void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<Matrix4>& pose, dmArray<Matrix4>& out_pose)
     {
         const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
@@ -1751,6 +1751,6 @@ namespace dmRig
     DM_RIG_TRAMPOLINE9(HRigInstance, InstanceCreate, HRigContext, const void*, uint32_t, const void*, uint32_t, const void*, uint32_t, dmhash_t, dmhash_t);
     DM_RIG_TRAMPOLINE2(bool, InstanceDestroy, HRigContext, HRigInstance);
 
-    DM_RIG_TRAMPOLINE1(float*, GetPoseMatrices, HRigInstance);
-    DM_RIG_TRAMPOLINE1(void, ReleasePoseMatrices, float*);
+    DM_RIG_TRAMPOLINE2(Matrix4*, GetPoseMatrices, HRigContext, HRigInstance);
+    DM_RIG_TRAMPOLINE1(void, ReleasePoseMatrices, Matrix4*);
 }
