@@ -7,7 +7,7 @@
    [editor.gl.shader :as shader])
   (:import
    (com.dynamo.rig.proto Rig$RigScene Rig$Skeleton Rig$AnimationSet Rig$MeshSet)
-   (com.defold.libs RigLibrary RigLibrary$Result RigLibrary$NewContextParams RigLibrary$Matrix4 RigLibrary$Vector4 RigLibrary$RigVertexFormat)
+   (com.defold.libs RigLibrary RigLibrary$Result RigLibrary$NewContextParams RigLibrary$Matrix4 RigLibrary$Vector4 RigLibrary$RigVertexFormat RigLibrary$RigPlayback)
    (com.sun.jna Memory Pointer)
    (com.sun.jna.ptr IntByReference)
    (com.jogamp.common.nio Buffers)
@@ -79,13 +79,19 @@
 (defn- generate-vertex-data!
   [context instance model normal color format]
   (let [vcount (vertex-count instance)
+        ;; TODO how can vcount vary? realloc on demand?
         buf (Buffers/newDirectByteBuffer (int (* vcount (* 6 4))))]
     (RigLibrary/Rig_GenerateVertexData context instance
                                        model normal color format
                                        buf)
     buf))
 
-
+(defn- play-animation!
+  [instance animation-id playback blend-duration offset playback-rate]
+  #_(prn :play-animation! instance animation-id)
+  (let [ret (RigLibrary/Rig_PlayAnimation instance animation-id playback blend-duration offset playback-rate)]
+    (when-not (= ret RigLibrary$Result/RESULT_OK)
+      (throw (Exception. "Rig_PlayAnimation")))))
 
 
 (defn- proto-map->buf
@@ -93,35 +99,38 @@
   (ByteBuffer/wrap (protobuf/map->bytes cls m)))
 
 (defn make-rig-player
-  [{:keys [skeleton animation-set mesh-set] :as rig-scene}]
+  [{:keys [skeleton animation-set mesh-set] :as rig-scene} default-animation]
   (let [skeleton-buf (proto-map->buf Rig$Skeleton skeleton)
         mesh-set-buf (proto-map->buf Rig$MeshSet mesh-set)
         animation-set-buf (proto-map->buf Rig$AnimationSet animation-set)
         mesh-id (-> mesh-set :mesh-entries first :id)
-        default-animation (-> animation-set :animations first :id)
         context (create-context! 1)
         instance (create-instance! context skeleton-buf mesh-set-buf animation-set-buf mesh-id default-animation)]
+    (play-animation! instance default-animation RigLibrary$RigPlayback/PLAYBACK_LOOP_FORWARD 1.0 0.0 1.0)
     {:context context
      :instance instance}))
 
 (defn update-rig-player
   [rig-player dt]
-  (update-context! (:context rig-player) dt))
+  (update-context! (:context rig-player) dt)
+  rig-player)
 
 (defn vertex-data!
-  [rig-player]
-  (let [{:keys [context instance]} rig-player
-        model (identity-matrix)
+  [rig-player ^Matrix4d world-transform]
+  (let [{:keys [context instance buf]} rig-player
+        model (RigLibrary$Matrix4/fromMatrix4d world-transform)
         normal (identity-matrix)
         color (vector4 1.0)
         format RigLibrary$RigVertexFormat/RIG_VERTEX_FORMAT_SPINE]
+    #_(prn :generate-vertex-data rig-player)
     (generate-vertex-data! context instance model normal color format)))
 
 (defn destroy-rig-player
   [rig-player]
   (let [{:keys [context instance]} rig-player]
     (destroy-instance! context instance)
-    (delete-context! context)))
+    (delete-context! context)
+    nil))
 
 (comment
 

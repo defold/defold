@@ -306,9 +306,12 @@ namespace dmRig
     Result InstanceCreate(const InstanceCreateParams& params);
     Result InstanceDestroy(const InstanceDestroyParams& params);
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
-    Result CancelAnimation(HRigInstance instance);
-    dmhash_t GetAnimation(HRigInstance instance);
+    //Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
+    DM_RIG_PROTO(Result, PlayAnimation, HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
+    //Result CancelAnimation(HRigInstance instance);
+    DM_RIG_PROTO(Result, CancelAnimation, HRigInstance instance);
+    //dmhash_t GetAnimation(HRigInstance instance);
+    DM_RIG_PROTO(dmhash_t, GetAnimation, HRigInstance instance);
 
     //void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
     DM_RIG_PROTO(void*, GenerateVertexData, HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
