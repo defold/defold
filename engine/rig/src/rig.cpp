@@ -1751,6 +1751,10 @@ namespace dmRig
     DM_RIG_TRAMPOLINE9(HRigInstance, InstanceCreate, HRigContext, const void*, uint32_t, const void*, uint32_t, const void*, uint32_t, dmhash_t, dmhash_t);
     DM_RIG_TRAMPOLINE2(bool, InstanceDestroy, HRigContext, HRigInstance);
 
+    DM_RIG_TRAMPOLINE6(Result, PlayAnimation, HRigInstance, dmhash_t, RigPlayback, float, float, float);
+    DM_RIG_TRAMPOLINE1(Result, CancelAnimation, HRigInstance);
+    DM_RIG_TRAMPOLINE1(dmhash_t, GetAnimation, HRigInstance);
+
     DM_RIG_TRAMPOLINE2(Matrix4*, GetPoseMatrices, HRigContext, HRigInstance);
     DM_RIG_TRAMPOLINE1(void, ReleasePoseMatrices, Matrix4*);
 }

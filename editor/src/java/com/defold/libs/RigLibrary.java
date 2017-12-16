@@ -42,6 +42,17 @@ public class RigLibrary {
         public static final int RIG_MODEL = 2;
     }
 
+    public static interface RigPlayback {
+        public static final int PLAYBACK_NONE          = 0;
+        public static final int PLAYBACK_ONCE_FORWARD  = 1;
+        public static final int PLAYBACK_ONCE_BACKWARD = 2;
+        public static final int PLAYBACK_ONCE_PINGPONG = 3;
+        public static final int PLAYBACK_LOOP_FORWARD  = 4;
+        public static final int PLAYBACK_LOOP_BACKWARD = 5;
+        public static final int PLAYBACK_LOOP_PINGPONG = 6;
+        public static final int PLAYBACK_COUNT = 7;
+    }
+
     public static interface RigVertexFormat {
         public static final int RIG_VERTEX_FORMAT_SPINE = 0;
         public static final int RIG_VERTEX_FORMAT_MODEL = 1;
@@ -71,9 +82,20 @@ public class RigLibrary {
     public static native Pointer Rig_InstanceCreate(Pointer context, Buffer skeleton, int skeletonSize, Buffer meshSet, int meshSetSize, Buffer animationSet, int animationSetSize, long meshId, long defaultAnimation);
     public static native boolean Rig_InstanceDestroy(Pointer context, Pointer instance);
 
+    public static native int Rig_PlayAnimation(Pointer instance, long animationId, int playback, float blendDuration, float offset, float playbackRate);
+    public static native int Rig_CancelAnimation(Pointer instance);
+    public static native int Rig_GetAnimation(Pointer instance);
+
     public static class Vector4 extends Structure {
 
         public Vector4() {
+        }
+
+        public Vector4(float v) {
+            this.x = v;
+            this.y = v;
+            this.z = v;
+            this.w = v;
         }
 
         public Vector4(float x, float y, float z, float w) {
@@ -127,10 +149,27 @@ public class RigLibrary {
             return m;
         }
 
-        // public static Matrix4 fromMatrix4d(Matrix4d m) {
-            
-        // }
-        
+        public static Matrix4 fromMatrix4d(Matrix4d src) {
+            Matrix4 m = new Matrix4();
+            m.m00 = (float)src.m00;
+            m.m10 = (float)src.m10;
+            m.m20 = (float)src.m20;
+            m.m30 = (float)src.m30;
+            m.m01 = (float)src.m01;
+            m.m11 = (float)src.m11;
+            m.m21 = (float)src.m21;
+            m.m31 = (float)src.m31;
+            m.m02 = (float)src.m02;
+            m.m12 = (float)src.m12;
+            m.m22 = (float)src.m22;
+            m.m32 = (float)src.m32;
+            m.m03 = (float)src.m03;
+            m.m13 = (float)src.m13;
+            m.m23 = (float)src.m23;
+            m.m33 = (float)src.m33;
+            return m;
+        }
+
         public float m00;
         public float m10;
         public float m20;
@@ -147,6 +186,7 @@ public class RigLibrary {
         public float m13;
         public float m23;
         public float m33;
+
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("m00", "m10", "m20", "m30", "m01", "m11", "m21", "m31", "m02", "m12", "m22", "m32", "m03", "m13", "m23", "m33");

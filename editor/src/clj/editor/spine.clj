@@ -17,6 +17,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.scene-cache :as scene-cache]
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
@@ -666,16 +667,23 @@
   (vec4.ubyte color true))
 
 
-(defn gen-vb [renderables]
+
+
+
+(defn gen-vb [^GL2 gl renderables]
   (let [renderable (first renderables)
-        {:keys [spine-scene-pb]} (:user-data renderable)]
+        {:keys [spine-scene-pb default-animation]} (:user-data renderable)]
     (when spine-scene-pb
-      (let [rig-player (rig-lib/make-rig-player spine-scene-pb)
-            _ (rig-lib/update-rig-player rig-player 0.0167)
-            buf (rig-lib/vertex-data! rig-player)
-            _ (rig-lib/destroy-rig-player rig-player)
+      (let [default-animation (if default-animation
+                                (murmur/hash64 default-animation)
+                                (-> spine-scene-pb :animation-set :animations first :id))
+            {:keys [node-id world-transform]} renderable
+            _ (prn :gen-vb :request node-id (hash spine-scene-pb) default-animation)
+            rig-player (scene-cache/request-object! ::rig-player [node-id] nil {:rig-scene spine-scene-pb
+                                                                                :default-animation default-animation})
+            buf (rig-lib/vertex-data! rig-player world-transform)
             vbuf (vtx2/make-overlay-vertex-buffer vtx-pos-tex-col buf :static)]
-        (vtx2/flip! vbuf)))))
+        vbuf))))
 
 (def color [1.0 1.0 1.0 1.0])
 
@@ -709,7 +717,7 @@
       (render/render-aabb-outline gl render-args ::spine-outline renderables rcount)
 
       (= pass pass/transparent)
-      (do (when-let [vb (gen-vb renderables)]
+      (do (when-let [vb (gen-vb gl renderables)]
             (let [user-data (:user-data (first renderables))
                   blend-mode (:blend-mode user-data)
                   gpu-texture (:gpu-texture user-data)
@@ -720,7 +728,6 @@
                   :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
                   (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
                   :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-                (prn :drawing (count vb))
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
           #_(when-let [vb (gen-skeleton-vb renderables)]
@@ -729,9 +736,8 @@
                 (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
 
       (= pass pass/selection)
-      nil
-      #_(when-let [vb (gen-vb renderables)]
-        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
+      (when-let [vb (gen-vb gl renderables)]
+        (let [vertex-binding (vtx2/use-with ::spine-selection vb render/shader-tex-tint)]
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
@@ -881,6 +887,16 @@
                     :dep-resources dep-resources}
         :deps dep-build-targets}])))
 
+(g/defnk produce-updatable
+  [_node-id rig-scene default-animation]
+  {:node-id _node-id
+   :name ""
+   :update-fn (fn [state {:keys [node-id dt]}]
+                (let [rig-player (scene-cache/request-object! ::rig-player [node-id] nil {:rig-scene rig-scene
+                                                                                          :default-animation (murmur/hash64 default-animation)})]
+                  (rig-lib/update-rig-player rig-player (double dt))))
+   :initial-state {}})
+
 (g/defnode SpineModelNode
   (inherits resource-node/ResourceNode)
 
@@ -890,6 +906,7 @@
                    (project/resource-setter self old-value new-value
                                             [:resource :spine-scene-resource]
                                             [:scene :spine-scene-scene]
+                                            [:spine-scene-pb :rig-scene]
                                             [:spine-anim-ids :spine-anim-ids]
                                             [:aabb :aabb]
                                             [:build-targets :dep-build-targets]
@@ -925,6 +942,7 @@
   (input dep-build-targets g/Any :array)
   (input spine-scene-resource resource/Resource)
   (input spine-scene-scene g/Any)
+  (input rig-scene g/Any)
   (input scene-structure g/Any)
   (input spine-anim-ids g/Any)
   (input aabb AABB)
@@ -939,13 +957,17 @@
                                  default-tex-params)))
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (output scene g/Any :cached (g/fnk [spine-scene-scene material-shader tex-params skin]
+  (output updatable g/Any #_:cached produce-updatable)
+  (output scene g/Any :cached (g/fnk [_node-id spine-scene-scene material-shader tex-params default-animation skin updatable]
                                 (when (some? material-shader)
                                   (if (:renderable spine-scene-scene)
                                     (-> spine-scene-scene
+                                        (assoc :node-id _node-id)
                                         (assoc-in [:renderable :user-data :shader] material-shader)
                                         (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
-                                        (assoc-in [:renderable :user-data :skin] skin))
+                                        (assoc-in [:renderable :user-data :default-animation] default-animation)
+                                        (assoc-in [:renderable :user-data :skin] skin)
+                                        (assoc :updatable updatable))
                                     spine-scene-scene))))
   (output model-pb g/Any :cached produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
@@ -1083,3 +1105,27 @@
           tx-data)))))
 
 (json/register-json-loader ::spine-scene accept-spine-scene-json load-spine-scene-json)
+
+;;--------------------------------------------------------------------
+;; TODO move
+
+(defn- make-rig-player
+  [^GL2 gl {:keys [rig-scene default-animation]}]
+  (prn :make-rig-player)
+  (-> (rig-lib/make-rig-player rig-scene default-animation)
+      (rig-lib/update-rig-player 0.0)))
+
+(defn- update-rig-player
+  [^GL2 gl rig-player {:keys [rig-scene default-animation] :as params}]
+  (prn :update-rig-player rig-player)
+  (rig-lib/destroy-rig-player rig-player)
+  (make-rig-player gl params))
+
+(defn- destroy-rig-players
+  [^GL2 gl rig-players _]
+  (prn :destroy-rig-players )
+  (doseq [rig-player rig-players]
+    (prn :destroy-rig-player rig-player)
+    (rig-lib/destroy-rig-player rig-player)))
+
+(scene-cache/register-object-cache! ::rig-player make-rig-player update-rig-player destroy-rig-players)
