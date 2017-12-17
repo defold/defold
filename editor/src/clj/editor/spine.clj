@@ -11,8 +11,7 @@
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
-            [editor.gl.vertex :as vtx]
-            [editor.gl.vertex2 :as vtx2]
+            [editor.gl.vertex2 :as vtx]
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -661,12 +660,6 @@
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
     (map (partial get verts) (:indices mesh))))
 
-(vtx2/defvertex vtx-pos-tex-col
-  (vec3 position)
-  (vec2 texcoord0)
-  (vec4.ubyte color true))
-
-
 
 
 
@@ -674,15 +667,10 @@
   (let [renderable (first renderables)
         {:keys [spine-scene-pb default-animation]} (:user-data renderable)]
     (when spine-scene-pb
-      (let [default-animation (if default-animation
-                                (murmur/hash64 default-animation)
-                                (-> spine-scene-pb :animation-set :animations first :id))
-            {:keys [node-id world-transform]} renderable
-            _ (prn :gen-vb :request node-id (hash spine-scene-pb) default-animation)
-            rig-player (scene-cache/request-object! ::rig-player [node-id] nil {:rig-scene spine-scene-pb
-                                                                                :default-animation default-animation})
+      (let [{:keys [node-id world-transform]} renderable
+            rig-player (rig-lib/request-rig-player node-id spine-scene-pb default-animation)
             buf (rig-lib/vertex-data! rig-player world-transform)
-            vbuf (vtx2/make-overlay-vertex-buffer vtx-pos-tex-col buf :static)]
+            vbuf (vtx/make-overlay-vertex-buffer rig-lib/spine-vertex-format buf :static)]
         vbuf))))
 
 (def color [1.0 1.0 1.0 1.0])
@@ -698,7 +686,7 @@
              vs)]
     (reduce (fn [vs bone] (skeleton-vs pos bone vs wt)) vs (:children bone))))
 
-(defn- gen-skeleton-vb [renderables]
+#_(defn- gen-skeleton-vb [renderables]
   (let [vs (loop [renderables renderables
                   vs []]
              (if-let [r (first renderables)]
@@ -722,7 +710,7 @@
                   blend-mode (:blend-mode user-data)
                   gpu-texture (:gpu-texture user-data)
                   shader (get user-data :shader render/shader-tex-tint)
-                  vertex-binding (vtx2/use-with ::spine-trans vb shader)]
+                  vertex-binding (vtx/use-with ::spine-trans vb shader)]
               (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
                 (case blend-mode
                   :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
@@ -730,18 +718,20 @@
                   :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
-          #_(when-let [vb (gen-skeleton-vb renderables)]
-            (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
-              (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
-                (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
+          (let [renderable (first renderables)
+                {:keys [spine-scene-pb default-animation]} (:user-data renderable)]
+            (when spine-scene-pb
+              (let [{:keys [node-id world-transform]} renderable
+                    rig-player (rig-lib/request-rig-player node-id spine-scene-pb default-animation)]
+                (rig-lib/draw-bones! gl render-args rig-player)))))
 
       (= pass pass/selection)
       (when-let [vb (gen-vb gl renderables)]
-        (let [vertex-binding (vtx2/use-with ::spine-selection vb render/shader-tex-tint)]
+        (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
-(g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
+(g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure spine-anim-ids]
   (let [scene {:node-id _node-id
                :aabb aabb}]
     (if (and gpu-texture scene-structure)
@@ -753,7 +743,8 @@
                                               :scene-structure scene-structure
                                               :gpu-texture gpu-texture
                                               :tex-params default-tex-params
-                                              :blend-mode blend-mode}
+                                              :blend-mode blend-mode
+                                              :default-animation (first spine-anim-ids)}
                                   :passes [pass/transparent pass/selection pass/outline]}))
       scene)))
 
@@ -889,13 +880,7 @@
 
 (g/defnk produce-updatable
   [_node-id rig-scene default-animation]
-  {:node-id _node-id
-   :name ""
-   :update-fn (fn [state {:keys [node-id dt]}]
-                (let [rig-player (scene-cache/request-object! ::rig-player [node-id] nil {:rig-scene rig-scene
-                                                                                          :default-animation (murmur/hash64 default-animation)})]
-                  (rig-lib/update-rig-player rig-player (double dt))))
-   :initial-state {}})
+  (rig-lib/make-updatable _node-id rig-scene default-animation))
 
 (g/defnode SpineModelNode
   (inherits resource-node/ResourceNode)
@@ -1105,27 +1090,3 @@
           tx-data)))))
 
 (json/register-json-loader ::spine-scene accept-spine-scene-json load-spine-scene-json)
-
-;;--------------------------------------------------------------------
-;; TODO move
-
-(defn- make-rig-player
-  [^GL2 gl {:keys [rig-scene default-animation]}]
-  (prn :make-rig-player)
-  (-> (rig-lib/make-rig-player rig-scene default-animation)
-      (rig-lib/update-rig-player 0.0)))
-
-(defn- update-rig-player
-  [^GL2 gl rig-player {:keys [rig-scene default-animation] :as params}]
-  (prn :update-rig-player rig-player)
-  (rig-lib/destroy-rig-player rig-player)
-  (make-rig-player gl params))
-
-(defn- destroy-rig-players
-  [^GL2 gl rig-players _]
-  (prn :destroy-rig-players )
-  (doseq [rig-player rig-players]
-    (prn :destroy-rig-player rig-player)
-    (rig-lib/destroy-rig-player rig-player)))
-
-(scene-cache/register-object-cache! ::rig-player make-rig-player update-rig-player destroy-rig-players)

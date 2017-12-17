@@ -86,6 +86,9 @@ public class RigLibrary {
     public static native int Rig_CancelAnimation(Pointer instance);
     public static native int Rig_GetAnimation(Pointer instance);
 
+    public static native Matrix4 Rig_GetPoseMatrices(Pointer context, Pointer instance);
+    public static native void Rig_ReleasePoseMatrices(Pointer matrices);
+
     public static class Vector4 extends Structure {
 
         public Vector4() {
