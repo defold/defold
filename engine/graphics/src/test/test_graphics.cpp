@@ -297,6 +297,9 @@ TEST_F(dmGraphicsTest, Drawing)
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
     dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DisableVertexDeclaration(m_Context, vd);
+
+    dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
     dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 

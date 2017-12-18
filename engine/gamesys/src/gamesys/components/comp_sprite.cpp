@@ -86,9 +86,10 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        if(sprite_context->m_MaxSpriteCount >= 65536)
+        if(sprite_context->m_MaxSpriteCount > 16384)
         {
-            dmLogError("Max sprite count (%d) exceeds max value (65535).", sprite_context->m_MaxSpriteCount);
+            // We use 4 vertices per sprite and use 16bit index buffers, so max sprite count is 65536/4
+            dmLogError("Max sprite count (%d) exceeds max value (16384).", sprite_context->m_MaxSpriteCount);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
