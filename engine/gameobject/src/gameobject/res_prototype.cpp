@@ -44,7 +44,7 @@ namespace dmGameObject
             dmResource::Result res = dmResource::Get(factory, list[i], &resource);
             if(res != dmResource::RESULT_OK)
             {
-                dmLogError("Could not load gameobject prototype component property resource '%s'", list[i]);
+                dmLogError("Could not load gameobject prototype component property resource '%s' (%d)", list[i], res);
                 UnloadPropertyResources(factory, property_resources);
                 return res;
             }

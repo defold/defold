@@ -86,7 +86,7 @@ namespace dmGameSystem
      * How to set sprite textureset from a go textureset resource property
      *
      * ```lua
-     * go.property("mytextureset", textureset("/main/texture.atlas")
+     * go.property("mytextureset", textureset("/main/texture.atlas"))
      * function init(self)
      *   go.set("#sprite", "textureset", self.mytextureset)
      * end
@@ -105,7 +105,7 @@ namespace dmGameSystem
      * How to set sprite texture for unit 0 from a go texture resource property
      *
      * ```lua
-     * go.property("mytexture", texture("/main/texture.png")
+     * go.property("mytexture", texture("/main/texture.png"))
      * function init(self)
      *   go.set("#sprite", "texture0", self.mytexture)
      * end
@@ -124,7 +124,7 @@ namespace dmGameSystem
      * How to set sprite material from a go material resource property
      *
      * ```lua
-     * go.property("mymaterial", material("/main/material.material")
+     * go.property("mymaterial", material("/main/material.material"))
      * function init(self)
      *   go.set("#sprite", "material", self.mymaterial)
      * end

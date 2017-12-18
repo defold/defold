@@ -265,7 +265,7 @@ static void ValidateGetSetProperty(dmGameObject::HInstance go, dmhash_t hash_com
     ASSERT_EQ(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
 }
 
-// Test getting and setting texture0 properties on components.
+// Test getting and setting texture[0-8] properties on components.
 TEST_P(TexturePropTest, GetSetTextureProperty)
 {
     const ResourcePropParams& p =  GetParam();

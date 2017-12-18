@@ -142,7 +142,7 @@ namespace dmGameSystem
      * How to set spinemodel texture for unit 0 from a go texture resource property
      *
      * ```lua
-     * go.property("mytexture", texture("/main/texture.png")
+     * go.property("mytexture", texture("/main/texture.png"))
      * function init(self)
      *   go.set("#spinemodel", "texture0", self.mytexture)
      * end
@@ -161,7 +161,7 @@ namespace dmGameSystem
      * How to set spinemodel material from a go material resource property
      *
      * ```lua
-     * go.property("mymaterial", material("/main/material.material")
+     * go.property("mymaterial", material("/main/material.material"))
      * function init(self)
      *   go.set("#spinemodel", "material", self.mymaterial)
      * end

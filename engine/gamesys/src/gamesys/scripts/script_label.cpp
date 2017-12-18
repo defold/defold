@@ -139,7 +139,7 @@ namespace dmGameSystem
  * How to set label material from a go material resource property
  *
  * ```lua
- * go.property("mymaterial", material("/main/material.material")
+ * go.property("mymaterial", material("/main/material.material"))
  * function init(self)
  *   go.set("#label", "material", self.mymaterial)
  * end

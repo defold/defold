@@ -66,7 +66,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
                 PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
                 PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
                 PropertiesTestUtil.assertBoolean(properties, true, 0);
-                org.junit.Assert.assertEquals(3, properties.getResourceEntriesCount());
+                Assert.assertEquals(3, properties.getResourceEntriesCount());
                 PropertiesTestUtil.assertResource(properties, "textureset", 0);
                 PropertiesTestUtil.assertResource(properties, "texture", 1);
                 PropertiesTestUtil.assertResource(properties, "material", 2);

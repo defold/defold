@@ -115,7 +115,7 @@ namespace dmGameSystem
      * How to set model texture for unit 0 from a go texture resource property
      *
      * ```lua
-     * go.property("mytexture", texture("/main/texture.png")
+     * go.property("mytexture", texture("/main/texture.png"))
      * function init(self)
      *   go.set("#model", "texture0", self.mytexture)
      * end
@@ -134,7 +134,7 @@ namespace dmGameSystem
      * How to set model material from a go material resource property
      *
      * ```lua
-     * go.property("mymaterial", material("/main/material.material")
+     * go.property("mymaterial", material("/main/material.material"))
      * function init(self)
      *   go.set("#model", "material", self.mymaterial)
      * end
