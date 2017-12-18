@@ -367,7 +367,7 @@ namespace dmGraphics
                 */
     }
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
@@ -377,7 +377,7 @@ namespace dmGraphics
         }
 
         IndexBuffer* ib = (IndexBuffer*) index_buffer;
-        context->m_Ctx3d->drawTriangles(ib->m_IB, 0, count / 3);
+        context->m_Ctx3d->drawTriangles(ib->m_IB, first, count / 3);
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
