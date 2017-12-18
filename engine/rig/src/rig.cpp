@@ -121,15 +121,18 @@ namespace dmRig
         RigPlayer* player = SwitchPlayer(instance);
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
-        SetCursor(instance, offset, true);
-        SetPlaybackRate(instance, playback_rate);
         player->m_Playing = 1;
         player->m_Playback = playback;
 
-        if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD)
+        if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD) {
             player->m_Backwards = 1;
-        else
+            offset = 1.0f - dmMath::Clamp(offset, 0.0f, 1.0f);
+        } else {
             player->m_Backwards = 0;
+        }
+
+        SetCursor(instance, offset, true);
+        SetPlaybackRate(instance, playback_rate);
 
         UpdateMeshProperties(instance);
 
