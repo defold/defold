@@ -1046,7 +1046,7 @@ static void LogFrameBufferError(GLenum status)
 
     uint32_t g_DrawCallsHash = dmHashString32("DrawCalls");
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
@@ -1056,7 +1056,7 @@ static void LogFrameBufferError(GLenum status)
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR
 
-        glDrawElements(prim_type, count, type, 0);
+        glDrawElements(prim_type, count, type, (GLvoid*)(uintptr_t) first);
         CHECK_GL_ERROR
     }
 
