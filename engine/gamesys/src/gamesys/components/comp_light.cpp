@@ -64,7 +64,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         LightWorld* light_world = (LightWorld*) params.m_World;
         const uint32_t data_size = sizeof(dmGameSystemDDF::SetLight) + 9;

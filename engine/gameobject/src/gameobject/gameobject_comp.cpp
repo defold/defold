@@ -27,7 +27,6 @@ namespace dmGameObject
         script_component.m_InstanceHasUserData = true;
         script_component.m_UpdateOrderPrio = 200;
         script_component.m_ReadsTransforms = 1;
-        script_component.m_WritesTransforms = 1;
         Result result = RegisterComponentType(regist, script_component);
         if (result != dmGameObject::RESULT_OK)
             return result;
@@ -39,7 +38,6 @@ namespace dmGameObject
         anim_component.m_DeleteWorldFunction = &CompAnimDeleteWorld;
         anim_component.m_AddToUpdateFunction = &CompAnimAddToUpdate;
         anim_component.m_ReadsTransforms = 1;
-        anim_component.m_WritesTransforms = 1;
         anim_component.m_UpdateFunction = &CompAnimUpdate;
         anim_component.m_UpdateOrderPrio = 250;
         return RegisterComponentType(regist, anim_component);

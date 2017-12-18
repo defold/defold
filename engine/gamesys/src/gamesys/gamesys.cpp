@@ -146,7 +146,10 @@ namespace dmGameSystem
         dmResource::Result factory_result;
         dmGameObject::Result go_result;
 
-#define REGISTER_COMPONENT_TYPE(extension, prio, context, new_world_func, delete_world_func, create_func, destroy_func, init_func, final_func, add_to_update_func, update_func, render_func, post_update_func, on_message_func, on_input_func, on_reload_func, get_property_func, set_property_func, set_reads_transforms, set_writes_transforms)\
+#define REGISTER_COMPONENT_TYPE(extension, prio, context, new_world_func, delete_world_func, \
+                                create_func, destroy_func, init_func, final_func, add_to_update_func, \
+                                update_func, render_func, post_update_func, on_message_func, on_input_func, \
+                                on_reload_func, get_property_func, set_property_func, set_reads_transforms)\
     factory_result = dmResource::GetTypeFromExtension(factory, extension, &type);\
     if (factory_result != dmResource::RESULT_OK)\
     {\
@@ -173,7 +176,6 @@ namespace dmGameSystem
     component_type.m_GetPropertyFunction = get_property_func;\
     component_type.m_SetPropertyFunction = set_property_func;\
     component_type.m_ReadsTransforms = set_reads_transforms;\
-    component_type.m_WritesTransforms = set_writes_transforms;\
     component_type.m_InstanceHasUserData = (uint32_t)true;\
     component_type.m_UpdateOrderPrio = prio;\
     go_result = dmGameObject::RegisterComponentType(regist, component_type);\
@@ -188,95 +190,96 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("collectionproxyc", 100, collection_proxy_context,
                 &CompCollectionProxyNewWorld, &CompCollectionProxyDeleteWorld,
                 &CompCollectionProxyCreate, &CompCollectionProxyDestroy, 0, 0,
-                &CompCollectionProxyAddToUpdate, &CompCollectionProxyUpdate, &CompCollectionProxyRender, &CompCollectionProxyPostUpdate,
-                &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput, 0, 0, 0,
-                0, 0);
+                &CompCollectionProxyAddToUpdate, &CompCollectionProxyUpdate, &CompCollectionProxyRender, &CompCollectionProxyPostUpdate, &CompCollectionProxyOnMessage, &CompCollectionProxyOnInput, 0, 0, 0,
+                0);
 
-        // Priority 200 is reserved for script
+        // See gameobject_comp.cpp for these two component types:
+        // Priority 200 is reserved for scriptc (read+write transforms)
+        // Priority 250 is reserved for animc (read+write transforms)
 
         REGISTER_COMPONENT_TYPE("guic", 300, gui_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal, CompGuiAddToUpdate,
                 CompGuiUpdate, CompGuiRender, 0, CompGuiOnMessage, CompGuiOnInput, CompGuiOnReload, 0, 0,
-                0, 0);
+                0);
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate,
                 &CompCollisionObjectUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0, &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
-                1, 1);
+                1);
 
         REGISTER_COMPONENT_TYPE("camerac", 500, render_context,
                 &CompCameraNewWorld, &CompCameraDeleteWorld,
                 &CompCameraCreate, &CompCameraDestroy, 0, 0, &CompCameraAddToUpdate,
                 &CompCameraUpdate, 0, 0, &CompCameraOnMessage, 0, &CompCameraOnReload, 0, 0,
-                1, 0);
+                1);
 
         REGISTER_COMPONENT_TYPE("soundc", 600, 0x0,
                 CompSoundNewWorld, CompSoundDeleteWorld,
                 CompSoundCreate, CompSoundDestroy, 0, 0, CompSoundAddToUpdate,
                 CompSoundUpdate, 0, 0, CompSoundOnMessage, 0, 0, 0, 0,
-                0, 0);
+                0);
 
         REGISTER_COMPONENT_TYPE("modelc", 700, model_context,
                 CompModelNewWorld, CompModelDeleteWorld,
                 CompModelCreate, CompModelDestroy, 0, 0, CompModelAddToUpdate,
                 CompModelUpdate, CompModelRender, 0, CompModelOnMessage, 0, 0, CompModelGetProperty, CompModelSetProperty,
-                0, 0);
+                0);
 
         REGISTER_COMPONENT_TYPE("emitterc", 750, 0x0,
                 &CompEmitterNewWorld, &CompEmitterDeleteWorld,
                 &CompEmitterCreate, &CompEmitterDestroy, 0, 0, 0,
                 0, 0, 0, CompEmitterOnMessage, 0, 0, 0, 0,
-                0, 0);
+                0);
 
         REGISTER_COMPONENT_TYPE("particlefxc", 800, particlefx_context,
                 &CompParticleFXNewWorld, &CompParticleFXDeleteWorld,
                 &CompParticleFXCreate, &CompParticleFXDestroy, 0, 0, &CompParticleFXAddToUpdate,
                 &CompParticleFXUpdate, &CompParticleFXRender, 0, &CompParticleFXOnMessage, 0, &CompParticleFXOnReload, 0, 0,
-                1, 0);
+                1);
 
         REGISTER_COMPONENT_TYPE("factoryc", 900, factory_context,
                 CompFactoryNewWorld, CompFactoryDeleteWorld,
                 CompFactoryCreate, CompFactoryDestroy, 0, 0,
                 CompFactoryAddToUpdate, CompFactoryUpdate,
-                0, 0, CompFactoryOnMessage, 0, 0, 0, 0, 0, 0);
+                0, 0, CompFactoryOnMessage, 0, 0, 0, 0, 0);
 
         REGISTER_COMPONENT_TYPE("collectionfactoryc", 950, collectionfactory_context,
                 CompCollectionFactoryNewWorld, CompCollectionFactoryDeleteWorld,
                 CompCollectionFactoryCreate, CompCollectionFactoryDestroy, 0, 0,
                 CompCollectionFactoryAddToUpdate, CompCollectionFactoryUpdate,
-                0, 0, 0, 0, 0, 0, 0, 0, 0);
+                0, 0, 0, 0, 0, 0, 0, 0);
 
         REGISTER_COMPONENT_TYPE("lightc", 1000, render_context,
                 CompLightNewWorld, CompLightDeleteWorld,
                 CompLightCreate, CompLightDestroy, 0, 0, CompLightAddToUpdate,
                 CompLightUpdate, 0, 0, CompLightOnMessage, 0, 0, 0, 0,
-                1, 0);
+                1);
 
         REGISTER_COMPONENT_TYPE("spritec", 1100, sprite_context,
                 CompSpriteNewWorld, CompSpriteDeleteWorld,
                 CompSpriteCreate, CompSpriteDestroy, 0, 0, CompSpriteAddToUpdate,
                 CompSpriteUpdate, CompSpriteRender, 0, CompSpriteOnMessage, 0, CompSpriteOnReload, CompSpriteGetProperty, CompSpriteSetProperty,
-                1, 0);
+                1);
 
         REGISTER_COMPONENT_TYPE(TILE_MAP_EXT, 1200, render_context,
                 CompTileGridNewWorld, CompTileGridDeleteWorld,
                 CompTileGridCreate, CompTileGridDestroy, 0, 0, CompTileGridAddToUpdate,
                 CompTileGridUpdate, CompTileGridRender, 0, CompTileGridOnMessage, 0, CompTileGridOnReload, CompTileGridGetProperty, CompTileGridSetProperty,
-                1, 0);
+                1);
 
         REGISTER_COMPONENT_TYPE(SPINE_MODEL_EXT, 1300, spine_model_context,
                 CompSpineModelNewWorld, CompSpineModelDeleteWorld,
                 CompSpineModelCreate, CompSpineModelDestroy, 0, 0, CompSpineModelAddToUpdate,
                 CompSpineModelUpdate, CompSpineModelRender, 0, CompSpineModelOnMessage, 0, CompSpineModelOnReload, CompSpineModelGetProperty, CompSpineModelSetProperty,
-                1, 1);
+                1);
 
         REGISTER_COMPONENT_TYPE("labelc", 1400, label_context,
                 CompLabelNewWorld, CompLabelDeleteWorld,
                 CompLabelCreate, CompLabelDestroy, 0, 0, CompLabelAddToUpdate,
                 CompLabelUpdate, CompLabelRender, 0, CompLabelOnMessage, 0, CompLabelOnReload, CompLabelGetProperty, CompLabelSetProperty,
-                1, 0);
+                1);
 
         #undef REGISTER_COMPONENT_TYPE
 
