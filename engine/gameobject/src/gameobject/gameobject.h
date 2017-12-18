@@ -1088,6 +1088,13 @@ namespace dmGameObject
      * @return The rig context of the specified collection
      */
     dmRig::HRigContext GetRigContext(HCollection collection);
+ 
+    /**
+     * Returns whether the scale of the instances in a collection should be applied along Z or not.
+     * @param collection Collection
+     * @return if the scale should be applied along Z
+     */
+    bool ScaleAlongZ(HCollection collection);
 
     /**
      * Returns whether the scale of the instances in a collection should be applied along Z or not.
