@@ -152,7 +152,7 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
-    UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params)
+    UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         DM_PROFILE(Animation, "Update");
         
@@ -379,6 +379,7 @@ namespace dmGameObject
         }
         world->m_InUpdate = 0;
         world->m_StoppedAnimations.SetSize(0);
+        update_result.m_TransformsUpdated = orig_size != 0;
         return result;
     }
 

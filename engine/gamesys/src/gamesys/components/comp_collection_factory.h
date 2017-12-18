@@ -43,7 +43,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollectionFactoryAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
-    dmGameObject::UpdateResult CompCollectionFactoryUpdate(const dmGameObject::ComponentsUpdateParams& params);
+    dmGameObject::UpdateResult CompCollectionFactoryUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
     bool CompCollectionFactoryLoad(dmGameObject::HCollection collection, CollectionFactoryComponent* component);
 
