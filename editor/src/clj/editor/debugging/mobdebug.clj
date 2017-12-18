@@ -83,8 +83,17 @@
 ;; data decoding
 
 (def ^:private lua-readers
-  {'lua/table (fn [{:keys [tostring data]}]
-                (with-meta data {:tostring tostring}))})
+  {'lua/number (fn [v]
+                 (if (number? v)
+                   v
+                   (case v
+                     :nan  Double/NaN
+                     :-inf Double/NEGATIVE_INFINITY
+                     :+inf Double/POSITIVE_INFINITY)))
+   'lua/table (fn [{:keys [tostring data]}]
+                (with-meta data {:tostring tostring}))
+   'lua/ref   (fn [{:keys [tostring]}]
+                (format "Circular reference to: %s" tostring))})
 
 (defn- decode-serialized-data
   [^String s]

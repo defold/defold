@@ -179,22 +179,35 @@
   [^TreeView debugger-variables]
   (doto debugger-variables
     (.setShowRoot false)
-    (ui/cell-factory! (fn [[name value]]
-                        (let [value (if (map? value)
-                                      (-> value meta :tostring)
-                                      (str value))]
-                          {:graphic (doto (HBox.)
-                                      (ui/fill-control)
-                                      (ui/children! [(Label. name)
-                                                     (doto (Label. "=")
-                                                       (ui/add-style! "equals"))
-                                                     (Label. value)]))})))))
+    (ui/cell-factory! (fn [{:keys [display-name display-value]}]
+                        {:graphic (doto (HBox.)
+                                    (ui/fill-control)
+                                    (ui/children! [(Label. display-name)
+                                                   (doto (Label. "=")
+                                                     (ui/add-style! "equals"))
+                                                   (Label. display-value)]))}))))
+
+(defn- variable-sort-value
+  [[k v]]
+  (if (map? k)
+    (-> k meta :tostring)
+    k))
+
+(defn- lua-str
+  [v]
+  (if (map? v)
+    (-> v meta :tostring)
+    (str v)))
 
 (defn- make-variable-tree-item
-  [[name value :as variable]]
-  (let [tree-item (TreeItem. variable)]
+  [[name value]]
+  (let [variable {:name name
+                  :display-name (lua-str name)
+                  :value value
+                  :display-value (lua-str value)}
+        tree-item (TreeItem. variable)]
     (when (and (map? value) (seq value))
-      (.. tree-item getChildren (addAll (mapv make-variable-tree-item (sort-by key value)))))
+      (.. tree-item getChildren (addAll (mapv make-variable-tree-item (sort-by variable-sort-value value)))))
     tree-item))
 
 (defn- make-variables-tree-item
