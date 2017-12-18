@@ -128,8 +128,13 @@
 
 (defn- make-debugger-snapshot
   [workspace]
-  (let [root (io/file (system/defold-unpack-path) "_defold/debugger")
-        mount-root (io/file (system/defold-unpack-path) "")
+  (let [base-path (if (system/defold-dev?)
+                    ;; Use local debugger support files so we can see
+                    ;; changes to them instantly without re-packing/restarting.
+                    (.getAbsolutePath (io/file "bundle-resources"))
+                    (system/defold-unpack-path))
+        root (io/file base-path "_defold/debugger")
+        mount-root (io/file base-path)
         resources (resource/children (make-file-tree workspace mount-root root))
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
