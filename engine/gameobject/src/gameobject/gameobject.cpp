@@ -1731,6 +1731,11 @@ namespace dmGameObject
         return instance->m_ScaleAlongZ != 0;
     }
 
+    bool ScaleAlongZ(HCollection collection)
+    {
+        return collection->m_ScaleAlongZ != 0;
+    }
+
     void SetInheritScale(HInstance instance, bool inherit_scale)
     {
         instance->m_NoInheritScale = !inherit_scale;
