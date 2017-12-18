@@ -372,11 +372,13 @@
      ["editor.selection.occurrence.outline" (if code-integration/use-new-code-editor? (Color/valueOf "#A2B0BE") Color/TRANSPARENT)]]))
 
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
-  (let [canvas (Canvas.)
-        ^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
+  (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
+        canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
         view-node (setup-view! (g/make-node! graph ConsoleNode)
                                (g/make-node! graph view/CodeEditorView
                                              :canvas canvas
+                                             :canvas-width (.getWidth canvas)
+                                             :canvas-height (.getHeight canvas)
                                              :color-scheme console-color-scheme
                                              :grammar console-grammar
                                              :gutter-view (ConsoleGutterView.)
