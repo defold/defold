@@ -6,9 +6,16 @@
 
 (defonce ^:private object-caches (atom {}))
 
-(defn register-object-cache! [cache-id make-fn update-fn destroy-batch-fn]
-  (swap! object-caches conj [cache-id {:caches {} :make-fn make-fn :update-fn update-fn :destroy-batch-fn destroy-batch-fn}])
-  nil)
+(defn- default-valid-fn
+  [old new]
+  (= old new))
+
+(defn register-object-cache!
+  ([cache-id make-fn update-fn destroy-batch-fn]
+   (register-object-cache! cache-id make-fn update-fn destroy-batch-fn default-valid-fn))
+  ([cache-id make-fn update-fn destroy-batch-fn valid-fn]
+   (swap! object-caches conj [cache-id {:caches {} :make-fn make-fn :update-fn update-fn :destroy-batch-fn destroy-batch-fn :valid-fn valid-fn}])
+   nil))
 
 (defn- dump-cache [cache]
   (prn "Cache dump" (count cache))
@@ -21,11 +28,12 @@
         cache (or (get-in cache-meta [:caches context])
                   (vcache/volatile-cache-factory {}))
         new-cache (if (cache/has? cache request-id)
-                    (let [[object old-data] (cache/lookup cache request-id)]
-                      (if (not= data old-data)
+                    (let [[object old-data] (cache/lookup cache request-id)
+                          valid-fn (:valid-fn cache-meta)]
+                      (if (valid-fn old-data data)
+                        (cache/hit cache request-id)
                         (let [update-fn (:update-fn cache-meta)]
-                          (cache/miss cache request-id [(update-fn context object data) data]))
-                        (cache/hit cache request-id)))
+                          (cache/miss cache request-id [(update-fn context object data) data]))))
                     (cache/miss cache request-id [(make-fn context data) data]))]
     (swap! object-caches update-in [cache-id :caches] assoc context new-cache)
     (first (cache/lookup new-cache request-id))))

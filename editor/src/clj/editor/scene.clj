@@ -279,7 +279,7 @@
 (defn- render-sort [renderables]
   (sort-by :render-key renderables))
 
-(defn generic-render-args [viewport camera]
+(defn generic-render-args [viewport camera view-id]
   (let [view (c/camera-view-matrix camera)
         proj (c/camera-projection-matrix camera)
         view-proj (doto (Matrix4d. proj) (.mul view))
@@ -288,7 +288,8 @@
         texture (doto (Matrix4d.) (.setIdentity))
         normal (doto (math/affine-inverse world-view) (.transpose))]
     {:camera camera :viewport viewport :view view :projection proj :view-proj view-proj :world world
-     :world-view world-view :texture texture :normal normal}))
+     :world-view world-view :texture texture :normal normal
+     :view-id view-id}))
 
 (defn- assoc-updatable-states
   [renderables updatable-states]
@@ -393,12 +394,12 @@
     {:renderables sorted-renderables-by-pass
      :selected-renderables selected-renderables}))
 
-(g/defnk produce-render-args [^Region viewport camera all-renderables frame-version]
+(g/defnk produce-render-args [_node-id ^Region viewport camera all-renderables frame-version]
   (let [current-frame-version (if frame-version (swap! frame-version inc) 0)]
-    (-> (generic-render-args viewport camera)
-      (assoc
-        :renderables all-renderables
-        :frame-version current-frame-version))))
+    (-> (generic-render-args viewport camera _node-id)
+        (assoc
+          :renderables all-renderables
+          :frame-version current-frame-version))))
 
 (g/defnode SceneRenderer
   (property frame-version g/Any)
@@ -512,10 +513,10 @@
       true (assoc :node-id node-id)
       children (update :children (partial mapv (partial map-scene child-f))))))
 
-(g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
+(g/defnk produce-selection [_node-id renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
   (or (and picking-rect
         (with-drawable-as-current drawable
-          (let [render-args (generic-render-args viewport camera)]
+          (let [render-args (generic-render-args viewport camera _node-id)]
             (into []
                   (comp (mapcat (fn [pass]
                                   (let [render-args (assoc render-args :pass pass)]
@@ -528,10 +529,10 @@
                   pass/selection-passes))))
       []))
 
-(g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
+(g/defnk produce-tool-selection [_node-id tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
   (or (and tool-picking-rect
         (with-drawable-as-current drawable
-          (let [render-args (generic-render-args viewport camera)
+          (let [render-args (generic-render-args viewport camera _node-id)
                 tool-renderables (apply merge-with into tool-renderables)
                 passes [pass/manipulator-selection pass/overlay-selection]]
             (flatten
@@ -589,9 +590,10 @@
         (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
           (.dispose copier gl)
           (g/set-property! node-id :async-copier nil))
-      (scene-cache/drop-context! gl false)
-      (.destroy drawable)
-      (g/set-property! node-id :drawable nil)))))
+        (scene-cache/drop-context! node-id true)
+        (scene-cache/drop-context! gl false)
+        (.destroy drawable)
+        (g/set-property! node-id :drawable nil)))))
 
 (defn- ^Vector3d screen->world [camera viewport ^Vector3d screen-pos] ^Vector3d
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
@@ -731,13 +733,14 @@
           action input-handlers))
 
 (defn- update-updatables
-  [updatable-states play-mode active-updatables]
+  [updatable-states view-id play-mode active-updatables]
   (let [dt 1/60 ; fixed dt for deterministic playback
         context {:dt (if (= play-mode :playing) dt 0)}]
     (reduce (fn [ret {:keys [update-fn node-id world-transform initial-state]}]
               (let [context (assoc context
-                              :world-transform world-transform
-                              :node-id node-id)
+                                   :world-transform world-transform
+                                   :node-id node-id
+                                   :view-id view-id)
                     state (get-in updatable-states [node-id] initial-state)]
                 (assoc ret node-id (update-fn state context))))
             {}
@@ -764,14 +767,15 @@
             (dispatch-input input-handlers action @tool-user-data))))
       (profiler/profile "updatables" -1
         (when (seq active-updatables)
-          (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables)))
+          (g/update-property! view-id :updatable-states update-updatables view-id play-mode active-updatables)))
       (profiler/profile "render" -1
         (let [current-frame-version (ui/user-data image-view ::current-frame-version)]
           (with-drawable-as-current drawable
             (when (not= current-frame-version frame-version)
               (render! render-args gl-context (g/node-value view-id :updatable-states))
               (ui/user-data! image-view ::current-frame-version frame-version)
-              (scene-cache/prune-object-caches! gl))
+              (scene-cache/prune-object-caches! gl)
+              (scene-cache/prune-object-caches! view-id))
             (when-let [^WritableImage image (.flip async-copier gl frame-version)]
               (.setImage image-view image))))))))
 
