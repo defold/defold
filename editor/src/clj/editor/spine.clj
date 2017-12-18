@@ -633,79 +633,33 @@
                (g/->error _node-id :spine-json :fatal spine-json (str "Incompatible data found in spine json " (resource/resource->proj-path spine-json)))))]
     pb))
 
-(defn- transform-positions [^Matrix4d transform mesh]
-  (let [p (Point3d.)]
-    (update mesh :positions (fn [positions]
-                              (->> positions
-                                (partition 3)
-                                (mapcat (fn [[x y z]]
-                                          (.set p x y z)
-                                          (.transform transform p)
-                                          [(.x p) (.y p) (.z p)])))))))
-
-(defn- renderable->meshes [renderable]
-  (let [mesh-entries (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])
-        skin-id (some-> renderable :user-data :skin murmur/hash64)
-        mesh-entry (or (first (filter #(= (:id %) skin-id) mesh-entries))
-                       (first mesh-entries))]
-    (->> (:meshes mesh-entry)
-         (filter :visible)
-         (sort-by :draw-order)
-         (map (partial transform-positions (:world-transform renderable)))
-         (map (fn [mesh]
-                (let [color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])]
-                  (update mesh :color (fn [src tint] (mapv * src tint)) color)))))))
-
-(defn- mesh->verts [mesh]
-  (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
-    (map (partial get verts) (:indices mesh))))
-
-
-
-
-(defn gen-vb [^GL2 gl renderables]
-  (let [renderable (first renderables)
-        {:keys [spine-scene-pb default-animation]} (:user-data renderable)]
-    (when spine-scene-pb
-      (let [{:keys [node-id world-transform]} renderable
-            rig-player (rig-lib/request-rig-player node-id spine-scene-pb default-animation)
-            buf (rig-lib/vertex-data! rig-player world-transform)
-            vbuf (vtx/make-overlay-vertex-buffer rig-lib/spine-vertex-format buf :static)]
-        vbuf))))
-
-(def color [1.0 1.0 1.0 1.0])
-
-(defn- skeleton-vs [parent-pos bone vs ^Matrix4d wt]
-  (let [pos (Vector3d.)
-        t (doto (Matrix4d.)
-            (.mul wt ^Matrix4d (:transform bone)))
-        _ (.get ^Matrix4d t pos)
-        pos [(.x pos) (.y pos) (.z pos)]
-        vs (if parent-pos
-             (conj vs (into parent-pos color) (into pos color))
-             vs)]
-    (reduce (fn [vs bone] (skeleton-vs pos bone vs wt)) vs (:children bone))))
-
-#_(defn- gen-skeleton-vb [renderables]
-  (let [vs (loop [renderables renderables
-                  vs []]
-             (if-let [r (first renderables)]
-               (let [skeleton (get-in r [:user-data :scene-structure :skeleton])]
-                 (recur (rest renderables) (skeleton-vs nil skeleton vs (:world-transform r))))
-               vs))
-        vcount (count vs)]
-    (when (> vcount 0)
-      (let [vb (render/->vtx-pos-col vcount)]
-        (persistent! (reduce conj! vb vs))))))
+(defn gen-vb
+  [^GL2 gl view-id renderables]
+  (time (let [renderables (into []
+                                (map (fn [{:keys [node-id user-data] :as renderable}]
+                                       #_(prn (-> renderable :updatable :state nil?))
+                                       (let [{:keys [spine-scene-pb default-animation]} user-data
+                                             rig-player (rig-lib/request-rig-player view-id node-id spine-scene-pb default-animation)]
+                                         (assoc renderable :rig-player rig-player))))
+                                renderables)
+              vertex-count (transduce (map (comp rig-lib/vertex-count :rig-player)) + 0 renderables)
+              vbuf (vtx/make-vertex-buffer rig-lib/spine-vertex-format :dynamic vertex-count)]
+          (vtx/clear! vbuf)
+          (run! (fn [{:keys [rig-player world-transform]}]
+                  (rig-lib/vertex-data! rig-player world-transform :spine vbuf))
+                renderables)
+          (vtx/flip! vbuf)
+          vbuf)))
 
 (defn render-spine-scenes [^GL2 gl render-args renderables rcount]
-  (let [pass (:pass render-args)]
+  (let [pass (:pass render-args)
+        view-id (:view-id render-args)]
     (cond
       (= pass pass/outline)
       (render/render-aabb-outline gl render-args ::spine-outline renderables rcount)
 
       (= pass pass/transparent)
-      (do (when-let [vb (gen-vb gl renderables)]
+      (do (when-let [vb (gen-vb gl view-id renderables)]
             (let [user-data (:user-data (first renderables))
                   blend-mode (:blend-mode user-data)
                   gpu-texture (:gpu-texture user-data)
@@ -718,15 +672,15 @@
                   :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
-          (let [renderable (first renderables)
-                {:keys [spine-scene-pb default-animation]} (:user-data renderable)]
-            (when spine-scene-pb
-              (let [{:keys [node-id world-transform]} renderable
-                    rig-player (rig-lib/request-rig-player node-id spine-scene-pb default-animation)]
-                (rig-lib/draw-bones! gl render-args rig-player)))))
+          #_(let [renderable (first renderables)
+                  {:keys [spine-scene-pb default-animation]} (:user-data renderable)]
+              (when spine-scene-pb
+                (let [{:keys [node-id world-transform]} renderable
+                      rig-player (rig-lib/request-rig-player gl node-id spine-scene-pb default-animation)]
+                  (rig-lib/draw-bones! gl render-args rig-player)))))
 
       (= pass pass/selection)
-      (when-let [vb (gen-vb gl renderables)]
+      (when-let [vb (gen-vb gl view-id renderables)]
         (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
@@ -743,8 +697,7 @@
                                               :scene-structure scene-structure
                                               :gpu-texture gpu-texture
                                               :tex-params default-tex-params
-                                              :blend-mode blend-mode
-                                              :default-animation (first spine-anim-ids)}
+                                              :blend-mode blend-mode}
                                   :passes [pass/transparent pass/selection pass/outline]}))
       scene)))
 

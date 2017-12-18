@@ -15,6 +15,7 @@
    (com.sun.jna.ptr IntByReference)
    (com.jogamp.common.nio Buffers)
    (com.jogamp.opengl GL GL2)
+   (editor.gl.vertex2 VertexBuffer)
    (java.nio ByteBuffer)
    (javax.vecmath Point3d Quat4d Vector3d Matrix4d)
    (com.google.protobuf Message)))
@@ -23,6 +24,19 @@
 
 ;;------------------------------------------------------------------------------
 ;; librig api
+
+;; vertex formats
+
+(vtx/defvertex spine-vertex-format
+  (vec3 position)
+  (vec2 texcoord0)
+  (vec4.ubyte color true))
+
+(vtx/defvertex model-vertex-format
+  (vec3 position)
+  (vec2 texcoord0)
+  (vec3 normal))
+
 
 (defn- create-context!
   [max-rig-instance-count]
@@ -50,7 +64,7 @@
                                                 mesh-set (.capacity mesh-set)
                                                 animation-set (.capacity animation-set)
                                                 mesh-id
-                                                animation-id)]
+                                                (or animation-id 0))]
     (if (= instance Pointer/NULL)
       (throw (Exception. "Rig_InstanceCreate returned null"))
       instance)))
@@ -74,19 +88,16 @@
   [v]
   (RigLibrary$Vector4. ^float v))
 
-(defn- vertex-count
+(defn- get-vertex-count
   [instance]
   (RigLibrary/Rig_GetVertexCount instance))
 
 (defn- generate-vertex-data!
-  [context instance model normal color format]
-  (let [vcount (vertex-count instance)
-        ;; TODO how can vcount vary? realloc on demand?
-        buf (Buffers/newDirectByteBuffer (int (* vcount (* 6 4))))]
-    (RigLibrary/Rig_GenerateVertexData context instance
-                                       model normal color format
-                                       buf)
-    buf))
+  [context instance model normal color format vertex-size ^ByteBuffer buf]
+  (RigLibrary/Rig_GenerateVertexData context instance model normal color format buf)
+  ;; JNA call will write data to buffer, need to update the position manually
+  (.position buf (+ (.position buf) (* vertex-size (get-vertex-count instance))))
+  buf)
 
 (defn- get-pose-matrices
   ^RigLibrary$Matrix4 [context instance]
@@ -114,15 +125,17 @@
   (ByteBuffer/wrap (protobuf/map->bytes cls m)))
 
 (defn make-rig-player
-  [{:keys [skeleton animation-set mesh-set] :as rig-scene} animation-id]
-  (assert (number? animation-id))
+  [{:keys [skeleton animation-set mesh-set] :as rig-scene} mesh-id animation-id]
+  (assert (or (nil? animation-id) (number? animation-id)))
+  #_(assert (number? mesh-id))
   (let [skeleton-buf (proto-map->buf Rig$Skeleton skeleton)
         mesh-set-buf (proto-map->buf Rig$MeshSet mesh-set)
         animation-set-buf (proto-map->buf Rig$AnimationSet animation-set)
         mesh-id (-> mesh-set :mesh-entries first :id)
         context (create-context! 1)
         instance (create-instance! context skeleton-buf mesh-set-buf animation-set-buf mesh-id animation-id)]
-    (play-animation! instance animation-id RigLibrary$RigPlayback/PLAYBACK_LOOP_FORWARD 1.0 0.0 1.0)
+    (when animation-id
+      (play-animation! instance animation-id RigLibrary$RigPlayback/PLAYBACK_LOOP_FORWARD 1.0 0.0 1.0))
     {:context context
      :instance instance
      :bone-lengths (into [] (map :length) (:bones skeleton))}))
@@ -132,15 +145,23 @@
   (update-context! (:context rig-player) dt)
   rig-player)
 
+(defn vertex-count
+  [rig-player]
+  (get-vertex-count (:instance rig-player)))
+
 (defn vertex-data!
-  [rig-player ^Matrix4d world-transform]
-  (let [{:keys [context instance buf]} rig-player
+  [rig-player ^Matrix4d world-transform vertex-format ^VertexBuffer vbuf]
+  (let [{:keys [context instance]} rig-player
         model (RigLibrary$Matrix4/fromMatrix4d world-transform)
         normal (identity-matrix)
         color (vector4 1.0)
-        format RigLibrary$RigVertexFormat/RIG_VERTEX_FORMAT_SPINE]
-    #_(prn :generate-vertex-data rig-player)
-    (generate-vertex-data! context instance model normal color format)))
+        format (case vertex-format
+                 :spine RigLibrary$RigVertexFormat/RIG_VERTEX_FORMAT_SPINE
+                 :model RigLibrary$RigVertexFormat/RIG_VERTEX_FORMAT_MODEL)
+        vertex-size (case vertex-format
+                      :spine (:size spine-vertex-format)
+                      :model (:size model-vertex-format))]
+    (generate-vertex-data! context instance model normal color format vertex-size (.buf vbuf))))
 
 (defn destroy-rig-player
   [rig-player]
@@ -153,26 +174,16 @@
 ;;------------------------------------------------------------------------------
 ;; rendering
 
-(vtx/defvertex spine-vertex-format
-  (vec3 position)
-  (vec2 texcoord0)
-  (vec4.ubyte color true))
-
-#_(vtx/defvertex model-vertex-format
-  (vec3 position)
-  (vec2 texcoord0)
-  (vec4.ubyte color true))
-
 ;; scene cached rig-player
 
 (defn- make-rig-player*
-  [ctx {:keys [rig-scene animation-id]}]
+  [ctx {:keys [rig-scene mesh-id animation-id]}]
   (prn :make-rig-player)
-  (-> (make-rig-player rig-scene animation-id)
+  (-> (make-rig-player rig-scene mesh-id animation-id)
       (update-rig-player 0.0)))
 
 (defn- update-rig-player*
-  [ctx rig-player {:keys [rig-scene animation-id] :as params}]
+  [ctx rig-player {:keys [rig-scene mesh-id animation-id] :as params}]
   (prn :update-rig-player rig-player)
   (destroy-rig-player rig-player)
   (make-rig-player* ctx params))
@@ -184,19 +195,38 @@
     (prn :destroy-rig-player rig-player)
     (destroy-rig-player rig-player)))
 
-(scene-cache/register-object-cache! ::rig-player make-rig-player* update-rig-player* destroy-rig-players*)
+(defn- valid-rig-player?
+  [{old-rig-scene    :rig-scene
+    old-mesh-id      :mesh-id
+    old-animation-id :animation-id}
+   {new-rig-scene    :rig-scene
+    new-mesh-id      :mesh-id
+    new-animation-id :animation-id}]
+  (and (identical? old-rig-scene
+                   new-rig-scene)
+       (= old-mesh-id
+          new-mesh-id)
+       (= old-animation-id
+          new-animation-id)))
+
+(scene-cache/register-object-cache! ::rig-player make-rig-player* update-rig-player* destroy-rig-players* valid-rig-player?)
 
 (defn request-rig-player
-  [node-id rig-scene animation-name]
-  (scene-cache/request-object! ::rig-player [node-id] nil {:rig-scene rig-scene
-                                                           :animation-id (murmur/hash64 animation-name)}))
+  [view-id node-id rig-scene animation-name]
+  (scene-cache/request-object! ::rig-player [node-id] view-id
+                               (cond-> {:rig-scene rig-scene}
+                                 animation-name
+                                 (assoc :animation-id (murmur/hash64 animation-name)))))
+
+
+
 
 (defn make-updatable
   [node-id rig-scene default-animation]
   {:node-id node-id
    :name ""
-   :update-fn (fn [state {:keys [node-id dt]}]
-                (let [rig-player (request-rig-player node-id rig-scene default-animation)]
+   :update-fn (fn [state {:keys [view-id node-id dt]}]
+                (let [rig-player (request-rig-player view-id node-id rig-scene default-animation)]
                   (update-rig-player rig-player (double dt))))
    :initial-state {}})
 
