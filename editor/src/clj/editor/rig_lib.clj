@@ -208,10 +208,10 @@
 
 (shader/defshader bone-vertex-shader
   (attribute vec4 position)
-  #_(uniform mediump mat4 view_proj)
-  (uniform mat4 var_transform)
+  (uniform mat4 view_proj)
+  (uniform mat4 pose_matrix)
   (defn void main []
-    (setq gl_Position (* (* gl_ModelViewProjectionMatrix var_transform) position))))
+    (setq gl_Position (* (* view_proj pose_matrix) position))))
 
 (shader/defshader bone-fragment-shader
   (defn void main []
@@ -278,7 +278,8 @@
           (let [vertex-binding (vtx/use-with ::bone vbuf bone-shader)]
             (gl/with-gl-bindings gl render-args [bone-shader vertex-binding]
               (.glPolygonMode gl GL2/GL_FRONT_AND_BACK GL2/GL_LINE)
-              (shader/set-uniform bone-shader gl "var_transform" m)
+              (shader/set-uniform bone-shader gl "view_proj" (:view-proj render-args))
+              (shader/set-uniform bone-shader gl "pose_matrix" m)
               (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vbuf))
               (.glPolygonMode gl GL2/GL_FRONT_AND_BACK GL2/GL_FILL)))))
       (finally
