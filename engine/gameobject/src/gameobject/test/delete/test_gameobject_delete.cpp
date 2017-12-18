@@ -60,7 +60,7 @@ protected:
     static dmResource::Result ResDeleteSelfDestroy(const dmResource::ResourceDestroyParams& params);
 
     static dmGameObject::CreateResult     DeleteSelfComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
-    static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params);
+    static dmGameObject::UpdateResult     DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
 public:
 
@@ -113,7 +113,7 @@ dmGameObject::CreateResult DeleteTest::DeleteSelfComponentAddToUpdate(const dmGa
     return dmGameObject::CREATE_RESULT_OK;
 }
 
-dmGameObject::UpdateResult DeleteTest::DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params)
+dmGameObject::UpdateResult DeleteTest::DeleteSelfComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
 {
     DeleteTest* game_object_test = (DeleteTest*) params.m_Context;
 

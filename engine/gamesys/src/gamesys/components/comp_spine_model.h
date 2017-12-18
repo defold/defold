@@ -55,7 +55,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpineModelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
-    dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params);
+    dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
     dmGameObject::UpdateResult CompSpineModelRender(const dmGameObject::ComponentsRenderParams& params);
 

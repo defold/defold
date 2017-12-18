@@ -98,7 +98,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompFactoryUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompFactoryUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         FactoryWorld* world = (FactoryWorld*)params.m_World;
         dmGameObject::UpdateResult result = dmGameObject::UPDATE_RESULT_OK;
