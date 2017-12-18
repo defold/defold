@@ -21,7 +21,7 @@ namespace dmGameObject
 
     CreateResult CompScriptAddToUpdate(const ComponentAddToUpdateParams& params);
 
-    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params);
+    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 
     UpdateResult CompScriptOnMessage(const ComponentOnMessageParams& params);
 

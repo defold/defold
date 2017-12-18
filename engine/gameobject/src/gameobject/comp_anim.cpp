@@ -141,8 +141,10 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
-    UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params)
+    UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
+        DM_PROFILE(Animation, "Update");
+        
         /*
          * The update is divided into three passes.
          *
@@ -163,6 +165,7 @@ namespace dmGameObject
         AnimWorld* world = (AnimWorld*)params.m_World;
         world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
+        uint32_t orig_size = size;
         DM_COUNTER("animc", size);
         uint32_t i = 0;
         for (i = 0; i < size; ++i)
@@ -358,6 +361,7 @@ namespace dmGameObject
             }
         }
         world->m_InUpdate = 0;
+        update_result.m_TransformsUpdated = orig_size != 0;
         return result;
     }
 

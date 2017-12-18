@@ -187,7 +187,7 @@ namespace dmGameObject
         return CREATE_RESULT_OK;
     }
 
-    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params)
+    UpdateResult CompScriptUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         lua_State* L = GetLuaState(params.m_Context);
         int top = lua_gettop(L);
@@ -208,6 +208,9 @@ namespace dmGameObject
                 }
             }
         }
+
+        // TODO: Find out if the scripts actually sent any transform events
+        update_result.m_TransformsUpdated = true;
 
         assert(top == lua_gettop(L));
         return result;
