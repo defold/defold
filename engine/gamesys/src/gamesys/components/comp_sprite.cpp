@@ -76,6 +76,7 @@ namespace dmGameSystem
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         SpriteVertex*                   m_VertexBufferData;
         SpriteVertex*                   m_VertexBufferWritePtr;
+        dmGraphics::HIndexBuffer        m_IndexBuffer;
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -85,6 +86,11 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
+        if(sprite_context->m_MaxSpriteCount >= 65536)
+        {
+            dmLogError("Max sprite count (%d) exceeds max value (65535).", sprite_context->m_MaxSpriteCount);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = new SpriteWorld();
 
@@ -101,7 +107,25 @@ namespace dmGameSystem
         sprite_world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
 
         sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-        sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 6 * sprite_world->m_Components.Capacity());
+        sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 4 * sprite_world->m_Components.Capacity());
+        {
+            uint32_t indices_count = 6*sprite_context->m_MaxSpriteCount;
+            uint16_t* indices = new uint16_t[indices_count];
+            uint16_t* index = indices;
+            for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+            {
+                *index++ = v;
+                *index++ = v+1;
+                *index++ = v+2;
+                *index++ = v+2;
+                *index++ = v+3;
+                *index++ = v;
+            }
+
+            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_count*sizeof(uint16_t), indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            delete[] indices;
+        }
+
 
         *params.m_World = sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -113,6 +137,7 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexDeclaration(sprite_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(sprite_world->m_VertexBuffer);
         free(sprite_world->m_VertexBufferData);
+        dmGraphics::DeleteIndexBuffer(sprite_world->m_IndexBuffer);
 
         delete sprite_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -290,26 +315,14 @@ namespace dmGameSystem
             where[2].u = tc[tex_lookup[2] * 2];
             where[2].v = tc[tex_lookup[2] * 2 + 1];
 
-            where[3].x = p2.getX();
-            where[3].y = p2.getY();
-            where[3].z = p2.getZ();
-            where[3].u = tc[tex_lookup[3] * 2];
-            where[3].v = tc[tex_lookup[3] * 2 + 1];
-
             Vector4 p3 = w * Point3(0.5f, -0.5f, 0.0f);
-            where[4].x = p3.getX();
-            where[4].y = p3.getY();
-            where[4].z = p3.getZ();
-            where[4].u = tc[tex_lookup[4] * 2];
-            where[4].v = tc[tex_lookup[4] * 2 + 1];
+            where[3].x = p3.getX();
+            where[3].y = p3.getY();
+            where[3].z = p3.getZ();
+            where[3].u = tc[tex_lookup[4] * 2];
+            where[3].v = tc[tex_lookup[4] * 2 + 1];
 
-            where[5].x = where[0].x;
-            where[5].y = where[0].y;
-            where[5].z = where[0].z;
-            where[5].u = tc[tex_lookup[5] * 2];
-            where[5].v = tc[tex_lookup[5] * 2 + 1];
-
-            where += 6;
+            where += 4;
         }
 
         return where;
@@ -335,11 +348,13 @@ namespace dmGameSystem
         ro.Init();
         ro.m_VertexDeclaration = sprite_world->m_VertexDeclaration;
         ro.m_VertexBuffer = sprite_world->m_VertexBuffer;
-        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_VertexStart = vb_begin - sprite_world->m_VertexBufferData;
-        ro.m_VertexCount = (sprite_world->m_VertexBufferWritePtr - vb_begin);
+        ro.m_IndexBuffer = sprite_world->m_IndexBuffer;
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_Textures[0] = texture_set->m_Texture;
+        ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+        ro.m_IndexType = dmGraphics::TYPE_UNSIGNED_SHORT;
+        ro.m_VertexStart = (vb_begin - sprite_world->m_VertexBufferData)*3;             // Element arrays: offset in bytes into element buffer. Triangles is 3 elements = 6 bytes (16bit)
+        ro.m_VertexCount = ((sprite_world->m_VertexBufferWritePtr - vb_begin)>>1)*3;    // Element arrays: number of elements to draw, which is triangles * 3
 
         const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
         uint32_t size = first->m_RenderConstants.m_ConstantCount;

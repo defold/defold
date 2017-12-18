@@ -284,7 +284,7 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
 TEST_F(dmGraphicsTest, Drawing)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f, 12.0f, 13.0f, 14.0f };
-    uint32_t i[] = { 0, 1, 2 };
+    uint32_t i[] = { 0, 1, 2, 2, 1, 0 };
 
     dmGraphics::VertexElement ve[] =
     {
@@ -296,7 +296,8 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::HIndexBuffer ib = dmGraphics::NewIndexBuffer(m_Context, sizeof(i), i, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 3, dmGraphics::TYPE_UNSIGNED_INT, ib);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, vb);
