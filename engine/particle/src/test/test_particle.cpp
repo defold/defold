@@ -738,8 +738,10 @@ TEST_F(ParticleTest, ParticleVelocityStretch)
     dmParticle::StartInstance(m_Context, instance);
 
     dmParticle::Update(m_Context, dt, 0x0);
-
     ASSERT_NEAR(3.5f, e->m_Particles[0].m_Scale[1], EPSILON);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    ASSERT_NEAR(1.0f, e->m_Particles[0].m_Scale[1], EPSILON);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -758,7 +760,10 @@ TEST_F(ParticleTest, ParticleStretch)
     dmParticle::StartInstance(m_Context, instance);
 
     dmParticle::Update(m_Context, dt, 0x0);
+    ASSERT_NEAR(2.f, e->m_Particles[0].m_Scale[0], EPSILON);
+    ASSERT_NEAR(4.f, e->m_Particles[0].m_Scale[1], EPSILON);
 
+    dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_NEAR(2.f, e->m_Particles[0].m_Scale[0], EPSILON);
     ASSERT_NEAR(2.f, e->m_Particles[0].m_Scale[1], EPSILON);
 

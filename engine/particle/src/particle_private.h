@@ -81,7 +81,7 @@ namespace dmParticle
         /// Particle scale
         Vector3     m_Scale;
         // Sorting
-        SortKey m_SortKey;
+        SortKey     m_SortKey;
         /// Particle stretch factor
         float       m_StretchFactorX;
         float       m_StretchFactorY;

@@ -1,6 +1,6 @@
 emitters: {
     mode:               PLAY_MODE_ONCE
-    duration:           1
+    duration:           2
     space:              EMISSION_SPACE_WORLD
     position:           { x: 0 y: 0 z: 0 }
     rotation:           { x: 0 y: 0 z: 0 w: 1 }
@@ -47,8 +47,26 @@ emitters: {
       t_x: 1.0
       t_y: 0.0
     }
-    spread: 0.0
+    points {
+      x: 0.0
+      y: 300.0
+      t_x: 1.0
+      t_y: 0.0
     }
+    points {
+      x: 0.5
+      y: 300
+      t_x: 0.3
+      t_y: -1.0
+    }
+    points {
+      x: 1.0
+      y: 0.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
     stretch_with_velocity: true
     particle_properties {
         key: PARTICLE_KEY_SCALE

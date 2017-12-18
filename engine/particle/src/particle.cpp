@@ -1478,7 +1478,6 @@ namespace dmParticle
             Particle* p = &particles[i];
             // NOTE This velocity integration has a larger error than normal since we don't use the velocity at the
             // beginning of the frame, but it's ok since particle movement does not need to be very exact
-            // Vector3 vel = p->GetVelocity();
             p->SetPosition(p->GetPosition() + p->m_Velocity * dt);
 
             p->m_Scale[0] += p->m_Scale[0] * p->m_StretchFactorX;
