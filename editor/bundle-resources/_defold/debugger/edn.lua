@@ -16,6 +16,16 @@ local escape_char_map = {
   ["\t" ] = "\\t",
 }
 
+local function str(val)
+  -- Can't call tostring on NodeProxy unless called from owning Gui script. See:
+  -- https://jira.int.midasplayer.com/browse/DEF-532
+  if getmetatable(val) == NodeProxy then
+    return "GuiNode"
+  else
+    return tostring(val)
+  end
+end
+
 local function escape_char(c)
   return escape_char_map[c] or string.format("\\u%04x", c:byte())
 end
@@ -26,10 +36,15 @@ end
 
 local function encode_number(val)
   -- Check for NaN, -inf and inf
-  if val ~= val or val <= -math.huge or val >= math.huge then
-    error("unexpected number value '" .. tostring(val) .. "'")
+  if val ~= val then
+    return "#lua/number :nan"
+  elseif val <= -math.huge then
+    return "#lua/number :-inf"
+  elseif val >= math.huge then
+    return "#lua/number :+inf"
+  else
+    return string.format("#lua/number %.14g", val)
   end
-  return string.format("%.14g", val)
 end
 
 local function encode_string(val)
@@ -41,7 +56,9 @@ local function encode_table(val, stack)
   stack = stack or {}
 
   -- Circular reference?
-  if stack[val] then error("circular reference") end
+  if stack[val] then
+    return "#lua/ref{:tostring \"" .. str(val) .. "\"}"
+  end
 
   stack[val] = true
 
@@ -51,26 +68,26 @@ local function encode_table(val, stack)
 
   stack[val] = nil
   
-  return "#lua/table{:tostring \"" .. tostring(val) .. "\", :data {" .. table.concat(res, ",") .. "}}"
+  return "#lua/table{:tostring \"" .. str(val) .. "\", :data {" .. table.concat(res, ",") .. "}}"
 end
 
 local function make_tagged_string_encoder(tag)
     return function(val)
-        return tag .. encode_string(tostring(val))
+        return tag .. encode_string(str(val))
     end
 end
 
 local function encode_userdata(val)
-    return "#lua/userdata" .. encode_string(tostring(val))
+    return "#lua/userdata" .. encode_string(str(val))
 end
 
 local function encode_function(val)
-  return "#lua/function" .. encode_string(tostring(val))
+  return "#lua/function" .. encode_string(str(val))
 end
 
 local type_func_map = {
   ["nil"     ] = encode_nil,
-  ["boolean" ] = tostring,
+  ["boolean" ] = str,
   ["number"  ] = encode_number,
   ["string"  ] = encode_string,
   ["table"   ] = encode_table,
