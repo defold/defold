@@ -60,6 +60,7 @@
 (g/deftype GutterMetrics [(s/one s/Num "gutter-width") (s/one s/Num "gutter-margin")])
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
+(g/deftype ResizeReference (s/enum :bottom :top))
 (g/deftype SyntaxInfo IPersistentVector)
 (g/deftype SideEffect (s/eq nil))
 
@@ -715,11 +716,19 @@
                      (when (not= scroll-x new-scroll-x)
                        (g/set-property self :scroll-x new-scroll-x))))))
   (property canvas-height g/Num (default 0.0) (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self _old-value _new-value]
-                   (let [lines (g/node-value self :lines evaluation-context)
-                         layout (g/node-value self :layout evaluation-context)
+            (set (fn [evaluation-context self old-value new-value]
+                   ;; NOTE: old-value will be nil when the setter is invoked for the default.
+                   ;; However, our calls to g/node-value will see default values for all
+                   ;; properties even though their setter fns have not yet been called.
+                   (let [^double old-value (or old-value 0.0)
+                         ^double new-value new-value
                          scroll-y (g/node-value self :scroll-y evaluation-context)
-                         new-scroll-y (data/limit-scroll-y layout lines scroll-y)]
+                         layout (g/node-value self :layout evaluation-context)
+                         line-count (count (g/node-value self :lines evaluation-context))
+                         resize-reference (g/node-value self :resize-reference evaluation-context)
+                         new-scroll-y (data/limit-scroll-y layout line-count (case resize-reference
+                                                                               :bottom (- ^double scroll-y (- old-value new-value))
+                                                                               :top scroll-y))]
                      (when (not= scroll-y new-scroll-y)
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
@@ -729,6 +738,7 @@
   (property grammar g/Any (dynamic visible (g/constantly false)))
   (property gutter-view GutterView (dynamic visible (g/constantly false)))
   (property cursor-opacity g/Num (default 1.0) (dynamic visible (g/constantly false)))
+  (property resize-reference ResizeReference (default :top) (dynamic visible (g/constantly false)))
   (property scroll-x g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property scroll-y g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property suggested-completions g/Any (dynamic visible (g/constantly false)))
