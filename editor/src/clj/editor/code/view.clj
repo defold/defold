@@ -24,7 +24,7 @@
            (java.util Collection)
            (java.util.regex Pattern)
            (javafx.beans.binding Bindings StringBinding)
-           (javafx.beans.property Property SimpleBooleanProperty SimpleStringProperty)
+           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleStringProperty)
            (javafx.beans.value ChangeListener)
            (javafx.geometry HPos Point2D VPos)
            (javafx.scene Node Parent)
@@ -39,6 +39,8 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defonce ^:private default-font-size 12.0)
+
 (defprotocol GutterView
   (gutter-metrics [this lines regions glyph-metrics] "A two-element vector with a rounded double representing the width of the gutter and another representing the margin on each side within the gutter.")
   (draw-gutter! [this gc gutter-rect layout font color-scheme lines regions visible-cursors] "Draws the gutter into the specified Rect."))
@@ -46,7 +48,7 @@
 (defrecord CursorRangeDrawInfo [type fill stroke cursor-range])
 
 (defn- cursor-range-draw-info [type fill stroke cursor-range]
-  (assert (case type (:range :word) true false))
+  (assert (case type (:range :underline :word) true false))
   (assert (or (nil? fill) (instance? Paint fill)))
   (assert (or (nil? stroke) (instance? Paint stroke)))
   (assert (instance? CursorRange cursor-range))
@@ -112,7 +114,7 @@
      ["editor.gutter.cursor.line.background" (Color/valueOf "#393C41")]
      ["editor.gutter.breakpoint" (Color/valueOf "#AD4051")]
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
-     ["editor.matching.brace.outline" (Color/valueOf "#A2B0BE")]
+     ["editor.matching.brace" (Color/valueOf "#A2B0BE")]
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
      ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
@@ -190,7 +192,8 @@
               (assert (= 1 (count rects)))
               (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [^Rect r rects]
-               (.fillRect gc (.x r) (.y r) (.w r) (.h r))))))
+               (.fillRect gc (.x r) (.y r) (.w r) (.h r)))
+      :underline nil)))
 
 (defn- stroke-opaque-polyline! [^GraphicsContext gc xs ys]
   ;; The strokePolyLine method slows down considerably when the shape covers a large
@@ -216,7 +219,12 @@
               (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [polyline (cursor-range-outline rects)]
                (let [[xs ys] polyline]
-                 (stroke-opaque-polyline! gc (double-array xs) (double-array ys)))))))
+                 (stroke-opaque-polyline! gc (double-array (drop 2 xs)) (double-array (drop 2 ys)))))
+      :underline (doseq [^Rect r rects]
+                   (let [sx (.x r)
+                         ex (+ sx (.w r))
+                         y (+ (.y r) (.h r))]
+                     (.strokeLine gc sx y ex y))))))
 
 (defn- draw-cursor-ranges! [^GraphicsContext gc layout lines cursor-range-draw-infos]
   (let [draw-calls (mapv (fn [^CursorRangeDrawInfo draw-info]
@@ -248,8 +256,7 @@
         (recur lines (dec row))))))
 
 (defn- find-prior-indentation-guide-positions [^LayoutInfo layout lines]
-  (let [dropped-line-count (.dropped-line-count layout)
-        drawn-line-count (.drawn-line-count layout)]
+  (let [dropped-line-count (.dropped-line-count layout)]
     (loop [row (find-prior-unindented-row lines dropped-line-count)
            guide-positions []]
       (let [line (get lines row)]
@@ -589,7 +596,7 @@
         tab-trigger-word-outline-color (color-lookup color-scheme "editor.tab.trigger.word.outline")
         find-term-occurrence-color (color-lookup color-scheme "editor.find.term.occurrence")
         gutter-breakpoint-color (color-lookup color-scheme "editor.gutter.breakpoint")
-        matching-brace-outline-color (color-lookup color-scheme "editor.matching.brace.outline")
+        matching-brace-color (color-lookup color-scheme "editor.matching.brace")
         active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
                                                    (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
@@ -602,7 +609,7 @@
              visible-cursor-ranges)
         (map (partial cursor-range-draw-info :range nil gutter-breakpoint-color)
              (visible-regions-by-type :breakpoint))
-        (map (partial cursor-range-draw-info :range nil matching-brace-outline-color)
+        (map (partial cursor-range-draw-info :underline nil matching-brace-color)
              visible-matching-braces)
         (cond
           (seq active-tab-trigger-scope-ids)
@@ -711,7 +718,7 @@
   (property focused? g/Bool (default false) (dynamic visible (g/constantly false)))
 
   (property font-name g/Str (default "Dejavu Sans Mono"))
-  (property font-size g/Num (default 12.0))
+  (property font-size g/Num (default (g/constantly default-font-size)))
   (property line-height-factor g/Num (default 1.0))
   (property indent-string g/Str (default "\t"))
   (property tab-spaces g/Num (default 4))
@@ -1517,12 +1524,60 @@
 (defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
 (defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^SimpleDoubleProperty font-size-property (doto (SimpleDoubleProperty.) (.setValue default-font-size)))
+(defonce ^SimpleBooleanProperty visible-indentation-guides-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^SimpleBooleanProperty visible-minimap-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^SimpleBooleanProperty visible-whitespace-property (doto (SimpleBooleanProperty.) (.setValue true)))
 
 (defonce ^StringBinding highlighted-find-term-property
   (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
                                   (Bindings/equal (name :replace) bar-ui-type-property)))
       (.then find-term-property)
       (.otherwise "")))
+
+(defn- init-property-and-bind-preference! [^Property property prefs preference default]
+  (.setValue property (prefs/get-prefs prefs preference default))
+  (ui/observe property (fn [_ _ new] (prefs/set-prefs prefs preference new))))
+
+(defn initialize! [prefs]
+  (init-property-and-bind-preference! find-term-property prefs "code-editor-find-term" "")
+  (init-property-and-bind-preference! find-replacement-property prefs "code-editor-find-replacement" "")
+  (init-property-and-bind-preference! find-whole-word-property prefs "code-editor-find-whole-word" false)
+  (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
+  (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true)
+  (init-property-and-bind-preference! font-size-property prefs "code-editor-font-size" default-font-size)
+  (init-property-and-bind-preference! visible-indentation-guides-property prefs "code-editor-visible-indentation-guides" true)
+  (init-property-and-bind-preference! visible-minimap-property prefs "code-editor-visible-minimap" true)
+  (init-property-and-bind-preference! visible-whitespace-property prefs "code-editor-visible-whitespace" true))
+
+;; -----------------------------------------------------------------------------
+;; View Settings
+;; -----------------------------------------------------------------------------
+
+(handler/defhandler :zoom-out :new-console
+  (enabled? [] (<= 4.0 ^double (.getValue font-size-property)))
+  (run [] (when (<= 4.0 ^double (.getValue font-size-property))
+            (.setValue font-size-property (dec ^double (.getValue font-size-property))))))
+
+(handler/defhandler :zoom-in :new-console
+  (enabled? [] (>= 32.0 ^double (.getValue font-size-property)))
+  (run [] (when (>= 32.0 ^double (.getValue font-size-property))
+            (.setValue font-size-property (inc ^double (.getValue font-size-property))))))
+
+(handler/defhandler :reset-zoom :new-console
+  (run [] (.setValue font-size-property default-font-size)))
+
+(handler/defhandler :toggle-indentation-guides :new-console
+  (run [] (.setValue visible-indentation-guides-property (not (.getValue visible-indentation-guides-property))))
+  (state [] (.getValue visible-indentation-guides-property)))
+
+(handler/defhandler :toggle-minimap :new-console
+  (run [] (.setValue visible-minimap-property (not (.getValue visible-minimap-property))))
+  (state [] (.getValue visible-minimap-property)))
+
+(handler/defhandler :toggle-visible-whitespace :new-console
+  (run [] (.setValue visible-whitespace-property (not (.getValue visible-whitespace-property))))
+  (state [] (.getValue visible-whitespace-property)))
 
 ;; -----------------------------------------------------------------------------
 ;; Go to Line
@@ -1608,17 +1663,6 @@
 ;; -----------------------------------------------------------------------------
 ;; Find & Replace
 ;; -----------------------------------------------------------------------------
-
-(defn- init-property-and-bind-preference! [^Property property prefs preference default]
-  (.setValue property (prefs/get-prefs prefs preference default))
-  (ui/observe property (fn [_ _ new] (prefs/set-prefs prefs preference new))))
-
-(defn initialize! [prefs]
-  (init-property-and-bind-preference! find-term-property prefs "code-editor-find-term" "")
-  (init-property-and-bind-preference! find-replacement-property prefs "code-editor-find-replacement" "")
-  (init-property-and-bind-preference! find-whole-word-property prefs "code-editor-find-whole-word" false)
-  (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
-  (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true))
 
 (defn- setup-find-bar! [^GridPane find-bar view-node]
   (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) bar-ui-type-property))
@@ -1810,8 +1854,6 @@
                  {:command :replace-text               :label "Replace..."}
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
-                 {:command :goto-line                  :label "Go to Line..."}
-                 {:label :separator}
                  {:command :reindent                   :label "Reindent Lines"}
                  {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
@@ -1822,6 +1864,17 @@
                  {:command :split-selection-into-lines :label "Split Selection Into Lines"}
                  {:label :separator}
                  {:command :toggle-breakpoint          :label "Toggle Breakpoint"}])
+
+(ui/extend-menu ::menubar :editor.app-view/view-end
+                [{:command :toggle-minimap             :label "Minimap" :check true}
+                 {:command :toggle-indentation-guides  :label "Indentation Guides" :check true}
+                 {:command :toggle-visible-whitespace  :label "Visible Whitespace" :check true}
+                 {:label :separator}
+                 {:command :zoom-in                    :label "Increase Font Size"}
+                 {:command :zoom-out                   :label "Decrease Font Size"}
+                 {:command :reset-zoom                 :label "Reset Font Size"}
+                 {:label :separator}
+                 {:command :goto-line                  :label "Go to Line..."}])
 
 ;; -----------------------------------------------------------------------------
 
@@ -1971,6 +2024,7 @@
                                (g/make-node! graph CodeEditorView
                                              :canvas canvas
                                              :color-scheme code-color-scheme
+                                             :font-size (.getValue font-size-property)
                                              :grammar (:grammar opts)
                                              :gutter-view (CodeEditorGutterView.)
                                              :highlighted-find-term (.getValue highlighted-find-term-property)
@@ -1978,9 +2032,9 @@
                                              :suggestions-list-view suggestions-list-view
                                              :suggestions-popup suggestions-popup
                                              :undo-grouping-info undo-grouping-info
-                                             :visible-indentation-guides? true
-                                             :visible-minimap? true
-                                             :visible-whitespace? true))
+                                             :visible-indentation-guides? (.getValue visible-indentation-guides-property)
+                                             :visible-minimap? (.getValue visible-minimap-property)
+                                             :visible-whitespace? (.getValue visible-whitespace-property)))
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
@@ -2033,12 +2087,20 @@
                     (ui/run-later (.requestFocus canvas)))))
 
     ;; Highlight occurrences of search term while find bar is open.
-    (let [highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
-          find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
-          find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)]
-      (.addListener highlighted-find-term-property highlighted-find-term-setter)
+    (let [find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
+          find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)
+          font-size-setter (make-property-change-setter view-node :font-size)
+          highlighted-find-term-setter (make-property-change-setter view-node :highlighted-find-term)
+          visible-indentation-guides-setter (make-property-change-setter view-node :visible-indentation-guides?)
+          visible-minimap-setter (make-property-change-setter view-node :visible-minimap?)
+          visible-whitespace-setter (make-property-change-setter view-node :visible-whitespace?)]
       (.addListener find-case-sensitive-property find-case-sensitive-setter)
       (.addListener find-whole-word-property find-whole-word-setter)
+      (.addListener font-size-property font-size-setter)
+      (.addListener highlighted-find-term-property highlighted-find-term-setter)
+      (.addListener visible-indentation-guides-property visible-indentation-guides-setter)
+      (.addListener visible-minimap-property visible-minimap-setter)
+      (.addListener visible-whitespace-property visible-whitespace-setter)
 
       ;; Remove callbacks when our tab is closed.
       (ui/on-closed! tab (fn [_]
@@ -2046,9 +2108,13 @@
                            (dispose-goto-line-bar! goto-line-bar)
                            (dispose-find-bar! find-bar)
                            (dispose-replace-bar! replace-bar)
-                           (.removeListener highlighted-find-term-property highlighted-find-term-setter)
                            (.removeListener find-case-sensitive-property find-case-sensitive-setter)
-                           (.removeListener find-whole-word-property find-whole-word-setter))))
+                           (.removeListener find-whole-word-property find-whole-word-setter)
+                           (.removeListener font-size-property font-size-setter)
+                           (.removeListener highlighted-find-term-property highlighted-find-term-setter)
+                           (.removeListener visible-indentation-guides-property visible-indentation-guides-setter)
+                           (.removeListener visible-minimap-property visible-minimap-setter)
+                           (.removeListener visible-whitespace-property visible-whitespace-setter))))
 
     ;; Start repaint timer.
     (ui/timer-start! repainter)
