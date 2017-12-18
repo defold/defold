@@ -16,7 +16,7 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompLabelAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
-    dmGameObject::UpdateResult CompLabelUpdate(const dmGameObject::ComponentsUpdateParams& params);
+    dmGameObject::UpdateResult CompLabelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
     dmGameObject::UpdateResult CompLabelRender(const dmGameObject::ComponentsRenderParams& params);
 

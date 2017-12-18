@@ -153,7 +153,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompParticleFXUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         ParticleFXWorld* w = (ParticleFXWorld*)params.m_World;
         w->m_DT = params.m_UpdateContext->m_DT;

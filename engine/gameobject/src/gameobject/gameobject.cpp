@@ -1731,9 +1731,9 @@ namespace dmGameObject
         return instance->m_ScaleAlongZ != 0;
     }
 
-    void SetInheritScale(HInstance instance, bool inherit_scale)
+    bool ScaleAlongZ(HCollection collection)
     {
-        instance->m_NoInheritScale = !inherit_scale;
+        return collection->m_ScaleAlongZ != 0;
     }
 
     void SetBone(HInstance instance, bool bone)
@@ -2071,11 +2071,16 @@ namespace dmGameObject
 
     static void UpdateEulerToRotation(HInstance instance);
 
+    static inline bool Vec3Equals(const uint32_t* a, const uint32_t* b)
+    {
+        return a[0] == b[0] && a[1] == b[1] && a[2] == b[2];
+    }
+
     static void CheckEuler(Instance* instance)
     {
         Vector3& euler = instance->m_EulerRotation;
         Vector3& prev_euler = instance->m_PrevEulerRotation;
-        if (lengthSqr(euler - prev_euler) != 0.0f)
+        if (!Vec3Equals((uint32_t*)(&euler), (uint32_t*)(&prev_euler)))
         {
             UpdateEulerToRotation(instance);
             prev_euler = euler;
@@ -2100,8 +2105,52 @@ namespace dmGameObject
             assert(parent_index == INVALID_INSTANCE_INDEX);
         }
 
-        // World-transform for levels 1..MAX_HIERARCHICAL_DEPTH-1
-        Matrix4 own;
+
+        if (collection->m_ScaleAlongZ) {
+            for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+            {
+                dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+                uint32_t instance_count = level.Size();
+                for (uint32_t i = 0; i < instance_count; ++i)
+                {
+                    uint16_t index = level[i];
+                    Instance* instance = collection->m_Instances[index];
+                    CheckEuler(instance);
+                    Matrix4* trans = &collection->m_WorldTransforms[index];
+
+                    uint16_t parent_index = instance->m_Parent;
+                    assert(parent_index != INVALID_INSTANCE_INDEX);
+
+                    Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
+                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+                    *trans = *parent_trans * own;
+                }
+            }
+        } else {
+            for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+            {
+                dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+                uint32_t instance_count = level.Size();
+                for (uint32_t i = 0; i < instance_count; ++i)
+                {
+                    uint16_t index = level[i];
+                    Instance* instance = collection->m_Instances[index];
+                    CheckEuler(instance);
+                    Matrix4* trans = &collection->m_WorldTransforms[index];
+
+                    uint16_t parent_index = instance->m_Parent;
+                    assert(parent_index != INVALID_INSTANCE_INDEX);
+
+                    Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
+                    Matrix4 own = dmTransform::ToMatrix4(instance->m_Transform);
+                    *trans = dmTransform::MulNoScaleZ(*parent_trans, own);
+                }
+            }
+        }
+
+
+        /*
+                Matrix4 own;
         for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
         {
             dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
@@ -2110,7 +2159,7 @@ namespace dmGameObject
             {
                 uint16_t index = level[i];
                 Instance* instance = collection->m_Instances[index];
-                CheckEuler(instance);
+                //CheckEuler(instance);
                 Matrix4* trans = &collection->m_WorldTransforms[index];
 
                 uint16_t parent_index = instance->m_Parent;
@@ -2128,14 +2177,16 @@ namespace dmGameObject
                     *trans = dmTransform::MulNoScaleZ(*parent_trans, own);
                 }
 
-                if (instance->m_NoInheritScale)
-                {
-                    Vector3 scale = dmTransform::ExtractScale(*parent_trans);
-                    own.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * own.getUpper3x3());
-                    *trans = (*parent_trans) * own;
-                }
+                // if (instance->m_NoInheritScale)
+                // {
+                //     Vector3 scale = dmTransform::ExtractScale(*parent_trans);
+                //     own.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * own.getUpper3x3());
+                //     *trans = (*parent_trans) * own;
+                // }
             }
         }
+        */
+
 
         collection->m_DirtyTransforms = false;
     }
@@ -2176,14 +2227,17 @@ namespace dmGameObject
                 params.m_UpdateContext = update_context;
                 params.m_World = collection->m_ComponentWorlds[update_index];
                 params.m_Context = component_type->m_Context;
-                UpdateResult res = component_type->m_UpdateFunction(params);
+
+                ComponentsUpdateResult update_result;
+                update_result.m_TransformsUpdated = false;
+                UpdateResult res = component_type->m_UpdateFunction(params, update_result);
                 if (res != UPDATE_RESULT_OK)
                     ret = false;
-            }
 
-            // Mark the collections transforms as dirty if this component could have updated
-            // them in its update function.
-            collection->m_DirtyTransforms |= component_type->m_WritesTransforms;
+                // Mark the collections transforms as dirty if this component has updated
+                // them in its update function.
+                collection->m_DirtyTransforms |= update_result.m_TransformsUpdated;
+            }
 
             if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
                 ret = false;
@@ -2914,12 +2968,20 @@ namespace dmGameObject
         }
     }
 
+    void SetDirtyTransforms(HCollection collection)
+    {
+        collection->m_DirtyTransforms = 1;
+    }
+
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value)
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
+            // Currently assumes that all properties are transform related
+            dmGameObject::SetDirtyTransforms(instance->m_Collection);
+
             float* position = instance->m_Transform.GetPositionPtr();
             float* rotation = instance->m_Transform.GetRotationPtr();
             float* scale = instance->m_Transform.GetScalePtr();
