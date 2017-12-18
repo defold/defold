@@ -534,7 +534,8 @@ namespace dmGameSystem
             float backwards = (animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_ONCE_BACKWARD
                             || animation_ddf->m_Playback == dmGameSystemDDF::PLAYBACK_LOOP_BACKWARD) ? 1.0f : 0;
 
-            // t = backwards ? (1.0f - t) : t;
+            // Original: t = backwards ? (1.0f - t) : t;
+            // which translates to:
             t = backwards - 2 * t * backwards + t;
 
             uint32_t interval = animation_ddf->m_End - animation_ddf->m_Start;
