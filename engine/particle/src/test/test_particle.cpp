@@ -150,8 +150,8 @@ uint32_t ParticleCount(dmParticle::Emitter* emitter)
 
 bool LoadPrototype(const char* filename, dmParticle::HPrototype* prototype)
 {
-    char path[64];
-    DM_SNPRINTF(path, 64, "build/default/src/test/%s", filename);
+    char path[128];
+    DM_SNPRINTF(path, 128, "build/default/src/test/%s", filename);
     const uint32_t MAX_FILE_SIZE = 4 * 1024;
     unsigned char buffer[MAX_FILE_SIZE];
     uint32_t file_size = 0;
@@ -725,6 +725,105 @@ TEST_F(ParticleTest, ParticleLife)
 }
 
 /**
+* Verify particles stretch with magnitude dependent on velocity
+*/
+TEST_F(ParticleTest, ParticleVelocityStretch)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("velocity_stretch.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    ASSERT_NEAR(3.5f, e->m_Particles[0].m_Scale[1], EPSILON);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    ASSERT_NEAR(1.0f, e->m_Particles[0].m_Scale[1], EPSILON);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+* Verify particles stretch with magnitude according to set stretch factors
+*/
+TEST_F(ParticleTest, ParticleStretch)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("stretch.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    ASSERT_NEAR(2.f, e->m_Particles[0].m_Scale[0], EPSILON);
+    ASSERT_NEAR(4.f, e->m_Particles[0].m_Scale[1], EPSILON);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    ASSERT_NEAR(2.f, e->m_Particles[0].m_Scale[0], EPSILON);
+    ASSERT_NEAR(2.f, e->m_Particles[0].m_Scale[1], EPSILON);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+* Verify particle rotation along movement direction
+*/
+TEST_F(ParticleTest, ParticleOrientationMovementDirection)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("movement_direction.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+
+    Quat q = e->m_Particles[0].GetRotation();
+
+    // Represents an euler rotation of 90 deg around Z
+    ASSERT_EQ(0.0f, q.getX());
+    ASSERT_EQ(0.0f, q.getY());
+    ASSERT_NEAR(cos(M_PI / 4.0f), q.getZ(), EPSILON);
+    ASSERT_NEAR(cos(M_PI / 4.0f), q.getW(), EPSILON);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+
+/**
+* Verify particle rotation along movement direction
+*/
+TEST_F(ParticleTest, ParticleApplyLifeRotationToMovementDirection)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("life_rotation_movement_direction.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+
+    Quat q = e->m_Particles[0].GetRotation();
+
+    // Represents an euler rotation of 90deg particle life rotation combined with 90deg rotation along direction
+    ASSERT_EQ(0.0f, q.getX());
+    ASSERT_EQ(0.0f, q.getY());
+    ASSERT_NEAR(1.0f, q.getZ(), EPSILON);
+    ASSERT_EQ(0.0f, q.getW());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
  * Verify rate of > 1/dt
  */
 TEST_F(ParticleTest, RateMulti)
@@ -890,35 +989,35 @@ TEST_F(ParticleTest, EvaluateEmitterProperty)
     // t = 0.125, size < 0
     dmParticle::Update(m_Context, dt, 0x0);
     dmParticle::Particle* particle = &e->m_Particles[0];
-    ASSERT_GT(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_GT(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.25, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.375, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_LT(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_LT(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.5, size = 1
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(1.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_DOUBLE_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.625, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_LT(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_LT(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.75, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.875, size < 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_GT(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_GT(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 1, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_NEAR(0.0f, particle->GetScale() * particle->GetSourceSize(), EPSILON);
+    ASSERT_NEAR(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize(), EPSILON);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -942,8 +1041,8 @@ TEST_F(ParticleTest, EvaluateEmitterPropertySpread)
         dmParticle::Update(m_Context, dt, 0x0);
         dmParticle::Particle* particle = &emitter->m_Particles[0];
         // NOTE size could potentially be 0, but not likely
-        ASSERT_NE(0.0f, particle->GetScale() * particle->GetSourceSize());
-        ASSERT_GE(1.0f, dmMath::Abs(particle->GetScale() * particle->GetSourceSize()));
+        ASSERT_NE(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
+        ASSERT_GE(1.0f, dmMath::Abs(minElem(particle->GetScale()) * particle->GetSourceSize()));
 
         dmParticle::DestroyInstance(m_Context, instance);
     }
@@ -973,36 +1072,36 @@ TEST_F(ParticleTest, EvaluateParticleProperty)
     // t = 0.125, size < 0
     dmParticle::Update(m_Context, dt, 0x0);
     dmParticle::Particle* particle = &e->m_Particles[0];
-    ASSERT_GT(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_GT(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.25, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.375, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_LT(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_LT(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.5, size = 1
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(1.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_DOUBLE_EQ(1.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.625, size > 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_LT(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_LT(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.75, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_DOUBLE_EQ(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_DOUBLE_EQ(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 0.875, size < 0
     // Updating with a full dt here will make the emitter reach its duration
     dmParticle::Update(m_Context, dt - EPSILON, 0x0);
-    ASSERT_GT(0.0f, particle->GetScale() * particle->GetSourceSize());
+    ASSERT_GT(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize());
 
     // t = 1, size = 0
     dmParticle::Update(m_Context, dt, 0x0);
-    ASSERT_NEAR(0.0f, particle->GetScale() * particle->GetSourceSize(), EPSILON);
+    ASSERT_NEAR(0.0f, minElem(particle->GetScale()) * particle->GetSourceSize(), EPSILON);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
@@ -1024,7 +1123,7 @@ TEST_F(ParticleTest, ParticleInstanceScale)
 
     dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
     dmParticle::Particle* p = &e->m_Particles[0];
-    ASSERT_EQ(2.0f, p->GetScale() * p->GetSourceSize());
+    ASSERT_EQ(2.0f, minElem(p->GetScale()) * p->GetSourceSize());
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

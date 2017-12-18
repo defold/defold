@@ -1,0 +1,80 @@
+emitters: {
+    mode:               PLAY_MODE_ONCE
+    duration:           2
+    space:              EMISSION_SPACE_WORLD
+    position:           { x: 0 y: 0 z: 0 }
+    rotation:           { x: 0 y: 0 z: 0 w: 1 }
+
+    tile_source:        "particle.tilesource"
+    animation:          ""
+    material:           "particle.material"
+
+    max_particle_count: 20
+
+    type:               EMITTER_TYPE_CONE
+
+    properties:         { key: EMITTER_KEY_SPAWN_RATE
+        points: { x: 0 y: 10 t_x: 1 t_y: 0 }
+    }
+    properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+    }
+    properties {
+        key: EMITTER_KEY_PARTICLE_STRETCH_FACTOR_X
+        points {
+          x: 0.0
+          y: 0.0
+          t_x: 1.0
+          t_y: 0.0
+        }
+        spread: 0.0
+    }
+    properties {
+        key: EMITTER_KEY_PARTICLE_STRETCH_FACTOR_Y
+        points {
+          x: 0.0
+          y: 1.0
+          t_x: 1.0
+          t_y: 0.0
+        }
+        spread: 0.0
+    }
+    properties {
+    key: EMITTER_KEY_PARTICLE_SPEED
+    points {
+      x: 0.0
+      y: 300.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    points {
+      x: 0.0
+      y: 300.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    points {
+      x: 0.5
+      y: 300
+      t_x: 0.3
+      t_y: -1.0
+    }
+    points {
+      x: 1.0
+      y: 0.0
+      t_x: 1.0
+      t_y: 0.0
+    }
+    spread: 0.0
+  }
+    stretch_with_velocity: true
+    particle_properties {
+        key: PARTICLE_KEY_SCALE
+        points {
+          x: 0.0
+          y: 1.0
+          t_x: 1.0
+          t_y: 0.0
+        }
+    }
+}
