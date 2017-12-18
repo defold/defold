@@ -311,7 +311,7 @@
                  [:linux   "Linux Application..."]
                  [:html5   "HTML5 Application..."]])))
 
-(ui/extend-menu ::menubar :editor.app-view/edit
+(ui/extend-menu ::menubar :editor.app-view/view
                 [{:label "Project"
                   :id ::project
                   :children (vec (remove nil? [{:label "Build"
