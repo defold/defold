@@ -335,7 +335,7 @@ public class BundleHelper {
     }
 
     public static void parseLog(String platform, String log, List<ResourceInfo> issues) {
-        String[] lines = log.split("\n");
+        String[] lines = log.split("\\r?\\n");
 
         List<ResourceInfo> allIssues = new ArrayList<ResourceInfo>();
         if (platform.contains("osx") || platform.contains("ios") || platform.contains("web")) {
