@@ -5,7 +5,7 @@ public class ResourceEntry {
     public String parentRelPath;
     
     public ResourceEntry(String resourceAbsPath, String parentRelPath) {
-        this.resourceAbsPath = resourceAbsPath;
+        this.resourceAbsPath = resourceAbsPath; 
         this.parentRelPath = parentRelPath;
     }
 

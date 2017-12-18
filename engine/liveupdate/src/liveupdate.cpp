@@ -27,23 +27,14 @@ namespace dmLiveUpdate
      ** LiveUpdate utility functions
      ********************************************************************** **/
 
-     // DEBUG print liveupdate namehash
-    void PrintHash(const uint8_t* hash, uint32_t len)
-    {
-        char* slask = new char[len*2+1];
-        slask[len] = '\0';
-        for (int i = 0; i < len; ++i)
-        {
-            sprintf(slask+i*2, "%02X", hash[i]);
-        }
-        dmLogInfo("HASH PRINTED: %s", slask);
-        delete[] slask;
-    }
-    // END DEBUG
-
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
     {
         dmLogInfo("!!!!!!! GetMissingResources");
+        // dmLogInfo("MANIFEST BEFORE");
+        // for (int i = 0; i < g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
+        // {
+        //     dmLogInfo("URL: %s", g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[i].m_Url);
+        // }
         uint32_t resourceCount = MissingResources(g_LiveUpdate.m_Manifest, urlHash, NULL, 0);
         uint32_t uniqueCount = 0;
         if (resourceCount > 0)
@@ -56,6 +47,8 @@ namespace dmLiveUpdate
             uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
             bool isUnique;
             char* scratch = (char*) malloc(hexDigestLength * sizeof(char*));
+            char* scratch2 = (char*) malloc(hexDigestLength * sizeof(char*));
+            dmLogInfo("Missing resource count: %u", resourceCount);
             for (uint32_t i = 0; i < resourceCount; ++i)
             {
                 isUnique = true;
@@ -66,12 +59,20 @@ namespace dmLiveUpdate
                     {
                         isUnique = false;
                         dmLogInfo("----------------------------------");
-                        dmLogInfo("Resource not unique, ignoring!");
-                        PrintHash(resources[i], (hexDigestLength-1)/2);
+                        dmLogInfo("Resource not unique, ignoring! hash: %s", scratch);
                         break;
                     }
                 }
-
+                // for (int k = 0; k < g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++k)
+                // {
+                //    uint8_t* hash = g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[k].m_Hash.m_Data.m_Data;
+                //    dmResource::HashToString(algorithm, hash, scratch2, hexDigestLength);
+                //    int cmp = memcmp(scratch2, scratch, hexDigestLength);
+                //     if (cmp == 0)
+                //    {
+                //        dmLogInfo("# URL: %s", g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[k].m_Url);
+                //    }
+                // }
                 if (isUnique)
                 {
                     (*buffer)[uniqueCount] = (char*) malloc(hexDigestLength * sizeof(char*));
@@ -79,10 +80,23 @@ namespace dmLiveUpdate
                     ++uniqueCount;
                 }
             }
+            for (int k = 0; k < g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++k)
+            {
+                uint8_t* hash = g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[k].m_Hash.m_Data.m_Data;
+                dmResource::HashToString(algorithm, hash, scratch2, hexDigestLength);
+                {
+                   dmLogInfo("# hash: %s, URL: %s", scratch2, g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[k].m_Url);
+                }
+            }
+            free(scratch2);
             free(scratch);
             free(resources);
         }
-
+        // dmLogInfo("MANIFEST AFTER");
+        // for (int i = 0; i < g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
+        // {
+        //     dmLogInfo("URL: %s", g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[i].m_Url);
+        // }
         dmLogInfo("Num duplicates: %u", resourceCount - uniqueCount);
         return uniqueCount;
     }
@@ -105,6 +119,29 @@ namespace dmLiveUpdate
         }
 
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
+
+        //-- Debug print liveupdate urls from hashes
+        //-- Place for example in liveupdate.cpp after call to CreateResourceHash(...)
+        // DEBUG
+        // { 
+        //     uint32_t hexDigestLength = digestLength * 2 + 1;
+        //     char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
+        //     dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
+        //     char* slask = new char[hexDigestLength+1];
+        //     memcpy(slask, hexDigest, hexDigestLength);
+        //     slask[hexDigestLength] = '\0';
+        //     dmLogInfo("hash: %s", slask);
+        //     for (int i = 0; i < manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
+        //     {
+        //        uint8_t* hash = manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
+        //        int cmp = memcmp(hash, digest, digestLength);
+        //         if (cmp == 0)
+        //        {
+        //            dmLogInfo("URL: %s", manifest->m_DDF->m_Data.m_Resources[i].m_Url);
+        //        }
+        //     }
+        // }
+        // // END DEBUG
 
         uint32_t hexDigestLength = digestLength * 2 + 1;
         char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));

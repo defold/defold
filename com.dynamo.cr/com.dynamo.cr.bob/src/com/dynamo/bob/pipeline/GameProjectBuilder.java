@@ -272,22 +272,25 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         // Find closest collectionproxy parent (if any)
-        ResourceNode parentTraverseNode = new ResourceNode(parentNode.relativeFilepath, parentNode.absoluteFilepath);
-        parentTraverseNode.setParent(parentNode.getParent());
+        //ResourceNode parentTraverseNode = new ResourceNode(parentNode.relativeFilepath, parentNode.absoluteFilepath);
+        //parentTraverseNode.setParent(parentNode.getParent());
+        ResourceNode parentTraverseNode = parentNode;
         String collectionproxyRelPath = "";
-        while (parentTraverseNode != null) {
-            if (parentTraverseNode.relativeFilepath.endsWith("collectionproxyc")) {
-                collectionproxyRelPath = parentTraverseNode.relativeFilepath;
-                System.out.println("########## HIT CP PARENT!: " + collectionproxyRelPath);
-                break;
-            }
-            parentTraverseNode = parentTraverseNode.getParent();
-        }
+        // while (parentTraverseNode != null) {
+        //     if (parentTraverseNode.relativeFilepath.endsWith("collectionproxyc")) {
+        //         collectionproxyRelPath = parentTraverseNode.relativeFilepath;
+        //         //System.out.println("########## HIT CP PARENT!: " + collectionproxyRelPath);
+        //         break;
+        //     }
+        //     parentTraverseNode = parentTraverseNode.getParent();
+        // }
 
-        if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath))) {
-        // if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath))) {
-            System.out.println("GameProjectBuilder, ignoring possible duplicate entry, absPath: " +resource.output().getAbsPath()+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
-            // System.out.println("GameProjectBuilder, ignoring possible duplicate entry, absPath: " +resource.output().getAbsPath()+", collectionproxyRelPath: "+collectionproxyRelPath);
+        // if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath))) {
+        //if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath))) {
+        System.out.println("resource.output().getAbsPath(): " + resource.output().getAbsPath());
+        if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath))) {
+            // System.out.println("GameProjectBuilder, ignoring possible duplicate entry, absPath: " +resource.output().getAbsPath()+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
+            System.out.println("GameProjectBuilder, ignoring possible duplicate entry, relPath: " +resource.output().getPath()+", collectionproxyRelPath: "+collectionproxyRelPath+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
             return;
         }
 

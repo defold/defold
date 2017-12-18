@@ -320,26 +320,27 @@ public class ManifestBuilder {
     public void setDependencies(ResourceNode dependencies) {
         this.dependencies = dependencies;
 
-        // DEBUG STUFF
-        List<ResourceNode> queue = new LinkedList<ResourceNode>();
-        queue.add(this.dependencies);
-        // Find occurences of resource in tree (may be referenced from several collections for example)
-        while (!queue.isEmpty()) {
-            ResourceNode current = queue.remove(0);
-            if (current != null) {
-                // ResourceNode parent = current.getParent();
-                // System.out.println("setDependencies queue, current.relativeFilepath: " + current.relativeFilepath);// + ", parent.relativeFilepath: " + (parent != null ? parent.relativeFilepath : "") );
-                // String apa = "";
-                // while (parent != null) {
-                //     apa += "--";
-                //     System.out.println(apa + ">" + parent.relativeFilepath);
-                //     parent = parent.getParent();
-                // }
-                for (ResourceNode child : current.getChildren()) {
-                    queue.add(child);
-                }
-            }
-        }
+        // System.out.println("setDependencies, dependencies.relativeFilepath: " + this.dependencies.relativeFilepath);
+        // // DEBUG STUFF
+        // List<ResourceNode> queue = new LinkedList<ResourceNode>();
+        // queue.add(this.dependencies);
+        // // Find occurences of resource in tree (may be referenced from several collections for example)
+        // while (!queue.isEmpty()) {
+        //     ResourceNode current = queue.remove(0);
+        //     if (current != null) {
+        //         ResourceNode parent = current.getParent();
+        //         System.out.println("setDependencies queue, current.relativeFilepath: " + current.relativeFilepath);// + ", parent.relativeFilepath: " + (parent != null ? parent.relativeFilepath : "") );
+        //         String apa = "";
+        //         while (parent != null) {
+        //             apa += "--";
+        //             System.out.println(apa + ">" + parent.relativeFilepath);
+        //             parent = parent.getParent();
+        //         }
+        //         for (ResourceNode child : current.getChildren()) {
+        //             queue.add(child);
+        //         }
+        //     }
+        // }
     }
 
     public void setPrivateKeyFilepath(String filepath) {
@@ -395,13 +396,19 @@ public class ManifestBuilder {
         List<ResourceNode> candidates = new LinkedList<ResourceNode>();
         List<ResourceNode> queue = new LinkedList<ResourceNode>();
         queue.add(this.dependencies);
+        System.out.println("------------------");
         // Find occurences of resource in tree (may be referenced from several collections for example)
         while (!queue.isEmpty()) {
             ResourceNode current = queue.remove(0);
             if (current != null) {
-                // if (filepath.contains("shared_go_generated_0")) {
+                if (current.relativeFilepath.contains("/main/main_generated_0.goc")) {
+                    for (ResourceNode child : current.getChildren()) {
+                            System.out.println("child: " + child.relativeFilepath);
+                    }
+                }
+                // if (filepath.contains("shared_go")) {
                 //     ResourceNode parent = current.getParent();
-                //     System.out.println("queue, current.relativeFilepath: " + current.relativeFilepath);// + ", parent.relativeFilepath: " + (parent != null ? parent.relativeFilepath : "") );
+                //     System.out.println("queue, filepath: "+filepath+", current.relativeFilepath: " + current.relativeFilepath);// + ", parent.relativeFilepath: " + (parent != null ? parent.relativeFilepath : "") );
                 //     String apa = "";
                 //     while (parent != null) {
                 //         apa += "--";
@@ -419,6 +426,8 @@ public class ManifestBuilder {
                 } else {
                     for (ResourceNode child : current.getChildren()) {
                         queue.add(child);
+                        // if (current.relativeFilepath.contains("/main/main_generated_0.goc"))
+                        //     System.out.println("child: " + child.relativeFilepath);
                     }
                 }
             }
@@ -437,15 +446,15 @@ public class ManifestBuilder {
             ResourceNode current = candidates.remove(0).getParent();
             result.add(new ArrayList<String>());
             while (current != null) {
-                // if (filepath.contains("shared_go_generated_0")) {
-                //     System.out.println("current.relativeFilepath: " + current.relativeFilepath);
-                // }
+                if (filepath.contains("shared_go")) {
+                    System.out.println("current.relativeFilepath: " + current.relativeFilepath);
+                }
                 if (current.relativeFilepath.endsWith("collectionproxyc")) {
                     // check for duplicates
                     boolean duplicate = false;
                     for(ArrayList<String> res : result) {
                         if (res.contains(current.relativeFilepath)) {
-                            //System.out.println("Got duplicate! filepath: " + filepath + ", current.relativeFilepath: " + current.relativeFilepath);
+                            System.out.println("Got duplicate! filepath: " + filepath + ", current.relativeFilepath: " + current.relativeFilepath);
                             duplicate = true;
                         }
                     }
