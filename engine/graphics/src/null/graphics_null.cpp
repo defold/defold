@@ -501,7 +501,7 @@ namespace dmGraphics
         return result;
     }
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
@@ -515,7 +515,7 @@ namespace dmGraphics
         }
         for (uint32_t i = 0; i < count; ++i)
         {
-            uint32_t index = GetIndex(type, index_buffer, i);
+            uint32_t index = GetIndex(type, index_buffer, i + first);
             for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
             {
                 VertexStream& vs = context->m_VertexStreams[j];
