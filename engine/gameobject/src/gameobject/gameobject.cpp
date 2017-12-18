@@ -2148,46 +2148,6 @@ namespace dmGameObject
             }
         }
 
-
-        /*
-                Matrix4 own;
-        for (uint32_t level_i = 1; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
-        {
-            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
-            uint32_t instance_count = level.Size();
-            for (uint32_t i = 0; i < instance_count; ++i)
-            {
-                uint16_t index = level[i];
-                Instance* instance = collection->m_Instances[index];
-                //CheckEuler(instance);
-                Matrix4* trans = &collection->m_WorldTransforms[index];
-
-                uint16_t parent_index = instance->m_Parent;
-                assert(parent_index != INVALID_INSTANCE_INDEX);
-
-                Matrix4* parent_trans = &collection->m_WorldTransforms[parent_index];
-                own = dmTransform::ToMatrix4(instance->m_Transform);
-
-                if (instance->m_ScaleAlongZ)
-                {
-                    *trans = *parent_trans * own;
-                }
-                else
-                {
-                    *trans = dmTransform::MulNoScaleZ(*parent_trans, own);
-                }
-
-                // if (instance->m_NoInheritScale)
-                // {
-                //     Vector3 scale = dmTransform::ExtractScale(*parent_trans);
-                //     own.setUpper3x3(Matrix3::scale(Vector3(1.0f/scale.getX(), 1.0f/scale.getY(), 1.0f/scale.getZ())) * own.getUpper3x3());
-                //     *trans = (*parent_trans) * own;
-                // }
-            }
-        }
-        */
-
-
         collection->m_DirtyTransforms = false;
     }
 
@@ -2968,20 +2928,12 @@ namespace dmGameObject
         }
     }
 
-    void SetDirtyTransforms(HCollection collection)
-    {
-        collection->m_DirtyTransforms = 1;
-    }
-
     PropertyResult SetProperty(HInstance instance, dmhash_t component_id, dmhash_t property_id, const PropertyVar& value)
     {
         if (instance == 0)
             return PROPERTY_RESULT_INVALID_INSTANCE;
         if (component_id == 0)
         {
-            // Currently assumes that all properties are transform related
-            dmGameObject::SetDirtyTransforms(instance->m_Collection);
-
             float* position = instance->m_Transform.GetPositionPtr();
             float* rotation = instance->m_Transform.GetRotationPtr();
             float* scale = instance->m_Transform.GetScalePtr();
