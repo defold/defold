@@ -177,7 +177,7 @@
   (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n// added line")))
 
 (defn- append-c-code-line! [node-id]
-  (g/update-property! node-id :code (partial format "%s\n// added line")))
+  (test-util/code-editor-source! node-id (str (test-util/code-editor-source node-id) "\n// added line")))
 
 (defn- set-setting!
   [node-id path value]
