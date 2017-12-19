@@ -18,6 +18,10 @@
   (input my-input g/Str :array)
   (output passthrough StrArray (g/fnk [my-input] my-input)))
 
+(g/defnode SimpleCachedTestNode
+  (input my-input g/Str)
+  (output passthrough g/Str :cached (g/fnk [my-input] my-input)))
+
 (deftest test-producing-values-without-substitutes
   (testing "values with no errors"
     (with-clean-system
@@ -97,6 +101,9 @@
     (and (g/error-fatal? error)
          (= reason (:reason error)))))
 
+(defn- cached? [cache node-id label]
+  (contains? cache [node-id label]))
+
 (deftest test-producing-vals-with-errors
   (testing "values with errors"
     (with-clean-system
@@ -129,7 +136,15 @@
                                                (g/make-node world SimpleArrayTestNode))]
           (g/transact (g/connect onode :my-output tnode1 :my-input))
           (g/transact (g/connect tnode1 :passthrough atnode2 :my-input))
-          (is (g/error? (g/node-value atnode2 :passthrough))))))))
+          (is (g/error? (g/node-value atnode2 :passthrough))))))
+
+    (testing "outputs with error inputs are still cached"
+      (with-clean-system
+        (let [[onode tnode] (tx-nodes (g/make-node world ErrorOutputNode)
+                                      (g/make-node world SimpleCachedTestNode))]
+             (g/transact (g/connect onode :my-output tnode :my-input))
+             (is (g/error? (g/node-value tnode :passthrough)))
+             (is (cached? (g/cache) tnode :passthrough)))))))
 
 (g/defnode SubTestNode
   (input my-input g/Str :substitute "beans")
