@@ -810,6 +810,10 @@ namespace dmGameSystem
         uint32_t vertex_count = 0;
         for (int i = 0; i < node_count; ++i)
         {
+            dmGui::HNode node = entries[i].m_Node;
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
             vertex_count += dmParticle::GetEmitterVertexCount(gui_world->m_ParticleContext, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
@@ -831,6 +835,9 @@ namespace dmGameSystem
         for (int i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
+            if (dmGui::GetNodeIsBone(scene, node)) {
+                continue;
+            }
             const Vector4& nodecolor = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
             float opacity = node_opacities[i];
             Vector4 color = Vector4(nodecolor.getXYZ(), opacity);
@@ -1485,7 +1492,7 @@ namespace dmGameSystem
                     RenderSpineNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                     break;
                 case dmGui::NODE_TYPE_PARTICLEFX:
-                    	RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
+                    RenderParticlefxNodes(scene, entries + start, node_transforms + start, node_opacities + start, stencil_scopes + start, n, context);
                     break;
                 default:
                     break;
