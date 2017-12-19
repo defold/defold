@@ -16,6 +16,22 @@
     :label "C++"
     :icon "icons/32/Icons_12-Script-type.png"
     :view-opts cish-opts}
+   {:ext "cxx"
+    :label "C++"
+    :icon "icons/32/Icons_12-Script-type.png"
+    :view-opts cish-opts}
+   {:ext "C"
+    :label "C++"
+    :icon "icons/32/Icons_12-Script-type.png"
+    :view-opts cish-opts}
+   {:ext "cc"
+    :label "C++"
+    :icon "icons/32/Icons_12-Script-type.png"
+    :view-opts cish-opts}
+   {:ext "hpp"
+    :label "C++"
+    :icon "icons/32/Icons_12-Script-type.png"
+    :view-opts cish-opts}
    {:ext "h"
     :label "C/C++ Header"
     :icon "icons/32/Icons_12-Script-type.png"
