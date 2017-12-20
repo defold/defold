@@ -281,18 +281,15 @@
     (.getTabs tab-pane)))
 
 (defn- make-build-options
-  ([build-errors-view]
-   (make-build-options build-errors-view nil))
-  ([build-errors-view additional-build-targets]
-   {:clear-errors! (fn []
+  [build-errors-view]
+  {:clear-errors! (fn []
                      (ui/run-later
                        (build-errors-view/clear-build-errors build-errors-view)))
-    :render-error! (fn [errors]
-                     (ui/run-later
-                       (build-errors-view/update-build-errors
-                         build-errors-view
-                         errors)))
-    :additional-build-targets additional-build-targets}))
+   :render-error! (fn [errors]
+                    (ui/run-later
+                      (build-errors-view/update-build-errors
+                        build-errors-view
+                        errors)))})
 
 (def ^:private remote-log-pump-thread (atom nil))
 (def ^:private console-stream (atom nil))
@@ -371,11 +368,6 @@
       (report-build-launch-progress "Reboot failed")
       (throw e))))
 
-(defn- debug-build-targets
-  [project evaluation-context]
-  (let [start-script (project/get-resource-node project "/_defold/debugger/start.lua")]
-    (g/node-value start-script :build-targets)))
-
 (defn- build-handler
   ([project prefs web-server build-errors-view console-view]
    (build-handler project prefs web-server build-errors-view console-view nil))
@@ -386,19 +378,20 @@
      (do #_future
          (g/with-system local-system
            (report-build-launch-progress "Building...")
-           (let [evaluation-context (g/make-evaluation-context)
-                 build-options      (make-build-options build-errors-view (when debug?
-                                                                            (debug-build-targets project evaluation-context)))
-                 build              (project/build-and-write-project project evaluation-context build-options)
-                 render-error!      (:render-error! build-options)
-                 selected-target    (targets/selected-target prefs)
+           (let [evaluation-context  (g/make-evaluation-context)
+                 build-options       (make-build-options build-errors-view)
+                 extra-build-targets (when debug?
+                                       (debug-view/build-targets project evaluation-context))
+                 build               (project/build-and-write-project project evaluation-context extra-build-targets build-options)
+                 render-error!       (:render-error! build-options)
+                 selected-target     (targets/selected-target prefs)
                  ;; pipeline/build! uses g/user-data for storing info on
                  ;; built resources.
                  ;; This will end up in the local *the-system*, so we will manually
                  ;; transfer this afterwards.
-                 workspace          (project/workspace project)
-                 artifacts          (g/user-data workspace :editor.pipeline/artifacts)
-                 etags              (g/user-data workspace :editor.pipeline/etags)]
+                 workspace           (project/workspace project)
+                 artifacts           (g/user-data workspace :editor.pipeline/artifacts)
+                 etags               (g/user-data workspace :editor.pipeline/etags)]
              (ui/run-later
                (g/update-cache-from-evaluation-context! evaluation-context)
                (g/user-data! workspace :editor.pipeline/artifacts artifacts)
@@ -452,6 +445,7 @@
 
 (handler/defhandler :build :global
   (run [project prefs web-server build-errors-view console-view debug-view]
+    (debug-view/detach! debug-view)
     (build-handler project prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :start-debugger :global
@@ -460,36 +454,19 @@
     (when-some [launched-target (build-handler project prefs web-server build-errors-view console-view {:debug? true})]
       (debug-view/start-debugger! debug-view project (:address launched-target "localhost")))))
 
-(import 'com.dynamo.lua.proto.Lua$LuaModule)
-(import 'java.nio.file.Files)
-
 (handler/defhandler :attach-debugger :global
   (enabled? [debug-view prefs]
             (and (nil? (debug-view/current-session debug-view))
                  (let [target (targets/selected-target prefs)]
                    (and target (targets/controllable-target? target)))))
   (run [project build-errors-view debug-view prefs]
-    (let [evaluation-context (g/make-evaluation-context)
-          start-script  (project/get-resource-node project "/_defold/debugger/start.lua")
-          start-script-resource (g/node-value start-script :resource evaluation-context)
-          build-options (make-build-options build-errors-view (debug-build-targets project evaluation-context))
-          build-results (project/build-and-write-project project (g/make-evaluation-context) build-options)
-          start-script-build-result (->> build-results
-                                         (filter #(= (-> % :resource :resource) start-script-resource))
-                                         (first))
-          target (targets/selected-target prefs)
-          target-address (:address target "localhost")
-          lua-module (some->> start-script-build-result
-                              :resource
-                              io/file
-                              .toPath
-                              Files/readAllBytes
-                              (editor.protobuf/bytes->map Lua$LuaModule))]
-      (debug-view/start-debugger! debug-view project target-address)
-      (engine/run-script target lua-module))))
+    (let [target (targets/selected-target prefs)
+          build-options (make-build-options build-errors-view)]
+      (debug-view/attach! debug-view project target build-options))))
 
 (handler/defhandler :rebuild :global
-  (run [workspace project prefs web-server build-errors-view console-view]
+  (run [workspace project prefs web-server build-errors-view console-view debug-view]
+    (debug-view/detach! debug-view)
     (pipeline/reset-cache! workspace)
     (build-handler project prefs web-server build-errors-view console-view)))
 
@@ -511,12 +488,13 @@
 (def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view selection prefs]
+  (enabled? [app-view debug-view selection prefs]
             (when-let [resource (context-resource-file app-view selection)]
               (and (resource/exists? resource)
                    (some-> (targets/selected-target prefs)
                            (targets/controllable-target?))
-                   (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource)))))))
+                   (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))
+                   (not (debug-view/suspended? debug-view)))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (context-resource-file app-view selection)]
       (ui/default-render-progress-now! (progress/make "Building..."))
@@ -771,7 +749,6 @@
     (refresh-app-title! stage project)))
 
 (defn- refresh-views! [app-view]
-  (def av app-view)
   (when-not (ui/ui-disabled?)
     (let [auto-pulls (g/node-value app-view :auto-pulls)]
       (doseq [[node label] auto-pulls]

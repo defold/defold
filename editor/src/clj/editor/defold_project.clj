@@ -280,19 +280,22 @@
        (write-save-data-to-disk! project {:render-progress! render-fn}))
      (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
-(defn build [project node evaluation-context {:keys [render-progress! render-error! additional-build-targets]
-                                              :or   {render-progress! progress/null-render-progress!}
-                                              :as   opts}]
-  (let [node-build-targets (g/node-value node :build-targets evaluation-context)
-        build-targets (cond-> node-build-targets
-                        (seq additional-build-targets)
-                        (into additional-build-targets))]
-    (if (g/error? build-targets)
-      (do
-        (when render-error!
-          (render-error! build-targets))
-        nil)
-      (pipeline/build! (workspace project) build-targets))))
+(defn build
+  ([project node evaluation-context opts]
+   (build project node evaluation-context nil opts))
+  ([project node evaluation-context extra-build-targets {:keys [render-progress! render-error!]
+                                                         :or   {render-progress! progress/null-render-progress!}
+                                                         :as   opts}]
+   (let [node-build-targets (g/node-value node :build-targets evaluation-context)
+         build-targets (cond-> node-build-targets
+                         (seq extra-build-targets)
+                         (into extra-build-targets))]
+     (if (g/error? build-targets)
+       (do
+         (when render-error!
+           (render-error! build-targets))
+         nil)
+       (pipeline/build! (workspace project) build-targets)))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -554,16 +557,19 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-write-project [project evaluation-context build-options]
-  (let [game-project  (get-resource-node project "/game.project")
-        clear-errors! (:clear-errors! build-options)]
-    (try
-      (ui/with-progress [render-fn ui/default-render-progress!]
-        (clear-errors!)
-        (seq (build project game-project evaluation-context (assoc build-options :render-progress! render-fn))))
-      (catch Throwable error
-        (error-reporting/report-exception! error)
-        nil))))
+(defn build-and-write-project
+  ([project evaluation-context build-options]
+   (build-and-write-project project evaluation-context nil build-options))
+  ([project evaluation-context extra-build-targets build-options]
+   (let [game-project  (get-resource-node project "/game.project")
+         clear-errors! (:clear-errors! build-options)]
+     (try
+       (ui/with-progress [render-fn ui/default-render-progress!]
+         (clear-errors!)
+         (seq (build project game-project evaluation-context extra-build-targets (assoc build-options :render-progress! render-fn))))
+       (catch Throwable error
+         (error-reporting/report-exception! error)
+         nil)))))
 
 (defn settings [project]
   (g/node-value project :settings))
