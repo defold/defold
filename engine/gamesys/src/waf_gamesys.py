@@ -472,7 +472,7 @@ def compile_lua(task):
         lua_module.source.script = script
 
         # Making the file name path relative to the source folder
-        if task.generator.source_root is not None:
+        if hasattr(task.generator, "source_root"):
             base = os.path.abspath(task.generator.source_root)
             p = os.path.abspath(task.outputs[0].bldpath(task.env))
             p = os.path.relpath(p, base)
