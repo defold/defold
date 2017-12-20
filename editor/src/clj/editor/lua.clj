@@ -4,6 +4,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [editor.code :as code]
+            [editor.code.integration :as code-integration]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
             [schema.core :as s])
@@ -158,19 +159,19 @@
 
 (defn lua-base-documentation []
   (s/validate documentation-schema
-    {"" (into []
-              (util/distinct-by :display-string)
-              (concat (map #(assoc % :type :snippet)
-                           (-> (io/resource "lua-base-snippets.edn")
-                               slurp
-                               edn/read-string))
-                      ;; Disabled keyword completion for now, since it breaks the tests for the old code editor.
-                      #_(map (fn [keyword]
-                             {:type :keyword
-                              :name keyword
-                              :display-string keyword
-                              :insert-string keyword})
-                           all-keywords)))}))
+              {"" (into []
+                        (util/distinct-by :display-string)
+                        (concat (map #(assoc % :type :snippet)
+                                     (-> (io/resource "lua-base-snippets.edn")
+                                         slurp
+                                         edn/read-string))
+                                (when code-integration/use-new-code-editor?
+                                  (map (fn [keyword]
+                                         {:type :keyword
+                                          :name keyword
+                                          :display-string keyword
+                                          :insert-string keyword})
+                                       all-keywords))))}))
 
 (def lua-std-libs-docs (atom (lua-base-documentation)))
 
