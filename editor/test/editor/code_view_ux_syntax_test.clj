@@ -129,9 +129,16 @@
   [source-viewer expectations]
   (is (= expectations (map #(vector (:name %) (:display-string %) (:insert-string %)) (propose source-viewer)))))
 
+;; We want keywords as part of completions in the new text editor, but that breaks these tests for the old.
+;; This alternate lua def strips out the keywords again.
+(def no-keyword-assist-lua (assoc lua/lua
+                                  :assist (fn [completions ^String text offset ^String line]
+                                            (let [filtered ((:assist lua/lua) completions text offset line)]
+                                              (remove #(= (:type %) :keyword) filtered)))))
+
 (defn- completions? [init expect]
   (with-clean-system
-    (let [viewer (first (load-buffer world script/ScriptNode lua/lua init))]
+    (let [viewer (first (load-buffer world script/ScriptNode no-keyword-assist-lua init))]
       (should-propose viewer expect))))
 
 (deftest lua-completions-propose-test
@@ -170,7 +177,7 @@
 
 (deftest test-single-value-proposals
   (with-clean-system
-    (are [init expect] (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+    (are [init expect] (buffer-commands (load-buffer world script/ScriptNode no-keyword-assist-lua)
                                         init
                                         (propose!)
                                         expect)
@@ -226,7 +233,7 @@
                        (tab!)
                        "string.sub(1, 2)|"))
     (testing "with if template"
-      (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+      (buffer-commands (load-buffer world script/ScriptNode no-keyword-assist-lua)
                        "if|"
 
                        (propose!)
@@ -249,7 +256,7 @@
                                   "\t-- do things"
                                   "end|")))
     (testing "with function template"
-      (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+      (buffer-commands (load-buffer world script/ScriptNode no-keyword-assist-lua)
                        "function|"
 
                        (propose!)
@@ -272,7 +279,7 @@
                                   "\t-- do things"
                                   "end|")))
     (testing "shift tab backwards"
-      (buffer-commands (load-buffer world script/ScriptNode lua/lua)
+      (buffer-commands (load-buffer world script/ScriptNode no-keyword-assist-lua)
                        "if|"
 
                        (propose!)
