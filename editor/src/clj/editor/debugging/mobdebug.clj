@@ -162,31 +162,26 @@
 (defn connect!
   [address port on-connected on-closed]
   (thread
-    (try
-      (loop [retries 0]
-        (prn :connecting address port)
-        (if-some [socket (try-connect! address port)]
-          (let [debug-session (make-debug-session socket on-closed)]
-            (on-connected debug-session)
-            (prn :connected))
-          (if (< retries 10)
-            (do (Thread/sleep 200) (recur (inc retries)))
-            (throw (ex-info (format "Failed to connect to debugger on %s:%d" address port)
-                            {:address address
-                             :port port})))))
-      (catch Throwable t
-        (prn :err t)))))
+    (loop [retries 0]
+      (if-some [socket (try-connect! address port)]
+        (let [debug-session (make-debug-session socket on-closed)]
+          (on-connected debug-session))
+        (if (< retries 10)
+          (do (Thread/sleep 200) (recur (inc retries)))
+          (throw (ex-info (format "Failed to connect to debugger on %s:%d" address port)
+                          {:address address
+                           :port port})))))))
 
 (defn close!
   ([debug-session]
    (close! debug-session :closed))
   ([^DebugSession debug-session end-state]
    (when-some [^Socket socket (.socket debug-session)]
-     ;; TODO: IOException
-     (.close socket)) 
+     (try
+       (.close socket)
+       (catch IOException _))) 
    (-state! debug-session end-state)
    (when-some [on-closed (.on-closed debug-session)]
-     ;; TODO: Exception?
      (on-closed debug-session))))
 
 (defmacro with-session
