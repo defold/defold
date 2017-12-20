@@ -454,7 +454,7 @@
   (let [^double space-width (char-width glyph-metrics \space)
         tab-width (* space-width (double tab-spaces))]
     ;; tab-stops is now a list of rules applicable for a range.
-    ;; For now, there is one range covering the whole x range.
+    ;; For now, there is one rule covering the whole x range.
     [{:tab-width tab-width}]))
 
 (defn gutter-metrics [glyph-metrics ^double gutter-margin ^long source-line-count]
