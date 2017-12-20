@@ -1,18 +1,23 @@
 (ns editor.debug-view
   (:require
+   [clojure.java.io :as io]
    [clojure.set :as set]
+   [clojure.string :as str]
    [dynamo.graph :as g]
    [editor.console :as console]
    [editor.core :as core]
    [editor.debugging.mobdebug :as mobdebug]
+   [editor.defold-project :as project]
+   [editor.engine :as engine]
    [editor.handler :as handler]
    [editor.lua :as lua]
-   [editor.defold-project :as project]
+   [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.ui :as ui]
-   [editor.workspace :as workspace]
-   [clojure.string :as str])
+   [editor.workspace :as workspace])
   (:import
+   (com.dynamo.lua.proto Lua$LuaModule)
+   (java.nio.file Files)
    (javafx.scene Parent)
    (javafx.scene.control Button Label ListView TreeItem TreeView SplitPane)
    (javafx.scene.layout HBox Pane Priority)
@@ -372,11 +377,53 @@
                        (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
                        (show! debug-view))
                      (fn [debug-session]
-                       (ui/run-later (g/set-property! debug-view :debug-session nil)))))
+                       (ui/run-now (g/set-property! debug-view
+                                                    :debug-session nil
+                                                    :suspension-state nil)))))
 
 (defn current-session
   [debug-view]
   (g/node-value debug-view :debug-session))
+
+(defn suspended?
+  [debug-view]
+  (and (current-session debug-view)
+       (some? (g/node-value debug-view :suspension-state))))
+
+(def debugger-init-script "/_defold/debugger/start.lua")
+
+(defn build-targets
+  [project evaluation-context]
+  (let [start-script (project/get-resource-node project debugger-init-script)]
+    (g/node-value start-script :build-targets)))
+
+(defn- built-lua-module
+  [build-results path]
+  (let [build-result (->> build-results
+                          (filter #(= (some-> % :resource :resource resource/proj-path) path))
+                          (first))]
+    (some->> build-result
+             :resource
+             io/file
+             .toPath
+             Files/readAllBytes
+             (protobuf/bytes->map Lua$LuaModule))))
+
+(defn attach!
+  [debug-view project target build-options]
+  (let [evaluation-context (g/make-evaluation-context)
+        extra-build-targets (build-targets project evaluation-context)
+        build-results (project/build-and-write-project project evaluation-context extra-build-targets build-options)
+        target-address (:address target "localhost")
+        lua-module (built-lua-module build-results debugger-init-script)]
+    (assert lua-module)
+    (start-debugger! debug-view project target-address)
+    (engine/run-script target lua-module)))
+
+(defn detach!
+  [debug-view]
+  (when-some [debug-session (current-session debug-view)]
+    (mobdebug/done! debug-session)))
 
 (handler/defhandler :break :global
   (enabled? [debug-view] (= :running (some-> (current-session debug-view) mobdebug/state)))
