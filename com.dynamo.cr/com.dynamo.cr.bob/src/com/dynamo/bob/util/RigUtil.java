@@ -260,6 +260,7 @@ public class RigUtil {
         void addComposite(T v);
         void add(double v);
         T toComposite(Key key);
+        T interpolate(double t, T a, T b);
     }
 
     public static abstract class AbstractPropertyBuilder<T> implements PropertyBuilder<T, RigUtil.AnimationKey> {
@@ -311,6 +312,15 @@ public class RigUtil {
             }
 
         }
+
+        @Override
+        public Point3d interpolate(double t, Point3d a, Point3d b)
+        {
+            Point3d out = new Point3d(a);
+            out.scale(1.0 - t);
+            out.scaleAdd(t, b, out);
+            return out;
+        }
     }
 
     public static Quat4d toQuat(double angle) {
@@ -332,13 +342,23 @@ public class RigUtil {
 
         @Override
         public void add(double v) {
-            addComposite(toQuat(v));
+            Quat4d q = toQuat(v);
+            System.out.println(v + " : " + q.z + ", " + q.w);
+            addComposite(q);
         }
 
         @Override
         public Quat4d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return toQuat(v[0]);
+        }
+
+        @Override
+        public Quat4d interpolate(double t, Quat4d a, Quat4d b)
+        {
+            Quat4d out = new Quat4d();
+            out.interpolate(a, b, t);
+            return out;
         }
     }
 
@@ -362,6 +382,14 @@ public class RigUtil {
             float[] v = key.value;
             return new Quat4d(v[0], v[1], v[2], v[3]);
         }
+
+        @Override
+        public Quat4d interpolate(double t, Quat4d a, Quat4d b)
+        {
+            Quat4d out = new Quat4d();
+            out.interpolate(a, b, t);
+            return out;
+        }
     }
 
     public static class ScaleBuilder extends AbstractPropertyBuilder<Vector3d> {
@@ -384,6 +412,15 @@ public class RigUtil {
             float[] v = key.value;
             return new Vector3d(v[0], v[1], v[2]);
         }
+
+        @Override
+        public Vector3d interpolate(double t, Vector3d a, Vector3d b)
+        {
+            Vector3d out = new Vector3d(a);
+            out.scale(1.0 - t);
+            out.scaleAdd(t, b, out);
+            return out;
+        }
     }
 
     public static class IKMixBuilder extends AbstractIKPropertyBuilder<Float> {
@@ -404,6 +441,12 @@ public class RigUtil {
         @Override
         public Float toComposite(RigUtil.IKAnimationKey key) {
             return new Float(key.mix);
+        }
+
+        @Override
+        public Float interpolate(double t, Float a, Float b)
+        {
+            return ((1.0f - (float)t) * a + (float)t * b);
         }
     }
 
@@ -426,6 +469,16 @@ public class RigUtil {
         public Boolean toComposite(RigUtil.IKAnimationKey key) {
             return new Boolean(key.positive);
         }
+
+        @Override
+        public Boolean interpolate(double t, Boolean a, Boolean b)
+        {
+            if (t <= 0.5) {
+                return a;
+            } else {
+                return b;
+            }
+        }
     }
 
     public static class ColorBuilder extends AbstractMeshPropertyBuilder<float[]> {
@@ -446,6 +499,17 @@ public class RigUtil {
         @Override
         public float[] toComposite(RigUtil.SlotAnimationKey key) {
             return key.value;
+        }
+
+        @Override
+        public float[] interpolate(double t, float[] a, float[] b)
+        {
+            float out[] = {0.0f, 0.0f, 0.0f, 0.0f};
+            out[0] = ((1.0f - (float)t) * a[0] + (float)t * b[0]);
+            out[1] = ((1.0f - (float)t) * a[1] + (float)t * b[1]);
+            out[2] = ((1.0f - (float)t) * a[2] + (float)t * b[2]);
+            out[3] = ((1.0f - (float)t) * a[3] + (float)t * b[3]);
+            return out;
         }
     }
 
@@ -471,6 +535,16 @@ public class RigUtil {
         public Boolean toComposite(RigUtil.SlotAnimationKey key) {
             return this.meshName.equals(key.attachment);
         }
+
+        @Override
+        public Boolean interpolate(double t, Boolean a, Boolean b)
+        {
+            if (t <= 0.5) {
+                return a;
+            } else {
+                return b;
+            }
+        }
     }
 
     public static class DrawOrderBuilder extends AbstractMeshPropertyBuilder<Integer> {
@@ -492,6 +566,16 @@ public class RigUtil {
         public Integer toComposite(RigUtil.SlotAnimationKey key) {
             return key.orderOffset;
         }
+
+        @Override
+        public Integer interpolate(double t, Integer a, Integer b)
+        {
+            if (t <= 0.5) {
+                return a;
+            } else {
+                return b;
+            }
+        }
     }
 
 
@@ -503,30 +587,16 @@ public class RigUtil {
         return BezierUtil.curve(t, 0.0, curve.y0, curve.y1, 1.0);
     }
 
-    private static void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<?,?> builder, double cursor, double t0, float[] v0, double t1, float[] v1) {
+    private static <T, Key extends RigUtil.AnimationKey> void sampleCurve(RigUtil.AnimationCurve curve, RigUtil.PropertyBuilder<T,Key> builder, double cursor, double t0, Key v0, double t1, Key v1) {
         double length = t1 - t0;
         double t = (cursor - t0) / length;
         if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
             t = evalCurve(curve, t);
         }
-        for (int i = 0; i < v0.length; ++i) {
-            double v = (1.0 - t) * v0[i] + t * v1[i];
-            builder.add(v);
-        }
+        builder.addComposite(builder.interpolate(t, builder.toComposite(v0), builder.toComposite(v1)));
     }
 
-    private static Quat4d sampleCurveSlerp(RigUtil.AnimationCurve curve, double cursor, double t0, Quat4d q0, double t1, Quat4d q1) {
-        double length = t1 - t0;
-        double t = (cursor - t0) / length;
-        Quat4d qOut = new Quat4d();
-        if (curve != null && curve.interpolation == CurveIntepolation.BEZIER) {
-            t = evalCurve(curve, t);
-        }
-        qOut.interpolate(q0, q1, t);
-        return qOut;
-    }
-
-    public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double startTime, double duration, double sampleRate, double spf, boolean interpolate, boolean shouldSlerp) {
+    public static <T,Key extends RigUtil.AnimationKey> void sampleTrack(RigUtil.AbstractAnimationTrack<Key> track, RigUtil.PropertyBuilder<T, Key> propertyBuilder, T defaultValue, double startTime, double duration, double sampleRate, double spf, boolean interpolate) {
         if (track.keys.isEmpty()) {
             return;
         }
@@ -563,17 +633,7 @@ public class RigUtil {
                         }
                     } else {
                         // Normal sampling
-                        if (shouldSlerp) {
-                            Quat4d q0 = new Quat4d(new double[]{key.value[0], key.value[1], key.value[2], key.value[3]});
-                            Quat4d q1 = new Quat4d(new double[]{next.value[0], next.value[1], next.value[2], next.value[3]});
-                            Quat4d q2 = sampleCurveSlerp(key.curve, cursor, key.t, q0, next.t, q1);
-                            propertyBuilder.add(q2.x);
-                            propertyBuilder.add(q2.y);
-                            propertyBuilder.add(q2.z);
-                            propertyBuilder.add(q2.w);
-                        } else {
-                            sampleCurve(key.curve, propertyBuilder, cursor, key.t, key.value, next.t, next.value);
-                        }
+                        sampleCurve(key.curve, propertyBuilder, cursor, key.t, key, next.t, next);
                     }
                 } else {
                     // Last key reached, use its value for remaining samples
