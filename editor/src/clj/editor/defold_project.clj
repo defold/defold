@@ -40,8 +40,8 @@
 
 (def ^:dynamic *load-cache* nil)
 
-(def ^:private TBreakpoint {:resource g/Any
-                            :line Long})
+(def ^:private TBreakpoint {:resource s/Any
+                            :line     Long})
 
 (g/deftype Breakpoints [TBreakpoint])
 
@@ -512,7 +512,7 @@
   (input texture-profiles g/Any)
   (input collision-group-nodes g/Any :array)
   (input build-settings g/Any)
-  (input breakpoints g/Any #_Breakpoints :array :substitute gu/array-subst-remove-errors)
+  (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
@@ -544,7 +544,7 @@
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
   (output default-tex-params g/Any :cached produce-default-tex-params)
   (output build-settings g/Any (gu/passthrough build-settings))
-  (output breakpoints g/Any :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
+  (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
