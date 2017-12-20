@@ -129,8 +129,8 @@ public class ArchiveBuilder {
 
     public boolean excludeResource(String filepath, List<ResourceEntry> excludedResources) {
         boolean result = false;
-        boolean print_cond = false;//filepath.contains("shared_go");
-        // System.out.println("-----------------------------------------");
+        boolean print_cond = true;//filepath.contains("shared_go");
+        System.out.println("-----------------------------------------");
         // System.out.println("print_cond: " + print_cond + ", filepath: " + filepath);
         if (filepath.startsWith("/builtins")) {
             return false;

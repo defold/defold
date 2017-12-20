@@ -272,8 +272,6 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         // Find closest collectionproxy parent (if any)
-        //ResourceNode parentTraverseNode = new ResourceNode(parentNode.relativeFilepath, parentNode.absoluteFilepath);
-        //parentTraverseNode.setParent(parentNode.getParent());
         ResourceNode parentTraverseNode = parentNode;
         String collectionproxyRelPath = "";
         // while (parentTraverseNode != null) {
@@ -285,18 +283,19 @@ public class GameProjectBuilder extends Builder<Void> {
         //     parentTraverseNode = parentTraverseNode.getParent();
         // }
 
-        // if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath))) {
-        //if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath))) {
-        System.out.println("resource.output().getAbsPath(): " + resource.output().getAbsPath());
-        if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath))) {
+        //System.out.println("resource.output().getAbsPath(): " + resource.output().getAbsPath() + ", cp: " + collectionproxyRelPath);
+        if (!resources.contains(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath))) {
+            resources.add(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath));
+        }
+        else
+        {
             // System.out.println("GameProjectBuilder, ignoring possible duplicate entry, absPath: " +resource.output().getAbsPath()+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
-            System.out.println("GameProjectBuilder, ignoring possible duplicate entry, relPath: " +resource.output().getPath()+", collectionproxyRelPath: "+collectionproxyRelPath+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
-            return;
+            System.out.println("GameProjectBuilder, ignoring possible duplicate entry, relPath: " +resource.getPath()+", collectionproxyRelPath: "+collectionproxyRelPath+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
+            // return;
         }
 
-        resources.add(new ResourceEntry(resource.output().getAbsPath(), collectionproxyRelPath));
-
         ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
+        System.out.println("parentNode.relativeFilepath: " + parentNode.relativeFilepath + ", current.relativeFilepath: " + currentNode.relativeFilepath);
         parentNode.addChild(currentNode);
 
         int i = resource.getPath().lastIndexOf(".");

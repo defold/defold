@@ -396,14 +396,19 @@ public class ManifestBuilder {
         List<ResourceNode> candidates = new LinkedList<ResourceNode>();
         List<ResourceNode> queue = new LinkedList<ResourceNode>();
         queue.add(this.dependencies);
-        System.out.println("------------------");
+        // System.out.println("------------------");
         // Find occurences of resource in tree (may be referenced from several collections for example)
         while (!queue.isEmpty()) {
             ResourceNode current = queue.remove(0);
             if (current != null) {
-                if (current.relativeFilepath.contains("/main/main_generated_0.goc")) {
+                if (current.relativeFilepath.contains("/main/main_generated_0_generated_4.collectionproxyc")) {
                     for (ResourceNode child : current.getChildren()) {
-                            System.out.println("child: " + child.relativeFilepath);
+                            System.out.println("/main/main_generated_0_generated_4.collectionproxyc child: " + child.relativeFilepath);
+                    }
+                }
+                if (current.relativeFilepath.contains("/scenes/menu/menu.collectionc")) {
+                    for (ResourceNode child : current.getChildren()) {
+                            System.out.println("/scenes/menu/menu.collectionc child: " + child.relativeFilepath);
                     }
                 }
                 // if (filepath.contains("shared_go")) {
@@ -426,20 +431,10 @@ public class ManifestBuilder {
                 } else {
                     for (ResourceNode child : current.getChildren()) {
                         queue.add(child);
-                        // if (current.relativeFilepath.contains("/main/main_generated_0.goc"))
-                        //     System.out.println("child: " + child.relativeFilepath);
                     }
                 }
             }
         }
-
-        // if (filepath.contains("shared_go_generated_0")) {
-        //     System.out.println("num parent candidates for shared_go_generated_0.labelc: " + candidates.size());
-
-        //     for (ResourceNode cand : candidates) {
-        //         System.out.println("----> " + cand.relativeFilepath);
-        //     }
-        // }
 
         int i = 0;
         while (!candidates.isEmpty()) {
@@ -473,6 +468,7 @@ public class ManifestBuilder {
     }
 
     public List<String> getDependants(String filepath) throws IOException {
+        System.out.println("omgwtfbbq, filepath: " + filepath);
         /* This function first tries to find the correct resource in the
            dependency tree. Since there is no index we have to iterate over
            the structure and match the relative filepaths that identifies the
@@ -494,6 +490,16 @@ public class ManifestBuilder {
         queue.add(this.dependencies);
         while (candidate == null && !queue.isEmpty()) {
             ResourceNode current = queue.remove(0);
+            if (current.relativeFilepath.contains("/main/main_generated_0_generated_4.collectionproxyc")) {
+                for (ResourceNode child : current.getChildren()) {
+                        System.out.println("/main/main_generated_0_generated_4.collectionproxyc child: " + child.relativeFilepath);
+                }
+            }
+            if (current.relativeFilepath.contains("/scenes/menu/menu.collectionc")) {
+                for (ResourceNode child : current.getChildren()) {
+                        System.out.println("/scenes/menu/menu.collectionc child: " + child.relativeFilepath);
+                }
+            }
             if (current.relativeFilepath.equals(filepath)) {
                 candidate = current;
             } else {
