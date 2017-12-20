@@ -340,10 +340,8 @@
 
 (defn- next-tab-stop-x
   ^double [tab-stops ^double x]
-  (some (fn [^double tab-stop]
-          (when (< x tab-stop)
-            tab-stop))
-        tab-stops))
+  (let [^double tab-width (:tab-width (first tab-stops))]
+    (* (+ (quot x tab-width) 1) tab-width)))
 
 (defn- advance-text-impl [glyph-metrics tab-stops ^String text start-index end-index start-x]
   (loop [^long index start-index
@@ -454,7 +452,9 @@
 (defn tab-stops [glyph-metrics tab-spaces]
   (let [^double space-width (char-width glyph-metrics \space)
         tab-width (* space-width (double tab-spaces))]
-    (take 100 (iterate (partial + tab-width) tab-width)))) ; Limit so we won't try to print an infinite sequence.
+    ;; tab-stops is now a list of rules applicable for a range.
+    ;; For now, there is one rule covering the whole x range.
+    [{:tab-width tab-width}]))
 
 (defn gutter-metrics [glyph-metrics ^double gutter-margin ^long source-line-count]
   (let [max-line-number-width (Math/ceil (* ^double (char-width glyph-metrics \0) (count (str source-line-count))))]

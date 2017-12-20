@@ -200,7 +200,7 @@
             (io/copy (.getEntityInputStream cr) engine-archive)
             engine-archive)
           (let [log (.getEntity cr String)]
-            (throw (engine-build-errors/build-error status log))))))))
+            (throw (engine-build-errors/build-error platform status log))))))))
 
 (defn- find-or-build-engine-archive
   [cache-dir server-url platform sdk-version resource-nodes-by-upload-path]
