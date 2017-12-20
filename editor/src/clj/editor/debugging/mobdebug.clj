@@ -2,7 +2,8 @@
   (:refer-clojure :exclude [eval run!])
   (:require
    [clojure.edn :as edn]
-   [editor.lua :as lua])
+   [editor.lua :as lua]
+   [service.log :as log])
   (:import
    (java.util Stack)
    (java.util.concurrent Executors ExecutorService)
@@ -192,7 +193,7 @@
        (catch IOException ex#
          (close! ~debug-session))
        (catch Throwable t#
-         (prn :exception t#)
+         (log/error :exception t#)
          (close! ~debug-session :error)))))
 
 (defn state
@@ -387,23 +388,3 @@
       :running   (suspend! debug-session (fn [debug-session suspend-event]
                                            (f debug-session)
                                            (run! debug-session nil))))))
-
-(comment
-
-  (set-breakpoint! session "/main/main.script" 18)
-
-  (set-breakpoint! session "/main/main.script" 18)
-
-  (run! session)
-
-  (suspend! session)
-
-  (stack session)
-
-
-  (close-debug-session! session)
-
-
-
-
-  )
