@@ -75,6 +75,10 @@
   (refresh-tool-bar! view-node tool-bar)
   tool-bar)
 
+(defn- dispose-tool-bar! [^Parent tool-bar]
+  (ui/with-controls tool-bar [^TextField search-console]
+    (.unbindBidirectional (.textProperty search-console) find-term-property)))
+
 (defn- focus-term-field! [^Parent bar]
   (ui/with-controls bar [^TextField search-console]
     (.requestFocus search-console)
@@ -347,11 +351,13 @@
      ["editor.selection.occurrence.outline" (if code-integration/use-new-code-editor? (Color/valueOf "#A2B0BE") Color/TRANSPARENT)]]))
 
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
-  (let [canvas (Canvas.)
-        ^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
+  (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
+        canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
         view-node (setup-view! (g/make-node! graph ConsoleNode)
                                (g/make-node! graph view/CodeEditorView
                                              :canvas canvas
+                                             :canvas-width (.getWidth canvas)
+                                             :canvas-height (.getHeight canvas)
                                              :color-scheme console-color-scheme
                                              :grammar console-grammar
                                              :gutter-view (ConsoleGutterView.)
@@ -376,9 +382,6 @@
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
     (ui/observe (.focusedProperty canvas) (fn [_ _ focused?] (g/set-property! view-node :focused? focused?)))
 
-    ;; Highlight occurrences of search term.
-    (ui/observe find-term-property (fn [_ _ find-term] (g/set-property! view-node :highlighted-find-term find-term)))
-
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
@@ -393,7 +396,16 @@
     (ui/context! console-grid-pane :console-grid-pane context-env nil)
     (ui/context! canvas :console-view context-env nil)
 
+    ;; Highlight occurrences of search term.
+    (let [find-term-setter (view/make-property-change-setter view-node :highlighted-find-term)]
+      (.addListener find-term-property find-term-setter)
+
+      ;; Remove callbacks if the console tab is closed.
+      (ui/on-closed! console-tab (fn [_]
+                                   (ui/timer-stop! repainter)
+                                   (dispose-tool-bar! tool-bar)
+                                   (.removeListener find-term-property find-term-setter))))
+
     ;; Start repaint timer.
     (ui/timer-start! repainter)
-    (ui/timer-stop-on-closed! console-tab repainter)
     view-node))

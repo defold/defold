@@ -65,12 +65,8 @@ namespace dmScript
      * @examples
      *
      * ```cpp
-     * DM_LUA_STACK_CHECK(L, 0);
-     * {
-     *     DM_LUA_STACK_CHECK(L, 1);
-     *     lua_pushnumber(L, 0);
-     * }
-     * lua_pop(L, 1);
+     * DM_LUA_STACK_CHECK(L, 1);
+     * lua_pushnumber(L, 42);
      * ```
      */
     #define DM_LUA_STACK_CHECK(_L_, _diff_)     dmScript::LuaStackCheck _DM_LuaStackCheck(_L_, _diff_);
@@ -90,10 +86,15 @@ namespace dmScript
      * @examples
      *
      * ```cpp
-     * DM_LUA_STACK_CHECK(L, 0);
-     * if (true)
+     * static int ModuleFunc(lua_State* L)
      * {
-     *     DM_LUA_ERROR("some error message");
+     *     DM_LUA_STACK_CHECK(L, 1);
+     *     if (some_error_check(L))
+     *     {
+     *         return DM_LUA_ERROR("some error message");
+     *     }
+     *     lua_pushnumber(L, 42);
+     *     return 1;
      * }
      * ```
      */

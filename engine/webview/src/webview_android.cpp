@@ -257,6 +257,9 @@ JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onEvalFailed(JNIEnv* e
 
 dmExtension::Result UpdateWebView(dmExtension::Params* params)
 {
+    if (g_WebView.m_CmdQueue.Empty())
+        return dmExtension::RESULT_OK; // avoid a lock (~300us on iPhone 4s)
+    
     dmMutex::ScopedLock lk(g_WebView.m_Mutex);
     for (uint32_t i=0; i != g_WebView.m_CmdQueue.Size(); ++i)
     {

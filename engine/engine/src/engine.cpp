@@ -1536,6 +1536,7 @@ bail:
                 dmRecord::NewParams params;
                 params.m_Width = width;
                 params.m_Height = height;
+                params.m_Filename = start_record->m_FileName;
                 params.m_Fps = start_record->m_Fps;
 
                 dmRecord::Result r = dmRecord::New(&params, &record_data->m_Recorder);

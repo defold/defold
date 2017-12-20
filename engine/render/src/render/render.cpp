@@ -583,7 +583,7 @@ namespace dmRender
                 dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclaration, ro->m_VertexBuffer, GetMaterialProgram(material));
 
                 if (ro->m_IndexBuffer)
-                    dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
+                    dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
                 else
                     dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
 

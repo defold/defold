@@ -18,9 +18,11 @@
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
-            [editor.outline :as outline])
+            [editor.outline :as outline]
+            [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.sound.proto Sound$SoundDesc]
+           [java.io StringReader]
            [javax.vecmath Matrix4d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -343,8 +345,8 @@
   (concat
     (when resolve-id?
       (->> (g/node-value self-id :component-ids)
-        keys
-        (g/update-property comp-id :id outline/resolve-id)))
+           keys
+           (g/update-property comp-id :id outline/resolve-id)))
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
@@ -534,6 +536,25 @@
 (defn- sanitize-game-object [go]
   (update go :components (partial mapv sanitize-component)))
 
+(defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
+  (when-let [resource-type (resource-types type)]
+    (let [read-component (:read-fn resource-type)
+          component-dependencies (:dependencies-fn resource-type)]
+      (try
+        (component-dependencies (read-component (StringReader. data)))
+        (catch Exception e
+          (log/warn :msg (format "Couldn't determine dependencies for embedded component %s." id) :exception e)
+          [])))))
+
+(defn- make-dependencies-fn [workspace]
+  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc)]
+    (fn [source-value]
+      (let [embedded-components (:embedded-components source-value)
+            resource-types (workspace/get-resource-type-map workspace)]
+        (into (default-dependencies-fn source-value)
+              (mapcat (partial parse-embedded-dependencies resource-types))
+              embedded-components)))))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "go"
@@ -541,6 +562,7 @@
     :node-type GameObjectNode
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
+    :dependencies-fn (make-dependencies-fn workspace)
     :sanitize-fn sanitize-game-object
     :icon game-object-icon
     :view-types [:scene :text]

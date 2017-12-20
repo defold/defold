@@ -1,0 +1,3 @@
+name: "unnamed"
+vertex_program: "/test.vp"
+fragment_program: "/test.fp"

@@ -104,7 +104,7 @@ TEST_F(ScriptBufferTest, PrintBuffer)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
-TEST_F(ScriptBufferTest, GetElementCount)
+TEST_F(ScriptBufferTest, GetCount)
 {
     int top = lua_gettop(L);
     dmScript::LuaHBuffer luabuf = {m_Buffer, false};
@@ -129,7 +129,7 @@ TEST_F(ScriptBufferTest, CreateBuffer)
     RunString(L, "test_buffer = buffer.create( 12, { {name=hash(\"rgba\"), type=buffer.VALUE_TYPE_UINT8, count=4 } } )");
     lua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(buffer->m_Buffer, &element_count));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(12, element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("rgba"), &type, &typecount ) );
     ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT8, type);
@@ -139,21 +139,21 @@ TEST_F(ScriptBufferTest, CreateBuffer)
     RunString(L, "test_buffer = buffer.create( 24, { {name=hash(\"position\"), type=buffer.VALUE_TYPE_FLOAT32, count=3 } } )");
     lua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(buffer->m_Buffer, &element_count));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(24, element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("position"), &type, &typecount ) );
     ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT32, type);
     ASSERT_EQ(3, typecount);
     lua_pop(L, 1);
 
-    RunString(L, "test_buffer = buffer.create( 10, { {name=hash(\"position\"), type=buffer.VALUE_TYPE_FLOAT64, count=4 }, \
+    RunString(L, "test_buffer = buffer.create( 10, { {name=hash(\"position\"), type=buffer.VALUE_TYPE_UINT16, count=4 }, \
                                                     {name=hash(\"normal\"), type=buffer.VALUE_TYPE_FLOAT32, count=3 } } )");
     lua_getglobal(L, "test_buffer");
     buffer = dmScript::CheckBuffer(L, -1);
-    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetElementCount(buffer->m_Buffer, &element_count));
+    ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetCount(buffer->m_Buffer, &element_count));
     ASSERT_EQ(10, element_count);
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("position"), &type, &typecount ) );
-    ASSERT_EQ(dmBuffer::VALUE_TYPE_FLOAT64, type);
+    ASSERT_EQ(dmBuffer::VALUE_TYPE_UINT16, type);
     ASSERT_EQ(4, typecount);
 
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::GetStreamType(buffer->m_Buffer, dmHashString64("normal"), &type, &typecount ) );
@@ -194,30 +194,48 @@ TEST_F(ScriptBufferTest, GetBytes)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+
+template<typename T>
+static void memset_stream(T* data, uint32_t count, uint32_t components, uint32_t stride, T value)
+{
+    for(uint32_t i = 0; i < count; ++i) {
+        for(uint32_t c = 0; c < components; ++c) {
+            data[c] = value;
+        }
+        data += stride;
+    }
+}
+
+
 TEST_F(ScriptBufferTest, Indexing)
 {
     int top = lua_gettop(L);
 
     dmBuffer::Result r;
-    uint8_t* stream_rgb = 0;
-    uint32_t size_rgb = 0;
-    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
+    uint16_t* stream_rgb = 0;
+    uint32_t count_rgb = 0;
+    uint32_t components_rgb = 0;
+    uint32_t stride_rgb = 0;
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &count_rgb, &components_rgb, &stride_rgb);
+    uint32_t size_rgb = count_rgb * components_rgb * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_UINT16);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(m_Count * sizeof(uint16_t) * 3u, size_rgb);
 
-    uint8_t* stream_a = 0;
-    uint32_t size_a = 0;
-    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
+    float* stream_a = 0;
+    uint32_t count_a = 0;
+    uint32_t components_a = 0;
+    uint32_t stride_a = 0;
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &count_a, &components_a, &stride_a);
+    uint32_t size_a = count_a * components_a * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_FLOAT32);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
-
 
     dmScript::LuaHBuffer luabuf = {m_Buffer, false};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
     // Set full buffer (uint16)
-    memset(stream_rgb, 'X', size_rgb); // memset the RGB stream
+    memset_stream(stream_rgb, count_rgb, components_rgb, stride_rgb, (uint16_t)0);
 
     RunString(L, "local stream = buffer.get_stream(test_buffer, hash(\"rgb\")) \
                   for i=1,#stream do \
@@ -227,14 +245,18 @@ TEST_F(ScriptBufferTest, Indexing)
 
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
-    uint16_t* rgb = (uint16_t*)stream_rgb;
-    for( uint32_t i = 1; i <= m_Count; ++i )
+    uint16_t* rgb = stream_rgb;
+    for( uint32_t i = 0, x = 1; i < count_rgb; ++i )
     {
-        ASSERT_EQ(i*3 + i, (uint32_t)rgb[i-1]);
+        for( uint32_t c = 0; c < components_rgb; ++c, ++x )
+        {
+            ASSERT_EQ(x*3 + x, (uint32_t)rgb[c]);
+        }
+        rgb += stride_rgb;
     }
 
     // Set full buffer (float)
-    memset(stream_a, 'X', size_a); // memset the A stream
+    memset_stream(stream_a, count_a, components_a, stride_a, 0.0f);
 
     RunString(L, "local stream = buffer.get_stream(test_buffer, hash(\"a\")) \
                   for i=1,#stream do \
@@ -244,10 +266,14 @@ TEST_F(ScriptBufferTest, Indexing)
 
     ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
-    float* a = (float*)stream_a;
-    for( uint32_t i = 1; i <= m_Count; ++i )
+    float* a = stream_a;
+    for( uint32_t i = 0, x = 1; i < count_a; ++i )
     {
-        ASSERT_EQ(i*5.0f + 0.5f, a[i-1]);
+        for( uint32_t c = 0; c < components_a; ++c, ++x )
+        {
+            ASSERT_EQ(x*5.0f + 0.5f, a[c]);
+        }
+        a += stride_a;
     }
 
     ASSERT_EQ(top, lua_gettop(L));
@@ -258,49 +284,120 @@ TEST_F(ScriptBufferTest, CopyStream)
     int top = lua_gettop(L);
 
     dmBuffer::Result r;
-    uint8_t* stream_rgb = 0;
-    uint32_t size_rgb = 0;
-    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
+    uint16_t* stream_rgb = 0;
+    uint32_t count_rgb = 0;
+    uint32_t components_rgb = 0;
+    uint32_t stride_rgb = 0;
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &count_rgb, &components_rgb, &stride_rgb);
+    uint32_t size_rgb = count_rgb * components_rgb * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_UINT16);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(m_Count * sizeof(uint16_t) * 3u, size_rgb);
+    ASSERT_EQ(m_Count, count_rgb);
 
-    uint8_t* stream_a = 0;
-    uint32_t size_a = 0;
-    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
+    float* stream_a = 0;
+    uint32_t count_a = 0;
+    uint32_t components_a = 0;
+    uint32_t stride_a = 0;
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &count_a, &components_a, &stride_a);
+    uint32_t size_a = count_a * components_a * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_FLOAT32);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(m_Count * sizeof(float) * 1u, size_a);
+    ASSERT_EQ(m_Count, count_a);
 
 
     dmScript::LuaHBuffer luabuf = {m_Buffer, false};
     dmScript::PushBuffer(L, luabuf);
     lua_setglobal(L, "test_buffer");
 
+
     // Copy one stream to another
     {
-        memset(stream_a, 'X', size_a); // memset the A stream
+        memset_stream(stream_a, count_a, components_a, stride_a, 0.0f);
 
         RunString(L, "  local srcbuffer = buffer.create( 16*16, { {name=hash(\"temp\"), type=buffer.VALUE_TYPE_FLOAT32, count=1 } } ) \
                         local srcstream = buffer.get_stream(srcbuffer, \"temp\") \
                         for i=1,#srcstream do \
-                            srcstream[i] = i*4 + 1.5 \
+                            srcstream[i] = i*4 \
                         end \
                         local dststream = buffer.get_stream(test_buffer, hash(\"a\")) \
                         buffer.copy_stream(dststream, 0, srcstream, 0, #srcstream) \
                       ");
         ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
-        float* a = (float*)stream_a;
-        for( uint32_t i = 1; i <= m_Count; ++i )
+        float* a = stream_a;
+        for(uint32_t i = 1, x = 1; i <= count_a; ++i)
         {
-            ASSERT_EQ(i*4.0f + 1.5f, a[i-1]);
+            for(uint32_t c = 0; c < components_a; ++c, ++x)
+            {
+                ASSERT_EQ(x*4, a[c]);
+            }
+            a += stride_a;
         }
     }
+
+    // Copy first half of source to latter half of dest
+    {
+        memset_stream(stream_rgb, count_rgb, components_rgb, stride_rgb, (uint16_t)0);
+
+        RunString(L, "  local srcbuffer = buffer.create( 16*16, { {name=hash(\"temp\"), type=buffer.VALUE_TYPE_UINT16, count=3 } } ) \
+                        local srcstream = buffer.get_stream(srcbuffer, \"temp\") \
+                        for i=1,#srcstream do \
+                            srcstream[i] = i*3 \
+                        end \
+                        local dststream = buffer.get_stream(test_buffer, hash(\"rgb\")) \
+                        buffer.copy_stream(dststream, #srcstream / 2, srcstream, 0, #srcstream / 2) \
+                      ");
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
+
+        uint16_t* rgb = stream_rgb;
+        uint32_t halfcount = (count_rgb * components_rgb) / 2;
+        for(uint32_t i = 1, x = 1; i <= count_rgb; ++i)
+        {
+            for(uint32_t c = 0; c < components_rgb; ++c, ++x)
+            {
+                if (x < halfcount)
+                    ASSERT_EQ(0, rgb[c]);
+                else
+                    ASSERT_EQ((x - halfcount) * 3, rgb[c]);
+            }
+            rgb += stride_rgb;
+        }
+    }
+
+    // Copy some elements offset from aligned boundaries, and a non multiple of components
+    {
+        memset_stream(stream_rgb, count_rgb, components_rgb, stride_rgb, (uint16_t)0);
+
+        RunString(L, "  local srcbuffer = buffer.create( 16*16, { {name=hash(\"temp\"), type=buffer.VALUE_TYPE_UINT16, count=3 } } ) \
+                        local srcstream = buffer.get_stream(srcbuffer, \"temp\") \
+                        for i=1,#srcstream do \
+                            srcstream[i] = i \
+                        end \
+                        local dststream = buffer.get_stream(test_buffer, hash(\"rgb\")) \
+                        buffer.copy_stream(dststream, 4, srcstream, 8, 10) \
+                      ");
+        ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
+
+        uint16_t* rgb = stream_rgb;
+        for(uint32_t i = 0, x = 0; i <= 20; ++i)
+        {
+            for(uint32_t c = 0; c < components_rgb; ++c, ++x)
+            {
+                if (x < 4 || x >= 14)
+                    ASSERT_EQ(0, rgb[c]);
+                else
+                    ASSERT_EQ(9 + (x-4), rgb[c]);
+            }
+            rgb += stride_rgb;
+        }
+    }
+
 
     dmLogWarning("Expected error outputs ->");
 
     // Too large count
     {
-        memset(stream_a, 'X', size_a); // memset the A stream
+        memset_stream(stream_a, count_a, components_a, stride_a, 42.0f); // memset the A stream
 
         RunString(L, "  local srcbuffer = buffer.create( 16*16, { {name=hash(\"temp\"), type=buffer.VALUE_TYPE_FLOAT32, count=1 } } ) \
                         local srcstream = buffer.get_stream(srcbuffer, \"temp\") \
@@ -308,17 +405,21 @@ TEST_F(ScriptBufferTest, CopyStream)
                         buffer.copy_stream(dststream, 0, srcstream, 0, #srcstream + 10) \
                       ");
         ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
-        uint8_t* a = (uint8_t*)stream_a;
-        for( uint32_t i = 1; i <= m_Count; ++i )
+        float* a = (float*)stream_a;
+        for(uint32_t i = 1; i <= count_a; ++i)
         {
-            ASSERT_EQ('X', a[i-1]);
+            for(uint32_t c = 0; c < components_a; ++c)
+            {
+                ASSERT_EQ(42.0f, a[c]);
+            }
+            a += stride_a;
         }
         lua_pop(L, 1);
     }
 
     // Buffer overrun (write)
     {
-        memset(stream_a, 'X', size_a); // memset the A stream
+        memset_stream(stream_a, count_a, components_a, stride_a, 76.0f); // memset the A stream
 
         RunString(L, "  local srcbuffer = buffer.create( 16*16, { {name=hash(\"temp\"), type=buffer.VALUE_TYPE_FLOAT32, count=1 } } ) \
                         local srcstream = buffer.get_stream(srcbuffer, \"temp\") \
@@ -328,10 +429,14 @@ TEST_F(ScriptBufferTest, CopyStream)
         ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
 
         ASSERT_EQ(dmBuffer::RESULT_OK, dmBuffer::ValidateBuffer(m_Buffer));
-        uint8_t* a = (uint8_t*)stream_a;
-        for( uint32_t i = 1; i <= m_Count; ++i )
+        float* a = (float*)stream_a;
+        for(uint32_t i = 1; i <= count_a; ++i)
         {
-            ASSERT_EQ('X', a[i-1]);
+            for(uint32_t c = 0; c < components_a; ++c)
+            {
+                ASSERT_EQ(76.0f, a[c]);
+            }
+            a += stride_a;
         }
         lua_pop(L, 1);
     }
@@ -415,16 +520,29 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
 
     dmBuffer::Result r;
     uint16_t* stream_rgb = 0;
-    uint32_t size_rgb = 0;
-    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &size_rgb);
+    uint32_t count_rgb = 0;
+    uint32_t components_rgb = 0;
+    uint32_t stride_rgb = 0;
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("rgb"), (void**)&stream_rgb, &count_rgb, &components_rgb, &stride_rgb);
+    uint32_t size_rgb = count_rgb * components_rgb * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_UINT16);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(p.m_Count * sizeof(uint16_t) * 3u, size_rgb);
 
     float* stream_a = 0;
-    uint32_t size_a = 0;
-    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &size_a);
+    uint32_t count_a = 0;
+    uint32_t components_a = 0;
+    uint32_t stride_a = 0;
+    r = dmBuffer::GetStream(m_Buffer, dmHashString64("a"), (void**)&stream_a, &count_a, &components_a, &stride_a);
+    uint32_t size_a = count_a * components_a * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_FLOAT32);
     ASSERT_EQ(dmBuffer::RESULT_OK, r);
     ASSERT_EQ(p.m_Count * sizeof(float) * 1u, size_a);
+
+
+    uint8_t* data;
+    uint32_t datasize;
+    dmBuffer::GetBytes(m_Buffer, (void**)&data, &datasize);
+    uint32_t stride = stride_rgb * dmBuffer::GetSizeForValueType(dmBuffer::VALUE_TYPE_UINT16);
+    memset(data, 0, datasize);
 
     dmScript::LuaHBuffer luabuf = {m_Buffer, false};
     dmScript::PushBuffer(L, luabuf);
@@ -432,8 +550,7 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
 
         // Copy one stream to another
     {
-        memset(stream_rgb, 0, size_rgb);
-        memset(stream_a, 0, size_a);
+        memset(data, 0, datasize);
 
         char str[1024];
         DM_SNPRINTF(str, sizeof(str), " local srcbuffer = buffer.create( %u, { {name=hash(\"rgb\"), type=buffer.VALUE_TYPE_UINT16, count=3 }, \
@@ -441,9 +558,9 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
                                         local rgb = buffer.get_stream(srcbuffer, \"rgb\") \
                                         local a = buffer.get_stream(srcbuffer, \"a\") \
                                         for i=1,%u do \
-                                            rgb[i*3 + 0 - 3 + 1] = i*3 \
-                                            rgb[i*3 + 1 - 3 + 1] = i*5 \
-                                            rgb[i*3 + 2 - 3 + 1] = i*7 \
+                                            rgb[(i-1)*3 + 0 + 1] = i*3 \
+                                            rgb[(i-1)*3 + 1 + 1] = i*5 \
+                                            rgb[(i-1)*3 + 2 + 1] = i*7 \
                                             a[i] = i*3 +  i*5 + i*7 \
                                         end \
                                         buffer.copy_buffer(dstbuffer, %u, srcbuffer, %u, %u) \
@@ -463,27 +580,37 @@ TEST_P(ScriptBufferCopyTest, CopyBuffer)
             int j = 0;
 
             j = 0;
-            for( uint32_t i = 1; i <= p.m_DstOffset; ++i )
+
+            // Check that the buffer before the write area is intact
+            for( uint32_t i = 1; i <= p.m_DstOffset; ++i)
             {
-                ASSERT_EQ(0, stream_rgb[i-1]);
-                ASSERT_EQ(0, stream_a[i-1]);
+                uint32_t index = (i-1) * stride;
+                ASSERT_EQ(0, data[index]);
             }
 
+            // Check that the buffer after the write area is intact
+            for( uint32_t i = p.m_DstOffset + p.m_CopyCount + 1; i <= p.m_Count; ++i )
+            {
+                uint32_t index = (i-1) * stride;
+                ASSERT_EQ(0, data[index]);
+            }
+
+            // Loop over RGB and A to make sure we copied the streams correctly from the source buffer to the target buffer
+            uint16_t* rgb = stream_rgb + p.m_DstOffset * stride_rgb;
+            float* a = stream_a + p.m_DstOffset * stride_a;
+            // Loop variable "i" is the struct index (i.e. vertex number)
             for( uint32_t i = p.m_DstOffset+1; i <= p.m_DstOffset + p.m_CopyCount; ++i )
             {
                 uint32_t srci = p.m_SrcOffset + i - p.m_DstOffset;
-                ASSERT_EQ( srci*3, stream_rgb[(i-1)*3 + 0]);
-                ASSERT_EQ( srci*5, stream_rgb[(i-1)*3 + 1]);
-                ASSERT_EQ( srci*7, stream_rgb[(i-1)*3 + 2]);
-                ASSERT_EQ( srci*3 + srci*5 + srci*7, stream_a[(i-1)]);
-            }
 
-            for( uint32_t i = p.m_DstOffset + p.m_CopyCount + 1; i <= p.m_Count; ++i )
-            {
-                ASSERT_EQ(0, stream_rgb[(i-1)*3 + 0]);
-                ASSERT_EQ(0, stream_rgb[(i-1)*3 + 1]);
-                ASSERT_EQ(0, stream_rgb[(i-1)*3 + 2]);
-                ASSERT_EQ(0, stream_a[i-1]);
+                for( uint32_t c = 0; c < components_rgb; ++c)
+                {
+                    ASSERT_EQ( srci * (3 + c*2), rgb[c] );
+                }
+                rgb += stride_rgb;
+
+                ASSERT_EQ( srci*3 + srci*5 + srci*7, a[0] );
+                a += stride_a;
             }
         }
         else

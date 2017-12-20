@@ -233,11 +233,11 @@ public class BundleHelper {
     };
 
     // These regexp's works for both cpp and javac errors, warnings and note entries associated with a resource.
-    private static Pattern resourceIssueGCCRe = Pattern.compile("^upload\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)"); // GCC + Clang + Java
-    private static Pattern resourceIssueCLRe = Pattern.compile("^upload\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(error|warning|note).*?:\\s*(.+)"); // CL.exe
+    private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:\\/tmp\\/job[0-9]*\\/)?(?:upload|build)\\/([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
+    private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(error|warning|note).*?:\\s*(.+)"); // CL.exe
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
-    private static Pattern resourceIssueLinkerGCCRe = Pattern.compile("^.*?upload\\/([^:]+):([0-9]+):\\s*(.+)");
+    private static Pattern resourceIssueLinkerGCCRe = Pattern.compile("^(?:upload|build)\\/([^:]+):([0-9]+):\\s(\\w+):\\s*(.+)");
 
     // Some errors/warning have an extra line _before_ the reported error, which is also very good to have
     private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
@@ -253,8 +253,7 @@ public class BundleHelper {
     }};
 
     private static void parseLogGCC(String[] lines, List<ResourceInfo> issues) {
-        final Pattern compilerPattern = resourceIssueGCCRe; // catches linker errors too (on android)
-        final Pattern linkerPattern = resourceIssueLinkerGCCRe;
+        final Pattern compilerPattern = resourceIssueGCCRe; // catches linker errors too
 
         for (int count = 0; count < lines.length; ++count) {
             String line = lines[count];
@@ -262,7 +261,10 @@ public class BundleHelper {
 
             if (m.matches()) {
                 // Groups: resource, line, column, "error", message
-                BundleHelper.ResourceInfo info = new BundleHelper.ResourceInfo(m.group(4), m.group(1), m.group(2), m.group(5));
+                String severity = m.group(4);
+                if (severity == null || severity.equals(""))
+                    severity = "error";
+                BundleHelper.ResourceInfo info = new BundleHelper.ResourceInfo(severity, m.group(1), m.group(2), m.group(5));
                 issues.add(info);
 
                 // Some errors have a preceding line (with the same file name, but no line number)
@@ -288,12 +290,6 @@ public class BundleHelper {
                     }
                 }
                 continue;
-            }
-
-            m = linkerPattern.matcher(line);
-            if (m.matches()) {
-                // Groups: resource, line, message
-                issues.add(new BundleHelper.ResourceInfo("error", m.group(1), m.group(2), m.group(3)));
             }
         }
     }
@@ -339,7 +335,7 @@ public class BundleHelper {
     }
 
     public static void parseLog(String platform, String log, List<ResourceInfo> issues) {
-        String[] lines = log.split("\n");
+        String[] lines = log.split("\\r?\\n");
 
         List<ResourceInfo> allIssues = new ArrayList<ResourceInfo>();
         if (platform.contains("osx") || platform.contains("ios") || platform.contains("web")) {

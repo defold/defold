@@ -508,7 +508,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompSpineModelUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
 
@@ -536,6 +536,7 @@ namespace dmGameSystem
             component.m_DoRender = 1;
         }
 
+        update_result.m_TransformsUpdated = count != 0;
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

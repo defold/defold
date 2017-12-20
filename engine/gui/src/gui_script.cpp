@@ -2457,7 +2457,7 @@ namespace dmGui
         return 0;
     }
 
-    /*# gets the number of generarted vertices around the perimeter
+    /*# gets the number of generated vertices around the perimeter
      * Returns the number of generated vertices around the perimeter
      * of a pie node.
      *

@@ -192,10 +192,10 @@ namespace dmGameSystem
      *
      * @name factory.create
      * @param url [type:string|hash|url] the factory that should create a game object.
-     * @param [position] [type:vector3] the position of the new game object, the position of the game object calling `factory.create()` is used by default.
-     * @param [rotation] [type:quaternion] the rotation of the new game object, the rotation of the game object calling `factory.create()` is is used by default.
+     * @param [position] [type:vector3] the position of the new game object, the position of the game object calling `factory.create()` is used by default, or if the value is `nil`.
+     * @param [rotation] [type:quaternion] the rotation of the new game object, the rotation of the game object calling `factory.create()` is is used by default, or if the value is `nil`.
      * @param [properties] [type:table] the properties defined in a script attached to the new game object.
-     * @param [scale] [type:number|vector3] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default
+     * @param [scale] [type:number|vector3] the scale of the new game object (must be greater than 0), the scale of the game object containing the factory is used by default, or if the value is `nil`
      * @return id [type:hash] the global id of the spawned game object
      * @examples
      *
