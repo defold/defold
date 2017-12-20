@@ -342,9 +342,7 @@ public class RigUtil {
 
         @Override
         public void add(double v) {
-            Quat4d q = toQuat(v);
-            System.out.println(v + " : " + q.z + ", " + q.w);
-            addComposite(q);
+            addComposite(toQuat(v));
         }
 
         @Override
