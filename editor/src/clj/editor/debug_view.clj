@@ -252,25 +252,17 @@
     (g/set-property! debug-view :root root)
     nil))
 
-(defn- try-resolve-resource
-  [workspace path]
-  (let [resource (workspace/resolve-workspace-resource workspace path)]
-    (when (some-> resource resource/exists?) resource)))
-
 (defn- file-or-module->resource
   [workspace file]
-  (some (partial try-resolve-resource workspace) [file (lua/lua-module->path file)]))
+  (some (partial workspace/find-resource workspace) [file (lua/lua-module->path file)]))
 
 (defn- make-open-resource-fn
   [project open-resource-fn]
   (let [workspace (project/workspace project)]
     (fn [file-or-module line]
       (let [resource (file-or-module->resource workspace file-or-module)]
-        (if resource
-          (do
-            (prn :opening-resource file-or-module)
-            (open-resource-fn resource {:line line}))
-          (prn :resource-not-found file-or-module)))
+        (when resource
+          (open-resource-fn resource {:line line})))
       nil)))
 
 (defn- set-breakpoint!

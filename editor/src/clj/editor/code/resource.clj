@@ -62,7 +62,7 @@
 
   (output completions g/Any :cached (g/constantly {}))
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
-  (output breakpoints g/Any #_project/Breakpoints :cached produce-breakpoints)
+  (output breakpoints project/Breakpoints :cached produce-breakpoints)
   (output save-value Lines (gu/passthrough lines)))
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label] :as args}]

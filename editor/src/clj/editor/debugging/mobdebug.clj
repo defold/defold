@@ -294,15 +294,6 @@
   [debug-session {:keys [on-resumed on-suspended] :as callbacks}]
   (resume! debug-session "OUT" callbacks))
 
-#_(defn output!
-    [{:keys [in out state] :as debug-session}]
-    (with-session debug-session
-      (when (= @state :suspended)
-        (send-command! out "OUTPUT stdout d")
-        (let [[status rest] (read-status in)]
-          (case status
-            "200" :ok)))))
-
 (defn- variables-data
   [variables-map]
   (into {}

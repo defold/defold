@@ -307,4 +307,4 @@
 
 (defn internal?
   [resource]
-  (.startsWith (proj-path resource) "/_defold"))
+  (.startsWith (resource->proj-path resource) "/_defold"))
