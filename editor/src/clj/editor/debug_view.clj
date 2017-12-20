@@ -88,9 +88,7 @@
             (.. debugger-call-stack getItems (setAll frames))
             (when-some [top-frame (first frames)]
               (ui/select! debugger-call-stack top-frame)))
-          (do
-            (.. debugger-call-stack getItems clear)
-            (.. debugger-call-stack getSelectionModel clearSelection)))))))
+          (.. debugger-call-stack getItems clear))))))
 
 (g/defnk produce-execution-locations
   [suspension-state]
@@ -382,7 +380,7 @@
   (and (current-session debug-view)
        (some? (g/node-value debug-view :suspension-state))))
 
-(def debugger-init-script "/_defold/debugger/start.lua")
+(def ^:private debugger-init-script "/_defold/debugger/start.lua")
 
 (defn build-targets
   [project evaluation-context]
@@ -404,13 +402,13 @@
 (defn attach!
   [debug-view project target build-options]
   (let [evaluation-context (g/make-evaluation-context)
-        extra-build-targets (build-targets project evaluation-context)
-        build-results (project/build-and-write-project project evaluation-context extra-build-targets build-options)
-        target-address (:address target "localhost")
-        lua-module (built-lua-module build-results debugger-init-script)]
-    (assert lua-module)
-    (start-debugger! debug-view project target-address)
-    (engine/run-script target lua-module)))
+        extra-build-targets (build-targets project evaluation-context)]
+    (when-some [build-results (project/build-and-write-project project evaluation-context extra-build-targets build-options)]
+      (let [target-address (:address target "localhost")
+            lua-module (built-lua-module build-results debugger-init-script)]
+        (assert lua-module)
+        (start-debugger! debug-view project target-address)
+        (engine/run-script target lua-module)))))
 
 (defn detach!
   [debug-view]
