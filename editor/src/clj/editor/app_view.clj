@@ -451,8 +451,8 @@
 (handler/defhandler :start-debugger :global
   (enabled? [debug-view] (nil? (debug-view/current-session debug-view)))
   (run [project prefs web-server build-errors-view console-view debug-view]
-    (when-some [launched-target (build-handler project prefs web-server build-errors-view console-view {:debug? true})]
-      (debug-view/start-debugger! debug-view project (:address launched-target "localhost")))))
+    (when-some [target (build-handler project prefs web-server build-errors-view console-view {:debug? true})]
+      (debug-view/start-debugger! debug-view project (:address target "localhost")))))
 
 (handler/defhandler :attach-debugger :global
   (enabled? [debug-view prefs]

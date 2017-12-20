@@ -441,7 +441,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -679,7 +679,7 @@
 
 (g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
   nil)
 
 (defn- make-cursor-rectangle
