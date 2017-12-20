@@ -341,8 +341,7 @@
 (defn- next-tab-stop-x
   ^double [tab-stops ^double x]
   (let [^double tab-width (:tab-width (first tab-stops))]
-    (max ^double (* (Math/ceil (/ x tab-width)) tab-width)
-         ^double tab-width)))
+    (* (+ (quot x tab-width) 1) tab-width)))
 
 (defn- advance-text-impl [glyph-metrics tab-stops ^String text start-index end-index start-x]
   (loop [^long index start-index
