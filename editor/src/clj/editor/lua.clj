@@ -97,7 +97,7 @@
       {:select (filterv #(not= \[ (first %)) params) :exit (when params ")")})))
 
 (def ^:private documentation-schema
-  {s/Str [{:type (s/enum :function :message :namespace :property :snippet :variable :keyword)
+  {s/Str [{:type (s/enum :constant :function :message :namespace :property :snippet :variable :keyword)
            :name s/Str
            :display-string s/Str
            :insert-string s/Str
@@ -143,6 +143,8 @@
 (def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
                        "release_input_focus" "request_transform" "set_parent" "transform_response"})
 
+(def lua-constants #{"nil" "false" "true"})
+
 (def constant-pattern #"^(?:(?<![^.]\.|:)\b(?:false|nil|true|_G|_VERSION|math\.(?:pi|huge))\b|(?<![.])\.{3}(?!\.))")
 
 (def operator-pattern #"^(?:\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
@@ -165,13 +167,18 @@
                                      (-> (io/resource "lua-base-snippets.edn")
                                          slurp
                                          edn/read-string))
-                                (when code-integration/use-new-code-editor?
-                                  (map (fn [keyword]
-                                         {:type :keyword
-                                          :name keyword
-                                          :display-string keyword
-                                          :insert-string keyword})
-                                       all-keywords))))}))
+                                (map (fn [constant]
+                                       {:type :constant
+                                        :name constant
+                                        :display-string constant
+                                        :insert-string constant})
+                                     lua-constants)
+                                (map (fn [keyword]
+                                       {:type :keyword
+                                        :name keyword
+                                        :display-string keyword
+                                        :insert-string keyword})
+                                     all-keywords)))}))
 
 (def lua-std-libs-docs (atom (lua-base-documentation)))
 
