@@ -124,6 +124,10 @@ If an object is hit, the result will be reported via a <code>ray_cast_response</
     <span class="k">end</span>
 <span class="k">end</span>
 </pre></div>
+Øray_cast_missed<p>reports a ray cast miss</p>"¿<p>This message is sent back to the sender of a <code>ray_cast_request</code>, if the ray didn't hit any
+collision object. See <code>request_ray_cast</code> for examples of how to use it.</p>2a
+
+request_idS<p><span class="type">number</span> id supplied when the ray cast was requested</p>
 ýray_cast_response<p>reports a ray cast hit</p>"¶<p>This message is sent back to the sender of a <code>ray_cast_request</code>, if the ray hit a
 collision object. See <code>request_ray_cast</code> for examples of how to use it.</p>2•
 fractionˆ<p><span class="type">number</span> the fraction of the hit measured along the ray, where 0 is the start of the ray and 1 is the end</p>2R
