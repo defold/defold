@@ -38,16 +38,8 @@ $console-background: #27292D;
   }
 }
 
-.console-line-separator {
-  -fx-background-color: transparent;
-  -fx-padding: 0px 20px;
-
-  .line {
-    -fx-border-color: #3e4147;
-  }
-}
-
 #console-tool-bar {
+  -fx-background-color: $panel-background;
   -fx-padding: 16px;
 
   .separator {
@@ -58,6 +50,10 @@ $console-background: #27292D;
 #console-canvas-pane {
   -fx-background-color: $console-background;
   -fx-min-height: 20px;
+}
+
+#search-console {
+  -fx-max-height: 26px;
 }
 
 #prev-console-separator {
@@ -76,7 +72,12 @@ $console-background: #27292D;
 }
 
 #debugger-separator {
-  @extend .console-line-separator;
+  -fx-background-color: transparent;
+  -fx-padding: 0px 12px 0px 20px;
+
+  .line {
+    -fx-border-color: #3e4147;
+  }
 }
 
 #debugger-tool-bar {
@@ -86,11 +87,6 @@ $console-background: #27292D;
 #step-over-separator {
   @extend .console-space-separator;
   -fx-min-width: 8px;
-}
-
-#toggle-debugger-separator {
-  @extend .console-space-separator;
-  -fx-min-width: 24px;
 }
 
 #prev-console {
@@ -105,11 +101,17 @@ $console-background: #27292D;
 
 #clear-console {
   @extend .console-button-base;
+  -fx-min-width: 49px;
 }
 
 #pause-debugger {
   @extend .console-image-button-base;
   -fx-background-image: url("icons/32/Icons_56-Pause.png");
+}
+
+#play-debugger {
+  @extend .console-image-button-base;
+  -fx-background-image: url("icons/32/Icons_57-Play.png");
 }
 
 #stop-debugger {
@@ -132,21 +134,17 @@ $console-background: #27292D;
   -fx-background-image: url("icons/32/Icons_54-Step-Out.png");
 }
 
-#toggle-debugger {
-  @extend .console-button-base;
-}
-
 #debugger-prompt-label {
   -fx-alignment: center-right;
-  -fx-background-color: $panel-background;
-  -fx-border-color: transparent;
+  -fx-background-color: $console-background;
+  -fx-border-color: $input-border;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
-  -fx-min-width: 52px;
+  -fx-min-width: 42px;
   -fx-max-width: 42px;
   -fx-max-height: 100px;
-  -fx-padding: 0px 8px 0px 0px;
+  -fx-padding: 0px 9px 0px 0px;
 }
 
 #debugger-prompt-field {
@@ -155,15 +153,17 @@ $console-background: #27292D;
   -fx-border-width: 1px 0px 0px 0px;
   -fx-font-family: "Dejavu Sans Mono";
   -fx-font-size: 12px;
+  -fx-font-smoothing-type: lcd;
   -fx-min-height: 44px;
-  -fx-padding: 0px 12px;
+  -fx-padding: 0px;
   -fx-text-fill: $defold-white;
 
   &:focused {
     -fx-background-color: $console-background;
     -fx-border-color: $input-border;
     -fx-border-width: 1px 0px 0px 0px;
-    -fx-padding: 0px 12px;
+    -fx-padding: 0px;
     -fx-text-fill: $defold-white;
+    -fx-prompt-text-fill: transparent;
   }
 }

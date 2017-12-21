@@ -36,6 +36,12 @@
    "which render file to use, which defines the render pipeline, /builtins/render/default.render by default",
    :default "/builtins/render/default.render",
    :path ["bootstrap" "render"]}
+  {:type :resource,
+   :filter "lua",
+   :help ""
+   :default "",
+   :path ["bootstrap" "debug_init_script"]
+   :hidden? true}
   {:type :string,
    :help "dirs to include in this project when used as a library",
    :default "",

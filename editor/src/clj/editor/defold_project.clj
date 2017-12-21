@@ -4,7 +4,6 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.collision-groups :as collision-groups]
-            [editor.console :as console]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
             [editor.gl :as gl]
@@ -30,7 +29,8 @@
             [util.digest :as digest]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [schema.core :as s])
   (:import [java.io File]
            [org.apache.commons.codec.digest DigestUtils]
            [org.apache.commons.io IOUtils]
@@ -39,6 +39,11 @@
 (set! *warn-on-reflection* true)
 
 (def ^:dynamic *load-cache* nil)
+
+(def ^:private TBreakpoint {:resource s/Any
+                            :line     Long})
+
+(g/deftype Breakpoints [TBreakpoint])
 
 (defn graph [project]
   (g/node-id->graph-id project))
@@ -275,16 +280,22 @@
        (write-save-data-to-disk! project {:render-progress! render-fn}))
      (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
-(defn build [project node evaluation-context {:keys [render-progress! render-error!]
-                                              :or   {render-progress! progress/null-render-progress!}
-                                              :as   opts}]
-  (let [build-targets (g/node-value node :build-targets evaluation-context)]
-    (if (g/error? build-targets)
-      (do
-        (when render-error!
-          (render-error! build-targets))
-        nil)
-      (pipeline/build! (workspace project) build-targets))))
+(defn build
+  ([project node evaluation-context opts]
+   (build project node evaluation-context nil opts))
+  ([project node evaluation-context extra-build-targets {:keys [render-progress! render-error!]
+                                                         :or   {render-progress! progress/null-render-progress!}
+                                                         :as   opts}]
+   (let [node-build-targets (g/node-value node :build-targets evaluation-context)
+         build-targets (cond-> node-build-targets
+                         (seq extra-build-targets)
+                         (into extra-build-targets))]
+     (if (g/error? build-targets)
+       (do
+         (when render-error!
+           (render-error! build-targets))
+         nil)
+       (pipeline/build! (workspace project) build-targets)))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -501,6 +512,7 @@
   (input texture-profiles g/Any)
   (input collision-group-nodes g/Any :array)
   (input build-settings g/Any)
+  (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
@@ -531,7 +543,8 @@
   (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
   (output default-tex-params g/Any :cached produce-default-tex-params)
-  (output build-settings g/Any (gu/passthrough build-settings)))
+  (output build-settings g/Any (gu/passthrough build-settings))
+  (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
@@ -544,16 +557,19 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-write-project [project evaluation-context build-options]
-  (let [game-project  (get-resource-node project "/game.project")
-        clear-errors! (:clear-errors! build-options)]
-    (try
-      (ui/with-progress [render-fn ui/default-render-progress!]
-        (clear-errors!)
-        (not (empty? (build project game-project evaluation-context (assoc build-options :render-progress! render-fn)))))
-      (catch Throwable error
-        (error-reporting/report-exception! error)
-        false))))
+(defn build-and-write-project
+  ([project evaluation-context build-options]
+   (build-and-write-project project evaluation-context nil build-options))
+  ([project evaluation-context extra-build-targets build-options]
+   (let [game-project  (get-resource-node project "/game.project")
+         clear-errors! (:clear-errors! build-options)]
+     (try
+       (ui/with-progress [render-fn ui/default-render-progress!]
+         (clear-errors!)
+         (seq (build project game-project evaluation-context extra-build-targets (assoc build-options :render-progress! render-fn))))
+       (catch Throwable error
+         (error-reporting/report-exception! error)
+         nil)))))
 
 (defn settings [project]
   (g/node-value project :settings))
@@ -561,6 +577,9 @@
 (defn project-dependencies [project]
   (when-let [settings (settings project)]
     (settings ["project" "dependencies"])))
+
+(defn shared-script-state? [project]
+  (some-> (settings project) (get ["script" "shared_state"])))
 
 (defn- disconnect-from-inputs [src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* src)))
