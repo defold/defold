@@ -24,8 +24,10 @@
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
-   :indent {:begin #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$"
-            :end #"^\s*(elseif|else|end|\}).*$"}
+   ;; indent patterns shamelessly stolen from textmate:
+   ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
+   :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b).)*)|(\{\s*))$"
+            :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
