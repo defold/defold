@@ -1628,6 +1628,13 @@ bail:
             return false;
         }
         dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
+
+        // The system font is currently the only resource we need from the connection app
+        // After this point, the rest of the resources should be loaded the ordinary way
+        if (!engine->m_ConnectionAppMode)
+        {
+            dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
+        }
 #endif
 
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");
