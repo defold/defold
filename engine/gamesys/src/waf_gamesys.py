@@ -470,7 +470,17 @@ def compile_lua(task):
         modules = scan_lua(script)
         lua_module = lua_ddf_pb2.LuaModule()
         lua_module.source.script = script
-        lua_module.source.filename = task.inputs[0].srcpath(task.env)
+
+        # Making the file name path relative to the source folder
+        if hasattr(task.generator, "source_root"):
+            base = os.path.abspath(task.generator.source_root)
+            p = os.path.abspath(task.outputs[0].bldpath(task.env))
+            p = os.path.relpath(p, base)
+            # Keep the suffix
+            lua_module.source.filename = os.path.splitext(p)[0] + os.path.splitext(task.inputs[0].srcpath(task.env))[1]
+        else:
+            lua_module.source.filename = task.inputs[0].srcpath(task.env)
+
         for m in modules:
             module_file = "/%s.lua" % m.replace(".", "/")
             lua_module.modules.append(m)
