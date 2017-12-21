@@ -151,8 +151,7 @@
     "vm|"                                           [["vmath"         "vmath"                    "vmath"]]
     "mat|"                                          [["math"          "math"                     "math"]]
     "go.proper|"                                    [["go.property"   "go.property(name, value)" "go.property(name, value)"]]
-    "go.delete|"                                    [["go.delete"     "go.delete([id])"          "go.delete()"]
-                                                     ["go.delete_all" "go.delete_all([ids])"     "go.delete_all()"]]
+    "go.delete|"                                    [["go.delete" "go.delete([id], [recursive])" "go.delete()"]]
     "local foo=1 \n foo|"                           [["foo"           "foo"                      "foo"]]
     "bar=1 \n ba|"                                  [["bar"           "bar"                      "bar"]]
     "local function cake(x, y) return x end\n cak|" [["cake"          "cake(x, y)"               "cake(x, y)"]]
@@ -210,10 +209,10 @@
                        "string.sub(s, i)|"))
     (testing "no args"
       (buffer-commands (load-buffer world script/ScriptNode lua/lua)
-                       "go.delete_all|"
+                       "go.get_id|"
 
                        (propose!)
-                       "go.delete_all()|"))
+                       "go.get_id()|"))
     (testing "with typing for arg values"
       (buffer-commands (load-buffer world script/ScriptNode lua/lua)
                        "string.sub|"
