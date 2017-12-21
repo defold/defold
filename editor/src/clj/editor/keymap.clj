@@ -47,7 +47,13 @@
    ["Esc"                   :escape]
    ["F"                     :frame-selection]
    ["F1"                    :documentation]
-   ["F5"                    :sort-lines]
+   ["F10"                   :step-over]
+   ["F11"                   :step-into]
+   ["Shift+F11"             :step-out]
+   ["F5"                    :start-debugger]
+   ["F6"                    :continue]
+   ["F7"                    :break]
+   ["Shift+F5"              :stop-debugger]
    ["Ctrl+R"                :reload-stylesheet]
    ["F9"                    :toggle-breakpoint]
    ["Home"                  :beginning-of-line-text]
@@ -138,7 +144,8 @@
                                              "Shift+Left"
                                              "Shift+Right"
                                              "Shift+Up"
-                                             "Space"})
+                                             "Space"
+                                             "F5"})
 
 (defprotocol KeyComboData
   (key-combo->map* [this] "returns a data representation of a KeyCombination."))

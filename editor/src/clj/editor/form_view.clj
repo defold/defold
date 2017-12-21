@@ -866,7 +866,9 @@
          [{:ctrls [(create-title-label title)] :col-spans [2]}])
        (when help
          [{:ctrls [(create-help-text help)] :col-spans [2]}])
-       (map (fn [field-info] (create-field-grid-row field-info field-ops ctxt)) fields)))))
+       (->> fields
+            (remove :hidden?)
+            (map (fn [field-info] (create-field-grid-row field-info field-ops ctxt))))))))
 
 (defn- update-fields [updaters field-values]
   (doseq [[path val] field-values]
