@@ -448,11 +448,21 @@
     (debug-view/detach! debug-view)
     (build-handler project prefs web-server build-errors-view console-view)))
 
+(defn- debugging-supported?
+  [project]
+  (if (project/shared-script-state? project)
+    true
+    (do (dialogs/make-alert-dialog "This project cannot be used with the debugger because it is configured to disable shared script state.
+
+If you do not specifically require different script states, consider changing the script.shared_state property in game.project.")
+        false)))
+
 (handler/defhandler :start-debugger :global
   (enabled? [debug-view] (nil? (debug-view/current-session debug-view)))
   (run [project prefs web-server build-errors-view console-view debug-view]
-    (when-some [target (build-handler project prefs web-server build-errors-view console-view {:debug? true})]
-      (debug-view/start-debugger! debug-view project (:address target "localhost")))))
+    (when (debugging-supported? project)
+      (when-some [target (build-handler project prefs web-server build-errors-view console-view {:debug? true})]
+        (debug-view/start-debugger! debug-view project (:address target "localhost"))))))
 
 (handler/defhandler :attach-debugger :global
   (enabled? [debug-view prefs]
@@ -460,9 +470,10 @@
                  (let [target (targets/selected-target prefs)]
                    (and target (targets/controllable-target? target)))))
   (run [project build-errors-view debug-view prefs]
-    (let [target (targets/selected-target prefs)
-          build-options (make-build-options build-errors-view)]
-      (debug-view/attach! debug-view project target build-options))))
+    (when (debugging-supported? project)
+      (let [target (targets/selected-target prefs)
+            build-options (make-build-options build-errors-view)]
+        (debug-view/attach! debug-view project target build-options)))))
 
 (handler/defhandler :rebuild :global
   (run [workspace project prefs web-server build-errors-view console-view debug-view]
