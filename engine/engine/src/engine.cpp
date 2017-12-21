@@ -55,14 +55,14 @@
     extern uint32_t DEBUG_VPC_SIZE;
     extern unsigned char DEBUG_FPC[];
     extern uint32_t DEBUG_FPC_SIZE;
-    
+
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
     extern uint32_t BUILTINS_ARCI_SIZE;
     extern unsigned char BUILTINS_DMANIFEST[];
     extern uint32_t BUILTINS_DMANIFEST_SIZE;
-    
+
     extern unsigned char CONNECT_PROJECT[];
     extern uint32_t CONNECT_PROJECT_SIZE;
 #endif
@@ -1633,7 +1633,11 @@ bail:
         // After this point, the rest of the resources should be loaded the ordinary way
         if (!engine->m_ConnectionAppMode)
         {
-            dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
+            int unload = dmConfigFile::GetInt(engine->m_Config, "dmengine.unload_builtins", 1);
+            if (unload)
+            {
+                dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
+            }
         }
 #endif
 
