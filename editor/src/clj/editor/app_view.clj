@@ -840,7 +840,7 @@
      (if (defective-resource-node? resource-node)
        (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
            false)
-       (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
+       (if-let [custom-editor (and (#{:code :new-code :text} (:id view-type))
                                    (let [ed-pref (some->
                                                    (prefs/get-prefs prefs "code-custom-editor" "")
                                                    string/trim)]
