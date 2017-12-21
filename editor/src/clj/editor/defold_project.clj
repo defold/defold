@@ -578,6 +578,9 @@
   (when-let [settings (settings project)]
     (settings ["project" "dependencies"])))
 
+(defn shared-script-state? [project]
+  (some-> (settings project) (get ["script" "shared_state"])))
+
 (defn- disconnect-from-inputs [src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* src)))
         inputs (set (g/input-labels (g/node-type* tgt)))]
