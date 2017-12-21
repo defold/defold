@@ -25,7 +25,6 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.bob.pipeline.ResourceEntry;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 
@@ -120,7 +119,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<ResourceEntry>());
+        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -144,7 +143,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<ResourceEntry>());
+        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -183,7 +182,7 @@ public class ArchiveTest {
 	        RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
 	        archiveIndex.setLength(0);
 	        archiveData.setLength(0);
-	        instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<ResourceEntry>());
+	        instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<String>());
 	        archiveIndex.close();
 	        archiveData.close();
 	        
@@ -260,8 +259,8 @@ public class ArchiveTest {
 
         manifestBuilder.setDependencies(root);
 
-        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
-        excludedResources.add(new ResourceEntry("/main.collectionproxyc", ""));
+        List<String> excludedResources = new ArrayList<String>();
+        excludedResources.add("/main.collectionproxyc");
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -290,8 +289,8 @@ public class ArchiveTest {
 
         manifestBuilder.setDependencies(root);
 
-        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
-        excludedResources.add(new ResourceEntry("/level2.collectionproxyc", ""));
+        List<String> excludedResources = new ArrayList<String>();
+        excludedResources.add("/level2.collectionproxyc");
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -322,8 +321,8 @@ public class ArchiveTest {
 
         manifestBuilder.setDependencies(root);
 
-        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
-        excludedResources.add(new ResourceEntry("/level2.collectionproxyc", ""));
+        List<String> excludedResources = new ArrayList<String>();
+        excludedResources.add("/level2.collectionproxyc");
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -354,8 +353,8 @@ public class ArchiveTest {
         
         manifestBuilder.setDependencies(root);
 
-        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
-        excludedResources.add(new ResourceEntry("/level2.collectionproxyc", ""));
+        List<String> excludedResources = new ArrayList<String>();
+        excludedResources.add("/level2.collectionproxyc");
         
         byte[] buffer = "level 2 content".getBytes();
         String normalisedPath = FilenameUtils.separatorsToUnix("/level2.goc");
@@ -386,8 +385,8 @@ public class ArchiveTest {
         
         manifestBuilder.setDependencies(root);
 
-        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
-        excludedResources.add(new ResourceEntry("/level2.collectionproxyc", ""));
+        List<String> excludedResources = new ArrayList<String>();
+        excludedResources.add("/level2.collectionproxyc");
         
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
@@ -418,8 +417,8 @@ public class ArchiveTest {
 
         manifestBuilder.setDependencies(root);
 
-        List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
-        excludedResources.add(new ResourceEntry("/level1.collectionproxyc", ""));
+        List<String> excludedResources = new ArrayList<String>();
+        excludedResources.add("/level1.collectionproxyc");
 
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");

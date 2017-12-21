@@ -17,7 +17,6 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
-import com.dynamo.bob.pipeline.ResourceEntry;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.crypt.Crypt;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
@@ -127,11 +126,10 @@ public class ArchiveBuilder {
         }
     }
 
-    public boolean excludeResource(String filepath, List<ResourceEntry> excludedResources) {
+    public boolean excludeResource(String filepath, List<String> excludedResources) {
         boolean result = false;
-        boolean print_cond = true;//filepath.contains("shared_go");
+        boolean print_cond = true;
         System.out.println("-----------------------------------------");
-        // System.out.println("print_cond: " + print_cond + ", filepath: " + filepath);
         if (filepath.startsWith("/builtins")) {
             return false;
         }
@@ -139,24 +137,26 @@ public class ArchiveBuilder {
             System.out.println("#### filepath: " + filepath);
         }
 
-        // for (ResourceEntry excludedResource : excludedResources) {
-        //     System.out.println("excludedResource.resourceAbsPath: " + excludedResource.resourceAbsPath);
-        // }
-
         if (this.manifestBuilder != null) {
             List<ArrayList<String>> totalParentFilepaths = this.manifestBuilder.getParentFilepath(filepath);
-            if (print_cond){
+            if (print_cond) { // DEBUG PRINTS
                 System.out.println("totalParentFilepaths size for this filepath: " + totalParentFilepaths.size());
+                for (List<String> parentFilepaths : totalParentFilepaths) {
+                    System.out.println("--> parentFilepaths, size: " + parentFilepaths.size());
+                    for (int i = 0; i < parentFilepaths.size(); i++) {
+                        String parentFilepath = parentFilepaths.get(i);
+                        System.out.println("----> parentFilepath: " + parentFilepath);
+                    }
+                }
             }
             for (List<String> parentFilepaths : totalParentFilepaths) {
-                //System.out.println("parentFilepaths size for this filepath: " + parentFilepaths.size());
                 for (int i = 0; i < parentFilepaths.size(); i++) {
                     String parentFilepath = parentFilepaths.get(i);
                     if (print_cond) {
                         System.out.println("-> " + parentFilepath);
                     }
-                    for (ResourceEntry excludedResource : excludedResources) {
-                        if (parentFilepath.equals(excludedResource.resourceAbsPath)) {
+                    for (String excludedResource : excludedResources) {
+                        if (parentFilepath.equals(excludedResource)) {
                             if (print_cond){
                                 System.out.println("######## EXCLUDING! Hit parent: " + parentFilepath);
                             }
@@ -182,7 +182,7 @@ public class ArchiveBuilder {
         return result;
     }
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<ResourceEntry> excludedResources) throws IOException {
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
         // INDEX
         archiveIndex.writeInt(VERSION); // Version
         archiveIndex.writeInt(0); // Pad
@@ -346,8 +346,6 @@ public class ArchiveBuilder {
             printUsageAndTerminate("There must be at least one file");
         }
 
-        System.out.println("ArchiveBuilduruuu");
-
         // Create manifest and archive
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setProjectIdentifier("<anonymous project>");
@@ -389,7 +387,7 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-            List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
+            List<String> excludedResources = new ArrayList<String>();
             archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
             manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
