@@ -1879,14 +1879,13 @@
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
 
-(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed meta-key? control-key?]
-  (when-not (or meta-key? control-key?)
-    (case typed
-      "\r" ; Enter or Return.
-      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
+(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed]
+  (case typed
+    "\r" ; Enter or Return.
+    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
 
-      (when (not-any? #(Character/isISOControl ^char %) typed)
-        (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
+    (when (not-any? #(Character/isISOControl ^char %) typed)
+      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed))))
 
 (defn execution-marker? [region]
   (= :execution-marker (:type region)))
