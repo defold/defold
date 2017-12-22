@@ -104,32 +104,32 @@ $console-background: #27292D;
   -fx-min-width: 49px;
 }
 
-#pause-debugger {
+#pause-debugger-button {
   @extend .console-image-button-base;
   -fx-background-image: url("icons/32/Icons_56-Pause.png");
 }
 
-#play-debugger {
+#play-debugger-button {
   @extend .console-image-button-base;
   -fx-background-image: url("icons/32/Icons_57-Play.png");
 }
 
-#stop-debugger {
+#stop-debugger-button {
   @extend .console-image-button-base;
   -fx-background-image: url("icons/32/Icons_58-Stop.png");
 }
 
-#step-over-debugger {
+#step-over-debugger-button {
   @extend .console-image-button-base;
   -fx-background-image: url("icons/32/Icons_53-Step-Over.png");
 }
 
-#step-in-debugger {
+#step-in-debugger-button {
   @extend .console-image-button-base;
   -fx-background-image: url("icons/32/Icons_55-Step-In.png");
 }
 
-#step-out-debugger {
+#step-out-debugger-button {
   @extend .console-image-button-base;
   -fx-background-image: url("icons/32/Icons_54-Step-Out.png");
 }
