@@ -64,14 +64,14 @@
       (ui/visible! debugger-prompt (and debug-session? suspended?))
       (ui/visible! debugger-tool-bar debug-session?))
     (when debug-session?
-      (ui/with-controls root [debugger-prompt-field pause-debugger play-debugger step-in-debugger step-out-debugger step-over-debugger]
-        (ui/visible! pause-debugger (not suspended?))
-        (ui/visible! play-debugger suspended?)
-        (ui/enable! pause-debugger (not suspended?))
-        (ui/enable! play-debugger suspended?)
-        (ui/enable! step-in-debugger suspended?)
-        (ui/enable! step-out-debugger suspended?)
-        (ui/enable! step-over-debugger suspended?)
+      (ui/with-controls root [debugger-prompt-field pause-debugger-button play-debugger-button step-in-debugger-button step-out-debugger-button step-over-debugger-button]
+        (ui/visible! pause-debugger-button (not suspended?))
+        (ui/visible! play-debugger-button suspended?)
+        (ui/enable! pause-debugger-button (not suspended?))
+        (ui/enable! play-debugger-button suspended?)
+        (ui/enable! step-in-debugger-button suspended?)
+        (ui/enable! step-out-debugger-button suspended?)
+        (ui/enable! step-over-debugger-button suspended?)
         (ui/enable! debugger-prompt-field suspended?)))))
 
 (g/defnk update-call-stack!
@@ -140,22 +140,22 @@
 
 (defn- setup-tool-bar!
   [^Parent console-tool-bar]
-  (ui/with-controls console-tool-bar [^Parent debugger-tool-bar ^Button pause-debugger ^Button play-debugger step-in-debugger step-out-debugger step-over-debugger stop-debugger]
+  (ui/with-controls console-tool-bar [^Parent debugger-tool-bar ^Button pause-debugger-button ^Button play-debugger-button step-in-debugger-button step-out-debugger-button step-over-debugger-button stop-debugger-button]
     (.bind (.managedProperty debugger-tool-bar) (.visibleProperty debugger-tool-bar))
-    (.bind (.managedProperty pause-debugger) (.visibleProperty pause-debugger))
-    (.bind (.managedProperty play-debugger) (.visibleProperty play-debugger))
-    (ui/tooltip! pause-debugger break-label)
-    (ui/tooltip! play-debugger continue-label)
-    (ui/tooltip! step-in-debugger step-into-label)
-    (ui/tooltip! step-out-debugger step-out-label)
-    (ui/tooltip! step-over-debugger step-over-label)
-    (ui/tooltip! stop-debugger stop-debugger-label)
-    (ui/bind-action! pause-debugger :break)
-    (ui/bind-action! play-debugger :continue)
-    (ui/bind-action! step-in-debugger :step-into)
-    (ui/bind-action! step-out-debugger :step-out)
-    (ui/bind-action! step-over-debugger :step-over)
-    (ui/bind-action! stop-debugger :stop-debugger)))
+    (.bind (.managedProperty pause-debugger-button) (.visibleProperty pause-debugger-button))
+    (.bind (.managedProperty play-debugger-button) (.visibleProperty play-debugger-button))
+    (ui/tooltip! pause-debugger-button break-label)
+    (ui/tooltip! play-debugger-button continue-label)
+    (ui/tooltip! step-in-debugger-button step-into-label)
+    (ui/tooltip! step-out-debugger-button step-out-label)
+    (ui/tooltip! step-over-debugger-button step-over-label)
+    (ui/tooltip! stop-debugger-button stop-debugger-label)
+    (ui/bind-action! pause-debugger-button :break)
+    (ui/bind-action! play-debugger-button :continue)
+    (ui/bind-action! step-in-debugger-button :step-into)
+    (ui/bind-action! step-out-debugger-button :step-out)
+    (ui/bind-action! step-over-debugger-button :step-over)
+    (ui/bind-action! stop-debugger-button :stop-debugger)))
 
 (defn- setup-call-stack-view!
   [^ListView debugger-call-stack]

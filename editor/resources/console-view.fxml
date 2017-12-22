@@ -22,13 +22,13 @@
     <Button id="clear-console" text="Clear" />
     <HBox id="debugger-tool-bar" visible="false">
       <Separator id="debugger-separator" />
-      <Button id="pause-debugger" />
-      <Button id="play-debugger" visible="false" />
-      <Button id="stop-debugger" />
+      <Button id="pause-debugger-button" />
+      <Button id="play-debugger-button" visible="false" />
+      <Button id="stop-debugger-button" />
       <Separator id="step-over-separator" />
-      <Button id="step-over-debugger" />
-      <Button id="step-in-debugger" />
-      <Button id="step-out-debugger" />
+      <Button id="step-over-debugger-button" />
+      <Button id="step-in-debugger-button" />
+      <Button id="step-out-debugger-button" />
     </HBox>
   </HBox>
   <Pane id="console-canvas-pane" GridPane.rowIndex="1" />
