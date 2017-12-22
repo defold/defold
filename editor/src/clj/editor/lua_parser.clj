@@ -341,10 +341,10 @@
   (let [name-info (parse-script-property-name-info (first arg-exps))
         value-info (parse-script-property-value-info (second arg-exps))
         status-info (cond
-                      (or (< (count arg-exps) 2))
+                      (< (count arg-exps) 2)
                       {:status :invalid-args}
 
-                      (or (nil? name-info) (zero? (some-> name-info :name count)))
+                      (string/blank? (:name name-info))
                       {:status :invalid-name}
 
                       (nil? value-info)
