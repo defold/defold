@@ -114,8 +114,11 @@
               script-component (component game-object "script")]
           (doseq [[prop-name prop-value] {"bool" true
                                           "hash" "hash2"
+                                          "material" "/go_replacement.material"
                                           "number" 2.0
                                           "quat" [180.0 0.0, 0.0]
+                                          "texture" "/go_replacement.atlas"
+                                          "textureset" "/go_replacement.tilesource"
                                           "url" "/url"
                                           "vec3" [1.0 2.0 3.0]
                                           "vec4" [1.0 2.0 3.0 4.0]}]
@@ -191,8 +194,11 @@
             (is (= "script" (:label script-node-outline)))
             (doseq [[prop-name prop-value] {"bool" true
                                             "hash" "hash3"
+                                            "material" "/go_replacement.material"
                                             "number" 3.0
                                             "quat" [180.0 0.0, 0.0]
+                                            "texture" "/collection_replacement.atlas"
+                                            "textureset" "/go_replacement.tilesource"
                                             "url" "/url2"
                                             "vec3" [1.0 2.0 3.0]
                                             "vec4" [1.0 2.0 3.0 4.0]}]

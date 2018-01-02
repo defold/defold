@@ -209,6 +209,7 @@
        (in/register-value-type '~fqs ~key)
        (def ~symb (in/register-value-type ~key (in/make-value-type '~symb ~key ~@body))))))
 
+(deftype Nil        in/only-nil-schema)
 (deftype Any        s/Any)
 (deftype Bool       s/Bool)
 (deftype Str        String)

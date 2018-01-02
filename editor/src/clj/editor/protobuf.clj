@@ -190,14 +190,74 @@ Macros currently mean no foreseeable performance gain however."
 
 (def field-info (memoize field-info-raw))
 
+(defn fieldspec?
+  "A fieldspec is either a keyword or a single keyword inside a vector, denoting a repeated protobuf field."
+  [value]
+  (or (keyword? value)
+      (and (vector? value)
+           (= 1 (count value))
+           (keyword? (first value)))))
+
+(defn fieldspec->keyword
+  "Unwraps the keyword from a fieldspec."
+  [fieldspec]
+  (assert (fieldspec? fieldspec))
+  (if (vector? fieldspec)
+    (first fieldspec)
+    fieldspec))
+
+(defn values-at-path
+  "Returns a seq of values at the path inside a nested associative structure.
+  The path should be a vector of fieldspecs. A fieldspec is either a keyword or
+  a single keyword inside a vector, denoting a repeated protobuf field.
+  Returns a flattened sequence of the extracted values. Refer to the
+  values-at-path-test in protobuf_tests.clj for details."
+  [m [fieldspec & rest]]
+  (if-some [v (get m (fieldspec->keyword fieldspec))]
+    (if (vector? fieldspec)
+      (if rest
+        (sequence (mapcat #(values-at-path % rest)) v)
+        v)
+      (if rest
+        (values-at-path v rest)
+        [v]))
+    []))
+
+(defn update-values-at-path
+  "Updates a value in a nested associative structure. Works somewhat like the
+  core update-in function, but takes a fieldspec path instead of a key path.
+  A fieldspec is either a keyword or a single keyword inside a vector, denoting
+  a repeated protobuf field. In that case the function will be applied to all
+  entries in the collection associated with that key. Another difference from
+  the update-in function is that we will not introduce any new keys to the
+  returned map that were not in the original nested associative structure."
+  [m [fieldspec & rest] update-fn & args]
+  (if-some [[k v] (find m (fieldspec->keyword fieldspec))]
+    (if (vector? fieldspec)
+      (if rest
+        (assoc m k (mapv #(apply update-values-at-path % rest update-fn args) v))
+        (assoc m k (mapv #(apply update-fn % args) v)))
+      (if rest
+        (assoc m k (apply update-values-at-path v rest update-fn args))
+        (assoc m k (apply update-fn v args))))
+    m))
+
+(defn update-values-at-paths
+  "Helper function for invoking update-values-at-path over multiple paths."
+  [m paths update-fn & args]
+  (reduce (fn [m path]
+            (apply update-values-at-path m path update-fn args))
+          m
+          paths))
+
 (declare resource-field-paths)
 
 (defn resource-field-paths-raw
-  "Returns a list of path expressions pointing out all resource fields.
+  "Returns a list of fieldspec path expressions pointing out all resource fields.
 
-  path-expr := '[' elem+ ']'
-  elem := :keyword          ; index into structure using :keyword
-  elem := '[' :keyword ']'  ; :keyword is a repeated field, use rest of step* (if any) to index into each repetition (a message)
+  path-expr := '[' fieldspec+ ']'
+  fieldspec := :keyword          ; index into structure using :keyword
+  fieldspec := '[' :keyword ']'  ; :keyword is a repeated field, use rest of step* (if any) to index into each repetition (a message)
 
   message Simple
   {
@@ -264,15 +324,15 @@ Macros currently mean no foreseeable performance gain however."
 
 (defn- get-field-fn-raw [path]
   (if (seq path)
-    (let [elem (first path)
+    (let [fieldspec (first path)
           sub-path-fn (get-field-fn (rest path))]
       (cond
-        (keyword? elem)
+        (keyword? fieldspec)
         (fn [pb]
-          (sub-path-fn (elem pb)))
+          (sub-path-fn (fieldspec pb)))
 
-        (vector? elem)
-        (let [pbs-fn (first elem)]
+        (vector? fieldspec)
+        (let [pbs-fn (first fieldspec)]
           (fn [pb]
             (into [] (mapcat sub-path-fn) (pbs-fn pb))))))
     (fn [pb] [pb])))

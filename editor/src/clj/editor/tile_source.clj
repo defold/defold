@@ -20,24 +20,22 @@
    [editor.geom :as geom]
    [editor.types :as types]
    [editor.gl.pass :as pass]
+   [editor.pipeline :as pipeline]
    [editor.pipeline.tex-gen :as tex-gen]
    [editor.pipeline.texture-set-gen :as texture-set-gen]
    [editor.properties :as properties]
    [editor.scene :as scene]
    [editor.texture-set :as texture-set]
    [editor.outline :as outline]
-   [editor.protobuf :as protobuf]
    [editor.util :as util]
    [editor.validation :as validation])
   (:import
    [com.dynamo.tile.proto Tile$TileSet Tile$Playback]
    [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-   [com.google.protobuf ByteString]
    [editor.types AABB]
-   [javax.vecmath Point3d Matrix4d Vector3d]
-   [com.jogamp.opengl GL GL2]
-   [java.awt.image BufferedImage]
-   [java.nio ByteBuffer ByteOrder FloatBuffer]))
+   [javax.vecmath Point3d]
+   [com.jogamp.opengl GL2]
+   [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
 
@@ -142,21 +140,16 @@
    :extrude-borders extrude-borders
    :inner-padding inner-padding})
 
-(defn- build-texture-set [resource dep-resources user-data]
-  (let [tex-set (assoc (:texture-set user-data) :texture (resource/proj-path (second (first dep-resources))))]
-    {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
+(g/defnk produce-texture-build-target [_node-id packed-image texture-profile build-settings]
+  (let [project (project/get-project _node-id)
+        workspace (project/workspace project)
+        compress? (:compress-textures? build-settings false)]
+    (image/make-texture-build-target workspace _node-id packed-image texture-profile compress?)))
 
-(g/defnk produce-build-targets [_node-id resource packed-image texture-set texture-profile build-settings]
-  (let [workspace        (project/workspace (project/get-project _node-id))
-        compress?         (:compress-textures? build-settings false)
-        texture-target   (image/make-texture-build-target workspace _node-id packed-image texture-profile compress?)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-texture-set
-      :user-data {:texture-set texture-set
-                  :dep-resources [[:texture (:resource texture-target)]]}
-      :deps [texture-target]}]))
-
+(g/defnk produce-build-targets [_node-id resource texture-set texture-build-target]
+  (let [pb-msg (assoc texture-set :texture (:resource texture-build-target))
+        dep-build-targets [texture-build-target]]
+    [(pipeline/make-pb-map-build-target _node-id resource dep-build-targets TextureSetProto$TextureSet pb-msg)]))
 
 (g/defnk produce-anim-data [texture-set uv-transforms]
   (texture-set/make-anim-data texture-set uv-transforms))
@@ -578,8 +571,6 @@
   (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
   (output packed-image     BufferedImage       (g/fnk [texture-set-data image-resource tile-source-attributes]
                                                  (texture-set-gen/layout-tile-source (:layout texture-set-data) (image-util/read-image image-resource) tile-source-attributes)))
-  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
-                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
 
   (output convex-hull-points g/Any :cached produce-convex-hull-points)
   (output convex-hulls g/Any :cached produce-convex-hulls)
@@ -590,13 +581,15 @@
   (output pb g/Any :cached produce-pb)
   (output save-value g/Any (g/fnk [pb] (dissoc pb :convex-hull-points)))
 
-
+  (output texture-build-target g/Any :cached produce-texture-build-target)
   (output build-targets g/Any :cached produce-build-targets)
-  (output gpu-texture g/Any :cached (g/fnk [_node-id texture-image]
-                                      (texture/texture-image->gpu-texture _node-id
-                                                                          texture-image
-                                                                          {:min-filter gl/nearest
-                                                                           :mag-filter gl/nearest})))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id packed-image texture-profile]
+                                      (let [texture-data (texture/make-preview-texture-data packed-image texture-profile)]
+                                        (texture/texture-data->gpu-texture _node-id
+                                                                           texture-data
+                                                                           {:min-filter gl/nearest
+                                                                            :mag-filter gl/nearest}))))
+  (output gpu-texture-generator g/Any (g/fnk [gpu-texture] (image/make-variant-gpu-texture-generator gpu-texture)))
   (output anim-data g/Any :cached produce-anim-data)
   (output anim-ids g/Any :cached (gu/passthrough animation-ids))
 

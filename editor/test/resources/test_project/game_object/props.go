@@ -47,4 +47,19 @@ components {
     value: "true"
     type: PROPERTY_TYPE_BOOLEAN
   }
+  properties {
+    id: "material"
+    value: "/go_replacement.material"
+    type: PROPERTY_TYPE_RESOURCE
+  }
+  properties {
+    id: "texture"
+    value: "/go_replacement.atlas"
+    type: PROPERTY_TYPE_RESOURCE
+  }
+  properties {
+    id: "textureset"
+    value: "/go_replacement.tilesource"
+    type: PROPERTY_TYPE_RESOURCE
+  }
 }

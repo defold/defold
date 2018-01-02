@@ -1,12 +1,10 @@
 (ns editor.rig
   (:require
-   [editor.defold-project :as project]
-   [editor.pipeline :as pipeline]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.workspace :as workspace])
   (:import
-   [com.dynamo.rig.proto Rig$RigScene Rig$MeshSet Rig$AnimationSet Rig$Skeleton]))
+   [com.dynamo.rig.proto Rig$MeshSet Rig$AnimationSet Rig$Skeleton]))
 
 (defn- build-skeleton
   [resource dep-resources {:keys [skeleton] :as user-data}]
@@ -49,29 +47,6 @@
      :build-fn  build-mesh-set
      :user-data {:mesh-set mesh-set}}))
 
-(defn make-rig-scene-build-targets
-  ([node-id resource pb dep-build-targets resource-keys]
-   (let [workspace (project/workspace (project/get-project node-id))
-         skeleton-target (make-skeleton-build-target workspace node-id (:skeleton pb))
-         animation-set-target (make-animation-set-build-target workspace node-id (:animation-set pb))
-         mesh-set-target (make-mesh-set-build-target workspace node-id (:mesh-set pb))
-         build-targets {:skeleton skeleton-target
-                        :animation-set animation-set-target
-                        :mesh-set mesh-set-target}]
-     (make-rig-scene-build-targets node-id resource pb dep-build-targets resource-keys build-targets)))
-  ([node-id resource pb dep-build-targets resource-keys build-targets]
-   (let [dep-build-targets (into []
-                                 (concat (remove nil? (vals build-targets))
-                                         (flatten dep-build-targets)))]
-     [(pipeline/make-protobuf-build-target resource dep-build-targets
-                                           Rig$RigScene
-                                           (reduce (fn [pb key]
-                                                     (if-let [build-target (build-targets key)]
-                                                       (assoc pb key (-> build-target :resource :resource))
-                                                       (dissoc pb key)))
-                                                   pb
-                                                   [:skeleton :animation-set :mesh-set])
-                                           (into [:skeleton :animation-set :mesh-set] resource-keys))])))
 
 (defn register-resource-types
   [workspace]

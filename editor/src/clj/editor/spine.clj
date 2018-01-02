@@ -1,39 +1,34 @@
 (ns editor.spine
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
-            [editor.protobuf :as protobuf]
-            [dynamo.graph :as g]
-            [util.murmur :as murmur]
+  (:require [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
-            [editor.material :as material]
             [editor.math :as math]
             [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.scene :as scene]
             [editor.render :as render]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.pipeline.spine-scene-gen :as spine-scene-gen]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
+            [editor.texture-unit :as texture-unit]
             [editor.types :as types]
             [editor.json :as json]
             [editor.outline :as outline]
+            [editor.pipeline :as pipeline]
             [editor.properties :as properties]
             [editor.rig :as rig]
-            [service.log :as log])
-  (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
+            [service.log :as log]
+            [util.murmur :as murmur])
+  (:import [com.dynamo.rig.proto Rig$RigScene]
+           [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+           [editor.types AABB]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
+           [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector3d Vector4d Tuple3d Tuple4d]
            [editor.gl.shader ShaderLifecycle]))
 
 (set! *warn-on-reflection* true)
@@ -479,34 +474,20 @@
                     (validate-scene-spine-json _node-id spine-json)))
 
 (g/defnk produce-scene-build-targets
-  [_node-id own-build-errors resource spine-scene-pb atlas dep-build-targets]
+  [_node-id own-build-errors resource spine-scene-pb atlas dep-build-targets texture-build-target]
   (g/precluding-errors own-build-errors
-    (rig/make-rig-scene-build-targets _node-id
-                                      resource
-                                      (assoc spine-scene-pb
-                                        :texture-set atlas)
-                                      dep-build-targets
-                                      [:texture-set])))
-
-(defn- connect-atlas [project node-id atlas]
-  (if-let [atlas-node (project/get-resource-node project atlas)]
-    (let [outputs (-> atlas-node g/node-type* g/output-labels)]
-      (if (every? #(contains? outputs %) [:anim-data :gpu-texture :build-targets])
-        [(g/connect atlas-node :anim-data     node-id :anim-data)
-         (g/connect atlas-node :gpu-texture   node-id :gpu-texture)
-         (g/connect atlas-node :build-targets node-id :dep-build-targets)]
-        []))
-    []))
-
-(defn reconnect [transaction graph self label kind labels]
-  (when (some #{:atlas} labels)
-    (let [atlas (g/node-value self :atlas)
-          project (project/get-project self)]
-      (concat
-        (gu/disconnect-all self :anim-data)
-        (gu/disconnect-all self :gpu-texture)
-        (gu/disconnect-all self :dep-build-targets)
-        (connect-atlas project self atlas)))))
+    (let [{:keys [animation-set mesh-set skeleton]} spine-scene-pb
+          workspace (project/workspace (project/get-project _node-id))
+          animation-set-build-target (rig/make-animation-set-build-target workspace _node-id animation-set)
+          mesh-set-build-target (rig/make-mesh-set-build-target workspace _node-id mesh-set)
+          skeleton-build-target (rig/make-skeleton-build-target workspace _node-id skeleton)
+          dep-build-targets (into [animation-set-build-target mesh-set-build-target skeleton-build-target] (flatten dep-build-targets))]
+      [(pipeline/make-pb-map-build-target _node-id resource dep-build-targets Rig$RigScene
+                                          {:animation-set (:resource animation-set-build-target)
+                                           :mesh-set (:resource mesh-set-build-target)
+                                           :skeleton (:resource skeleton-build-target)
+                                           :texture-set atlas
+                                           :textures (some-> texture-build-target :resource vector)})])))
 
 (defn- read-bones
   [spine-scene]
@@ -701,16 +682,18 @@
       (do (when-let [vb (gen-vb renderables)]
             (let [user-data (:user-data (first renderables))
                   blend-mode (:blend-mode user-data)
-                  gpu-texture (:gpu-texture user-data)
+                  gpu-textures (:gpu-textures user-data)
                   shader (get user-data :shader render/shader-tex-tint)
                   vertex-binding (vtx/use-with ::spine-trans vb shader)]
-              (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+              (gl/with-gl-bindings gl render-args [shader vertex-binding]
+                (texture-unit/bind-gpu-textures! gl gpu-textures shader render-args)
                 (case blend-mode
                   :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
                   (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
                   :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
+                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+                (texture-unit/unbind-gpu-textures! gl gpu-textures shader render-args))))
           (when-let [vb (gen-skeleton-vb renderables)]
             (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
               (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
@@ -722,18 +705,17 @@
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
 
-(g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
+(g/defnk produce-scene [_node-id aabb gpu-textures spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
                :aabb aabb}]
-    (if (and gpu-texture scene-structure)
+    (if (and (seq gpu-textures) scene-structure)
       (let [blend-mode :blend-mode-alpha]
         (assoc scene :renderable {:render-fn render-spine-scenes
-                                  :batch-key gpu-texture
+                                  :batch-key (texture-unit/batch-key-entry gpu-textures)
                                   :select-batch-key _node-id
                                   :user-data {:spine-scene-pb spine-scene-pb
                                               :scene-structure scene-structure
-                                              :gpu-texture gpu-texture
-                                              :tex-params default-tex-params
+                                              :gpu-textures gpu-textures
                                               :blend-mode blend-mode}
                                   :passes [pass/transparent pass/selection pass/outline]}))
       scene)))
@@ -763,7 +745,9 @@
                    (project/resource-setter self old-value new-value
                                             [:resource :atlas-resource]
                                             [:anim-data :anim-data]
-                                            [:gpu-texture :gpu-texture]
+                                            [:gpu-texture-generator :gpu-texture-generator]
+                                            [:texture-build-target :texture-build-target]
+                                            [:texture-build-target :dep-build-targets]
                                             [:build-targets :dep-build-targets])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "atlas"}))
             (dynamic error (g/fnk [_node-id atlas]
@@ -776,7 +760,8 @@
 
   (input anim-data g/Any)
   (input default-tex-params g/Any)
-  (input gpu-texture g/Any)
+  (input gpu-texture-generator g/Any)
+  (input texture-build-target g/Any)
   (input dep-build-targets g/Any :array)
   (input spine-scene g/Any)
   (input scene-structure g/Any)
@@ -790,11 +775,19 @@
                                                       (reduce mesh->aabb (geom/null-aabb) meshes))))
   (output anim-data g/Any (gu/passthrough anim-data))
   (output scene-structure g/Any (gu/passthrough scene-structure))
-  (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations")))))
+  (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations"))))
+  (output texture-build-target g/Any (gu/passthrough texture-build-target))
+  (output gpu-texture-generator g/Any (gu/passthrough gpu-texture-generator))
+  (output gpu-textures g/Any :cached (g/fnk [default-tex-params gpu-texture-generator]
+                                       ;; NOTE: This is only used when previewing a SpineScene in the Scene view.
+                                       ;; We produce a full mapping using the relevant material samplers when used
+                                       ;; with a SpineModel.
+                                       (when (some? gpu-texture-generator)
+                                         (texture-unit/gpu-textures-by-sampler-name default-tex-params [gpu-texture-generator] nil)))))
 
 (defn load-spine-scene [project self resource spine]
   (let [spine-resource (workspace/resolve-resource resource (:spine-json spine))
-        atlas          (workspace/resolve-resource resource (:atlas spine))]
+        atlas (workspace/resolve-resource resource (:atlas spine))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/set-property self
@@ -802,12 +795,15 @@
                       :atlas atlas
                       :sample-rate (:sample-rate spine)))))
 
-(g/defnk produce-model-pb [spine-scene-resource default-animation skin material-resource blend-mode]
-  {:spine-scene (resource/resource->proj-path spine-scene-resource)
-   :default-animation default-animation
-   :skin skin
-   :material (resource/resource->proj-path material-resource)
-   :blend-mode blend-mode})
+(g/defnk produce-model-save-value [spine-scene-resource default-animation skin material-resource blend-mode texture1-7-resources]
+  (cond-> {:spine-scene (resource/resource->proj-path spine-scene-resource)
+           :default-animation default-animation
+           :skin skin
+           :material (resource/resource->proj-path material-resource)
+           :blend-mode blend-mode}
+
+          (seq texture1-7-resources)
+          (assoc :textures (into [""] (map resource/resource->proj-path) texture1-7-resources))))
 
 (defn ->skin-choicebox [spine-skins]
   (properties/->choicebox (cons "" (remove (partial = "default") spine-skins))))
@@ -847,29 +843,21 @@
                     (validate-model-skin _node-id spine-scene scene-structure skin)
                     (validate-model-default-animation _node-id spine-scene spine-anim-ids default-animation)))
 
-(defn- build-spine-model [resource dep-resources user-data]
-  (let [pb (:proto-msg user-data)
-        pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
-    {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
-
-(g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets scene-structure]
+(g/defnk produce-model-build-targets [_node-id own-build-errors resource save-value dep-build-targets texture-build-targets scene-structure]
   (g/precluding-errors own-build-errors
-    (let [dep-build-targets (flatten dep-build-targets)
-          deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
-          dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
-          model-pb (update model-pb :skin (fn [skin] (or (not-empty skin)
-                                                         (when (some (partial = "default") (:skins scene-structure))
-                                                           "default")
-                                                         (first (:skins scene-structure)))))]
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-spine-model
-        :user-data {:proto-msg model-pb
-                    :dep-resources dep-resources}
-        :deps dep-build-targets}])))
+    [(pipeline/make-pb-map-build-target _node-id resource dep-build-targets Spine$SpineModelDesc
+                                        (-> save-value
+                                            (assoc :textures (mapv :resource texture-build-targets))
+                                            (update :skin (fn [skin]
+                                                            ;; This was changed recently in another branch.
+                                                            ;; We should use their implementation, not this one.
+                                                            (or (not-empty skin)
+                                                                (when (some (partial = "default") (:skins scene-structure))
+                                                                  "default")
+                                                                (first (:skins scene-structure)))))))]))
 
 (g/defnode SpineModelNode
-  (inherits resource-node/ResourceNode)
+  (inherits resource-node/ResourceNode) ; NOTE: Cannot use texture-unit/TextureUnitBaseNode since we get texture 0 from the spine scene.
 
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
@@ -882,7 +870,11 @@
                                             [:build-targets :dep-build-targets]
                                             [:node-outline :source-outline]
                                             [:anim-data :anim-data]
-                                            [:scene-structure :scene-structure])))
+                                            [:scene-structure :scene-structure]
+                                            [:atlas :texture0-resource]
+                                            [:texture-build-target :dep-build-targets]
+                                            [:texture-build-target :texture0-texture-build-target]
+                                            [:gpu-texture-generator :texture0-gpu-texture-generator])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext spine-scene-ext}))
             (dynamic error (g/fnk [_node-id spine-scene]
                              (validate-model-spine-scene _node-id spine-scene))))
@@ -921,31 +913,71 @@
   (input default-tex-params g/Any)
   (input anim-data g/Any)
 
-  (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
-                             (or (some-> material-samplers first material/sampler->tex-params)
-                                 default-tex-params)))
   (output anim-ids g/Any :cached (g/fnk [anim-data] (vec (sort (keys anim-data)))))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
-  (output scene g/Any :cached (g/fnk [spine-scene-scene material-shader tex-params skin]
+  (output scene g/Any :cached (g/fnk [spine-scene-scene blend-mode gpu-textures material-shader skin]
                                 (when (some? material-shader)
                                   (if (:renderable spine-scene-scene)
                                     (-> spine-scene-scene
+                                        (assoc-in [:renderable :batch-key] [blend-mode material-shader (texture-unit/batch-key-entry gpu-textures) skin])
+                                        (assoc-in [:renderable :user-data :blend-mode] blend-mode)
                                         (assoc-in [:renderable :user-data :shader] material-shader)
-                                        (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
+                                        (assoc-in [:renderable :user-data :gpu-textures] gpu-textures)
                                         (assoc-in [:renderable :user-data :skin] skin))
                                     spine-scene-scene))))
-  (output model-pb g/Any :cached produce-model-pb)
-  (output save-value g/Any (gu/passthrough model-pb))
+  (output save-value g/Any :cached produce-model-save-value)
   (output own-build-errors g/Any :cached produce-model-own-build-errors)
   (output build-targets g/Any :cached produce-model-build-targets)
-  (output aabb AABB (gu/passthrough aabb)))
+  (output aabb AABB (gu/passthrough aabb))
 
+  ;; Multiple textures
+  (input texture0-resource resource/Resource)
+  (input texture0-texture-build-target g/Any)
+  (input texture0-gpu-texture-generator g/Any)
+  (input texture1-7-resources resource/Resource :array)
+  (input texture1-7-texture-build-targets g/Any :array)
+  (input texture1-7-gpu-texture-generators g/Any :array)
+
+  (property textures1-7 resource/ResourceVec
+            (value (gu/passthrough texture1-7-resources))
+            (set (fn [evaluation-context self _old-value new-value]
+                   ;; TODO: Use old-value directly once DEFEDIT-1277 is fixed.
+                   (let [old-value (g/node-value self :texture1-7-resources evaluation-context)]
+                     (concat
+                       (texture-unit/connect-resources self old-value new-value [[:texture-build-target :dep-build-targets]])
+                       (texture-unit/connect-resources-preserving-index self old-value new-value [[:resource :texture1-7-resources]
+                                                                                                  [:texture-build-target :texture1-7-texture-build-targets]
+                                                                                                  [:gpu-texture-generator :texture1-7-gpu-texture-generators]])))))
+            (dynamic visible (g/constantly false)))
+
+  (output texture-build-targets g/Any (g/fnk [texture0-texture-build-target texture1-7-texture-build-targets] (into [texture0-texture-build-target] texture1-7-texture-build-targets)))
+  (output gpu-texture-generators g/Any (g/fnk [texture0-gpu-texture-generator texture1-7-gpu-texture-generators] (into [texture0-gpu-texture-generator] texture1-7-gpu-texture-generators)))
+  (output gpu-textures g/Any :cached (g/fnk [default-tex-params gpu-texture-generators material-samplers]
+                                       (texture-unit/gpu-textures-by-sampler-name default-tex-params gpu-texture-generators material-samplers)))
+  (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties material-samplers texture0-resource texture1-7-resources]
+                                             (if (empty? material-samplers)
+                                               _declared-properties
+                                               (texture-unit/augment-properties _declared-properties
+                                                                                (concat
+                                                                                  {:texture0 {:node-id _node-id
+                                                                                              :type g/Str
+                                                                                              :value (resource/resource->proj-path texture0-resource)
+                                                                                              :label (:name (first material-samplers))
+                                                                                              :read-only? true}}
+                                                                                  (map (fn [prop-label array-index texture-resource]
+                                                                                         [(texture-unit/unit-index->texture-prop-kw (inc array-index))
+                                                                                          (texture-unit/texture-unit-property-info _node-id :textures1-7 prop-label array-index texture-resource)])
+                                                                                       (map :name (drop 1 material-samplers))
+                                                                                       (range 7)
+                                                                                       (concat texture1-7-resources (repeat nil)))))))))
 
 (defn load-spine-model [project self resource spine]
   (let [resolve-fn (partial workspace/resolve-resource resource)
         spine (-> spine
-                (update :spine-scene resolve-fn)
-                (update :material resolve-fn))]
+                  (update :spine-scene resolve-fn)
+                  (update :material resolve-fn)
+                  (dissoc :textures)
+                  (assoc :textures1-7 (mapv resolve-fn (drop 1 (:textures spine)))))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (for [[k v] spine]

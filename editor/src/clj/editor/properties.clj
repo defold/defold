@@ -215,7 +215,8 @@
                                  :property-type-vector3 [:vector3-entries :float-values]
                                  :property-type-vector4 [:vector4-entries :float-values]
                                  :property-type-quat [:quat-entries :float-values]
-                                 :property-type-boolean [:bool-entries :float-values]})
+                                 :property-type-boolean [:bool-entries :float-values]
+                                 :property-type-resource [:resource-entries :string-values]})
 
 (defn append-values! [values vs]
   (loop [vs vs
@@ -226,9 +227,9 @@
 
 (defn properties->decls [properties]
   (loop [properties properties
-         decl (->decl [:number-entries :hash-entries :url-entries :vector3-entries
-                       :vector4-entries :quat-entries :bool-entries :float-values
-                       :hash-values :string-values])]
+         decl (->decl [:number-entries :hash-entries :url-entries :resource-entries
+                       :vector3-entries :vector4-entries :quat-entries :bool-entries
+                       :float-values :hash-values :string-values])]
     (if-let [prop (first properties)]
       (let [type (:type prop)
             value (str->go-prop (:value prop) type)

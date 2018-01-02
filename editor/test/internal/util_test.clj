@@ -110,6 +110,21 @@
       (is (= 0 (first-index-where pred (range 10))))
       (is (= 1 (count (test-util/call-logger-calls pred)))))))
 
+(deftest last-index-where-test
+  (is (= 3 (last-index-where even? (vec (range 1 6)))))
+  (is (= 4 (last-index-where nil? [:a :b nil :d nil :f])))
+  (is (= 1 (last-index-where (fn [[k _]] (= :b k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
+  (is (= 3 (last-index-where #(= "d" %) (sorted-set "f" "e" "d" "c" "b" "a"))))
+  (is (nil? (last-index-where nil? nil)))
+  (is (nil? (last-index-where even? nil)))
+  (is (nil? (last-index-where even? [])))
+  (is (nil? (last-index-where even? [1 3 5])))
+
+  (testing "stops calling pred after first true"
+    (let [pred (test-util/make-call-logger (constantly true))]
+      (is (= 9 (last-index-where pred (vec (range 10)))))
+      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+
 (deftest only-test
   (is (= :a (only [:a])))
   (is (= :b (only #{:b})))
@@ -122,3 +137,13 @@
   (is (nil? (only #{:a :b})))
   (is (nil? (only '(:a :b))))
   (is (nil? (only {:a 1 :b 2}))))
+
+(deftest vset-test
+  (is (= [:a] (vset [] 0 :a)))
+  (is (= [:a] (vset nil 0 :a)))
+  (is (= [nil :a] (vset [] 1 :a)))
+  (is (= [nil :a] (vset nil 1 :a)))
+  (is (= [nil :b] (vset [:a :b] 0 nil)))
+  (is (= [:a] (vset [:a :b] 1 nil)))
+  (is (= [:a nil :c :d :e] (vset [:a nil :c nil :e] 3 :d)))
+  (is (= [:a nil :c] (vset [:a nil :c nil :e] 4 nil))))

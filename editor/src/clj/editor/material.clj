@@ -171,6 +171,11 @@
                                 :filter-min :filter-mode-min-linear
                                 :filter-mag :filter-mode-mag-linear})
 
+(def ^:private default-tex-params {:wrap-u GL2/GL_CLAMP_TO_EDGE
+                                   :wrap-v GL2/GL_CLAMP_TO_EDGE
+                                   :filter-min GL2/GL_LINEAR
+                                   :filter-mag GL2/GL_LINEAR})
+
 (defn sampler->tex-params [sampler]
   (let [s (or sampler default-sampler)]
     {:wrap-s (wrap-mode->gl (:wrap-u s))

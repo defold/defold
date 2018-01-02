@@ -1,15 +1,11 @@
 (ns editor.sprite
-  (:require [clojure.string :as str]
-            [editor.protobuf :as protobuf]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.graph-util :as gu]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.gl.texture :as texture]
             [editor.gl.vertex :as vtx]
             [editor.defold-project :as project]
-            [editor.material :as material]
             [editor.properties :as properties]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
@@ -18,17 +14,12 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.texture-set :as texture-set]
-            [editor.gl.pass :as pass]
-            [editor.types :as types])
-  (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
+            [editor.texture-unit :as texture-unit]
+            [editor.gl.pass :as pass])
+  (:import [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
+           [editor.types AABB]
            [editor.gl.shader ShaderLifecycle]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
+           [com.jogamp.opengl GL GL2]
            [javax.vecmath Matrix4d Point3d]))
 
 (set! *warn-on-reflection* true)
@@ -141,15 +132,17 @@
       (let [user-data (:user-data (first renderables))
             shader (:shader user-data)
             vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
-            gpu-texture (:gpu-texture user-data)
+            gpu-textures (:gpu-textures user-data)
             blend-mode (:blend-mode user-data)]
-        (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+        (gl/with-gl-bindings gl render-args [shader vertex-binding]
+          (texture-unit/bind-gpu-textures! gl gpu-textures shader render-args)
           (case blend-mode
             :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
             (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
             :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
-          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
+          (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
+          (texture-unit/unbind-gpu-textures! gl gpu-textures shader render-args)))
 
       (= pass pass/selection)
       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) shader)]
@@ -158,22 +151,23 @@
 
 ; Node defs
 
-(g/defnk produce-save-value [image default-animation material blend-mode]
+(g/defnk produce-save-value [image default-animation material blend-mode textures]
   {:tile-set (resource/resource->proj-path image)
    :default-animation default-animation
    :material (resource/resource->proj-path material)
-   :blend-mode blend-mode})
+   :blend-mode blend-mode
+   :textures (mapv resource/resource->proj-path textures)})
 
 (g/defnk produce-scene
-  [_node-id aabb gpu-texture material-shader animation blend-mode]
+  [_node-id aabb gpu-textures material-shader animation blend-mode]
   (cond-> {:node-id _node-id
            :aabb aabb}
 
     (seq (:frames animation))
     (assoc :renderable {:render-fn render-sprites
-                        :batch-key [gpu-texture blend-mode material-shader]
+                        :batch-key [(texture-unit/batch-key-entry gpu-textures) blend-mode material-shader]
                         :select-batch-key _node-id
-                        :user-data {:gpu-texture gpu-texture
+                        :user-data {:gpu-textures gpu-textures
                                     :shader material-shader
                                     :animation animation
                                     :blend-mode blend-mode}
@@ -182,7 +176,7 @@
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
 
-(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource image anim-ids default-animation material blend-mode dep-build-targets texture-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :image validation/prop-nil? image "Image")
                               (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :default-animation validation/prop-nil? default-animation "Default Animation")
@@ -190,30 +184,26 @@
                              (remove nil?)
                              (seq))]
         (g/error-aggregate errors))
-      [(pipeline/make-protobuf-build-target resource dep-build-targets
-                                            Sprite$SpriteDesc
-                                            {:tile-set          image
-                                             :default-animation default-animation
-                                             :material          material
-                                             :blend-mode        blend-mode}
-                                            [:tile-set :material])]))
-
-(defn- sort-anim-ids
-  [anim-ids]
-  (sort-by str/lower-case anim-ids))
+      [(pipeline/make-pb-map-build-target _node-id resource dep-build-targets Sprite$SpriteDesc
+                                          {:tile-set          image
+                                           :default-animation default-animation
+                                           :material          material
+                                           :blend-mode        blend-mode
+                                           :textures          (mapv :resource texture-build-targets)})]))
 
 (g/defnode SpriteNode
-  (inherits resource-node/ResourceNode)
+  (inherits texture-unit/TextureUnitBaseNode)
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
             (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
-                                            [:resource :image-resource]
-                                            [:anim-data :anim-data]
-                                            [:anim-ids :anim-ids]
-                                            [:gpu-texture :gpu-texture]
-                                            [:build-targets :dep-build-targets])))
+                   (concat
+                     (texture-unit/set-array-index self :textures 0 new-value)
+                     (project/resource-setter self old-value new-value
+                                              [:resource :image-resource]
+                                              [:anim-data :anim-data]
+                                              [:anim-ids :anim-ids]
+                                              [:build-targets :dep-build-targets]))))
             (dynamic error (g/fnk [_node-id image anim-data]
                                   (or (validation/prop-error :info _node-id :image validation/prop-nil? image "Image")
                                       (validation/prop-error :fatal _node-id :image validation/prop-resource-not-exists? image "Image"))))
@@ -248,7 +238,6 @@
   (input image-resource resource/Resource)
   (input anim-data g/Any :substitute (fn [v] (assoc v :user-data "the Image has internal errors")))
   (input anim-ids g/Any)
-  (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
 
   (input material-resource resource/Resource)
@@ -256,10 +245,6 @@
   (input material-samplers g/Any)
   (input default-tex-params g/Any)
 
-  (output tex-params g/Any (g/fnk [material-samplers material-shader default-tex-params]
-                             (or (some-> material-samplers first material/sampler->tex-params)
-                                 default-tex-params)))
-  (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output animation g/Any (g/fnk [anim-data default-animation] (get anim-data default-animation))) ; TODO - use placeholder animation
   (output aabb AABB (g/fnk [animation] (if animation
                                          (let [hw (* 0.5 (:width animation))
@@ -270,13 +255,19 @@
                                          (geom/null-aabb))))
   (output save-value g/Any :cached produce-save-value)
   (output scene g/Any :cached produce-scene)
-  (output build-targets g/Any :cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output gpu-textures g/Any :cached (g/fnk [default-tex-params gpu-texture-generators material-samplers]
+                                       (texture-unit/gpu-textures-by-sampler-name default-tex-params gpu-texture-generators material-samplers)))
+  (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties material-samplers textures image]
+                                             (texture-unit/properties-with-texture-set _node-id _declared-properties material-samplers textures image))))
 
 (defn load-sprite [project self resource sprite]
   (let [image    (workspace/resolve-resource resource (:tile-set sprite))
-        material (workspace/resolve-resource resource (:material sprite))]
+        material (workspace/resolve-resource resource (:material sprite))
+        textures (mapv #(workspace/resolve-resource resource %) (:textures sprite))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
+      (g/set-property self :textures textures)
       (g/set-property self :image image)
       (g/set-property self :default-animation (:default-animation sprite))
       (g/set-property self :material material)

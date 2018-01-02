@@ -480,7 +480,16 @@
     (.setMinWidth Label/USE_PREF_SIZE)
     (.setMinHeight 28.0)))
 
-(defn- create-properties-row [context ^GridPane grid key property row property-fn]
+(defn- next-row-index
+  ^long [^GridPane grid]
+  (let [children (.getChildren grid)
+        child-count (.size children)
+        last-child (when (pos? child-count) (.get children (dec child-count)))]
+    (if (some? last-child)
+      (inc (GridPane/getRowIndex last-child))
+      0)))
+
+(defn- add-property-row! [^GridPane grid context key property property-fn]
   (let [^Label label (create-property-label (properties/label property))
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) context
                                                                  (fn [] (property-fn key)))
@@ -521,10 +530,11 @@
 
     (update-label-box (properties/overridden? property))
 
-    (GridPane/setConstraints label-box 0 row)
-    (GridPane/setConstraints control 1 row)
+    (let [row (next-row-index grid)]
+      (GridPane/setConstraints label-box 0 row)
+      (GridPane/setConstraints control 1 row))
 
-    (.add (.getChildren grid) label-box )
+    (.add (.getChildren grid) label-box)
     (.add (.getChildren grid) control)
 
     (GridPane/setFillWidth label-box true)
@@ -532,13 +542,18 @@
 
     [key update-ui-fn]))
 
-(defn- create-properties [context grid properties property-fn]
-  ; TODO - add multi-selection support for properties view
-  (doall (map-indexed (fn [row [key property]]
-                        (create-properties-row context grid key property row property-fn))
-                      properties)))
+(defn- add-category-label! [^GridPane grid ^String category]
+  (ui/add-child! grid (doto (Label. category)
+                        (ui/add-style! "property-category")
+                        (GridPane/setColumnSpan (int 2))
+                        (GridPane/setConstraints 0 (next-row-index grid)))))
 
-(defn- make-grid [parent context properties property-fn]
+(defn- add-properties! [^GridPane grid context properties property-fn]
+  ; TODO - add multi-selection support for properties view
+  (for [[key property] properties]
+    (add-property-row! grid context key property property-fn)))
+
+(defn- make-grid []
   (let [grid (doto (GridPane.)
                (.setHgap grid-hgap)
                (.setVgap grid-vgap))
@@ -546,48 +561,40 @@
         cc2  (doto (ColumnConstraints.) (.setHgrow Priority/ALWAYS) (.setPrefWidth all-available))]
     (.. grid getColumnConstraints (add cc1))
     (.. grid getColumnConstraints (add cc2))
-
-    (ui/add-child! parent grid)
     (ui/add-style! grid "form")
-    (create-properties context grid properties property-fn)))
-
-(defn- create-category-label [label]
-  (doto (Label. label) (ui/add-style! "property-category")))
+    grid))
 
 (defn- make-pane! [parent context properties]
-  (let [vbox (doto (VBox. (double 10.0))
+  (let [grid (make-grid)
+        vbox (doto (VBox. (double 10.0) (into-array Node [grid]))
                (.setId "properties-view-pane")
                (.setPadding (Insets. 10 10 10 10))
                (.setFillWidth true)
-               (AnchorPane/setBottomAnchor 0.0)
-               (AnchorPane/setLeftAnchor 0.0)
-               (AnchorPane/setRightAnchor 0.0)
-               (AnchorPane/setTopAnchor 0.0))]
-      (let [property-fn   (fn [key]
-                            (let [properties (:properties (ui/user-data vbox ::properties))]
-                              (get properties key)))
-            display-order (:display-order properties)
-            properties    (:properties properties)
-            generics      [nil (mapv (fn [k] [k (get properties k)]) (filter (comp not properties/category?) display-order))]
-            categories    (mapv (fn [order]
-                                  [(first order) (mapv (fn [k] [k (get properties k)]) (rest order))])
-                                (filter properties/category? display-order))
-            update-fns    (loop [sections (cons generics categories)
-                                 result   []]
-                            (if-let [[category properties] (first sections)]
-                              (let [update-fns (if (empty? properties)
-                                                 []
-                                                 (do
-                                                   (when category
-                                                     (let [label (create-category-label category)]
-                                                       (ui/add-child! vbox label)))
-                                                   (make-grid vbox context properties property-fn)))]
-                                (recur (rest sections) (into result update-fns)))
-                              result))]
-        ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
-        (ui/user-data! parent ::update-fns (into {} update-fns)))
-      (ui/children! parent [vbox])
-      vbox))
+               (ui/fill-control))]
+    (let [property-fn   (fn [key]
+                          (let [properties (:properties (ui/user-data vbox ::properties))]
+                            (get properties key)))
+          display-order (:display-order properties)
+          properties    (:properties properties)
+          generics      [nil (mapv (fn [k] [k (get properties k)]) (filter (comp not properties/category?) display-order))]
+          categories    (mapv (fn [order]
+                                [(first order) (mapv (fn [k] [k (get properties k)]) (rest order))])
+                              (filter properties/category? display-order))
+          update-fns    (loop [sections (cons generics categories)
+                               result   []]
+                          (if-let [[category properties] (first sections)]
+                            (let [update-fns (if (empty? properties)
+                                               []
+                                               (do
+                                                 (when category
+                                                   (add-category-label! grid category))
+                                                 (add-properties! grid context properties property-fn)))]
+                              (recur (rest sections) (into result update-fns)))
+                            result))]
+      ; NOTE: Note update-fns is a sequence of [[property-key update-ui-fn] ...]
+      (ui/user-data! parent ::update-fns (into {} update-fns)))
+    (ui/children! parent [vbox])
+    vbox))
 
 (defn- refresh-pane! [^Parent parent properties]
   (let [pane (.lookup parent "#properties-view-pane")

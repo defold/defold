@@ -8,64 +8,122 @@
    [editor.workspace :as workspace]
    [util.digest :as digest])
   (:import
-   (java.io File)
-   (java.util UUID)))
+   (clojure.lang ExceptionInfo)
+   (com.google.protobuf Message)
+   (java.io File)))
 
 (set! *warn-on-reflection* true)
 
-(defn- resolve-resource-paths
-  [pb dep-resources resource-props]
-  (reduce (fn [m [prop resource]]
-            (assoc m prop (resource/proj-path (get dep-resources resource))))
-          pb
-          resource-props))
-
-(defn- make-resource-props
-  [dep-build-targets m resource-keys]
-  (let [deps-by-source (into {}
-                             (map (fn [build-target]
-                                    (let [build-resource (:resource build-target)
-                                          source-resource (:resource build-resource)]
-                                      (when-not (and (satisfies? resource/Resource build-resource)
-                                                     (satisfies? resource/Resource source-resource))
-                                        (throw (ex-info "dep-build-targets contains an invalid build target"
-                                                        {:build-target build-target
-                                                         :build-resource build-resource
-                                                         :source-resource source-resource})))
-                                      [source-resource build-resource])))
-                             dep-build-targets)]
-    (keep (fn [resource-key]
-            (when-let [source-resource (m resource-key)]
-              (when-not (satisfies? resource/Resource source-resource)
-                (throw (ex-info "value for resource key in m is not a Resource"
-                                {:key resource-key
-                                 :value source-resource
-                                 :resource-keys resource-keys})))
-              (if-let [build-resource (deps-by-source source-resource)]
-                [resource-key build-resource]
-                (throw (ex-info "deps-by-source is missing a referenced source-resource"
-                                {:key resource-key
-                                 :deps-by-source deps-by-source
-                                 :source-resource source-resource})))))
-          resource-keys)))
-
-(defn- build-protobuf
-  [resource dep-resources user-data]
-  (let [{:keys [pb-class pb-msg resource-keys]} user-data
-        pb-msg (resolve-resource-paths pb-msg dep-resources resource-keys)]
+(defn- build-pb-map
+  "A build-fn that produces a binary protobuf resource from a map.
+  The pb-msg map is expected to specify build resources for resource fields.
+  These will be resolved into the fused build resources from dep-resources,
+  which maps original build resources to fused build resources."
+  [resource dep-resources {:keys [^Class pb-class pb-msg pb-resource-paths] :as _user-data}]
+  (let [build-resource->fused-build-resource-path (fn [build-resource]
+                                                    (when (some? build-resource)
+                                                      (if-some [fused-build-resource (get dep-resources build-resource)]
+                                                        (resource/proj-path fused-build-resource)
+                                                        (throw (ex-info (format "error building %s %s - unable to resolve fused build resource from referenced %s"
+                                                                                (.getName pb-class)
+                                                                                (pr-str resource)
+                                                                                (pr-str build-resource))
+                                                                        {:resource-reference build-resource
+                                                                         :referencing-resource resource
+                                                                         :referencing-pb-class-name (.getName pb-class)})))))
+        pb-msg-with-fused-build-resource-paths (protobuf/update-values-at-paths pb-msg pb-resource-paths build-resource->fused-build-resource-path)]
     {:resource resource
-     :content (protobuf/map->bytes pb-class pb-msg)}))
+     :content (protobuf/map->bytes pb-class pb-msg-with-fused-build-resource-paths)}))
 
-(defn make-protobuf-build-target
-  [resource dep-build-targets pb-class pb-msg pb-resource-fields]
-  (let [dep-build-targets (flatten dep-build-targets)
-        resource-keys     (make-resource-props dep-build-targets pb-msg pb-resource-fields)]
-    {:resource  (workspace/make-build-resource resource)
-     :build-fn  build-protobuf
-     :user-data {:pb-class      pb-class
-                 :pb-msg        (reduce dissoc pb-msg resource-keys)
-                 :resource-keys resource-keys}
-     :deps      dep-build-targets}))
+(defn- resource-reference->build-resource
+  "Resolves a resource reference into a build resource. Resource references
+  can be either source resources, build resources, or string paths."
+  [built-resource? source-resource->build-resource proj-path->build-resource resource-reference]
+  (cond
+    ;; Empty string or nil.
+    (or (nil? resource-reference) (= "" resource-reference))
+    nil
+
+    ;; Build resource.
+    ;; If this fails, it is likely because dep-build-targets does not contain a referenced resource.
+    (workspace/build-resource? resource-reference)
+    (if (built-resource? resource-reference)
+      resource-reference
+      (throw (ex-info (str "referenced build resource not found among deps " (pr-str resource-reference))
+                      {:resource-reference resource-reference})))
+
+    ;; Source resource.
+    ;; If this fails, it is likely because dep-build-targets does not contain a referenced resource.
+    (resource/resource? resource-reference)
+    (or (source-resource->build-resource resource-reference)
+        (throw (ex-info (str "unable to resolve build resource from value " (pr-str resource-reference))
+                        {:resource-reference resource-reference})))
+
+    ;; Non-empty string, presumably a proj-path.
+    ;; If this fails, it is likely because dep-build-targets does not contain a referenced resource.
+    (string? resource-reference)
+    (or (proj-path->build-resource resource-reference)
+        (throw (ex-info (str "unable to resolve build resource from value " (pr-str resource-reference))
+                        {:resource-reference resource-reference})))
+
+    ;; Unsupported resource reference value.
+    ;; This is likely due to an invalid value for a resource field in the pb-msg.
+    :else
+    (throw (ex-info (str "unsupported resource reference value " (pr-str resource-reference))
+                    {:resource-reference resource-reference}))))
+
+(defn- flatten-and-validate-dep-build-targets
+  "Flattens dep-build-targets and ensures all build targets are well-formed."
+  [dep-build-targets]
+  (into []
+        (map (fn [build-target]
+               (let [build-resource (:resource build-target)
+                     source-resource (:resource build-resource)]
+                 (if (and (workspace/build-resource? build-resource)
+                          (resource/resource? source-resource))
+                   build-target
+                   (throw (ex-info "dep-build-targets contains a malformed build target"
+                                   {:build-target build-target}))))))
+        (flatten dep-build-targets)))
+
+(defn make-pb-map-build-target
+  "Creates a build target that produces a binary protobuf resource from a map.
+  Automatically resolves resource references into build resources. The resource
+  fields are queried from the supplied pb-class using reflection. Resource
+  references in the pb-msg map can be either source resources, build resources,
+  or proj-path strings. Throws an exception if dep-build-targets is missing a
+  referenced resource."
+  [node-id source-resource dep-build-targets ^Class pb-class pb-msg]
+  (assert (or (nil? node-id) (integer? node-id)))
+  (assert (resource/resource? source-resource))
+  (assert (or (nil? dep-build-targets) (vector? dep-build-targets)))
+  (assert (and (class? pb-class) (.isAssignableFrom Message pb-class)))
+  (assert (and (map? pb-msg) (every? keyword? (keys pb-msg))))
+  (let [pb-resource-paths (protobuf/resource-field-paths pb-class)
+        dep-build-targets (flatten-and-validate-dep-build-targets dep-build-targets)
+        built-resource? (into #{} (map :resource) dep-build-targets)
+        source-resource->build-resource (into {} (map (juxt (comp :resource :resource) :resource)) dep-build-targets)
+        proj-path->build-resource (into {} (mapcat #(map vector (keep resource/proj-path %) (repeat (val %)))) source-resource->build-resource)
+        resource-reference->build-resource (partial resource-reference->build-resource built-resource? source-resource->build-resource proj-path->build-resource)]
+    (try
+      (let [pb-msg-with-build-resources (protobuf/update-values-at-paths pb-msg pb-resource-paths resource-reference->build-resource)]
+        (cond-> {:resource (workspace/make-build-resource source-resource)
+                 :build-fn build-pb-map
+                 :user-data {:pb-class pb-class
+                             :pb-msg pb-msg-with-build-resources
+                             :pb-resource-paths pb-resource-paths}}
+
+                (some? node-id) (assoc :node-id node-id)
+                (seq dep-build-targets) (assoc :deps dep-build-targets)))
+      (catch ExceptionInfo e
+        ;; Decorate and rethrow.
+        (throw (ex-info (format "error producing build target %s %s - %s"
+                                (.getName pb-class)
+                                (pr-str source-resource)
+                                (.getMessage e))
+                        (merge (ex-data e)
+                               {:referencing-resource source-resource
+                                :referencing-pb-class-name (.getName pb-class)})))))))
 
 ;;--------------------------------------------------------------------
 

@@ -30,6 +30,11 @@ instances {
       value: "/url2"
       type: PROPERTY_TYPE_URL
     }
+    properties {
+      id: "texture"
+      value: "/collection_replacement.atlas"
+      type: PROPERTY_TYPE_RESOURCE
+    }
   }
   scale3 {
     x: 1.0
@@ -68,6 +73,11 @@ embedded_instances {
   "    id: \"url\"\n"
   "    value: \"/url2\"\n"
   "    type: PROPERTY_TYPE_URL\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"texture\"\n"
+  "    value: \"/collection_replacement.atlas\"\n"
+  "    type: PROPERTY_TYPE_RESOURCE\n"
   "  }\n"
   "}\n"
   ""

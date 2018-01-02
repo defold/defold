@@ -1,6 +1,5 @@
 (ns editor.atlas
   (:require [clojure.string :as str]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.image :as image]
             [editor.image-util :as image-util]
@@ -9,7 +8,6 @@
             [editor.colors :as colors]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
-            [editor.ui :as ui]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -30,14 +28,13 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu])
-  (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
-           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
+  (:import [com.dynamo.atlas.proto AtlasProto$Atlas]
+           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.tile.proto Tile$Playback]
-           [editor.types Animation Image Rect AABB]
+           [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Point3d Vector3d Matrix4d]))
+           [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -291,17 +288,16 @@
    :images (sort-by-and-strip-order img-ddf)
    :animations anim-ddf})
 
-(g/defnk produce-build-targets [_node-id resource texture-set packed-image texture-profile build-settings]
-  (let [project           (project/get-project _node-id)
-        workspace         (project/workspace project)
-        compress?         (:compress-textures? build-settings false)
-        texture-target    (image/make-texture-build-target workspace _node-id packed-image texture-profile compress?)
-        pb-msg            texture-set
-        dep-build-targets [texture-target]]
-    [(pipeline/make-protobuf-build-target resource dep-build-targets
-                                          TextureSetProto$TextureSet
-                                          (assoc pb-msg :texture (-> texture-target :resource :resource))
-                                          [:texture])]))
+(g/defnk produce-texture-build-target [_node-id packed-image texture-profile build-settings]
+  (let [project (project/get-project _node-id)
+        workspace (project/workspace project)
+        compress? (:compress-textures? build-settings false)]
+    (image/make-texture-build-target workspace _node-id packed-image texture-profile compress?)))
+
+(g/defnk produce-build-targets [_node-id resource texture-set texture-build-target]
+  (let [pb-msg (assoc texture-set :texture (:resource texture-build-target))
+        dep-build-targets [texture-build-target]]
+    [(pipeline/make-pb-map-build-target _node-id resource dep-build-targets TextureSetProto$TextureSet pb-msg)]))
 
 (defn gen-renderable-vertex-buffer
   [width height]
@@ -435,20 +431,20 @@
                                                                                  (flatten image-resources))]
                                                            (texture-set-gen/layout-images (:layout texture-set-data) id->image))))
 
-  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
-                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
-
   (output aabb             AABB                (g/fnk [layout-size]
                                                  (if (= [0 0] layout-size)
                                                    (geom/null-aabb)
                                                    (let [[w h] layout-size]
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
-  (output gpu-texture      g/Any               :cached (g/fnk [_node-id texture-image]
-                                                         (texture/texture-image->gpu-texture _node-id
-                                                                                             texture-image
-                                                                                             {:min-filter gl/nearest
-                                                                                              :mag-filter gl/nearest})))
+  (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-image texture-profile]
+                                                         (let [texture-data (texture/make-preview-texture-data packed-image texture-profile)]
+                                                           (texture/texture-data->gpu-texture _node-id
+                                                                                              texture-data
+                                                                                              {:min-filter gl/nearest
+                                                                                               :mag-filter gl/nearest}))))
+
+  (output gpu-texture-generator g/Any          (g/fnk [gpu-texture] (image/make-variant-gpu-texture-generator gpu-texture)))
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
@@ -463,6 +459,7 @@
                                                                        {:node-type    AtlasAnimation
                                                                         :tx-attach-fn attach-animation}]}))
   (output save-value       g/Any          :cached produce-save-value)
+  (output texture-build-target g/Any      :cached produce-texture-build-target)
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
   (output scene            g/Any          :cached produce-scene))

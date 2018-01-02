@@ -4,13 +4,12 @@
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl :as gl]
             [internal.util :as util]
-            [editor.scene-cache :as scene-cache]
-            [dynamo.graph :as g])
-  (:import [java.awt.image BufferedImage DataBuffer DataBufferByte]
-           [java.nio Buffer IntBuffer ByteBuffer]
+            [editor.pipeline.tex-gen :as tex-gen]
+            [editor.scene-cache :as scene-cache])
+  (:import [java.awt.image BufferedImage DataBufferByte]
+           [java.nio Buffer ByteBuffer]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
-           [com.jogamp.opengl GL GL2 GL3 GLContext GLProfile]
-           [com.jogamp.common.nio Buffers]
+           [com.jogamp.opengl GL GL2 GL3 GLProfile]
            [com.jogamp.opengl.util.texture Texture TextureIO TextureData]
            [com.jogamp.opengl.util.awt ImageUtil]))
 
@@ -65,8 +64,13 @@
 
   (unbind [this gl _render-args]
     (let [tex (->texture this gl)]
+      (.glActiveTexture ^GL2 gl unit)
       (.disable tex gl))
-    (gl/gl-active-texture ^GL gl GL/GL_TEXTURE0)))
+    (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0)))
+
+(defn set-unit-index [^TextureLifecycle tlc ^long unit-index]
+  (assert (<= 0 unit-index 7))
+  (assoc tlc :unit (+ unit-index GL/GL_TEXTURE0)))
 
 (defn set-params [^TextureLifecycle tlc params]
   (update tlc :params merge params))
@@ -207,8 +211,8 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
                   mipmap-buffers
                   nil)))
 
-(defn texture-image->gpu-texture
-  "Create an image texture from a generated `TextureImage`. The returned value
+(defn texture-data->gpu-texture
+  "Create an image texture from a generated `TextureData`. The returned value
   supports GlBind and GlEnable. You can use it in do-gl and with-gl-bindings.
 
   If supplied, the params argument must be a map of parameter name to value.
@@ -220,14 +224,16 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
 
   If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The
   default is 0."
-  ([request-id img]
-   (texture-image->gpu-texture request-id img default-image-texture-params 0))
-  ([request-id img params]
-   (texture-image->gpu-texture request-id img params 0))
-  ([request-id ^Graphics$TextureImage img params unit-index]
-   (let [texture-data (texture-image->texture-data img)
-         unit (+ unit-index GL2/GL_TEXTURE0)]
-      (->TextureLifecycle request-id ::texture unit params texture-data))))
+  ([request-id texture-data]
+   (texture-data->gpu-texture request-id texture-data default-image-texture-params 0))
+  ([request-id texture-data params]
+   (texture-data->gpu-texture request-id texture-data params 0))
+  ([request-id texture-data params unit-index]
+   (let [unit (+ unit-index GL2/GL_TEXTURE0)]
+     (->TextureLifecycle request-id ::texture unit params texture-data))))
+
+(def make-preview-texture-data (comp texture-image->texture-data tex-gen/make-preview-texture-image))
+(def make-preview-cubemap-texture-datas (comp (partial util/map-vals texture-image->texture-data) tex-gen/make-preview-cubemap-texture-images))
 
 (defn empty-texture [request-id width height data-format params unit-index]
   (let [unit (+ unit-index GL2/GL_TEXTURE0)]
@@ -243,20 +249,19 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
     (.updateSubImage tex gl data 0 x y)))
 
 (def default-cubemap-texture-params
-  ^{:doc "If you do not supply parameters to `cubemap-texture-images->gpu-texture`, these will be used as defaults."}
+  ^{:doc "If you do not supply parameters to `cubemap-texture-datas->gpu-texture`, these will be used as defaults."}
   {:min-filter gl/linear
    :mag-filter gl/linear
    :wrap-s     gl/clamp-to-edge
    :wrap-t     gl/clamp-to-edge})
 
-(defn cubemap-texture-images->gpu-texture
-  ([request-id texture-images]
-   (cubemap-texture-images->gpu-texture request-id texture-images default-cubemap-texture-params))
-  ([request-id texture-images params]
-   (cubemap-texture-images->gpu-texture request-id texture-images params 0))
-  ([request-id texture-images params unit-index]
-   (let [texture-datas (util/map-vals texture-image->texture-data texture-images)
-         unit (+ unit-index GL2/GL_TEXTURE0)]
+(defn cubemap-texture-datas->gpu-texture
+  ([request-id texture-datas]
+   (cubemap-texture-datas->gpu-texture request-id texture-datas default-cubemap-texture-params))
+  ([request-id texture-datas params]
+   (cubemap-texture-datas->gpu-texture request-id texture-datas params 0))
+  ([request-id texture-datas params unit-index]
+   (let [unit (+ unit-index GL2/GL_TEXTURE0)]
      (->TextureLifecycle request-id ::cubemap-texture unit params texture-datas))))
 
 (defn- make-texture [^GL2 gl ^TextureData texture-data]
@@ -290,3 +295,4 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
     (update-cubemap-texture gl texture texture-datas)))
 
 (scene-cache/register-object-cache! ::cubemap-texture make-cubemap-texture update-cubemap-texture destroy-textures)
+

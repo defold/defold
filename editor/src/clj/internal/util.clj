@@ -258,8 +258,37 @@
       (pred (first elems)) index
       :else (recur (inc index) (next elems)))))
 
+(defn last-index-where
+  "Returns the index of the last element in coll where pred returns true,
+  or nil if there was no matching element."
+  [pred coll]
+  (when (some? coll)
+    (loop [index (dec (count coll))
+           elems (rseq coll)]
+      (cond
+        (empty? elems) nil
+        (pred (first elems)) index
+        :else (recur (dec index) (next elems))))))
+
 (defn only
   "Returns the only element in coll, or nil if there are more than one element."
   [coll]
   (when (nil? (next coll))
     (first coll)))
+
+(defn vset
+  "Assigns value at index in coll. Inserts nil values before index if it needs
+  to grow the vector. If a value is replaced by nil, the vector shrinks back to
+  the size it needs to encompass the last non-nil value."
+  [coll index value]
+  (let [old-count (count coll)
+        new-coll (if (<= old-count index)
+                   (into (vec coll) (repeat (- index old-count) nil))
+                   coll)
+        new-coll (assoc new-coll index value)]
+    (if (some? value)
+      new-coll
+      (let [new-count (inc (or (last-index-where some? new-coll) -1))]
+        (if (= old-count new-count)
+          new-coll
+          (into [] (take new-count) new-coll))))))

@@ -387,6 +387,7 @@
 ;;; ----------------------------------------
 ;; Type checking
 
+(def only-nil-schema (s/eq nil))
 (def ^:private nothing-schema (s/pred (constantly false)))
 
 (defn- prop-type->schema [prop-type]
@@ -415,6 +416,7 @@
           in-t-pl?  (coll? input-schema)]
       (or
         (= s/Any input-schema)
+        (= only-nil-schema output-schema)
         (and out-t-pl? (= [s/Any] input-schema))
         (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
         (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))

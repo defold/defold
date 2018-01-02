@@ -121,11 +121,11 @@
                        (for [old-resource old-value]
                          (if old-resource
                            (project/disconnect-resource-node project old-resource self connections)
-                           (g/disconnect project :nil-resource self :animation-resources)))
+                           (g/disconnect project :nil-value self :animation-resources)))
                        (for [new-resource new-value]
                          (if new-resource
                            (project/connect-resource-node project new-resource self connections)
-                           (g/connect project :nil-resource self :animation-resources)))))))
+                           (g/connect project :nil-value self :animation-resources)))))))
             (dynamic visible (g/constantly false)))
 
   (output form-data g/Any :cached produce-form-data)

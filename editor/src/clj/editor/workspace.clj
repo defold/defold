@@ -57,10 +57,13 @@ ordinary paths."
   io/Coercions
   (io/as-file [this] (File. (resource/abs-path this))))
 
+(def build-resource? (partial instance? BuildResource))
+
 (defn make-build-resource
   ([resource]
     (make-build-resource resource nil))
   ([resource prefix]
+   (assert (resource/resource? resource))
    (BuildResource. resource prefix)))
 
 (defn sort-resource-tree [{:keys [children] :as tree}]

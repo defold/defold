@@ -33,6 +33,8 @@
   (resource-hash [this])
   (openable? [this]))
 
+(def resource? (partial satisfies? Resource))
+
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this
   ;; is a resource that is part of the project and is not a directory. Note

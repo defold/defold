@@ -2,9 +2,7 @@
   (:require
     ;; switch to released version once https://dev.clojure.org/jira/browse/DIMAP-15 has been fixed
    [clojure.data.int-map-fixed :as int-map]
-   [clojure.string :as s]
    [dynamo.graph :as g]
-   [editor.colors :as colors]
    [editor.core :as core]
    [editor.defold-project :as project]
    [editor.geom :as geom]
@@ -16,27 +14,24 @@
    [editor.graph-util :as gu]
    [editor.handler :as handler]
    [editor.material :as material]
-   [editor.math :as math]
    [editor.outline :as outline]
    [editor.properties :as properties]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.resource-node :as resource-node]
    [editor.scene :as scene]
-   [editor.scene-tools :as scene-tools]
+   [editor.texture-unit :as texture-unit]
    [editor.tile-map-grid :as tile-map-grid]
    [editor.tile-source :as tile-source]
-   [editor.types :as types]
    [editor.ui :as ui]
-   [editor.util :as util]
    [editor.validation :as validation]
    [editor.workspace :as workspace]
-   [plumbing.core :as pc])
+   [editor.pipeline :as pipeline])
   (:import
    (com.dynamo.tile.proto Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer)
    (editor.gl.shader ShaderLifecycle)
    (com.jogamp.opengl GL GL2)
-   (javax.vecmath Point3d Matrix4d Quat4d Vector3d Vector4d)))
+   (javax.vecmath Point3d Matrix4d Vector3d)))
 
 (set! *warn-on-reflection* true)
 
@@ -131,10 +126,11 @@
     (condp = pass
       pass/transparent
       (let [{:keys [selected ^Matrix4d world-transform user-data]}  (first renderables)
-            {:keys [node-id vbuf shader gpu-texture blend-mode]} user-data]
+            {:keys [node-id vbuf shader gpu-textures blend-mode]} user-data]
         (when vbuf
           (let [vertex-binding (vtx/use-with node-id vbuf shader)]
-            (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+            (gl/with-gl-bindings gl render-args [shader vertex-binding]
+              (texture-unit/bind-gpu-textures! gl gpu-textures shader render-args)
               (case blend-mode
                 :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
                 (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
@@ -143,7 +139,8 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
+              (texture-unit/unbind-gpu-textures! gl gpu-textures shader render-args)))))
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
@@ -202,7 +199,7 @@
                    (geom/aabb-incorporate max-x max-y 0))}))))
 
 (g/defnk produce-layer-scene
-  [_node-id cell-map texture-set-data z gpu-texture shader blend-mode visible]
+  [_node-id cell-map texture-set-data z gpu-textures shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
       {:node-id _node-id
@@ -210,7 +207,7 @@
        :renderable {:render-fn render-layer
                     :user-data {:node-id _node-id
                                 :vbuf vbuf
-                                :gpu-texture gpu-texture
+                                :gpu-textures gpu-textures
                                 :shader shader
                                 :blend-mode blend-mode}
                     :index z
@@ -239,7 +236,7 @@
   (inherits outline/OutlineNode)
 
   (input texture-set-data g/Any)
-  (input gpu-texture g/Any)
+  (input gpu-textures g/Any)
   (input shader ShaderLifecycle)
   (input blend-mode g/Any)
 
@@ -266,7 +263,7 @@
    (g/connect layer-node :pb-msg                       parent :layer-msgs)
    (g/connect parent     :texture-set-data             layer-node :texture-set-data)
    (g/connect parent     :material-shader              layer-node :shader)
-   (g/connect parent     :gpu-texture                  layer-node :gpu-texture)
+   (g/connect parent     :gpu-textures                 layer-node :gpu-textures)
    (g/connect parent     :blend-mode                   layer-node :blend-mode)))
 
 (defn make-layer-node
@@ -290,10 +287,12 @@
 (defn load-tile-map
   [project self resource tile-grid]
   (let [tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
-        material (workspace/resolve-resource resource (:material tile-grid))]
+        material (workspace/resolve-resource resource (:material tile-grid))
+        textures (mapv #(workspace/resolve-resource resource %) (:textures tile-grid))]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
       (g/set-property self
+                      :textures textures
                       :tile-source tile-source
                       :material material
                       :blend-mode (:blend-mode tile-grid))
@@ -315,19 +314,12 @@
    :children (vec (sort-by :label child-outlines))})
 
 (g/defnk produce-pb-msg
-  [tile-source material blend-mode layer-msgs]
+  [tile-source material blend-mode layer-msgs textures]
   {:tile-set   (resource/resource->proj-path tile-source)
    :material   (resource/resource->proj-path material)
    :blend-mode blend-mode
-   :layers     (sort-by :z layer-msgs)})
-
-(defn build-tile-map
-  [resource dep-resources user-data]
-  (let [pb-msg (reduce #(assoc %1 (first %2) (second %2))
-                       (:pb-msg user-data)
-                       (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
-    {:resource resource
-     :content (protobuf/map->bytes Tile$TileGrid pb-msg)}))
+   :layers     (sort-by :z layer-msgs)
+   :textures   (mapv resource/resource->proj-path textures)})
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
@@ -341,25 +333,16 @@
                              (format "Tile map uses tiles outside the range of this tile source (%d tiles in source, but a tile with index %d is used in tile map)" tile-count max-tile-index))) tile-source "Tile Source"))
 
 (g/defnk produce-build-targets
-  [_node-id resource tile-source material pb-msg dep-build-targets tile-count max-tile-index]
+  [_node-id resource tile-source material pb-msg dep-build-targets texture-build-targets tile-count max-tile-index]
     (g/precluding-errors
       [(prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
+       (prop-resource-error :fatal _node-id :material material "Material")
        (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index)]
-      (let [dep-build-targets (flatten dep-build-targets)
-            deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
-            dep-resources (map (fn [[label resource]]
-                                 [label (get deps-by-resource resource)])
-                               [[:tile-set tile-source]
-                                [:material material]])]
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-tile-map
-          :user-data {:pb-msg pb-msg
-                      :dep-resources dep-resources}
-          :deps dep-build-targets}])))
+      [(pipeline/make-pb-map-build-target _node-id resource dep-build-targets Tile$TileGrid
+                                          (assoc pb-msg :textures (mapv :resource texture-build-targets)))]))
 
 (g/defnode TileMapNode
-  (inherits resource-node/ResourceNode)
+  (inherits texture-unit/TextureUnitBaseNode)
 
   (input layer-ids g/Any :array)
   (input layer-msgs g/Any :array)
@@ -368,7 +351,6 @@
   (input tile-source-resource resource/Resource)
   (input tile-source-attributes g/Any)
   (input texture-set-data g/Any)
-  (input gpu-texture g/Any)
   (input material-resource resource/Resource)
   (input material-shader ShaderLifecycle)
   (input material-samplers g/Any)
@@ -378,12 +360,13 @@
   (property tile-source resource/Resource
             (value (gu/passthrough tile-source-resource))
             (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
-                                            [:resource :tile-source-resource]
-                                            [:build-targets :dep-build-targets]
-                                            [:tile-source-attributes :tile-source-attributes]
-                                            [:texture-set-data :texture-set-data]
-                                            [:gpu-texture :gpu-texture])))
+                   (concat
+                     (texture-unit/set-array-index self :textures 0 new-value)
+                     (project/resource-setter self old-value new-value
+                                              [:resource :tile-source-resource]
+                                              [:build-targets :dep-build-targets]
+                                              [:tile-source-attributes :tile-source-attributes]
+                                              [:texture-set-data :texture-set-data]))))
             (dynamic error (g/fnk [_node-id tile-source tile-count max-tile-index]
                              (or (prop-resource-error :fatal _node-id :tile-source tile-source "Tile Source")
                                  (prop-tile-source-range-error _node-id tile-source tile-count max-tile-index))))
@@ -421,16 +404,16 @@
                   [width height])))))
 
   (output texture-set-data g/Any (gu/passthrough texture-set-data))
-  (output tex-params g/Any (g/fnk [material-samplers default-tex-params]
-                             (or (some-> material-samplers first material/sampler->tex-params)
-                                 default-tex-params)))
-  (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (output scene g/Any :cached produce-scene)
   (output node-outline outline/OutlineData :cached produce-node-outline)
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
-  (output build-targets g/Any :cached produce-build-targets))
+  (output build-targets g/Any :cached produce-build-targets)
+  (output gpu-textures g/Any :cached (g/fnk [default-tex-params gpu-texture-generators material-samplers]
+                                       (texture-unit/gpu-textures-by-sampler-name default-tex-params gpu-texture-generators material-samplers)))
+  (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties material-samplers textures tile-source]
+                                             (texture-unit/properties-with-texture-set _node-id _declared-properties material-samplers textures tile-source))))
 
 
 ;;--------------------------------------------------------------------
@@ -938,8 +921,15 @@
   (input tile-source-attributes g/Any)
   (input texture-set-data g/Any)
   (input material-shader ShaderLifecycle)
-  (input gpu-texture g/Any)
+  (input gpu-textures g/Any)
   (input tile-dimensions g/Any)
+
+  (output gpu-texture g/Any :cached (g/fnk [gpu-textures]
+                                      ;; TODO: We should probably bind all textures for the tool too. Simply use the base texture for now.
+                                      (some (fn [[_sampler-name gpu-texture]]
+                                              (when (= GL/GL_TEXTURE0 (:unit gpu-texture))
+                                                gpu-texture))
+                                            gpu-textures)))
 
   (output active-layer g/Any
           (g/fnk [selected-renderables]
@@ -971,7 +961,7 @@
    (g/connect resource-id :tile-source-attributes tool-id :tile-source-attributes)
    (g/connect resource-id :texture-set-data tool-id :texture-set-data)
    (g/connect resource-id :material-shader tool-id :material-shader)
-   (g/connect resource-id :gpu-texture tool-id :gpu-texture)
+   (g/connect resource-id :gpu-textures tool-id :gpu-textures)
    (g/connect resource-id :tile-dimensions tool-id :tile-dimensions)))
 
 

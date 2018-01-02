@@ -4,7 +4,8 @@
   (:import [com.defold.editor.pipeline TextureGenerator TextureUtil]
            [com.defold.libs TexcLibrary$FlipAxis]
            [com.google.protobuf ByteString]
-           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$TextureFormat Graphics$TextureProfiles Graphics$TextureProfile]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureProfiles Graphics$TextureProfile]
+           [com.jogamp.opengl.util.texture TextureData]
            [java.util EnumSet]
            [java.io ByteArrayOutputStream]
            [java.awt.image BufferedImage]))
@@ -66,9 +67,8 @@
     (make-texture-image image preview-profile false)))
 
 (defn make-cubemap-texture-images
-  ^Graphics$TextureImage [images texture-profile compress?]
-  (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
-    (util/map-vals #(make-texture-image % texture-profile compress? false) images)))
+  [images texture-profile compress?]
+  (util/map-vals #(make-texture-image % texture-profile compress? false) images))
 
 (defn- make-cubemap-texture-image-alternatives [textures]
   ;; Cube map textures are in the order px nx py ny nz pz.
@@ -108,7 +108,6 @@
         (#(protobuf/map->pb Graphics$TextureImage %)))))
 
 (defn make-preview-cubemap-texture-images
-  ^Graphics$TextureImage [images texture-profile]
+  [images texture-profile]
   (let [preview-profile (make-preview-profile texture-profile)]
     (make-cubemap-texture-images images preview-profile false)))
-

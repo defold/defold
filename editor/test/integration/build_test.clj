@@ -6,10 +6,8 @@
             [dynamo.graph :as g]
             [support.test-support :refer [with-clean-system]]
             [editor.math :as math]
-            [editor.fs :as fs]
             [editor.game-project :as game-project]
             [editor.defold-project :as project]
-            [editor.pipeline :as pipeline]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
@@ -29,6 +27,8 @@
            [com.dynamo.lua.proto Lua$LuaModule]
            [com.dynamo.gui.proto Gui$SceneDesc]
            [com.dynamo.spine.proto Spine$SpineModelDesc]
+           [com.dynamo.sprite.proto Sprite$SpriteDesc]
+           [com.dynamo.tile.proto Tile$TileGrid]
            [java.io ByteArrayOutputStream File]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
@@ -47,7 +47,8 @@
                         "meshsetc" Rig$MeshSet
                         "texturesetc" TextureSetProto$TextureSet
                         "collectionproxyc" GameSystem$CollectionProxyDesc
-                        "collectionc" GameObject$CollectionDesc})
+                        "collectionc" GameObject$CollectionDesc
+                        "spritec" Sprite$SpriteDesc})
 
 (defn- target [path targets]
   (let [ext (FilenameUtils/getExtension path)
@@ -57,6 +58,17 @@
                       {:ext ext
                        :path path})))
     (protobuf/bytes->map pb-class (get targets path))))
+
+(defn- lookup-component [component-id components]
+  (some (fn [component]
+          (when (= component-id (:id component))
+            component))
+        components))
+
+(defn- component-target [component-id go-pb targets]
+  (let [component (lookup-component component-id (:components go-pb))
+        target-path (:component component)]
+    (target target-path targets)))
 
 (defn- approx? [as bs]
   (every? #(< % 0.00001)
@@ -90,12 +102,10 @@
                                  (is (approx? [0.0 0.0 -0.70710677 0.70710677] (:rotation modifier))))))}
                 {:label           "Sound"
                  :path            "/main/sound.sound"
-                 :pb-class        Sound$SoundDesc
-                 :resource-fields [:sound]}
+                 :pb-class        Sound$SoundDesc}
                 {:label           "Collision Object"
                  :path            "/collisionobject/tile_map.collisionobject"
-                 :pb-class        Physics$CollisionObjectDesc
-                 :resource-fields [:collision-shape]}
+                 :pb-class        Physics$CollisionObjectDesc}
                 {:label           "Collision Object"
                  :path            "/collisionobject/convex_shape.collisionobject"
                  :pb-class        Physics$CollisionObjectDesc
@@ -108,20 +118,33 @@
                  :test-fn (fn [pb targets]
                             (is (= "default" (:collision-group (first (:convex-hulls pb)))))
                             (is (< 0 (count (:convex-hull-points pb)))))}
+                {:label "Tile Map"
+                 :path "/main/blob.tilemap"
+                 :pb-class Tile$TileGrid
+                 :test-fn (fn [pb targets]
+                            (let [texture-set-path (:tile-set pb)
+                                  texture-set (target texture-set-path targets)
+                                  texture-path (:texture texture-set)]
+                              (is (= "/tile_source/simple.texturesetc" texture-set-path))
+                              (is (string/ends-with? texture-path ".texturec"))
+                              (is (= [texture-path] (:textures pb)))))}
                 {:label "Spine Scene"
                  :path "/player/spineboy.spinescene"
                  :pb-class Rig$RigScene
-                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
                  :test-fn (fn [pb targets]
-                            (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
-                            (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
-                            (is (< 0 (-> pb :animation-set (target targets) :animations count)))
-                            (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
+                            (let [texture-set-path (:texture-set pb)
+                                  texture-set (target texture-set-path targets)
+                                  texture-path (:texture texture-set)]
+                              (is (= "/player/spineboy.texturesetc" texture-set-path))
+                              (is (string/ends-with? texture-path ".texturec"))
+                              (is (= [texture-path] (:textures pb)))
+                              (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                              (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
+                              (is (< 0 (-> pb :animation-set (target targets) :animations count)))
+                              (is (< 0 (-> pb :skeleton (target targets) :bones count)))))}
                 {:label "Spine Scene with weighted mesh"
                  :path "/ladder/ladder.spinescene"
                  :pb-class Rig$RigScene
-                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
                  :test-fn (fn [pb targets]
                             (let [mesh-set (-> pb :mesh-set (target targets))]
                               (doseq [mesh-entry (:mesh-entries mesh-set)]
@@ -131,7 +154,6 @@
                 {:label "Spine Scene with IKs and IK animation"
                  :path "/raptor/raptor.spinescene"
                  :pb-class Rig$RigScene
-                 :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
                  :test-fn (fn [pb targets]
                             (is (some? (-> pb :texture-set (target targets) :texture)))
                             (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
@@ -141,12 +163,10 @@
                             (is (< 0 (-> pb :skeleton (target targets) :iks count))))}
                {:label "Spine Model"
                 :path "/player/spineboy.spinemodel"
-                :pb-class Spine$SpineModelDesc
-                :resource-fields [:spine-scene :material]}
+                :pb-class Spine$SpineModelDesc}
                {:label "Label"
                 :path "/main/label.label"
                 :pb-class Label$LabelDesc
-                :resource-fields [:font :material]
                 :test-fn (fn [pb targets]
                            (is (= {:color [1.0 1.0 1.0 1.0],
                                    :line-break false,
@@ -165,12 +185,12 @@
                {:label "Model"
                 :path "/model/book_of_defold.model"
                 :pb-class ModelProto$Model
-                :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
                            (let [rig-scene (target (:rig-scene pb) targets)]
                              (is (= "" (:animation-set rig-scene)))
                              (is (= "" (:skeleton rig-scene)))
                              (is (= "" (:texture-set rig-scene)))
+                             (is (= ["/model/book_of_defold_1024.texturec"] (:textures rig-scene)))
 
                              ;; TODO - id must be 0 currently because of the runtime
                              ;; (is (= (murmur/hash64 "Book") (-> pb :rig-scene (target targets) :mesh-set (target targets) :mesh-entries first :id))))})
@@ -178,13 +198,13 @@
                {:label "Model with animations"
                 :path "/model/treasure_chest.model"
                 :pb-class ModelProto$Model
-                :resource-fields [:rig-scene :material]
                 :test-fn (fn [pb targets]
                            (let [rig-scene (target (:rig-scene pb) targets)
                                  animation-set (target (:animation-set rig-scene) targets)
                                  mesh-set (target (:mesh-set rig-scene) targets)
                                  skeleton (target (:skeleton rig-scene) targets)]
                              (is (= "" (:texture-set rig-scene)))
+                             (is (= ["/model/book_of_defold_1024.texturec"] (:textures rig-scene)))
 
                              (let [animations (-> animation-set :animations)]
                                (is (= 2 (count animations)))
@@ -201,17 +221,26 @@
 
                              (is (= 3 (count (:bones skeleton))))
                              (is (= (:bone-list mesh-set) (:bone-list animation-set)))
-                             (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}]
+                             (is (set/subset? (:bone-list mesh-set) (set (map :id (:bones skeleton)))))))}
+                {:label "Game Object with sprite"
+                 :path "/spaceship/spaceship.go"
+                 :pb-class GameObject$PrototypeDesc
+                 :test-fn (fn [pb targets]
+                            (let [sprite (component-target "sprite" pb targets)
+                                  texture-set-path (:tile-set sprite)
+                                  texture-set (target texture-set-path targets)
+                                  texture-path (:texture texture-set)]
+                              (is (= "/spaceship/spaceship.texturesetc" texture-set-path))
+                              (is (string/ends-with? texture-path ".texturec"))
+                              (is (= [texture-path] (:textures sprite)))))}]
                "/collection_proxy/with_collection.collectionproxy"
                [{:label "Collection proxy"
                  :path "/collection_proxy/with_collection.collectionproxy"
-                 :pb-class GameSystem$CollectionProxyDesc
-                 :resource-fields [:collection]}]
+                 :pb-class GameSystem$CollectionProxyDesc}]
                "/gui/spine.gui"
                [{:label "Gui with spine scene"
                  :path "/gui/spine.gui"
                  :pb-class Gui$SceneDesc
-                 :resource-fields [[:spine-scenes :spine-scene]]
                  :test-fn (fn [pb targets]
                             (let [main-node (first (filter #(= "spine" (:id %)) (:nodes pb)))
                                   nodes (into #{} (map :id (:nodes pb)))]
@@ -221,31 +250,35 @@
                [{:label "Model with empty texture"
                  :path "/model/book_of_defold_no_tex.model"
                  :pb-class ModelProto$Model
-                 :resource-fields [:rig-scene :material]
                  :test-fn (fn [pb targets]
                             (let [rig-scene (target (:rig-scene pb) targets)
                                   mesh-set (target (:mesh-set rig-scene) targets)]
                               (is (= "" (:texture-set rig-scene)))
-                              (is (= [""] (:textures pb)))
+                              (is (= [""] (:textures rig-scene)))
 
                               (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
                                 (is (< 2 (-> mesh :indices count))))))}]})
 
-(defn- run-pb-case [case content-by-source content-by-target]
+(defn- target-dep-paths [pb-class target-pb]
+  (into #{}
+        (comp (mapcat (partial protobuf/values-at-path target-pb))
+              (remove empty?))
+        (protobuf/resource-field-paths pb-class)))
+
+(defn- run-pb-case [case target-by-source content-by-source content-by-target]
   (testing (str "Testing " (:label case))
            (let [pb         (some->> (get content-by-source (:path case))
-                              (protobuf/bytes->map (:pb-class case)))
-                 test-fn    (:test-fn case)
-                 res-fields [:sound]]
+                                     (protobuf/bytes->map (:pb-class case)))
+                 test-fn   (:test-fn case)
+                 target    (get target-by-source (:path case))
+                 target-pb (some->> (get content-by-target target)
+                                    (protobuf/bytes->map (:pb-class case)))
+                 dep-paths (target-dep-paths (:pb-class case) target-pb)]
              (when test-fn
                (test-fn pb content-by-target))
-             (doseq [field (:resource-fields case)]
-               (doseq [field (if (vector? field)
-                               (map-indexed (fn [i v] [(first field) i (second field)]) (get pb (first field)))
-                               [[field]])
-                       :let [path (get-in pb field)]]
-                 (is (contains? content-by-target path))
-                 (is (> (count (get content-by-target path)) 0)))))))
+             (doseq [path dep-paths]
+               (is (contains? content-by-target path))
+               (is (> (count (get content-by-target path)) 0))))))
 
 (defn- content-bytes [artifact]
   (with-open [in (io/input-stream (:resource artifact))
@@ -267,6 +300,10 @@
            evaluation-context# (g/make-evaluation-context)
            ~'build-results     (project/build ~'project ~'resource-node evaluation-context# {})
            ~'_ (g/update-cache-from-evaluation-context! evaluation-context#)
+           ~'target-by-source  (into {} (keep #(let [~'target (:resource %)
+                                                     ~'source (:resource ~'target)]
+                                                 [(resource/proj-path ~'source) (resource/proj-path ~'target)])
+                                              ~'build-results))
            ~'content-by-source (into {} (keep #(when-let [~'r (:resource (:resource %))]
                                                  [(resource/proj-path ~'r) (content-bytes %)])
                                               ~'build-results))
@@ -279,7 +316,7 @@
   (doseq [[path cases] pb-cases]
     (with-build-results path
       (doseq [case cases]
-        (run-pb-case case content-by-source content-by-target)))))
+        (run-pb-case case target-by-source content-by-source content-by-target)))))
 
 (deftest build-coll-hierarchy
   (testing "Building collection hierarchies"

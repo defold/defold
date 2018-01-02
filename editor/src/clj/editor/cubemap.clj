@@ -10,7 +10,6 @@
             [editor.gl.vertex :as vtx]
             [editor.graph-util :as gu]
             [editor.image :as image]
-            [editor.image-util :as image-util]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -77,11 +76,6 @@
     (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* 6 (* sphere-lats sphere-longs)))
     (gl/gl-disable gl GL/GL_CULL_FACE)))
 
-(g/defnk produce-gpu-texture
-  [_node-id gpu-texture-generator]
-  (let [{:keys [generate-fn user-data]} gpu-texture-generator]
-    (generate-fn user-data _node-id texture/default-cubemap-texture-params 0)))
-
 (g/defnk produce-save-value [right left top bottom front back]
   {:right (resource/resource->proj-path right)
    :left (resource/resource->proj-path left)
@@ -106,13 +100,6 @@
                              [:resource resource-label]
                              [:content image-label]
                              [:size size-label])))
-
-(defn- generate-gpu-texture [{:keys [cubemap-images texture-profile]} request-id params unit]
-  (texture/cubemap-texture-images->gpu-texture
-    request-id
-    (tex-gen/make-preview-cubemap-texture-images cubemap-images texture-profile)
-    params
-    unit))
 
 (defn- build-cubemap [resource dep-resources user-data]
   (let [{:keys [images texture-profile compress?]} user-data
@@ -230,28 +217,27 @@
   (input front-size  g/Any)
   (input back-size   g/Any)
 
+  (output cubemap-image-resources g/Any (g/fnk [right-resource left-resource top-resource bottom-resource front-resource back-resource]
+                                          {:px right-resource :nx left-resource :py top-resource :ny bottom-resource :pz front-resource :nz back-resource}))
 
-  (output cubemap-image-resources g/Any :cached (g/fnk [right-resource left-resource top-resource bottom-resource front-resource back-resource]
-                                                       {:px right-resource :nx left-resource :py top-resource :ny bottom-resource :pz front-resource :nz back-resource}))
+  (output cubemap-images g/Any (g/fnk [right-image left-image top-image bottom-image front-image back-image]
+                                 {:px right-image :nx left-image :py top-image :ny bottom-image :pz front-image :nz back-image}))
 
-  (output cubemap-images g/Any :cached (g/fnk [right-image left-image top-image bottom-image front-image back-image]
-                                              {:px right-image :nx left-image :py top-image :ny bottom-image :pz front-image :nz back-image}))
+  (output cubemap-image-sizes g/Any (g/fnk [right-size left-size top-size bottom-size front-size back-size]
+                                      {:px right-size :nx left-size :py top-size :ny bottom-size :pz front-size :nz back-size}))
 
-  (output cubemap-image-sizes g/Any :cached (g/fnk [right-size left-size top-size bottom-size front-size back-size]
-                                                   {:px right-size :nx left-size :py top-size :ny bottom-size :pz front-size :nz back-size}))
+  (output gpu-texture g/Any :cached (g/fnk [_node-id cubemap-images cubemap-image-resources cubemap-image-sizes texture-profile]
+                                      (g/precluding-errors
+                                        [(cubemap-images-missing-error _node-id cubemap-image-resources)
+                                         (cubemap-image-sizes-error _node-id cubemap-image-sizes)]
+                                        (let [cubemap-texture-datas (texture/make-preview-cubemap-texture-datas cubemap-images texture-profile)]
+                                          (texture/cubemap-texture-datas->gpu-texture _node-id cubemap-texture-datas)))))
 
-  (output gpu-texture-generator g/Any :cached (g/fnk [_node-id cubemap-image-resources cubemap-images cubemap-image-sizes texture-profile]
-                                                     (g/precluding-errors
-                                                       [(cubemap-images-missing-error _node-id cubemap-image-resources)
-                                                        (cubemap-image-sizes-error _node-id cubemap-image-sizes)]
-                                                       {:generate-fn generate-gpu-texture
-                                                        :user-data {:cubemap-images cubemap-images
-                                                                    :texture-profile texture-profile}})))
+  (output gpu-texture-generator g/Any (g/fnk [gpu-texture] (image/make-variant-gpu-texture-generator gpu-texture)))
 
   (output build-targets g/Any :cached produce-build-targets)
 
   (output transform-properties g/Any scene/produce-no-transform-properties)
-  (output gpu-texture g/Any :cached produce-gpu-texture)
   (output save-value  g/Any :cached produce-save-value)
   (output aabb        AABB  :cached (g/constantly geom/unit-bounding-box))
   (output scene       g/Any :cached produce-scene))

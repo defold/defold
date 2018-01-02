@@ -54,8 +54,11 @@ public class LuaScanner {
     private static Pattern vec4Pattern = Pattern.compile("vmath\\.vector4\\s*\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
     private static Pattern quatPattern = Pattern.compile("vmath\\.quat\\s*\\(((.*?),(.*?),(.*?),(.*?)|)\\)");
     private static Pattern boolPattern = Pattern.compile("(false|true)");
+    private static Pattern materialPattern = Pattern.compile("material\\s*\\(([\"'](.*?)[\"']|)?\\)");
+    private static Pattern textureSetPattern = Pattern.compile("textureset\\s*\\(([\"'](.*?)[\"']|)?\\)");
+    private static Pattern texturePattern = Pattern.compile("texture\\s*\\(([\"'](.*?)[\"']|)?\\)");
     private static Pattern[] patterns = new Pattern[] { numPattern, hashPattern, urlPattern,
-            vec3Pattern, vec4Pattern, quatPattern, boolPattern};
+            vec3Pattern, vec4Pattern, quatPattern, boolPattern, materialPattern, textureSetPattern, texturePattern};
 
     private static String stripSingleLineComments(String str) {
         str = str.replace("\r", "");
@@ -79,7 +82,7 @@ public class LuaScanner {
         return sb.toString();
     }
 
-    private static String stripComments(String str) {
+    public static String stripComments(String str) {
         str = stripSingleLineComments(str);
         Matcher matcher = multiLineCommentPattern.matcher(str);
 
@@ -120,10 +123,18 @@ public class LuaScanner {
             INVALID_ARGS,
             INVALID_VALUE
         }
+
+        /// supported resource property sub-types
+        static public long subTypeMaterial = MurmurHash.hash64("material");
+        static public long subTypeTextureSet = MurmurHash.hash64("textureset");
+        static public long subTypeTexture = MurmurHash.hash64("texture");
+
         /// Set iff status != INVALID_ARGS
         public String name;
         /// Set iff status == OK
         public PropertyType type;
+        /// Set iff status != INVALID_ARGS
+        public long subType;
         /// Set iff status != INVALID_ARGS
         public String rawValue;
         /// Set iff status == OK
@@ -136,6 +147,20 @@ public class LuaScanner {
         public Property(int line) {
             this.line = line;
         }
+    }
+
+    public static String stripProperties(String str) {
+        str = str.replace("\r", "");
+        StringBuffer sb = new StringBuffer();
+        String[] lines = str.split("\n");
+        for (String line : lines) {
+            Matcher propDeclMatcher = propertyDeclPattern.matcher(line.trim());
+            if (!propDeclMatcher.matches()) {
+                sb.append(line);
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
     }
 
     public static List<Property> scanProperties(String str) {
@@ -219,6 +244,18 @@ public class LuaScanner {
                     } else if (matcher.pattern() == boolPattern) {
                         property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
                         property.value = Boolean.parseBoolean(rawValue);
+                    } else if (matcher.pattern() == materialPattern) {
+                        property.type = PropertyType.PROPERTY_TYPE_RESOURCE;
+                        property.subType = Property.subTypeMaterial;
+                        property.value = matcher.group(2) == null ? "" :  matcher.group(2).trim();
+                    } else if (matcher.pattern() == textureSetPattern) {
+                        property.type = PropertyType.PROPERTY_TYPE_RESOURCE;
+                        property.subType = Property.subTypeTextureSet;
+                        property.value = matcher.group(2) == null ? "" :  matcher.group(2).trim();
+                    } else if (matcher.pattern() == texturePattern) {
+                        property.type = PropertyType.PROPERTY_TYPE_RESOURCE;
+                        property.subType = Property.subTypeTexture;
+                        property.value = matcher.group(2) == null ? "" :  matcher.group(2).trim();
                     }
                     result = true;
                 } catch (NumberFormatException e) {

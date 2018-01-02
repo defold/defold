@@ -230,7 +230,7 @@
          (g/transact
            (concat
              (g/connect game-project :display-profiles-data project :display-profiles)
-             (g/connect game-project :texture-profiles-data project :texture-profiles)             
+             (g/connect game-project :texture-profiles-data project :texture-profiles)
              (g/connect game-project :settings-map project :settings))))
        project))))
 
@@ -540,7 +540,7 @@
   (output settings g/Any :cached (gu/passthrough settings))
   (output display-profiles g/Any :cached (gu/passthrough display-profiles))
   (output texture-profiles g/Any :cached (gu/passthrough texture-profiles))
-  (output nil-resource resource/Resource (g/constantly nil))
+  (output nil-value g/Nil (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
   (output default-tex-params g/Any :cached produce-default-tex-params)
   (output build-settings g/Any (gu/passthrough build-settings))

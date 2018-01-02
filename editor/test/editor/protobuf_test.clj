@@ -2,12 +2,7 @@
   (:require [clojure.test :refer :all]
             [clojure.java.io :as io]
             [editor.protobuf :as protobuf])
-  (:import [com.defold.editor.test TestDdf TestDdf$Msg TestDdf$SubMsg TestDdf$Transform TestDdf$DefaultValue
-            TestDdf$OptionalNoDefaultValue TestDdf$EmptyMsg TestDdf$Uint64Msg TestDdf$RepeatedUints
-            TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$BooleanMsg TestDdf$BytesMsg
-            TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage TestDdf$JavaCasingMsg]
-           [javax.vecmath Point3d Vector3d]
-           [com.google.protobuf ByteString]))
+  (:import [com.google.protobuf ByteString]))
 
 (defn- read-text [^java.lang.Class cls s]
   (with-in-str s
@@ -136,3 +131,153 @@
   (is (= "StoreFrontImageUrl" (protobuf/underscores-to-camel-case "store_front_image_url")))
   (is (= "IOSExecutableUrl" (protobuf/underscores-to-camel-case "iOSExecutableUrl")))
   (is (= "SomeField_" (protobuf/underscores-to-camel-case "some_field#"))))
+
+(deftest values-at-path-test
+  ;; NOTE: Cases correspond to the examples for protobuf/resource-field-paths-raw.
+  (are [path m result]
+    (= result (protobuf/values-at-path m path))
+
+    ;; Simple
+    [:image]
+    {:image "img"}
+    ["img"]
+
+    [:image]
+    {:other "img"}
+    []
+
+    ;; Repeated
+    [[:images]]
+    {:images ["img1" "img2"]}
+    ["img1" "img2"]
+
+    [[:images]]
+    {:others ["img1" "img2"]}
+    []
+
+    ;; SimpleNested
+    [:simple :image]
+    {:simple {:image "nested-img"}}
+    ["nested-img"]
+
+    [:simple :image]
+    {:other {:image "nested-img"}}
+    []
+
+    [:simple :image]
+    {:simple {:other "nested-img"}}
+    []
+
+    ;; RepeatedNested
+    [:simple [:images]]
+    {:simple {:images ["nested-img1" "nested-img2"]}}
+    ["nested-img1" "nested-img2"]
+
+    [:simple [:images]]
+    {:other {:images ["nested-img1" "nested-img2"]}}
+    []
+
+    [:simple [:images]]
+    {:simple {:others ["nested-img1" "nested-img2"]}}
+    []
+
+    ;; SimpleRepeatedlyNested
+    [[:simples] :image]
+    {:simples [{:image "nested-img1"} {:image "nested-img2"}]}
+    ["nested-img1" "nested-img2"]
+
+    [[:simples] :image]
+    {:others [{:image "nested-img1"} {:image "nested-img2"}]}
+    []
+
+    [[:simples] :image]
+    {:simples [{:other "nested-img1"} {:other "nested-img2"}]}
+    []
+
+    ;; RepeatedRepeatedlyNested
+    [[:repeateds] [:images]]
+    {:repeateds [{:images ["nested-img1" "nested-img2"]} {:images ["nested-img3" "nested-img4"]}]}
+    ["nested-img1" "nested-img2" "nested-img3" "nested-img4"]
+
+    [[:repeateds] [:images]]
+    {:others [{:images ["nested-img1" "nested-img2"]} {:images ["nested-img3" "nested-img4"]}]}
+    []
+
+    [[:repeateds] [:images]]
+    {:repeateds [{:others ["nested-img1" "nested-img2"]} {:others ["nested-img3" "nested-img4"]}]}
+    []))
+
+(deftest update-values-at-path-test
+  ;; NOTE: Cases correspond to the examples for protobuf/resource-field-paths-raw.
+  (are [path before after]
+    (= after (protobuf/update-values-at-path before path str "-suffix"))
+
+    ;; Simple
+    [:image]
+    {:image "img"}
+    {:image "img-suffix"}
+
+    [:image]
+    {:other "img"}
+    {:other "img"}
+
+    ;; Repeated
+    [[:images]]
+    {:images ["img1" "img2"]}
+    {:images ["img1-suffix" "img2-suffix"]}
+
+    [[:images]]
+    {:others ["img1" "img2"]}
+    {:others ["img1" "img2"]}
+
+    ;; SimpleNested
+    [:simple :image]
+    {:simple {:image "nested-img"}}
+    {:simple {:image "nested-img-suffix"}}
+
+    [:simple :image]
+    {:other {:image "nested-img"}}
+    {:other {:image "nested-img"}}
+
+    [:simple :image]
+    {:simple {:other "nested-img"}}
+    {:simple {:other "nested-img"}}
+
+    ;; RepeatedNested
+    [:simple [:images]]
+    {:simple {:images ["nested-img1" "nested-img2"]}}
+    {:simple {:images ["nested-img1-suffix" "nested-img2-suffix"]}}
+
+    [:simple [:images]]
+    {:other {:images ["nested-img1" "nested-img2"]}}
+    {:other {:images ["nested-img1" "nested-img2"]}}
+
+    [:simple [:images]]
+    {:simple {:others ["nested-img1" "nested-img2"]}}
+    {:simple {:others ["nested-img1" "nested-img2"]}}
+
+    ;; SimpleRepeatedlyNested
+    [[:simples] :image]
+    {:simples [{:image "nested-img1"} {:image "nested-img2"}]}
+    {:simples [{:image "nested-img1-suffix"} {:image "nested-img2-suffix"}]}
+
+    [[:simples] :image]
+    {:others [{:image "nested-img1"} {:image "nested-img2"}]}
+    {:others [{:image "nested-img1"} {:image "nested-img2"}]}
+
+    [[:simples] :image]
+    {:simples [{:other "nested-img1"} {:other "nested-img2"}]}
+    {:simples [{:other "nested-img1"} {:other "nested-img2"}]}
+
+    ;; RepeatedRepeatedlyNested
+    [[:repeateds] [:images]]
+    {:repeateds [{:images ["nested-img1" "nested-img2"]} {:images ["nested-img3" "nested-img4"]}]}
+    {:repeateds [{:images ["nested-img1-suffix" "nested-img2-suffix"]} {:images ["nested-img3-suffix" "nested-img4-suffix"]}]}
+
+    [[:repeateds] [:images]]
+    {:others [{:images ["nested-img1" "nested-img2"]} {:images ["nested-img3" "nested-img4"]}]}
+    {:others [{:images ["nested-img1" "nested-img2"]} {:images ["nested-img3" "nested-img4"]}]}
+
+    [[:repeateds] [:images]]
+    {:repeateds [{:others ["nested-img1" "nested-img2"]} {:others ["nested-img3" "nested-img4"]}]}
+    {:repeateds [{:others ["nested-img1" "nested-img2"]} {:others ["nested-img3" "nested-img4"]}]}))

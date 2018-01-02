@@ -262,7 +262,9 @@
           {:type :property-type-number :value -4.0e10}
           {:type :property-type-number :value -4.0e-10}
           {:type :property-type-hash :value ""}
+          {:type :property-type-hash :value ""}
           {:type :property-type-hash :value "aBc3"}
+          {:type :property-type-url :value ""}
           {:type :property-type-url :value ""}
           {:type :property-type-url :value "foo"}
           {:type :property-type-url :value "socket:/path/to/object#fragment"}
@@ -274,7 +276,16 @@
           {:type :property-type-vector4 :value [4.0 4.0 4.0 4.0]}
           {:type :property-type-vector4 :value [1.0 2.0 3.0 4.0]}
           {:type :property-type-quat :value [0.0 0.0 0.0]}
-          {:type :property-type-quat :value [0.0 28.072486935852957 90.0]}]
+          {:type :property-type-quat :value [0.0 28.072486935852957 90.0]}
+          {:type :property-type-resource :value ""}
+          {:type :property-type-resource :value ""}
+          {:type :property-type-resource :value "/path/to/resource.material"}
+          {:type :property-type-resource :value ""}
+          {:type :property-type-resource :value ""}
+          {:type :property-type-resource :value "/path/to/resource.atlas"}
+          {:type :property-type-resource :value ""}
+          {:type :property-type-resource :value ""}
+          {:type :property-type-resource :value "/path/to/resource.tilesource"}]
          (map #(select-keys % [:value :type])
               (src->properties
                 (string/join "\n" ["go.property(\"test\", true)"
@@ -289,9 +300,11 @@
                                    "go.property(\"test\", 3.0e-10)"
                                    "go.property(\"test\", -4.0e10)"
                                    "go.property(\"test\", -4.0e-10)"
+                                   "go.property(\"test\", hash())"
                                    "go.property(\"test\", hash(''))"
                                    "go.property(\"test\", hash('aBc3'))"
                                    "go.property(\"test\", msg.url())"
+                                   "go.property(\"test\", msg.url(''))"
                                    "go.property(\"test\", msg.url('foo'))"
                                    "go.property(\"test\", msg.url('socket', '/path/to/object', 'fragment'))"
                                    "go.property(\"test\", msg.url(hash('socket-hash'), hash('/path/to/object-hash'), hash('fragment-hash')))"
@@ -302,7 +315,16 @@
                                    "go.property(\"test\", vmath.vector4(4))"
                                    "go.property(\"test\", vmath.vector4(1, 2, 3, 4))"
                                    "go.property(\"test\", vmath.quat())"
-                                   "go.property(\"test\", vmath.quat(1, 2, 3, 4))"])))))
+                                   "go.property(\"test\", vmath.quat(1, 2, 3, 4))"
+                                   "go.property(\"test\", material())"
+                                   "go.property(\"test\", material(''))"
+                                   "go.property(\"test\", material('/path/to/resource.material'))"
+                                   "go.property(\"test\", texture())"
+                                   "go.property(\"test\", texture(''))"
+                                   "go.property(\"test\", texture('/path/to/resource.atlas'))"
+                                   "go.property(\"test\", textureset())"
+                                   "go.property(\"test\", textureset(''))"
+                                   "go.property(\"test\", textureset('/path/to/resource.tilesource'))"])))))
 
   (is (= []
          (src->properties "foo.property(\"test\", true)")))

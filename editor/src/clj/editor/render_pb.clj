@@ -24,10 +24,10 @@
                      (concat
                        (if old-value
                          (project/disconnect-resource-node project old-value self connections)
-                         (g/disconnect project :nil-resource self :material-resource))
+                         (g/disconnect project :nil-value self :material-resource))
                        (if new-value
                          (project/connect-resource-node project new-value self connections)
-                         (g/connect project :nil-resource self :material-resource))))))
+                         (g/connect project :nil-value self :material-resource))))))
            (dynamic visible (g/constantly false)))
 
   (input material-resource resource/Resource)
