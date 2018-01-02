@@ -4,6 +4,7 @@
             [editor.settings-core :as settings-core]
             [editor.library :as library]
             [editor.resource :as resource]
+            [editor.system :as system]
             [dynamo.graph :as g])
   (:import [java.io File]
            [editor.resource Resource FileResource ZipResource]))
@@ -125,11 +126,26 @@
    (empty-snapshot)
    snapshots))
 
+(defn- make-debugger-snapshot
+  [workspace]
+  (let [base-path (if (system/defold-dev?)
+                    ;; Use local debugger support files so we can see
+                    ;; changes to them instantly without re-packing/restarting.
+                    (.getAbsolutePath (io/file "bundle-resources"))
+                    (system/defold-unpack-path))
+        root (io/file base-path "_defold/debugger")
+        mount-root (io/file base-path)
+        resources (resource/children (make-file-tree workspace mount-root root))
+        flat-resources (resource/resource-list-seq resources)]
+    {:resources resources
+     :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
+
 (defn make-snapshot [workspace project-directory library-urls]
   (let [builtins-snapshot (make-builtins-snapshot workspace)
         fs-snapshot (make-directory-snapshot workspace project-directory)
+        debugger-snapshot (make-debugger-snapshot workspace)
         library-snapshots (make-library-snapshots workspace project-directory library-urls)]
-    (combine-snapshots (list* builtins-snapshot fs-snapshot library-snapshots))))
+    (combine-snapshots (list* builtins-snapshot fs-snapshot debugger-snapshot library-snapshots))))
 
 (defn make-resource-map [snapshot]
   (into {} (map (juxt resource/proj-path identity) (resource/resource-list-seq (:resources snapshot)))))

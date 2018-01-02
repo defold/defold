@@ -119,8 +119,11 @@
             save-data-future (project-search/make-file-resource-save-data-future report-error! project)
             search-paths (->> save-data-future deref (map :resource) (map resource/proj-path))]
         (is (= (set search-paths)
-               (set (keep #(some-> (g/node-value % :save-data) :resource resource/proj-path)
-                          (g/node-value project :nodes)))))
+               (into #{}
+                     (comp (keep #(some-> (g/node-value % :save-data) :resource))
+                           (remove resource/internal?)
+                           (keep resource/proj-path))
+                     (g/node-value project :nodes))))
         (is (= [] (test-util/call-logger-calls report-error!)))))))
 
 (deftest file-searcher-results-test
