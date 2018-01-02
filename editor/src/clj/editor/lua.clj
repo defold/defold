@@ -4,6 +4,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [editor.code :as code]
+            [editor.code.integration :as code-integration]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
             [schema.core :as s])
@@ -96,7 +97,7 @@
       {:select (filterv #(not= \[ (first %)) params) :exit (when params ")")})))
 
 (def ^:private documentation-schema
-  {s/Str [{:type (s/enum :function :message :namespace :property :snippet :variable :keyword)
+  {s/Str [{:type (s/enum :constant :function :message :namespace :property :snippet :variable :keyword)
            :name s/Str
            :display-string s/Str
            :insert-string s/Str
@@ -142,6 +143,8 @@
 (def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
                        "release_input_focus" "request_transform" "set_parent" "transform_response"})
 
+(def lua-constants #{"nil" "false" "true"})
+
 (def constant-pattern #"^(?:(?<![^.]\.|:)\b(?:false|nil|true|_G|_VERSION|math\.(?:pi|huge))\b|(?<![.])\.{3}(?!\.))")
 
 (def operator-pattern #"^(?:\+|\-|\%|\#|\*|\/|\^|\=|\=\=|\~\=|\<\=|\>\=)")
@@ -158,19 +161,24 @@
 
 (defn lua-base-documentation []
   (s/validate documentation-schema
-    {"" (into []
-              (util/distinct-by :display-string)
-              (concat (map #(assoc % :type :snippet)
-                           (-> (io/resource "lua-base-snippets.edn")
-                               slurp
-                               edn/read-string))
-                      ;; Disabled keyword completion for now, since it breaks the tests for the old code editor.
-                      #_(map (fn [keyword]
-                             {:type :keyword
-                              :name keyword
-                              :display-string keyword
-                              :insert-string keyword})
-                           all-keywords)))}))
+              {"" (into []
+                        (util/distinct-by :display-string)
+                        (concat (map #(assoc % :type :snippet)
+                                     (-> (io/resource "lua-base-snippets.edn")
+                                         slurp
+                                         edn/read-string))
+                                (map (fn [constant]
+                                       {:type :constant
+                                        :name constant
+                                        :display-string constant
+                                        :insert-string constant})
+                                     lua-constants)
+                                (map (fn [keyword]
+                                       {:type :keyword
+                                        :name keyword
+                                        :display-string keyword
+                                        :insert-string keyword})
+                                     all-keywords)))}))
 
 (def lua-std-libs-docs (atom (lua-base-documentation)))
 

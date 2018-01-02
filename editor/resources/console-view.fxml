@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<GridPane id="console-grid-pane" xmlns="http://javafx.com/javafx/8" maxHeight="Infinity" maxWidth="Infinity">
+  <columnConstraints>
+    <ColumnConstraints hgrow="ALWAYS" />
+  </columnConstraints>
+  <rowConstraints>
+    <RowConstraints vgrow="NEVER" />
+    <RowConstraints vgrow="ALWAYS" />
+    <RowConstraints vgrow="NEVER" />
+  </rowConstraints>
+  <HBox id="console-tool-bar" GridPane.rowIndex="0">
+    <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS" />
+    <Separator id="prev-console-separator" />
+    <Button id="prev-console" />
+    <Separator id="next-console-separator" />
+    <Button id="next-console" />
+    <Separator id="clear-console-separator" />
+    <Button id="clear-console" text="Clear" />
+    <HBox id="debugger-tool-bar" visible="false">
+      <Separator id="debugger-separator" />
+      <Button id="pause-debugger-button" />
+      <Button id="play-debugger-button" visible="false" />
+      <Button id="stop-debugger-button" />
+      <Separator id="step-over-separator" />
+      <Button id="step-over-debugger-button" />
+      <Button id="step-in-debugger-button" />
+      <Button id="step-out-debugger-button" />
+    </HBox>
+  </HBox>
+  <Pane id="console-canvas-pane" GridPane.rowIndex="1" />
+  <HBox id="debugger-prompt" GridPane.rowIndex="2" visible="false">
+    <Label id="debugger-prompt-label" text="&gt;" />
+    <TextField id="debugger-prompt-field" promptText="Evaluate Lua" HBox.hgrow="ALWAYS" />
+  </HBox>
+</GridPane>
