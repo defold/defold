@@ -317,8 +317,7 @@ public class RigUtil {
         public Point3d interpolate(double t, Point3d a, Point3d b)
         {
             Point3d out = new Point3d(a);
-            out.scale(1.0 - t);
-            out.scaleAdd(t, b, out);
+            out.interpolate(b, t);
             return out;
         }
     }
@@ -415,8 +414,7 @@ public class RigUtil {
         public Vector3d interpolate(double t, Vector3d a, Vector3d b)
         {
             Vector3d out = new Vector3d(a);
-            out.scale(1.0 - t);
-            out.scaleAdd(t, b, out);
+            out.interpolate(b, t);
             return out;
         }
     }
