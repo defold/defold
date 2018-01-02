@@ -122,7 +122,10 @@
                :textual? true
                :load-fn (fn [project self resource]
                           (let [source-value (read-fn resource)]
-                            (g/set-property self :code source-value)))
+                            (concat
+                              (g/set-property self :code source-value)
+                              (when (contains? (g/output-labels node-type) :breakpoints)
+                                (g/connect self :breakpoints project :breakpoints)))))
                :read-fn read-fn
                :write-fn identity)]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

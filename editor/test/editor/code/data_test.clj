@@ -526,7 +526,7 @@
                         "\n")))))
 
 (defn- append-distinct-lines [lines regions new-lines]
-  (data/append-distinct-lines lines regions (layout-info lines) new-lines))
+  (data/append-distinct-lines lines regions new-lines))
 
 (defn- repeat-region [row line repeat-count]
   (assoc (cr [row 0] [row (count line)])

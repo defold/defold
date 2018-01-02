@@ -340,10 +340,8 @@
 
 (defn- next-tab-stop-x
   ^double [tab-stops ^double x]
-  (some (fn [^double tab-stop]
-          (when (< x tab-stop)
-            tab-stop))
-        tab-stops))
+  (let [^double tab-width (:tab-width (first tab-stops))]
+    (* (+ (quot x tab-width) 1) tab-width)))
 
 (defn- advance-text-impl [glyph-metrics tab-stops ^String text start-index end-index start-x]
   (loop [^long index start-index
@@ -454,7 +452,9 @@
 (defn tab-stops [glyph-metrics tab-spaces]
   (let [^double space-width (char-width glyph-metrics \space)
         tab-width (* space-width (double tab-spaces))]
-    (take 100 (iterate (partial + tab-width) tab-width)))) ; Limit so we won't try to print an infinite sequence.
+    ;; tab-stops is now a list of rules applicable for a range.
+    ;; For now, there is one rule covering the whole x range.
+    [{:tab-width tab-width}]))
 
 (defn gutter-metrics [glyph-metrics ^double gutter-margin ^long source-line-count]
   (let [max-line-number-width (Math/ceil (* ^double (char-width glyph-metrics \0) (count (str source-line-count))))]
@@ -925,8 +925,12 @@
   (limit-scroll (scroll-x-limit layout) scroll-x))
 
 (defn limit-scroll-y
-  ^double [^LayoutInfo layout lines ^double scroll-y]
-  (limit-scroll (scroll-y-limit layout (count lines)) scroll-y))
+  ^double [^LayoutInfo layout ^long line-count ^double scroll-y]
+  (limit-scroll (scroll-y-limit layout line-count) scroll-y))
+
+(defn scroll-to-bottom
+  ^double [^LayoutInfo layout ^long line-count]
+  (limit-scroll (scroll-y-limit layout line-count) Double/NEGATIVE_INFINITY))
 
 (defn scrolled-to-bottom? [^LayoutInfo layout ^long line-count]
   (let [^double line-height (line-height (.glyph layout))
@@ -965,7 +969,7 @@
         scroll-x (or (scroll-x-fn margin-x (.x canvas-rect) (.w canvas-rect) (.x target-rect) (.w target-rect) (.scroll-x layout)) (.scroll-x layout))
         scroll-x (limit-scroll-x layout (Math/floor scroll-x))
         scroll-y (or (scroll-y-fn margin-y (.y canvas-rect) (.h canvas-rect) (.y target-rect) (.h target-rect) (.scroll-y layout)) (.scroll-y layout))
-        scroll-y (limit-scroll-y layout lines (Math/floor scroll-y))]
+        scroll-y (limit-scroll-y layout (count lines) (Math/floor scroll-y))]
     (cond-> nil
             (not= (.scroll-x layout) scroll-x) (assoc :scroll-x scroll-x)
             (not= (.scroll-y layout) scroll-y) (assoc :scroll-y scroll-y))))
@@ -1754,7 +1758,7 @@
     (inc (- n 1000000))
     (inc n)))
 
-(defn append-distinct-lines [lines regions ^LayoutInfo layout new-lines]
+(defn append-distinct-lines [lines regions new-lines]
   (let [[lines' regions'] (loop [new-lines new-lines
                                  lines (transient (if (= [""] lines) [] lines))
                                  regions regions]
@@ -1777,16 +1781,9 @@
                                          (conj! lines new-line)
                                          regions)))
                               [(persistent! lines) regions]))
-        lines' (if (empty? lines') [""] lines')
-        scroll-y (.scroll-y layout)
-        scroll-y' (if (scrolled-to-bottom? layout (count lines))
-                    (limit-scroll-y layout lines' Double/NEGATIVE_INFINITY)
-                    scroll-y)]
-    (cond-> {:lines lines'
-             :regions regions'}
-
-            (not= scroll-y scroll-y')
-            (assoc :scroll-y scroll-y'))))
+        lines' (if (empty? lines') [""] lines')]
+    {:lines lines'
+     :regions regions'}))
 
 (defn delete-character-before-cursor [lines cursor-range]
   (let [from (CursorRange->Cursor cursor-range)
@@ -1877,7 +1874,7 @@
 
 (defn scroll [lines scroll-x scroll-y layout delta-x delta-y]
   (let [new-scroll-x (limit-scroll-x layout (+ ^double scroll-x (Math/ceil delta-x)))
-        new-scroll-y (limit-scroll-y layout lines (+ ^double scroll-y (Math/ceil delta-y)))]
+        new-scroll-y (limit-scroll-y layout (count lines) (+ ^double scroll-y (Math/ceil delta-y)))]
     (cond-> nil
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
@@ -1890,6 +1887,17 @@
 
       (when (not-any? #(Character/isISOControl ^char %) typed)
         (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
+
+(defn execution-marker? [region]
+  (= :execution-marker (:type region)))
+
+(defn execution-marker [lines ^long row location-type]
+  (let [line-start (text-start lines row)
+        line-end (count (lines row))]
+    (assoc (->CursorRange (->Cursor row line-start)
+                          (->Cursor row line-end))
+           :type :execution-marker
+           :location-type location-type)))
 
 (defn breakpoint [lines ^long row]
   (let [line-start (text-start lines row)
@@ -1922,9 +1930,7 @@
   (when (= :primary button)
     (cond
       ;; Click in the gutter to toggle breakpoints.
-      ;; TODO: Disabled until we have a debugger.
-      (and false
-           (< ^double x (.x ^Rect (.canvas layout)))
+      (and (< ^double x (.x ^Rect (.canvas layout)))
            (> ^double x (+ (.x ^Rect (.line-numbers layout)) (.w ^Rect (.line-numbers layout)))))
       (let [clicked-row (y->row layout y)]
         (when (< clicked-row (count lines))
@@ -1985,10 +1991,11 @@
       ;; Dragging the vertical scroll tab.
       :scroll-tab-y-drag
       (let [^double start-scroll (:scroll-y gesture-start)
-            screen-to-scroll-ratio (scroll-height-ratio layout (count lines))
+            line-count (count lines)
+            screen-to-scroll-ratio (scroll-height-ratio layout line-count)
             screen-delta (- ^double y ^double (:y gesture-start))
             scroll-delta (Math/floor (* screen-delta screen-to-scroll-ratio))
-            scroll-y (limit-scroll-y layout lines (- start-scroll scroll-delta))]
+            scroll-y (limit-scroll-y layout line-count (- start-scroll scroll-delta))]
         (when (not= scroll-y (.scroll-y layout))
           {:scroll-y scroll-y}))
 
@@ -2130,7 +2137,7 @@
         move-fn (move-type->move-fn move-type)
         cursor-fn (partial cursor-offset-up row-count)]
     (some-> (apply-move lines cursor-ranges layout move-fn cursor-fn)
-            (assoc :scroll-y (limit-scroll-y layout lines (+ ^double scroll-y scroll-height))))))
+            (assoc :scroll-y (limit-scroll-y layout (count lines) (+ ^double scroll-y scroll-height))))))
 
 (defn page-down [lines cursor-ranges scroll-y ^LayoutInfo layout move-type]
   (let [row-count (dec (.drawn-line-count layout))
@@ -2139,7 +2146,7 @@
         move-fn (move-type->move-fn move-type)
         cursor-fn (partial cursor-offset-down row-count)]
     (some-> (apply-move lines cursor-ranges layout move-fn cursor-fn)
-            (assoc :scroll-y (limit-scroll-y layout lines (- ^double scroll-y scroll-height))))))
+            (assoc :scroll-y (limit-scroll-y layout (count lines) (- ^double scroll-y scroll-height))))))
 
 (defn select-next-occurrence [lines cursor-ranges ^LayoutInfo layout]
   ;; If there are one or more non-range cursors, we select the words under the cursors instead of the next occurrence.

@@ -34,8 +34,11 @@
         project (test-util/setup-project! workspace)]
     [workspace project]))
 
-(defn- non-builtin-resources [resources]
-  (filter #(not (.startsWith (resource/proj-path %) "/builtins")) resources))
+(defn- internal-resource?
+  [resource]
+  (let [proj-path (resource/proj-path resource)]
+    (or (.startsWith proj-path "/builtins")
+        (.startsWith proj-path "/_defold"))))
 
 (def ^:private directory-resources #{"/" "/game.project" "/main" "/main/main.collection" "/lib_resource_project" "/lib_resource_project/simple.gui"})
 (def ^:private scriptlib-resources #{"/scripts" "/scripts/main.script"})
@@ -46,7 +49,8 @@
   (set (map resource/proj-path resources)))
 
 (defn- workspace-resource-paths [workspace]
-  (resource-paths (non-builtin-resources (g/node-value workspace :resource-list))))
+  (resource-paths (->> (g/node-value workspace :resource-list)
+                       (remove internal-resource?))))
 
 (deftest include-parsing
   (testing "sane dirs"

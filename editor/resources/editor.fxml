@@ -86,43 +86,7 @@
                                             <tabs>
                                               <Tab id="console-tab" text="Console"> <!--Console tab-->
                                                   <content>
-                                                      <GridPane id="console-grid-pane" maxHeight="Infinity" maxWidth="Infinity">
-                                                          <columnConstraints>
-                                                              <ColumnConstraints hgrow="ALWAYS" />
-                                                          </columnConstraints>
-                                                          <rowConstraints>
-                                                              <RowConstraints vgrow="NEVER" />
-                                                              <RowConstraints vgrow="ALWAYS" />
-                                                              <RowConstraints vgrow="NEVER" />
-                                                          </rowConstraints>
-                                                          <children>
-                                                              <HBox id="console-tool-bar" GridPane.rowIndex="0">
-                                                                  <TextField id="search-console" promptText="Search" HBox.hgrow="ALWAYS"/>
-                                                                  <Separator id="prev-console-separator" />
-                                                                  <Button id="prev-console" />
-                                                                  <Separator id="next-console-separator" />
-                                                                  <Button id="next-console" />
-                                                                  <Separator id="clear-console-separator" />
-                                                                  <Button id="clear-console" text="Clear" />
-                                                                  <Separator id="debugger-separator" />
-                                                                  <HBox id="debugger-tool-bar">
-                                                                      <Button id="pause-debugger" />
-                                                                      <Button id="stop-debugger" />
-                                                                      <Separator id="step-over-separator" />
-                                                                      <Button id="step-over-debugger" />
-                                                                      <Button id="step-in-debugger" />
-                                                                      <Button id="step-out-debugger" />
-                                                                      <Separator id="toggle-debugger-separator" />
-                                                                  </HBox>
-                                                                  <Button id="toggle-debugger" text="Debugger" />
-                                                              </HBox>
-                                                              <Pane id="console-canvas-pane" GridPane.rowIndex="1"/>
-                                                              <HBox id="debugger-prompt" GridPane.rowIndex="2">
-                                                                  <Label id="debugger-prompt-label" text="&gt;"/>
-                                                                  <TextField id="debugger-prompt-field" promptText="Evaluate Lua" HBox.hgrow="ALWAYS"/>
-                                                              </HBox>
-                                                          </children>
-                                                      </GridPane>
+                                                      <fx:include source="console-view.fxml" />
                                                   </content>
                                               </Tab>
                                               <Tab id="curve-editor-tab" text="Curve Editor">
@@ -243,6 +207,18 @@
                                        </children>
                                     </AnchorPane>
                                 </items>
+                              </SplitPane>
+                              <SplitPane id="debugger-data-split" visible="false" dividerPositions="0.33" orientation="VERTICAL" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                  <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
+                                      <TitledPane animated="false" collapsible="false" text="Call Stack" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                          <ListView id="debugger-call-stack"/>
+                                      </TitledPane>
+                                  </AnchorPane>
+                                  <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                                      <TitledPane animated="false" collapsible="false" text="Variables" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                          <TreeView id="debugger-variables"/>
+                                      </TitledPane>
+                                  </AnchorPane>
                               </SplitPane>
                            </children>
                         </AnchorPane>

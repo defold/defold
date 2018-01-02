@@ -24,8 +24,10 @@
 (def lua-grammar
   {:name "Lua"
    :scope-name "source.lua"
-   :indent {:begin #"^\s*(else|elseif|for|(local\s+)?function|if|while)\b((?!end\b).)*$|\{\s*$"
-            :end #"^\s*(elseif|else|end|\}).*$"}
+   ;; indent patterns shamelessly stolen from textmate:
+   ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
+   :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b).)*)|(\{\s*))$"
+            :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
                           3 {:name "entity.name.function.lua"}
@@ -94,23 +96,26 @@
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:new-code :default]
                    :view-opts lua-code-opts
-                   :tags #{:component :non-embeddable :overridable-properties}
+                   :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:new-code :default]
-                   :view-opts lua-code-opts}
+                   :view-opts lua-code-opts
+                   :tags #{:debuggable}}
                   {:ext "gui_script"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
                    :view-types [:new-code :default]
-                   :view-opts lua-code-opts}
+                   :view-opts lua-code-opts
+                   :tags #{:debuggable}}
                   {:ext "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
                    :view-types [:new-code :default]
-                   :view-opts lua-code-opts}])
+                   :view-opts lua-code-opts
+                   :tags #{:debuggable}}])
 
 (def ^:private status-errors
   {:ok nil

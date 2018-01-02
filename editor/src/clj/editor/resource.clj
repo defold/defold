@@ -304,3 +304,7 @@
   (let [file-system ^FileSystem (FileSystems/getDefault)
         matcher (.getPathMatcher file-system (str "glob:" query))]
     (filter (fn [r] (let [path (.getPath file-system (path r) (into-array String []))] (.matches matcher path))) resources)))
+
+(defn internal?
+  [resource]
+  (string/starts-with? (resource->proj-path resource) "/_defold"))

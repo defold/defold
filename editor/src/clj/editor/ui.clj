@@ -704,11 +704,16 @@
                        (proxy-super setOnDragExited nil))
                      (do
                        (apply-style-classes! this (:style render-data #{}))
-                       (proxy-super setText (:text render-data))
-                       (proxy-super setGraphic (when-let [icon (:icon render-data)]
-                                                 (if (= :empty icon)
-                                                   (ImageView.)
-                                                   (jfx/get-image-view icon (:icon-size render-data 16)))))
+                       (if-some [graphic (:graphic render-data)]
+                         (do
+                           (proxy-super setText nil)
+                           (proxy-super setGraphic graphic))
+                         (do
+                           (proxy-super setText (:text render-data))
+                           (proxy-super setGraphic (when-let [icon (:icon render-data)]
+                                                     (if (= :empty icon)
+                                                       (ImageView.)
+                                                       (jfx/get-image-view icon (:icon-size render-data 16)))))))
                        (proxy-super setTooltip (:tooltip render-data))
                        (proxy-super setOnDragOver (:over-handler render-data))
                        (proxy-super setOnDragDropped (:dropped-handler render-data))
@@ -1836,6 +1841,16 @@ command."
       (on-closed! tab (fn [_event]
                         (unregister-toolbar scene context-node toolbar-css-selector))))))
 
+(defn parent-tab-pane
+  [^Node node]
+  (closest-node-of-type TabPane node))
+
+(defn select-tab!
+  [^TabPane tab-pane tab-id]
+  (when-some [tab (->> (.getTabs tab-pane)
+                       (filter (fn [^Tab tab] (= tab-id (.getId tab))))
+                       first)]
+    (.. tab-pane getSelectionModel (select tab))))
 
 ;; NOTE: Running Desktop methods on JavaFX application thread locks
 ;; application on Linux, so we do it on a new thread.
