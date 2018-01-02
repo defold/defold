@@ -60,6 +60,7 @@
 (g/deftype ColorScheme [[(s/one s/Str "pattern") (s/one Paint "paint")]])
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
 (g/deftype GutterMetrics [(s/one s/Num "gutter-width") (s/one s/Num "gutter-margin")])
+(g/deftype HoveredElement {:type s/Keyword s/Keyword s/Any})
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype ResizeReference (s/enum :bottom :top))
@@ -126,6 +127,7 @@
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
      ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
+     ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
      ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
      ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]]))
@@ -228,7 +230,7 @@
               (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [polyline (cursor-range-outline rects)]
                (let [[xs ys] polyline]
-                 (stroke-opaque-polyline! gc (double-array (drop 2 xs)) (double-array (drop 2 ys)))))
+                 (stroke-opaque-polyline! gc (double-array xs) (double-array ys))))
       :underline (doseq [^Rect r rects]
                    (let [sx (.x r)
                          ex (+ sx (.w r))
@@ -441,13 +443,15 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double line-height (data/line-height (.glyph layout))
-        background-color (color-lookup color-scheme "editor.background")]
+        background-color (color-lookup color-scheme "editor.background")
+        scroll-tab-color (color-lookup color-scheme "editor.scroll.tab")
+        scroll-tab-hovered-color (color-lookup color-scheme "editor.scroll.tab.hovered")]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFontSmoothingType gc FontSmoothingType/GRAY) ; FontSmoothingType/LCD is very slow.
@@ -503,13 +507,38 @@
 
     ;; Draw horizontal scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-x layout) (data/expand-rect -3.0 -3.0))]
-      (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
+      (.setFill gc (if (= :scroll-tab-x (:ui-element hovered-element)) scroll-tab-hovered-color scroll-tab-color))
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.h r) (.h r)))
 
     ;; Draw vertical scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
-      (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
-      (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r)))
+      (let [hovered-ui-element (:ui-element hovered-element)
+            color (case hovered-ui-element
+                    (:scroll-bar-y-down :scroll-bar-y-up :scroll-tab-y) scroll-tab-hovered-color
+                    scroll-tab-color)]
+        (.setFill gc color)
+        (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r))
+
+        ;; Draw dots around the scroll tab when hovering over the continuous scroll areas of the vertical scroll bar.
+        (let [size 4.0
+              dist 7.0
+              offset 9.0
+              half-size (* 0.5 size)
+              half-tab-width (* 0.5 (.w r))]
+          (case hovered-ui-element
+            :scroll-bar-y-down
+            (let [cx (- (+ (.x r) half-tab-width) half-size)
+                  cy (- (+ (.y r) (.h r) offset) half-tab-width half-size)]
+              (doseq [i (range 3)]
+                (.fillOval gc cx (+ cy (* ^double i dist)) size size)))
+
+            :scroll-bar-y-up
+            (let [cx (- (+ (.x r) half-tab-width) half-size)
+                  cy (- (+ (.y r) half-tab-width) half-size offset)]
+              (doseq [i (range 3)]
+                (.fillOval gc cx (- cy (* ^double i dist)) size size)))
+
+            nil))))
 
     ;; Draw gutter.
     (let [^Rect gutter-rect (data/->Rect 0.0 (.y canvas-rect) (.x canvas-rect) (.h canvas-rect))]
@@ -677,9 +706,9 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
   nil)
 
 (defn- make-cursor-rectangle
@@ -754,6 +783,7 @@
   (property suggestions-popup PopupControl (dynamic visible (g/constantly false)))
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
+  (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
   (property focused? g/Bool (default false) (dynamic visible (g/constantly false)))
@@ -1291,16 +1321,18 @@
           (hide-suggestions! view-node))))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
-  (let [gesture-type (:type (get-property view-node :gesture-start))
+  (let [hovered-element (get-property view-node :hovered-element)
+        gesture-type (:type (get-property view-node :gesture-start))
         ^LayoutInfo layout (get-property view-node :layout)
         ^Node node (.getTarget event)
         x (.getX event)
         y (.getY event)
         cursor (cond
-                 (or (= :scroll-tab-x-drag gesture-type)
+                 (or (= :ui-element (:type hovered-element))
+                     (= :scroll-tab-x-drag gesture-type)
                      (= :scroll-tab-y-drag gesture-type)
-                     (some-> (.scroll-tab-x layout) (data/rect-contains? x y))
-                     (some-> (.scroll-tab-y layout) (data/rect-contains? x y)))
+                     (= :scroll-bar-y-hold-up gesture-type)
+                     (= :scroll-bar-y-hold-down gesture-type))
                  javafx.scene.Cursor/DEFAULT
 
                  (data/rect-contains? (.canvas layout) x y)
@@ -1345,6 +1377,7 @@
                                      (get-property view-node :cursor-ranges)
                                      (get-property view-node :layout)
                                      (get-property view-node :gesture-start)
+                                     (get-property view-node :hovered-element)
                                      (.getX event)
                                      (.getY event))))
 
@@ -1352,8 +1385,17 @@
   (.consume event)
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
-                   (data/mouse-released (get-property view-node :gesture-start)
-                                        (mouse-button event))))
+                   (data/mouse-released (get-property view-node :layout)
+                                        (get-property view-node :gesture-start)
+                                        (mouse-button event)
+                                        (.getX event)
+                                        (.getY event))))
+
+(defn handle-mouse-exited! [view-node ^MouseEvent event]
+  (.consume event)
+  (set-properties! view-node :selection
+                   (data/mouse-exited (get-property view-node :gesture-start)
+                                      (get-property view-node :hovered-element))))
 
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
@@ -1956,6 +1998,10 @@
   (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action)
         old-cursor-opacity (g/node-value view-node :cursor-opacity)
         new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
+    (set-properties! view-node nil
+                     (data/tick (get-property view-node :lines)
+                                (get-property view-node :layout)
+                                (get-property view-node :gesture-start)))
     (g/transact
       (into [(g/set-property view-node :elapsed-time elapsed-time)]
             (when (not= old-cursor-opacity new-cursor-opacity)
@@ -2151,6 +2197,7 @@
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
+      (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (handle-mouse-exited! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
 
     (ui/context! grid :new-console context-env nil)
