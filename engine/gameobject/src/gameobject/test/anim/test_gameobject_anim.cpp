@@ -797,6 +797,8 @@ TEST_F(AnimTest, ScaleZ)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
+
+// This test is merely making sure that the cancelling doesn't assert
 TEST_F(AnimTest, StopAnimations)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
