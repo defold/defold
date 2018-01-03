@@ -5,6 +5,7 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [pair split-lines]]
             [editor.handler :as handler]
+            [editor.keymap :as keymap]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -1248,47 +1249,52 @@
                   ::unhandled))
       (.consume event))))
 
+(defn- typable-key-event?
+  [^KeyEvent e]
+  (-> e
+      keymap/key-event->map
+      keymap/typable?))
+
 (defn handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
-  (let [typed (.getCharacter event)
-        undo-grouping (if (= "\r" typed) :newline :typing)
-        selected-suggestion (selected-suggestion view-node)
-        grammar (get-property view-node :grammar)
-        lines (get-property view-node :lines)
-        cursor-ranges (get-property view-node :cursor-ranges)
-        [insert-typed? show-suggestions?] (cond
-                                            (and (= "\r" typed) (some? selected-suggestion))
-                                            (do (accept-suggestion! view-node)
-                                                [false false])
+  (when (typable-key-event? event)
+    (let [typed (.getCharacter event)
+          undo-grouping (if (= "\r" typed) :newline :typing)
+          selected-suggestion (selected-suggestion view-node)
+          grammar (get-property view-node :grammar)
+          lines (get-property view-node :lines)
+          cursor-ranges (get-property view-node :cursor-ranges)
+          [insert-typed? show-suggestions?] (cond
+                                              (and (= "\r" typed) (some? selected-suggestion))
+                                              (do (accept-suggestion! view-node)
+                                                  [false false])
 
-                                            (and (= "(" typed) (= :function (:type selected-suggestion)))
-                                            (do (accept-suggestion! view-node)
-                                                [false false])
+                                              (and (= "(" typed) (= :function (:type selected-suggestion)))
+                                              (do (accept-suggestion! view-node)
+                                                  [false false])
 
-                                            (and (= "." typed) (= :namespace (:type selected-suggestion)))
-                                            (do (accept-suggestion! view-node)
-                                                [true true])
+                                              (and (= "." typed) (= :namespace (:type selected-suggestion)))
+                                              (do (accept-suggestion! view-node)
+                                                  [true true])
 
-                                            (data/typing-deindents-line? grammar lines cursor-ranges typed)
-                                            [true false]
+                                              (data/typing-deindents-line? grammar lines cursor-ranges typed)
+                                              [true false]
 
-                                            :else
-                                            [true true])]
-    (when insert-typed?
-      (when (set-properties! view-node undo-grouping
-                             (data/key-typed (get-property view-node :indent-level-pattern)
-                                             (get-property view-node :indent-string)
-                                             grammar
-                                             lines
-                                             cursor-ranges
-                                             (get-property view-node :regions)
-                                             (get-property view-node :layout)
-                                             typed
-                                             (.isMetaDown event)
-                                             (.isControlDown event)))
-        (if show-suggestions?
-          (show-suggestions! view-node)
-          (hide-suggestions! view-node))))))
+                                              :else
+                                              [true true])]
+      (when insert-typed?
+        (when (set-properties! view-node undo-grouping
+                               (data/key-typed (get-property view-node :indent-level-pattern)
+                                               (get-property view-node :indent-string)
+                                               grammar
+                                               lines
+                                               cursor-ranges
+                                               (get-property view-node :regions)
+                                               (get-property view-node :layout)
+                                               typed))
+          (if show-suggestions?
+            (show-suggestions! view-node)
+            (hide-suggestions! view-node)))))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
   (let [gesture-type (:type (get-property view-node :gesture-start))
