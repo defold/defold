@@ -128,52 +128,27 @@ public class ArchiveBuilder {
 
     public boolean excludeResource(String filepath, List<String> excludedResources) {
         boolean result = false;
-        boolean print_cond = true;
-        System.out.println("-----------------------------------------");
         if (filepath.startsWith("/builtins")) {
             return false;
         }
-        if (print_cond) {
-            System.out.println("#### filepath: " + filepath);
-        }
 
         if (this.manifestBuilder != null) {
-            List<ArrayList<String>> totalParentFilepaths = this.manifestBuilder.getParentFilepath(filepath);
-            if (print_cond) { // DEBUG PRINTS
-                System.out.println("totalParentFilepaths size for this filepath: " + totalParentFilepaths.size());
-                for (List<String> parentFilepaths : totalParentFilepaths) {
-                    System.out.println("--> parentFilepaths, size: " + parentFilepaths.size());
-                    for (int i = 0; i < parentFilepaths.size(); i++) {
-                        String parentFilepath = parentFilepaths.get(i);
-                        System.out.println("----> parentFilepath: " + parentFilepath);
-                    }
-                }
-            }
-            for (List<String> parentFilepaths : totalParentFilepaths) {
-                for (int i = 0; i < parentFilepaths.size(); i++) {
-                    String parentFilepath = parentFilepaths.get(i);
-                    if (print_cond) {
-                        System.out.println("-> " + parentFilepath);
-                    }
+            List<ArrayList<String>> totalParentCollectionProxies = this.manifestBuilder.getParentCollectionProxies(filepath);
+            for (List<String> parentCollectionProxies : totalParentCollectionProxies) {
+                for (int i = 0; i < parentCollectionProxies.size(); i++) {
+                    String parentCollectionProxy = parentCollectionProxies.get(i);
                     for (String excludedResource : excludedResources) {
-                        if (parentFilepath.equals(excludedResource)) {
-                            if (print_cond){
-                                System.out.println("######## EXCLUDING! Hit parent: " + parentFilepath);
-                            }
+                        if (parentCollectionProxy.equals(excludedResource)) {
                             result = true;
-                            i = parentFilepaths.size(); // break outer loop as well, move on to next tree in totalParentFilepaths 
+                            i = parentCollectionProxies.size(); // break outer loop as well, move on to next tree in totalParentCollectionProxies 
                             break;
                         } else {
-                            if (print_cond){
-                                System.out.println("######## !!!!!! NOT EXCLUDING! Hit parent: " + parentFilepath);
-                            }
                             result = false;
                         }
                     }
                 }
-                
-                if (result == false) // Traversed an entire tree in totalParentFilepaths without hitting exclusion -> in should not be excluded, it is needed in bundle
-                {
+
+                if (result == false) { // Traversed an entire tree in totalParentCollectionProxies without hitting exclusion -> in should not be excluded, it is needed in bundle
                     return false;
                 }
             }

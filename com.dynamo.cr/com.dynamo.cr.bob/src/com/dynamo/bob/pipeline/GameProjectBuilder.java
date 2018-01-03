@@ -276,7 +276,6 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
-        // System.out.println("current.relativeFilepath: " + currentNode.relativeFilepath +  ", parentNode.relativeFilepath: " + parentNode.relativeFilepath);
         parentNode.addChild(currentNode);
 
         int i = resource.getPath().lastIndexOf(".");
@@ -399,7 +398,6 @@ public class GameProjectBuilder extends Builder<Void> {
 
         for (String excludedResource : project.getExcludedCollectionProxies()) {
             excludedResourcesList.add(excludedResource);
-            System.out.println("excludedResource: " + excludedResource);
         }
 
         return manifestBuilder;
@@ -447,7 +445,6 @@ public class GameProjectBuilder extends Builder<Void> {
 
         try {
             if (project.option("archive", "false").equals("true")) {
-                System.out.println("GameProjectBuilduruuu");
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
                 HashSet<String> resources = findResources(project, rootNode);
                 List<String> excludedResources = new ArrayList<String>();
