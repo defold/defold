@@ -47,6 +47,7 @@ namespace dmGameObject
         uint16_t            m_Composite : 1;
         uint16_t            m_Backwards : 1;
         uint16_t            m_FirstUpdate : 1;
+        uint16_t            m_Stopped : 1;
     };
 
     struct AnimWorld
@@ -104,14 +105,18 @@ namespace dmGameObject
         anim->m_Finished = finished;
         anim->m_Playing = 0;
 
-        // put it on the stopped list
-        if (world->m_StoppedAnimations.Full())
+        if (!anim->m_Stopped)
         {
-            uint32_t capacity = world->m_StoppedAnimations.Capacity();
-            capacity = dmMath::Min(capacity + 256, MAX_CAPACITY);
-            world->m_StoppedAnimations.SetCapacity(capacity);
+            // put it on the stopped list
+            if (world->m_StoppedAnimations.Full())
+            {
+                uint32_t capacity = world->m_StoppedAnimations.Capacity();
+                capacity = dmMath::Min(capacity + 256, MAX_CAPACITY);
+                world->m_StoppedAnimations.SetCapacity(capacity);
+            }
+            world->m_StoppedAnimations.Push(anim->m_Index);
+            anim->m_Stopped = 1;
         }
-        world->m_StoppedAnimations.Push(anim->m_Index);
     }
 
     static void StopAnimations(AnimWorld* world, uint16_t* head_ptr, dmhash_t component_id, dmhash_t property_id)
@@ -155,7 +160,7 @@ namespace dmGameObject
     UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& update_result)
     {
         DM_PROFILE(Animation, "Update");
-        
+
         /*
          * The update is divided into three passes.
          *
@@ -174,6 +179,7 @@ namespace dmGameObject
          */
         UpdateResult result = UPDATE_RESULT_OK;
         AnimWorld* world = (AnimWorld*)params.m_World;
+
         world->m_InUpdate = 1;
         uint32_t size = world->m_Animations.Size();
         uint32_t orig_size = size;
@@ -185,7 +191,7 @@ namespace dmGameObject
                 continue;
             float dt = params.m_UpdateContext->m_DT;
             // Check delay
-            if (anim.m_Delay >= dt)
+            if (anim.m_Delay > dt)
             {
                 continue;
             }
@@ -224,7 +230,7 @@ namespace dmGameObject
                 }
             }
         }
-        
+
         for (uint32_t i = 0; i < size; ++i)
         {
             Animation& anim = world->m_Animations[i];
@@ -296,7 +302,7 @@ namespace dmGameObject
                 // Original: t = anim.m_Backwards ? (1.0f - t) : t;
                 // 1 :
                 //   t = anim.m_Backwards - 2 * t * anim.m_Backwards + t = 1 - 2 * t * 1 + t = 1 - 2t + t = 1 - t;
-                // 0 : 
+                // 0 :
                 //   t = anim.m_Backwards - 2 * t * anim.m_Backwards + t = 0 - 0 + t = t
                 t = anim.m_Backwards - 2 * t * anim.m_Backwards + t;
 
@@ -323,7 +329,7 @@ namespace dmGameObject
             }
         }
 
-        // Prune canceled animations and call callbacks        
+        // Prune canceled animations and call callbacks
         for(uint32_t i = 0; i < world->m_StoppedAnimations.Size(); ++i)
         {
             uint16_t index = world->m_StoppedAnimations[i];
@@ -367,7 +373,7 @@ namespace dmGameObject
             {
                 world->m_InstanceToIndex.Erase((uintptr_t)anim->m_Instance);
             }
-            
+
             // delete the instance from the list
             anim = &world->m_Animations.EraseSwap(anim_index);
             --size;
@@ -472,6 +478,7 @@ namespace dmGameObject
         animation.m_NextListener = INVALID_INDEX;
         animation.m_Next = INVALID_INDEX;
         animation.m_Playing = 1;
+        animation.m_Stopped = 0;
         animation.m_Composite = composite ? 1 : 0;
         if (animation.m_Playback == PLAYBACK_ONCE_BACKWARD || animation.m_Playback == PLAYBACK_LOOP_BACKWARD)
             animation.m_Backwards = 1;
