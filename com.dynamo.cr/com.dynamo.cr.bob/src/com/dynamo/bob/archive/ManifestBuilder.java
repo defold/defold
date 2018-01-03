@@ -319,28 +319,6 @@ public class ManifestBuilder {
 
     public void setDependencies(ResourceNode dependencies) {
         this.dependencies = dependencies;
-
-        // System.out.println("setDependencies, dependencies.relativeFilepath: " + this.dependencies.relativeFilepath);
-        // // DEBUG STUFF
-        // List<ResourceNode> queue = new LinkedList<ResourceNode>();
-        // queue.add(this.dependencies);
-        // // Find occurences of resource in tree (may be referenced from several collections for example)
-        // while (!queue.isEmpty()) {
-        //     ResourceNode current = queue.remove(0);
-        //     if (current != null) {
-        //         ResourceNode parent = current.getParent();
-        //         System.out.println("setDependencies queue, current.relativeFilepath: " + current.relativeFilepath);// + ", parent.relativeFilepath: " + (parent != null ? parent.relativeFilepath : "") );
-        //         String apa = "";
-        //         while (parent != null) {
-        //             apa += "--";
-        //             System.out.println(apa + ">" + parent.relativeFilepath);
-        //             parent = parent.getParent();
-        //         }
-        //         for (ResourceNode child : current.getChildren()) {
-        //             queue.add(child);
-        //         }
-        //     }
-        // }
     }
 
     public void setPrivateKeyFilepath(String filepath) {
@@ -403,10 +381,7 @@ public class ManifestBuilder {
                 if (current.relativeFilepath.equals(filepath)) {
                     if (!candidates.contains(current)) {
                         candidates.add(current);
-                        System.out.println("candidate relPath: " + current.relativeFilepath);
-                    }
-                    else {
-                        System.out.println("Got CANDIDATE duplicate! filepath: " + filepath + ", current.relativeFilepath: " + current.relativeFilepath);
+                        // System.out.println("candidate relPath: " + current.relativeFilepath);
                     }
                 } else {
                     for (ResourceNode child : current.getChildren()) {
@@ -422,25 +397,13 @@ public class ManifestBuilder {
             result.add(new ArrayList<String>());
             while (current != null) {
                 if (current.relativeFilepath.endsWith("collectionproxyc")) {
-                    // check for duplicates
-                    // boolean duplicate = false;
-                    // for(ArrayList<String> res : result) {
-                    //     if (res.contains(current.relativeFilepath)) {
-                    //         System.out.println("Got duplicate! filepath: " + filepath + ", current.relativeFilepath: " + current.relativeFilepath);
-                    //         duplicate = true;
-                    //     }
-                    // }
-                        
-                    // if (!duplicate) {
-                        result.get(i).add(current.relativeFilepath);
-                    // }
+                    result.get(i).add(current.relativeFilepath);
                 }
 
                 current = current.getParent();
             }
             ++i;
         }
-
         return result;
     }
 

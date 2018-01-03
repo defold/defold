@@ -30,11 +30,6 @@ namespace dmLiveUpdate
     uint32_t GetMissingResources(const dmhash_t urlHash, char*** buffer)
     {
         dmLogInfo("!!!!!!! GetMissingResources");
-        // dmLogInfo("MANIFEST BEFORE");
-        // for (int i = 0; i < g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
-        // {
-        //     dmLogInfo("URL: %s", g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[i].m_Url);
-        // }
         uint32_t resourceCount = MissingResources(g_LiveUpdate.m_Manifest, urlHash, NULL, 0);
         uint32_t uniqueCount = 0;
         if (resourceCount > 0)
@@ -63,16 +58,6 @@ namespace dmLiveUpdate
                         break;
                     }
                 }
-                // for (int k = 0; k < g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++k)
-                // {
-                //    uint8_t* hash = g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[k].m_Hash.m_Data.m_Data;
-                //    dmResource::HashToString(algorithm, hash, scratch2, hexDigestLength);
-                //    int cmp = memcmp(scratch2, scratch, hexDigestLength);
-                //     if (cmp == 0)
-                //    {
-                //        dmLogInfo("# URL: %s", g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[k].m_Url);
-                //    }
-                // }
                 if (isUnique)
                 {
                     (*buffer)[uniqueCount] = (char*) malloc(hexDigestLength * sizeof(char*));
@@ -92,11 +77,6 @@ namespace dmLiveUpdate
             free(scratch);
             free(resources);
         }
-        // dmLogInfo("MANIFEST AFTER");
-        // for (int i = 0; i < g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
-        // {
-        //     dmLogInfo("URL: %s", g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Resources[i].m_Url);
-        // }
         dmLogInfo("Num duplicates: %u", resourceCount - uniqueCount);
         return uniqueCount;
     }

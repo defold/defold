@@ -271,32 +271,12 @@ public class GameProjectBuilder extends Builder<Void> {
             return;
         }
 
-        // Find closest collectionproxy parent (if any)
-        ResourceNode parentTraverseNode = parentNode;
-        String collectionproxyRelPath = "";
-        // while (parentTraverseNode != null) {
-        //     if (parentTraverseNode.relativeFilepath.endsWith("collectionproxyc")) {
-        //         collectionproxyRelPath = parentTraverseNode.relativeFilepath;
-        //         //System.out.println("########## HIT CP PARENT!: " + collectionproxyRelPath);
-        //         break;
-        //     }
-        //     parentTraverseNode = parentTraverseNode.getParent();
-        // }
-
-        //System.out.println("resource.output().getAbsPath(): " + resource.output().getAbsPath() + ", cp: " + collectionproxyRelPath);
         if (!resources.contains(resource.output().getAbsPath())) {
             resources.add(resource.output().getAbsPath());
-            //System.out.println("Adding resource.output().getAbsPath(): " + resource.output().getAbsPath());
-        }
-        else
-        {
-            // System.out.println("GameProjectBuilder, ignoring possible duplicate entry, absPath: " +resource.output().getAbsPath()+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
-            //System.out.println("GameProjectBuilder, ignoring possible duplicate entry, relPath: " +resource.getPath()+", collectionproxyRelPath: "+collectionproxyRelPath+", parentNode.relativeFilepath: "+parentNode.relativeFilepath);
-            // return;
         }
 
         ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
-        System.out.println("current.relativeFilepath: " + currentNode.relativeFilepath +  ", parentNode.relativeFilepath: " + parentNode.relativeFilepath);
+        // System.out.println("current.relativeFilepath: " + currentNode.relativeFilepath +  ", parentNode.relativeFilepath: " + parentNode.relativeFilepath);
         parentNode.addChild(currentNode);
 
         int i = resource.getPath().lastIndexOf(".");

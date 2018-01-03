@@ -305,6 +305,38 @@ public class ArchiveTest {
     }
 
     @SuppressWarnings("unused")
+    @Test
+    public void testWriteArchive_SharedResourceExcludedProxy() throws Exception {
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder);
+
+        ResourceNode root = new ResourceNode("<Anonymous Root>", "<Anonymous Root>");
+        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
+        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
+        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collection1);
+        ResourceNode gameobject1 = addEntry("shared.goc", "gamma", instance, collectionproxy1);
+        ResourceNode gameobject2 = addEntry("shared.goc", "gamma", instance, collectionproxy2);
+
+        manifestBuilder.setDependencies(root);
+
+        List<String> excludedResources = new ArrayList<String>();
+        excludedResources.add("/level1.collectionproxyc");
+
+        // Test
+        RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
+        RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
+        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+
+        assertEquals(4, instance.getArchiveEntrySize());
+        assertEquals("/shared.goc", instance.getArchiveEntry(0).relName);
+        assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(1).relName);  // 617905b1d0e858ca35230357710cf5f2
+        assertEquals("/main.collectionc", instance.getArchiveEntry(2).relName);         // b32b3904944e63ed5a269caa47904645
+        assertEquals("/level2.collectionproxyc", instance.getArchiveEntry(3).relName);  // bc05302047f95ca60709254556402710
+    }
+
+    @SuppressWarnings("unused")
 	@Test
     public void testWriteArchive_DeepProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
