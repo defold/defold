@@ -72,7 +72,9 @@
                                      (keep (fn [node-id]
                                              (let [save-data (g/node-value node-id :save-data evaluation-context)
                                                    resource (:resource save-data)]
-                                               (when (and (some? resource) (= :file (resource/source-type resource)))
+                                               (when (and (some? resource)
+                                                          (not (resource/internal? resource))
+                                                          (= :file (resource/source-type resource)))
                                                  save-data))))
                                      (g/node-value project :nodes evaluation-context))
                                (sort-by save-data-sort-key))]

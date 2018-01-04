@@ -1258,7 +1258,8 @@
          (ie/error-aggregate input-errors# :_node-id ~nodeid-sym :_label ~label)))))
 
 (defn- call-production-function-form [self-name ctx-name description transform input-sym nodeid-sym output-sym forms]
-  `(let [~output-sym ((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym)]
+  `(let [~output-sym ~(input-error-check-form self-name ctx-name description transform nodeid-sym input-sym
+                                              `((var ~(symbol (dollar-name (:name description) [:output transform]))) ~input-sym))]
      ~forms))
 
 (defn- cache-output-form [ctx-name description transform nodeid-sym output-sym local-cache-sym forms]
@@ -1319,11 +1320,10 @@
                   (mark-in-production-form ctx-name nodeid-sym transform description
                     (check-caches-form ctx-name nodeid-sym description transform local-cache-sym
                       (gather-inputs-form input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function
-                        (input-error-check-form self-name ctx-name description transform nodeid-sym input-sym
-                          (call-production-function-form self-name ctx-name description transform input-sym nodeid-sym output-sym
-                            (schema-check-output-form self-name ctx-name description transform nodeid-sym output-sym
-                              (cache-output-form ctx-name description transform nodeid-sym output-sym local-cache-sym
-                                output-sym)))))))))))))))
+                        (call-production-function-form self-name ctx-name description transform input-sym nodeid-sym output-sym
+                          (schema-check-output-form self-name ctx-name description transform nodeid-sym output-sym
+                            (cache-output-form ctx-name description transform nodeid-sym output-sym local-cache-sym
+                              output-sym))))))))))))))
 
 (defn- assemble-properties-map-form
   [nodeid-sym value-sym display-order]

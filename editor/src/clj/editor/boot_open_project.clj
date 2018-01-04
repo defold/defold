@@ -11,6 +11,7 @@
             [editor.code-view :as code-view]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
+            [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.form-view :as form-view]
@@ -148,7 +149,7 @@
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs)
+          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs tool-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
@@ -172,8 +173,11 @@
                                                       (.lookup root "#curve-editor-container")
                                                       (.lookup root "#curve-editor-list")
                                                       (.lookup root "#curve-editor-view")
-                                                      {:tab (find-tab tool-tabs "curve-editor-tab")})]
-
+                                                      {:tab (find-tab tool-tabs "curve-editor-tab")})
+          debug-view           (debug-view/make-view! app-view *view-graph*
+                                                      project
+                                                      root
+                                                      open-resource)]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
@@ -214,7 +218,8 @@
                          :search-results-view search-results-view
                          :changes-view        changes-view
                          :main-stage          stage
-                         :asset-browser       asset-browser}
+                         :asset-browser       asset-browser
+                         :debug-view          debug-view}
             dynamics {:active-resource [:app-view :active-resource]}]
         (ui/context! root :global context-env (ui/->selection-provider assets) dynamics)
         (ui/context! workbench :workbench context-env (app-view/->selection-provider app-view) dynamics))
@@ -231,7 +236,9 @@
                             [app-view :refresh-tab-pane]
                             [outline-view :tree-view]
                             [asset-browser :tree-view]
-                            [curve-view :update-list-view]]]
+                            [curve-view :update-list-view]
+                            [debug-view :update-available-controls]
+                            [debug-view :update-call-stack]]]
             (g/update-property app-view :auto-pulls into auto-pulls))))
       (if (system/defold-dev?)
         (graph-view/setup-graph-view root)

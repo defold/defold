@@ -43,6 +43,10 @@
   (or (some? (System/getProperty "defold.dev"))
       (not (defold-version))))
 
+(defn defold-unpack-path
+  ^String []
+  (System/getProperty "defold.unpack.path"))
+
 (defn java-home
   ^String []
   (System/getProperty "java.home"))

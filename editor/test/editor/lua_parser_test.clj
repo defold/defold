@@ -304,7 +304,15 @@
                                    "go.property(\"test\", vmath.quat())"
                                    "go.property(\"test\", vmath.quat(1, 2, 3, 4))"])))))
 
-  (is (= [] (src->properties "foo.property(\"test\", true)")))
-  (is (= [] (src->properties "go.property")))
-  (is (= [{:status :invalid-args}] (src->properties "go.property()")))
-  (is (= [{:status :invalid-args :name "test"}] (src->properties "go.property(\"test\")"))))
+  (is (= []
+         (src->properties "foo.property(\"test\", true)")))
+  (is (= []
+         (src->properties "go.property")))
+  (is (= [{:status :invalid-args}]
+         (src->properties "go.property()")))
+  (is (= [{:status :invalid-args :name "test"}]
+         (src->properties "go.property(\"test\")")))
+  (is (= [{:status :invalid-name :name "" :type :property-type-number :value 0.0}]
+         (src->properties "go.property(\"\", 0.0)")))
+  (is (= [{:status :invalid-value :name "test"}]
+         (src->properties "go.property(\"test\", \"foo\")"))))

@@ -22,6 +22,11 @@
    ["Alt+Down"              :move-down]
    ["Alt+Left"              :prev-word]
    ["Alt+Right"             :next-word]
+   ["Alt+Shortcut+0"        :zoom-out]
+   ["Alt+Shortcut+1"        :show-console]
+   ["Alt+Shortcut+2"        :show-curve-editor]
+   ["Alt+Shortcut+3"        :show-build-errors]
+   ["Alt+Shortcut+4"        :show-search-results]
    ["Alt+Shortcut+E"        :replace-next]
    ["Alt+Shortcut+X"        :profile]
    ["Alt+Up"                :beginning-of-line]
@@ -42,7 +47,13 @@
    ["Esc"                   :escape]
    ["F"                     :frame-selection]
    ["F1"                    :documentation]
-   ["F5"                    :sort-lines]
+   ["F10"                   :step-over]
+   ["F11"                   :step-into]
+   ["Shift+F11"             :step-out]
+   ["F5"                    :start-debugger]
+   ["F6"                    :continue]
+   ["F7"                    :break]
+   ["Shift+F5"              :stop-debugger]
    ["Ctrl+R"                :reload-stylesheet]
    ["F9"                    :toggle-breakpoint]
    ["Home"                  :beginning-of-line-text]
@@ -90,6 +101,7 @@
    ["Shift+Tab"             :backwards-tab-trigger]
    ["Shift+Up"              :up-major]
    ["Shift+Up"              :select-up]
+   ["Shortcut+0"            :zoom-in]
    ["Shortcut+A"            :select-all]
    ["Shortcut+B"            :build]
    ["Shortcut+C"            :copy]
@@ -132,7 +144,8 @@
                                              "Shift+Left"
                                              "Shift+Right"
                                              "Shift+Up"
-                                             "Space"})
+                                             "Space"
+                                             "F5"})
 
 (defprotocol KeyComboData
   (key-combo->map* [this] "returns a data representation of a KeyCombination."))

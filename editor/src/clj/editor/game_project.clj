@@ -101,6 +101,7 @@
 (def ^:private resource-setting-connections-template
   {["display" "display_profiles"] [[:build-targets :dep-build-targets]
                                    [:profile-data :display-profiles-data]]
+   ["bootstrap" "debug_init_script"] [[:build-targets :dep-build-targets]]
    ["bootstrap" "main_collection"] [[:build-targets :dep-build-targets]]
    ["bootstrap" "render"] [[:build-targets :dep-build-targets]]
    ["graphics" "texture_profiles"] [[:build-targets :dep-build-targets]

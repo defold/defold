@@ -59,7 +59,9 @@
    "${DYNAMO-HOME}/ext/share/luajit"                  "shared/luajit"
 
    "bundle-resources/x86_64-darwin/lipo"              "x86_64-darwin/bin/lipo"
-   "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"})
+   "bundle-resources/x86_64-darwin/codesign_allocate" "x86_64-darwin/bin/codesign_allocate"
+
+   "bundle-resources/_defold"                          "_defold"})
 
 (defn engine-artifact-files
   [git-sha]

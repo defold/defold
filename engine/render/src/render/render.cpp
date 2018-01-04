@@ -375,6 +375,7 @@ namespace dmRender
     // Compute new sort values for everything that matches tag_mask
     static void MakeSortBuffer(HRenderContext context, uint32_t tag_mask)
     {
+        DM_PROFILE(Render, "MakeSortBuffer");
         const uint32_t count = context->m_RenderListSortIndices.Size();
 
         const uint32_t required_capacity = context->m_RenderListSortIndices.Capacity();

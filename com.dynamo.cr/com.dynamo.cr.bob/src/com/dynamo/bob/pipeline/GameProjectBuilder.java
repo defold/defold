@@ -328,6 +328,7 @@ public class GameProjectBuilder extends Builder<Void> {
             // Root nodes to follow (default values from engine.cpp)
             for (String[] tuples : new String[][] { {"bootstrap", "main_collection", "/logic/main.collectionc"},
                                                     {"bootstrap", "render", "/builtins/render/default.renderc"},
+                                                    {"bootstrap", "debug_init_script", null},
                                                     {"input", "game_binding", "/input/game.input_bindingc"},
                                                     {"input", "gamepads", "/builtins/input/default.gamepadsc"},
                                                     {"display", "display_profiles", "/builtins/render/default.display_profilesc"}}) {
