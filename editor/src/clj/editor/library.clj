@@ -180,25 +180,30 @@
               :reason :io-failure
               :exception e}))))
 
-(defn update-libraries!
-  ([project-directory lib-urls]
-   (update-libraries! project-directory lib-urls default-http-resolver))
-  ([project-directory lib-urls resolver]
-   (update-libraries! project-directory lib-urls resolver progress/null-render-progress!))
-  ([project-directory lib-urls resolver render-progress!]
-   (let [lib-states (current-library-state project-directory lib-urls)]
-     (progress/progress-mapv
-      (fn [lib-state progress]
-          (let [lib-state (if (= (:status lib-state) :unknown)
-                            (fetch-library-update! lib-state resolver
-                                                   (progress/nest-render-progress render-progress! progress))
-                            lib-state)
-                lib-state (if (= (:status lib-state) :stale)
-                            (validate-updated-library lib-state)
-                            lib-state)
-                lib-state (if (= (:status lib-state) :stale)
-                            (install-updated-library! lib-state project-directory)
-                            lib-state)]
-            (dissoc lib-state :new-file)))
-      lib-states
-      render-progress!))))
+(defn fetch-library-updates [resolver render-progress! lib-states]
+   (progress/mapv
+     (fn [lib-state progress]
+       (if (= (:status lib-state) :unknown)
+         (fetch-library-update! lib-state resolver
+                                (progress/nest-render-progress render-progress! progress))
+         lib-state))
+     lib-states
+     render-progress!))
+
+(defn validate-updated-libraries [lib-states]
+  (mapv
+    (fn [lib-state]
+      (if (= (:status lib-state) :stale)
+        (validate-updated-library lib-state)
+        lib-state))
+    lib-states))
+
+(defn install-validated-libraries! [project-directory lib-states]
+  (mapv
+    (fn [lib-state]
+      (-> (if (= (:status lib-state) :stale)
+            (install-updated-library! lib-state project-directory)
+            lib-state)
+          (dissoc :new-file)))
+    lib-states))
+
