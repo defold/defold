@@ -1122,7 +1122,11 @@ If you do not specifically require different script states, consider changing th
       (future
         (ui/with-disabled-ui
           (ui/with-progress [render-fn ui/default-render-progress!]
-            (workspace/fetch-libraries! workspace library-urls render-fn (partial login/login prefs))))))))
+            (when (workspace/dependencies-reachable? library-urls (partial login/login prefs))
+              (let [lib-states (workspace/fetch-and-validate-libraries workspace library-urls render-fn)]
+                (ui/run-later
+                  (workspace/install-validated-libraries! workspace library-urls lib-states)
+                  (workspace/resource-sync! workspace))))))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))
