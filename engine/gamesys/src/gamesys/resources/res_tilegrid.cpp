@@ -29,37 +29,39 @@ namespace dmGameSystem
             tile_grid_ddf->m_BlendMode = dmGameSystemDDF::TileGrid::BLEND_MODE_ADD;
         tile_grid->m_TileGrid = tile_grid_ddf;
         TextureSetResource* texture_set = tile_grid->m_TextureSet;
+
+        // find boundaries
+        int32_t min_x = INT32_MAX;
+        int32_t min_y = INT32_MAX;
+        int32_t max_x = INT32_MIN;
+        int32_t max_y = INT32_MIN;
+        for (uint32_t i = 0; i < tile_grid_ddf->m_Layers.m_Count; ++i)
+        {
+            dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
+            uint32_t cell_count = layer->m_Cell.m_Count;
+            for (uint32_t j = 0; j < cell_count; ++j)
+            {
+                dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
+                min_x = dmMath::Min(min_x, cell->m_X);
+                min_y = dmMath::Min(min_y, cell->m_Y);
+                max_x = dmMath::Max(max_x, cell->m_X + 1);
+                max_y = dmMath::Max(max_y, cell->m_Y + 1);
+            }
+        }
+        tile_grid->m_ColumnCount = max_x - min_x;
+        tile_grid->m_RowCount = max_y - min_y;
+        tile_grid->m_MinCellX = min_x;
+        tile_grid->m_MinCellY = min_y;
+
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         dmPhysics::HHullSet2D hull_set = texture_set->m_HullSet;
         if (hull_set != 0x0)
         {
             // Calculate AABB for offset
             Point3 offset(0.0f, 0.0f, 0.0f);
-            int32_t min_x = INT32_MAX;
-            int32_t min_y = INT32_MAX;
-            int32_t max_x = INT32_MIN;
-            int32_t max_y = INT32_MIN;
             uint32_t layer_count = tile_grid_ddf->m_Layers.m_Count;
             tile_grid->m_GridShapes.SetCapacity(layer_count);
             tile_grid->m_GridShapes.SetSize(layer_count);
-            // find boundaries
-            for (uint32_t i = 0; i < layer_count; ++i)
-            {
-                dmGameSystemDDF::TileLayer* layer = &tile_grid_ddf->m_Layers[i];
-                uint32_t cell_count = layer->m_Cell.m_Count;
-                for (uint32_t j = 0; j < cell_count; ++j)
-                {
-                    dmGameSystemDDF::TileCell* cell = &layer->m_Cell[j];
-                    min_x = dmMath::Min(min_x, cell->m_X);
-                    min_y = dmMath::Min(min_y, cell->m_Y);
-                    max_x = dmMath::Max(max_x, cell->m_X + 1);
-                    max_y = dmMath::Max(max_y, cell->m_Y + 1);
-                }
-            }
-            tile_grid->m_ColumnCount = max_x - min_x;
-            tile_grid->m_RowCount = max_y - min_y;
-            tile_grid->m_MinCellX = min_x;
-            tile_grid->m_MinCellY = min_y;
             uint32_t cell_width = texture_set_ddf->m_TileWidth;
             uint32_t cell_height = texture_set_ddf->m_TileHeight;
             offset.setX(cell_width * 0.5f * (min_x + max_x));
