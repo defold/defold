@@ -407,22 +407,16 @@
 
 (defn- scroll-width-ratio
   ^double [^LayoutInfo layout]
-  (let [glyph-metrics (.glyph layout)
-        document-width (.document-width layout)
-        canvas-width (.w ^Rect (.canvas layout))
-        scroll-per-pixel (scroll-per-pixel document-width canvas-width)
-        ^double space-width (char-width glyph-metrics \space)
-        max-scroll-per-pixel (* space-width (Math/floor (/ canvas-width space-width)))]
-    (min scroll-per-pixel max-scroll-per-pixel)))
+  (let [document-width (.document-width layout)
+        canvas-width (.w ^Rect (.canvas layout))]
+    (scroll-per-pixel document-width canvas-width)))
 
 (defn- scroll-height-ratio
   ^double [^LayoutInfo layout ^long line-count]
   (let [^double line-height (line-height (.glyph layout))
         document-height (* line-count line-height)
-        canvas-height (.h ^Rect (.canvas layout))
-        scroll-per-pixel (scroll-per-pixel document-height canvas-height)
-        max-scroll-per-pixel (* line-height (Math/floor (/ canvas-height line-height)))]
-    (min scroll-per-pixel max-scroll-per-pixel)))
+        canvas-height (.h ^Rect (.canvas layout))]
+    (scroll-per-pixel document-height canvas-height)))
 
 (defn- scroll-tab-x-rect
   ^Rect [^Rect canvas-rect ^double document-width ^double scroll-x]
@@ -1879,14 +1873,13 @@
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
 
-(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed meta-key? control-key?]
-  (when-not (or meta-key? control-key?)
-    (case typed
-      "\r" ; Enter or Return.
-      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
+(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed]
+  (case typed
+    "\r" ; Enter or Return.
+    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
 
-      (when (not-any? #(Character/isISOControl ^char %) typed)
-        (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
+    (when (not-any? #(Character/isISOControl ^char %) typed)
+      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed))))
 
 (defn execution-marker? [region]
   (= :execution-marker (:type region)))
@@ -1926,6 +1919,31 @@
                                         (map (partial breakpoint lines) added-rows))))]
         {:regions regions'}))))
 
+(defn- scroll-y-once [direction ^LayoutInfo layout source-line-count]
+  (let [line-height (line-height (.glyph layout))
+        ^double scroll-delta (case direction :up (- ^double line-height) :down line-height)
+        old-scroll-y (.scroll-y layout)
+        scroll-y (limit-scroll-y layout source-line-count (- old-scroll-y scroll-delta))]
+    (when (not= scroll-y old-scroll-y)
+      {:scroll-y scroll-y})))
+
+(defn tick [lines ^LayoutInfo layout ^GestureInfo gesture-start]
+  (when (= :primary (some-> gesture-start :button))
+    (case (.type gesture-start)
+      ;; Pressing the continuous scroll up area of the vertical scroll bar.
+      :scroll-bar-y-hold-up
+      (when-some [^Rect r (.scroll-tab-y layout)]
+        (when (< (.y gesture-start) (+ (.y r) (* 0.5 (.h r))))
+          (scroll-y-once :up layout (count lines))))
+
+      ;; Pressing the continuous scroll down area of the vertical scroll bar.
+      :scroll-bar-y-hold-down
+      (when-some [^Rect r (.scroll-tab-y layout)]
+        (when (> (.y gesture-start) (+ (.y r) (* 0.5 (.h r))))
+          (scroll-y-once :down layout (count lines))))
+
+      nil)))
+
 (defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout button click-count x y alt-key? shift-key? shortcut-key?]
   (when (= :primary button)
     (cond
@@ -1943,6 +1961,22 @@
       ;; Prepare to drag the vertical scroll tab.
       (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-y layout) (rect-contains? x y)))
       {:gesture-start (gesture-info :scroll-tab-y-drag button click-count x y :scroll-y (.scroll-y layout))}
+
+      ;; Initiate continuous scroll up.
+      (and (not alt-key?) (not shift-key?) (not shortcut-key?)
+           (when-some [^Rect r (.scroll-tab-y layout)]
+             (and (<= (.x r) x (+ (.x r) (.w r)))
+                  (< ^double y (+ (.y r) (* 0.5 (.h r)))))))
+      (assoc (scroll-y-once :up layout (count lines))
+        :gesture-start (gesture-info :scroll-bar-y-hold-up button click-count x y))
+
+      ;; Initiate continuous scroll down.
+      (and (not alt-key?) (not shift-key?) (not shortcut-key?)
+           (when-some [^Rect r (.scroll-tab-y layout)]
+             (and (<= (.x r) x (+ (.x r) (.w r)))
+                  (> ^double y (+ (.y r) (* 0.5 (.h r)))))))
+      (assoc (scroll-y-once :down layout (count lines))
+        :gesture-start (gesture-info :scroll-bar-y-hold-down button click-count x y))
 
       ;; Ignore minimap clicks.
       (rect-contains? (.minimap layout) x y)
@@ -1975,8 +2009,8 @@
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
                                       :reference-cursor-range cursor-range)}))))
 
-(defn mouse-moved [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start x y]
-  (when (= :primary (some-> gesture-start :button))
+(defn- mouse-gesture [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start x y]
+  (when (= :primary (:button gesture-start))
     (case (.type gesture-start)
       ;; Dragging the horizontal scroll tab.
       :scroll-tab-x-drag
@@ -1998,6 +2032,10 @@
             scroll-y (limit-scroll-y layout line-count (- start-scroll scroll-delta))]
         (when (not= scroll-y (.scroll-y layout))
           {:scroll-y scroll-y}))
+
+      ;; Continuous scroll up / down.
+      (:scroll-bar-y-hold-up :scroll-bar-y-hold-down)
+      {:gesture-start (assoc gesture-start :x x :y y)}
 
       ;; Box selection.
       :box-selection
@@ -2064,9 +2102,46 @@
                  (scroll-to-any-cursor layout lines new-cursor-ranges))))
       nil)))
 
-(defn mouse-released [^GestureInfo gesture-start button]
+(defn- element-at-position [^LayoutInfo layout x y]
+  (cond
+    ;; Horizontal scroll tab.
+    (some-> (.scroll-tab-x layout) (rect-contains? x y))
+    {:type :ui-element :ui-element :scroll-tab-x}
+
+    ;; Vertical scroll tab.
+    (some-> (.scroll-tab-y layout) (rect-contains? x y))
+    {:type :ui-element :ui-element :scroll-tab-y}
+
+    ;; The continuous scroll up area of the vertical scroll bar.
+    (when-some [^Rect r (.scroll-tab-y layout)]
+      (and (<= (.x r) x (+ (.x r) (.w r)))
+           (< ^double y (+ (.y r) (* 0.5 (.h r))))))
+    {:type :ui-element :ui-element :scroll-bar-y-up}
+
+    ;; The continuous scroll down area of the vertical scroll bar.
+    (when-some [^Rect r (.scroll-tab-y layout)]
+      (and (<= (.x r) x (+ (.x r) (.w r)))
+           (> ^double y (+ (.y r) (* 0.5 (.h r))))))
+    {:type :ui-element :ui-element :scroll-bar-y-down}))
+
+(defn- mouse-hover [^LayoutInfo layout hovered-element x y]
+  (let [new-hovered-element (element-at-position layout x y)]
+    (when (not= hovered-element new-hovered-element)
+      {:hovered-element new-hovered-element})))
+
+(defn mouse-moved [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start hovered-element x y]
+  (if (some? gesture-start)
+    (mouse-gesture lines cursor-ranges layout gesture-start x y)
+    (mouse-hover layout hovered-element x y)))
+
+(defn mouse-released [^LayoutInfo layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
-    {:gesture-start nil}))
+    (assoc (mouse-hover layout ::force-evaluation x y)
+      :gesture-start nil)))
+
+(defn mouse-exited [^GestureInfo gesture-start hovered-element]
+  (when (and (nil? gesture-start) (some? hovered-element))
+    {:hovered-element nil}))
 
 (defn cut! [lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)
