@@ -14,6 +14,37 @@
                                                          :platform-shortcut-key shortcut-key
                                                          :throw-on-error?       true}))))
 
+(defn- make-keymap-errors [key-bindings shortcut-key]
+  (try
+    (keymap/make-keymap key-bindings {:platform-shortcut-key shortcut-key :throw-on-error? true})
+    (catch Exception ex (:errors (ex-data ex)))))
+
+(deftest disallow-typable-shortcuts
+  ;; We don't test keymap/allowed-typable-shortcuts
+  (doseq [[platform shortcut-key] keymap/platform-shortcut-keys]
+    (testing platform
+      (let [errors (make-keymap-errors [["S" :s]
+                                        ["Alt+T" :t]
+                                        ["Ctrl+Alt+U" :u]
+                                        ["Alt+Shortcut+V" :v]
+                                        ["Shift+Alt+X" :x]]
+                                       shortcut-key)]
+        (is (= errors #{{:type :typable-shortcut
+                         :command :s
+                         :shortcut "S"}
+                        {:type :typable-shortcut
+                         :command :t
+                         :shortcut "Alt+T"}
+                        {:type :typable-shortcut
+                         :command :u
+                         :shortcut "Ctrl+Alt+U"}
+                        {:type :typable-shortcut
+                         :command :v
+                         :shortcut "Alt+Shortcut+V"}
+                        {:type :typable-shortcut
+                         :command :x
+                         :shortcut "Shift+Alt+X"}}))))))
+
 (deftest make-keymap-test
   (testing "canonicalizes shortcut keys correctly"
     (doseq [[shortcut-key _] shortcut-keys]
@@ -30,7 +61,7 @@
                                         {:platform-shortcut-key shortcut-key
                                          :throw-on-error? true
                                          :valid-command? (constantly true)})))
-
+        ;; Here we exploit that 'A' is a default allowed typable shortcut
         "A"               :a "A" #{}
         "Shortcut+A"      :a "A" #{shortcut-key}
         "Ctrl+A"          :a "A" #{:control-down?}
