@@ -594,11 +594,12 @@
         sort-meshes (partial sort-by mesh-sort-fn)
         skins (get spine-scene "skins" {})
         generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-index->world-transform)
-        new-skins {"default" (sort-meshes generic-meshes)}
+        new-skins {"" (sort-meshes generic-meshes)} ; "default" skin is called "" (hashed to 0) in build data
         new-skins (reduce (fn [m [skin slots]]
                             (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-index->world-transform)]
                               (assoc m skin (sort-meshes (merge generic-meshes specific-meshes)))))
-                          new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
+                          new-skins
+                          (filter (fn [[skin _]] (not= "default" skin)) skins))
         slot->track-data (reduce-kv (fn [m skin meshes]
                                       (let [skin-id (murmur/hash64 skin)]
                                         (reduce-kv (fn [m i [[slot att]]]
@@ -625,7 +626,8 @@
               :mesh-set {:slot-count slot-count
                          :mesh-entries (mapv (fn [[skin meshes]]
                                                {:id (murmur/hash64 skin)
-                                                :meshes (mapv second meshes)}) new-skins)}}
+                                                :meshes (mapv second meshes)})
+                                             new-skins)}}
              (catch Exception e
                (log/error :exception e)
                (g/->error _node-id :spine-json :fatal spine-json (str "Incompatible data found in spine json " (resource/resource->proj-path spine-json)))))]
@@ -857,10 +859,7 @@
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
           dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
-          model-pb (update model-pb :skin (fn [skin] (or (not-empty skin)
-                                                         (when (some (partial = "default") (:skins scene-structure))
-                                                           "default")
-                                                         (first (:skins scene-structure)))))]
+          model-pb (update model-pb :skin (fn [skin] (or skin "")))]
       [{:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-spine-model
