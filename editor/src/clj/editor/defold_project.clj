@@ -653,10 +653,14 @@
       (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
-  (let [progress (atom (progress/make "Updating dependencies..." 3))]
+  (let [dependencies (read-dependencies game-project-resource)
+        progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
-    (workspace/set-project-dependencies! workspace-id (read-dependencies game-project-resource))
-    (workspace/update-dependencies! workspace-id (progress/nest-render-progress render-progress! @progress) login-fn)
+
+    (when (workspace/dependencies-reachable? dependencies login-fn)
+      (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
+           (workspace/install-validated-libraries! workspace-id dependencies)))
+    
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
     (workspace/resource-sync! workspace-id false [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project"))
