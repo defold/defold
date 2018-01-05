@@ -114,7 +114,7 @@
                  :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
                  :test-fn (fn [pb targets]
                             (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
                             (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
                             (is (< 0 (-> pb :animation-set (target targets) :animations count)))
                             (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
@@ -134,7 +134,7 @@
                  :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
                  :test-fn (fn [pb targets]
                             (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
                             (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
                             (is (< 0 (-> pb :animation-set (target targets) :animations count)))
                             (is (< 0 (-> pb :skeleton (target targets) :bones count)))
