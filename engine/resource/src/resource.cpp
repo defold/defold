@@ -564,10 +564,8 @@ void DeleteFactory(HFactory factory)
         dmResourceArchive::Delete(factory->m_BuiltinsArchiveContainer);
     }
 
-    if (factory->m_BuiltinsManifest)
-    {
-        dmDDF::FreeMessage(factory->m_BuiltinsManifest);
-    }
+
+    ReleaseBuiltinsManifest(factory);
 
     delete factory->m_Resources;
     delete factory->m_ResourceToHash;
@@ -1625,5 +1623,13 @@ dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)
     return factory->m_LoadMutex;
 }
 
+void ReleaseBuiltinsManifest(HFactory factory)
+{
+    if (factory->m_BuiltinsManifest)
+    {
+        dmDDF::FreeMessage(factory->m_BuiltinsManifest);
+    }
+    factory->m_BuiltinsManifest = 0;
+}
 
 }
