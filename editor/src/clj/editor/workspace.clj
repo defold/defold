@@ -185,19 +185,12 @@ ordinary paths."
 (defn dependencies [workspace]
   (g/node-value workspace :dependencies))
 
-(defn update-dependencies! [workspace render-progress! login-fn]
-  (let [dependencies (g/node-value workspace :dependencies)
-        hosts (into #{} (map url/strip-path) dependencies)]
-    (when (and (seq dependencies)
-               (every? url/reachable? hosts)
-               (or (nil? login-fn)
-                   (not-any? url/defold-hosted? dependencies)
-                   (login-fn)))
-      (library/update-libraries! (project-path workspace)
-                                 dependencies
-                                 library/default-http-resolver
-                                 render-progress!)
-      true)))
+(defn dependencies-reachable? [dependencies login-fn]
+  (let [hosts (into #{} (map url/strip-path) dependencies)]
+    (and (every? url/reachable? hosts)
+         (or (nil? login-fn)
+             (not-any? url/defold-hosted? dependencies)
+             (login-fn)))))
 
 (defn missing-dependencies [workspace]
   (let [project-directory (project-path workspace)
@@ -282,11 +275,14 @@ ordinary paths."
              (resource/handle-changes listener changes-with-moved render-progress!)))))
      changes)))
 
-(defn fetch-libraries!
-  [workspace library-urls render-fn login-fn]
+(defn fetch-and-validate-libraries [workspace library-urls render-fn]
+  (->> (library/current-library-state (project-path workspace) library-urls)
+       (library/fetch-library-updates library/default-http-resolver render-fn)
+       (library/validate-updated-libraries)))
+
+(defn install-validated-libraries! [workspace library-urls lib-states]
   (set-project-dependencies! workspace library-urls)
-  (when (update-dependencies! workspace render-fn login-fn)
-    (resource-sync! workspace true [] render-fn)))
+  (library/install-validated-libraries! (project-path workspace) lib-states))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))
