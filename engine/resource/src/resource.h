@@ -629,6 +629,12 @@ namespace dmResource
     */
     dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory);
 
+    /**
+     * Releases the builtins manifest
+     * Use when it's no longer needed, e.g. the user project loaded properly
+     */
+    void ReleaseBuiltinsManifest(HFactory factory);
+
     uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
 
     void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
