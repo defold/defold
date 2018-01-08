@@ -158,17 +158,17 @@
    "contacts with an impulse below this limit will not be reported to scripts, 0 (disabled) by default",
    :default 0.0,
    :path ["physics" "contact_impulse_limit"]}
-  {:type :number,
+  {:type :integer,
    :help
    "maximum number of ray casts per frame when using 2D physics",
    :default 64,
    :path ["physics" "ray_cast_limit_2d"]},
-  {:type :number,
+  {:type :integer,
    :help
    "maximum number of ray casts per frame when using 3D physics",
    :default 128,
    :path ["physics" "ray_cast_limit_3d"]},
-  {:type :number,
+  {:type :integer,
    :help
    "maximum number of overlapping triggers that can be detected, 16 by default",
    :default 16,
@@ -299,7 +299,7 @@
    :path ["gui" "max_particlefx_count"]}
   {:type :integer,
    :help
-   "max total number of living particles in gui, 1024 by default",
+   "max total number of living particles in gui per collection, 1024 by default",
    :default 1024,
    :path ["gui" "max_particle_count"]}
   {:type :integer,
