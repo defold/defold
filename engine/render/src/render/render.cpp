@@ -401,6 +401,8 @@ namespace dmRender
         RenderListSortValue* sort_values = context->m_RenderListSortValues.Begin();
         RenderListEntry* entries = context->m_RenderList.Begin();
 
+        const Matrix4& transform = context->m_ViewProj;
+
         float minZW = FLT_MAX;
         float maxZW = -FLT_MAX;
 
@@ -411,8 +413,6 @@ namespace dmRender
             RenderListRange& range = ranges[i];
             if ( (range.m_TagMask & tag_mask) != tag_mask )
                 continue;
-
-            const Matrix4& transform = context->m_ViewProj;
 
             // Write z values...
             for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
