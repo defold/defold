@@ -53,6 +53,7 @@ namespace dmLiveUpdate
                         break;
                     }
                 }
+
                 if (isUnique)
                 {
                     (*buffer)[uniqueCount] = (char*) malloc(hexDigestLength * sizeof(char*));
@@ -63,6 +64,7 @@ namespace dmLiveUpdate
             free(scratch);
             free(resources);
         }
+
         return uniqueCount;
     }
 

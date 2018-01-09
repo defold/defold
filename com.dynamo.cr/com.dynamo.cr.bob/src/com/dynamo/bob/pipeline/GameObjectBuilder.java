@@ -103,6 +103,7 @@ public class GameObjectBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
         IResource input = task.getInputs().get(0);
+
         PrototypeDesc.Builder protoBuilder = loadPrototype(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
