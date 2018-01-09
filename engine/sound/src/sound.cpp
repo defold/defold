@@ -1009,6 +1009,38 @@ namespace dmSound
         DM_PROFILE(Sound, "MixInstances")
         SoundSystem* sound = g_SoundSystem;
 
+        for (uint32_t i = 0; i < MAX_GROUPS; i++) {
+            SoundGroup* g = &sound->m_Groups[i];
+
+            if (g->m_MixBuffer) {
+                uint32_t frame_count = sound->m_FrameCount;
+                float sum_sq_left = 0;
+                float sum_sq_right = 0;
+                float max_sq_left = 0;
+                float max_sq_right = 0;
+                for (uint32_t j = 0; j < frame_count; j++) {
+
+                    float gain = g->m_Gain.m_Current;
+
+                    float left = g->m_MixBuffer[2 * j + 0] * gain;
+                    float right = g->m_MixBuffer[2 * j + 1] * gain;
+                    float left_sq = left * left;
+                    float right_sq = right * right;
+                    sum_sq_left += left_sq;
+                    sum_sq_right += right_sq;
+                    max_sq_left = dmMath::Max(max_sq_left, left_sq);
+                    max_sq_right = dmMath::Max(max_sq_right, right_sq);
+                }
+                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 0] = sum_sq_left;
+                g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 1] = sum_sq_right;
+                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 0] = max_sq_left;
+                g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
+                g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
+
+                memset(g->m_MixBuffer, 0, sound->m_FrameCount * sizeof(float) * 2);
+            }
+        }
+
         uint32_t num_playing = 0;
         uint32_t instances = sound->m_Instances.Size();
         for (uint32_t i = 0; i < instances; ++i) {
@@ -1028,62 +1060,34 @@ namespace dmSound
         return num_playing > 0 ? RESULT_OK : RESULT_NOTHING_TO_PLAY;
     }
 
-    void Master(const MixContext* mix_context) {
+    static void Master(const MixContext* mix_context) {
         DM_PROFILE(Sound, "Master")
 
         SoundSystem* sound = g_SoundSystem;
-
+        uint32_t n = sound->m_FrameCount;
+        int16_t* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         SoundGroup* master = &sound->m_Groups[*master_index];
         float* mix_buffer = master->m_MixBuffer;
-        uint32_t frame_count = sound->m_FrameCount;
 
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
-            const float* group_mix_buffer = g->m_MixBuffer;
-            if (!group_mix_buffer) {
-                continue;
-            }
+            Ramp ramp = GetRamp(mix_context, &g->m_Gain, n);
+            if (g->m_MixBuffer && g->m_NameHash != MASTER_GROUP_HASH) {
+                for (uint32_t i = 0; i < n; i++) {
+                    float gain = ramp.GetValue(i);
+                    gain = dmMath::Clamp(gain, 0.0f, 1.0f);
 
-            Ramp ramp = GetRamp(mix_context, &g->m_Gain, frame_count);
-
-            float sum_sq_left = 0;
-            float sum_sq_right = 0;
-            float max_sq_left = 0;
-            float max_sq_right = 0;
-
-            for (uint32_t i = 0; i < frame_count; i++) {
-                float gain = ramp.GetValue(i);
-                gain = dmMath::Clamp(gain, 0.0f, 1.0f);
-
-                float left = group_mix_buffer[i * 2 + 0] * gain;
-                float right = group_mix_buffer[i * 2 + 1] * gain;
-
-                if (g->m_NameHash != MASTER_GROUP_HASH) {
-                    mix_buffer[i * 2 + 0] += left;
-                    mix_buffer[i * 2 + 1] += right;
+                    float s1 = g->m_MixBuffer[2 * i];
+                    float s2 = g->m_MixBuffer[2 * i + 1];
+                    mix_buffer[2 * i] += s1 * gain;
+                    mix_buffer[2 * i + 1] += s2 * gain;
                 }
-
-                float left_sq = left * left;
-                float right_sq = right * right;
-                sum_sq_left += left_sq;
-                sum_sq_right += right_sq;
-                max_sq_left = dmMath::Max(max_sq_left, left_sq);
-                max_sq_right = dmMath::Max(max_sq_right, right_sq);
             }
-
-            g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 0] = sum_sq_left;
-            g->m_SumSquaredMemory[2 * g->m_NextMemorySlot + 1] = sum_sq_right;
-            g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 0] = max_sq_left;
-            g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
-            g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
-
-            memset(g->m_MixBuffer, 0, frame_count * sizeof(float) * 2);
         }
 
-        int16_t* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
-        Ramp ramp = GetRamp(mix_context, &master->m_Gain, frame_count);
-        for (uint32_t i = 0; i < frame_count; i++) {
+        Ramp ramp = GetRamp(mix_context, &master->m_Gain, n);
+        for (uint32_t i = 0; i < n; i++) {
             float gain = ramp.GetValue(i);
             float s1 = mix_buffer[2 * i] * gain;
             float s2 = mix_buffer[2 * i + 1] * gain;
@@ -1160,7 +1164,7 @@ namespace dmSound
         uint32_t total_buffers = free_slots;
         while (free_slots > 0) {
             MixContext mix_context(current_buffer, total_buffers);
-            Result result = MixInstances(&mix_context);
+            MixInstances(&mix_context);
 
             if (sound->m_IsSoundActive == false)
             {
