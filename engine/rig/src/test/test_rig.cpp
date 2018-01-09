@@ -962,7 +962,8 @@ public:
     }
 };
 
-class RigInstanceCursorTest : public RigContextCursorTest<dmRig::RigPlayback>
+template<typename T>
+class RigInstanceCursorTest : public RigContextCursorTest<T>
 {
 public:
     dmRig::HRigInstance     m_Instance;
@@ -976,11 +977,11 @@ public:
 
 protected:
     virtual void SetUp() {
-        RigContextCursorTest::SetUp();
+        RigContextCursorTest<T>::SetUp();
 
         m_Instance = 0x0;
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = m_Context;
+        create_params.m_Context = RigContextCursorTest<T>::m_Context;
         create_params.m_Instance = &m_Instance;
 
         m_Skeleton     = new dmRigDDF::Skeleton();
@@ -1007,7 +1008,7 @@ protected:
     virtual void TearDown() {
 
         dmRig::InstanceDestroyParams destroy_params = {0};
-        destroy_params.m_Context = m_Context;
+        destroy_params.m_Context = RigContextCursorTest<T>::m_Context;
         destroy_params.m_Instance = m_Instance;
         if (dmRig::RESULT_OK != dmRig::InstanceDestroy(destroy_params)) {
             dmLogError("Could not delete rig instance!");
@@ -1015,23 +1016,23 @@ protected:
 
         DeleteRigData(m_MeshSet, m_Skeleton, m_AnimationSet);
 
-        RigContextCursorTest::TearDown();
+        RigContextCursorTest<T>::TearDown();
     }
 };
 
-class RigInstanceCursorBackwardTest : public RigInstanceCursorTest
+class RigInstanceCursorBackwardTest : public RigInstanceCursorTest<dmRig::RigPlayback>
 {
 public:
     virtual ~RigInstanceCursorBackwardTest() {}
 };
 
-class RigInstanceCursorForwardTest : public RigInstanceCursorTest
+class RigInstanceCursorForwardTest : public RigInstanceCursorTest<dmRig::RigPlayback>
 {
 public:
     virtual ~RigInstanceCursorForwardTest() {}
 };
 
-class RigInstanceCursorPingpongTest : public RigInstanceCursorTest
+class RigInstanceCursorPingpongTest : public RigInstanceCursorTest<dmRig::RigPlayback>
 {
 public:
     virtual ~RigInstanceCursorPingpongTest() {}
@@ -1128,7 +1129,7 @@ TEST_P(RigInstanceCursorBackwardTest, CursorSet)
 
 TEST_P(RigInstanceCursorForwardTest, CursorSet)
 {
-    dmRig::RigPlayback playback_mode = GetParam();;
+    dmRig::RigPlayback playback_mode = GetParam();
 
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), playback_mode, 0.0f, 0.0f, 1.0f));
@@ -2227,6 +2228,47 @@ TEST_F(RigInstanceTest, BoneTranslationRotation)
     ASSERT_VEC3(Vector3(10.0f, 0.0f, 0.0f), pose[0].GetTranslation());
     ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[0].GetRotation());
 }
+
+// Test for DEF-3054 - Playing a spine backwards 3 times does not work as expected
+struct PlaybackCursorTestParams
+{
+    dmRig::RigPlayback m_Playback;
+    float              m_Offset;
+    float              m_ExpectedStart;
+    float              m_ExpectedEnd;
+};
+
+class PlaybackCursorTest : public RigInstanceCursorTest<PlaybackCursorTestParams>
+{
+public:
+    virtual ~PlaybackCursorTest() {}
+};
+
+TEST_P(PlaybackCursorTest, PlayBackwardsBug)
+{
+    PlaybackCursorTestParams params = GetParam();
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_NEAR(0.0f, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
+
+    // Run test 3 times to make sure we use all (2) internal "players" that
+    // could leak data between runs.
+    for (int i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), params.m_Playback, 0.0f, params.m_Offset, 1.0f));
+        ASSERT_NEAR(params.m_ExpectedStart, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
+        ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 3.0f));
+        ASSERT_NEAR(params.m_ExpectedEnd, dmRig::GetCursor(m_Instance, true), RIG_EPSILON_FLOAT);
+    }
+}
+
+PlaybackCursorTestParams playback_cursor_test_params[] = {
+    {dmRig::PLAYBACK_ONCE_FORWARD, 0.0f, 0.0f, 1.0f},
+    {dmRig::PLAYBACK_ONCE_FORWARD, 0.5f, 0.5f, 1.0f},
+    {dmRig::PLAYBACK_ONCE_BACKWARD, 0.0f, 1.0f, 0.0f},
+    {dmRig::PLAYBACK_ONCE_BACKWARD, 0.5f, 0.5f, 0.0f}
+};
+INSTANTIATE_TEST_CASE_P(Rig, PlaybackCursorTest, ::testing::ValuesIn(playback_cursor_test_params));
 
 #undef ASSERT_VEC3
 #undef ASSERT_VEC4

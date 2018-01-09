@@ -222,7 +222,7 @@ static dmGameObject::CreateResult GenericComponentAddToUpdate(const dmGameObject
 }
 
 template <typename T>
-static dmGameObject::UpdateResult GenericComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params)
+static dmGameObject::UpdateResult GenericComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
 {
     SpawnDeleteTest* game_object_test = (SpawnDeleteTest*) params.m_Context;
     if (game_object_test->m_ComponentAddToUpdateCountMap[T::m_DDFHash] > game_object_test->m_ComponentUpdateCountMap[T::m_DDFHash]) {

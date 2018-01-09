@@ -13,7 +13,7 @@ namespace dmGameObject
 
     CreateResult CompAnimAddToUpdate(const ComponentAddToUpdateParams& params);
 
-    UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params);
+    UpdateResult CompAnimUpdate(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 }
 
 #endif // DM_GAMEOBJECT_COMP_ANIM_H
