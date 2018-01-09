@@ -90,7 +90,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult&)
     {
         dmGameObject::UpdateResult update_result = dmGameObject::UPDATE_RESULT_OK;
         World* world = (World*)params.m_World;

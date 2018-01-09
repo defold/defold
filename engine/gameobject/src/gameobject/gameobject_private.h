@@ -80,7 +80,6 @@ namespace dmGameObject
             m_Depth = 0;
             m_Initialized = 0;
             m_ScaleAlongZ = 0;
-            m_NoInheritScale = 0;
             m_Bone = 0;
             m_Generated = 0;
             m_Parent = INVALID_INSTANCE_INDEX;
@@ -122,14 +121,12 @@ namespace dmGameObject
         uint16_t        m_Initialized : 1;
         // If this game object should have the Z component of the position affected by scale
         uint16_t        m_ScaleAlongZ : 1;
-        // If this game object should keep its local scale, i.e. avoid inheriting the parent's scale
-        uint16_t        m_NoInheritScale : 1;
         // If this game object is part of a skeleton
         uint16_t        m_Bone : 1;
         // If this is a generated instance, i.e. if the instance id is uniquely generated
         uint16_t        m_Generated : 1;
         // Padding
-        uint16_t        m_Pad : 3;
+        uint16_t        m_Pad : 4;
 
         // Index to parent
         uint16_t        m_Parent : 16;
