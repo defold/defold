@@ -387,16 +387,9 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static bool MakeSortBuffer(HRenderContext context, uint32_t tag_mask)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_mask)
     {
         DM_PROFILE(Render, "MakeSortBuffer");
-
-        RenderListRange range;
-        if (!FindTagMaskRange(context->m_RenderListRanges.Begin(), context->m_RenderListRanges.Size(), tag_mask, range))
-        {
-            // nothing to render
-            return false;
-        }
 
         const uint32_t required_capacity = context->m_RenderListSortIndices.Capacity();
         // SetCapacity does early out if they are the same, so just call anyway.
@@ -406,26 +399,35 @@ namespace dmRender
         context->m_RenderListSortValues.SetSize(context->m_RenderListSortIndices.Size());
 
         RenderListSortValue* sort_values = context->m_RenderListSortValues.Begin();
-
-        const Matrix4& transform = context->m_ViewProj;
         RenderListEntry* entries = context->m_RenderList.Begin();
 
         float minZW = FLT_MAX;
         float maxZW = -FLT_MAX;
 
-        // Write z values...
-        for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
+        RenderListRange* ranges = context->m_RenderListRanges.Begin();
+        uint32_t num_ranges = context->m_RenderListRanges.Size();
+        for( uint32_t i = 0; i < num_ranges; ++i)
         {
-            uint32_t idx = context->m_RenderListSortIndices[i];
-            RenderListEntry* entry = &entries[idx];
-            if (entry->m_MajorOrder != RENDER_ORDER_WORLD)
-                continue; // Could perhaps break here, if we also sorted on the major order (cost more when I tested it /MAWE)
+            RenderListRange& range = ranges[i];
+            if ( (range.m_TagMask & tag_mask) != tag_mask )
+                continue;
 
-            const Vector4 res = transform * entry->m_WorldPosition;
-            const float zw = res.getZ() / res.getW();
-            sort_values[idx].m_ZW = zw;
-            if (zw < minZW) minZW = zw;
-            if (zw > maxZW) maxZW = zw;
+            const Matrix4& transform = context->m_ViewProj;
+
+            // Write z values...
+            for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
+            {
+                uint32_t idx = context->m_RenderListSortIndices[i];
+                RenderListEntry* entry = &entries[idx];
+                if (entry->m_MajorOrder != RENDER_ORDER_WORLD)
+                    continue; // Could perhaps break here, if we also sorted on the major order (cost more when I tested it /MAWE)
+
+                const Vector4 res = transform * entry->m_WorldPosition;
+                const float zw = res.getZ() / res.getW();
+                sort_values[idx].m_ZW = zw;
+                if (zw < minZW) minZW = zw;
+                if (zw > maxZW) maxZW = zw;
+            }
         }
 
         // ... and compute range
@@ -433,28 +435,33 @@ namespace dmRender
         if (maxZW > minZW)
             rc = 1.0f / (maxZW - minZW);
 
-        for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
+        for( uint32_t i = 0; i < num_ranges; ++i)
         {
-            uint32_t idx = context->m_RenderListSortIndices[i];
-            RenderListEntry* entry = &entries[idx];
+            RenderListRange& range = ranges[i];
+            if ( (range.m_TagMask & tag_mask) != tag_mask )
+                continue;
 
-            sort_values[idx].m_MajorOrder = entry->m_MajorOrder;
-            if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
+            for (uint32_t i = range.m_Start; i < range.m_Start+range.m_Count; ++i)
             {
-                const float z = sort_values[idx].m_ZW;
-                sort_values[idx].m_Order = (uint32_t) (0xfffff8 - 0xfffff0 * rc * (z - minZW));
+                uint32_t idx = context->m_RenderListSortIndices[i];
+                RenderListEntry* entry = &entries[idx];
+
+                sort_values[idx].m_MajorOrder = entry->m_MajorOrder;
+                if (entry->m_MajorOrder == RENDER_ORDER_WORLD)
+                {
+                    const float z = sort_values[idx].m_ZW;
+                    sort_values[idx].m_Order = (uint32_t) (0xfffff8 - 0xfffff0 * rc * (z - minZW));
+                }
+                else
+                {
+                    // use the integer value provided.
+                    sort_values[idx].m_Order = entry->m_Order;
+                }
+                sort_values[idx].m_BatchKey = entry->m_BatchKey & 0xffffff;
+                sort_values[idx].m_Dispatch = entry->m_Dispatch;
+                context->m_RenderListSortBuffer.Push(idx);
             }
-            else
-            {
-                // use the integer value provided.
-                sort_values[idx].m_Order = entry->m_Order;
-            }
-            sort_values[idx].m_BatchKey = entry->m_BatchKey & 0xffffff;
-            sort_values[idx].m_Dispatch = entry->m_Dispatch;
-            context->m_RenderListSortBuffer.Push(idx);
         }
-
-        return true;
     }
 
     static void CollectRenderEntryRange(void* _ctx, uint32_t tag_mask, size_t start, size_t count)
@@ -507,7 +514,6 @@ namespace dmRender
         }
         // Now find the ranges of tag masks
         {
-            uint32_t* indices = context->m_RenderListSortIndices.Begin();
             RenderListEntry* entries = context->m_RenderList.Begin();
             FindRangeComparator comp;
             comp.m_Entries = entries;
@@ -534,7 +540,9 @@ namespace dmRender
             SortRenderList(context);
         }
 
-        if (!MakeSortBuffer(context, tag_mask) )
+        MakeSortBuffer(context, tag_mask);
+
+        if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
 
         {
