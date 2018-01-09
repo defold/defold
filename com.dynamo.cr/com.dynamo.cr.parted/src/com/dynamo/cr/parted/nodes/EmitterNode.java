@@ -107,6 +107,9 @@ public class EmitterNode extends Node implements Identifiable {
     @Property
     private double inheritVelocity;
 
+    @Property
+    private boolean stretchWithVelocity;
+
     private Map<EmitterKey, ValueSpread> properties = new HashMap<EmitterKey, ValueSpread>();
     private Map<ParticleKey, ValueSpread> particleProperties = new HashMap<ParticleKey, ValueSpread>();
 
@@ -131,6 +134,7 @@ public class EmitterNode extends Node implements Identifiable {
         setEmitterType(emitter.getType());
         setParticleOrientation(emitter.getParticleOrientation());
         setInheritVelocity(emitter.getInheritVelocity());
+        setStretchWithVelocity(emitter.getStretchWithVelocity());
 
         setProperties(emitter.getPropertiesList());
         setParticleProperties(emitter.getParticlePropertiesList());
@@ -587,6 +591,19 @@ public class EmitterNode extends Node implements Identifiable {
         return this.emissionSpace == EmissionSpace.EMISSION_SPACE_WORLD;
     }
 
+    public boolean getStretchWithVelocity() {
+        return this.stretchWithVelocity;
+    }
+
+    public void setStretchWithVelocity(boolean stretchWithVelocity) {
+        this.stretchWithVelocity = stretchWithVelocity;
+        reloadSystem(false);
+    }
+
+    public boolean isStretchWithVelocityEditable() {
+        return true;
+    }
+
     public TextureSetNode getTextureSetNode() {
         return this.textureSetNode;
     }
@@ -628,6 +645,7 @@ public class EmitterNode extends Node implements Identifiable {
             .setType(getEmitterType())
             .setParticleOrientation(getParticleOrientation())
             .setInheritVelocity((float)getInheritVelocity())
+            .setStretchWithVelocity(getStretchWithVelocity())
             .setPosition(LoaderUtil.toPoint3(getTranslation()))
             .setRotation(LoaderUtil.toQuat(getRotation()));
 
