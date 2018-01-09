@@ -597,7 +597,7 @@ class Configuration(object):
             print "Wrote %s" % path
 
     def build_builtins(self):
-        with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'w') as f:
+        with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
 
     def archive_engine(self):
@@ -899,7 +899,7 @@ class Configuration(object):
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
         self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
-        with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'w') as f:
+        with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
     def test_cr(self):
@@ -951,7 +951,7 @@ class Configuration(object):
                 elif name == 'defold.channel':
                     n.attrib['value'] = options.channel
 
-        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.product', 'w') as f:
+        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.product', 'wb') as f:
             f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
             f.write('<?pde version="3.5"?>\n')
             f.write('\n')
@@ -963,7 +963,7 @@ instructions.configure=\
   addRepository(type:1,location:http${#58}//d.defold.com/%(channel)s/update/);
 """
 
-        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
+        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'wb') as f:
             f.write(p2 % { 'channel': self.channel })
 
         self._build_cr('editor')
