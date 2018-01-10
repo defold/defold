@@ -53,7 +53,6 @@ namespace dmLiveUpdate
                         break;
                     }
                 }
-
                 if (isUnique)
                 {
                     (*buffer)[uniqueCount] = (char*) malloc(hexDigestLength * sizeof(char*));
@@ -64,7 +63,6 @@ namespace dmLiveUpdate
             free(scratch);
             free(resources);
         }
-
         return uniqueCount;
     }
 
@@ -121,10 +119,6 @@ namespace dmLiveUpdate
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(StoreResourceCallbackData*), StoreResourceCallbackData& callback_data)
     {
-        if(resource->m_Count < sizeof(dmResourceArchive::LiveUpdateResourceHeader))
-        {
-            return RESULT_INVALID_HEADER;
-        }
         if (manifest == 0x0 || resource->m_Data == 0x0)
         {
             return RESULT_MEM_ERROR;
