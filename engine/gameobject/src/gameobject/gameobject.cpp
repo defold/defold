@@ -2047,20 +2047,20 @@ namespace dmGameObject
             iterate = false;
             for (uint32_t i = 0; i < socket_count; ++i)
             {
-                if (dmMessage::IsSocketValid(sockets[i]))
+                if (!dmMessage::HasMessages(sockets[i]))
                 {
-                    // Make sure the transforms are updated if we are about to dispatch messages
-                    if (dmMessage::HasMessages(sockets[i]) && collection->m_DirtyTransforms)
-                    {
-                        UpdateTransforms(collection);
-                    }
-                    uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
-                    if (message_count > 0)
-                    {
-                        collection->m_DirtyTransforms = true;
-                        iterate = true;
-                    }
-
+                    continue; // no need to try to update or send anything
+                }
+                // Make sure the transforms are updated if we are about to dispatch messages
+                if (collection->m_DirtyTransforms)
+                {
+                    UpdateTransforms(collection);
+                }
+                uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
+                if (message_count > 0)
+                {
+                    collection->m_DirtyTransforms = true;
+                    iterate = true;
                 }
             }
             ++iteration_count;
