@@ -1293,7 +1293,7 @@ namespace dmGui
      *
      * @name gui.set_line_break
      * @param node [type:node] node to set line-break for
-     * @param line-break [type:boolean] true of false
+     * @param line-break [type:boolean] true or false
      */
     static int LuaSetLineBreak(lua_State* L)
     {
