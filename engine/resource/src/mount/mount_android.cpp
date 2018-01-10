@@ -1,3 +1,4 @@
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/path.h>
 #include <sys/mman.h>
@@ -73,6 +74,14 @@ namespace dmResource
         return RESULT_OK;
     }
 
+    Result UnmapAsset(AAsset*& asset)
+    {
+        if (asset != 0x0)
+        {
+            AAsset_close(asset);
+        }
+    }
+
     Result UnmapFile(void*& map, uint32_t size)
     {
         if (map != 0x0)
@@ -99,33 +108,39 @@ namespace dmResource
             return RESULT_IO_ERROR;
         }
 
-        void* lu_data_map = 0x0;
-        uint32_t lu_data_length = 0;
-        FILE* lu_data_file = 0x0;
-        if (lu_data_path == 0x0)
+        // Map index asset (if bundled) or file (if in local storage)
+        if (dmStrCaseCmp(index_path, "game.arci") == 0)
         {
             r = MapAsset(am, index_path, (void*&)index_asset, index_length, index_map);
             if (r != RESULT_OK)
             {
-                AAsset_close(data_asset);
+                UnmapAsset(data_asset);
                 dmLogError("Error when mapping index file, result: %i", r);
                 return RESULT_IO_ERROR;
             }
         }
-        else // if liveupdate data path is specified, the index file specified is also with liveupdate entries
-        {   
+        else
+        {
             r = MapFile(index_path, index_map, index_length);
             if (r != RESULT_OK)
             {
-                AAsset_close(data_asset);
+                UnmapAsset(data_asset);
                 dmLogError("Error mapping liveupdate index file, result = %i", r);
                 return RESULT_IO_ERROR;
             }
+        }
+
+        // Map liveupdate data resource file (if any)
+        void* lu_data_map = 0x0;
+        uint32_t lu_data_length = 0;
+        FILE* lu_data_file = 0x0;
+        if (lu_data_path != 0x0)
+        {
             r = MapFile(lu_data_path, lu_data_map, lu_data_length);
             if (r != RESULT_OK)
             {
-                AAsset_close(index_asset);
-                AAsset_close(data_asset);
+                UnmapAsset(index_asset);
+                UnmapAsset(data_asset);
                 UnmapFile(index_map, index_length);
                 dmLogError("Error mapping liveupdate data file, result = %i", r);
                 return RESULT_IO_ERROR;
@@ -134,8 +149,8 @@ namespace dmResource
             lu_data_file = fopen(lu_data_path, "rb+");
             if (!lu_data_file)
             {
-                AAsset_close(index_asset);
-                AAsset_close(data_asset);
+                UnmapAsset(index_asset);
+                UnmapAsset(data_asset);
                 UnmapFile(index_map, index_length);
                 UnmapFile(lu_data_map, lu_data_length);
                 dmLogError("Error opening liveupdate data file, result = %i", r);
@@ -146,8 +161,8 @@ namespace dmResource
         dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, data_map, lu_data_path, lu_data_map, lu_data_file, archive);
         if (res != dmResourceArchive::RESULT_OK)
         {
-            AAsset_close(index_asset);
-            AAsset_close(data_asset);
+            UnmapAsset(index_asset);
+            UnmapAsset(data_asset);
             if (lu_data_path)
             {
                 UnmapFile(index_map, index_length);
@@ -179,7 +194,7 @@ namespace dmResource
 
         if (info->index_asset)
         {
-            AAsset_close(info->index_asset);
+            UnmapAsset(info->index_asset);
         }
         else if (info->lu_index_map)
         {
@@ -188,7 +203,7 @@ namespace dmResource
 
         if (info->data_asset)
         {
-            AAsset_close(info->data_asset);
+            UnmapAsset(info->data_asset);
         }
 
         if (info->lu_data_map)
