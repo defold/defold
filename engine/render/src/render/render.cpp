@@ -216,8 +216,6 @@ namespace dmRender
         {
             const RenderListSortValue& u = values[a];
             const RenderListSortValue& v = values[b];
-            if (u.m_SortKey == v.m_SortKey)
-                return a < b;
             return u.m_SortKey < v.m_SortKey;
         }
         RenderListSortValue* values;
@@ -510,7 +508,7 @@ namespace dmRender
         {
             RenderListEntrySorter sort;
             sort.m_Base = context->m_RenderList.Begin();
-            std::sort(context->m_RenderListSortIndices.Begin(), context->m_RenderListSortIndices.End(), sort);
+            std::stable_sort(context->m_RenderListSortIndices.Begin(), context->m_RenderListSortIndices.End(), sort);
         }
         // Now find the ranges of tag masks
         {
@@ -549,7 +547,7 @@ namespace dmRender
             DM_PROFILE(Render, "DrawRenderList_SORT");
             RenderListSorter sort;
             sort.values = context->m_RenderListSortValues.Begin();
-            std::sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
+            std::stable_sort(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.End(), sort);
         }
 
         // Construct render objects

@@ -244,9 +244,7 @@ namespace dmRender
             // Sort them on tag mask first, then render order (due to costly z calculations)
             const RenderListEntry& ea = m_Base[a];
             const RenderListEntry& eb = m_Base[b];
-            if (ea.m_TagMask != eb.m_TagMask)
-                return ea.m_TagMask < eb.m_TagMask;
-            return a < b;
+            return ea.m_TagMask < eb.m_TagMask;
         }
         RenderListEntry* m_Base;
     };
