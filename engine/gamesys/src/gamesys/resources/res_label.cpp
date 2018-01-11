@@ -16,6 +16,11 @@ namespace dmGameSystem
         {
             return result;
         }
+        if(dmRender::GetMaterialVertexSpace(resource->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        {
+            dmLogError("Failed to create Label component. Material vertex space option only supports VERTEX_SPACE_WORLD");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
         result = dmResource::Get(factory, resource->m_DDF->m_Font, (void**) &resource->m_FontMap);
         if (result != dmResource::RESULT_OK)
         {

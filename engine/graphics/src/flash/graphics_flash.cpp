@@ -292,6 +292,11 @@ namespace dmGraphics
         return false;
     }
 
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
+        return (format == dmGraphics::INDEXBUFFER_FORMAT_16);
+    }
+
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
     {
         return NewVertexDeclaration(context, element, count);

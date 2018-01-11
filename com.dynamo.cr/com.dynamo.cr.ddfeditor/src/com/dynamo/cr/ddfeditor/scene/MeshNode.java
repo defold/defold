@@ -24,10 +24,10 @@ public class MeshNode extends Node {
     }
 
     public MeshNode(Mesh mesh) {
-        this.positions = newFloatBuffer(mesh.getIndicesCount()*3);
-        this.texCoords0 = newFloatBuffer(mesh.getIndicesCount()*2);
-        for(int i = 0; i < mesh.getIndicesCount(); i++){
-            int ind = mesh.getIndices(i)*3;
+        this.positions = newFloatBuffer(mesh.getPositionIndicesCount()*3);
+        this.texCoords0 = newFloatBuffer(mesh.getPositionIndicesCount()*2);
+        for(int i = 0; i < mesh.getPositionIndicesCount(); i++){
+            int ind = mesh.getPositionIndices(i)*3;
             this.positions.put(mesh.getPositions(ind+0));
             this.positions.put(mesh.getPositions(ind+1));
             this.positions.put(mesh.getPositions(ind+2));

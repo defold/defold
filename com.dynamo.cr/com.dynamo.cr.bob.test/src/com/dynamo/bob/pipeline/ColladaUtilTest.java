@@ -7,6 +7,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.InputStream;
+import java.nio.ByteOrder;
+import java.nio.ShortBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +33,7 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.rig.proto.Rig;
+import com.dynamo.rig.proto.Rig.MeshVertexIndices;
 import com.dynamo.rig.proto.Rig.RigAnimation;
 
 public class ColladaUtilTest {
@@ -53,6 +56,13 @@ public class ColladaUtilTest {
             }
         }
         return result;
+    }
+
+    private void assertVtx(List<MeshVertexIndices>  vertexIndices, int i, int position,  int texcoord0,  int normal) {
+        MeshVertexIndices v = vertexIndices.get(i);
+        assertEquals(v.getPosition(), position);
+        assertEquals(v.getTexcoord0(), texcoord0);
+        assertEquals(v.getNormal(), normal);
     }
 
     private void assertVtx(List<Float> pos, int i, double xe, double ye, double ze) {
@@ -190,7 +200,7 @@ public class ColladaUtilTest {
         Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("maya_quad.dae"), meshSet);
         Rig.Mesh mesh = meshSet.getMeshEntries(0).getMeshes(0);
-        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
+        List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
         List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
         assertThat(2 * 3 * 3, is(pos.size()));
@@ -224,7 +234,7 @@ public class ColladaUtilTest {
         ColladaUtil.loadMesh(load("blender_polylist_quad.dae"), meshSet);
         Rig.Mesh mesh = meshSet.getMeshEntries(0).getMeshes(0);
 
-        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
+        List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
         List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
 
@@ -265,7 +275,7 @@ public class ColladaUtilTest {
         ColladaUtil.load(getClass().getResourceAsStream("quad_normals.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
         Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
 
-        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
+        List<Float> pos = bake(mesh.getPositionIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
 
         // face 0:
@@ -313,7 +323,7 @@ public class ColladaUtilTest {
         Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
 
         // Should have exactly 4 influences per vertex
-        int vertCount = mesh.getIndicesCount();
+        int vertCount = mesh.getPositionIndicesCount();
         assertEquals(vertCount*4, mesh.getBoneIndicesCount());
         assertEquals(vertCount*4, mesh.getWeightsCount());
 
@@ -1000,6 +1010,35 @@ public class ColladaUtilTest {
         // The test file has the first Z component of the positions array set to "-1.#IND00",
         // make sure it was parsed as 0.0 instead.
         assertEquals(0.0, meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(2), EPSILON);
+    }
+
+    /*
+     * Tests a collada file is optimized properly when creating an interleaved vertex index list
+     */
+    @Test
+    public void testInterleavedVertexList() throws Exception {
+        Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
+        Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
+        Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
+        ColladaUtil.load(load("maya_quad.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
+        assertEquals(4, mesh.getVerticesCount());
+        assertEquals(6, mesh.getIndices().size()>>1);
+        assertEquals(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16, mesh.getIndicesFormat());
+
+        List<MeshVertexIndices> vertices = mesh.getVerticesList();
+        assertVtx(vertices, 0,  0, 0, 0);
+        assertVtx(vertices, 1,  1, 1, 1);
+        assertVtx(vertices, 2,  2, 2, 2);
+        assertVtx(vertices, 3,  3, 3, 3);
+
+        ShortBuffer indices = mesh.getIndices().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+        assertEquals(0, indices.get(0));
+        assertEquals(1, indices.get(1));
+        assertEquals(2, indices.get(2));
+        assertEquals(2, indices.get(3));
+        assertEquals(1, indices.get(4));
+        assertEquals(3, indices.get(5));
     }
 
     /*

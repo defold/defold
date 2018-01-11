@@ -4,6 +4,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -67,6 +69,7 @@ import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.MeshEntry;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
 public class ColladaUtil {
@@ -687,18 +690,81 @@ public class ColladaUtil {
 
         }
 
+        class MeshIndex {
+            public int position, texcoord0, normal;
+            public boolean equals(Object o) {
+                MeshIndex m = (MeshIndex) o;
+                return (this.position == m.position && this.texcoord0 == m.texcoord0 && this.normal == m.normal);
+            }
+        }
+
+        boolean mesh_has_normals = normal_indices_list.size() > 0;
+        List<MeshIndex> shared_vertex_indices = new ArrayList<MeshIndex>(mesh.triangles.count*3);
+        List<Integer> mesh_index_list = new ArrayList<Integer>(mesh.triangles.count*3);
+        int mesh_index_max = 0;
+        for (int i = 0; i < mesh.triangles.count*3; ++i) {
+            MeshIndex ci = new MeshIndex();
+            ci.position = position_indices_list.get(i);
+            ci.texcoord0 = texcoord_indices_list.get(i);
+            ci.normal = mesh_has_normals ? normal_indices_list.get(i) : 0;
+            int index = shared_vertex_indices.indexOf(ci);
+            if(index == -1) {
+                mesh_index_list.add(shared_vertex_indices.size());
+                mesh_index_max = Math.max(mesh_index_max, shared_vertex_indices.size());
+                shared_vertex_indices.add(ci);
+            } else {
+                mesh_index_list.add(index);
+            }
+        }
+
+        List<Rig.MeshVertexIndices> mesh_vertex_indices = new ArrayList<Rig.MeshVertexIndices>(mesh.triangles.count*3);
+        for (int i = 0; i < shared_vertex_indices.size() ; ++i) {
+            Rig.MeshVertexIndices.Builder b = Rig.MeshVertexIndices.newBuilder();
+            MeshIndex ci = shared_vertex_indices.get(i);
+            b.setPosition(ci.position);
+            b.setTexcoord0(ci.texcoord0);
+            b.setNormal(ci.normal);
+            mesh_vertex_indices.add(b.build());
+        }
+
+        Rig.IndexBufferFormat indices_format;
+        ByteBuffer indices_bytes;
+        if(mesh_index_max <= 0xffff)
+        {
+            // if we only need 16-bit indices, use this primarily. Less data to upload to GPU and ES2.0 core functionality.
+            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16;
+            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 2);
+            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer();
+            for (int i = 0; i < mesh_index_list.size();) {
+                indices_bytes.putShort(mesh_index_list.get(i++).shortValue());
+            }
+        }
+        else
+        {
+            indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32;
+            indices_bytes = ByteBuffer.allocateDirect(mesh_index_list.size() * 4);
+            indices_bytes.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+            for (int i = 0; i < mesh_index_list.size();) {
+                indices_bytes.putInt(mesh_index_list.get(i++));
+            }
+        }
+        indices_bytes.rewind();
+
         List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
         int max_bone_count = loadVertexWeights(collada, bone_weights_list, bone_indices_list);
 
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
+        meshBuilder.addAllVertices(mesh_vertex_indices);
+        meshBuilder.setIndices(ByteString.copyFrom(indices_bytes));
+        meshBuilder.setIndicesFormat(indices_format);
         if(normals != null) {
             meshBuilder.addAllNormals(normal_list);
             meshBuilder.addAllNormalsIndices(normal_indices_list);
         }
         meshBuilder.addAllPositions(position_list);
         meshBuilder.addAllTexcoord0(texcoord_list);
-        meshBuilder.addAllIndices(position_indices_list);
+        meshBuilder.addAllPositionIndices(position_indices_list);
         meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
         meshBuilder.addAllWeights(bone_weights_list);
         meshBuilder.addAllBoneIndices(bone_indices_list);
