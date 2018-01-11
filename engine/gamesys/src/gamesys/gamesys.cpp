@@ -96,7 +96,7 @@ namespace dmGameSystem
         REGISTER_RESOURCE_TYPE("vpc", graphics_context, 0, ResVertexProgramCreate, 0, ResVertexProgramDestroy, ResVertexProgramRecreate, 0);
         REGISTER_RESOURCE_TYPE("fpc", graphics_context, 0, ResFragmentProgramCreate, 0, ResFragmentProgramDestroy, ResFragmentProgramRecreate, 0);
         REGISTER_RESOURCE_TYPE("fontc", render_context, ResFontMapPreload, ResFontMapCreate, 0, ResFontMapDestroy, ResFontMapRecreate, 0);
-        REGISTER_RESOURCE_TYPE("modelc", 0, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate, 0);
+        REGISTER_RESOURCE_TYPE("modelc", graphics_context, ResModelPreload, ResModelCreate, 0, ResModelDestroy, ResModelRecreate, 0);
         REGISTER_RESOURCE_TYPE("materialc", render_context, 0, ResMaterialCreate, 0, ResMaterialDestroy, ResMaterialRecreate, 0);
         REGISTER_RESOURCE_TYPE("guic", gui_context, ResPreloadSceneDesc, ResCreateSceneDesc, 0, ResDestroySceneDesc, ResRecreateSceneDesc, 0);
         REGISTER_RESOURCE_TYPE("gui_scriptc", gui_context, ResPreloadGuiScript, ResCreateGuiScript, 0, ResDestroyGuiScript, ResRecreateGuiScript, 0);

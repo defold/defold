@@ -279,6 +279,7 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
+        m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
     }
 
     HContext NewContext(const ContextParams& params)
@@ -619,6 +620,20 @@ static void LogFrameBufferError(GLenum status)
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
         context->m_MaxTextureSize = max_texture_size;
 
+        if (IsExtensionSupported("GL_OES_compressed_ETC1_RGB8_texture", extensions))
+        {
+            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
+        }
+
+#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
+        if ((IsExtensionSupported("GL_OES_element_index_uint", extensions)))
+        {
+            context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+        }
+#else
+        context->m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_32;
+#endif
+
         JobQueueInitialize();
         if(JobQueueIsAsync())
         {
@@ -870,6 +885,11 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
+    }
+
+    bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
+    {
+        return (context->m_IndexBufferFormatSupport & (1 << format)) != 0;
     }
 
     static uint32_t GetTypeSize(Type type)

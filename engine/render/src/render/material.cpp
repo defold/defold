@@ -191,6 +191,14 @@ namespace dmRender
                     }
                     break;
                 }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
+                {
+                    {
+                        Matrix4 world_view = render_context->m_ViewProj * ro->m_WorldTransform;
+                        dmGraphics::SetConstantM4(graphics_context, (Vector4*)&world_view, location);
+                    }
+                    break;
+                }
             }
         }
     }
@@ -380,6 +388,16 @@ namespace dmRender
     uint32_t GetMaterialTagMask(HMaterial material)
     {
         return material->m_TagMask;
+    }
+
+    void SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space)
+    {
+        material->m_VertexSpace = vertex_space;
+    }
+
+    dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material)
+    {
+        return material->m_VertexSpace;
     }
 
     static uint32_t ConvertTagToBitfield(dmhash_t tag)

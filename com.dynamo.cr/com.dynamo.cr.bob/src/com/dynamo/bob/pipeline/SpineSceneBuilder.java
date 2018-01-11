@@ -168,7 +168,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             }
         }
         for (int index : mesh.triangles) {
-            meshBuilder.addIndices(index);
+            meshBuilder.addPositionIndices(index);
         }
         meshBuilder.setVisible(mesh.visible);
         meshBuilder.setDrawOrder(drawOrder);

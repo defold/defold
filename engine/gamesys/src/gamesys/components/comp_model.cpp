@@ -339,13 +339,52 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    static inline void RenderBatchLocalVS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
-        DM_PROFILE(Model, "RenderBatch");
+        for (uint32_t *i=begin;i!=end;i++)
+        {
+            dmRender::RenderObject& ro = *world->m_RenderObjects.End();
+            world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
 
-        const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
+            const ModelComponent* component = (ModelComponent*) buf[*i].m_UserData;
+            const ModelResource* mr = component->m_Resource;
+            assert(mr->m_VertexBuffer);
+
+            ro.Init();
+            ro.m_VertexDeclaration = world->m_VertexDeclaration;
+            ro.m_VertexBuffer = mr->m_VertexBuffer;
+            ro.m_Material = material;
+            ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro.m_VertexStart = 0;
+            ro.m_VertexCount = mr->m_ElementCount;
+            ro.m_WorldTransform = component->m_World;
+
+            if(mr->m_IndexBuffer)
+            {
+                ro.m_IndexBuffer = mr->m_IndexBuffer;
+                ro.m_IndexType = mr->m_IndexBufferElementType;
+            }
+
+            for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+                ro.m_Textures[i] = mr->m_Textures[i];
+
+            const dmArray<dmRender::Constant>& constants = component->m_RenderConstants;
+            uint32_t size = constants.Size();
+            for (uint32_t i = 0; i < size; ++i)
+            {
+                const dmRender::Constant& c = constants[i];
+                dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
+            }
+
+            dmRender::AddToRender(render_context, &ro);
+        }
+    }
+
+    static inline void RenderBatchLocalWS(ModelWorld* world, dmRender::HMaterial material, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    {
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
+        const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
@@ -386,7 +425,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
-        ro.m_Material = first->m_Resource->m_Material;
+        ro.m_Material = material;
         ro.m_WorldTransform = first->m_World;
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             ro.m_Textures[i] = first->m_Resource->m_Textures[i];
@@ -400,6 +439,28 @@ namespace dmGameSystem
         }
 
         dmRender::AddToRender(render_context, &ro);
+    }
+
+    static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
+    {
+        DM_PROFILE(Model, "RenderBatch");
+
+        const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
+        dmRender::HMaterial material = first->m_Resource->m_Material;
+        switch(dmRender::GetMaterialVertexSpace(material))
+        {
+            case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
+                RenderBatchLocalWS(world, material, render_context, buf, begin, end);
+            break;
+
+            case dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL:
+                RenderBatchLocalVS(world, material, render_context, buf, begin, end);
+            break;
+
+            default:
+                assert(false);
+            break;
+        }
     }
 
     void UpdateTransforms(ModelWorld* world)
