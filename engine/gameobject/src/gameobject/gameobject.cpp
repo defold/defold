@@ -2057,7 +2057,7 @@ namespace dmGameObject
                     UpdateTransforms(collection);
                 }
                 uint32_t message_count = dmMessage::Dispatch(sockets[i], &DispatchMessagesFunction, (void*) &ctx);
-                if (message_count > 0)
+                if (message_count)
                 {
                     collection->m_DirtyTransforms = true;
                     iterate = true;
