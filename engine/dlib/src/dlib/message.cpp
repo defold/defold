@@ -286,6 +286,8 @@ namespace dmMessage
 
     bool HasMessages(HSocket socket)
     {
+        if (!socket)
+            return false;
         DM_MUTEX_SCOPED_LOCK(g_MessageContext->m_Mutex);
         MessageSocket* s = g_MessageContext->m_Sockets.Get(socket);
         if (s != 0)
