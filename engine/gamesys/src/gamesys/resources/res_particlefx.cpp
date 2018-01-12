@@ -3,6 +3,7 @@
 #include <dlib/log.h>
 
 #include <particle/particle_ddf.h>
+#include <render/render.h>
 
 namespace dmGameSystem
 {
@@ -34,6 +35,12 @@ namespace dmGameSystem
                 dmLogError("Could not load material \"%s\" for particle fx \"%s\".", material_path, filename);
                 return result;
             }
+            if(dmRender::GetMaterialVertexSpace((dmRender::HMaterial)material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+            {
+                dmLogError("Failed to create ParticleFX component. Material vertex space option only supports VERTEX_SPACE_WORLD");
+                return dmResource::RESULT_NOT_SUPPORTED;
+            }
+
             dmParticle::SetMaterial(prototype, i, material);
         }
         return dmResource::RESULT_OK;

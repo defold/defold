@@ -24,6 +24,12 @@ namespace dmGameSystem
         {
             return r;
         }
+        if(dmRender::GetMaterialVertexSpace(tile_grid->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        {
+            dmLogError("Failed to create Tile Grid component. Material vertex space option only supports VERTEX_SPACE_WORLD");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+
         // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
         if (tile_grid_ddf->m_BlendMode == dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA)
             tile_grid_ddf->m_BlendMode = dmGameSystemDDF::TileGrid::BLEND_MODE_ADD;

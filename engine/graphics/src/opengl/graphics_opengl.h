@@ -29,6 +29,7 @@ namespace dmGraphics
         // Version zero is never used
         uint32_t                m_ModificationVersion;
         uint32_t                m_TextureFormatSupport;
+        uint32_t                m_IndexBufferFormatSupport;
         uint32_t                m_DepthBufferBits;
         uint32_t                m_PackedDepthStencil : 1;
         uint32_t                m_WindowOpened : 1;
