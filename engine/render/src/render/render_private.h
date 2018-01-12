@@ -185,6 +185,13 @@ namespace dmRender
         };
     };
 
+    struct RenderListRange
+    {
+        uint32_t m_TagMask;
+        uint32_t m_Start;   // Index into the renderlist
+        uint32_t m_Count;
+    };
+
     struct RenderContext
     {
         dmGraphics::HTexture        m_Textures[RenderObject::MAX_TEXTURE_COUNT];
@@ -200,6 +207,7 @@ namespace dmRender
         dmArray<RenderListSortValue>m_RenderListSortValues;
         dmArray<uint32_t>           m_RenderListSortBuffer;
         dmArray<uint32_t>           m_RenderListSortIndices;
+        dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
 
         HFontMap                    m_SystemFontMap;
 
@@ -227,6 +235,35 @@ namespace dmRender
 
     void ApplyRenderObjectConstants(HRenderContext render_context, HMaterial material, const struct RenderObject* ro);
 
+
+    // Exposed here for unit testing
+    struct RenderListEntrySorter
+    {
+        bool operator()(int a, int b) const
+        {
+            // Sort them on tag mask first, then render order (due to costly z calculations)
+            const RenderListEntry& ea = m_Base[a];
+            const RenderListEntry& eb = m_Base[b];
+            return ea.m_TagMask < eb.m_TagMask;
+        }
+        RenderListEntry* m_Base;
+    };
+
+    struct FindRangeComparator
+    {
+        RenderListEntry* m_Entries;
+        bool operator() (const uint32_t& a, const uint32_t& b) const
+        {
+            return m_Entries[a].m_TagMask < m_Entries[b].m_TagMask;
+        }
+    };
+
+    typedef void (*RangeCallback)(void* ctx, uint32_t val, size_t start, size_t count);
+
+    // Invokes the callback for each range. Two ranges are not guaranteed to preceed/succeed one another.
+    void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback );
+
+    bool FindTagMaskRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_mask, RenderListRange& range);
 }
 
 #endif
