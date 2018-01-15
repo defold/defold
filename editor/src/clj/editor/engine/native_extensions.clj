@@ -213,7 +213,7 @@
   [project platform]
   (let [dir (io/file (workspace/project-path (project/workspace project)) "build" platform)]
     (fs/delete-directory! dir {:missing :ignore})
-    (fs/create-directory! dir)
+    (fs/create-directories! dir)
     dir))
 
 (def ^:private dmengine-dependencies
