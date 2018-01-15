@@ -215,7 +215,7 @@
                  :test-fn (fn [pb targets]
                             (let [main-node (first (filter #(= "spine" (:id %)) (:nodes pb)))
                                   nodes (into #{} (map :id (:nodes pb)))]
-                              (is (= "default" (:spine-skin main-node)))
+                              (is (= "" (:spine-skin main-node)))
                               (is (every? nodes ["spine" "spine/root" "box"]))))}]
                "/model/book_of_defold_no_tex.model"
                [{:label "Model with empty texture"
