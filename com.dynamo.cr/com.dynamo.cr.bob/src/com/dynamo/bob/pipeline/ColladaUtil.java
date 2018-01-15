@@ -698,10 +698,11 @@ public class ColladaUtil {
             }
         }
 
+        // Build an optimized list of triangles from indices and instance (make unique) any vertices common attributes (position, normal etc.).
+        // We can then use this to quickly build am optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
         boolean mesh_has_normals = normal_indices_list.size() > 0;
         List<MeshVertexIndex> shared_vertex_indices = new ArrayList<MeshVertexIndex>(mesh.triangles.count*3);
         List<Integer> mesh_index_list = new ArrayList<Integer>(mesh.triangles.count*3);
-        int mesh_index_max = 0;
         for (int i = 0; i < mesh.triangles.count*3; ++i) {
             MeshVertexIndex ci = new MeshVertexIndex();
             ci.position = position_indices_list.get(i);
@@ -709,14 +710,14 @@ public class ColladaUtil {
             ci.normal = mesh_has_normals ? normal_indices_list.get(i) : 0;
             int index = shared_vertex_indices.indexOf(ci);
             if(index == -1) {
+                // create new vertex as this is not equal to any existing in generated list
                 mesh_index_list.add(shared_vertex_indices.size());
-                mesh_index_max = Math.max(mesh_index_max, shared_vertex_indices.size());
                 shared_vertex_indices.add(ci);
             } else {
+                // shared vertex, add index to existing vertex in generating list instead of adding new
                 mesh_index_list.add(index);
             }
         }
-
         List<Rig.MeshVertexIndices> mesh_vertex_indices = new ArrayList<Rig.MeshVertexIndices>(mesh.triangles.count*3);
         for (int i = 0; i < shared_vertex_indices.size() ; ++i) {
             Rig.MeshVertexIndices.Builder b = Rig.MeshVertexIndices.newBuilder();
@@ -729,7 +730,7 @@ public class ColladaUtil {
 
         Rig.IndexBufferFormat indices_format;
         ByteBuffer indices_bytes;
-        if(mesh_index_max <= 0xffff)
+        if(shared_vertex_indices.size() <= 65536)
         {
             // if we only need 16-bit indices, use this primarily. Less data to upload to GPU and ES2.0 core functionality.
             indices_format = Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16;
