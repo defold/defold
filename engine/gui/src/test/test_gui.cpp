@@ -125,11 +125,11 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_SkinColor[10]              = skin_color.getZ();
     mesh.m_SkinColor[11]              = skin_color.getW();
 
-    mesh.m_Indices.m_Data         = new uint32_t[vert_count];
-    mesh.m_Indices.m_Count        = vert_count;
-    mesh.m_Indices.m_Data[0]      = 0;
-    mesh.m_Indices.m_Data[1]      = 1;
-    mesh.m_Indices.m_Data[2]      = 2;
+    mesh.m_PositionIndices.m_Data     = new uint32_t[vert_count];
+    mesh.m_PositionIndices.m_Count    = vert_count;
+    mesh.m_PositionIndices.m_Data[0]  = 0;
+    mesh.m_PositionIndices.m_Data[1]  = 1;
+    mesh.m_PositionIndices.m_Data[2]  = 2;
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
     mesh.m_BoneIndices.m_Data[0]  = 0;
@@ -564,7 +564,7 @@ private:
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_PositionIndices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_SkinColor.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
@@ -4670,7 +4670,7 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
             delete [] mesh.m_Normals.m_Data;
             delete [] mesh.m_BoneIndices.m_Data;
             delete [] mesh.m_Weights.m_Data;
-            delete [] mesh.m_Indices.m_Data;
+            delete [] mesh.m_PositionIndices.m_Data;
             delete [] mesh.m_Color.m_Data;
             delete [] mesh.m_SkinColor.m_Data;
             delete [] mesh.m_Texcoord0.m_Data;

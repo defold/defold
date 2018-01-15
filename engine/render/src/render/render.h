@@ -328,6 +328,8 @@ namespace dmRender
     int32_t                         GetMaterialConstantLocation(HMaterial material, dmhash_t name_hash);
     void                            SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter);
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
+    dmRenderDDF::MaterialDesc::VertexSpace GetMaterialVertexSpace(HMaterial material);
+    void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
     uint64_t                        GetMaterialUserData1(HMaterial material);
     void                            SetMaterialUserData1(HMaterial material, uint64_t user_data);
