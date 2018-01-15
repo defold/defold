@@ -1,0 +1,9 @@
+images {
+  image: "/def-3086/a.png"
+}
+images {
+  image: "/def-3086/b.png"
+}
+margin: 0
+extrude_borders: 0
+inner_padding: 0
