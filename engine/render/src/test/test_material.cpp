@@ -14,6 +14,37 @@ namespace dmGraphics
     extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, int base_register);
 }
 
+struct MaterialSamplerTestParams
+{
+    MaterialSamplerTestParams(const char* fp_data)
+    {
+        m_FpData = fp_data;
+        m_ExpectedSamplers[0] = 0x0;
+        m_ExpectedSamplers[1] = 0x0;
+    }
+    MaterialSamplerTestParams(const char* fp_data, const char* expected_sampler0)
+    {
+        m_FpData = fp_data;
+        m_ExpectedSamplers[0] = expected_sampler0;
+        m_ExpectedSamplers[1] = 0x0;
+    }
+    MaterialSamplerTestParams(const char* fp_data, const char* expected_sampler0, const char* expected_sampler1)
+    {
+        m_FpData = fp_data;
+        m_ExpectedSamplers[0] = expected_sampler0;
+        m_ExpectedSamplers[1] = expected_sampler1;
+    }
+    const char* m_FpData;
+    const char* m_ExpectedSamplers[2];
+};
+
+class MaterialSamplerTest : public ::testing::TestWithParam<MaterialSamplerTestParams>
+{
+protected:
+    void SetUp() {};
+    void TearDown() {};
+};
+
 TEST(dmMaterialTest, TestTags)
 {
     dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
@@ -145,6 +176,59 @@ TEST(dmMaterialTest, TestMaterialConstantsOverride)
     dmGraphics::DeleteContext(context);
     dmScript::DeleteContext(params.m_ScriptContext);
 }
+
+TEST_P(MaterialSamplerTest, ValidSamplers)
+{
+    MaterialSamplerTestParams test_data = GetParam();
+    ASSERT_NE((void*)0x0, test_data.m_FpData);
+
+    dmGraphics::HContext context = dmGraphics::NewContext(dmGraphics::ContextParams());
+    dmRender::RenderContextParams params;
+    params.m_ScriptContext = dmScript::NewContext(0, 0, true);
+    dmRender::HRenderContext render_context = dmRender::NewRenderContext(context, params);
+
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(context, "foo", 3);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(context, test_data.m_FpData, strlen(test_data.m_FpData));
+
+    dmRender::HMaterial material = dmRender::NewMaterial(render_context, vp, fp);
+
+    // This is otherwise done in res_material.cpp
+    uint32_t expected_sampler_count = 0;
+    for (int i = 0; i < 2; ++i)
+    {
+        if (test_data.m_ExpectedSamplers[i])
+        {
+            dmRender::SetMaterialSampler(material, dmHashString64(test_data.m_ExpectedSamplers[i]), i, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_DEFAULT, dmGraphics::TEXTURE_FILTER_DEFAULT);
+            expected_sampler_count++;
+        }
+    }
+
+    // Verify samplers list
+    const dmArray<dmRender::Sampler>* samplers = dmRender::GetMaterialSamplers(material);
+    ASSERT_EQ(expected_sampler_count, samplers->Size());
+    for (int i = 0; i < expected_sampler_count; ++i)
+    {
+        ASSERT_EQ(dmHashString64(test_data.m_ExpectedSamplers[i]), (*samplers)[i].m_NameHash);
+    }
+
+    dmGraphics::DeleteVertexProgram(vp);
+    dmGraphics::DeleteFragmentProgram(fp);
+
+    dmRender::DeleteMaterial(render_context, material);
+
+    dmRender::DeleteRenderContext(render_context, 0);
+    dmGraphics::DeleteContext(context);
+    dmScript::DeleteContext(params.m_ScriptContext);
+}
+
+/* Validate we can get sampler list for materials */
+MaterialSamplerTestParams valid_material_samplers[] = {
+    MaterialSamplerTestParams("uniform vec4 dummy;\n"),
+    MaterialSamplerTestParams("uniform vec4 dummy;\nuniform sampler2D tex_diffuse;\n", "tex_diffuse", 0x0),
+    MaterialSamplerTestParams("uniform vec4 dummy;\nuniform sampler2D tex_diffuse;\nuniform vec4 dummy2;\n", "tex_diffuse", 0x0),
+    MaterialSamplerTestParams("uniform vec4 dummy;\nuniform sampler2D tex_diffuse;\nuniform vec4 dummy2;\nuniform sampler2D tex_normal;\n", "tex_diffuse", "tex_normal")
+};
+INSTANTIATE_TEST_CASE_P(MaterialSamplerValid, MaterialSamplerTest, ::testing::ValuesIn(valid_material_samplers));
 
 int main(int argc, char **argv)
 {

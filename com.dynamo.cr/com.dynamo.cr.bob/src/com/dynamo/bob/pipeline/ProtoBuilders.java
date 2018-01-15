@@ -42,7 +42,7 @@ import com.dynamo.tile.proto.Tile.TileGrid;
 
 public class ProtoBuilders {
 
-    private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
+    private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap", ".atlas"};
 
     static String replaceTextureName(String str) {
         String out = str;
@@ -183,6 +183,14 @@ public class ProtoBuilders {
             }
             messageBuilder.clearMaterials();
             messageBuilder.addAllMaterials(newMaterialList);
+
+            List<RenderPrototypeDesc.TextureDesc> newTextureList = new ArrayList<RenderPrototypeDesc.TextureDesc>();
+            for (RenderPrototypeDesc.TextureDesc m : messageBuilder.getTexturesList()) {
+                BuilderUtil.checkResource(this.project, resource, "texture", m.getTexture());
+                newTextureList.add(RenderPrototypeDesc.TextureDesc.newBuilder().mergeFrom(m).setTexture(replaceTextureName(m.getTexture())).build());
+            }
+            messageBuilder.clearTextures();
+            messageBuilder.addAllTextures(newTextureList);
 
             return messageBuilder;
         }

@@ -61,11 +61,14 @@ namespace dmRender
                 }
                 case COMMAND_TYPE_ENABLE_RENDER_TARGET:
                 {
-                    dmGraphics::EnableRenderTarget(context, (dmGraphics::HRenderTarget)c->m_Operands[0] );
+                    dmGraphics::HRenderTarget rt = (dmGraphics::HRenderTarget)c->m_Operands[0];
+                    render_context->m_CurrentRenderTarget = rt;
+                    dmGraphics::EnableRenderTarget(context, rt);
                     break;
                 }
                 case COMMAND_TYPE_DISABLE_RENDER_TARGET:
                 {
+                    render_context->m_CurrentRenderTarget = 0x0;
                     dmGraphics::DisableRenderTarget(context, (dmGraphics::HRenderTarget)c->m_Operands[0] );
                     break;
                 }

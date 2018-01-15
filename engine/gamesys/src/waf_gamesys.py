@@ -244,6 +244,10 @@ def transform_render(task, msg):
     msg.script = msg.script.replace('.render_script', '.render_scriptc')
     for m in msg.materials:
         m.material = m.material.replace('.material', '.materialc')
+    for t in msg.textures:
+        t.texture = t.texture.replace('.tileset', '.texturesetc')
+        t.texture = t.texture.replace('.tilesource', '.texturesetc')
+        t.texture = t.texture.replace('.atlas', '.texturesetc')
     return msg
 
 def transform_sprite(task, msg):

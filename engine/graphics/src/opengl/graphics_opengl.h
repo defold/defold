@@ -95,6 +95,10 @@ namespace dmGraphics
     {
         TextureParams   m_BufferTextureParams[MAX_BUFFER_TYPE_COUNT];
         HTexture        m_ColorBufferTexture;
+        // Keep track if the color attachment was created outside dmGraphics.
+        // We use this bool to know if we can safely delete the texture or not
+        // once the rendertarget is deleted.
+        bool            m_ColorBufferExternal;
         GLuint          m_DepthBuffer;
         GLuint          m_StencilBuffer;
         GLuint          m_DepthStencilBuffer;

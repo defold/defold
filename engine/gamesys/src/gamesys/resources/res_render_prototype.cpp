@@ -1,6 +1,9 @@
 #include "res_render_prototype.h"
 
 #include <render/render_ddf.h>
+#include <dlib/dstrings.h>
+
+#include <string.h>
 
 #include "../gamesys.h"
 
@@ -59,6 +62,34 @@ namespace dmGameSystem
                     dmRender::AddRenderScriptInstanceMaterial(prototype->m_Instance, prototype_desc->m_Materials[i].m_Name, prototype->m_Materials[i]);
                 }
             }
+
+            prototype->m_Textures.SetCapacity(prototype_desc->m_Textures.m_Count);
+            for (uint32_t i = 0; i < prototype_desc->m_Textures.m_Count; ++i)
+            {
+                dmGraphics::HTexture texture;
+                if (dmResource::RESULT_OK == dmResource::Get(factory, prototype_desc->m_Textures[i].m_Texture, (void**)&texture))
+                    prototype->m_Textures.Push(texture);
+                else
+                    break;
+            }
+            if (!prototype->m_Textures.Full())
+            {
+                result = dmResource::RESULT_OUT_OF_RESOURCES;
+            }
+            else
+            {
+                for (uint32_t i = 0; i < prototype->m_Textures.Size(); ++i)
+                {
+                    dmhash_t texture_path;
+                    result = dmResource::GetPath(factory, prototype->m_Textures[i], &texture_path);
+                    if (result != dmResource::RESULT_OK) {
+                        return result;
+                    }
+                    dmRender::AddRenderScriptInstanceTexture(prototype->m_Instance, prototype_desc->m_Textures[i].m_Name, texture_path);
+                }
+            }
+
+
         }
         dmDDF::FreeMessage(prototype_desc);
         return result;
@@ -70,6 +101,8 @@ namespace dmGameSystem
             dmResource::Release(factory, prototype->m_Script);
         for (uint32_t i = 0; i < prototype->m_Materials.Size(); ++i)
             dmResource::Release(factory, prototype->m_Materials[i]);
+        for (uint32_t i = 0; i < prototype->m_Textures.Size(); ++i)
+            dmResource::Release(factory, prototype->m_Textures[i]);
     }
 
     dmResource::Result ResRenderPrototypeCreate(const dmResource::ResourceCreateParams& params)
@@ -117,6 +150,7 @@ namespace dmGameSystem
             ReleaseResources(params.m_Factory, prototype);
             prototype->m_Script = tmp_prototype.m_Script;
             prototype->m_Materials.Swap(tmp_prototype.m_Materials);
+            prototype->m_Textures.Swap(tmp_prototype.m_Textures);
         }
         else
         {

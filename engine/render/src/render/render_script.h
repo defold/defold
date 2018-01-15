@@ -34,6 +34,7 @@ namespace dmRender
     {
         dmArray<Command>            m_CommandBuffer;
         dmHashTable64<HMaterial>    m_Materials;
+        dmHashTable64<dmhash_t>     m_TexturePaths;
         Predicate*                  m_Predicates[MAX_PREDICATE_COUNT];
         RenderContext*              m_RenderContext;
         HRenderScript               m_RenderScript;

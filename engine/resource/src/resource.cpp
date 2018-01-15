@@ -320,7 +320,7 @@ Result LoadArchiveIndex(const char* manifestPath, HFactory factory)
                 return RESULT_IO_ERROR;
             }
         }
-	}
+    }
 
     return result;
 }
@@ -632,6 +632,7 @@ Result RegisterType(HFactory factory,
         return RESULT_ALREADY_REGISTERED;
 
     SResourceType resource_type;
+    resource_type.m_ExtensionHash = dmHashString64(extension);
     resource_type.m_Extension = extension;
     resource_type.m_Context = context;
     resource_type.m_PreloadFunction = preload_function;
@@ -1140,6 +1141,19 @@ Result Get(HFactory factory, const char* name, void** resource)
     return r;
 }
 
+Result Get(HFactory factory, uint64_t canonical_path_hash, void** resource)
+{
+    assert(resource);
+    *resource = 0;
+    SResourceDescriptor* res_desc = GetDescriptorRef(factory, canonical_path_hash);
+
+    if (res_desc == 0) {
+        return RESULT_RESOURCE_NOT_FOUND;
+    }
+    *resource = res_desc->m_Resource;
+    return RESULT_OK;
+}
+
 SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash)
 {
     return factory->m_Resources->Get(canonical_path_hash);
@@ -1333,15 +1347,15 @@ Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buf
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
-    	// If it was previously shallow, it is not anymore.
-    	if( rd->m_SharedState == DATA_SHARE_STATE_SHALLOW )
-    	{
-    		SResourceDescriptor* originalrd = factory->m_Resources->Get(rd->m_OriginalNameHash);
-    		assert(originalrd);
-    		assert(originalrd->m_ReferenceCount > 0);
-    		originalrd->m_ReferenceCount--;
-    		rd->m_OriginalNameHash = 0;
-    	}
+        // If it was previously shallow, it is not anymore.
+        if( rd->m_SharedState == DATA_SHARE_STATE_SHALLOW )
+        {
+            SResourceDescriptor* originalrd = factory->m_Resources->Get(rd->m_OriginalNameHash);
+            assert(originalrd);
+            assert(originalrd->m_ReferenceCount > 0);
+            originalrd->m_ReferenceCount--;
+            rd->m_OriginalNameHash = 0;
+        }
 
         rd->m_SharedState = DATA_SHARE_STATE_NONE; // The resource creator should now fully own the created resources
 
@@ -1492,6 +1506,39 @@ Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* de
     }
 }
 
+SResourceDescriptor* GetDescriptorRef(HFactory factory, uint64_t resource_hash)
+{
+    SResourceDescriptor* rd = factory->m_Resources->Get(resource_hash);
+    if(!rd)
+    {
+        return 0x0;
+    }
+    assert(rd->m_ReferenceCount > 0);
+    ++rd->m_ReferenceCount;
+    return rd;
+}
+
+SResourceDescriptor* GetDescriptorRef(HFactory factory, const void* resource)
+{
+    assert(resource);
+    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
+    if(!resource_hash)
+    {
+        return 0x0;
+    }
+    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
+    assert(rd);
+    assert(rd->m_ReferenceCount > 0);
+    ++rd->m_ReferenceCount;
+    return rd;
+}
+
+dmhash_t GetDescriptorExtension(SResourceDescriptor* descriptor)
+{
+    assert(descriptor);
+    return ((SResourceType*) descriptor->m_ResourceType)->m_ExtensionHash;
+}
+
 void IncRef(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
@@ -1617,6 +1664,12 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     return RESULT_RESOURCE_NOT_FOUND;
 }
 
+dmhash_t GetPath(HFactory factory, const char* name)
+{
+    char canonical_path[RESOURCE_PATH_MAX];
+    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+    return dmHashBuffer64(canonical_path, strlen(canonical_path));
+}
 
 dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)
 {

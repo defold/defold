@@ -106,13 +106,6 @@ namespace dmResource
         /// Name of original resource
         uint64_t m_OriginalNameHash;
 
-        /// Union of DDF descriptor and resource name
-        union
-        {
-            dmDDF::Descriptor* m_Descriptor;
-            const char*        m_ResourceTypeName;
-        };
-
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
 
@@ -438,6 +431,15 @@ namespace dmResource
     Result Get(HFactory factory, const char* name, void** resource);
 
     /**
+     * Get a resource from factory
+     * @param factory Factory handle
+     * @param canonical_path_hash The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
+     * @param resource Created resource
+     * @return RESULT_OK on success
+     */
+    Result Get(HFactory factory, uint64_t canonical_path_hash, void** resource);
+
+    /**
      * Get raw resource data. Unregistered resources can be loaded with this function.
      * The returned resource data must be deallocated with free()
      * @param factory Factory handle
@@ -511,6 +513,31 @@ namespace dmResource
      * @return RESULT_OK on success
      */
     Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
+
+    /**
+     * Get pointer to resource descriptor from resource (hash)
+     * Increases resource reference count
+     * @param factory Factory handle
+     * @param resource_hash Resource canonical path hash
+     * @return pointer to resource descriptor, or null if resource isn't loaded
+     */
+    SResourceDescriptor* GetDescriptorRef(HFactory factory, uint64_t resource_hash);
+
+    /**
+     * Get pointer to resource descriptor from resource (resource ptr)
+     * Increases resource reference count
+     * @param factory Factory handle
+     * @param name name Resource name
+     * @return pointer to resource descriptor, or null if resource isn't loaded
+     */
+    SResourceDescriptor* GetDescriptorRef(HFactory factory, const void* resource);
+
+    /**
+     * Get extension hash from resource descriptor
+     * @param descriptor Returned resource descriptor
+     * @return extension hash
+     */
+    dmhash_t GetDescriptorExtension(SResourceDescriptor* descriptor);
 
     /**
      * Increase resource reference count

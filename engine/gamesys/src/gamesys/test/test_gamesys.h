@@ -129,6 +129,12 @@ public:
     virtual ~WindowEventTest() {}
 };
 
+class RenderScriptTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~RenderScriptTest() {}
+};
+
 struct DrawCountParams
 {
     const char* m_GOPath;
@@ -192,6 +198,7 @@ void GamesysTest<T>::SetUp()
     render_params.m_MaxInstances = 1000;
     render_params.m_MaxRenderTargets = 10;
     render_params.m_ScriptContext = m_ScriptContext;
+    render_params.m_Factory = m_Factory;
     m_RenderContext = dmRender::NewRenderContext(m_GraphicsContext, render_params);
     m_GuiContext.m_RenderContext = m_RenderContext;
     m_GuiContext.m_ScriptContext = m_ScriptContext;
