@@ -174,7 +174,7 @@ TEST_F(EngineTest, DEF_1480)
 
 TEST_F(EngineTest, DEF_3086)
 {
-    // DEF-3086: ???
+    // DEF-3086: Loading two collectionproxies asnyc with same texture might leak memory.
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3086/main.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
