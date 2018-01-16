@@ -164,7 +164,7 @@ platforms:
 
   armv7-android:
     context:
-        engineJars: ["{{dynamo_home}}/ext/share/java/facebooksdk.jar", "{{dynamo_home}}/ext/share/java/bolts-android-1.2.0.jar", "{{dynamo_home}}/ext/share/java/google-play-services.jar", "{{dynamo_home}}/ext/share/java/android-support-v4.jar", "{{dynamo_home}}/ext/share/java/in-app-purchasing-2.0.61.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/facebook_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/iap_android.jar", "{{dynamo_home}}/share/java/push_android.jar", "{{dynamo_home}}/share/java/adtruth_android.jar", "{{dynamo_home}}/share/java/sound_android.jar", "{{dynamo_home}}/share/java/webview_android.jar", "{{dynamo_home}}/share/java/iac_android.jar"]
+        engineJars: ["{{dynamo_home}}/ext/share/java/facebooksdk.jar", "{{dynamo_home}}/ext/share/java/bolts-android-1.2.0.jar", "{{dynamo_home}}/ext/share/java/google-play-services.jar", "{{dynamo_home}}/ext/share/java/android-support-v4.jar", "{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/in-app-purchasing-2.0.61.jar", "{{dynamo_home}}/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/facebook_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/iap_android.jar", "{{dynamo_home}}/share/java/push_android.jar", "{{dynamo_home}}/share/java/adtruth_android.jar", "{{dynamo_home}}/share/java/sound_android.jar", "{{dynamo_home}}/share/java/webview_android.jar", "{{dynamo_home}}/share/java/iac_android.jar"]
         engineLibs: ["engine", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "openal_soft", "tremolo", "liveupdate"]
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{android_stl_lib}}"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
@@ -189,7 +189,7 @@ platforms:
     libCmd: 'arm-linux-androideabi-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
     javacCmd: 'javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath {{dynamo_home}}/ext/share/java/android-support-v4.jar:{{dynamo_home}}/ext/share/java/android.jar:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
-    dxCmd: 'dx -JXms2048m -JXmx2048m --dex --output {{classes_dex}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
+    dxCmd: 'dx -JXms2048m -JXmx2048m --dex --multi-dex --output {{classes_dex_dir}} {{#jars}}{{.}} {{/jars}} {{#engineJars}}{{.}} {{/engineJars}}'
 
   js-web:
     env:
