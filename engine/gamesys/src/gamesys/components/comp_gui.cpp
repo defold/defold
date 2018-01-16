@@ -803,7 +803,6 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
-        ro.m_WorldTransform = Matrix4::identity();
         ro.m_Textures[0] = (dmGraphics::HTexture)first_emitter_render_data->m_Texture;
 
         // Offset capacity to fit vertices for all emitters we are about to render
@@ -845,8 +844,8 @@ namespace dmGameSystem
             dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*)entries[i].m_RenderData;
             uint32_t vb_generate_size = 0;
             dmParticle::GenerateVertexData(
-                gui_world->m_ParticleContext, 
-                gui_world->m_DT, 
+                gui_world->m_ParticleContext,
+                gui_world->m_DT,
                 emitter_render_data->m_Instance,
                 emitter_render_data->m_EmitterIndex,
                 color,
@@ -919,7 +918,6 @@ namespace dmGameSystem
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = vertex_count;
         ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
-        ro.m_WorldTransform = Matrix4::identity();
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
@@ -1623,7 +1621,7 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
-        gui_world->m_DT = params.m_UpdateContext->m_DT;        
+        gui_world->m_DT = params.m_UpdateContext->m_DT;
         dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)
         {
