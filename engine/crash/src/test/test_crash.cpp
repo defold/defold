@@ -19,14 +19,21 @@ class dmCrashTest : public ::testing::Test
 
         virtual void SetUp()
         {
-            dmCrash::Init("TEST", "0123456789abcdef0123456789abcdef01234567");
+
+            time_t t = time(NULL);
+            struct tm* tm = localtime(&t);
+
+            m_EngineHash[0] = 0;
+            strftime(m_EngineHash, sizeof(m_EngineHash), "%Y-%m-%d %H:%M:%S", tm);
+
+            dmCrash::Init("TEST", m_EngineHash);
         }
 
         virtual void TearDown()
         {
 
         }
-    private:
+        char m_EngineHash[40];
 };
 
 TEST_F(dmCrashTest, Initialize)
@@ -44,8 +51,8 @@ TEST_F(dmCrashTest, TestLoad)
     dmSys::SystemInfo info;
     dmSys::GetSystemInfo(&info);
 
+    ASSERT_STREQ(m_EngineHash, dmCrash::GetSysField(d, dmCrash::SYSFIELD_ENGINE_HASH));
     ASSERT_EQ(0, strcmp("TEST", dmCrash::GetSysField(d, dmCrash::SYSFIELD_ENGINE_VERSION)));
-    ASSERT_EQ(0, strcmp("0123456789abcdef0123456789abcdef01234567", dmCrash::GetSysField(d, dmCrash::SYSFIELD_ENGINE_HASH)));
     ASSERT_EQ(0, strcmp(info.m_DeviceModel, dmCrash::GetSysField(d, dmCrash::SYSFIELD_DEVICE_MODEL)));
     ASSERT_EQ(0, strcmp(info.m_Manufacturer, dmCrash::GetSysField(d, dmCrash::SYSFIELD_MANUFACTURER)));
     ASSERT_EQ(0, strcmp(info.m_SystemName, dmCrash::GetSysField(d, dmCrash::SYSFIELD_SYSTEM_NAME)));
