@@ -387,7 +387,6 @@ namespace dmGameSystem
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = first->m_Resource->m_Material;
-        ro.m_WorldTransform = first->m_World;
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             ro.m_Textures[i] = first->m_Resource->m_Textures[i];
 
