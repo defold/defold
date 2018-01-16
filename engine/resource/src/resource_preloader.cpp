@@ -387,9 +387,9 @@ namespace dmResource
                     found = true;
 
                     // NOTE: Loading multiple collection proxies with shared resources at the same
-                    // time can result in these resources being loading once and then released for each
-                    // loading thread. We should fix so that this cannot happen since this is wasteful
-                    // of both performance and memory usage. There is an issue filed for this: DEF-3088
+                    // time can result in these resources being loading more than once.
+                    // We should fix so that this cannot happen since this is wasteful of both performance
+                    // and memory usage. There is an issue filed for this: DEF-3088
                     // Once that has been implemented, the delayed destroy (m_Destroy) can be removed,
                     // it would no longer be needed since each resource would only be created/loaded once.
 
