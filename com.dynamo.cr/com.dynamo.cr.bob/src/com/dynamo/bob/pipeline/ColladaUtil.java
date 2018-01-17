@@ -952,7 +952,7 @@ public class ColladaUtil {
     }
 
     // Finds first occurrence of JOINT in a subtree of the visual scene nodes.
-    private static XMLNode findFirstSkeleton(XMLNode node, Matrix4d transform) {
+    private static XMLNode findFirstSkeleton(XMLNode node, Matrix4d transform) throws LoaderException {
         if(node.type == XMLNode.Type.JOINT) {
             return node;
         }
@@ -962,10 +962,14 @@ public class ColladaUtil {
         XMLNode rootNode = null;
         if(!node.childrenList.isEmpty()) {
             for(XMLNode childNode : node.childrenList) {
-                rootNode = findFirstSkeleton(childNode, t);
-                if(rootNode != null) {
+                XMLNode skeletonNode = findFirstSkeleton(childNode, t);
+                if(skeletonNode != null) {
+                    if (rootNode != null) {
+                        throw new LoaderException("Found multiple root bones! Only one root bone for skeletons is supported.");
+                    }
+
+                    rootNode = skeletonNode;
                     transform.set(t);
-                    break;
                 }
             }
         }
@@ -973,18 +977,22 @@ public class ColladaUtil {
     }
 
     // Find first occurrence of JOINT in the visual scene.
+    // It will throw an error if there are more than one "root" JOINT since we only support one root currently.
     // This function also calculates the asset space transform in the scene up until the JOINT node.
-    private static XMLNode findSkeletonNode(XMLCOLLADA collada, Matrix4d transform) {
-        XMLNode rootNode = null;
+    private static XMLNode findSkeletonNode(XMLCOLLADA collada, Matrix4d transform) throws LoaderException {
+        XMLNode rootSkeletonNode = null;
         for ( XMLVisualScene scene : collada.libraryVisualScenes.get(0).scenes.values() ) {
             for ( XMLNode node : scene.nodes.values() ) {
-                rootNode = findFirstSkeleton(node, transform);
-                if(rootNode != null) {
-                    break;
+                XMLNode skeletonNode = findFirstSkeleton(node, transform);
+                if (skeletonNode != null) {
+                    if (rootSkeletonNode != null) {
+                        throw new LoaderException("Found multiple root bones! Only one root bone for skeletons is supported.");
+                    }
+                    rootSkeletonNode = skeletonNode;
                 }
             }
         }
-        return rootNode;
+        return rootSkeletonNode;
     }
 
     // Generate skeleton DDF data of bones.
