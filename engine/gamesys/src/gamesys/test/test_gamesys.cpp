@@ -236,21 +236,9 @@ TEST_P(ComponentFailTest, Test)
     ASSERT_EQ((void*)0, go);
 }
 
-// Test getting texture0 properties on components.
-TEST_P(TexturePropTest, GetTextureProperty)
+static void ValidateGetSetProperty(dmGameObject::HInstance go, dmhash_t hash_comp_1_1, dmhash_t hash_comp_1_2, dmhash_t hash_comp_2,
+        dmhash_t hash_property_id, dmhash_t hash_property_id_invalid, dmGameObject::PropertyDesc& prop_value1, dmGameObject::PropertyDesc& prop_value2)
 {
-    const TexturePropParams& p =  GetParam();
-
-    dmhash_t hash_comp_1_1 = p.comp_same_1;
-    dmhash_t hash_comp_1_2 = p.comp_same_2;
-    dmhash_t hash_comp_2   = p.comp_different;
-
-    dmGameObject::PropertyDesc prop_value1, prop_value2;
-
-    // Spawn a go with three components, two with same texture and one with a unique.
-    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
-    ASSERT_NE((void*)0, go);
-
     // Valid property
     dmGameObject::PropertyResult prop_res = dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, prop_res);
@@ -260,19 +248,145 @@ TEST_P(TexturePropTest, GetTextureProperty)
     prop_res = dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id_invalid, prop_value1);
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, prop_res);
 
-    // Compare comp_1_1 and comp_1_2 which need to have the same texture.
+    // Compare comp_1_1 and comp_1_2 which need to have the same value.
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_2, hash_property_id, prop_value2));
     ASSERT_EQ(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
 
-    // Compare comp_1_1 and comp_2 which don't have the same texture.
+    // Compare comp_1_1 and comp_2 which don't have the same value.
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_1_1, hash_property_id, prop_value1));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_2, hash_property_id, prop_value2));
     ASSERT_NE(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
 
+    // Test setting resource from comp_1_1 to comp_2 and compare equal results.
+    dmGameObject::PropertyVar prop_var = prop_value1.m_Variant;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, hash_comp_2, hash_property_id, prop_var));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_2, hash_property_id, prop_value2));
+    ASSERT_EQ(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
+}
+
+// Test getting and setting texture[0-8] properties on components.
+TEST_P(TexturePropTest, GetSetTextureProperty)
+{
+    const ResourcePropParams& p =  GetParam();
+    dmhash_t hash_comp_1_1 = p.comp_same_1;
+    dmhash_t hash_comp_1_2 = p.comp_same_2;
+    dmhash_t hash_comp_2   = p.comp_different;
+    dmhash_t hash_property_id[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
+        dmHashString64("texture0"),
+        dmHashString64("texture1"),
+        dmHashString64("texture2"),
+        dmHashString64("texture3"),
+        dmHashString64("texture4"),
+        dmHashString64("texture5"),
+        dmHashString64("texture6"),
+        dmHashString64("texture7")
+    };
+    dmhash_t hash_property_id_invalid = dmHashString64("texture_invalid_prop");
+    dmGameObject::PropertyDesc prop_value1, prop_value2;
+
+    // Spawn a go with three components, two with same texture and one with a unique.
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Get and set tests for property
+    ValidateGetSetProperty(go, hash_comp_1_1, hash_comp_1_2, hash_comp_2, hash_property_id[0], hash_property_id_invalid, prop_value1, prop_value2);
+
+    // Test setting and getting 1-x texture units
+    for(uint32_t i = 1; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+    {
+        dmGameObject::PropertyVar prop_var_empty;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, hash_comp_2, hash_property_id[i], prop_var_empty));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_2, hash_property_id[i], prop_value2));
+        ASSERT_NE(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
+        dmGameObject::PropertyVar prop_var = prop_value1.m_Variant;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, hash_comp_2, hash_property_id[i], prop_var));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, hash_comp_2, hash_property_id[i], prop_value2));
+        ASSERT_EQ(prop_value1.m_Variant.m_Hash, prop_value2.m_Variant.m_Hash);
+    }
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Test getting and setting textureset property on components.
+TEST_P(TextureSetPropTest, GetSetTextureSetProperty)
+{
+    const ResourcePropParams& p =  GetParam();
+    dmhash_t hash_comp_1_1 = p.comp_same_1;
+    dmhash_t hash_comp_1_2 = p.comp_same_2;
+    dmhash_t hash_comp_2   = p.comp_different;
+    dmhash_t hash_property_id = dmHashString64("textureset");
+    dmhash_t hash_property_id_invalid = dmHashString64("textureset_invalid_prop");
+    dmGameObject::PropertyDesc prop_value1, prop_value2;
+
+    // Spawn a go with three components, two with same textureset and one with a unique.
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Get and set tests for property
+    ValidateGetSetProperty(go, hash_comp_1_1, hash_comp_1_2, hash_comp_2, hash_property_id, hash_property_id_invalid, prop_value1, prop_value2);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Test getting and setting material property on components.
+TEST_P(MaterialPropTest, GetSetMaterialProperty)
+{
+    const ResourcePropParams& p =  GetParam();
+    dmhash_t hash_comp_1_1 = p.comp_same_1;
+    dmhash_t hash_comp_1_2 = p.comp_same_2;
+    dmhash_t hash_comp_2   = p.comp_different;
+    dmhash_t hash_property_id = dmHashString64("material");
+    dmhash_t hash_property_id_invalid = dmHashString64("material_invalid_prop");
+    dmGameObject::PropertyDesc prop_value1, prop_value2;
+
+    // Spawn a go with three components, two with same material and one with a unique.
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, p.go_path, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    // Get and set tests for property
+    ValidateGetSetProperty(go, hash_comp_1_1, hash_comp_1_2, hash_comp_2, hash_property_id, hash_property_id_invalid, prop_value1, prop_value2);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static void GetSetResourceProperty(dmResource::HFactory factory, dmGameObject::HInstance go, const char** component_ids, const char* prop_id)
+{
+    dmhash_t prop_id_hash = dmHashString64(prop_id);
+    uint32_t ref;
+    dmGameObject::PropertyDesc prop_val;
+    dmGameObject::PropertyVar prop_var((dmhash_t)0);
+    for(uint32_t i = 0 ;; ++i)
+    {
+        if(component_ids[i] == 0)
+            break;
+        dmhash_t comp_hash = dmHashString64(component_ids[i]);
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(go, comp_hash, prop_id_hash, prop_val));
+        ref = dmResource::GetRefCount(factory, prop_val.m_Variant.m_Hash);
+        prop_var.m_Hash = 0;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, comp_hash, prop_id_hash, prop_var));
+        ASSERT_EQ(ref - 1, dmResource::GetRefCount(factory, prop_val.m_Variant.m_Hash));
+        prop_var = prop_val.m_Variant;
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, comp_hash, prop_id_hash, prop_var));
+        ASSERT_EQ(ref, dmResource::GetRefCount(factory, prop_val.m_Variant.m_Hash));
+    }
+}
+
+// Test getting and setting script resource propertes on components.
+TEST_P(GetSetResourcePropTest, GetSetResourceProperties)
+{
+    const char* go_name = GetParam();
+    // Spawn a go with all supported component types and a script testing properties
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_name, dmHashString64("/go"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+    const char* texture_comps[] = {"sprite", "model", "spine", "tilemap", 0};
+    GetSetResourceProperty(m_Factory, go, texture_comps, "texture0");
+    const char* material_comps[] = {"sprite", "model", "spine", "tilemap", "label", 0};
+    GetSetResourceProperty(m_Factory, go, material_comps, "material");
+    const char* textureset_comps[] = {"sprite", 0};
+    GetSetResourceProperty(m_Factory, go, textureset_comps, "textureset");
+
+}
 
 // Test that go.delete() does not influence other sprite animations in progress
 TEST_F(SpriteAnimTest, GoDeletion)
@@ -384,8 +498,6 @@ TEST_F(WindowEventTest, Test)
 TEST_P(FactoryTest, Test)
 {
     char resource_path[4][DMPATH_MAX_PATH];
-    dmHashEnableReverseHash(true);
-
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory = m_Factory;
     scriptlibcontext.m_Register = m_Register;
@@ -426,8 +538,8 @@ TEST_P(FactoryTest, Test)
     // create resource paths for resource to test for references
     DM_SNPRINTF(resource_path[0], DMPATH_MAX_PATH, "%s/%s", ROOT, "factory/factory_resource.goc");     // instance referenced in factory protoype
     DM_SNPRINTF(resource_path[1], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/valid.spritec");             // single instance (subresource of go)
-    DM_SNPRINTF(resource_path[2], DMPATH_MAX_PATH, "%s/%s", ROOT, "tile/valid.texturesetc");           // single instance (subresource of sprite)
-    DM_SNPRINTF(resource_path[3], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/sprite.materialc");          // single instance (subresource of sprite)
+    DM_SNPRINTF(resource_path[2], DMPATH_MAX_PATH, "%s/%s", ROOT, "tile/valid.texturesetc");           // subresource referenced by sprite instances
+    DM_SNPRINTF(resource_path[3], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/sprite.materialc");          // subresource referenced by sprite instances
 
     if(param.m_IsDynamic)
     {
@@ -455,8 +567,8 @@ TEST_P(FactoryTest, Test)
             }
             ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+            ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
             // --- step 2 ---
             // call factory.unload, derefencing factory reference.
@@ -466,8 +578,8 @@ TEST_P(FactoryTest, Test)
             dmGameObject::PostUpdate(m_Register);
             ASSERT_EQ(i*2, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+            ASSERT_EQ(i*3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+            ASSERT_EQ(i*3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
         }
 
         // --- step 3 ---
@@ -477,8 +589,8 @@ TEST_P(FactoryTest, Test)
         dmGameObject::PostUpdate(m_Register);
         ASSERT_EQ(2, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
         // --- step 4 ---
         // delete resources created by factory.create calls. All resource should be released
@@ -497,8 +609,8 @@ TEST_P(FactoryTest, Test)
         dmGameObject::PostUpdate(m_Register);
         ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
         // delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
@@ -529,8 +641,8 @@ TEST_P(FactoryTest, Test)
         // verify two instances created + one reference from factory prototype
         ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
         // --- step 2 ---
         // call factory.unload which is a no-operation for non-dynamic factories
@@ -539,8 +651,8 @@ TEST_P(FactoryTest, Test)
         dmGameObject::PostUpdate(m_Register);
         ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
+        ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
 
         // Delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
@@ -561,8 +673,6 @@ TEST_P(FactoryTest, Test)
 TEST_P(CollectionFactoryTest, Test)
 {
     char resource_path[5][DMPATH_MAX_PATH];
-    dmHashEnableReverseHash(true);
-
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory = m_Factory;
     scriptlibcontext.m_Register = m_Register;
@@ -604,8 +714,8 @@ TEST_P(CollectionFactoryTest, Test)
     DM_SNPRINTF(resource_path[0], DMPATH_MAX_PATH, "%s/%s", ROOT, "collection_factory/collectionfactory_test.collectionc"); // prototype resource (loaded in collection factory resource)
     DM_SNPRINTF(resource_path[1], DMPATH_MAX_PATH, "%s/%s", ROOT, "collection_factory/collectionfactory_resource.goc");     // two instances referenced in factory collection protoype
     DM_SNPRINTF(resource_path[2], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/valid.spritec");                                  // single instance (subresource of go's)
-    DM_SNPRINTF(resource_path[3], DMPATH_MAX_PATH, "%s/%s", ROOT, "tile/valid.texturesetc");                                // single instance (subresource of sprite)
-    DM_SNPRINTF(resource_path[4], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/sprite.materialc");                               // single instance (subresource of sprite)
+    DM_SNPRINTF(resource_path[3], DMPATH_MAX_PATH, "%s/%s", ROOT, "tile/valid.texturesetc");                                // subresource referenced by sprite instances
+    DM_SNPRINTF(resource_path[4], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/sprite.materialc");                               // subresource referenced by sprite instances
 
     if(param.m_IsDynamic)
     {
@@ -635,8 +745,8 @@ TEST_P(CollectionFactoryTest, Test)
             ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(6, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
             ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-            ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+            ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+            ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
             // --- step 2 ---
             // call collectionfactory.unload, derefencing 2 factory references.
@@ -647,8 +757,8 @@ TEST_P(CollectionFactoryTest, Test)
             ASSERT_EQ(i*0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(i*4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
             ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-            ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+            ASSERT_EQ(i*5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+            ASSERT_EQ(i*5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
         }
 
         // --- step 3 ---
@@ -659,8 +769,8 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
         // --- step 4 ---
         // delete resources created by collectionfactory.create calls. All resource should be released
@@ -681,8 +791,8 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
         // delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
@@ -716,8 +826,8 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(6, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
         // --- step 2 ---
         // call collectionfactory.unload which is a no-operation for non-dynamic factories
@@ -727,8 +837,8 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(6, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
-        ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
+        ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        ASSERT_EQ(5, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[4])));
 
         // Delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
@@ -1191,14 +1301,40 @@ INSTANTIATE_TEST_CASE_P(Label, ComponentTest, ::testing::ValuesIn(valid_label_go
 const char* invalid_label_gos[] = {"/label/invalid_label.goc"};
 INSTANTIATE_TEST_CASE_P(Label, ComponentFailTest, ::testing::ValuesIn(invalid_label_gos));
 
-/* Get texture0 property on sprite and model */
-
-TexturePropParams texture_prop_params[] =
+/* Get and set texture(x) property on supported components */
+ResourcePropParams texture_prop_params[] =
 {
     {"/resource/sprite.goc", dmHashString64("sprite_1_1"), dmHashString64("sprite_1_2"), dmHashString64("sprite_2")},
     {"/resource/model.goc", dmHashString64("model_1_1"), dmHashString64("model_1_2"), dmHashString64("model_2")},
+    {"/resource/spine.goc", dmHashString64("spine_1_1"), dmHashString64("spine_1_2"), dmHashString64("spine_2")},
+    {"/resource/tilemap.goc", dmHashString64("tilemap_1_1"), dmHashString64("tilemap_1_2"), dmHashString64("tilemap_2")},
 };
 INSTANTIATE_TEST_CASE_P(TextureProperty, TexturePropTest, ::testing::ValuesIn(texture_prop_params));
+
+/* Get and set textureset property on supported components */
+ResourcePropParams textureset_prop_params[] =
+{
+    {"/resource/sprite.goc", dmHashString64("sprite_1_1"), dmHashString64("sprite_1_2"), dmHashString64("sprite_2")},
+};
+INSTANTIATE_TEST_CASE_P(TextureSetProperty, TextureSetPropTest, ::testing::ValuesIn(textureset_prop_params));
+
+/* Get and set material property on supported components */
+ResourcePropParams material_prop_params[] =
+{
+    {"/resource/sprite.goc", dmHashString64("sprite_1_1"), dmHashString64("sprite_1_2"), dmHashString64("sprite_2")},
+    {"/resource/model.goc", dmHashString64("model_1_1"), dmHashString64("model_1_2"), dmHashString64("model_2")},
+    {"/resource/spine.goc", dmHashString64("spine_1_1"), dmHashString64("spine_1_2"), dmHashString64("spine_2")},
+    {"/resource/tilemap.goc", dmHashString64("tilemap_1_1"), dmHashString64("tilemap_1_2"), dmHashString64("tilemap_2")},
+    {"/resource/label.goc", dmHashString64("label_1_1"), dmHashString64("label_1_2"), dmHashString64("label_2")},
+};
+INSTANTIATE_TEST_CASE_P(MaterialProperty, MaterialPropTest, ::testing::ValuesIn(material_prop_params));
+
+/* Test get and set resource properties on supported components */
+const char* getset_resource_prop_params[] =
+{
+    "/resource/res_getset_prop.goc"
+};
+INSTANTIATE_TEST_CASE_P(GetSetResourceProperty, GetSetResourcePropTest, ::testing::ValuesIn(getset_resource_prop_params));
 
 /* Validate default and dynamic gameobject factories */
 

@@ -106,13 +106,6 @@ namespace dmResource
         /// Name of original resource
         uint64_t m_OriginalNameHash;
 
-        /// Union of DDF descriptor and resource name
-        union
-        {
-            dmDDF::Descriptor* m_Descriptor;
-            const char*        m_ResourceTypeName;
-        };
-
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
 
@@ -513,6 +506,31 @@ namespace dmResource
     Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
 
     /**
+     * Get pointer to resource descriptor from resource (hash)
+     * Increases resource reference count
+     * @param factory Factory handle
+     * @param resource_hash Resource canonical path hash
+     * @return pointer to resource descriptor, or null if resource isn't loaded
+     */
+    SResourceDescriptor* GetDescriptorRef(HFactory factory, uint64_t resource_hash);
+
+    /**
+     * Get pointer to resource descriptor from resource (resource ptr)
+     * Increases resource reference count
+     * @param factory Factory handle
+     * @param name name Resource name
+     * @return pointer to resource descriptor, or null if resource isn't loaded
+     */
+    SResourceDescriptor* GetDescriptorRef(HFactory factory, const void* resource);
+
+    /**
+     * Get extension hash from resource descriptor
+     * @param descriptor Returned resource descriptor
+     * @return extension hash
+     */
+    dmhash_t GetDescriptorExtension(SResourceDescriptor* descriptor);
+
+    /**
      * Increase resource reference count
      * @param factory Factory handle
      * @param resource Resource
@@ -616,11 +634,21 @@ namespace dmResource
 
 
     /**
-     * Returns the hashed name of a resource
+     * Returns the canonical path hash of a resource
      * @param factory Factory handle
      * @param resource Resource
+     * @param hash Returned hash
+     * @return RESULT_OK on success
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
+
+    /**
+     * Returns the canonical path hash of a resource name
+     * @param factory Factory handle
+     * @param name Resource name
+     * @return canonical path hash
+    */
+    dmhash_t GetPath(HFactory factory, const char* name);
 
     /**
      * Returns the mutex held when loading asynchronous

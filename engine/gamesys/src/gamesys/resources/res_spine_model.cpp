@@ -6,7 +6,18 @@ namespace dmGameSystem
 {
     dmResource::Result AcquireResources(dmResource::HFactory factory, SpineModelResource* resource, const char* filename)
     {
-        dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_SpineScene, (void**) &resource->m_RigScene);
+        dmResource::Result result;        
+        size_t texture_count = dmMath::Min(resource->m_Model->m_Textures.m_Count, dmRender::RenderObject::MAX_TEXTURE_COUNT);
+        for(uint32_t i = 0; i < texture_count; ++i)
+        {
+            const char* texture = resource->m_Model->m_Textures[i];
+            if (*texture == 0)
+                continue;
+            result = dmResource::Get(factory, texture, (void**) &resource->m_Textures[i]);
+            if (result != dmResource::RESULT_OK)
+                return result;
+        }
+        result = dmResource::Get(factory, resource->m_Model->m_SpineScene, (void**) &resource->m_RigScene);
         if (result != dmResource::RESULT_OK)
             return result;
         result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &resource->m_Material);
@@ -21,6 +32,11 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_RigScene);
         if (resource->m_Material != 0x0)
             dmResource::Release(factory, resource->m_Material);
+        for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (resource->m_Textures[i] != 0x0)
+                dmResource::Release(factory, resource->m_Textures[i]);
+        }
     }
 
     dmResource::Result ResSpineModelPreload(const dmResource::ResourcePreloadParams& params)
@@ -34,6 +50,15 @@ namespace dmGameSystem
 
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_SpineScene);
         dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
+
+        for(uint32_t i = 0; i < ddf->m_Textures.m_Count; ++i)
+        {
+            const char* texture = ddf->m_Textures[i];
+            if (*texture)
+            {
+                dmResource::PreloadHint(params.m_HintInfo, texture);
+            }
+        }
 
         *params.m_PreloadData = ddf;
         return dmResource::RESULT_OK;

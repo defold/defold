@@ -73,14 +73,14 @@ namespace dmFontView
             params.m_Text = context->m_TestString;
             params.m_WorldTransform = Matrix4::translation(Vectormath::Aos::Vector3(x, y, 0.0f));
             params.m_FaceColor = Vectormath::Aos::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
-            dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, params);
+            dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, 0, params);
 
             y += 60;
 
             params.m_Text = buffer;
             params.m_WorldTransform = Matrix4::translation(Vectormath::Aos::Vector3(x, y, 0.0f));
 
-            dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, params);
+            dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, 0, params);
 
             dmGraphics::SetBlendFunc(context->m_GraphicsContext, dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
             dmGraphics::EnableState(context->m_GraphicsContext, dmGraphics::STATE_BLEND);

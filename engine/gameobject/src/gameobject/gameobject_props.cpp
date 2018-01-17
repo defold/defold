@@ -20,7 +20,8 @@ namespace dmGameObject
             "vector3",
             "vector4",
             "quat",
-            "bool"
+            "bool",
+            "resource",
     };
 
     PropertySet::PropertySet()
@@ -49,6 +50,7 @@ namespace dmGameObject
         properties->m_ResolvePathCallback = params.m_ResolvePathCallback;
         properties->m_ResolvePathUserData = params.m_ResolvePathUserData;
         properties->m_GetURLCallback = params.m_GetURLCallback;
+        properties->m_Factory = params.m_Factory;
         return properties;
     }
 

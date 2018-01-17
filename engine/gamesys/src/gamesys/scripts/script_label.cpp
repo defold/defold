@@ -127,6 +127,26 @@ namespace dmGameSystem
  * ```
  */
 
+/*# [type:hash] label material
+ *
+ * The material hash id of the label. Used for getting/setting label material
+ *
+ * @name material
+ * @property
+ *
+ * @examples
+ *
+ * How to set label material from a go material resource property
+ *
+ * ```lua
+ * go.property("mymaterial", material("/main/material.material"))
+ * function init(self)
+ *   go.set("#label", "material", self.mymaterial)
+ * end
+ * ```
+ */
+
+
 static void FreeLabelString(dmMessage::Message* message)
 {
     dmGameSystemDDF::SetText* textmsg = (dmGameSystemDDF::SetText*) message->m_Data;

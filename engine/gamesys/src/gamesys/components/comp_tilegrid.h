@@ -4,6 +4,7 @@
 #include <dlib/array.h>
 #include <gameobject/gameobject.h>
 #include "../resources/res_tilegrid.h"
+#include "comp_private.h"
 #include "tile_ddf.h"
 
 namespace dmGameSystem
@@ -43,6 +44,9 @@ namespace dmGameSystem
         Vectormath::Aos::Quat       m_Rotation;
         Vectormath::Aos::Matrix4    m_RenderWorldTransform;
         dmGameObject::HInstance     m_Instance;
+        CompRenderConstants         m_RenderConstants;
+        CompRenderTextures          m_RenderTextures;
+        CompRenderMaterial          m_RenderMaterial;
         TileGridResource*           m_TileGridResource;
         uint16_t*                   m_Cells;
         Flags*                      m_CellFlags;

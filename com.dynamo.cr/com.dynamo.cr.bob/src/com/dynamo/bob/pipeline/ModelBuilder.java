@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.dynamo.bob.Builder;
@@ -45,6 +46,11 @@ public class ModelBuilder extends Builder<Void> {
             taskBuilder.addInput(animations);
         }
 
+        for (String t : modelDescBuilder.getTexturesList()) {
+            IResource resource = BuilderUtil.checkResource(this.project, input, "texture", t);
+            taskBuilder.addInput(resource);
+        }
+
         return taskBuilder.build();
     }
 
@@ -77,7 +83,12 @@ public class ModelBuilder extends Builder<Void> {
 
         }
 
-        rigBuilder.setTextureSet(""); // this is set in the model
+        List<String> newTextureList = new ArrayList<String>();
+        for (String t : modelDescBuilder.getTexturesList()) {
+            newTextureList.add(ProtoBuilders.resolveTextureFilename(t));
+        }
+        rigBuilder.addAllTextures(newTextureList);
+
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
         rigBuilder.build().writeTo(out);
         out.close();
@@ -91,12 +102,6 @@ public class ModelBuilder extends Builder<Void> {
         BuilderUtil.checkResource(this.project, resource, "material", modelDescBuilder.getMaterial());
         model.setMaterial(BuilderUtil.replaceExt(modelDescBuilder.getMaterial(), ".material", ".materialc"));
 
-        List<String> newTextureList = new ArrayList<String>();
-        for (String t : modelDescBuilder.getTexturesList()) {
-            BuilderUtil.checkResource(this.project, resource, "texture", t);
-            newTextureList.add(ProtoBuilders.replaceTextureName(t));
-        }
-        model.addAllTextures(newTextureList);
         model.setDefaultAnimation(modelDescBuilder.getDefaultAnimation());
 
         out = new ByteArrayOutputStream(64 * 1024);

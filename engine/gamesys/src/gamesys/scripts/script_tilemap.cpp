@@ -25,6 +25,44 @@ namespace dmGameSystem
      * @namespace tilemap
      */
 
+    /*# [type:hash] tile map texture(n) where n is 0-7
+     *
+     * The texture hash id of the tile map. Used for getting/setting tile map texture for unit 0-7
+     *
+     * @name texture(n)
+     * @property
+     *
+     * @examples
+     *
+     * How to set tile map texture for unit 0 from a go texture resource property
+     *
+     * ```lua
+     * go.property("mytexture", texture("/main/texture.png"))
+     * function init(self)
+     *   go.set("#tilemap", "texture0", self.mytexture)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] tile map material
+     *
+     * The material hash id of the tile map. Used for getting/setting tile map material
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set tile map material from a go material resource property
+     *
+     * ```lua
+     * go.property("mymaterial", material("/main/material.material"))
+     * function init(self)
+     *   go.set("#tilemap", "material", self.mymaterial)
+     * end
+     * ```
+     */
+
     /*# set a shader constant for a tile map
      * Sets a shader constant for a tile map component.
      * The constant must be defined in the material assigned to the tile map.

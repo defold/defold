@@ -74,24 +74,59 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:hash] sprite texture0
+    /*# [type:hash] sprite textureset
      *
-     * [mark:READ ONLY] Returns the texture path hash of the sprite. Used for getting/setting resource data
+     * The textureset hash id of the sprite. Used for getting/setting sprite textureset
      *
-     * @name texture0
+     * @name textureset
      * @property
      *
      * @examples
      *
-     * How to overwrite a sprite's original texture
+     * How to set sprite textureset from a go textureset resource property
      *
      * ```lua
+     * go.property("mytextureset", textureset("/main/texture.atlas"))
      * function init(self)
-     *   -- get texture resource from one sprite and set it on another
-     *   local resource_path1 = go.get("#sprite1", "texture0")
-     *   local buffer = resource.load(resource_path1)
-     *   local resource_path2 = go.get("#sprite2", "texture0")
-     *   resource.set(resource_path2, buffer)
+     *   go.set("#sprite", "textureset", self.mytextureset)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] sprite texture(n) where n is 0-7
+     *
+     * The texture hash id of the sprite. Used for getting/setting sprite texture for unit 0-7
+     *
+     * @name texture(n)
+     * @property
+     *
+     * @examples
+     *
+     * How to set sprite texture for unit 0 from a go texture resource property
+     *
+     * ```lua
+     * go.property("mytexture", texture("/main/texture.png"))
+     * function init(self)
+     *   go.set("#sprite", "texture0", self.mytexture)
+     * end
+     * ```
+     */
+
+    /*# [type:hash] sprite material
+     *
+     * The material hash id of the sprite. Used for getting/setting sprite material
+     *
+     * @name material
+     * @property
+     *
+     * @examples
+     *
+     * How to set sprite material from a go material resource property
+     *
+     * ```lua
+     * go.property("mymaterial", material("/main/material.material"))
+     * function init(self)
+     *   go.set("#sprite", "material", self.mymaterial)
      * end
      * ```
      */

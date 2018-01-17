@@ -112,6 +112,11 @@ namespace dmGameObject
                 out_var.m_Bool = copy->m_FloatValues[index] != 0;
                 out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
             }
+            else if (GetPropertyEntryIndex(id, copy->m_ResourceEntries.m_Data, copy->m_ResourceEntries.m_Count, &index))
+            {
+                out_var.m_Hash = dmResource::GetPath(properties->m_Factory, copy->m_StringValues[index]);
+                out_var.m_Type = PROPERTY_TYPE_RESOURCE;
+            }
             else
             {
                 return PROPERTY_RESULT_NOT_FOUND;

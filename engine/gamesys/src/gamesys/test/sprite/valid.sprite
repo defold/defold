@@ -1,3 +1,4 @@
 tile_set: "/tile/valid.tileset"
 default_animation: "anim"
 material: "/sprite/sprite.material"
+textures: "/tile/mario_tileset.png"
