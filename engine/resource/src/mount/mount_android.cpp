@@ -1,4 +1,3 @@
-#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/path.h>
 #include <sys/mman.h>
@@ -74,7 +73,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    Result UnmapAsset(AAsset*& asset)
+    static Result UnmapAsset(AAsset*& asset)
     {
         if (asset != 0x0)
         {
@@ -109,7 +108,7 @@ namespace dmResource
         }
 
         // Map index asset (if bundled) or file (if in local storage)
-        if (dmStrCaseCmp(index_path, "game.arci") == 0)
+        if (strcmp(index_path, "game.arci") == 0)
         {
             r = MapAsset(am, index_path, (void*&)index_asset, index_length, index_map);
             if (r != RESULT_OK)
