@@ -73,6 +73,7 @@ public class SpineSceneBuilder extends Builder<Void> {
 
         taskBuilder.addInput(input.getResource(builder.getSpineJson()));
         taskBuilder.addInput(project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc")));
+
         return taskBuilder.build();
     }
 
@@ -436,6 +437,9 @@ public class SpineSceneBuilder extends Builder<Void> {
         b.setMeshSet(task.output(2).getPath().substring(buildDirLen));
         b.setAnimationSet(task.output(3).getPath().substring(buildDirLen));
         b.setTextureSet(BuilderUtil.replaceExt(builder.getAtlas(), "atlas", "texturesetc"));
+
+        // We store textures 1-x in spinemodel since we want to be able to set those per instance
+        b.addTextures(ProtoBuilders.resolveTextureFilename(builder.getAtlas()));
 
         Message msg = b.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);

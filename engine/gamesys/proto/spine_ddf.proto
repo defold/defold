@@ -27,6 +27,7 @@ message SpineModelDesc
     required string skin                = 3;
     optional BlendMode blend_mode       = 4 [default = BLEND_MODE_ALPHA];
     optional string material            = 5 [(resource)=true, default="/builtins/materials/spine.material"];
+    repeated string textures            = 6 [(resource)=true];
 }
 
 

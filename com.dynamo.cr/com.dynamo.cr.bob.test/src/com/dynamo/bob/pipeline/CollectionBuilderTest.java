@@ -1,5 +1,6 @@
 package com.dynamo.bob.pipeline;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashMap;
@@ -49,6 +50,9 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("    properties { id: \"vec4\" value: \"4, 5, 6, 7\" type: PROPERTY_TYPE_VECTOR4 }\n");
         src.append("    properties { id: \"quat\" value: \"8, 9, 10, 11\" type: PROPERTY_TYPE_QUAT }\n");
         src.append("    properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n");
+        src.append("    properties { id: \"textureset\" value: \"textureset\" type: PROPERTY_TYPE_RESOURCE }\n");
+        src.append("    properties { id: \"texture\" value: \"texture\" type: PROPERTY_TYPE_RESOURCE }\n");
+        src.append("    properties { id: \"material\" value: \"material\" type: PROPERTY_TYPE_RESOURCE }\n");
         src.append("  }\n");
         src.append("}\n");
         CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
@@ -62,6 +66,10 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
                 PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
                 PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
                 PropertiesTestUtil.assertBoolean(properties, true, 0);
+                Assert.assertEquals(3, properties.getResourceEntriesCount());
+                PropertiesTestUtil.assertResource(properties, "textureset", 0);
+                PropertiesTestUtil.assertResource(properties, "texture", 1);
+                PropertiesTestUtil.assertResource(properties, "material", 2);
             }
         }
     }

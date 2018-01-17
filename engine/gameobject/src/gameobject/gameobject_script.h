@@ -48,6 +48,7 @@ namespace dmGameObject
         PropertySet             m_PropertySet;
         dmLuaDDF::LuaModule*    m_LuaModule;
         int                     m_InstanceReference;
+        dmArray<void*>          m_PropertyResources;
     };
 
     typedef Script* HScript;

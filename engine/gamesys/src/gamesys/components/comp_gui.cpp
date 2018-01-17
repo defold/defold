@@ -768,7 +768,7 @@ namespace dmGameSystem
                 params.m_VAlign = dmRender::TEXT_VALIGN_BOTTOM;
                 break;
             }
-            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), 0, 0, params);
+            dmRender::DrawText(gui_context->m_RenderContext, (dmRender::HFontMap) dmGui::GetNodeFont(scene, node), 0, 0, 0, params);
         }
 
         dmRender::FlushTexts(gui_context->m_RenderContext, dmRender::RENDER_ORDER_AFTER_WORLD, MakeFinalRenderOrder(dmGui::GetRenderOrder(scene), gui_context->m_NextSortOrder++), false);

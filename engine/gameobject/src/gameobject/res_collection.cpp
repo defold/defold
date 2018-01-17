@@ -12,6 +12,37 @@
 
 namespace dmGameObject
 {
+    static void UnloadPropertyResources(dmResource::HFactory factory, dmArray<void*>& property_resources)
+    {
+        for(uint32_t i = 0; i < property_resources.Size(); ++i)
+        {
+            dmResource::Release(factory, property_resources[i]);
+        }
+        property_resources.SetSize(0);
+        property_resources.SetCapacity(0);
+    }
+
+    static dmResource::Result LoadPropertyResources(dmResource::HFactory factory, dmArray<void*>& property_resources, dmGameObjectDDF::CollectionDesc* ddf)
+    {
+        const char**& list = ddf->m_PropertyResources.m_Data;
+        uint32_t count = ddf->m_PropertyResources.m_Count;
+        assert(property_resources.Size() == 0);
+        property_resources.SetCapacity(count);
+        for(uint32_t i = 0; i < count; ++i)
+        {
+            void* resource;
+            dmResource::Result res = dmResource::Get(factory, list[i], &resource);
+            if(res != dmResource::RESULT_OK)
+            {
+                dmLogError("Could not load collection property resource '%s' (%d)", list[i], res);
+                UnloadPropertyResources(factory, property_resources);
+                return res;
+            }
+            property_resources.Push(resource);
+        }
+        return dmResource::RESULT_OK;
+    }
+
     dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameObjectDDF::CollectionDesc* collection_desc;
@@ -29,6 +60,10 @@ namespace dmGameObject
                 dmResource::PreloadHint(params.m_HintInfo, instance_desc.m_Prototype);
             }
         }
+        for (uint32_t i = 0; i < collection_desc->m_PropertyResources.m_Count; ++i)
+        {
+            dmResource::PreloadHint(params.m_HintInfo, collection_desc->m_PropertyResources.m_Data[i]);
+        }
 
         *params.m_PreloadData = collection_desc;
         return dmResource::RESULT_OK;
@@ -44,18 +79,22 @@ namespace dmGameObject
         // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmMutex::Lock(regist->m_Mutex);
 
+        uint32_t created_instances = 0;
         uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
         uint32_t collection_rig_capacity = dmGameObject::GetCollectionDefaultRigCapacity(regist);
         HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity, collection_rig_capacity);
         if (collection == 0)
         {
-            dmMutex::Unlock(regist->m_Mutex);
-            dmDDF::FreeMessage(collection_desc);
-            return dmResource::RESULT_OUT_OF_RESOURCES;
+            res = dmResource::RESULT_OUT_OF_RESOURCES;
+            goto bail;
         }
-        collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
+        res = LoadPropertyResources(params.m_Factory, collection->m_PropertyResources, collection_desc);
+        if(res != dmResource::RESULT_OK)
+        {
+            goto bail;
+        }
 
-        uint32_t created_instances = 0;
+        collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
         for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
@@ -206,7 +245,7 @@ namespace dmGameObject
 bail:
         dmDDF::FreeMessage(collection_desc);
 
-        if (res != dmResource::RESULT_OK)
+        if ((res != dmResource::RESULT_OK) && (collection != 0x0))
         {
             // Loading of root-collection is responsible for deleting
             DeleteCollection(collection);
@@ -219,6 +258,7 @@ bail:
     dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
     {
         HCollection collection = (HCollection) params.m_Resource->m_Resource;
+        UnloadPropertyResources(params.m_Factory, collection->m_PropertyResources);
         DeleteCollection(collection);
         return dmResource::RESULT_OK;
     }

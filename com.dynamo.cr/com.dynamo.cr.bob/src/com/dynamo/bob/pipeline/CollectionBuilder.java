@@ -2,6 +2,7 @@ package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -319,6 +320,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
         messageBuilder.clearEmbeddedInstances();
 
+        Collection<String> propertytResources = new HashSet<String>();
         for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
             InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));
             b.setId("/" + b.getId());
@@ -337,7 +339,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder(b.getComponentProperties(j));
                 PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
                 for (PropertyDesc desc : compPropBuilder.getPropertiesList()) {
-                    if (!PropertiesUtil.transformPropertyDesc(resource, desc, properties)) {
+                    if (!PropertiesUtil.transformPropertyDesc(resource, desc, properties, propertytResources)) {
                         throw new CompileExceptionError(resource, 0, String.format("The property %s.%s.%s has an invalid format: %s", b.getId(), compPropBuilder.getId(), desc.getId(), desc.getValue()));
                     }
                 }
@@ -346,6 +348,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             }
             messageBuilder.setInstances(i, b);
         }
+        messageBuilder.addAllPropertyResources(propertytResources);
 
         return messageBuilder;
     }

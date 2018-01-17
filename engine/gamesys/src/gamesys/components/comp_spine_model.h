@@ -7,6 +7,7 @@
 #include <rig/rig.h>
 
 #include "../resources/res_spine_model.h"
+#include "comp_private.h"
 
 namespace dmGameSystem
 {
@@ -22,8 +23,9 @@ namespace dmGameSystem
         dmRig::HRigInstance         m_RigInstance;
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
-        dmArray<dmRender::Constant> m_RenderConstants;
-        dmArray<Vector4>            m_PrevRenderConstants;
+        CompRenderConstants         m_RenderConstants;
+        CompRenderTextures          m_RenderTextures;
+        CompRenderMaterial          m_RenderMaterial;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         uint16_t                    m_ComponentIndex;
