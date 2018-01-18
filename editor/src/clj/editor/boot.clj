@@ -39,11 +39,11 @@
                     (swap! namespace-counter inc)
                     (when @namespace-progress-reporter
                       (@namespace-progress-reporter
-                       #(assoc %
-                               :message (str "Initializing editor " (if prefix
-                                                                      (str prefix "." lib)
-                                                                      (str lib)))
-                               :pos @namespace-counter)))
+                       #(progress/jump %
+                                       @namespace-counter
+                                       (str "Initializing editor " (if prefix
+                                                                     (str prefix "." lib)
+                                                                     (str lib))))))
                     (apply f prefix lib options))))
 
 
@@ -146,16 +146,17 @@
   (ui/modal-progress
    "Loading project" 100
    (fn [render-progress!]
-     (let [progress (atom (progress/make "Loading project..." 733))
+     (let [namespace-progress (progress/make "Loading editor" 1304) ; magic number from reading namespace-counter after load.
+           render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 2))
+           render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 2 1))
            project-file (io/file project)]
-       (reset! namespace-progress-reporter #(render-progress! (swap! progress %)))
-       (render-progress! (swap! progress progress/message "Initializing project..."))
+       (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
        ;; ensure that namespace loading has completed
        @namespace-loader
        (code-view/initialize! prefs)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
        (add-to-recent-projects prefs project)
-       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-progress! update-context])
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! update-context])
        (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome

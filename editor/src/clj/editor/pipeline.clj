@@ -4,6 +4,7 @@
    [dynamo.graph :as g]
    [editor.fs :as fs]
    [editor.resource :as resource]
+   [editor.progress :as progress]
    [editor.protobuf :as protobuf]
    [editor.workspace :as workspace]
    [util.digest :as digest])
@@ -146,25 +147,33 @@
         (fs/delete! f)))))
 
 (defn build!
-  [workspace build-targets]
-  (let [build-targets-by-key (make-build-targets-by-key build-targets)
-        artifacts (-> (workspace->artifacts workspace)
-                      (prune-artifacts build-targets-by-key))]
-    (prune-build-dir! workspace build-targets-by-key)
-    (let [results (into []
-                        (map (fn [[key {:keys [resource] :as build-target}]]
-                               (or (when-let [artifact (get artifacts resource)]
-                                     (and (valid? artifact) artifact))
-                                   (let [{:keys [resource deps build-fn user-data]} build-target
-                                         dep-resources (make-dep-resources deps build-targets-by-key)]
-                                     (-> (build-fn resource dep-resources user-data)
-                                         (to-disk! key))))))
-                        build-targets-by-key)
-          new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)
-          etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
-      (g/user-data! workspace ::artifacts new-artifacts)
-      (g/user-data! workspace ::etags etags)
-      results)))
+  ([workspace build-targets]
+   (build! workspace build-targets progress/null-render-progress!))
+  ([workspace build-targets render-progress!]
+   (let [build-targets-by-key (make-build-targets-by-key build-targets)
+         artifacts (-> (workspace->artifacts workspace)
+                       (prune-artifacts build-targets-by-key))
+         progress  (atom (progress/make "" (count build-targets-by-key)))]
+     (prune-build-dir! workspace build-targets-by-key)
+     (let [results (into []
+                         (map (fn [[key {:keys [resource] :as build-target}]]
+                                (swap! progress #(-> %
+                                                     (progress/advance)
+                                                     (progress/with-message (str "Writing " (or (resource/proj-path (:resource resource)) "embedded resource")))))
+                                (or (when-let [artifact (get artifacts resource)]
+                                      (and (valid? artifact) artifact))
+                                    (render-progress! @progress)
+                                    (let [{:keys [resource deps build-fn user-data]} build-target
+                                          dep-resources (make-dep-resources deps build-targets-by-key)
+                                          result (-> (build-fn resource dep-resources user-data)
+                                                     (to-disk! key))]
+                                      result))))
+                         build-targets-by-key)
+           new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)
+           etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
+       (g/user-data! workspace ::artifacts new-artifacts)
+       (g/user-data! workspace ::etags etags)
+       results))))
 
 (defn reset-cache! [workspace]
   (g/user-data! workspace ::artifacts nil)
