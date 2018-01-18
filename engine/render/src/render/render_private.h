@@ -57,6 +57,7 @@ namespace dmRender
         , m_TagMask(0)
         , m_UserData1(0)
         , m_UserData2(0)
+        , m_VertexSpace(dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL)
         {
         }
 
@@ -70,6 +71,7 @@ namespace dmRender
         uint32_t                                m_TagMask;
         uint64_t                                m_UserData1;
         uint64_t                                m_UserData2;
+        dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
     };
 
     // The order of this enum also defines the order in which the corresponding ROs should be rendered

@@ -79,6 +79,12 @@ public:
     virtual ~ResourceFailTest() {}
 };
 
+class InvalidVertexSpaceTest : public GamesysTest<const char*>
+{
+public:
+    virtual ~InvalidVertexSpaceTest() {}
+};
+
 class ComponentTest : public GamesysTest<const char*>
 {
 public:

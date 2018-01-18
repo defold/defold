@@ -10,7 +10,16 @@ namespace dmGameSystem
         if (result != dmResource::RESULT_OK)
             return result;
         result = dmResource::Get(factory, resource->m_Model->m_Material, (void**) &resource->m_Material);
-        return result;
+        if (result != dmResource::RESULT_OK)
+        {
+            return result;
+        }
+        if(dmRender::GetMaterialVertexSpace(resource->m_Material) != dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD)
+        {
+            dmLogError("Failed to create Spine Model component. Material vertex space option only supports VERTEX_SPACE_WORLD");
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+        return dmResource::RESULT_OK;
     }
 
     static void ReleaseResources(dmResource::HFactory factory, SpineModelResource* resource)
