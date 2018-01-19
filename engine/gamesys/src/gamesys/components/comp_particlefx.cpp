@@ -367,7 +367,8 @@ namespace dmGameSystem
                 memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
             }
 
-            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, params.m_Message->m_Receiver.m_Fragment, prototype, &emitter_state_changed_data);
+            dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
+            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, component_id, prototype, &emitter_state_changed_data);
 
             if (prototype->m_AddedToUpdate)
             {
@@ -387,7 +388,8 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < count; ++i)
             {
                 ParticleFXComponent* component = &world->m_Components[i];
-                if (component->m_Instance == params.m_Instance && component->m_ComponentId == params.m_Message->m_Receiver.m_Fragment)
+                dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
+                if (component->m_Instance == params.m_Instance && component->m_ComponentId == component_id)
                 {
                     dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance);
                 }
