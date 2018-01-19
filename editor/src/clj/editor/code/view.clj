@@ -385,7 +385,7 @@
                       \tab (let [sx (+ line-x x 2.0)
                                  sy (- line-y baseline-offset)]
                              (cond
-                               (and inside-leading-whitespace? (some? indent-type) (not= :tabs indent-type))
+                               (and inside-leading-whitespace? (not= :tabs indent-type))
                                (do (.setFill gc rogue-indent-color)
                                    (.fillRect gc sx sy (- next-x x 4.0) 1.0))
 
@@ -395,7 +395,6 @@
                       nil))
                   (when inside-visible-end?
                     (recur (and inside-leading-whitespace? (Character/isWhitespace character)) next-i next-x))))))
-
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
@@ -563,15 +562,15 @@
 
 ;; -----------------------------------------------------------------------------
 
+(g/defnk produce-indent-type [indent-type]
+  ;; TODO: Produce default from preferences.
+  (or indent-type :tabs))
+
 (g/defnk produce-indent-string [indent-type]
-  (case indent-type
-    :tabs "\t"
-    :two-spaces "  "
-    :four-spaces "    "
-    "\t"))
+  (data/indent-type->indent-string indent-type))
 
 (g/defnk produce-tab-spaces [indent-type]
-  (case indent-type :two-spaces 2 4))
+  (data/indent-type->tab-spaces indent-type))
 
 (g/defnk produce-indent-level-pattern [tab-spaces]
   (data/indent-level-pattern tab-spaces))
@@ -829,6 +828,7 @@
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
+  (output indent-type r/IndentType produce-indent-type)
   (output indent-string g/Str produce-indent-string)
   (output tab-spaces g/Num produce-tab-spaces)
   (output indent-level-pattern Pattern :cached produce-indent-level-pattern)
@@ -918,7 +918,7 @@
         (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
-                          (:cursor-ranges :lines :regions)
+                          (:cursor-ranges :indent-type :lines :regions)
                           (g/set-property resource-node prop-kw value)
 
                           ;; Several rows could have been invalidated between repaints.
@@ -1601,6 +1601,15 @@
                                        (get-property view-node :regions)
                                        (get-property view-node :layout)))))
 
+(handler/defhandler :convert-indentation :new-code-view
+  (run [view-node user-data]
+       (set-properties! view-node nil
+                        (data/convert-indentation (get-property view-node :indent-type)
+                                                  user-data
+                                                  (get-property view-node :lines)
+                                                  (get-property view-node :cursor-ranges)
+                                                  (get-property view-node :regions)))))
+
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
 ;; -----------------------------------------------------------------------------
@@ -1969,6 +1978,18 @@
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
                  {:command :reindent                   :label "Reindent Lines"}
+
+                 {:label "Convert Indentation"
+                  :children [{:label "To Tabs"
+                              :command :convert-indentation
+                              :user-data :tabs}
+                             {:label "To Two Spaces"
+                              :command :convert-indentation
+                              :user-data :two-spaces}
+                             {:label "To Four Spaces"
+                              :command :convert-indentation
+                              :user-data :four-spaces}]}
+
                  {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
                  {:command :sort-lines                 :label "Sort Lines"}
