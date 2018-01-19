@@ -223,7 +223,7 @@
 
 (deftest guess-indent-type-test
   (are [expected lines]
-    (= expected (first (data/guess-indent-type lines 4)))
+    (= expected (data/guess-indent-type lines 4))
 
     ;; Indeterminate. Used for nil or binary-looking input.
     nil nil
@@ -300,6 +300,63 @@
                   "      {" ; <- rogue indent
                   "    {"
                   "        {"]))
+
+(defn- convert-indentation [from-indent-type to-indent-type lines]
+  (select-keys (data/convert-indentation from-indent-type to-indent-type lines [] [])
+               [:lines :indent-type]))
+
+(deftest convert-indentation-test
+  (is (= {:indent-type :tabs}
+         (convert-indentation :four-spaces :tabs ["{"])))
+
+  (is (= {:lines ["    {"]
+          :indent-type :two-spaces}
+         (convert-indentation :tabs :two-spaces ["\t\t{"])))
+
+  (is (= {:lines ["        {"]
+          :indent-type :four-spaces}
+         (convert-indentation :tabs :four-spaces ["\t\t{"])))
+
+  (is (= {:lines ["\t\t\t\t{"]
+          :indent-type :tabs}
+         (convert-indentation :two-spaces :tabs ["        {"])))
+
+  (is (= {:lines ["\t\t{"]
+          :indent-type :tabs}
+         (convert-indentation :four-spaces :tabs ["        {"])))
+
+  (is (= {:lines ["    {"]
+          :indent-type :two-spaces}
+         (convert-indentation :four-spaces :two-spaces ["        {"])))
+
+  (is (= {:lines ["        {"]
+          :indent-type :four-spaces}
+         (convert-indentation :two-spaces :four-spaces ["    {"])))
+
+  (is (= {:lines ["\t{"
+                  "\t{"
+                  "\t{"]
+          :indent-type :tabs}
+         (convert-indentation :tabs :tabs ["\t{"
+                                           "    {"
+                                           "\t{"])))
+  (is (= {:lines ["\t{"
+                  "\t{"
+                  "\t\t{"]
+          :indent-type :tabs}
+         (convert-indentation :two-spaces :tabs ["  {"
+                                                 "\t{"
+                                                 "    {"])))
+  (is (= {:lines ["  {"
+                  "\t{"
+                  "\t{"]
+          :indent-type :tabs}
+         (convert-indentation :four-spaces :tabs ["  {"
+                                                  "\t{"
+                                                  "    {"])))
+  (is (= {:lines ["\t  {"]
+          :indent-type :tabs}
+         (convert-indentation :four-spaces :tabs ["      {"]))))
 
 (deftest move-cursors-test
   (testing "Basic movement"
