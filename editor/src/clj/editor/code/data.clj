@@ -1533,8 +1533,7 @@
       (and (not (ends-indentation? grammar line))
            (ends-indentation? grammar (str (subs line 0 (.col cursor)) typed (subs line (.col cursor))))))))
 
-(defn guess-indent-string
-  ^String [lines ^long tab-spaces]
+(defn guess-indent-type [lines ^long tab-spaces]
   (when-not (empty? lines)
     (loop [prev-line-visual-width 0
            sum-visual-width-from-spaces 0
@@ -1572,31 +1571,32 @@
                    sum-two-space-occurrences
                    sum-four-space-occurrences
                    (next lines))))
-        (cond
-          (and (zero? sum-visual-width-from-spaces)
-               (zero? sum-visual-width-from-tabs))
-          nil
+        (let [uses-spaces? (pos? sum-visual-width-from-spaces)
+              uses-tabs? (pos? sum-visual-width-from-tabs)]
+          (cond
+            (and (not uses-spaces?) (not uses-tabs?))
+            nil
 
-          (zero? sum-visual-width-from-spaces)
-          "\t"
+            (not uses-spaces?)
+            :tabs
 
-          :else
-          (let [^double tab-certainty (/ sum-visual-width-from-tabs sum-visual-width-from-spaces)]
-            (cond
-              ;; Too close to call?
-              (< 1.0 tab-certainty 1.1)
-              nil
+            :else
+            (let [^double tab-certainty (/ sum-visual-width-from-tabs sum-visual-width-from-spaces)]
+              (cond
+                ;; Too close to call?
+                (< 1.0 tab-certainty 1.1)
+                nil
 
-              ;; More indentation from tabs?
-              (< 1.0 tab-certainty)
-              "\t"
+                ;; More indentation from tabs?
+                (< 1.0 tab-certainty)
+                :tabs
 
-              ;; More indentation from two spaces?
-              (< sum-four-space-occurrences sum-two-space-occurrences)
-              "  "
+                ;; More indentation from two spaces?
+                (< sum-four-space-occurrences sum-two-space-occurrences)
+                :two-spaces
 
-              :else
-              "    ")))))))
+                :else
+                :four-spaces))))))))
 
 (defn indent-level-pattern
   ^Pattern [^long tab-spaces]
