@@ -6,24 +6,11 @@
 #include <dlib/thread.h>
 #include <dlib/dstrings.h>
 #include <dlib/profile.h>
-#include "../engine.h"
+#include "test_engine.h"
+#include "../../../graphics/src/graphics_private.h"
 
 #define CONTENT_ROOT "src/test/build/default"
 
-class EngineTest : public ::testing::Test
-{
-protected:
-    virtual void SetUp()
-    {
-        m_DT = 1.0f / 60.0f;
-    }
-
-    virtual void TearDown()
-    {
-    }
-
-    float m_DT;
-};
 
 /*
  * TODO:
@@ -242,6 +229,37 @@ TEST_F(EngineTest, ConnectionRunScript)
     dmThread::Join(ctx.m_Thread);
     ASSERT_EQ(0, g_PostExitResult);
 }
+
+/* Draw Count */
+
+TEST_P(DrawCountTest, DrawCount)
+{
+    const DrawCountParams& p = GetParam();
+
+    char name[] = {"dmengine"};
+    char state[] = {"--config=script.shared_state=1"};
+    char dont_unload[] = {"--config=dmengine.unload_builtins=0"};
+    char project[512];
+    DM_SNPRINTF(project, sizeof(project), "%s%s", CONTENT_ROOT, p.m_ProjectPath);
+    char* argv[] = {name, state, dont_unload, project};
+
+    ASSERT_TRUE(dmEngine::Init(m_Engine, sizeof(argv)/sizeof(argv[0]), argv));
+
+    for( int i = 0; i < p.m_NumSkipFrames; ++i )
+    {
+        dmEngine::Step(m_Engine);
+    }
+
+    dmEngine::Step(m_Engine);
+    ASSERT_EQ(p.m_ExpectedDrawCount, dmGraphics::GetDrawCount());
+}
+
+DrawCountParams draw_count_params[] =
+{
+    {"/render/drawcall.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
+};
+INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
+
 
 int main(int argc, char **argv)
 {
