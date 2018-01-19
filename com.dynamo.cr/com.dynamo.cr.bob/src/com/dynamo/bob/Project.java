@@ -687,9 +687,18 @@ public class Project {
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
             if (platform.equals(Platform.Armv7Android)) {
-                File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
-                if (classesDexFile.exists()) {
-                    classesDexFile.delete();
+                int nameindex = 1;
+                while(true)
+                {
+                    String name = nameindex == 1 ? "classes.dex" : String.format("classes%d.dex", nameindex);
+                    ++nameindex;
+
+                    File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
+                    if (classesDexFile.exists()) {
+                        classesDexFile.delete();
+                    } else {
+                        break;
+                    }
                 }
             }
 
