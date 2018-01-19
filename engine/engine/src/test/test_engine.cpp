@@ -249,7 +249,7 @@ TEST_P(DrawCountTest, DrawCount)
 
 DrawCountParams draw_count_params[] =
 {
-    {"/render/drawcall.projectc", 2, 2},
+    {"/render/drawcall.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
 

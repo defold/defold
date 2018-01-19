@@ -50,7 +50,7 @@ protected:
 struct DrawCountParams
 {
     const char* m_ProjectPath;
-    uint32_t m_NumSkipFrames;
+    uint32_t m_NumSkipFrames;   // Number of frames to skip before the actual test is done
     uint64_t m_ExpectedDrawCount;
 };
 
