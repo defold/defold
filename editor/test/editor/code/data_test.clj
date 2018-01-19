@@ -221,9 +221,9 @@
       (.close reader)
       (is (thrown? IOException (.read reader))))))
 
-(deftest guess-indent-string-test
+(deftest guess-indent-type-test
   (are [expected lines]
-    (= expected (data/guess-indent-string lines 4))
+    (= expected (first (data/guess-indent-type lines 4)))
 
     ;; Indeterminate. Used for nil or binary-looking input.
     nil nil
@@ -241,65 +241,65 @@
     nil ["    "]
 
     ;; Uniformly tabs.
-    "\t" ["\t{"]
-    "\t" ["{"
-          "\t{"]
-    "\t" ["{"
-          "\t{"
-          "\t\t{"]
+    :tabs ["\t{"]
+    :tabs ["{"
+           "\t{"]
+    :tabs ["{"
+           "\t{"
+           "\t\t{"]
 
-    ;; Uniformly 2 spaces.
-    "  " ["  {"]
-    "  " ["{"
-          "  {"]
-    "  " ["{"
-          "  {"
-          "    {"]
-    "  " ["  {"
-          "    {"
-          "    {"]
+    ;; Uniformly two spaces.
+    :two-spaces ["  {"]
+    :two-spaces ["{"
+                 "  {"]
+    :two-spaces ["{"
+                 "  {"
+                 "    {"]
+    :two-spaces ["  {"
+                 "    {"
+                 "    {"]
 
-    ;; Uniformly 4 spaces.
-    "    " ["    {"]
-    "    " ["{"
-            "    {"]
-    "    " ["{"
-            "    {"
-            "        {"]
-    "    " ["    {"
-            "    {"
-            "        {"]
+    ;; Uniformly four spaces.
+    :four-spaces ["    {"]
+    :four-spaces ["{"
+                  "    {"]
+    :four-spaces ["{"
+                  "    {"
+                  "        {"]
+    :four-spaces ["    {"
+                  "    {"
+                  "        {"]
 
     ;; Spaces mixed with tabs.
-    "\t" ["\t{"
-          "  {"
-          "\t{"]
-    "  " ["  {"
-          "\t{"
-          "    {"]
-    "    " ["    {"
-            "\t{"
-            "        {"]
+    :tabs ["\t{"
+           "  {"
+           "\t{"]
+    :two-spaces ["  {"
+                 "\t{"
+                 "    {"]
+    :four-spaces ["    {"
+                  "\t{"
+                  "        {"]
 
-    ;; 2 spaces mixed with 4 spaces.
-    "  " ["{"
-          "  {"
-          "    {"
-          "        {" ; <- rogue indent
-          "    {"
-          "    {"]
-    "  " ["{"
-          "  {"
-          "    {"
-          "      {"
-          "    {"
-          "    {"]
-    "    " ["{"
-            "    {"
-            "    {"
-            "      {" ; <- rogue indent
-            "    {"
-            "        {"]))
+    ;; Two spaces mixed with four spaces.
+    :two-spaces ["{"
+                 "  {"
+                 "    {"
+                 "        {" ; <- rogue indent
+                 "    {"
+                 "    {"]
+    :two-spaces ["{"
+                 "  {"
+                 "    {"
+                 "      {"
+                 "    {"
+                 "    {"]
+    :four-spaces ["{"
+                  "    {"
+                  "    {"
+                  "      {" ; <- rogue indent
+                  "    {"
+                  "        {"]))
 
 (deftest move-cursors-test
   (testing "Basic movement"

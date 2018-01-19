@@ -23,6 +23,7 @@
 (g/deftype BreakpointRows (sorted-set s/Num))
 (g/deftype Cursors [TCursor])
 (g/deftype CursorRanges [TCursorRange])
+(g/deftype IndentType (s/enum :tabs :two-spaces :four-spaces))
 (g/deftype InvalidatedRows [Long])
 (g/deftype Lines [String])
 (g/deftype Regions [TRegion])
@@ -35,8 +36,11 @@
   (string/join "\n" lines))
 
 (defn- load-fn [project self resource]
-  [(g/set-property self :lines (read-fn resource))
-   (g/connect self :breakpoints project :breakpoints)] )
+  (let [lines (read-fn resource)
+        indent-type (data/guess-indent-type (take 10000 lines) 4)]
+    [(g/set-property self :indent-type indent-type)
+     (g/set-property self :lines lines)
+     (g/connect self :breakpoints project :breakpoints)]))
 
 (g/defnk produce-breakpoint-rows [regions]
   (into (sorted-set)
@@ -56,6 +60,7 @@
   (inherits resource-node/ResourceNode)
 
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
+  (property indent-type IndentType (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property lines Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
