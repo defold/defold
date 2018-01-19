@@ -208,6 +208,9 @@ namespace dmRender
             *insert++ = i - base;
 
         render_context->m_RenderListSortIndices.SetSize(render_context->m_RenderListSortIndices.Size() + (end - begin));
+
+        // invalidate the ranges if this is a call to the debug rendering (happening in the middle of the frame)
+        render_context->m_RenderListRanges.SetSize(0);
     }
 
     struct RenderListSorter
