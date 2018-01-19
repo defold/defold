@@ -246,7 +246,6 @@ namespace dmGameSystem
         ro.m_VertexBuffer = pfx_world->m_VertexBuffer;
         ro.m_VertexDeclaration = pfx_world->m_VertexDeclaration;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_WorldTransform = first->m_Transform;
         ro.m_SetBlendFactors = 1;
         SetBlendFactors(&ro, first->m_BlendMode);
         SetRenderConstants(&ro, first->m_RenderConstants, first->m_RenderConstantsSize);
@@ -270,7 +269,7 @@ namespace dmGameSystem
         }
         else if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_END)
         {
-            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(), 
+            dmGraphics::SetVertexBufferData(pfx_world->m_VertexBuffer, sizeof(dmParticle::Vertex) * pfx_world->m_VertexBufferData.Size(),
                                             pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
             DM_COUNTER("ParticleFXVertexBuffer", pfx_world->m_VertexBufferData.Size() * sizeof(dmParticle::Vertex));
         }

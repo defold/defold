@@ -96,7 +96,9 @@ public class ManifestTest {
                     { "/main/level2.collectionproxyc", "7" },
                     { "/main/level2.collectionc", "8" },
                     { "/main/level2.goc", "9" },
-                    { "/main/level2.soundc", "10" }
+                    { "/main/level2.soundc", "10" },
+                    { "/main/shared_go.goc", "11" },
+                    { "/main/shared_go.scriptc", "12" }
             };
 
             return resources;
@@ -117,10 +119,12 @@ public class ManifestTest {
             main_collectionc.addChild(main_goc);
             main_goc.addChild(new ResourceNode("/main/main.scriptc", "/test/main/main.scriptc"));
             main_goc.addChild(level1_collectionproxyc);
+            main_collectionc.addChild(new ResourceNode("/main/shared_go.goc", "/test/main/shared_go.goc"));
             level1_collectionproxyc.addChild(level1_collectionc);
             level1_collectionc.addChild(level1_goc);
             level1_goc.addChild(new ResourceNode("/main/level1.scriptc", "/test/main/level1.scriptc"));
             level1_goc.addChild(level2_collectionproxyc);
+            level1_goc.addChild(new ResourceNode("/main/shared_go.goc", "/test/main/shared_go.goc"));
             level2_collectionproxyc.addChild(level2_collectionc);
             level2_collectionc.addChild(level2_goc);
             level2_goc.addChild(new ResourceNode("/main/level2.soundc", "/test/main/level2.soundc"));
@@ -417,30 +421,30 @@ public class ManifestTest {
             }
 
             if (current.getUrl().equals("/main/main.collectionc")) {
-                assertEquals(3, current.getDependantsCount());
+                assertEquals(4, current.getDependantsCount());
             }
 
             if (current.getUrl().equals("/main/level1.collectionproxyc")) {
-                assertEquals(4, current.getDependantsCount());
+                assertEquals(5, current.getDependantsCount());
             }
         }
     }
 
     @Test
-    public void testGetParentFilepath() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+    public void testGetParentCollectionProxy() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         String filepath = "/main/level1.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentFilepath(filepath);
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollectionProxies(filepath);
 
         assertEquals(1, parents.size());
         assertEquals("/main/level1.collectionproxyc", parents.get(0).get(0));
     }
 
     @Test
-    public void testGetParentFilepathDeep() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+    public void testGetParentCollectionProxiesDeep() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         String filepath = "/main/level2.goc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentFilepath(filepath);
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollectionProxies(filepath);
 
         assertEquals(2, parents.get(0).size());
         assertEquals("/main/level2.collectionproxyc", parents.get(0).get(0));
@@ -448,11 +452,23 @@ public class ManifestTest {
     }
 
     @Test
-    public void testGetParentFilepathNull() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+    public void testGetParentCollectionProxiesShared() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
+        ManifestInstance instance = new ManifestInstance();
+        String filepath = "/main/shared_go.goc";
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollectionProxies(filepath);
+
+        assertEquals(2, parents.size());
+        assertEquals(0, parents.get(0).size());
+        assertEquals("/main/level1.collectionproxyc", parents.get(1).get(0));
+    }
+
+    @Test
+    public void testGetParentCollectionProxiesNull() throws NoSuchAlgorithmException, InvalidKeySpecException, IOException {
         ManifestInstance instance = new ManifestInstance();
         String filepath = "/main/level1.collectionproxyc";
-        List<ArrayList<String>> parents = instance.manifestBuilder.getParentFilepath(filepath);
+        List<ArrayList<String>> parents = instance.manifestBuilder.getParentCollectionProxies(filepath);
 
+        assertEquals(1, parents.size());
         assertEquals(0, parents.get(0).size());
     }
 

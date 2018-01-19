@@ -430,7 +430,6 @@ namespace dmGameSystem
         ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_Textures[0] = texture_set->m_Texture;
-        ro.m_WorldTransform = first->m_World;
 
         const dmArray<dmRender::Constant>& constants = first->m_RenderConstants;
         uint32_t size = constants.Size();

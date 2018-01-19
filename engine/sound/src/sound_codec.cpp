@@ -84,6 +84,7 @@ namespace dmSoundCodec
 
     Result Decode(HCodecContext context, HDecoder decoder, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
+        DM_PROFILE(Sound, "Decode");
         assert(decoder);
         return decoder->m_DecoderInfo->m_DecodeStream(decoder->m_Stream, buffer, buffer_size, decoded);
     }

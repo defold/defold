@@ -1,0 +1,18 @@
+function init(self)
+    self.proxies_loaded = 0
+    msg.post("#a_proxy", "async_load")
+    msg.post("#b_proxy", "async_load")
+end
+
+function on_message(self, message_id, message, sender)
+    if message_id == hash("proxy_loaded") then
+        msg.post(sender, "enable")
+
+        self.proxies_loaded = self.proxies_loaded + 1
+
+        if (self.proxies_loaded == 2) then
+            msg.post("@system:", "exit", {code = 0})
+        end
+    end
+
+end

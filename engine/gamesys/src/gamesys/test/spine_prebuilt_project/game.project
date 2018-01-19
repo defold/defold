@@ -1,0 +1,14 @@
+[project]
+title = SpinePrebuiltTest
+write_log = 0
+
+[bootstrap]
+main_collection = /main/main.collectionc
+
+[display]
+height = 960
+width = 640
+
+[input]
+game_binding = /main/game.input_bindingc
+
