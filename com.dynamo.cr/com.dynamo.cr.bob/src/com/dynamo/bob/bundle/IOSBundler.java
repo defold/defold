@@ -112,11 +112,11 @@ public class IOSBundler implements IBundler {
         logger.log(Level.INFO, "Entering IOSBundler.bundleApplication()");
 
         String tmpPlatform = project.option("platform", null);
-        boolean simulatorBinary = tmpPlatform != null && tmpPlatform.equals("sim64-darwin");
+        boolean simulatorBinary = tmpPlatform != null && tmpPlatform.equals("x86_64-ios");
 
         Map<String, IResource> bundleResources = null;
         if (simulatorBinary) {
-            bundleResources = ExtenderUtil.collectResources(project, Platform.Sim64Darwin);
+            bundleResources = ExtenderUtil.collectResources(project, Platform.X86_64Ios);
         } else {
             // Collect bundle/package resources to be included in .App directory
             bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
@@ -135,7 +135,7 @@ public class IOSBundler implements IBundler {
         {
             // sim64 exe
             {
-                Platform targetPlatform = Platform.Sim64Darwin;
+                Platform targetPlatform = Platform.X86_64Ios;
                 File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
                 File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
                 exeSim64 = defaultExe;

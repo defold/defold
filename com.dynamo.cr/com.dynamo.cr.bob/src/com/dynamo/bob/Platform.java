@@ -15,7 +15,7 @@ public enum Platform {
     X86_64Linux("x86_64", "linux", "", "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
     Armv7Darwin("armv7", "darwin", "", "", "lib", ".so", new String[] {"ios", "armv7-ios"}, PlatformArchitectures.iOS, "armv7-ios"),
     Arm64Darwin("arm64", "darwin", "", "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
-    Sim64Darwin("sim64", "darwin", "", "", "lib", ".so", new String[] {"ios", "sim64-ios"}, PlatformArchitectures.iOS, "sim64-ios"),
+    X86_64Ios("x86_64", "ios", "", "", "lib", ".so", new String[] {"ios", "x86_64-ios"}, PlatformArchitectures.iOS, "x86_64-ios"),
     Armv7Android("armv7", "android", ".so", "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
     JsWeb("js", "web", ".js", "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web");
 

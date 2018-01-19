@@ -17,7 +17,7 @@ def build(bld):
 
     resource.find_sources_in_dirs(['.', 'resources', 'components', 'scripts', '../../proto'])
 
-    if re.match('arm.*?darwin', bld.env.PLATFORM) or bld.env.PLATFORM == 'sim-darwin':
+    if re.match('arm.*?darwin', bld.env.PLATFORM) or bld.env.PLATFORM == 'x86_64-ios':
         resource.source += ['scripts/window/script_window_ios.mm']
     elif re.match('.*?android', bld.env.PLATFORM):
         resource.source += ['scripts/window/script_window_android.cpp']

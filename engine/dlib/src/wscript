@@ -92,7 +92,7 @@ def build(bld):
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
-    elif 'darwin' in bld.env.PLATFORM:
+    elif 'darwin' in bld.env.PLATFORM or 'ios' in bld.env.PLATFORM:
         source_dirs.append('dlib/darwin')
     elif 'win32' in bld.env.PLATFORM:
         source_dirs.append('dlib/win32')

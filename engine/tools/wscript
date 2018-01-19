@@ -32,7 +32,7 @@ def configure(conf):
 
     if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-    elif platform == "armv7-darwin" or platform == 'sim-darwin':
+    elif platform == "armv7-darwin" or platform == 'x86_64-ios':
         pass
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']

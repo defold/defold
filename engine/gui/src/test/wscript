@@ -46,7 +46,7 @@ def build(bld):
 
     test_gui_clipping.install_path = None
 
-    if not (re.match('arm.*?darwin', bld.env.PLATFORM) or bld.env.PLATFORM == 'sim-darwin' or re.match('arm.*?android', bld.env.PLATFORM)):
+    if not (re.match('arm.*?darwin', bld.env.PLATFORM) or bld.env.PLATFORM == 'x86_64-ios' or re.match('arm.*?android', bld.env.PLATFORM)):
         guidemo = bld.new_task_gen(features = 'cxx cprogram test',
                                    includes = '../../../src',
                                    uselib = 'SCRIPT EXTENSION RESOURCE PARTICLE RIG HID DDF DLIB PLATFORM_SOCKET LUA DMGLFW X',

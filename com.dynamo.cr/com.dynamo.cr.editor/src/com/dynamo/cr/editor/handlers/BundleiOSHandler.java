@@ -70,7 +70,7 @@ public class BundleiOSHandler extends AbstractBundleHandler {
             options.put("debug", "true");
         }
         if(presenter.isSimulatorBinary()) {
-            options.put("platform", "sim64-darwin");
+            options.put("platform", "x86_64-ios");
         }
         if(presenter.shouldGenerateReport()) {
             options.put("build-report-html", FilenameUtils.concat(outputDirectory, "report.html"));

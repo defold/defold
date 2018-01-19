@@ -12,7 +12,7 @@ if 'win32' in platform:
 
 
 samples = 'boing gears heightmap listmodes mipmaps mtbench mthello particles pong3d splitview triangle wave'
-if re.match('arm.*?darwin', platform) or platform == 'sim-darwin' or re.match('arm.*?android', platform):
+if re.match('arm.*?darwin', platform) or platform == 'x86_64-ios' or re.match('arm.*?android', platform):
     # Other examples are not compatible with OpenGLES
     samples = 'simple_gles2'
 elif platform == 'js-web' or platform == 'as3-web':

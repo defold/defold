@@ -449,7 +449,7 @@ public class Project {
         bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
         bundlers.put(Platform.Armv7Android, AndroidBundler.class);
         bundlers.put(Platform.Armv7Darwin, IOSBundler.class);
-        bundlers.put(Platform.Sim64Darwin, IOSBundler.class);
+        bundlers.put(Platform.X86_64Ios, IOSBundler.class);
         bundlers.put(Platform.JsWeb, HTML5Bundler.class);
     }
 

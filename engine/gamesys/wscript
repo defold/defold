@@ -29,7 +29,7 @@ def configure(conf):
 
     if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-    elif re.match('arm.*?darwin', platform) or platform == 'sim-darwin':
+    elif re.match('arm.*?darwin', platform) or platform == 'x86_64-ios':
         pass
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])

@@ -165,6 +165,7 @@ if not 'DYNAMO_HOME' in os.environ:
 
 DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
 IOS_SDK_VERSION="10.3"
+IOS_SIMULATOR_SDK_VERSION="11.1"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 # Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
@@ -236,12 +237,12 @@ def default_flags(self):
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             if 'x86_64' == build_util.get_target_architecture():
-                self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-DIOS_SIMULATOR', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/'])
+                self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-DIOS_SIMULATOR', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)])
             else:
                 self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
 
         if 'x86_64' == build_util.get_target_architecture():
-            self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk/', '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
+            self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
         else:
             self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
@@ -1487,6 +1488,8 @@ def detect(conf):
     if build_util.get_target_platform() == 'arm64-darwin':
         # TODO: LuaJIT is currently not supported on arm64
         # Note: There is some support in the head branch for LuaJit 2.1
+        use_vanilla = True
+    if build_util.get_target_platform() == 'x86_64-ios':
         use_vanilla = True
 
     if use_vanilla:

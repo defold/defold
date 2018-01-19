@@ -43,7 +43,7 @@ def configure(conf):
 
     if platform == "darwin" or platform == 'x86_64-darwin':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
-    elif platform == "armv7-darwin" or platform == "sim-darwin":
+    elif platform == "armv7-darwin" or platform == "x86_64-ios":
         pass
     elif platform == "linux" or platform == "x86_64-linux":
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])

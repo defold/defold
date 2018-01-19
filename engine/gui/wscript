@@ -40,7 +40,7 @@ def configure(conf):
 
     if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
-    if re.match('arm.*?darwin', platform) or platform == 'sim-darwin':
+    if re.match('arm.*?darwin', platform) or platform == 'x86_64-ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics'])
     if platform == "linux" or platform == "x86_64-linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']

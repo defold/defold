@@ -11,7 +11,7 @@ def build(bld):
 
     source = []
 
-    if re.match('arm.*?darwin', bld.env.PLATFORM) or bld.env.PLATFORM == 'sim-darwin':
+    if re.match('arm.*?darwin', bld.env.PLATFORM) or bld.env.PLATFORM == 'x86_64-ios':
         source += ['push_ios.mm']
     elif re.match('arm.*?android', bld.env.PLATFORM):
         source += ['push_android.cpp']

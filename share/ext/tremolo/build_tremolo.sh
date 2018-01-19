@@ -43,7 +43,7 @@ case $1 in
         EXTRA_FLAGS="-miphoneos-version-min=6.0"
         ;;
 
-    sim-darwin)
+    x86_64-ios)
         EXTRA_FLAGS="-miphoneos-version-min=6.0"
         ;;
 esac
