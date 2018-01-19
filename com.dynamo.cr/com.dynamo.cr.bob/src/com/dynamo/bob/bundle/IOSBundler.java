@@ -282,7 +282,11 @@ public class IOSBundler implements IBundler {
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy Provisioning Profile
-        FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
+        File provisioningProfileFile = new File(provisioningProfile);
+        if (!provisioningProfileFile.exists()) {
+            throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
+        }
+        FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
 
         // Create fat/universal binary
         File tmpFile = File.createTempFile("dmengine", "");
