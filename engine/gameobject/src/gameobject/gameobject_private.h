@@ -190,6 +190,8 @@ namespace dmGameObject
         uint32_t                    m_DefaultCollectionCapacity;
         uint32_t                    m_DefaultCollectionRigCapacity;
 
+        dmHashTable64<HCollection>  m_SocketToCollection;
+
         Register();
         ~Register();
     };

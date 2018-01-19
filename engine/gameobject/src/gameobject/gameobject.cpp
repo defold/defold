@@ -133,6 +133,7 @@ namespace dmGameObject
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultCollectionRigCapacity = dmRig::DEFAULT_MAX_RIG_CAPACITY;
         m_Mutex = dmMutex::New();
+        m_SocketToCollection.SetCapacity(32, 17);
     }
 
     Register::~Register()
@@ -145,9 +146,9 @@ namespace dmGameObject
         memset(this, 0, sizeof(*this));
     }
 
-    void Initialize(dmScript::HContext context)
+    void Initialize(HRegister regist, dmScript::HContext context)
     {
-        InitializeScript(context);
+        InitializeScript(regist, context);
     }
 
     HRegister NewRegister()
@@ -258,6 +259,12 @@ namespace dmGameObject
             }
         }
 
+        if (regist->m_SocketToCollection.Full()) {
+            uint32_t capacity = regist->m_SocketToCollection.Capacity()+16;
+            regist->m_SocketToCollection.SetCapacity(capacity, (capacity*2)/3);
+        }
+        regist->m_SocketToCollection.Put(collection->m_NameHash, collection);
+
         dmRig::NewContextParams rig_params = {0};
         rig_params.m_Context = &collection->m_RigContext;
         rig_params.m_MaxRigInstanceCount = max_riginstances;
@@ -320,6 +327,7 @@ namespace dmGameObject
         {
             dmMessage::Consume(collection->m_ComponentSocket);
             dmMessage::DeleteSocket(collection->m_ComponentSocket);
+            regist->m_SocketToCollection.Erase(collection->m_NameHash);
         }
         if (collection->m_FrameSocket)
         {

@@ -717,7 +717,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
-        dmGameObject::Initialize(engine->m_GOScriptContext);
+        dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
 
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;

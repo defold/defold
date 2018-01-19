@@ -420,6 +420,23 @@ namespace dmGameObject
     typedef CreateResult (*ComponentAddToUpdate)(const ComponentAddToUpdateParams& params);
 
     /**
+     * Parameters to ComponentGet callback.
+     */
+    struct ComponentGetParams
+    {
+        /// Component world
+        void* m_World;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
+
+    /**
+     * A simple way to get the component instance from the user_data (which was set during creation)
+     */
+    typedef void* (*ComponentGet)(const ComponentGetParams& params);
+
+
+    /**
      * Parameters to ComponentsUpdate callback.
      */
     struct ComponentsUpdateParams
@@ -640,6 +657,7 @@ namespace dmGameObject
         ComponentInit           m_InitFunction;
         ComponentFinal          m_FinalFunction;
         ComponentAddToUpdate    m_AddToUpdateFunction;
+        ComponentGet            m_GetFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsRender        m_RenderFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
@@ -659,7 +677,7 @@ namespace dmGameObject
      * Initialize system
      * @param context Script context
      */
-    void Initialize(dmScript::HContext context);
+    void Initialize(HRegister regist, dmScript::HContext context);
 
     /**
      * Create a new component type register
@@ -917,6 +935,20 @@ namespace dmGameObject
     void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
 
     /**
+     * Gets a collection given an URL
+     * @param url the url to the object (uses the socket to find the collection)
+     * @return the collection matching the url. returns null if no match was found
+     */
+    HCollection GetCollectionFromURL(const dmMessage::URL& url);
+
+    /**
+     * Gets a component given an URL
+     * @param url the url to the object
+     * @return the component matching the url. returns null if no match was found
+     */
+    void* GetComponentFromURL(const dmMessage::URL& url);
+
+    /**
      * Get current game object instance from the lua state, if any.
      * The lua state has an instance while the script callbacks are being run on the state.
      * @param L lua-state
@@ -956,7 +988,7 @@ namespace dmGameObject
      */
     void SetInheritScale(HInstance instance, bool inherit_scale);
 
-    /** 
+    /**
      * Tells the collection that a transform was updated
      */
     void SetDirtyTransforms(HCollection collection);
@@ -1088,7 +1120,7 @@ namespace dmGameObject
      * @return The rig context of the specified collection
      */
     dmRig::HRigContext GetRigContext(HCollection collection);
- 
+
     /**
      * Returns whether the scale of the instances in a collection should be applied along Z or not.
      * @param collection Collection
