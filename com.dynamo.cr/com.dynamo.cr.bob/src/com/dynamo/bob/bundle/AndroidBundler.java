@@ -79,10 +79,22 @@ public class AndroidBundler implements IBundler {
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
         File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
         File bundleExe = defaultExe;
-        File classesDex = new File(Bob.getPath("lib/classes.dex"));
+        ArrayList<File> classesDex = new ArrayList<File>();
+        classesDex.add(new File(Bob.getPath("lib/classes.dex")));
         if (extenderExe.exists()) {
             bundleExe = extenderExe;
-            classesDex = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), "classes.dex")));
+            classesDex = new ArrayList<File>();
+            int i = 1;
+            while(true)
+            {
+                String name = i == 1 ? "classes.dex" : String.format("classes%d.dex", i);
+                ++i;
+
+                File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), name)));
+                if (!f.exists())
+                    break;
+                classesDex.add(f);
+            }
         }
 
         File appDir = new File(bundleDir, title);
@@ -184,15 +196,19 @@ public class AndroidBundler implements IBundler {
             throw new IOException(msg);
         }
 
-        File tmpClassesDex = new File(appDir, "classes.dex");
-        FileUtils.copyFile(classesDex, tmpClassesDex);
+        for(File dex : classesDex)
+        {
+            String name = dex.getName();
+            File tmpClassesDex = new File(appDir, name);
+            FileUtils.copyFile(dex, tmpClassesDex);
 
-        res = Exec.execResultWithEnvironmentWorkDir(aaptEnv, appDir, Bob.getExe(Platform.getHostPlatform(), "aapt"),
-                "add",
-                ap1.getAbsolutePath(),
-                "classes.dex");
+            res = Exec.execResultWithEnvironmentWorkDir(aaptEnv, appDir, Bob.getExe(Platform.getHostPlatform(), "aapt"),
+                    "add",
+                    ap1.getAbsolutePath(),
+                    name);
 
-        tmpClassesDex.delete();
+            tmpClassesDex.delete();
+        }
 
         if (res.ret != 0) {
             throw new IOException(new String(res.stdOutErr));

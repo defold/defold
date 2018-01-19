@@ -74,6 +74,7 @@ def build(bld):
               '%s/ext/share/java/bolts-android-1.2.0.jar' % (dynamo_home),
               '%s/ext/share/java/google-play-services.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
+              '%s/ext/share/java/android-support-multidex.jar' % (dynamo_home),
               '%s/ext/share/java/in-app-purchasing-2.0.61.jar' % (dynamo_home),
               '%s/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/facebook_android.jar' % (dynamo_home),
