@@ -22,6 +22,7 @@
 #include <gamesys/model_ddf.h>
 #include <gamesys/physics_ddf.h>
 #include <gameobject/gameobject_ddf.h>
+#include <gameobject/gameobject_script_util.h>
 #include <hid/hid.h>
 #include <sound/sound.h>
 #include <render/render.h>
@@ -646,7 +647,6 @@ namespace dmEngine
             module_script_contexts.Push(engine->m_GuiScriptContext);
         }
 
-
         dmHID::NewContextParams new_hid_params = dmHID::NewContextParams();
 
         // Accelerometer
@@ -867,6 +867,55 @@ namespace dmEngine
             dmLogWarning("Unable to load bootstrap data.");
             goto bail;
         }
+
+#if !defined(DM_RELEASE)
+        {
+            const char* init_script = dmConfigFile::GetString(engine->m_Config, "bootstrap.debug_init_script", 0);
+            if (init_script) {
+                char* tmp = strdup(init_script);
+                char* iter = 0;
+                char* filename = dmStrTok(tmp, ",", &iter);
+                do
+                {
+                    // We need the size, in order to send it as a proper LuaModule message
+                    void* data;
+                    uint32_t datasize;
+                    dmResource::Result r = dmResource::GetRaw(engine->m_Factory, filename, (void**)&data, &datasize);
+                    if (r != dmResource::RESULT_OK) {
+                        dmLogWarning("Failed to load script: %s (%d)", filename, r);
+                        free(tmp);
+                        return false;
+                    }
+
+
+                    dmLuaDDF::LuaModule* lua_module = 0;
+                    dmDDF::Result e = dmDDF::LoadMessage<dmLuaDDF::LuaModule>(data, datasize, &lua_module);
+                    if ( e != dmDDF::RESULT_OK ) {
+                        free(tmp);
+                        free(data);
+                        dmLogWarning("Failed to load LuaModule message from: %s (%d)", filename, r);
+                        return dmResource::RESULT_FORMAT_ERROR;
+                    }
+
+                    // Due to the fact that the same message can be loaded in two different ways, we have two separate call sites
+                    // Here, we have an already resolved filename string.
+                    if (engine->m_SharedScriptContext) {
+                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_SharedScriptContext, lua_module);
+                    }
+                    else {
+                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_GOScriptContext, lua_module);
+                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_GuiScriptContext, lua_module);
+                        dmGameObject::LuaLoad(engine->m_Factory, engine->m_RenderScriptContext, lua_module);
+                    }
+
+                    dmDDF::FreeMessage(lua_module);
+                    free(data);
+
+                } while( (filename = dmStrTok(0, ",", &iter)) );
+                free(tmp);
+            }
+        }
+#endif
 
         dmGui::SetDefaultFont(engine->m_GuiContext.m_GuiContext, engine->m_SystemFontMap);
         dmGui::SetDisplayProfiles(engine->m_GuiContext.m_GuiContext, engine->m_DisplayProfiles);
@@ -1335,8 +1384,6 @@ bail:
 
     static void Reboot(HEngine engine, dmEngineDDF::Reboot* reboot)
     {
-#define RELOCATE_STRING(field) (const char*) ((uintptr_t) reboot + (uintptr_t) reboot->field)
-
         int argc = 0;
         engine->m_RunResult.m_Argv[argc++] = strdup("dmengine");
 
@@ -1344,12 +1391,12 @@ bail:
         const int ARG_COUNT = 6;
         char* args[ARG_COUNT] =
         {
-            strdup(RELOCATE_STRING(m_Arg1)),
-            strdup(RELOCATE_STRING(m_Arg2)),
-            strdup(RELOCATE_STRING(m_Arg3)),
-            strdup(RELOCATE_STRING(m_Arg4)),
-            strdup(RELOCATE_STRING(m_Arg5)),
-            strdup(RELOCATE_STRING(m_Arg6)),
+            strdup(reboot->m_Arg1),
+            strdup(reboot->m_Arg2),
+            strdup(reboot->m_Arg3),
+            strdup(reboot->m_Arg4),
+            strdup(reboot->m_Arg5),
+            strdup(reboot->m_Arg6),
         };
 
         bool empty_found = false;
@@ -1368,7 +1415,6 @@ bail:
 
         engine->m_RunResult.m_Argc = argc;
 
-#undef RELOCATE_STRING
         engine->m_Alive = false;
         engine->m_RunResult.m_Action = dmEngine::RunResult::REBOOT;
     }
@@ -1455,6 +1501,8 @@ bail:
         {
             dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
 
+            dmDDF::ResolvePointers(descriptor, message->m_Data);
+
             if (descriptor == dmEngineDDF::Exit::m_DDFDescriptor)
             {
                 dmEngineDDF::Exit* ddf = (dmEngineDDF::Exit*) message->m_Data;
@@ -1488,10 +1536,8 @@ bail:
                 dmRecord::NewParams params;
                 params.m_Width = width;
                 params.m_Height = height;
+                params.m_Filename = start_record->m_FileName;
                 params.m_Fps = start_record->m_Fps;
-                const char* file_name = (const char*) ((uintptr_t) start_record + (uintptr_t) start_record->m_FileName);
-
-                params.m_Filename = file_name;
 
                 dmRecord::Result r = dmRecord::New(&params, &record_data->m_Recorder);
                 if (r == dmRecord::RESULT_OK)
@@ -1534,6 +1580,20 @@ bail:
                 dmEngineDDF::SetVsync* m = (dmEngineDDF::SetVsync*) message->m_Data;
                 SetSwapInterval(self, m->m_SwapInterval);
             }
+            else if (descriptor == dmEngineDDF::RunScript::m_DDFDescriptor)
+            {
+                dmEngineDDF::RunScript* run_script = (dmEngineDDF::RunScript*) message->m_Data;
+
+                dmResource::HFactory factory = self->m_Factory;
+                if (self->m_SharedScriptContext) {
+                    dmGameObject::LuaLoad(factory, self->m_SharedScriptContext, &run_script->m_Module);
+                }
+                else {
+                    dmGameObject::LuaLoad(factory, self->m_GOScriptContext, &run_script->m_Module);
+                    dmGameObject::LuaLoad(factory, self->m_GuiScriptContext, &run_script->m_Module);
+                    dmGameObject::LuaLoad(factory, self->m_RenderScriptContext, &run_script->m_Module);
+                }
+            }
             else
             {
                 const dmMessage::URL* sender = &message->m_Sender;
@@ -1568,6 +1628,17 @@ bail:
             return false;
         }
         dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
+
+        // The system font is currently the only resource we need from the connection app
+        // After this point, the rest of the resources should be loaded the ordinary way
+        if (!engine->m_ConnectionAppMode)
+        {
+            int unload = dmConfigFile::GetInt(engine->m_Config, "dmengine.unload_builtins", 1);
+            if (unload)
+            {
+                dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
+            }
+        }
 #endif
 
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");

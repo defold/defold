@@ -140,13 +140,18 @@
 
 (defn- open-error [open-resource-fn selection]
   (when-some [error-item (first selection)]
-    (let [resource (-> error-item :parent :resource)
-          node-id (:node-id error-item)
-          selection (error-selection node-id resource)
-          opts (if-some [line (:line error-item)] {:line line} {})]
-      (when (and (some? resource) (resource/exists? resource))
-        (ui/run-later
-          (open-resource-fn resource selection opts))))))
+    (if (= :resource (:type error-item))
+      (let [{:keys [node-id resource]} (:value error-item)]
+        (when (and (resource/openable-resource? resource) (resource/exists? resource))
+          (ui/run-later
+            (open-resource-fn resource [node-id] {}))))
+      (let [resource (-> error-item :parent :resource)
+            node-id (:node-id error-item)
+            selection (error-selection node-id resource)
+            opts (if-some [line (:line error-item)] {:line line} {})]
+        (when (and (resource/openable-resource? resource) (resource/exists? resource))
+          (ui/run-later
+            (open-resource-fn resource selection opts)))))))
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
@@ -187,7 +192,7 @@
       (.select (.getSelectionModel errors-tree) first-error))
     ;; Select tab-pane
     (let [^TabPane tab-pane (.getParent (.getParent (.getParent errors-tree)))]
-      (.select (.getSelectionModel tab-pane) 2))))
+      (ui/select-tab! tab-pane "build-errors-tab"))))
 
 (defn clear-build-errors [^TreeView errors-tree]
   (.setRoot errors-tree nil))

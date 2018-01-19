@@ -121,15 +121,18 @@ namespace dmRig
         RigPlayer* player = SwitchPlayer(instance);
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
-        SetCursor(instance, offset, true);
-        SetPlaybackRate(instance, playback_rate);
         player->m_Playing = 1;
         player->m_Playback = playback;
 
-        if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD)
+        if (player->m_Playback == dmRig::PLAYBACK_ONCE_BACKWARD || player->m_Playback == dmRig::PLAYBACK_LOOP_BACKWARD) {
             player->m_Backwards = 1;
-        else
+            offset = 1.0f - dmMath::Clamp(offset, 0.0f, 1.0f);
+        } else {
             player->m_Backwards = 0;
+        }
+
+        SetCursor(instance, offset, true);
+        SetPlaybackRate(instance, playback_rate);
 
         UpdateMeshProperties(instance);
 
@@ -362,7 +365,7 @@ namespace dmRig
     static Quat SampleQuat(uint32_t sample, float frac, float* data)
     {
         uint32_t i = sample*4;
-        return lerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
+        return slerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
     }
 
     static float CursorToTime(float cursor, float duration, bool backwards, bool once_pingpong)
@@ -471,7 +474,7 @@ namespace dmRig
             }
             if (track->m_Rotations.m_Count > 0)
             {
-                transform.SetRotation(lerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
+                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
             }
             if (track->m_Scale.m_Count > 0)
             {

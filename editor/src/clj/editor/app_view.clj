@@ -6,6 +6,7 @@
             [editor.bundle-dialog :as bundle-dialog]
             [editor.changes-view :as changes-view]
             [editor.console :as console]
+            [editor.debug-view :as debug-view]
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.fs :as fs]
@@ -16,6 +17,7 @@
             [editor.defold-project :as project]
             [editor.github :as github]
             [editor.engine.build-errors :as engine-build-errors]
+            [editor.error-reporting :as error-reporting]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -74,6 +76,7 @@
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
+  (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
 
@@ -84,6 +87,7 @@
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
   (input sub-selections-by-resource-node g/Any)
+  (input debugger-execution-locations g/Any)
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
@@ -92,6 +96,10 @@
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
                                    (when active-tab
                                      (ui/user-data active-tab ::view))))
+  (output active-view-info g/Any (g/fnk [^Tab active-tab]
+                                        (when active-tab
+                                          {:view-id (ui/user-data active-tab ::view)
+                                           :view-type (ui/user-data active-tab ::view-type)})))
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
@@ -114,7 +122,8 @@
                                              (doseq [^Tab tab closed-tabs]
                                                (remove-tab tab-pane tab)))))
   (output keymap g/Any :cached (g/fnk []
-                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))}))))
+                                 (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))})))
+  (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
   (when-let [resources (handler/adapt-every selection resource/Resource)]
@@ -272,10 +281,11 @@
   (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
     (.getTabs tab-pane)))
 
-(defn- make-build-options [build-errors-view]
+(defn- make-build-options
+  [build-errors-view]
   {:clear-errors! (fn []
-                    (ui/run-later
-                      (build-errors-view/clear-build-errors build-errors-view)))
+                     (ui/run-later
+                       (build-errors-view/clear-build-errors build-errors-view)))
    :render-error! (fn [errors]
                     (ui/run-later
                       (build-errors-view/update-build-errors
@@ -317,10 +327,10 @@
   ;; tasks.
   (ui/default-render-progress-now! (progress/make message)))
 
-(defn- launch-engine [project prefs]
+(defn- launch-engine [project prefs debug?]
   (try
     (report-build-launch-progress "Launching engine...")
-    (let [launched-target (->> (engine/launch! project prefs)
+    (let [launched-target (->> (engine/launch! project prefs debug?)
                                (targets/add-launched-target!)
                                (targets/select-target! prefs))]
       (report-build-launch-progress "Launched engine.")
@@ -337,7 +347,7 @@
 (defn- make-remote-log-sink [log-stream]
   (fn [line]
     (when (= @console-stream log-stream)
-      (console/append-console-message! (str line "\n")))))
+      (console/append-console-line! line))))
 
 (defn- make-launched-log-sink [launched-target]
   (let [initial-output (atom "")]
@@ -347,92 +357,130 @@
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
           (targets/update-launched-target! launched-target target-info)))
       (when (= @console-stream (:log-stream launched-target))
-        (console/append-console-message! (str line "\n"))))))
+        (console/append-console-line! line)))))
 
-(defn- reboot-engine [target web-server]
+(defn- reboot-engine [target web-server debug?]
   (try
     (report-build-launch-progress (format "Rebooting %s..." (targets/target-label target)))
-    (engine/reboot target (local-url target web-server))
+    (engine/reboot target (local-url target web-server) debug?)
     (report-build-launch-progress (format "Rebooted %s" (targets/target-label target)))
     target
     (catch Exception e
       (report-build-launch-progress "Reboot failed")
       (throw e))))
 
-(defn- build-handler [project prefs web-server build-errors-view]
-  (let [local-system (g/clone-system)]
-    (do #_future
-      (g/with-system local-system
-        (report-build-launch-progress "Building...")
-        (let [evaluation-context (g/make-evaluation-context)
-              build-options (make-build-options build-errors-view)
-              build (project/build-and-write-project project evaluation-context build-options)
-              render-error! (:render-error! build-options)
-              selected-target (targets/selected-target prefs)
-              ;; pipeline/build! uses g/user-data for storing info on
-              ;; built resources.
-              ;; This will end up in the local *the-system*, so we will manually
-              ;; transfer this afterwards.
-              workspace (project/workspace project)
-              artifacts (g/user-data workspace :editor.pipeline/artifacts)
-              etags (g/user-data workspace :editor.pipeline/etags)]
-          (ui/run-later
-            (g/update-cache-from-evaluation-context! evaluation-context)
-            (g/user-data! workspace :editor.pipeline/artifacts artifacts)
-            (g/user-data! workspace :editor.pipeline/etags etags))
-          (report-build-launch-progress "Done Building.")
-          (when build
-            (console/show!)
-            (try
-              (cond
-                (not selected-target)
-                (do (targets/kill-launched-targets!)
-                    (let [launched-target (launch-engine project prefs)
-                          log-stream (:log-stream launched-target)]
-                      (reset-console-stream! log-stream)
-                      (reset-remote-log-pump-thread! nil)
-                      (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+(defn- build-handler
+  ([project prefs web-server build-errors-view console-view]
+   (build-handler project prefs web-server build-errors-view console-view nil))
+  ([project prefs web-server build-errors-view console-view {:keys [debug?]
+                                                             :or   {debug? false}
+                                                             :as   opts}]
+   (let [local-system (g/clone-system)]
+     (do #_future
+         (g/with-system local-system
+           (report-build-launch-progress "Building...")
+           (let [evaluation-context  (g/make-evaluation-context)
+                 build-options       (make-build-options build-errors-view)
+                 extra-build-targets (when debug?
+                                       (debug-view/build-targets project evaluation-context))
+                 build               (project/build-and-write-project project evaluation-context extra-build-targets build-options)
+                 render-error!       (:render-error! build-options)
+                 selected-target     (targets/selected-target prefs)
+                 ;; pipeline/build! uses g/user-data for storing info on
+                 ;; built resources.
+                 ;; This will end up in the local *the-system*, so we will manually
+                 ;; transfer this afterwards.
+                 workspace           (project/workspace project)
+                 artifacts           (g/user-data workspace :editor.pipeline/artifacts)
+                 etags               (g/user-data workspace :editor.pipeline/etags)]
+             (ui/run-later
+               (g/update-cache-from-evaluation-context! evaluation-context)
+               (g/user-data! workspace :editor.pipeline/artifacts artifacts)
+               (g/user-data! workspace :editor.pipeline/etags etags))
+             (report-build-launch-progress "Done Building.")
+             (when build
+               (console/show! console-view)
+               (try
+                 (cond
+                   (not selected-target)
+                   (do (targets/kill-launched-targets!)
+                       (let [launched-target (launch-engine project prefs debug?)
+                             log-stream      (:log-stream launched-target)]
+                         (reset-console-stream! log-stream)
+                         (reset-remote-log-pump-thread! nil)
+                         (start-log-pump! log-stream (make-launched-log-sink launched-target))
+                         launched-target))
 
-                (not (targets/controllable-target? selected-target))
-                (do
-                  (assert (targets/launched-target? selected-target))
-                  (targets/kill-launched-targets!)
-                  (let [launched-target (launch-engine project prefs)
-                        log-stream (:log-stream launched-target)]
-                    (reset-console-stream! log-stream)
-                    (reset-remote-log-pump-thread! nil)
-                    (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+                   (not (targets/controllable-target? selected-target))
+                   (do
+                     (assert (targets/launched-target? selected-target))
+                     (targets/kill-launched-targets!)
+                     (let [launched-target (launch-engine project prefs debug?)
+                           log-stream      (:log-stream launched-target)]
+                       (reset-console-stream! log-stream)
+                       (reset-remote-log-pump-thread! nil)
+                       (start-log-pump! log-stream (make-launched-log-sink launched-target))
+                       launched-target))
 
-                (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
-                (do
-                  (let [log-stream (engine/get-log-service-stream selected-target)]
-                    (reset-console-stream! log-stream)
-                    (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
-                    (reboot-engine selected-target web-server)))
+                   (and (targets/controllable-target? selected-target) (targets/remote-target? selected-target))
+                   (do
+                     (let [log-stream (engine/get-log-service-stream selected-target)]
+                       (reset-console-stream! log-stream)
+                       (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+                       (reboot-engine selected-target web-server debug?)))
 
-                :else
-                (do
-                  (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
-                  (reset-console-stream! (:log-stream selected-target))
-                  (reset-remote-log-pump-thread! nil)
-                  ;; Launched target log pump already
-                  ;; running to keep engine process
-                  ;; from halting because stdout/err is
-                  ;; not consumed.
-                  (reboot-engine selected-target web-server)))
-              (catch Exception e
-                (log/warn :exception e)
-                (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                  (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e)))))))))))))
+                   :else
+                   (do
+                     (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
+                     (reset-console-stream! (:log-stream selected-target))
+                     (reset-remote-log-pump-thread! nil)
+                     ;; Launched target log pump already
+                     ;; running to keep engine process
+                     ;; from halting because stdout/err is
+                     ;; not consumed.
+                     (reboot-engine selected-target web-server debug?)))
+                 (catch Exception e
+                   (log/warn :exception e)
+                   (when-not (engine-build-errors/handle-build-error! render-error! project e)
+                     (ui/run-later (dialogs/make-alert-dialog (str "Build failed: " (.getMessage e))))))))))))))
 
 (handler/defhandler :build :global
-  (run [project prefs web-server build-errors-view]
-    (build-handler project prefs web-server build-errors-view)))
+  (run [project prefs web-server build-errors-view console-view debug-view]
+    (debug-view/detach! debug-view)
+    (build-handler project prefs web-server build-errors-view console-view)))
+
+(defn- debugging-supported?
+  [project]
+  (if (project/shared-script-state? project)
+    true
+    (do (dialogs/make-alert-dialog "This project cannot be used with the debugger because it is configured to disable shared script state.
+
+If you do not specifically require different script states, consider changing the script.shared_state property in game.project.")
+        false)))
+
+(handler/defhandler :start-debugger :global
+  (enabled? [debug-view] (nil? (debug-view/current-session debug-view)))
+  (run [project prefs web-server build-errors-view console-view debug-view]
+    (when (debugging-supported? project)
+      (when-some [target (build-handler project prefs web-server build-errors-view console-view {:debug? true})]
+        (debug-view/start-debugger! debug-view project (:address target "localhost"))))))
+
+(handler/defhandler :attach-debugger :global
+  (enabled? [debug-view prefs]
+            (and (nil? (debug-view/current-session debug-view))
+                 (let [target (targets/selected-target prefs)]
+                   (and target (targets/controllable-target? target)))))
+  (run [project build-errors-view debug-view prefs]
+    (when (debugging-supported? project)
+      (let [target (targets/selected-target prefs)
+            build-options (make-build-options build-errors-view)]
+        (debug-view/attach! debug-view project target build-options)))))
 
 (handler/defhandler :rebuild :global
-  (run [workspace project prefs web-server build-errors-view]
+  (run [workspace project prefs web-server build-errors-view console-view debug-view]
+    (debug-view/detach! debug-view)
     (pipeline/reset-cache! workspace)
-    (build-handler project prefs web-server build-errors-view)))
+    (build-handler project prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
@@ -452,12 +500,13 @@
 (def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
 
 (handler/defhandler :hot-reload :global
-  (enabled? [app-view selection prefs]
+  (enabled? [app-view debug-view selection prefs]
             (when-let [resource (context-resource-file app-view selection)]
               (and (resource/exists? resource)
                    (some-> (targets/selected-target prefs)
                            (targets/controllable-target?))
-                   (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource)))))))
+                   (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))
+                   (not (debug-view/suspended? debug-view)))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (context-resource-file app-view selection)]
       (ui/default-render-progress-now! (progress/make "Building..."))
@@ -543,11 +592,8 @@
                              {:label :separator}
                              {:label "Open Assets..."
                               :command :open-asset}
-                             {:label "Search in Files"
+                             {:label "Search in Files..."
                               :command :search-in-files}
-                             {:label :separator}
-                             {:label "Hot Reload"
-                              :command :hot-reload}
                              {:label :separator}
                              {:label "Close"
                               :command :close}
@@ -555,6 +601,13 @@
                               :command :close-all}
                              {:label "Close Others"
                               :command :close-other}
+                             {:label :separator}
+                             {:label "Referencing Files..."
+                              :command :referencing-files}
+                             {:label "Dependencies..."
+                              :command :dependencies}
+                             {:label "Hot Reload"
+                              :command :hot-reload}
                              {:label :separator}
                              {:label "Logout"
                               :command :logout}
@@ -577,6 +630,8 @@
                               :command :copy}
                              {:label "Paste"
                               :command :paste}
+                             {:label "Select All"
+                              :command :select-all}
                              {:label "Delete"
                               :icon "icons/32/Icons_M_06_trash.png"
                               :command :delete}
@@ -587,6 +642,18 @@
                               :command :move-down}
                              {:label :separator
                               :id ::edit-end}]}
+                 {:label "View"
+                  :id ::view
+                  :children [{:label "Show Console"
+                              :command :show-console}
+                             {:label "Show Curve Editor"
+                              :command :show-curve-editor}
+                             {:label "Show Build Errors"
+                              :command :show-build-errors}
+                             {:label "Show Search Results"
+                              :command :show-search-results}
+                             {:label :separator
+                              :id ::view-end}]}
                  {:label "Help"
                   :children [{:label "Profiler"
                               :children [{:label "Measure"
@@ -617,9 +684,9 @@
                   :command :copy-project-path}
                  {:label "Copy Full Path"
                   :command :copy-full-path}
-                 {:label "Referencing Files"
+                 {:label "Referencing Files..."
                   :command :referencing-files}
-                 {:label "Dependencies"
+                 {:label "Dependencies..."
                   :command :dependencies}
                  {:label "Hot Reload"
                   :command :hot-reload}
@@ -707,12 +774,12 @@
     second
     :resource-node))
 
-(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane]
+(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
-    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :active-tool :move))))]
+    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
       (-> tab-pane
           (.getSelectionModel)
           (.selectedItemProperty)
@@ -817,7 +884,7 @@
      (if (defective-resource-node? resource-node)
        (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
            false)
-       (if-let [custom-editor (and (or (= (:id view-type) :code) (= (:id view-type) :text))
+       (if-let [custom-editor (and (#{:code :new-code :text} (:id view-type))
                                    (let [ed-pref (some->
                                                    (prefs/get-prefs prefs "code-custom-editor" "")
                                                    string/trim)]
@@ -842,7 +909,12 @@
                                                   resource-type view-type make-view-fn tabs opts))]
              (.select (.getSelectionModel tab-pane) tab)
              (when-let [focus (:focus-fn view-type)]
-               (focus (ui/user-data tab ::view) opts))
+               (ui/run-later
+                 ;; We run-later so javafx has time to squeeze in a
+                 ;; layout pass. The focus function of some views
+                 ;; needs proper width + height (f.i. code view for
+                 ;; scrolling to selected line).
+                 (focus (ui/user-data tab ::view) opts)))
              true)
            (let [^String path (or (resource/abs-path resource)
                                   (resource/temp-path resource))
@@ -911,6 +983,28 @@
                                                       (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Dependencies" :selection :multiple :ok-label "Open" :filter (format "deps:%s" (resource/proj-path r))})]
                                                         (open-resource app-view prefs workspace project resource)))))
 
+(defn- select-tool-tab! [app-view tab-id]
+  (let [^TabPane tool-tab-pane (g/node-value app-view :tool-tab-pane)
+        tabs (.getTabs tool-tab-pane)
+        tab-index (first (keep-indexed (fn [i ^Tab tab] (when (= tab-id (.getId tab)) i)) tabs))]
+    (if (some? tab-index)
+      (.select (.getSelectionModel tool-tab-pane) ^long tab-index)
+      (throw (ex-info (str "Tab id not found: " tab-id)
+                      {:tab-id tab-id
+                       :tab-ids (mapv #(.getId ^Tab %) tabs)})))))
+
+(handler/defhandler :show-console :global
+  (run [app-view] (select-tool-tab! app-view "console-tab")))
+
+(handler/defhandler :show-curve-editor :global
+  (run [app-view] (select-tool-tab! app-view "curve-editor-tab")))
+
+(handler/defhandler :show-build-errors :global
+  (run [app-view] (select-tool-tab! app-view "build-errors-tab")))
+
+(handler/defhandler :show-search-results :global
+  (run [app-view] (select-tool-tab! app-view "search-results-tab")))
+
 (defn- put-on-clipboard!
   [s]
   (doto (Clipboard/getSystemClipboard)
@@ -964,18 +1058,33 @@
                             (when-let [graph (ui/user-data image-view :graph)]
                               (g/delete-graph! graph))))))))))
 
-(defn- query-and-open! [workspace project app-view prefs]
-  (doseq [resource (dialogs/make-resource-dialog workspace project {:title "Open Assets" :selection :multiple :ok-label "Open" :tooltip-gen (partial gen-tooltip workspace project app-view)})]
+(defn- query-and-open! [workspace project app-view prefs term]
+  (doseq [resource (dialogs/make-resource-dialog workspace project
+                                                 (cond-> {:title "Open Assets"
+                                                          :selection :multiple
+                                                          :ok-label "Open"
+                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                   (some? term)
+                                                   (assoc :filter term)))]
     (open-resource app-view prefs workspace project resource)))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
 
+(defn- get-view-text-selection [{:keys [view-id view-type]}]
+  (when-let [text-selection-fn (:text-selection-fn view-type)]
+    (text-selection-fn view-id)))
+
 (handler/defhandler :open-asset :global
-  (run [workspace project app-view prefs] (query-and-open! workspace project app-view prefs)))
+  (run [workspace project app-view prefs]
+    (let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
+      (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project search-results-view] (search-results-view/show-search-in-files-dialog! search-results-view project)))
+  (run [project app-view search-results-view]
+    (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
+      (search-results-view/set-search-term! term))
+    (search-results-view/show-search-in-files-dialog! search-results-view project)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform build-options]
   (console/clear-console!)
@@ -1014,7 +1123,12 @@
       (future
         (ui/with-disabled-ui
           (ui/with-progress [render-fn ui/default-render-progress!]
-            (workspace/fetch-libraries! workspace library-urls render-fn (partial login/login prefs))))))))
+            (error-reporting/catch-all!
+              (when (workspace/dependencies-reachable? library-urls (partial login/login prefs))
+                (let [lib-states (workspace/fetch-and-validate-libraries workspace library-urls render-fn)]
+                  (ui/run-later
+                    (workspace/install-validated-libraries! workspace library-urls lib-states)
+                    (workspace/resource-sync! workspace)))))))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs] (fetch-libraries workspace project prefs)))

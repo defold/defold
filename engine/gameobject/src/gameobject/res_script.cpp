@@ -2,7 +2,7 @@
 #include <script/script.h>
 #include "res_script.h"
 #include "res_lua.h"
-#include "../proto/lua_ddf.h"
+#include "../proto/gameobject/lua_ddf.h"
 #include "gameobject_script.h"
 #include "gameobject_script_util.h"
 

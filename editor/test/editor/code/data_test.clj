@@ -30,13 +30,13 @@
   data/GlyphMetrics
   (ascent [_this] ascent)
   (line-height [_this] line-height)
-  (char-width [_this character] char-width))
+  (char-width [_this _character] char-width))
 
 (defn layout-info
   ([] (layout-info nil))
   ([lines] (layout-info lines (->GlyphMetrics 14.0 9.0 6.0)))
   ([lines glyph-metrics]
-   (data/layout-info 800.0 600.0 0.0 0.0 (count lines) glyph-metrics 4)))
+   (data/layout-info 800.0 600.0 800.0 0.0 0.0 lines 30.0 5.0 glyph-metrics 4 false)))
 
 (defn- word-boundary-before-index? [line index]
   (#'data/word-boundary-before-index? line index))
@@ -58,14 +58,16 @@
 
 (deftest cursor-comparison-test
   (let [cases [[(->Cursor 0 0) (->Cursor 0 1)]
-               [(->Cursor 0 0) (->Cursor 1 0)]]]
+               [(->Cursor 0 0) (->Cursor 1 0)]
+               [(assoc (->Cursor 0 0) :type :a) (assoc (->Cursor 0 0) :type :b)]]]
     (doseq [expected-order cases _ (range 5)]
       (is (= expected-order (vec (apply sorted-set (shuffle expected-order))))))))
 
 (deftest cursor-range-comparison-test
   (let [cases [[(cr [0 0] [0 1]) (cr [0 1] [0 2])]
                [(cr [0 1] [0 0]) (cr [0 2] [0 1])]
-               [(cr [0 0] [0 1]) (cr [0 1] [0 0])]]]
+               [(cr [0 0] [0 1]) (cr [0 1] [0 0])]
+               [(assoc (c 0 0) :type :a) (assoc (c 0 0) :type :b)]]]
     (doseq [expected-order cases _ (range 5)]
       (is (= expected-order (vec (apply sorted-set (shuffle expected-order))))))))
 
@@ -73,7 +75,9 @@
   (let [cases [[[(cr [0 0] [0 1])]
                 [(cr [0 0] [0 1]) (cr [0 0] [0 1])]]
                [[(cr [0 0] [0 1]) (cr [0 1] [0 0])]
-                [(cr [0 0] [0 1]) (cr [0 1] [0 0])]]]]
+                [(cr [0 0] [0 1]) (cr [0 1] [0 0])]]
+               [[(assoc (cr [0 0] [0 1]) :type :a) (assoc (cr [0 0] [0 1]) :type :b)]
+                [(assoc (cr [0 0] [0 1]) :type :a) (assoc (cr [0 0] [0 1]) :type :b)]]]]
     (doseq [[unique input] cases]
       (is (= unique (vec (apply sorted-set input)))))))
 
@@ -141,6 +145,42 @@
           cursor-range' (data/offset-cursor-range cursor-range :both 1 1)]
       (is (= (:my-prop cursor-range) (:my-prop cursor-range')))
       (is (identical? (meta cursor-range) (meta cursor-range'))))))
+
+(defn- visible-cursor-ranges [height lines ascending-cursor-ranges scroll-y]
+  (let [glyph-metrics (->GlyphMetrics 14.0 9.0 6.0)
+        layout (data/layout-info 800.0 height 800.0 0.0 scroll-y lines 30.0 5.0 glyph-metrics 4 false)]
+    (data/visible-cursor-ranges lines layout ascending-cursor-ranges)))
+
+(deftest visible-cursor-ranges-test
+  (let [line-height 14.0
+        line-scroll (- line-height)
+        canvas-height (* line-height 5.0)
+        lines (into [] (repeat 10 ""))]
+
+    (testing "Works with empty collections"
+      (is (empty? (visible-cursor-ranges 600.0 nil nil 0.0)))
+      (is (empty? (visible-cursor-ranges 600.0 [""] nil 0.0)))
+      (is (empty? (visible-cursor-ranges 600.0 [""] [] 0.0))))
+
+    (testing "Top of visible area"
+      (is (= [(c 0 0) (c 1 0)]
+             (visible-cursor-ranges canvas-height lines [(c 0 0) (c 1 0)] 0.0)))
+      (is (= [(c 0 0) (c 1 0)]
+             (visible-cursor-ranges canvas-height lines [(c 0 0) (c 1 0)] (inc line-scroll))))
+      (is (= [(c 1 0)]
+             (visible-cursor-ranges canvas-height lines [(c 0 0) (c 1 0)] line-scroll)))
+      (is (= []
+             (visible-cursor-ranges canvas-height lines [(c 0 0) (c 1 0)] (* line-scroll 2.0)))))
+
+    (testing "Bottom of visible area"
+      (is (= []
+             (visible-cursor-ranges canvas-height lines [(c 5 0) (c 6 0)] 0.0)))
+      (is (= [(c 5 0)]
+             (visible-cursor-ranges canvas-height lines [(c 5 0) (c 6 0)] -1.0)))
+      (is (= [(c 5 0)]
+             (visible-cursor-ranges canvas-height lines [(c 5 0) (c 6 0)] line-scroll)))
+      (is (= [(c 5 0) (c 6 0)]
+             (visible-cursor-ranges canvas-height lines [(c 5 0) (c 6 0)] (dec line-scroll)))))))
 
 (deftest lines-reader-test
   (testing "Regular use"
@@ -484,6 +524,57 @@
            (insert-text ["one two one two"]
                         [(c 0 3) (c 0 11)]
                         "\n")))))
+
+(defn- append-distinct-lines [lines regions new-lines]
+  (data/append-distinct-lines lines regions new-lines))
+
+(defn- repeat-region [row line repeat-count]
+  (assoc (cr [row 0] [row (count line)])
+    :type :repeat
+    :count repeat-count))
+
+(defn- other-region [row line]
+  (assoc (cr [row 0] [row (count line)])
+    :type :other))
+
+(deftest append-distinct-lines-test
+  (testing "Appends distinct lines"
+    (is (= {:lines ["a" "b"]
+            :regions []}
+           (append-distinct-lines ["a"] [] ["b"]))))
+
+  (testing "Creates repeat region instead of appending duplicate lines"
+    (is (= {:lines ["a"]
+            :regions []}
+           (append-distinct-lines [""] [] ["a"])))
+    (is (= {:lines ["a"]
+            :regions [(repeat-region 0 "a" 2)]}
+           (append-distinct-lines ["a"] [] ["a"])))
+    (is (= {:lines ["a" "boo"]
+            :regions [(repeat-region 1 "boo" 2)]}
+           (append-distinct-lines ["a" "boo"] [] ["boo"]))))
+
+  (testing "Increases count on existing repeat region"
+    (is (= {:lines ["a" "boo"]
+            :regions [(repeat-region 1 "boo" 3)]}
+           (append-distinct-lines ["a" "boo"] [(repeat-region 1 "boo" 2)] ["boo"]))))
+
+  (testing "Other regions present"
+    (is (= {:lines ["a" "boo"]
+            :regions [(repeat-region 1 "boo" 3)
+                      (other-region 1 "boo")]}
+           (append-distinct-lines ["a" "boo"]
+                                  [(repeat-region 1 "boo" 2)
+                                   (other-region 1 "boo")]
+                                  ["boo"])))
+
+    (is (= {:lines ["a" "boo"]
+            :regions [(repeat-region 1 "boo" 3)
+                      (other-region 1 "boo")]}
+           (append-distinct-lines ["a" "boo"]
+                                  [(repeat-region 1 "boo" 2)
+                                   (other-region 1 "boo")]
+                                  ["boo"])))))
 
 (deftest delete-test
   (let [backspace (fn [lines cursor-ranges] (data/delete lines cursor-ranges nil (layout-info lines) data/delete-character-before-cursor))
@@ -850,6 +941,20 @@
                    [(cr [0 0] [0 0])
                     (cr [0 3] [0 3])])))))
 
+(deftest select-all-test
+  (testing "Selects all text"
+    (is (= {:cursor-ranges [(cr [0 0] [0 1])]}
+           (data/select-all ["a"] [(c 0 0)])))
+    (is (= {:cursor-ranges [(cr [0 0] [2 5])]}
+           (data/select-all ["one"
+                             "two"
+                             "three"]
+                            [(c 0 0)]))))
+
+  (testing "Returns nil when everything is already selected"
+    (is (nil? (data/select-all ["a"] [(cr [0 0] [0 1])])))
+    (is (nil? (data/select-all ["a"] [(cr [0 1] [0 0])])))))
+
 (deftest word-cursor-range-at-cursor-test
   (let [word-cursor-range-at-cursor #'data/word-cursor-range-at-cursor
         cases [["one two"
@@ -982,3 +1087,95 @@
                   (select-next-occurrence ["word word word"])
                   (select-next-occurrence ["word word word"])
                   (select-next-occurrence ["word word word"])))))))
+
+(deftest find-matching-braces-test
+  (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces ["x"] (->Cursor 0 1))))
+  (is (nil? (data/find-matching-braces ["("] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces ["("] (->Cursor 0 1))))
+  (is (nil? (data/find-matching-braces [")"] (->Cursor 0 0))))
+  (is (nil? (data/find-matching-braces [")"] (->Cursor 0 1))))
+
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["()"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["()"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["()"] (->Cursor 0 2))))
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["[]"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["[]"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["[]"] (->Cursor 0 2))))
+  (is (= [(cr [0 0] [0 1]) (cr [0 1] [0 2])] (data/find-matching-braces ["{}"] (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["{}"] (->Cursor 0 1))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 0] [0 1])] (data/find-matching-braces ["{}"] (->Cursor 0 2))))
+
+  (is (= [(cr [0 0] [0 1]) (cr [0 3] [0 4])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 0))))
+  (is (= [(cr [0 1] [0 2]) (cr [0 2] [0 3])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 1))))
+  (is (= [(cr [0 2] [0 3]) (cr [0 1] [0 2])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 2))))
+  (is (= [(cr [0 2] [0 3]) (cr [0 1] [0 2])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 3))))
+  (is (= [(cr [0 3] [0 4]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["(())"]
+                                    (->Cursor 0 4))))
+  (is (= [(cr [0 0] [0 1]) (cr [1 0] [1 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 0 0))))
+  (is (= [(cr [0 0] [0 1]) (cr [1 0] [1 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 0 1))))
+  (is (= [(cr [1 0] [1 1]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 1 0))))
+  (is (= [(cr [1 0] [1 1]) (cr [0 0] [0 1])]
+         (data/find-matching-braces ["["
+                                     "]"]
+                                    (->Cursor 1 1))))
+
+  (are [cursor matching-range]
+    (= matching-range
+       (second (data/find-matching-braces ["function foo() {"
+                                           "    a[0] = {"
+                                           "        rand(3)"
+                                           "    }"
+                                           "}"]
+                                          cursor)))
+    (->Cursor 0 0) nil
+    (->Cursor 0 11) nil
+    (->Cursor 0 12) (cr [0 13] [0 14])
+    (->Cursor 0 13) (cr [0 12] [0 13])
+    (->Cursor 0 14) (cr [0 12] [0 13])
+    (->Cursor 0 15) (cr [4 0] [4 1])
+    (->Cursor 0 16) (cr [4 0] [4 1])
+
+    (->Cursor 1 0) nil
+    (->Cursor 1 4) nil
+    (->Cursor 1 5) (cr [1 7] [1 8])
+    (->Cursor 1 6) (cr [1 7] [1 8])
+    (->Cursor 1 7) (cr [1 5] [1 6])
+    (->Cursor 1 8) (cr [1 5] [1 6])
+    (->Cursor 1 9) nil
+    (->Cursor 1 10) nil
+    (->Cursor 1 11) (cr [3 4] [3 5])
+    (->Cursor 1 12) (cr [3 4] [3 5])
+
+    (->Cursor 2 0) nil
+    (->Cursor 2 11) nil
+    (->Cursor 2 12) (cr [2 14] [2 15])
+    (->Cursor 2 13) (cr [2 14] [2 15])
+    (->Cursor 2 14) (cr [2 12] [2 13])
+    (->Cursor 2 15) (cr [2 12] [2 13])
+
+    (->Cursor 3 0) nil
+    (->Cursor 3 3) nil
+    (->Cursor 3 4) (cr [1 11] [1 12])
+    (->Cursor 3 5) (cr [1 11] [1 12])
+
+    (->Cursor 4 0) (cr [0 15] [0 16])
+    (->Cursor 4 1) (cr [0 15] [0 16])))

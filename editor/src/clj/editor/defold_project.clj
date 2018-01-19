@@ -4,7 +4,6 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.collision-groups :as collision-groups]
-            [editor.console :as console]
             [editor.core :as core]
             [editor.error-reporting :as error-reporting]
             [editor.gl :as gl]
@@ -30,7 +29,8 @@
             [util.digest :as digest]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [schema.core :as s])
   (:import [java.io File]
            [org.apache.commons.codec.digest DigestUtils]
            [org.apache.commons.io IOUtils]
@@ -40,10 +40,18 @@
 
 (def ^:dynamic *load-cache* nil)
 
+(def ^:private TBreakpoint {:resource s/Any
+                            :line     Long})
+
+(g/deftype Breakpoints [TBreakpoint])
+
 (defn graph [project]
   (g/node-id->graph-id project))
 
 (defn- load-node [project node-id node-type resource]
+  ;; Note that node-id here may be temporary (a make-node not
+  ;; g/transact'ed) here, so we can't use (node-value node-id :...)
+  ;; to inspect it. That's why we pass in node-type, resource.
   (try
     (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))
           load-fn (some-> resource (resource/resource-type) :load-fn)]
@@ -67,23 +75,102 @@
                        :resource-path (resource/resource->proj-path resource)}
                       t)))))
 
-(defn load-resource-nodes [project node-ids render-progress!]
-  (let [evaluation-context (g/make-evaluation-context)
-        basis (:basis evaluation-context)
-        progress (atom (progress/make "Loading resources..." (count node-ids)))]
-    (doall
-     (for [node-id node-ids
-           :let [type (g/node-type* basis node-id)]
-           :when (g/has-output? type :resource)
-           :let [resource (g/node-value node-id :resource evaluation-context)]]
-       (do
-         (when render-progress!
-           (render-progress! (swap! progress progress/advance)))
-         (load-node project node-id type resource))))))
+(defn- node-load-dependencies
+  "Returns node-ids for the immediate dependencies of node-id.
 
-(defn- load-nodes! [project node-ids render-progress!]
-  (g/transact
-    (load-resource-nodes project node-ids render-progress!)))
+  `loaded-nodes` is the complete set of nodes being loaded.
+
+  `loaded-nodes-by-resource-path` is a map from project path to node id for the nodes being
+  reloaded.
+
+  `nodes-by-resource-path` is a map from project path to:
+    * new node-id if the path is being reloaded
+    * old node-id if the path is not being reloaded
+
+  `resource-node-dependencies` is a map from node id to the project
+  paths which are the in-memory/current dependencies for nodes not
+  being reloaded."
+
+  [node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context]
+  (let [dependency-paths (if (contains? loaded-nodes node-id)
+                           (try
+                             (let [node-resource (g/node-value node-id :resource evaluation-context)
+                                   source-value (g/node-value node-id :source-value evaluation-context)]
+                               (resource-node/resource-dependencies node-resource source-value))
+                             (catch Exception e
+                               (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
+                                                      (resource/proj-path (g/node-value node-id :resource evaluation-context)))
+                                         :exception e)
+                               []))
+                           (resource-node-dependencies node-id))
+        dependency-nodes (keep nodes-by-resource-path dependency-paths)]
+    dependency-nodes))
+
+(defn sort-nodes-for-loading
+  ([node-ids load-deps]
+   (first (sort-nodes-for-loading node-ids #{} [] #{} (set node-ids) load-deps)))
+  ([node-ids in-progress queue queued batch load-deps]
+   (if-not (seq node-ids)
+     [queue queued]
+     (let [node-id (first node-ids)]
+       ;; TODO: Handle recursive dependencies properly. Here we treat
+       ;; a recurring node-id as "already loaded", which might not be
+       ;; correct. Maybe log? Keep information about circular
+       ;; dependency to be used in get-resource-node etc?
+       (if (or (contains? queued node-id) (contains? in-progress node-id))
+         (recur (rest node-ids) in-progress queue queued batch load-deps)
+         (let [deps (load-deps node-id)
+               [dep-queue dep-queued] (sort-nodes-for-loading deps (conj in-progress node-id) queue queued batch load-deps)]
+           (recur (rest node-ids)
+                  in-progress
+                  (if (contains? batch node-id) (conj dep-queue node-id) dep-queue)
+                  (conj dep-queued node-id)
+                  batch
+                  load-deps)))))))
+
+(defn resource-node-dependencies
+  "Returns a map from node id to its current project path dependencies.
+
+  Does not work in the intermediate stages of the resource sync. Must
+  be called when the project is in a stable state, i.e. before
+  creating new versions of resource nodes to be reloaded."
+  [node-ids]
+  (let [evaluation-context (g/make-evaluation-context)
+        dependencies (into {}
+                           (map (fn [node-id]
+                                  (let [dependency-paths (g/node-value node-id :reload-dependencies evaluation-context)]
+                                    [node-id dependency-paths])))
+                           node-ids)]
+    (g/update-cache-from-evaluation-context! evaluation-context)
+    dependencies))
+
+(defn load-resource-nodes [project node-ids render-progress! resource-node-dependencies]
+  (let [evaluation-context (g/make-evaluation-context)
+        node-id->resource (into {}
+                                (map (fn [node-id]
+                                       [node-id (g/node-value node-id :resource evaluation-context)]))
+                                node-ids)
+        old-nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)
+        loaded-nodes-by-resource-path (into {} (map (fn [[node-id resource]]
+                                                      [(resource/proj-path resource) node-id]))
+                                            node-id->resource)
+        nodes-by-resource-path (merge old-nodes-by-resource-path loaded-nodes-by-resource-path)
+        loaded-nodes (set node-ids)
+        load-deps (fn [node-id] (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))
+        node-ids (sort-nodes-for-loading loaded-nodes load-deps)
+        basis (:basis evaluation-context)
+        progress (atom (progress/make "Loading resources..." (count node-ids)))
+        load-txs (doall
+                   (for [node-id node-ids]
+                     (do
+                       (when render-progress!
+                         (render-progress! (swap! progress progress/advance)))
+                       (load-node project node-id (g/node-type* basis node-id) (node-id->resource node-id)))))]
+    (g/update-cache-from-evaluation-context! evaluation-context)
+    load-txs))
+
+(defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
+  (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies)))
 
 (defn- connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -135,9 +222,10 @@
   ([project resources]
    (load-project project resources progress/null-render-progress!))
   ([project resources render-progress!]
+   (assert (not (seq (g/node-value project :nodes))) "load-project should only be used when loading an empty project")
    (with-bindings {#'*load-cache* (atom (into #{} (g/node-value project :nodes)))}
      (let [nodes (make-nodes! project resources)]
-       (load-nodes! project nodes render-progress!)
+       (load-nodes! project nodes render-progress! {})
        (when-let [game-project (get-resource-node project "/game.project")]
          (g/transact
            (concat
@@ -192,16 +280,22 @@
        (write-save-data-to-disk! project {:render-progress! render-fn}))
      (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
-(defn build [project node evaluation-context {:keys [render-progress! render-error!]
-                                              :or   {render-progress! progress/null-render-progress!}
-                                              :as   opts}]
-  (let [build-targets (g/node-value node :build-targets evaluation-context)]
-    (if (g/error? build-targets)
-      (do
-        (when render-error!
-          (render-error! build-targets))
-        nil)
-      (pipeline/build! (workspace project) build-targets))))
+(defn build
+  ([project node evaluation-context opts]
+   (build project node evaluation-context nil opts))
+  ([project node evaluation-context extra-build-targets {:keys [render-progress! render-error!]
+                                                         :or   {render-progress! progress/null-render-progress!}
+                                                         :as   opts}]
+   (let [node-build-targets (g/node-value node :build-targets evaluation-context)
+         build-targets (cond-> node-build-targets
+                         (seq extra-build-targets)
+                         (into extra-build-targets))]
+     (if (g/error? build-targets)
+       (do
+         (when render-error!
+           (render-error! build-targets))
+         nil)
+       (pipeline/build! (workspace project) build-targets)))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -220,7 +314,7 @@
                  [:linux   "Linux Application..."]
                  [:html5   "HTML5 Application..."]])))
 
-(ui/extend-menu ::menubar :editor.app-view/edit
+(ui/extend-menu ::menubar :editor.app-view/view
                 [{:label "Project"
                   :id ::project
                   :children (vec (remove nil? [{:label "Build"
@@ -299,6 +393,7 @@
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
     (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
+          old-resource-node-dependencies (resource-node-dependencies (g/node-value project :nodes))
           resource->old-node (comp old-nodes-by-path resource/proj-path)
           new-nodes (make-nodes! project (:new plan))
           resource-path->new-node (into {} (map (fn [resource-node]
@@ -311,17 +406,23 @@
           resource->node (fn [resource]
                            (or (resource->new-node resource)
                                (resource->old-node resource)))]
+      ;; Transfer of overrides must happen before we delete the original nodes below.
+      ;; The new target nodes do not need to be loaded. When loading the new targets,
+      ;; corresponding override-nodes for the incoming connections will be created in the
+      ;; overrides.
+      (let [transfers (into {}
+                            (map (juxt second (comp resource->node first)))
+                            (:transfer-overrides plan))]
+        (g/transact
+          (g/transfer-overrides transfers)))
 
-      (g/transact
-        (for [[target-resource source-node] (:transfer-overrides plan)]
-          (let [target-node (resource->node target-resource)]
-            (g/transfer-overrides source-node target-node))))
-
+      ;; must delete old versions of resource nodes before loading to avoid
+      ;; load functions finding these when doing lookups of dependencies...
       (g/transact
         (for [node (:delete plan)]
           (g/delete-node node)))
 
-      (load-nodes! project new-nodes render-progress!)
+      (load-nodes! project new-nodes render-progress! old-resource-node-dependencies)
 
       (g/transact
         (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
@@ -411,6 +512,7 @@
   (input texture-profiles g/Any)
   (input collision-group-nodes g/Any :array)
   (input build-settings g/Any)
+  (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
 
   (output selected-node-ids-by-resource-node g/Any :cached (g/fnk [all-selected-node-ids all-selections]
                                                              (let [selected-node-id-set (set all-selected-node-ids)]
@@ -441,7 +543,8 @@
   (output nil-resource resource/Resource (g/constantly nil))
   (output collision-groups-data g/Any :cached produce-collision-groups-data)
   (output default-tex-params g/Any :cached produce-default-tex-params)
-  (output build-settings g/Any (gu/passthrough build-settings)))
+  (output build-settings g/Any (gu/passthrough build-settings))
+  (output breakpoints Breakpoints :cached (g/fnk [breakpoints] (into [] cat breakpoints))))
 
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
@@ -454,16 +557,19 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-write-project [project evaluation-context build-options]
-  (let [game-project  (get-resource-node project "/game.project")
-        clear-errors! (:clear-errors! build-options)]
-    (try
-      (ui/with-progress [render-fn ui/default-render-progress!]
-        (clear-errors!)
-        (not (empty? (build project game-project evaluation-context (assoc build-options :render-progress! render-fn)))))
-      (catch Throwable error
-        (error-reporting/report-exception! error)
-        false))))
+(defn build-and-write-project
+  ([project evaluation-context build-options]
+   (build-and-write-project project evaluation-context nil build-options))
+  ([project evaluation-context extra-build-targets build-options]
+   (let [game-project  (get-resource-node project "/game.project")
+         clear-errors! (:clear-errors! build-options)]
+     (try
+       (ui/with-progress [render-fn ui/default-render-progress!]
+         (clear-errors!)
+         (seq (build project game-project evaluation-context extra-build-targets (assoc build-options :render-progress! render-fn))))
+       (catch Throwable error
+         (error-reporting/report-exception! error)
+         nil)))))
 
 (defn settings [project]
   (g/node-value project :settings))
@@ -471,6 +577,9 @@
 (defn project-dependencies [project]
   (when-let [settings (settings project)]
     (settings ["project" "dependencies"])))
+
+(defn shared-script-state? [project]
+  (some-> (settings project) (get ["script" "shared_state"])))
 
 (defn- disconnect-from-inputs [src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* src)))
@@ -544,10 +653,14 @@
       (ui/run-later (g/update-cache-from-evaluation-context! evaluation-context)))))
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
-  (let [progress (atom (progress/make "Updating dependencies..." 3))]
+  (let [dependencies (read-dependencies game-project-resource)
+        progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
-    (workspace/set-project-dependencies! workspace-id (read-dependencies game-project-resource))
-    (workspace/update-dependencies! workspace-id (progress/nest-render-progress render-progress! @progress) login-fn)
+
+    (when (workspace/dependencies-reachable? dependencies login-fn)
+      (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
+           (workspace/install-validated-libraries! workspace-id dependencies)))
+    
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
     (workspace/resource-sync! workspace-id false [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project"))

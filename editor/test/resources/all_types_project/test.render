@@ -1,0 +1,5 @@
+script: "/test.render_script"
+materials {
+  name: "New Material"
+  material: "/test.material"
+}

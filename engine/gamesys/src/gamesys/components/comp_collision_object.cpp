@@ -7,6 +7,7 @@
 
 #include <physics/physics.h>
 
+#include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
 
 #include "gamesys.h"
@@ -74,6 +75,9 @@ namespace dmGameSystem
         world_transform = dmGameObject::GetWorldTransform(instance);
     }
 
+    // TODO: Allow the SetWorldTransform to have a physics context which we can check instead!!
+    static int g_NumPhysicsTransformsUpdated = 0;
+
     void SetWorldTransform(void* user_data, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation)
     {
         if (!user_data)
@@ -93,6 +97,7 @@ namespace dmGameSystem
             dmGameObject::SetPosition(instance, p);
         }
         dmGameObject::SetRotation(instance, rotation);
+        ++g_NumPhysicsTransformsUpdated;
     }
 
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -200,7 +205,7 @@ namespace dmGameSystem
         }
     }
 
-    bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
+    static bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
     {
         CollisionObjectResource* resource = component->m_Resource;
         dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
@@ -343,6 +348,7 @@ namespace dmGameSystem
                 component->m_Object2D = 0;
             }
         }
+
         delete component;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -696,7 +702,7 @@ namespace dmGameSystem
         return dispatch_context.m_Success;
     }
 
-    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params)
+    dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         if (params.m_World == 0x0)
             return dmGameObject::UPDATE_RESULT_OK;
@@ -730,6 +736,8 @@ namespace dmGameSystem
         step_world_context.m_RayCastCallback = RayCastCallback;
         step_world_context.m_RayCastUserData = world;
 
+        g_NumPhysicsTransformsUpdated = 0;
+
         if (physics_context->m_3D)
         {
             dmPhysics::StepWorld3D(world->m_World3D, step_world_context);
@@ -738,6 +746,9 @@ namespace dmGameSystem
         {
             dmPhysics::StepWorld2D(world->m_World2D, step_world_context);
         }
+
+        update_result.m_TransformsUpdated = g_NumPhysicsTransformsUpdated > 0;
+
         if (collision_user_data.m_Count >= physics_context->m_MaxCollisionCount)
         {
             if (!g_CollisionOverflowWarning)

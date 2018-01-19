@@ -18,6 +18,13 @@
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
+(defn resource-dependencies [resource value]
+  (let [resource-type (resource/resource-type resource)
+        dependencies-fn (:dependencies-fn resource-type)]
+    (if dependencies-fn
+      (dependencies-fn value)
+      [])))
+
 (g/defnode ResourceNode
   (inherits core/Scope)
   (inherits outline/OutlineNode)
@@ -30,10 +37,15 @@
                                       (cond-> {:resource resource :dirty? dirty? :value save-value :node-id _node-id}
                                         (and write-fn save-value) (assoc :content (write-fn save-value))))))
   (output source-value g/Any :cached (g/fnk [resource]
-                                       (when-let [read-fn (some-> resource
-                                                            (resource/resource-type)
-                                                            :read-fn)]
-                                         (read-fn resource))))
+                                       (when (and (some? resource) (resource/exists? resource))
+                                         (when-some [read-fn (some-> resource
+                                                                     (resource/resource-type)
+                                                                     :read-fn)]
+                                           (read-fn resource)))))
+  
+  (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
+                                              (resource-dependencies resource save-value)))
+  
   (output save-value g/Any (g/constantly nil))
   (output cleaned-save-value g/Any :cached (g/fnk [resource save-value]
                                              (when resource
@@ -78,13 +90,22 @@
                                 (g/error-fatal (format "Cannot build resource of type '%s'" (resource/ext resource)))))
   (output save-value g/Any (g/constantly nil)))
 
-(defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
+(defn make-ddf-dependencies-fn [ddf-type]
+  (fn [source-value]
+    (into []
+          (comp
+            (filter seq)
+            (distinct))
+          ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
+
+(defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
   (let [read-fn (comp (or sanitize-fn identity) (partial protobuf/read-text ddf-type))
         args (assoc args
                :textual? true
                :load-fn (fn [project self resource]
                           (let [source-value (read-fn resource)]
                             (load-fn project self resource source-value)))
+               :dependencies-fn (or dependencies-fn (make-ddf-dependencies-fn ddf-type))
                :read-fn read-fn
                :write-fn (partial protobuf/map->str ddf-type))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
@@ -101,7 +122,10 @@
                :textual? true
                :load-fn (fn [project self resource]
                           (let [source-value (read-fn resource)]
-                            (g/set-property self :code source-value)))
+                            (concat
+                              (g/set-property self :code source-value)
+                              (when (contains? (g/output-labels node-type) :breakpoints)
+                                (g/connect self :breakpoints project :breakpoints)))))
                :read-fn read-fn
                :write-fn identity)]
     (apply workspace/register-resource-type workspace (mapcat identity args))))

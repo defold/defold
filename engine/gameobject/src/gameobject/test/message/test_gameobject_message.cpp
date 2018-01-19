@@ -12,7 +12,7 @@
 #include "../gameobject_private.h"
 #include "gameobject/test/message/test_gameobject_message_ddf.h"
 
-#include "../../../proto/gameobject_ddf.h"
+#include "../../../proto/gameobject/gameobject_ddf.h"
 
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 

@@ -353,8 +353,8 @@ public class SpineSceneTest {
         
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
         MockRotationBuilder rotBuilder = new MockRotationBuilder(animTrackBuilder);
-        RigUtil.sampleTrack(track, rotBuilder, new Quat4d(0.0, 0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, true, false);
         
+        RigUtil.sampleTrack(track, rotBuilder, new Quat4d(0.0, 0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, true);
         double halfSqrt2 = Math.sqrt(2.0) / 2.0;
         int expectedNumRotSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 4; // Quaternions
         Quat4d expectedInitRot = new Quat4d(0.0, 0.0, 0.0, 1.0);
@@ -377,8 +377,8 @@ public class SpineSceneTest {
         
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
         MockPositionBuilder posBuilder = new MockPositionBuilder(animTrackBuilder);
-        RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, true, false);
         
+        RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, true);
         int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 3; // Point3d
         Point3d expectedInitPos = new Point3d(0.0, 0.0, 0.0);
         Point3d expectedEndPos = new Point3d(100.0, 0.0, 0.0);
@@ -402,8 +402,8 @@ public class SpineSceneTest {
         
         Rig.AnimationTrack.Builder animTrackBuilder = Rig.AnimationTrack.newBuilder();
         MockPositionBuilder posBuilder = new MockPositionBuilder(animTrackBuilder);
-        RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
         
+        RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, interpolate);
         int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 3; // Point3d
         Point3d expectedInitPos = new Point3d(0.0, 0.0, 0.0);
         Point3d expectedLowMidPos = new Point3d(0.0, 0.0, 0.0);
@@ -445,7 +445,7 @@ public class SpineSceneTest {
             trackBuilder.setMeshId(1337);
             trackBuilder.setMeshIndex(666);
             MockVisibilityBuilder visibilityBuilder = new MockVisibilityBuilder(trackBuilder, meshNames[i]);
-            RigUtil.sampleTrack(track, visibilityBuilder, new Boolean(meshNames[i].equals(slot.attachment)), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
+            RigUtil.sampleTrack(track, visibilityBuilder, new Boolean(meshNames[i].equals(slot.attachment)), 0.0, duration, sampleRate, spf, interpolate);
             assertEquals(expectedSampleCountPerMesh, visibilityBuilder.GetVisibleCount());
             
             for (int j=0; j < expectedSampleCountPerMesh; ++j) {
@@ -477,7 +477,7 @@ public class SpineSceneTest {
         
         // Mesh "_3" [0, 2, 1, 0, 0]
         MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_3, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
+        RigUtil.sampleTrack(track_3, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
         assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(1));
@@ -488,7 +488,7 @@ public class SpineSceneTest {
 
         // Mesh "_4" [0, 2, 1, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
         assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(1));
@@ -499,7 +499,7 @@ public class SpineSceneTest {
         
         // Mesh "_5" [0, 0, 4, 4, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_5, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
+        RigUtil.sampleTrack(track_5, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
         assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
@@ -530,7 +530,7 @@ public class SpineSceneTest {
         
         // Mesh "_4" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0xDEAD, 0xDEAD, 0xDEAD, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
         assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
@@ -572,7 +572,7 @@ public class SpineSceneTest {
 
         // Mesh "_3" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
         MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_3, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
+        RigUtil.sampleTrack(track_3, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
         assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
@@ -592,7 +592,7 @@ public class SpineSceneTest {
 
         // Mesh "_4" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
         assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
@@ -612,7 +612,7 @@ public class SpineSceneTest {
         
         // Mesh "_5" [0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_5, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate, shouldSlerp);
+        RigUtil.sampleTrack(track_5, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
         assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(0, drawOrderBuilder.GetOrderOffset(1));

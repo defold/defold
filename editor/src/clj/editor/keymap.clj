@@ -1,20 +1,30 @@
 (ns editor.keymap
   (:require
-   [editor.ui :as ui])
+   [editor.ui :as ui]
+   [editor.util :as util])
   (:import
    (com.defold.editor Platform)
    (javafx.scene Scene)
-   (javafx.scene.input KeyCombination KeyCombination$ModifierValue)))
+   (javafx.scene.input KeyEvent KeyCombination KeyCombination$ModifierValue)))
 
 (set! *warn-on-reflection* true)
 
-(def host-platform-shortcut-key
-  (case (.. Platform getHostPlatform getOs)
-    "darwin" :meta-down?
-    "win32"  :control-down?
-    "linux"  :control-down?))
+(def platform-shortcut-keys
+  {:darwin :meta-down?
+   :win32  :control-down?
+   :linux  :control-down?})
+
+(def host-platform-shortcut-key (platform-shortcut-keys (util/os)))
 
 (def default-key-bindings
+  ;; We should generally avoid adding shortcuts that can also be
+  ;; interpreted as typable text. This includes "A", "Shift+E" but
+  ;; also combinations like Alt+Shortcut+2 because on windows Shorcut means
+  ;; Ctrl, and Alt+Ctrl is an alternative way to enter AltGR and
+  ;; AltGR+2 is @ on some layouts - something you may want to type in
+  ;; the code editor :)
+  ;; The function key-binding-data->keymap attempts to catch this type
+  ;; of mistake.
   [["A"                     :add]
    ["Alt+Backspace"         :delete-prev-word]
    ["Alt+Delete"            :delete-next-word]
@@ -22,8 +32,13 @@
    ["Alt+Down"              :move-down]
    ["Alt+Left"              :prev-word]
    ["Alt+Right"             :next-word]
-   ["Alt+Shortcut+E"        :replace-next]
-   ["Alt+Shortcut+X"        :profile]
+   ["Shortcut+'-'"          :zoom-out]
+   ;; disabled because of above
+   #_["Alt+Shortcut+1"        :show-console]
+   #_["Alt+Shortcut+2"        :show-curve-editor]
+   #_["Alt+Shortcut+3"        :show-build-errors]
+   #_["Alt+Shortcut+4"        :show-search-results]
+   #_["Alt+Shortcut+X"        :profile]
    ["Alt+Up"                :beginning-of-line]
    ["Alt+Up"                :move-up]
    ["Backspace"             :delete-backward]
@@ -42,7 +57,13 @@
    ["Esc"                   :escape]
    ["F"                     :frame-selection]
    ["F1"                    :documentation]
-   ["F5"                    :sort-lines]
+   ["F10"                   :step-over]
+   ["F11"                   :step-into]
+   ["Shift+F11"             :step-out]
+   ["F5"                    :start-debugger]
+   ["F6"                    :continue]
+   ["F7"                    :break]
+   ["Shift+F5"              :stop-debugger]
    ["Ctrl+R"                :reload-stylesheet]
    ["F9"                    :toggle-breakpoint]
    ["Home"                  :beginning-of-line-text]
@@ -57,7 +78,7 @@
    ["Shift+Alt+Left"        :select-prev-word]
    ["Shift+Alt+Right"       :select-next-word]
    ["Shift+Alt+Up"          :select-beginning-of-line]
-   ["Shift+Alt+Shortcut+X"  :profile-show]
+   #_["Shift+Alt+Shortcut+X"  :profile-show]
    ["Shift+Ctrl+A"          :select-beginning-of-line]
    ["Shift+Ctrl+E"          :select-end-of-line]
    ["Shift+Ctrl+Left"       :select-prev-word]
@@ -77,6 +98,7 @@
    ["Shift+Shortcut+Delete" :delete-to-end-of-line]
    ["Shift+Shortcut+Down"   :select-end-of-file]
    ["Shift+Shortcut+End"    :select-end-of-file]
+   ["Shift+Shortcut+E"      :replace-next]
    ["Shift+Shortcut+F"      :search-in-files]
    ["Shift+Shortcut+G"      :find-prev]
    ["Shift+Shortcut+Home"   :select-beginning-of-file]
@@ -90,6 +112,7 @@
    ["Shift+Tab"             :backwards-tab-trigger]
    ["Shift+Up"              :up-major]
    ["Shift+Up"              :select-up]
+   ["Shortcut+'+'"          :zoom-in]
    ["Shortcut+A"            :select-all]
    ["Shortcut+B"            :build]
    ["Shortcut+C"            :copy]
@@ -126,13 +149,25 @@
    ["Up"                    :up]
    ["W"                     :move-tool]])
 
-(def ^:private allowed-duplicate-shortcuts #{"Alt+Down"
-                                             "Alt+Up"
-                                             "Shift+Down"
-                                             "Shift+Left"
-                                             "Shift+Right"
-                                             "Shift+Up"
-                                             "Space"})
+(def ^:private default-allowed-duplicate-shortcuts #{"Alt+Down"
+                                                     "Alt+Up"
+                                                     "Shift+Down"
+                                                     "Shift+Left"
+                                                     "Shift+Right"
+                                                     "Shift+Up"
+                                                     "Space"
+                                                     "F5"})
+
+;; These are only (?) used in contexts where there is no text field
+;; interested in the actual typable input.
+(def ^:private default-allowed-typable-shortcuts #{"A"       ; :add
+                                                   "E"       ; :rotate-tool
+                                                   "F"       ; :frame-selection
+                                                   "R"       ; :scale-tool
+                                                   "W"       ; :move-tool
+                                                   "Shift+A" ; :add-secondary
+                                                   "Shift+E" ; :erase-tool
+                                                   })
 
 (defprotocol KeyComboData
   (key-combo->map* [this] "returns a data representation of a KeyCombination."))
@@ -156,18 +191,116 @@
      :shift-down?    (= KeyCombination$ModifierValue/DOWN (.getShift key-combo))
      :shortcut-down? (= KeyCombination$ModifierValue/DOWN (.getShortcut key-combo))})  )
 
+(defn key-event->map [^KeyEvent e]
+  {:key              (.getCharacter e)
+   :alt-down?        (.isAltDown e)
+   :control-down?    (.isControlDown e)
+   :meta-down?       (.isMetaDown e)
+   :shift-down?      (.isShiftDown e)
+   :shortcut-down?   (.isShortcutDown e)})
+
 (defn- key-combo->map [s]
   (let [key-combo (KeyCombination/keyCombination s)]
     (key-combo->map* key-combo)))
+
+(defn- convert-shortcut-key [platform-shortcut-key key-combo-data]
+  (-> key-combo-data
+      (update platform-shortcut-key #(or % (:shortcut-down? key-combo-data)))
+      (dissoc :shortcut-down?)))
+
+(defn typable?
+  "Only act on key pressed events that look like textual input, and
+  skip what is likely shortcut combinations.
+
+  Transcribed, and altered, from javafx TextInputControlBehaviour/defaultKeyTyped. See:
+
+  http://grepcode.com/file/repo1.maven.org/maven2/net.java.openjfx.backport/openjfx-78-backport/1.8.0-ea-b96.1/com/sun/javafx/scene/control/behavior/TextInputControlBehavior.java#TextInputControlBehavior.defaultKeyTyped%28javafx.scene.input.KeyEvent%29
+
+  Original:
+
+        if (event.isControlDown() || event.isAltDown() || (isMac() && event.isMetaDown())) {
+            if (!((event.isControlDown() || isMac()) && event.isAltDown())) return;
+        }
+
+  Transcribed:
+
+        (not (and (or control-down? alt-down? (and mac? meta-down?))
+                  (not (and (or control-down? mac?) alt-down?))))
+
+  Simplified:
+
+    (or (and control-down? alt-down?)
+        (and mac? alt-down?)
+        (and (not mac?) (not control-down?) (not alt-down?))
+        (and (not control-down?) (not alt-down?) (not meta-down?)))
+
+  Truth table:
+
+  MAC  CTRL ALT  META    RESULT
+  no   no   no   no   => typable
+  no   no   no   yes  => typable  -- Haven't been able to repro META on non-mac, assume not typable if even possible
+  no   no   yes  no   => shortcut
+  no   no   yes  yes  => shortcut
+  no   yes  no   no   => shortcut
+  no   yes  no   yes  => shortcut
+  no   yes  yes  no   => typable
+  no   yes  yes  yes  => typable  -- As above
+  yes  no   no   no   => typable
+  yes  no   no   yes  => shortcut
+  yes  no   yes  no   => typable
+  yes  no   yes  yes  => typable  -- No other tested mac app reacts like this, but seems you can use cmd (Meta) as modifier in keyboard input sources
+  yes  yes  no   no   => shortcut
+  yes  yes  no   yes  => shortcut
+  yes  yes  yes  no   => typable  -- As above
+  yes  yes  yes  yes  => typable  -- As above
+
+  This does not seem right. We probably want:
+
+  MAC  CTRL ALT  META    RESULT
+  no   no   no   no   => typable
+  no   no   no   yes  => shortcut <-- Now treated as possibly shortcut
+  no   no   yes  no   => shortcut
+  no   no   yes  yes  => shortcut
+  no   yes  no   no   => shortcut
+  no   yes  no   yes  => shortcut
+  no   yes  yes  no   => typable
+  no   yes  yes  yes  => shortcut <-- As above
+  yes  no   no   no   => typable
+  yes  no   no   yes  => shortcut
+  yes  no   yes  no   => typable
+  yes  no   yes  yes  => typable  <-- Let it be for now
+  yes  yes  no   no   => shortcut
+  yes  yes  no   yes  => shortcut
+  yes  yes  yes  no   => typable  <-- As above
+  yes  yes  yes  yes  => typable  <-- As above
+
+  So that's what we use below."
+  ([key-combo-data]
+   (typable? key-combo-data (util/os)))
+  ([{:keys [alt-down? control-down? meta-down?] :as _key-combo-data} os]
+   (let [mac? (= os :darwin)]
+     (or (and mac? alt-down?)
+         (not (or control-down? alt-down? meta-down?))
+         (and control-down? alt-down? (not meta-down?))))))
+
+(defn- platform-typable-shortcut?
+  [os key-combo-data]
+  (let [canonical-key-combo-data (convert-shortcut-key (platform-shortcut-keys os) key-combo-data)]
+    (and (typable? canonical-key-combo-data os)
+         (= 1 (count (:key canonical-key-combo-data))))))
+
+(defn- any-platform-typable-shortcut?
+  [key-combo-data]
+  (or (platform-typable-shortcut? :darwin key-combo-data)
+      (platform-typable-shortcut? :win32 key-combo-data)
+      (platform-typable-shortcut? :linux key-combo-data)))
 
 (defn- key-binding-data
   [key-bindings platform-shortcut-key]
   (map (fn [[shortcut command]]
          (let [key-combo (KeyCombination/keyCombination shortcut)
                key-combo-data (key-combo->map shortcut)
-               canonical-key-combo-data (-> key-combo-data
-                                            (update platform-shortcut-key #(or % (:shortcut-down? key-combo-data)))
-                                            (dissoc :shortcut-down?))]
+               canonical-key-combo-data (convert-shortcut-key platform-shortcut-key key-combo-data)]
            {:shortcut shortcut
             :command command
             :key-combo key-combo
@@ -189,8 +322,8 @@
                      overlapping-key-bindings)))))
 
 (defn- key-binding-data->keymap
-  [key-bindings-data valid-command?]
-  (reduce (fn [ret {:keys [canonical-key-combo-data shortcut command ^KeyCombination key-combo]}]
+  [key-bindings-data valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
+  (reduce (fn [ret {:keys [canonical-key-combo-data key-combo-data shortcut command ^KeyCombination key-combo]}]
             (cond
               (not (valid-command? command))
               (update ret :errors conj {:type :unknown-command
@@ -201,6 +334,12 @@
               (update ret :errors conj {:type :unknown-shortcut
                                         :command command
                                         :shortcut shortcut})
+
+              (and (any-platform-typable-shortcut? key-combo-data)
+                   (not (allowed-typable-shortcuts shortcut)))
+              (update ret :errors into [{:type :typable-shortcut
+                                         :command command
+                                         :shortcut shortcut}])
 
               (and (some? (get-in ret [:keymap canonical-key-combo-data]))
                    (not (allowed-duplicate-shortcuts shortcut)))
@@ -220,22 +359,26 @@
           key-bindings-data))
 
 (defn- make-keymap*
-  [key-bindings platform-shortcut-key valid-command?]
+  [key-bindings platform-shortcut-key valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts]
   (-> (key-binding-data key-bindings platform-shortcut-key)
       (remove-shortcut-key-overlaps)
-      (key-binding-data->keymap valid-command?)))
+      (key-binding-data->keymap valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)))
 
 (defn make-keymap
   ([key-bindings]
    (make-keymap key-bindings nil))
   ([key-bindings {:keys [valid-command?
                          platform-shortcut-key
-                         throw-on-error?]
-                  :or   {valid-command?        (constantly true)
-                         platform-shortcut-key host-platform-shortcut-key
-                         throw-on-error?       false}
+                         throw-on-error?
+                         allowed-duplicate-shortcuts
+                         allowed-typable-shortcuts]
+                  :or   {valid-command?              (constantly true)
+                         platform-shortcut-key       host-platform-shortcut-key
+                         throw-on-error?             false
+                         allowed-duplicate-shortcuts default-allowed-duplicate-shortcuts
+                         allowed-typable-shortcuts   default-allowed-typable-shortcuts}
                   :as   opts}]
-   (let [{:keys [errors keymap]} (make-keymap* key-bindings platform-shortcut-key valid-command?)]
+   (let [{:keys [errors keymap]} (make-keymap* key-bindings platform-shortcut-key valid-command? allowed-duplicate-shortcuts allowed-typable-shortcuts)]
      (if (and (seq errors) throw-on-error?)
        (throw (ex-info "Keymap has errors"
                        {:errors       errors

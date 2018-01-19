@@ -10,7 +10,7 @@
 #include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
-#include "../proto/gameobject_ddf.h"
+#include "../proto/gameobject/gameobject_ddf.h"
 
 #define EPSILON 0.000001f
 
@@ -639,14 +639,12 @@ TEST_F(HierarchyTest, TestHierarchyInheritScale)
     ASSERT_EQ(scale, world.GetTranslation().getX());
     ASSERT_EQ(scale, world.GetUniformScale());
 
-    dmGameObject::SetInheritScale(child, false);
-
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
 
     world = dmGameObject::GetWorldTransform(child);
     ASSERT_EQ(scale, world.GetTranslation().getX());
-    ASSERT_NE(scale, world.GetUniformScale());
+    ASSERT_EQ(scale, world.GetUniformScale());
 
     dmGameObject::Delete(m_Collection, child, false);
     dmGameObject::Delete(m_Collection, parent, false);

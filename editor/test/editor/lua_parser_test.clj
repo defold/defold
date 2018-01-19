@@ -60,7 +60,14 @@
     (let [code "require(\"mymath\")"
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{}
-              :requires [[nil "mymath"]]} result)))))
+              :requires [[nil "mymath"]]} result))))
+  (testing "require call as part of complex expression"
+    (let [code (string/join "\n" ["state_rules[hash(\"main\")] = hash_rules("
+                                  "    require \"main/state_rules\""
+                                  ")"])
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{"state_rules"}
+              :requires [[nil "main/state_rules"]]} result)))))
 
 (deftest test-functions
   (testing "global function with no params"
@@ -212,6 +219,26 @@
             :script-properties []
             :requires []} result))))
 
+(deftest function-following-local-function
+  (are [code]
+    (= {:vars #{}
+        :local-vars #{}
+        :functions {}
+        :local-functions {}
+        :script-properties []
+        :requires []}
+       (lua-info code))
+
+    "local function\nfunction"
+    "local function\nfunction foo"
+    "local function\nfunction foo("
+    "local function\nfunction foo()"
+    "local function\nfunction foo(a"
+    "local function\nfunction foo(a)"
+    "local function\nfunction foo(a,"
+    "local function\nfunction foo(a,b"
+    "local function\nfunction foo(a,b)"))
+
 (defn- src->properties [src]
   (:script-properties (lua-info src)))
 
@@ -277,7 +304,15 @@
                                    "go.property(\"test\", vmath.quat())"
                                    "go.property(\"test\", vmath.quat(1, 2, 3, 4))"])))))
 
-  (is (= [] (src->properties "foo.property(\"test\", true)")))
-  (is (= [] (src->properties "go.property")))
-  (is (= [{:status :invalid-args}] (src->properties "go.property()")))
-  (is (= [{:status :invalid-args :name "test"}] (src->properties "go.property(\"test\")"))))
+  (is (= []
+         (src->properties "foo.property(\"test\", true)")))
+  (is (= []
+         (src->properties "go.property")))
+  (is (= [{:status :invalid-args}]
+         (src->properties "go.property()")))
+  (is (= [{:status :invalid-args :name "test"}]
+         (src->properties "go.property(\"test\")")))
+  (is (= [{:status :invalid-name :name "" :type :property-type-number :value 0.0}]
+         (src->properties "go.property(\"\", 0.0)")))
+  (is (= [{:status :invalid-value :name "test"}]
+         (src->properties "go.property(\"test\", \"foo\")"))))

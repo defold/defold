@@ -11,7 +11,7 @@ Macros currently mean no foreseeable performance gain however."
             [internal.java :as j]
             [editor.util :as util]
             [util.murmur :as murmur])
-  (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor
+  (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor DescriptorProtos$FieldOptions
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
@@ -53,17 +53,19 @@ Macros currently mean no foreseeable performance gain however."
 
 (declare pb-accessor)
 
-(defn- field->accessor-fn [^Descriptors$FieldDescriptor fd ^Class cls]
+(defn- field-accessor-fn [{:keys [field-type-key java-type-key type]}]
   (cond
-    (= (.getType fd) Descriptors$FieldDescriptor$Type/MESSAGE)
-    (pb-accessor cls)
-    (= (.getType fd) Descriptors$FieldDescriptor$Type/ENUM)
+    (= field-type-key :message)
+    (pb-accessor type)
+
+    (= field-type-key :enum)
     pb-enum->val
-    (= (.getJavaType fd) Descriptors$FieldDescriptor$JavaType/BOOLEAN)
+
+    (= java-type-key :boolean)
     boolean
+
     :else
     identity))
-
 
 (def ^:private methods-by-name
   (memoize
@@ -111,31 +113,47 @@ Macros currently mean no foreseeable performance gain however."
         true
         (.toString)))))
 
-(defn- pb-accessor-raw [^Class class]
-  (let [field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method class "getDescriptor"))
-        fields (mapv (fn [^Descriptors$FieldDescriptor fd]
-                       (let [j-name (underscores-to-camel-case (.getName fd))
-                             repeated? (.isRepeated fd)
-                             get-method-name (str "get" j-name (if repeated? "List" ""))
-                             get-method (lookup-method class get-method-name)
-                             field-accessor-name (str "get" j-name)
-                             field-accessor (field->accessor-fn fd (.getReturnType (lookup-method class field-accessor-name)))
-                             field-accessor (if repeated? (partial mapv field-accessor) field-accessor)]
-                         [(field->key fd) (fn [pb]
-                                            (field-accessor (.invoke get-method pb j/no-args-array)))]))
-                 field-descs)]
-    (fn [pb]
-      (->> (reduce (fn [m [field get-fn]]
-                     (assoc m field (get-fn pb)))
-             {} fields)
-        (msg->clj pb)))))
+(defn- options [^DescriptorProtos$FieldOptions field-options]
+  (let [resource-desc (.getDescriptor DdfExtensions/resource)]
+    (cond-> {}
+      (.getField field-options resource-desc)
+      (assoc :resource true))))
 
-(def ^:private pb-accessor (memoize pb-accessor-raw))
+(defn- field-type [^Class class ^Descriptors$FieldDescriptor field-desc]
+  (let [java-name (underscores-to-camel-case (.getName field-desc))
+        field-accessor-name (str "get" java-name)]
+    (.getReturnType (lookup-method class field-accessor-name))))
 
-(defn pb->map
-  [^Message pb]
-  (let [accessor (pb-accessor (.getClass pb))]
-    (accessor pb)))
+(def ^:private java-type->key
+  {Descriptors$FieldDescriptor$JavaType/BOOLEAN :boolean
+   Descriptors$FieldDescriptor$JavaType/BYTE_STRING :byte-string
+   Descriptors$FieldDescriptor$JavaType/DOUBLE :double
+   Descriptors$FieldDescriptor$JavaType/ENUM :enum
+   Descriptors$FieldDescriptor$JavaType/FLOAT :float
+   Descriptors$FieldDescriptor$JavaType/INT :int
+   Descriptors$FieldDescriptor$JavaType/LONG :long
+   Descriptors$FieldDescriptor$JavaType/MESSAGE :message
+   Descriptors$FieldDescriptor$JavaType/STRING :string})
+
+(def ^:private field-type->key
+  {Descriptors$FieldDescriptor$Type/BOOL :bool
+   Descriptors$FieldDescriptor$Type/BYTES :bytes
+   Descriptors$FieldDescriptor$Type/DOUBLE :double
+   Descriptors$FieldDescriptor$Type/ENUM :enum
+   Descriptors$FieldDescriptor$Type/FIXED32 :fixed-32
+   Descriptors$FieldDescriptor$Type/FIXED64 :fixed-64
+   Descriptors$FieldDescriptor$Type/FLOAT :float
+   Descriptors$FieldDescriptor$Type/GROUP :group
+   Descriptors$FieldDescriptor$Type/INT32 :int-32
+   Descriptors$FieldDescriptor$Type/INT64 :int-64
+   Descriptors$FieldDescriptor$Type/MESSAGE :message
+   Descriptors$FieldDescriptor$Type/SFIXED32 :sfixed-32
+   Descriptors$FieldDescriptor$Type/SFIXED64 :sfixed-64
+   Descriptors$FieldDescriptor$Type/SINT32 :sint-32
+   Descriptors$FieldDescriptor$Type/SINT64 :sint-64
+   Descriptors$FieldDescriptor$Type/STRING :string
+   Descriptors$FieldDescriptor$Type/UINT32 :uint-32
+   Descriptors$FieldDescriptor$Type/UINT64 :uint-64})
 
 (defn- field-desc-default ^Object [^Descriptors$FieldDescriptor fd ^Object builder]
   (when (.isOptional fd)
@@ -144,17 +162,159 @@ Macros currently mean no foreseeable performance gain however."
       ;; Protobuf does not support default values for messages, e.g. a dmMath.Quat
       ;; However, when such a field is optional, and dmMath.Quat happens to specify the defaults 0.0, 0.0, 0.0, 1.0
       ;; for *its* individual fields, it's still possible to retrieve that complex message as a default value.
-      (let [j-name (->CamelCase (.getName fd))
-            ^Method field-get-method (j/get-declared-method (.getClass builder) (str "get" j-name) [])]
+      (let [java-name (underscores-to-camel-case (.getName fd))
+            ^Method field-get-method (j/get-declared-method (.getClass builder) (str "get" java-name) [])]
         (.invoke field-get-method builder j/no-args-array)))))
 
-(defn- default-vals-raw [^Class cls]
-  (let [field-descs (.getFields ^Descriptors$Descriptor (j/invoke-no-arg-class-method cls "getDescriptor"))
+(defn- field-info-raw [^Class cls]
+  (let [^Descriptors$Descriptor desc (j/invoke-no-arg-class-method cls "getDescriptor")
         builder (new-builder cls)]
-    (into {} (keep (fn [^Descriptors$FieldDescriptor fd]
-                     (when-some [default (field-desc-default fd builder)]
-                       [(field->key fd) ((field->accessor-fn fd (.getClass default)) default)]))
-               field-descs))))
+    (into {}
+          (map (fn [^Descriptors$FieldDescriptor field-desc]
+                 (let [default-value (field-desc-default field-desc builder)
+                       info (cond-> {:java-name (underscores-to-camel-case (.getName field-desc))
+                                     :type (field-type cls field-desc)
+                                     :java-type-key (java-type->key (.getJavaType field-desc))
+                                     :field-type-key (field-type->key (.getType field-desc))
+                                     :repeated? (.isRepeated field-desc)
+                                     :optional? (.isOptional field-desc)
+                                     :options (options (.getOptions field-desc))}
+                              (some? default-value)
+                              (assoc :default default-value))]
+                   [(field->key field-desc) info]))
+               (.getFields desc)))))
+
+(defn- field-get-method ^Method [{:keys [java-name repeated?]} ^Class cls]
+  (let [get-method-name (str "get" java-name (if repeated? "List" ""))]
+    (lookup-method cls get-method-name)))
+
+(def field-info (memoize field-info-raw))
+
+(declare resource-field-paths)
+
+(defn resource-field-paths-raw
+  "Returns a list of path expressions pointing out all resource fields.
+
+  path-expr := '[' elem+ ']'
+  elem := :keyword          ; index into structure using :keyword
+  elem := '[' :keyword ']'  ; :keyword is a repeated field, use rest of step* (if any) to index into each repetition (a message)
+
+  message Simple
+  {
+    required string image = 1 [(resource) = true];
+  }
+
+  message Repeated
+  {
+    repeated string images = 1 [(resource) = true];
+  }
+
+  message SimpleNested
+  {
+    required Simple simple;
+  }
+
+  message RepeatedNested
+  {
+    required Repeated repeated;
+  }
+
+  message SimpleRepeatedlyNested
+  {
+    repeated Simple simples;
+  }
+
+  message RepeatedRepeatedlyNested
+  {
+    repeated Repeated repeateds;
+  }
+
+  (resource-field-paths-raw Simple) -> [ [:image] ]
+  (resource-field-paths-raw Repeated) -> [ [[:images]] ]
+
+  (resource-field-paths-raw SimpleNested) -> [ [:simple :image] ]
+  (resource-field-paths-raw RepeatedNested) -> [ [:simple [:images]] ]
+
+  (resource-field-paths-raw SimpleRepeatedlyNested) -> [ [[:simples] :image] ]
+  (resource-field-paths-raw RepeatedRepeatedlyNested) -> [ [[:repeateds] [:images]] ]"
+  [^Class class]
+  (let [resource-field? (fn [field] (and (= (:type field) java.lang.String) (:resource (:options field))))
+        message? (fn [field] (= (:field-type-key field) :message))]
+    (into []
+          (comp
+            (map (fn [[key field]]
+                   (cond
+                     (resource-field? field)
+                     (if (:repeated? field)
+                       [ [[key]] ]
+                       [ [key] ])
+
+                     (message? field)
+                     (let [sub-paths (resource-field-paths (:type field))]
+                       (when (seq sub-paths)
+                         (let [prefix (if (:repeated? field) [[key]] [key])]
+                           (mapv (partial into prefix) sub-paths)))))))
+            cat
+            (remove nil?))
+          (field-info class))))
+
+(def resource-field-paths (memoize resource-field-paths-raw))
+
+(declare get-field-fn)
+
+(defn- get-field-fn-raw [path]
+  (if (seq path)
+    (let [elem (first path)
+          sub-path-fn (get-field-fn (rest path))]
+      (cond
+        (keyword? elem)
+        (fn [pb]
+          (sub-path-fn (elem pb)))
+
+        (vector? elem)
+        (let [pbs-fn (first elem)]
+          (fn [pb]
+            (into [] (mapcat sub-path-fn) (pbs-fn pb))))))
+    (fn [pb] [pb])))
+
+(def ^:private get-field-fn (memoize get-field-fn-raw))
+
+(defn- get-fields-fn-raw [paths]
+  (let [get-field-fns (map get-field-fn paths)]
+    (fn [pb]
+      (into []
+            (mapcat (fn [get-fn]
+                      (get-fn pb)))
+            get-field-fns))))
+
+
+(def get-fields-fn (memoize get-fields-fn-raw))
+
+(defn- pb-accessor-raw [^Class class]
+  (let [fields (mapv (fn [[key {:keys [java-name repeated? type] :as field-info}]]
+                       (let [get-method (field-get-method field-info class)
+                             field-accessor (field-accessor-fn field-info)
+                             field-accessor (if repeated? (partial mapv field-accessor) field-accessor)]
+                         [key (fn [pb] (field-accessor (.invoke get-method pb j/no-args-array)))]))
+                     (field-info class))]
+    (fn [pb]
+      (->> (reduce (fn [m [field get-fn]] (assoc m field (get-fn pb)))
+                   {}
+                   fields)
+           (msg->clj pb)))))
+
+(def ^:private pb-accessor (memoize pb-accessor-raw))
+
+(defn pb->map
+  [^Message pb]
+  (let [accessor (pb-accessor (.getClass pb))]
+    (accessor pb)))
+
+(defn- default-vals-raw [^Class cls]
+  (into {} (keep (fn [[key info]]
+                     (when-some [default (:default info)]
+                       [key ((field-accessor-fn info) default)])))
+        (field-info cls)))
 
 (def ^:private default-vals (memoize default-vals-raw))
 

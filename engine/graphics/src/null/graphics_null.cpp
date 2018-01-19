@@ -16,6 +16,10 @@ using namespace Vectormath::Aos;
 
 uint64_t g_DrawCount = 0;
 
+// Used only for tests
+bool g_ForceFragmentReloadFail = false;
+bool g_ForceVertexReloadFail = false;
+
 namespace dmGraphics
 {
     uint16_t TYPE_SIZE[] =
@@ -497,7 +501,7 @@ namespace dmGraphics
         return result;
     }
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t count, Type type, HIndexBuffer index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         assert(context);
         assert(index_buffer);
@@ -511,7 +515,7 @@ namespace dmGraphics
         }
         for (uint32_t i = 0; i < count; ++i)
         {
-            uint32_t index = GetIndex(type, index_buffer, i);
+            uint32_t index = GetIndex(type, index_buffer, i + first);
             for (uint32_t j = 0; j < MAX_VERTEX_STREAM_COUNT; ++j)
             {
                 VertexStream& vs = context->m_VertexStreams[j];
@@ -628,22 +632,24 @@ namespace dmGraphics
         return (uintptr_t)p;
     }
 
-    void ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
+    bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
         VertexProgram* p = (VertexProgram*)prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[program_size];
         memcpy((char*)p->m_Data, program, program_size);
+        return !g_ForceVertexReloadFail;
     }
 
-    void ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
+    bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size)
     {
         assert(program);
         FragmentProgram* p = (FragmentProgram*)prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[program_size];
         memcpy((char*)p->m_Data, program, program_size);
+        return !g_ForceFragmentReloadFail;
     }
 
     void DeleteVertexProgram(HVertexProgram program)
@@ -674,10 +680,12 @@ namespace dmGraphics
         context->m_Program = 0x0;
     }
 
-    void ReloadProgram(HContext context, HProgram program)
+    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         (void) context;
         (void) program;
+
+        return true;
     }
 
     uint32_t GetUniformCount(HProgram prog)
@@ -1029,6 +1037,16 @@ namespace dmGraphics
     uint32_t GetTextureStatusFlags(HTexture texture)
     {
         return TEXTURE_STATUS_OK;
+    }
+
+    void SetForceFragmentReloadFail(bool should_fail)
+    {
+        g_ForceFragmentReloadFail = should_fail;
+    }
+
+    void SetForceVertexReloadFail(bool should_fail)
+    {
+        g_ForceVertexReloadFail = should_fail;
     }
 
 }

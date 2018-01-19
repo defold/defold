@@ -224,16 +224,23 @@ public class BundleHelper {
         public String message;
         public int lineNumber;
 
-        public ResourceInfo(String severity, String resource, int lineNumber, String message) {
+        public ResourceInfo(String severity, String resource, String lineNumber, String message) {
             this.severity = severity;
             this.resource = resource;
             this.message = message;
-            this.lineNumber = lineNumber;
+            this.lineNumber = Integer.parseInt(lineNumber.equals("") ? "1" : lineNumber);
         }
     };
 
-    // This regexp works for both cpp and javac errors, warnings and note entries associated with a resource.
-    private static Pattern resourceIssueRe = Pattern.compile("^\\/tmp\\/job[0-9]+\\/upload\\/([^:]+):([0-9]+):?([0-9]*):\\s*(error|warning|note):\\s*(.+)");
+    // These regexp's works for both cpp and javac errors, warnings and note entries associated with a resource.
+    private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:\\/tmp\\/job[0-9]*\\/)?(?:upload|build)\\/([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
+    private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(error|warning|note).*?:\\s*(.+)"); // CL.exe
+    private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
+    private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
+    private static Pattern resourceIssueLinkerGCCRe = Pattern.compile("^(?:upload|build)\\/([^:]+):([0-9]+):\\s(\\w+):\\s*(.+)");
+
+    // Some errors/warning have an extra line _before_ the reported error, which is also very good to have
+    private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
 
     // Matches ext.manifest and also _app/app.manifest
     private static Pattern manifestIssueRe = Pattern.compile("^.+'(.+\\.manifest)'.+");
@@ -241,38 +248,128 @@ public class BundleHelper {
     // This regexp catches errors, warnings and note entries that are not associated with a resource.
     private static Pattern nonResourceIssueRe = Pattern.compile("^(fatal|error|warning|note):\\s*(.+)");
 
-    public static void parseLog(String log, List<ResourceInfo> issues) {
-        String[] lines = log.split("\n");
+    private static List<String> excludeMessages = new ArrayList<String>() {{
+        add("[options] bootstrap class path not set in conjunction with -source 1.6"); // Mighty annoying message
+    }};
 
-        for (String line : lines) {
-            Matcher m = BundleHelper.resourceIssueRe.matcher(line);
+    private static void parseLogGCC(String[] lines, List<ResourceInfo> issues) {
+        final Pattern compilerPattern = resourceIssueGCCRe; // catches linker errors too
+
+        for (int count = 0; count < lines.length; ++count) {
+            String line = lines[count];
+            Matcher m = compilerPattern.matcher(line);
 
             if (m.matches()) {
-                String resource = m.group(1);
-                int lineNumber = Integer.parseInt(m.group(2)); // column is group 3
+                // Groups: resource, line, column, "error", message
                 String severity = m.group(4);
-                String message = m.group(5);
-                issues.add( new BundleHelper.ResourceInfo(severity, resource, lineNumber, message) );
+                if (severity == null || severity.equals(""))
+                    severity = "error";
+                BundleHelper.ResourceInfo info = new BundleHelper.ResourceInfo(severity, m.group(1), m.group(2), m.group(5));
+                issues.add(info);
+
+                // Some errors have a preceding line (with the same file name, but no line number)
+                if (count > 0) {
+                    String lineBefore = lines[count-1];
+                    m = compilerPattern.matcher(lineBefore);
+                    if (!m.matches() && lineBefore.contains(info.resource)) {
+                        m = BundleHelper.resourceIssueLineBeforeRe.matcher(lineBefore);
+                        if (m.matches()) {
+                            if (info.resource.equals(m.group(1)))
+                                info.message = m.group(2) + "\n" + info.message;
+                        }
+                    }
+                }
+
+                // Also, there might be a trailing line that belongs (See BundleHelperTest for examples)
+                if (count+1 < lines.length) {
+                    String lineAfter = lines[count+1];
+                    m = BundleHelper.resourceIssueLineBeforeRe.matcher(lineAfter);
+                    if (!line.equals("") && !m.matches()) {
+                        info.message = info.message + "\n" + lineAfter;
+                        count++;
+                    }
+                }
                 continue;
             }
+        }
+    }
+
+    private static void parseLogClang(String[] lines, List<ResourceInfo> issues) {
+        final Pattern linkerPattern = resourceIssueLinkerCLANGRe;
+
+        // Very similar, with lookBehind and lookAhead for errors
+        parseLogGCC(lines, issues);
+
+        for (int count = 0; count < lines.length; ++count) {
+            String line = lines[count];
+            // Compare with some lookahead if it matches
+            for (int i = 1; i <= 2 && (count+i) < lines.length; ++i) {
+                line += "\n" + lines[count+i];
+            }
+            Matcher m = linkerPattern.matcher(line);
+            if (m.matches()) {
+                // Groups: message
+                issues.add(new BundleHelper.ResourceInfo("error", null, "", m.group(1)));
+            }
+        }
+    }
+
+    private static void parseLogWin32(String[] lines, List<ResourceInfo> issues) {
+        final Pattern compilerPattern = resourceIssueCLRe;
+        final Pattern linkerPattern = resourceIssueLinkerLINKRe;
+
+        for (int count = 0; count < lines.length; ++count) {
+            String line = lines[count];
+            Matcher m = compilerPattern.matcher(line);
+            if (m.matches()) {
+                // Groups: resource, line, column, "error", message
+                issues.add(new BundleHelper.ResourceInfo(m.group(4), m.group(1), m.group(2), m.group(5)));
+            }
+
+            m = linkerPattern.matcher(line);
+            if (m.matches()) {
+                // Groups: resource, line, column, "error", message
+                issues.add(new BundleHelper.ResourceInfo(m.group(4), m.group(1), m.group(2), m.group(5)));
+            }
+        }
+    }
+
+    public static void parseLog(String platform, String log, List<ResourceInfo> issues) {
+        String[] lines = log.split("\\r?\\n");
+
+        List<ResourceInfo> allIssues = new ArrayList<ResourceInfo>();
+        if (platform.contains("osx") || platform.contains("ios") || platform.contains("web")) {
+            parseLogClang(lines, allIssues);
+        } else if (platform.contains("android") || platform.contains("linux")) {
+            parseLogGCC(lines, allIssues);
+        } else if (platform.contains("win32")) {
+            parseLogWin32(lines, allIssues);
+        }
+
+        for (int count = 0; count < lines.length; ++count) {
+            String line = lines[count];
 
             // A bit special. Currently, no more errors are delivered after this
             // So we can consume the rest of the log into this message
-            m = BundleHelper.manifestIssueRe.matcher(line);
+            Matcher m = BundleHelper.manifestIssueRe.matcher(line);
             if (m.matches()) {
-                String resource = m.group(1);
-                issues.add( new BundleHelper.ResourceInfo("error", resource, 1, log) );
+                allIssues.add( new BundleHelper.ResourceInfo("error", m.group(1), "1", log) );
                 return;
             }
 
             m = BundleHelper.nonResourceIssueRe.matcher(line);
 
             if (m.matches()) {
-                String severity = m.group(1);
-                String message = m.group(2);
-                issues.add( new BundleHelper.ResourceInfo(severity, null, 0, message) );
+                allIssues.add( new BundleHelper.ResourceInfo(m.group(1), null, "0", m.group(2)) );
                 continue;
             }
+        }
+
+        for (ResourceInfo info : allIssues) {
+            if (excludeMessages.contains(info.message)) {
+                continue;
+            }
+            issues.add(info);
         }
     }
 
@@ -294,7 +391,7 @@ public class BundleHelper {
                 try {
                     List<ResourceInfo> issues = new ArrayList<>();
                     buildError = FileUtils.readFileToString(logFile);
-                    parseLog(buildError, issues);
+                    parseLog(platform, buildError, issues);
                     MultipleCompileException exception = new MultipleCompileException("Build error", e);
                     IResource extManifestResource = ExtenderUtil.getResource(allSource.get(0).getPath(), allSource);
                     IResource contextResource = null;

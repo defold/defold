@@ -58,9 +58,12 @@ union SaveLoadBuffer
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
      * Use <code>sys.get_save_file</code> to obtain a valid location for the file.
-     * Internally, this function uses a workspace buffer sized output file sized 128kb. This size reflects the output file size which must not exceed this limit.
-     * Additionally, the total number of rows that any one table may contain is limited to 65536 (i.e. a 16 bit range). When tables are used to represent arrays, the values of
-     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however the limit on the total number of rows remains in effect.
+     * Internally, this function uses a workspace buffer sized output file sized 512kb.
+     * This size reflects the output file size which must not exceed this limit.
+     * Additionally, the total number of rows that any one table may contain is limited to 65536
+     * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
+     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however 
+     * the limit on the total number of rows remains in effect.
      *
      * @name sys.save
      * @param filename [type:string] file to write to

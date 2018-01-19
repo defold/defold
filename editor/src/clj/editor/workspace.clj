@@ -85,12 +85,13 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
   (let [resource-type {:textual? (true? textual?)
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
+                       :dependencies-fn dependencies-fn
                        :write-fn write-fn
                        :read-fn read-fn
                        :icon icon
@@ -109,6 +110,9 @@ ordinary paths."
 
 (defn get-resource-type [workspace ext]
   (get (g/node-value workspace :resource-types) ext))
+
+(defn get-resource-type-map [workspace]
+  (g/node-value workspace :resource-types))
 
 (defn get-resource-types
   ([workspace]
@@ -181,19 +185,12 @@ ordinary paths."
 (defn dependencies [workspace]
   (g/node-value workspace :dependencies))
 
-(defn update-dependencies! [workspace render-progress! login-fn]
-  (let [dependencies (g/node-value workspace :dependencies)
-        hosts (into #{} (map url/strip-path) dependencies)]
-    (when (and (seq dependencies)
-               (every? url/reachable? hosts)
-               (or (nil? login-fn)
-                   (not-any? url/defold-hosted? dependencies)
-                   (login-fn)))
-      (library/update-libraries! (project-path workspace)
-                                 dependencies
-                                 library/default-http-resolver
-                                 render-progress!)
-      true)))
+(defn dependencies-reachable? [dependencies login-fn]
+  (let [hosts (into #{} (map url/strip-path) dependencies)]
+    (and (every? url/reachable? hosts)
+         (or (nil? login-fn)
+             (not-any? url/defold-hosted? dependencies)
+             (login-fn)))))
 
 (defn missing-dependencies [workspace]
   (let [project-directory (project-path workspace)
@@ -278,11 +275,14 @@ ordinary paths."
              (resource/handle-changes listener changes-with-moved render-progress!)))))
      changes)))
 
-(defn fetch-libraries!
-  [workspace library-urls render-fn login-fn]
+(defn fetch-and-validate-libraries [workspace library-urls render-fn]
+  (->> (library/current-library-state (project-path workspace) library-urls)
+       (library/fetch-library-updates library/default-http-resolver render-fn)
+       (library/validate-updated-libraries)))
+
+(defn install-validated-libraries! [workspace library-urls lib-states]
   (set-project-dependencies! workspace library-urls)
-  (when (update-dependencies! workspace render-fn login-fn)
-    (resource-sync! workspace true [] render-fn)))
+  (library/install-validated-libraries! (project-path workspace) lib-states))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))
@@ -321,7 +321,7 @@ ordinary paths."
                 :resource-listeners (atom [])
                 :build-settings build-settings))
 
-(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn]}]
+(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn text-selection-fn]}]
   (let [view-type (merge {:id    id
                           :label label}
                          (when make-view-fn
@@ -329,5 +329,7 @@ ordinary paths."
                          (when make-preview-fn
                            {:make-preview-fn make-preview-fn})
                          (when focus-fn
-                           {:focus-fn focus-fn}))]
+                           {:focus-fn focus-fn})
+                         (when text-selection-fn
+                           {:text-selection-fn text-selection-fn}))]
      (g/update-property workspace :view-types assoc (:id view-type) view-type)))

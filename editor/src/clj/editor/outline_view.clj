@@ -197,9 +197,9 @@
                   :command :copy-project-path}
                  {:label "Copy Full Path"
                   :command :copy-full-path}
-                 {:label "Referencing Files"
+                 {:label "Referencing Files..."
                   :command :referencing-files}
-                 {:label "Dependencies"
+                 {:label "Dependencies..."
                   :command :dependencies}
                  {:label :separator}
                  {:label "Add"

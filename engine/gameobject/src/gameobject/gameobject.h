@@ -435,11 +435,20 @@ namespace dmGameObject
     };
 
     /**
+     * Parameters to ComponentsUpdate callback.
+     */
+    struct ComponentsUpdateResult
+    {
+        /// True if a component type updated any game object transforms
+        bool m_TransformsUpdated;
+    };
+
+    /**
      * Component update function. Updates all component of this type for all game objects
      * @param params Input parameters
      * @return UPDATE_RESULT_OK on success
      */
-    typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params);
+    typedef UpdateResult (*ComponentsUpdate)(const ComponentsUpdateParams& params, ComponentsUpdateResult& result);
 
     /**
      * Parameters to ComponentsRender callback.
@@ -642,8 +651,7 @@ namespace dmGameObject
         ComponentSetProperty    m_SetPropertyFunction;
         uint32_t                m_InstanceHasUserData : 1;
         uint32_t                m_ReadsTransforms : 1;
-        uint32_t                m_WritesTransforms : 1;
-        uint32_t                m_Reserved : 29;
+        uint32_t                m_Reserved : 30;
         uint16_t                m_UpdateOrderPrio;
     };
 
@@ -948,6 +956,11 @@ namespace dmGameObject
      */
     void SetInheritScale(HInstance instance, bool inherit_scale);
 
+    /** 
+     * Tells the collection that a transform was updated
+     */
+    void SetDirtyTransforms(HCollection collection);
+
     /**
      * Set whether the instance should be flagged as a bone.
      * Instances flagged as bones can have their transforms updated in a batch through SetBoneTransforms.
@@ -1075,6 +1088,20 @@ namespace dmGameObject
      * @return The rig context of the specified collection
      */
     dmRig::HRigContext GetRigContext(HCollection collection);
+ 
+    /**
+     * Returns whether the scale of the instances in a collection should be applied along Z or not.
+     * @param collection Collection
+     * @return if the scale should be applied along Z
+     */
+    bool ScaleAlongZ(HCollection collection);
+
+    /**
+     * Returns whether the scale of the instances in a collection should be applied along Z or not.
+     * @param collection Collection
+     * @return if the scale should be applied along Z
+     */
+    bool ScaleAlongZ(HCollection collection);
 
     /**
      * Set gameobject instance position
