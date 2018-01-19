@@ -14,8 +14,10 @@ namespace dmLiveUpdate
         return 1;
     }
 
+    // resource.create_manifest(manifest_blob) -> manifest_index
     int Resource_CreateManifest(lua_State* L)
     {
+        dmLogInfo(" ### Resource_CreateManifest")
         int top = lua_gettop(L);
         size_t manifestLength = 0;
         const char* manifestData = luaL_checklstring(L, 1, &manifestLength);
@@ -46,6 +48,7 @@ namespace dmLiveUpdate
 
     int Resource_DestroyManifest(lua_State* L)
     {
+        dmLogInfo(" ### Resource_DestroyManifest")
         int top = lua_gettop(L);
         int manifestIndex = luaL_checkint(L, 1);
 
@@ -61,6 +64,7 @@ namespace dmLiveUpdate
             return luaL_error(L, "The manifest identifier does not exist");
         }
 
+        dmLogInfo("Successfully destroy manifest with index: %i", manifestIndex);
         assert(lua_gettop(L) == top);
         return 0;
     }
@@ -162,9 +166,25 @@ namespace dmLiveUpdate
 
     int Resource_StoreManifest(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0);
+        dmLogInfo(" ### Resource_StoreManifest")
+        //DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
 
-        return 0;
+        int manifestIndex = luaL_checkint(L, 1);
+        dmResource::Manifest* manifest = dmLiveUpdate::GetManifest(manifestIndex);
+        if (manifest == 0x0)
+        {
+            assert(top == lua_gettop(L));
+            return luaL_error(L, "The manifest identifier does not exist");
+        }
+
+        // - (TODO) Verify manifest
+        
+        // - (TODO) Write manifest to disk (app support path probably, same dir as liveupdate.arci and liveupdate.arcd)
+        bool success = dmLiveUpdate::StoreManifest(manifest) == dmLiveUpdate::RESULT_OK;
+        lua_pushboolean(L, success);
+        assert(lua_gettop(L) == top + 1);
+        return 1;
     }
 
 };

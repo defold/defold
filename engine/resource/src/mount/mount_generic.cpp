@@ -22,6 +22,12 @@ namespace dmResource
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         *mount_info = 0;
+        dmLogInfo("=========================");
+        dmLogInfo("MOUNTING GENERIC");
+        dmLogInfo("index: %s", index_path);
+        dmLogInfo("data: %s", data_path);
+        dmLogInfo("lu data: %s", lu_data_path);
+        dmLogInfo("=========================");
         dmResourceArchive::Result r = LoadArchive(index_path, data_path, lu_data_path, archive);
         if (r != dmResourceArchive::RESULT_OK)
         {

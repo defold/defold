@@ -591,11 +591,13 @@ namespace dmResource
 
     Manifest* GetManifest(HFactory factory);
 
-    Result LoadArchiveIndex(const char* manifestPath, HFactory factory);
+    Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFactory factory);
 
     Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
 
     Result LoadManifest(const char* manifestPath, HFactory factory);
+
+    Result StoreManifest(Manifest* manifest);
 
     /**
      * Create new archive index with resource.

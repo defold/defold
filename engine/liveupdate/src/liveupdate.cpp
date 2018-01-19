@@ -66,6 +66,7 @@ namespace dmLiveUpdate
         return uniqueCount;
     }
 
+    // Hashes the actual resource data with the same hashing algorithm as spec. by manifest, and compares to the expected resource hash
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
     {
         if (manifest == 0x0 || resource->m_Data == 0x0)
@@ -115,6 +116,18 @@ namespace dmLiveUpdate
         free(digest);
         free(hexDigest);
         return result;
+    }
+
+    Result StoreManifest(dmResource::Manifest* manifest)
+    {
+        if (manifest == 0x0)
+        {
+            return RESULT_MEM_ERROR;
+        }
+
+        dmResource::Result res_result = dmResource::StoreManifest(manifest);
+        Result res = (res_result == dmResource::RESULT_OK) ? RESULT_OK : RESULT_INVALID_RESOURCE;
+        return res;
     }
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(StoreResourceCallbackData*), StoreResourceCallbackData& callback_data)

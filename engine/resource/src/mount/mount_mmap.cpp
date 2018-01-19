@@ -62,6 +62,13 @@ namespace dmResource
 
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
+        dmLogInfo("=========================");
+        dmLogInfo("MOUNTING MMAP");
+        dmLogInfo("index: %s", index_path);
+        dmLogInfo("data: %s", data_path);
+        dmLogInfo("lu data: %s", lu_data_path);
+        dmLogInfo("=========================");
+
         void* index_map = 0x0;
         uint32_t index_size = 0;
         Result r = MapFile(index_path, index_map, index_size);

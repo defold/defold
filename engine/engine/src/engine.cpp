@@ -1636,6 +1636,7 @@ bail:
             int unload = dmConfigFile::GetInt(engine->m_Config, "dmengine.unload_builtins", 1);
             if (unload)
             {
+                dmLogInfo("Unloading builtins manifest!");
                 dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
             }
         }

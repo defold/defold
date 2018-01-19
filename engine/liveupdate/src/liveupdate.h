@@ -50,6 +50,8 @@ namespace dmLiveUpdate
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(StoreResourceCallbackData*), StoreResourceCallbackData& callback_data);
 
+    Result StoreManifest(dmResource::Manifest* manifest);
+
     int AddManifest(dmResource::Manifest* manifest);
 
     dmResource::Manifest* GetManifest(int manifestIndex);
