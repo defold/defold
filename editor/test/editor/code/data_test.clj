@@ -221,6 +221,86 @@
       (.close reader)
       (is (thrown? IOException (.read reader))))))
 
+(deftest guess-indent-string-test
+  (are [expected lines]
+    (= expected (data/guess-indent-string lines 4))
+
+    ;; Indeterminate. Used for nil or binary-looking input.
+    nil nil
+    nil [(apply str (map char [0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A]))]
+
+    ;; Empty or no indentation.
+    nil [""]
+    nil ["{"]
+    nil ["{"
+         "{"]
+
+    ;; Pure-whitespace lines are ignored.
+    nil ["\t"]
+    nil ["  "]
+    nil ["    "]
+
+    ;; Uniformly tabs.
+    "\t" ["\t{"]
+    "\t" ["{"
+          "\t{"]
+    "\t" ["{"
+          "\t{"
+          "\t\t{"]
+
+    ;; Uniformly 2 spaces.
+    "  " ["  {"]
+    "  " ["{"
+          "  {"]
+    "  " ["{"
+          "  {"
+          "    {"]
+    "  " ["  {"
+          "    {"
+          "    {"]
+
+    ;; Uniformly 4 spaces.
+    "    " ["    {"]
+    "    " ["{"
+            "    {"]
+    "    " ["{"
+            "    {"
+            "        {"]
+    "    " ["    {"
+            "    {"
+            "        {"]
+
+    ;; Spaces mixed with tabs.
+    "\t" ["\t{"
+          "  {"
+          "\t{"]
+    "  " ["  {"
+          "\t{"
+          "    {"]
+    "    " ["    {"
+            "\t{"
+            "        {"]
+
+    ;; 2 spaces mixed with 4 spaces.
+    "  " ["{"
+          "  {"
+          "    {"
+          "        {" ; <- rogue indent
+          "    {"
+          "    {"]
+    "  " ["{"
+          "  {"
+          "    {"
+          "      {"
+          "    {"
+          "    {"]
+    "    " ["{"
+            "    {"
+            "    {"
+            "      {" ; <- rogue indent
+            "    {"
+            "        {"]))
+
 (deftest move-cursors-test
   (testing "Basic movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 1 0)] #'data/cursor-up ["a" "b" "c"])))
