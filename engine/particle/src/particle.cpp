@@ -419,7 +419,7 @@ namespace dmParticle
                 Emitter* emitter = &emitters[emitter_i];
                 EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
 
-                float playtime = dmMath::Min(emitter_ddf->m_StartOffset, emitter_prototype->m_MaxParticleLifeTime);
+                float playtime = dmMath::Max(0.0f, dmMath::Min(emitter_ddf->m_StartOffset, emitter_prototype->m_MaxParticleLifeTime));
                 FastForwardEmitter(prototype, i, emitter_prototype, emitter, emitter_ddf, playtime);
             }
         }
