@@ -427,7 +427,7 @@
           (concat
             (mapcat (fn [kw] (get-property properties kw))
                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity])
+                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset])
             [[:properties (into []
                                 (comp (map first)
                                       (keep (fn [kw]
@@ -536,8 +536,9 @@
             (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$SizeMode)))
             (dynamic label (g/constantly "Size Mode")))
   (property stretch-with-velocity g/Bool)
+  (property start-offset g/Num)
 
-  (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :tile-source :animation :material :blend-mode
+  (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
@@ -806,7 +807,7 @@
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
                                    :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)
-                                   :stretch-with-velocity (:stretch-with-velocity emitter)]]
+                                   :stretch-with-velocity (:stretch-with-velocity emitter) :start-offset (:start-offset emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (g/declared-property-labels EmitterProperties)
                             :when (contains? emitter-properties key)

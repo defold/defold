@@ -1,0 +1,71 @@
+emitters: {
+    mode:               PLAY_MODE_ONCE
+    duration:           2
+    start_offset:       0.5
+    space:              EMISSION_SPACE_WORLD
+    position:           { x: 0 y: 0 z: 0 }
+    rotation:           { x: 0 y: 0 z: 0 w: 1 }
+
+    tile_source:        "particle.tilesource"
+    animation:          ""
+    material:           "particle.material"
+
+    max_particle_count:   1
+
+    type:               EMITTER_TYPE_CONE
+
+    properties:         { key: EMITTER_KEY_SPAWN_RATE
+        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+    }
+    properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+        points: { x: 0 y: 2 t_x: 1 t_y: 0 }
+    }
+}
+
+emitters: {
+    mode:               PLAY_MODE_ONCE
+    duration:           2
+    start_offset:       40
+    space:              EMISSION_SPACE_WORLD
+    position:           { x: 0 y: 0 z: 0 }
+    rotation:           { x: 0 y: 0 z: 0 w: 1 }
+
+    tile_source:        "particle.tilesource"
+    animation:          ""
+    material:           "particle.material"
+
+    max_particle_count:   1
+
+    type:               EMITTER_TYPE_CONE
+
+    properties:         { key: EMITTER_KEY_SPAWN_RATE
+        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+    }
+    properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+        points: { x: 0 y: 2 t_x: 1 t_y: 0 }
+    }
+}
+
+emitters: {
+    mode:               PLAY_MODE_ONCE
+    duration:           2
+    start_offset:       -10
+    space:              EMISSION_SPACE_WORLD
+    position:           { x: 0 y: 0 z: 0 }
+    rotation:           { x: 0 y: 0 z: 0 w: 1 }
+
+    tile_source:        "particle.tilesource"
+    animation:          ""
+    material:           "particle.material"
+
+    max_particle_count:   1
+
+    type:               EMITTER_TYPE_CONE
+
+    properties:         { key: EMITTER_KEY_SPAWN_RATE
+        points: { x: 0 y: 1 t_x: 1 t_y: 0 }
+    }
+    properties:         { key: EMITTER_KEY_PARTICLE_LIFE_TIME
+        points: { x: 0 y: 2 t_x: 1 t_y: 0 }
+    }
+}

@@ -370,17 +370,17 @@ namespace dmGameSystem
             dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
             dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, component_id, prototype, &emitter_state_changed_data);
 
-            if (prototype->m_AddedToUpdate)
-            {
-                dmParticle::StartInstance(particle_context, instance);
-            }
-
             dmTransform::Transform world_transform(prototype->m_Translation, prototype->m_Rotation, 1.0f);
             world_transform = dmTransform::Mul(dmGameObject::GetWorldTransform(params.m_Instance), world_transform);
             dmParticle::SetPosition(particle_context, instance, Point3(world_transform.GetTranslation()));
             dmParticle::SetRotation(particle_context, instance, world_transform.GetRotation());
             dmParticle::SetScale(particle_context, instance, world_transform.GetUniformScale());
             dmParticle::SetScaleAlongZ(particle_context, instance, dmGameObject::ScaleAlongZ(params.m_Instance));
+
+            if (prototype->m_AddedToUpdate)
+            {
+                dmParticle::StartInstance(particle_context, instance);
+            }
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::StopParticleFX::m_DDFDescriptor->m_NameHash)
         {
