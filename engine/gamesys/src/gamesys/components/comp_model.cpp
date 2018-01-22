@@ -46,8 +46,17 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = new ModelWorld();
 
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &world->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = context->m_MaxModelCount;
+        dmRig::Result rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::RESULT_OK)
+        {
+            dmLogFatal("Unable to create model rig context: %d", rr);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         world->m_Components.SetCapacity(context->m_MaxModelCount);
-        // world->m_RigContext = context->m_RigContext;
         world->m_RenderObjects.SetCapacity(context->m_MaxModelCount);
 
         dmGraphics::VertexElement ve[] =
@@ -73,6 +82,8 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
 
         dmResource::UnregisterResourceReloadedCallback(((ModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
+
+        dmRig::DeleteContext(world->m_RigContext);
 
         delete world;
 
@@ -281,7 +292,7 @@ namespace dmGameSystem
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompModelPoseCallback;
@@ -303,7 +314,11 @@ namespace dmGameSystem
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
-            dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the model.max_count value in game.project");
+            } else {
+                dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            }
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -324,7 +339,7 @@ namespace dmGameSystem
         component->m_NodeInstances.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params = {0};
-        params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        params.m_Context = world->m_RigContext;
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
@@ -369,7 +384,7 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(c->m_Instance));
+            dmRig::HRigContext rig_context = world->m_RigContext;
             Matrix4 normal_matrix = inverse(c->m_World);
             normal_matrix = transpose(normal_matrix);
             vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, normal_matrix, Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
@@ -444,6 +459,8 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
 
+        dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
+
         dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
         const uint32_t count = components.Size();
 
@@ -468,6 +485,7 @@ namespace dmGameSystem
             component.m_DoRender = 1;
         }
 
+        update_result.m_TransformsUpdated = count != 0;
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -658,7 +676,7 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component)
     {
-        dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        dmRig::HRigContext rig_context = world->m_RigContext;
 
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};

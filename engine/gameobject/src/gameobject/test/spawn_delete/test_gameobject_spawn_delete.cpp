@@ -98,7 +98,7 @@ protected:
 
         ASSERT_EQ(dmGameObject::RESULT_OK, go_result);
 
-        m_Collection = NewCollection("collection", m_Factory, m_Register, 10u, 0u);
+        m_Collection = NewCollection("collection", m_Factory, m_Register, 10u);
     }
 
     virtual void TearDown()
@@ -361,7 +361,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_Spawn)
 {
     // Temp swap collections to delete at end
     dmGameObject::HCollection old_collection = m_Collection;
-    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u, 0u);
+    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u);
 
     New("/final_spawn.goc");
 
@@ -436,7 +436,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_Delete)
 {
     // Temp swap collections to delete at end
     dmGameObject::HCollection old_collection = m_Collection;
-    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u, 0u);
+    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u);
 
     New("/final_delete.goc");
     dmGameObject::HInstance go2 = New("/a.goc");
@@ -534,7 +534,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_SpawnDelete)
 {
     // Temp swap collections to delete at end
     dmGameObject::HCollection old_collection = m_Collection;
-    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u, 0u);
+    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u);
 
     New("/final_spawndelete.goc");
 
