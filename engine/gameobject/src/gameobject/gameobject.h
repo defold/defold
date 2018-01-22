@@ -9,7 +9,6 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
-#include <rig/rig.h>
 
 #include <ddf/ddf.h>
 
@@ -941,7 +940,7 @@ namespace dmGameObject
      */
     void SetInheritScale(HInstance instance, bool inherit_scale);
 
-    /**
+    /** 
      * Tells the collection that a transform was updated
      */
     void SetDirtyTransforms(HCollection collection);
@@ -1066,13 +1065,6 @@ namespace dmGameObject
      * @return The frame message socket of the specified collection
      */
     dmMessage::HSocket GetFrameMessageSocket(HCollection collection);
-
-    /**
-     * Retrieve the rig context for the specified collection.
-     * @param collection Collection handle
-     * @return The rig context of the specified collection
-     */
-    dmRig::HRigContext GetRigContext(HCollection collection);
 
     /**
      * Returns whether the scale of the instances in a collection should be applied along Z or not.
