@@ -36,6 +36,7 @@ namespace dmGameSystem
     struct ParticleFXComponent
     {
         dmGameObject::HInstance m_Instance;
+        dmhash_t m_ComponentId;
         dmParticle::HInstance m_ParticleInstance;
         dmParticle::HPrototype m_ParticlePrototype;
         ParticleFXWorld* m_World;
@@ -320,7 +321,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
+    static dmParticle::HInstance CreateComponent(ParticleFXWorld* world, dmGameObject::HInstance go_instance, dmhash_t component_id, ParticleFXComponentPrototype* prototype, dmParticle::EmitterStateChangedData* emitter_state_changed_data)
     {
         if (!world->m_Components.Full())
         {
@@ -328,6 +329,7 @@ namespace dmGameSystem
             world->m_Components.SetSize(count + 1);
             ParticleFXComponent* component = &world->m_Components[count];
             component->m_Instance = go_instance;
+            component->m_ComponentId = component_id;
             component->m_PrototypeIndex = prototype - world->m_Prototypes.Begin();
             // NOTE: We must increase ref-count as a particle fx might be playing after the component is destroyed
             dmResource::HFactory factory = world->m_Context->m_Factory;
@@ -365,7 +367,8 @@ namespace dmGameSystem
                 memcpy(emitter_state_changed_data.m_UserData, (params.m_Message->m_Data) + sizeof(dmParticle::EmitterStateChanged), sizeof(EmitterStateChangedScriptData));
             }
 
-            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, prototype, &emitter_state_changed_data);
+            dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
+            dmParticle::HInstance instance = CreateComponent(world, params.m_Instance, component_id, prototype, &emitter_state_changed_data);
 
             if (prototype->m_AddedToUpdate)
             {
@@ -385,7 +388,8 @@ namespace dmGameSystem
             for (uint32_t i = 0; i < count; ++i)
             {
                 ParticleFXComponent* component = &world->m_Components[i];
-                if (component->m_Instance == params.m_Instance)
+                dmhash_t component_id = params.m_Message->m_Receiver.m_Fragment;
+                if (component->m_Instance == params.m_Instance && component->m_ComponentId == component_id)
                 {
                     dmParticle::StopInstance(world->m_ParticleContext, component->m_ParticleInstance);
                 }
