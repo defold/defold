@@ -733,18 +733,21 @@ TEST_F(ParticleTest, ParticleStartOffset)
 
     ASSERT_TRUE(LoadPrototype("particle_prewarm.particlefxc", &m_Prototype));
     dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
-    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
-    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);  // Play mode "once", duration 2.0 and start-offset 0.5
+    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1); // Play mode "once", duration 2.0 and start-offset 40 (should clamp to duration)
+    dmParticle::Emitter* e3 = GetEmitter(m_Context, instance, 2); // Play mode "once", duration 2.0 and start-offset -10 (should start at 0)
 
     dmParticle::StartInstance(m_Context, instance);
 
     dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_NEAR(1.5f, e->m_Timer, EPSILON);
     ASSERT_NEAR(2.0f, e2->m_Timer, EPSILON);
+    ASSERT_NEAR(1.0f, e3->m_Timer, EPSILON);
 
     dmParticle::Update(m_Context, dt, 0x0);
     ASSERT_NEAR(2.0f, e->m_Timer, EPSILON);
     ASSERT_NEAR(2.0f, e2->m_Timer, EPSILON);
+    ASSERT_NEAR(2.0f, e3->m_Timer, EPSILON);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
