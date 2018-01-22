@@ -38,24 +38,21 @@
 #include "profile_render.h"
 
 // Embedded resources
+// Unfortunately, the draw_line et. al are used in production code
+extern unsigned char DEBUG_VPC[];
+extern uint32_t DEBUG_VPC_SIZE;
+extern unsigned char DEBUG_FPC[];
+extern uint32_t DEBUG_FPC_SIZE;
+
 #if defined(DM_RELEASE)
-    static unsigned char* DEBUG_VPC = 0;
-    static uint32_t DEBUG_VPC_SIZE = 0;
-    static unsigned char* DEBUG_FPC = 0;
-    static uint32_t DEBUG_FPC_SIZE = 0;
+    extern unsigned char BUILTINS_RELEASE_ARCD[];
+    extern uint32_t BUILTINS_RELEASE_ARCD_SIZE;
+    extern unsigned char BUILTINS_RELEASE_ARCI[];
+    extern uint32_t BUILTINS_RELEASE_ARCI_SIZE;
+    extern unsigned char BUILTINS_RELEASE_DMANIFEST[];
+    extern uint32_t BUILTINS_RELEASE_DMANIFEST_SIZE;
 
-    static unsigned char* BUILTINS_ARCD = 0;
-    static uint32_t BUILTINS_ARCD_SIZE = 0;
-    static unsigned char* BUILTINS_ARCI = 0;
-    static uint32_t BUILTINS_ARCI_SIZE = 0;
-    static unsigned char* BUILTINS_DMANIFEST = 0;
-    static uint32_t BUILTINS_DMANIFEST_SIZE = 0;
 #else
-    extern unsigned char DEBUG_VPC[];
-    extern uint32_t DEBUG_VPC_SIZE;
-    extern unsigned char DEBUG_FPC[];
-    extern uint32_t DEBUG_FPC_SIZE;
-
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
@@ -606,12 +603,21 @@ namespace dmEngine
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
 
+#if defined(DM_RELEASE)
+        params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;
+        params.m_ArchiveIndex.m_Size = BUILTINS_RELEASE_ARCI_SIZE;
+        params.m_ArchiveData.m_Data = (const void*) BUILTINS_RELEASE_ARCD;
+        params.m_ArchiveData.m_Size = BUILTINS_RELEASE_ARCD_SIZE;
+        params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_RELEASE_DMANIFEST;
+        params.m_ArchiveManifest.m_Size = BUILTINS_RELEASE_DMANIFEST_SIZE;
+#else
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
         params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
         params.m_ArchiveData.m_Size = BUILTINS_ARCD_SIZE;
         params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_DMANIFEST;
         params.m_ArchiveManifest.m_Size = BUILTINS_DMANIFEST_SIZE;
+#endif
 
         const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
         dmLogInfo("Loading data from: %s", resource_uri);
@@ -1619,7 +1625,7 @@ bail:
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
         dmResource::Result fact_error;
-#if !defined(DM_RELEASE)
+
         const char* system_font_map = "/builtins/fonts/system_font.fontc";
         fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
@@ -1639,7 +1645,6 @@ bail:
                 dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
             }
         }
-#endif
 
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;

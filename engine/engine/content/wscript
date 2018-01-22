@@ -28,6 +28,13 @@ def build(bld):
 
     builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics builtins/scripts')
 
+    builtins_release = bld.new_task_gen(features='barchive',
+                                source_root='default/content',
+                                resource_name='builtins_release',
+                                use_compression=True)
+
+    builtins_release.find_sources_in_dirs('builtins/fonts')
+
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
 
