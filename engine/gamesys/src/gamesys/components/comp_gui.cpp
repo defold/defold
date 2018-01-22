@@ -82,7 +82,7 @@ namespace dmGameSystem
         dmRig::Result rr = dmRig::NewContext(rig_params);
         if (rr != dmRig::RESULT_OK)
         {
-            dmLogFatal("Unable to create model rig context: %d", rr);
+            dmLogFatal("Unable to create gui rig context: %d", rr);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
