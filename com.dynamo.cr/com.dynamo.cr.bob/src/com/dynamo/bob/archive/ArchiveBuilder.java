@@ -17,6 +17,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.pipeline.ResourceEntry;
 import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.crypt.Crypt;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
@@ -126,29 +127,30 @@ public class ArchiveBuilder {
         }
     }
 
-    public boolean excludeResource(String filepath, List<String> excludedResources) {
+    public boolean excludeResource(String filepath, List<ResourceEntry> excludedResources) {
         boolean result = false;
         if (filepath.startsWith("/builtins")) {
             return false;
         }
-
+        
         if (this.manifestBuilder != null) {
-            List<ArrayList<String>> totalParentCollectionProxies = this.manifestBuilder.getParentCollectionProxies(filepath);
-            for (List<String> parentCollectionProxies : totalParentCollectionProxies) {
-                for (int i = 0; i < parentCollectionProxies.size(); i++) {
-                    String parentCollectionProxy = parentCollectionProxies.get(i);
-                    for (String excludedResource : excludedResources) {
-                        if (parentCollectionProxy.equals(excludedResource)) {
+            List<ArrayList<String>> totalParentFilepaths = this.manifestBuilder.getParentFilepath(filepath);
+            for (List<String> parentFilepaths : totalParentFilepaths) {
+                for (int i = 0; i < parentFilepaths.size(); i++) {
+                    String parentFilepath = parentFilepaths.get(i);
+                    for (ResourceEntry excludedResource : excludedResources) {
+                        if (parentFilepath.equals(excludedResource.resourceAbsPath)) {
                             result = true;
-                            i = parentCollectionProxies.size(); // break outer loop as well, move on to next tree in totalParentCollectionProxies 
+                            i = parentFilepaths.size(); // break outer loop as well, move on to next tree in totalParentFilepaths 
                             break;
                         } else {
                             result = false;
                         }
                     }
                 }
-
-                if (result == false) { // Traversed an entire tree in totalParentCollectionProxies without hitting exclusion -> in should not be excluded, it is needed in bundle
+                
+                if (result == false) // Traversed an entire tree in totalParentFilepaths without hitting exclusion -> in should not be excluded, it is needed in bundle
+                {
                     return false;
                 }
             }
@@ -157,7 +159,7 @@ public class ArchiveBuilder {
         return result;
     }
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<ResourceEntry> excludedResources) throws IOException {
         // INDEX
         archiveIndex.writeInt(VERSION); // Version
         archiveIndex.writeInt(0); // Pad
@@ -362,7 +364,7 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-            List<String> excludedResources = new ArrayList<String>();
+            List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
             archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
             manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
