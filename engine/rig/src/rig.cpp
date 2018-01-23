@@ -729,6 +729,7 @@ namespace dmRig
     {
         const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         uint32_t count = instances.Size();
+        uint32_t updated_pose = false;
         for (uint32_t i = 0; i < count; ++i)
         {
             RigInstance* instance = instances[i];
@@ -739,12 +740,13 @@ namespace dmRig
             // Notify any listener that the pose has been recalculated
             if (instance->m_PoseCallback) {
                 instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
+                updated_pose = true;
             }
 
 
         }
 
-        return dmRig::RESULT_OK;
+        return updated_pose ? dmRig::RESULT_UPDATED_POSE : dmRig::RESULT_OK;
     }
 
     Result Update(HRigContext context, float dt)

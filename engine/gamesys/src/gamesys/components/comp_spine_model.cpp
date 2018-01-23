@@ -525,7 +525,7 @@ namespace dmGameSystem
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
 
-        dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
+        dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
 
         dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
         const uint32_t count = components.Size();
@@ -551,7 +551,7 @@ namespace dmGameSystem
             component.m_DoRender = 1;
         }
 
-        update_result.m_TransformsUpdated = count != 0;
+        update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
     }
 

@@ -28,7 +28,8 @@ namespace dmRig
         RESULT_OK             = 0,
         RESULT_ERROR          = 1,
         RESULT_ERROR_BUFFER_FULL = 2,
-        RESULT_ANIM_NOT_FOUND = 3
+        RESULT_ANIM_NOT_FOUND = 3,
+        RESULT_UPDATED_POSE   = 4
     };
 
     enum RigMeshType
