@@ -208,16 +208,16 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(Collection<ResourceEntry> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<ResourceEntry> excludedResources) throws IOException, CompileExceptionError {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
 
-        for (String s : resources) {
-            EnumSet<Project.OutputFlags> flags = outputs.get(s);
+        for (ResourceEntry s : resources) {
+            EnumSet<Project.OutputFlags> flags = outputs.get(s.resourceAbsPath);
             boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
-            archiveBuilder.add(s, compress);
+            archiveBuilder.add(s.resourceAbsPath, compress);
         }
 
         Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
@@ -240,7 +240,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
-    private static void findResources(Project project, Message node, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
+    private static void findResources(Project project, Message node, Collection<ResourceEntry> resources, ResourceNode parentNode) throws CompileExceptionError {
         List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
 
         for (FieldDescriptor fieldDescriptor : fields) {
@@ -266,14 +266,16 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
-    private static void findResources(Project project, IResource resource, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
+    private static void findResources(Project project, IResource resource, Collection<ResourceEntry> resources, ResourceNode parentNode) throws CompileExceptionError {
         if (resource.getPath().equals("") ) {
             return;
         }
 
-        if (!resources.contains(resource.output().getAbsPath())) {
-            resources.add(resource.output().getAbsPath());
+        if (resources.contains(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath))) {
+            return;
         }
+
+        resources.add(new ResourceEntry(resource.output().getAbsPath(), parentNode.relativeFilepath));
 
         ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
         parentNode.addChild(currentNode);
@@ -313,14 +315,14 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
 
-    public static HashSet<String> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
-        HashSet<String> resources = new HashSet<String>();
+    public static HashSet<ResourceEntry> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
+        HashSet<ResourceEntry> resources = new HashSet<ResourceEntry>();
 
         if (project.option("keep-unused", "false").equals("true")) {
 
             // All outputs of the project should be considered resources
             for (String path : project.getOutputs().keySet()) {
-                resources.add(path);
+                resources.add(new ResourceEntry(path, ""));
             }
 
         } else {
@@ -349,7 +351,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 project.findResourcePaths(s, paths);
                 for (String path : paths) {
                     IResource r = project.getResource(path);
-                    resources.add(r.output().getAbsPath());
+                    resources.add(new ResourceEntry(r.output().getAbsPath(), ""));
                 }
             }
         }
@@ -357,7 +359,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return resources;
     }
 
-    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
+    private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<ResourceEntry> excludedResourcesList) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
         String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
@@ -398,7 +400,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
 
         for (String excludedResource : project.getExcludedCollectionProxies()) {
-            excludedResourcesList.add(excludedResource);
+            excludedResourcesList.add(new ResourceEntry(excludedResource, ""));
         }
 
         return manifestBuilder;
@@ -447,13 +449,13 @@ public class GameProjectBuilder extends Builder<Void> {
         try {
             if (project.option("archive", "false").equals("true")) {
                 ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
-                HashSet<String> resources = findResources(project, rootNode);
-                List<String> excludedResources = new ArrayList<String>();
+                HashSet<ResourceEntry> resources = findResources(project, rootNode);
+                List<ResourceEntry> excludedResources = new ArrayList<ResourceEntry>();
                 ManifestBuilder manifestBuilder = this.prepareManifestBuilder(rootNode, excludedResources);
 
                 // Make sure we don't try to archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
                 for (IResource resource : task.getOutputs()) {
-                    resources.remove(resource.getAbsPath());
+                    resources.remove(new ResourceEntry(resource.getAbsPath(), ""));
                 }
 
                 // Create output for the data archive

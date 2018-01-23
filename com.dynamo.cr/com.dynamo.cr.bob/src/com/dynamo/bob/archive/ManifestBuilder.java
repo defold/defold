@@ -368,7 +368,7 @@ public class ManifestBuilder {
 
     // Calculate all parent collectionproxies for a resource
     // Resource could occur multiple times in the tree (referenced from several collections) or several times within the same collection
-    public List<ArrayList<String>> getParentCollectionProxies(String filepath) {
+    public List<ArrayList<String>> getParentFilepath(String filepath) {
         List<ArrayList<String>> result = new ArrayList<ArrayList<String>>();
         List<ResourceNode> candidates = new LinkedList<ResourceNode>();
         List<ResourceNode> queue = new LinkedList<ResourceNode>();
@@ -395,13 +395,23 @@ public class ManifestBuilder {
             result.add(new ArrayList<String>());
             while (current != null) {
                 if (current.relativeFilepath.endsWith("collectionproxyc")) {
-                    result.get(i).add(current.relativeFilepath);
+                    // check for duplicates
+                    boolean duplicate = false;
+                    for(ArrayList<String> res : result) {
+                        if (res.contains(current.relativeFilepath))
+                            duplicate = true;
+                    }
+                        
+                    if (!duplicate) {
+                        result.get(i).add(current.relativeFilepath);
+                    }
                 }
 
                 current = current.getParent();
             }
             ++i;
         }
+
         return result;
     }
 
