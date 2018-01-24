@@ -76,6 +76,16 @@ namespace dmGameSystem
             dmLogWarning("The gui world could not be stored since the buffer is full (%d). Reload will not work for the scenes in this world.", gui_context->m_Worlds.Size());
         }
 
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &gui_world->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = gui_context->m_MaxSpineCount;
+        dmRig::Result rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::RESULT_OK)
+        {
+            dmLogFatal("Unable to create gui rig context: %d", rr);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         gui_world->m_Components.SetCapacity(gui_context->m_MaxGuiComponents);
 
         dmGraphics::VertexElement ve[] =
@@ -149,6 +159,8 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexDeclaration(gui_world->m_VertexDeclaration);
         dmGraphics::DeleteVertexBuffer(gui_world->m_VertexBuffer);
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
+
+        dmRig::DeleteContext(gui_world->m_RigContext);
 
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -534,7 +546,7 @@ namespace dmGameSystem
         scene_params.m_MaxTextures = 128;
         scene_params.m_MaxParticlefx = gui_world->m_MaxParticleFXCount;
         scene_params.m_MaxSpineScenes = 128;
-        scene_params.m_RigContext = dmGameObject::GetRigContext(dmGameObject::GetCollection(params.m_Instance));
+        scene_params.m_RigContext = gui_world->m_RigContext;
         scene_params.m_ParticlefxContext = gui_world->m_ParticleContext;
         scene_params.m_FetchTextureSetAnimCallback = &FetchTextureSetAnimCallback;
         scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
@@ -946,7 +958,7 @@ namespace dmGameSystem
             if (dmGui::GetNodeIsBone(scene, node)) {
                 continue;
             }
-            const dmRig::HRigContext rig_context = dmGui::GetRigContext(scene);
+            const dmRig::HRigContext rig_context = gui_world->m_RigContext;
             const dmRig::HRigInstance rig_instance = dmGui::GetNodeRigInstance(scene, node);
             float opacity = node_opacities[i];
             Vector4 color = dmGui::GetNodeProperty(scene, node, dmGui::PROPERTY_COLOR);
@@ -1621,6 +1633,9 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
+
+        dmRig::Update(gui_world->m_RigContext, params.m_UpdateContext->m_DT);
+
         gui_world->m_DT = params.m_UpdateContext->m_DT;
         dmParticle::Update(gui_world->m_ParticleContext, params.m_UpdateContext->m_DT, &FetchAnimationCallback);
         for (uint32_t i = 0; i < gui_world->m_Components.Size(); ++i)

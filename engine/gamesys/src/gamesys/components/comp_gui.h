@@ -6,6 +6,7 @@
 #include <gui/gui.h>
 #include <gameobject/gameobject.h>
 #include <render/render.h>
+#include <rig/rig.h>
 
 namespace dmGameSystem
 {
@@ -72,6 +73,7 @@ namespace dmGameSystem
         uint32_t                         m_MaxParticleCount;
         uint32_t                         m_RenderedParticlesSize;
         float                            m_DT;
+        dmRig::HRigContext               m_RigContext;
     };
 
     typedef BoxVertex ParticleGuiVertex;
