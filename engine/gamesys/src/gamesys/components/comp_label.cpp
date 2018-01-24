@@ -463,13 +463,10 @@ namespace dmGameSystem
         dmRender::GetTextMetrics(component->m_Resource->m_FontMap, component->m_Text, component->m_Size.getX(),
                                     ddf->m_LineBreak, ddf->m_Leading, ddf->m_Tracking, &metrics);
 
-        dmTransform::Transform transform = dmGameObject::GetWorldTransform(component->m_Instance);
-        Vector3 scale = transform.GetScale();
-
-        metrics.m_Width      = metrics.m_Width * component->m_Scale.getX() * scale.getX();
-        metrics.m_Height     = metrics.m_Height * component->m_Scale.getY() * scale.getY();
-        metrics.m_MaxAscent  = metrics.m_MaxAscent * component->m_Scale.getY() * scale.getY();
-        metrics.m_MaxDescent = metrics.m_MaxDescent * component->m_Scale.getY() * scale.getY();
+        metrics.m_Width      = metrics.m_Width;
+        metrics.m_Height     = metrics.m_Height;
+        metrics.m_MaxAscent  = metrics.m_MaxAscent;
+        metrics.m_MaxDescent = metrics.m_MaxDescent;
     }
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)

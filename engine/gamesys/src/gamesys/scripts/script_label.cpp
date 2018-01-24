@@ -182,7 +182,7 @@ static int SetText(lua_State* L)
  * Gets the text metrics from a label component
  *
  * @name label.get_text_metrics
- * @param url [type:string|hash|url] the label to get the metrics from
+ * @param url [type:string|hash|url] the label to get the (unscaled) metrics from
  * @return metrics [type:table] a table with the following fields:
  *
  * - width
