@@ -383,7 +383,7 @@
             _ (g/update-cache-from-evaluation-context! evaluation-context)
             evaluation-context (g/make-evaluation-context)
             second-time   (measure (project/build project resource-node evaluation-context {}))]
-        (is (< (* 50 second-time) first-time))
+        (is (< (* 20 second-time) first-time))
         (let [atlas (test-util/resource-node project "/player/spineboy.atlas")]
           (g/transact (g/set-property atlas :margin 10))
           (let [third-time (measure (project/build project resource-node (g/make-evaluation-context) {}))]

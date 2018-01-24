@@ -24,38 +24,17 @@
 
 (def ^:dynamic *node-value-debug* nil)
 
-(defn- tracer-begin [tracer node output-type label]
-  (when tracer
-    (try 
-      (tracer :begin (gt/node-id node) output-type label)
-      (catch Exception e
-        (assert (not e) (str "tracer failed: " e))))))
-
-(defn- tracer-end [tracer node output-type label]
-  (when tracer
-    (try
-      (tracer :end (gt/node-id node) output-type label)
-      (catch Exception e
-        (.printStackTrace e)
-        (assert (not e) (str "tracer failed: " e))))))
-
-(defn- tracer-fail [tracer node output-type label]
-  (when tracer
-    (try 
-      (tracer :fail (gt/node-id node) output-type label)
-      (catch Exception e
-        (assert (not e) (str "tracer failed: " e))))))
-
 (defn trace-expr [self ctx output output-type deferred-expr]
-  (let [tracer (:tracer ctx)]
-    (try
-      (tracer-begin tracer self output-type output)
-      (let [result (deferred-expr)]
-        (tracer-end tracer self output-type output)
-        result)
-      (catch Exception e
-        (tracer-fail tracer self output-type output)
-        (throw e)))))
+  (if-let [tracer (:tracer ctx)]
+    (let [node-id (gt/node-id self)]
+      (tracer :begin node-id output-type output)
+      (let [[result e] (try [(deferred-expr) nil] (catch Exception e [nil e]))]
+        (if e
+          (do (tracer :fail node-id output-type output)
+              (throw e))
+          (do (tracer :end node-id output-type output)
+              result))))
+    (deferred-expr)))
 
 (defn- with-tracer-calls-form [self-name ctx-name output-name output-type expr]
   `(trace-expr ~self-name ~ctx-name ~output-name ~output-type
@@ -1205,7 +1184,7 @@
                                                                                                  `(constantly nil)))))]
     get-expr))
 
-(defn fnk-argument-form
+(defn- fnk-argument-form
   [self-name ctx-name nodeid-sym output description argument]
   (cond
     (= :this argument)
@@ -1286,7 +1265,7 @@
   `(let [~ctx-name (mark-in-production ~ctx-name ~(:name description) ~nodeid-sym ~transform)]
      ~forms))
 
-(defn check-caches-form [self-name ctx-name nodeid-sym description transform local-cache-sym forms]
+(defn- check-caches-form [self-name ctx-name nodeid-sym description transform local-cache-sym forms]
   (gensyms [local global key]
            (if (get-in description [:output transform :flags :cached])
              `(let [~local-cache-sym (:local ~ctx-name)

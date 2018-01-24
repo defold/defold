@@ -100,7 +100,10 @@
   (property val g/Str)
   (property custom-val g/Str
             (value (g/fnk [val] val)))
-  (output custom-val g/Str :cached (g/fnk [custom-val] custom-val))
+  (output custom-val g/Str :cached (g/fnk [custom-val]
+                                          (if (= custom-val "throw")
+                                            (throw (ex-info "TestNode initialized to throw in output custom-val" {}))
+                                            custom-val)))
   (output val-val g/Str :cached (g/fnk [val] (str val val))))
 
 (g/defnode PassthroughNode
@@ -300,5 +303,81 @@
                       :dependencies []
                       :state :end}]
                     :state :end}]
-                  :state :end})))))))
+                  :state :end}))
 
+          (g/transact (g/set-property tn :val "throw"))
+
+          (let [ec (g/make-evaluation-context {:tracer (g/make-tree-tracer result)})]
+            (is (thrown? Exception (g/node-value n1 :_properties ec)))
+            (is (= @result
+                   {:node-id n1,
+                    :output-type :output,
+                    :label :_properties,
+                    :dependencies
+                    [{:node-id n1,
+                      :output-type :dynamic,
+                      :label [:str-prop :str-prop-dynamic],
+                      :dependencies [],
+                      :state :end}
+                     {:node-id n1,
+                      :output-type :property,
+                      :label :str-prop,
+                      :dependencies
+                      [{:node-id tn,
+                        :output-type :output,
+                        :label :custom-val,
+                        :dependencies
+                        [{:node-id tn,
+                          :output-type :property,
+                          :label :custom-val,
+                          :dependencies
+                          [{:node-id tn,
+                            :output-type :raw-property,
+                            :label :val,
+                            :dependencies [],
+                            :state :end}],
+                          :state :end}],
+                        :state :fail}],
+                      :state :fail}],
+                    :state :fail})))
+
+          (g/transact (g/set-property tn :val "no throw"))
+          (reset! result nil)
+
+          (let [ec (g/make-evaluation-context {:tracer (juxt (g/make-tree-tracer result)
+                                                             (fn [state node-id output-type label]
+                                                               (when (= [state node-id label] [:end tn :custom-val])
+                                                                 (throw (ex-info "tracer somehow failed" {})))))})]
+
+            (is (thrown? Exception (g/node-value n1 :_properties ec)))
+            (is (= @result
+                   {:node-id 1,
+                    :output-type :output,
+                    :label :_properties,
+                    :dependencies
+                    [{:node-id 1,
+                      :output-type :dynamic,
+                      :label [:str-prop :str-prop-dynamic],
+                      :dependencies [],
+                      :state :end}
+                     {:node-id 1,
+                      :output-type :property,
+                      :label :str-prop,
+                      :dependencies
+                      [{:node-id 0,
+                        :output-type :output,
+                        :label :custom-val,
+                        :dependencies
+                        [{:node-id 0,
+                          :output-type :property,
+                          :label :custom-val,
+                          :dependencies
+                          [{:node-id 0,
+                            :output-type :raw-property,
+                            :label :val,
+                            :dependencies [],
+                            :state :end}],
+                          :state :end}],
+                        :state :fail}],
+                      :state :fail}],
+                    :state :fail}))))))))

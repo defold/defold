@@ -159,7 +159,7 @@
                          (map (fn [[key {:keys [resource] :as build-target}]]
                                 (swap! progress #(-> %
                                                      (progress/advance)
-                                                     (progress/with-message (str "Writing " (or (resource/proj-path (:resource resource)) "embedded resource")))))
+                                                     (progress/with-message (str "Writing " (resource/proj-path resource)))))
                                 (or (when-let [artifact (get artifacts resource)]
                                       (and (valid? artifact) artifact))
                                     (render-progress! @progress)

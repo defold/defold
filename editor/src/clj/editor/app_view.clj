@@ -513,6 +513,8 @@
                (g/user-data! workspace :editor.pipeline/artifacts artifacts)
                (g/user-data! workspace :editor.pipeline/etags etags)
                (when build (launch-built-project project prefs web-server console-view debug? (:render-error! build-options))))))
+         (catch Throwable t
+           (error-reporting/report-exception! t))
          (finally
            (reset! build-in-progress? false)))))))
 

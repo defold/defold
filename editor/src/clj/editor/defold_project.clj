@@ -273,12 +273,14 @@
 
 (defn save-all!
   ([project]
-   ;; TODO: should generally pass in task specific render-progress! to save-all!
+   ;; TODO: We call save-all! from build-html5, when bundling, when updating and when actually saving all.
+   ;; In all those cases we probably want to pass in a properly nested render-progress!, but for now we default
+   ;; to no progress reporting.
    (save-all! project (progress/throttle-render-progress progress/null-render-progress!)))
-  ([project render-progress-fn]
+  ([project render-progress!]
    (let [workspace     (workspace project)]
-     (ui/with-progress [render-fn render-progress-fn]
-       (write-save-data-to-disk! project {:render-progress! render-fn}))
+     (ui/with-progress [render-progress! render-progress!]
+       (write-save-data-to-disk! project {:render-progress! render-progress!}))
      (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
 
 (defn make-collect-progress-steps-tracer [steps-atom]
