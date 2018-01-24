@@ -121,7 +121,7 @@ dmGameObject::ComponentDestroy BonesTest::AComponentDestroy = TestComponentDestr
  */
 TEST_F(BonesTest, DeleteBones)
 {
-    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
     ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
 
     // Create the game object, the component above will create a child bone to that game object, which in turn will get a lower index because of the gap above
@@ -144,7 +144,7 @@ TEST_F(BonesTest, DeleteBones)
  */
 TEST_F(BonesTest, ComponentCreatingInstances)
 {
-    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
     // First create three game objects to create gaps in the instance array
     dmGameObject::HInstance tmp_inst[3];

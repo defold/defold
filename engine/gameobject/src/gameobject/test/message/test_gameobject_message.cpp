@@ -58,7 +58,7 @@ protected:
         dmGameObject::Result result = dmGameObject::RegisterComponentType(m_Register, mt_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
     }
 
 

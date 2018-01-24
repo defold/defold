@@ -188,7 +188,6 @@ namespace dmGameObject
         dmArray<HCollection>        m_Collections;
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
-        uint32_t                    m_DefaultCollectionRigCapacity;
 
         dmHashTable64<HCollection>  m_SocketToCollection;
 
@@ -262,8 +261,6 @@ namespace dmGameObject
 
         // Index pool for mapping Instance::m_Index to m_Instances
         dmIndexPool16            m_InstanceIndices;
-
-        dmRig::HRigContext       m_RigContext;
 
         // Array of dynamically allocated index arrays, one for each level
         // Used for calculating transforms in scene-graph

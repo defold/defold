@@ -702,13 +702,6 @@ namespace dmEngine
             return false;
         }
 
-        go_result = dmGameObject::SetCollectionDefaultRigCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmRig::RIG_MAX_INSTANCES_KEY, dmRig::DEFAULT_MAX_RIG_CAPACITY));
-        if(go_result != dmGameObject::RESULT_OK)
-        {
-            dmLogFatal("Failed to set max rig instance count for collections (%d)", go_result);
-            return false;
-        }
-
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
@@ -744,6 +737,13 @@ namespace dmEngine
             return false;
         }
 
+        // rig.max_instance_count is deprecated in favour of component specific max count values.
+        // For backwards combatibility we get the rig generic value and take the max of it and each
+        // specific component max value.
+        int32_t max_rig_instance = dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", 128);
+        int32_t max_model_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128), max_rig_instance);
+        int32_t max_spine_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128), max_rig_instance);
+
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
@@ -762,6 +762,7 @@ namespace dmEngine
         engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
         engine->m_GuiContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particlefx_count", 64);
         engine->m_GuiContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particle_count", 1024);
+        engine->m_GuiContext.m_MaxSpineCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_spine_count", max_spine_count);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -823,11 +824,11 @@ namespace dmEngine
 
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
+        engine->m_ModelContext.m_MaxModelCount = max_model_count;
 
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
-        engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
+        engine->m_SpineModelContext.m_MaxSpineModelCount = max_spine_count;
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);

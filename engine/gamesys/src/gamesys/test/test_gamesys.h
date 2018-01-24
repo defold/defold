@@ -203,6 +203,7 @@ void GamesysTest<T>::SetUp()
     m_GuiContext.m_GuiContext = dmGui::NewContext(&gui_params);
     m_GuiContext.m_MaxParticleFXCount = 64;
     m_GuiContext.m_MaxParticleCount = 1024;
+    m_GuiContext.m_MaxSpineCount = 8;
 
     m_HidContext = dmHID::NewContext(dmHID::NewContextParams());
     dmHID::Init(m_HidContext);
@@ -253,7 +254,7 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_GuiContext, &m_SpriteContext, &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext, &m_SpineModelContext, &m_ModelContext, &m_LabelContext));
 
-    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 4);
+    m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 }
 
 template<typename T>

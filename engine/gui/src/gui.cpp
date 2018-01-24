@@ -2621,7 +2621,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
-            dmLogError("Could not create the node, failed to create rig instance: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the gui.max_spine_count value in game.project");
+            } else {
+                dmLogError("Could not create the node, failed to create rig instance: %d.", res);
+            }
             return RESULT_DATA_ERROR;
         }
 
