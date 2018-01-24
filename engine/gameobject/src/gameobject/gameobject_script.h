@@ -71,7 +71,7 @@ namespace dmGameObject
         dmArray<ScriptInstance*> m_Instances;
     };
 
-    void    InitializeScript(dmScript::HContext context);
+    void    InitializeScript(HRegister regist, dmScript::HContext context);
 
     HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module);
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
