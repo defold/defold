@@ -189,6 +189,8 @@ namespace dmGameObject
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
 
+        dmHashTable64<HCollection>  m_SocketToCollection;
+
         Register();
         ~Register();
     };
