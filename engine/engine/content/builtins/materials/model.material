@@ -1,5 +1,5 @@
 name: "model"
-tags: "model"
+tags: "model" 
 vertex_program: "/builtins/materials/model.vp"
 fragment_program: "/builtins/materials/model.fp"
 vertex_constants {
