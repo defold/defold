@@ -24,36 +24,51 @@
     (is (= {:message "mess2" :size 2 :pos 2}
            (advance (make "mess" 2) 3 "mess2")))))
 
-(deftest precentage-test
-  (is (= 0 (percentage (make "mess"))))
-  (is (= 1 (percentage (advance (make "mess")))))
-  (is (= 1/2 (percentage (advance (make "mess" 2)))))
-  (is (= 0 (percentage nil)))
+(deftest jump-test
+  (testing "jump beyond size"
+    (is (= 100 (percentage (jump (make "" 100) 666)))))
+  (is (= 50 (percentage (jump (make "" 100 0) 50)))))
 
-  (testing "subjobs contribution to percentage are weighted"
-    (is (= 0 (percentage [(make "mess") (make "mess2")])))
-    (is (= 1/2 (percentage [(advance (make "mess")) (make "mess2" 2)])))
-    (is (= 1/5 (percentage [(advance (make "mess")) (make "mess2" 5)])))
-    (is (= 1/4 (percentage [(advance (make "mess" 2)) (make "mess2" 2)])))
-    (is (= 1/2 (percentage [(advance (make "mess" 2) 2) (make "mess2" 2)])))
-    (is (= 1/3 (percentage [(advance (make "mess")) (make "mess2") (make "mess3" 3)])))
-    (is (= 1/6 (percentage [(advance (make "mess")) (make "mess2" 2) (make "mess3" 3)]))))
+(deftest fraction-test
+  (is (= 0 (fraction (make "mess"))))
+  (is (= 1 (fraction (advance (make "mess")))))
+  (is (= 1/2 (fraction (advance (make "mess" 2))))))
 
-  (testing "missing size of parent of subjobs leading strange percentage"
-    (is (= 1 (percentage [(advance (make "mess")) (make "mess2")])))))
+(deftest percentage-test
+  (is (= 1 (percentage (make "1%" 200 2))))
+  (is (= 99 (percentage (make "99%" 100 99)))))
 
-(deftest description-test
-  (is (= "mess" (description (make "mess"))))
-  (is (= "mess\nmess2" (description [(make "mess") (make "mess2")])))
-  (is (= "" (description nil))))
+(deftest message-test
+  (is (= "mess" (message (make "mess")))))
 
 (deftest nest-render-progress-test
-  (let [res      (atom nil)
-        render-p #(reset! res %)
-        j1       (make "mess")
-        j2       (make "mess2")]
-    ((nest-render-progress render-p j2) j1)
-    (is (= [j1 j2] @res))))
+  (let [last-progress (atom nil)
+        render-progress! (fn [p] (reset! last-progress p))]
+    (testing "plain nest"
+      (let [nested-render-progress!
+            (nest-render-progress render-progress!
+                                  (make "parent" 4 2))]
+        ;; parent is at 2/4, child at 1/2 with the child
+        ;; spanning 1 of parents progress
+        ;; => effectively at 2/4 + 1 * 1/2 = 5/8
+        (nested-render-progress! (make "child" 2 1))
+        (is (= 5/8 (fraction @last-progress)))))
+    (testing "span nest"
+      (let [nested-render-progress!
+            (nest-render-progress render-progress!
+                                  (make "parent" 4 2)
+                                  2)]
+        ;; parent is at 2/4, child at 1/2 with the child
+        ;; spanning 2 of parents progress
+        ;; effectively at 2/4 + 2 * 1/2 = 3/4
+        (nested-render-progress! (make "child" 2 1))
+        (is (= 3/4 (fraction @last-progress)))))
+    (testing "precond failure"
+      (is (thrown? java.lang.AssertionError
+                   (nest-render-progress render-progress!
+                                         (make "parent" 4 2)
+                                         ;; span too large, 2 + 3 > 4
+                                         3))))))
 
 (deftest progress-mapv-test
   (let [render-res (atom [])
@@ -76,3 +91,11 @@
     (testing "nil"
       (is (= [] (progress-mapv inc nil render-f)))
       (is (= [] @render-res)))))
+
+(deftest test-done?
+  (is (done? done))
+  (is (not (done? (make "job"))))
+  (is (done? (advance (make "job") 1)))
+  (is (not (done? (advance (make "job" 2) 1))))
+  (is (done? (make "job" 2 2)))
+  (is (not (done? (make "job" 2 1)))))
