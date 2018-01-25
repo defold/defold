@@ -273,12 +273,33 @@
 
 (defn save-all!
   ([project]
-   (save-all! project ui/default-render-progress!))
-  ([project render-progress-fn]
+   ;; TODO: We call save-all! from build-html5, when bundling, when updating and when actually saving all.
+   ;; In all those cases we probably want to pass in a properly nested render-progress!, but for now we default
+   ;; to no progress reporting.
+   (save-all! project (progress/throttle-render-progress progress/null-render-progress!)))
+  ([project render-progress!]
    (let [workspace     (workspace project)]
-     (ui/with-progress [render-fn render-progress-fn]
-       (write-save-data-to-disk! project {:render-progress! render-fn}))
+     (ui/with-progress [render-progress! render-progress!]
+       (write-save-data-to-disk! project {:render-progress! render-progress!}))
      (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
+
+(defn make-collect-progress-steps-tracer [steps-atom]
+  (fn [state node output-type label]
+    (when (= [state output-type label] [:begin :output :build-targets])
+      (swap! steps-atom conj [node output-type label]))))
+
+(defn make-progress-tracer [steps-atom node-id->resource-path render-progress!]
+  (let [steps-left (atom @steps-atom)
+        progress (atom (progress/make "" (count @steps-atom)))]
+    (fn [state node output-type label]
+      (when (and (= [state output-type label] [:begin :output :build-targets])
+                 (= (first @steps-left) [node output-type label]))
+        (swap! steps-left rest)
+        (let [new-message (if-let [path (node-id->resource-path node)]
+                            (str "Building " path)
+                            (or (progress/message @progress) ""))]
+          (swap! progress progress/advance 1 new-message))
+        (render-progress! @progress)))))
 
 (defn build
   ([project node evaluation-context opts]
@@ -286,7 +307,15 @@
   ([project node evaluation-context extra-build-targets {:keys [render-progress! render-error!]
                                                          :or   {render-progress! progress/null-render-progress!}
                                                          :as   opts}]
-   (let [node-build-targets (g/node-value node :build-targets evaluation-context)
+   (let [steps (atom [])
+         node-id->resource-path (clojure.set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
+         _ (g/node-value node :build-targets (assoc evaluation-context
+                                                    :dry-run true
+                                                    :tracer (make-collect-progress-steps-tracer steps)))
+         node-build-targets (g/node-value node :build-targets
+                                          (assoc evaluation-context
+                                                 :tracer (make-progress-tracer steps node-id->resource-path
+                                                                               (progress/nest-render-progress render-progress! (progress/make "" 10) 7))))
          build-targets (cond-> node-build-targets
                          (seq extra-build-targets)
                          (into extra-build-targets))]
@@ -295,7 +324,7 @@
          (when render-error!
            (render-error! build-targets))
          nil)
-       (pipeline/build! (workspace project) build-targets)))))
+       (pipeline/build! (workspace project) build-targets (progress/nest-render-progress render-progress! (progress/make "" 10 7) 3))))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -562,11 +591,12 @@
    (build-and-write-project project evaluation-context nil build-options))
   ([project evaluation-context extra-build-targets build-options]
    (let [game-project  (get-resource-node project "/game.project")
-         clear-errors! (:clear-errors! build-options)]
+         clear-errors! (:clear-errors! build-options)
+         build-options (update build-options :render-progress! (fnil progress/throttle-render-progress progress/null-render-progress!))]
      (try
-       (ui/with-progress [render-fn ui/default-render-progress!]
+       (ui/with-progress [render-fn (:render-progress! build-options)]
          (clear-errors!)
-         (seq (build project game-project evaluation-context extra-build-targets (assoc build-options :render-progress! render-fn))))
+         (seq (build project game-project evaluation-context extra-build-targets build-options)))
        (catch Throwable error
          (error-reporting/report-exception! error)
          nil)))))
