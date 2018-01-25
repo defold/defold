@@ -164,7 +164,7 @@
   [{graph :initial-graph :or {graph (assoc (ig/empty-graph) :_gid 0)}}]
   graph)
 
-(defn- make-cache
+(defn make-cache
   [{cache-size :cache-size :or {cache-size maximum-cached-items}}]
   (c/make-cache cache-size))
 

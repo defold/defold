@@ -219,7 +219,6 @@ ordinary paths."
                                 moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map      (resource-watch/make-resource-map old-snapshot)
-         _            (render-progress! (progress/make "Finding resources..."))
          new-snapshot (resource-watch/make-snapshot workspace
                                                     project-path
                                                     (g/node-value workspace :dependencies))
@@ -271,8 +270,11 @@ ordinary paths."
                       (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
            (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
                                              (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
+           (let [listeners @(g/node-value workspace :resource-listeners)
+                 parent-progress (atom (progress/make "" (count listeners)))]
            (doseq [listener @(g/node-value workspace :resource-listeners)]
-             (resource/handle-changes listener changes-with-moved render-progress!)))))
+             (resource/handle-changes listener changes-with-moved
+                                      (progress/nest-render-progress render-progress! @parent-progress)))))))
      changes)))
 
 (defn fetch-and-validate-libraries [workspace library-urls render-fn]
