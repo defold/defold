@@ -3,7 +3,8 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
-            [editor.math :as math]))
+            [editor.math :as math]
+            [util.murmur :as murmur]))
 
 (def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
 
@@ -262,7 +263,23 @@
       0 ""
       1 (parse-string-exp-node (first arg-exps))
       3 (when-some [[socket path fragment] (matching-args three-hash-or-string-args arg-exps)]
-          (str socket ":" path "#" fragment)))))
+          (str socket ":" path "#" fragment))
+      nil)))
+
+(def ^:private supported-resource-sub-types
+  (into {}
+        (map (juxt identity murmur/hash64))
+        ["material" "texture" "textureset"]))
+
+(defn- parse-resource-functioncall [node]
+  (when-some [[module-name function-name arg-exps] (parse-functioncall node)]
+    (when (nil? module-name)
+      (when-some [sub-type (supported-resource-sub-types function-name)]
+        (when-some [string-value (case (count arg-exps)
+                                   0 ""
+                                   1 (parse-string-exp-node (first arg-exps))
+                                   nil)]
+          [sub-type string-value])))))
 
 (def ^:private quat-default-value [0.0 0.0 0.0]) ;; Euler angles.
 (def ^:private four-number-args (vec (repeat 4 parse-number-exp-node)))
@@ -323,6 +340,12 @@
     {:type :property-type-quat
      :value euler-angles}))
 
+(defn- parse-resource-script-property-value-info [value-arg-exp]
+  (when-some [[sub-type string-value] (some-> value-arg-exp unpack-exp parse-resource-functioncall)]
+    {:type :property-type-resource
+     :sub-type sub-type
+     :value string-value}))
+
 (defn- parse-script-property-value-info [value-arg-exp]
   (when (some? value-arg-exp)
     (or (parse-boolean-script-property-value-info value-arg-exp)
@@ -331,7 +354,8 @@
         (parse-url-script-property-value-info value-arg-exp)
         (parse-vector3-script-property-value-info value-arg-exp)
         (parse-vector4-script-property-value-info value-arg-exp)
-        (parse-quat-script-property-value-info value-arg-exp))))
+        (parse-quat-script-property-value-info value-arg-exp)
+        (parse-resource-script-property-value-info value-arg-exp))))
 
 (defn- parse-script-property-name-info [name-arg-exp]
   (when-some [name (parse-string-exp-node name-arg-exp)]

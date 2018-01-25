@@ -169,6 +169,7 @@
   (input child-ids g/Str :array)
 
   (input ddf-component-properties g/Any :substitute [])
+  (input resource-property-build-targets g/Any)
   (input source-outline outline/OutlineData :substitute source-outline-subst)
   (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
@@ -177,12 +178,25 @@
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
-  (output build-targets g/Any (g/fnk [build-resource source-build-targets build-error ddf-message transform]
-                                     (let [target (assoc (first source-build-targets)
-                                                         :resource build-resource)]
-                                       [(assoc target :instance-data {:resource (:resource target)
-                                                                      :instance-msg ddf-message
-                                                                      :transform transform})])))
+  (output build-targets g/Any (g/fnk [build-resource source-build-targets resource-property-build-targets build-error ddf-message transform]
+                                (let [component-property-entries (map (fn [entry]
+                                                                        (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets (:properties entry))]
+                                                                          (assoc entry
+                                                                            :properties go-props
+                                                                            :_dep-build-targets go-prop-dep-build-targets)))
+                                                                      (:component-properties ddf-message))
+                                      component-properties (mapv #(dissoc % :_dep-build-targets) component-property-entries)
+                                      component-property-dep-build-targets (into [] (mapcat :_dep-build-targets) component-property-entries)
+                                      source-build-target (first source-build-targets)
+                                      build-target (-> source-build-target
+                                                       (update :deps (partial into component-property-dep-build-targets))
+                                                       (assoc :resource build-resource
+                                                              :instance-data {:resource build-resource
+                                                                              :transform transform
+                                                                              :instance-msg (if (seq component-properties)
+                                                                                              (assoc ddf-message :component-properties component-properties)
+                                                                                              ddf-message)}))]
+                                  [build-target])))
   (output build-error g/Err (g/constantly nil))
 
   (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
@@ -260,7 +274,7 @@
                          (project/connect-resource-node project new-resource self []
                                                         (fn [go-node]
                                                           (let [component-overrides (into {} (map (fn [m]
-                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
+                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (:clj-value p)]])
                                                                                                                            (:properties m)))])
                                                                                                   (:overrides new-value)))
                                                                 override (g/override (:basis evaluation-context) go-node {:traverse? or-go-traverse?})
@@ -292,7 +306,7 @@
                                                                 (let [refd-component (component-ids id)
                                                                       refd-component-props (:properties (g/node-value refd-component :_properties evaluation-context))
                                                                       original-type (get-in refd-component-props [key :type])
-                                                                      override-type (script/go-prop-type->property-types type)]
+                                                                      override-type (properties/go-prop-type->property-type type)]
                                                                   (when (= original-type override-type)
                                                                     (g/set-property comp-id key value)))))))))))))
             (dynamic error (g/fnk [_node-id source-resource]
@@ -312,50 +326,39 @@
    :embedded-instances embed-inst-ddf
    :collection-instances ref-coll-ddf})
 
-(defn- clean-comp-props [props]
-  (mapv #(dissoc % :property-decls) props))
-
-(defn- clean-inst-ddfs [instances]
-  (mapv #(update % :component-properties clean-comp-props) instances))
-
-(defn- clean-prop-ddfs [instances]
-  (mapv #(update % :properties clean-comp-props) instances))
-
-(defn- clean-coll-inst-ddfs [instances]
-  (mapv #(update % :instance-properties clean-prop-ddfs) instances))
-
-(g/defnk produce-save-value [resource proto-msg]
-  (-> proto-msg
-    (update :instances clean-inst-ddfs)
-    (update :embedded-instances clean-inst-ddfs)
-    (update :collection-instances clean-coll-inst-ddfs)))
-
 (defn- externalize [inst-data resources]
-  (map (fn [data]
-         (let [{:keys [resource instance-msg transform]} data
-               instance-msg (dissoc instance-msg :data)
-               resource (get resources resource)
+  (map (fn [{:keys [resource instance-msg transform]}]
+         (let [resource (get resources resource)
                pos (Point3d.)
                rot (Quat4d.)
                scale (Vector3d.)
-               _ (math/split-mat4 transform pos rot scale)]
-           (merge instance-msg
-                  {:id (str path-sep (:id instance-msg))
-                   :prototype (resource/proj-path resource)
-                   :children (map #(str path-sep %) (:children instance-msg))
-                   :position (math/vecmath->clj pos)
-                   :rotation (math/vecmath->clj rot)
-                   :scale3 (math/vecmath->clj scale)}))) inst-data))
+               _ (math/split-mat4 transform pos rot scale)
+               go-props (properties/build-go-props resources (:properties instance-msg))]
+           (cond-> (-> instance-msg
+                       (dissoc :data)
+                       (assoc :id (str path-sep (:id instance-msg))
+                              :prototype (resource/proj-path resource)
+                              :children (map #(str path-sep %) (:children instance-msg))
+                              :position (math/vecmath->clj pos)
+                              :rotation (math/vecmath->clj rot)
+                              :scale3 (math/vecmath->clj scale)))
+
+                   (seq go-props)
+                   (assoc :properties go-props
+                          :property-decls (properties/go-props->decls go-props)))))
+       inst-data))
 
 (defn build-collection [resource dep-resources user-data]
   (let [{:keys [name instance-data scale-along-z]} user-data
         instance-msgs (externalize instance-data dep-resources)
+        property-resource-paths (properties/go-prop-resource-paths (mapcat :properties instance-msgs))
         msg {:name name
              :instances instance-msgs
-             :scale-along-z (if scale-along-z 1 0)}]
+             :scale-along-z (if scale-along-z 1 0)
+             :property-resources property-resource-paths}]
     {:resource resource :content (protobuf/map->bytes GameObject$CollectionDesc msg)}))
 
-(g/defnk produce-build-targets [_node-id name resource proto-msg sub-build-targets dep-build-targets id-counts scale-along-z]
+(g/defnk produce-build-targets [_node-id name resource sub-build-targets dep-build-targets id-counts scale-along-z]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
@@ -419,7 +422,7 @@
 
   (output base-url g/Str (gu/passthrough base-url))
   (output proto-msg g/Any :cached produce-proto-msg)
-  (output save-value g/Any :cached produce-save-value)
+  (output save-value g/Any :cached (gu/passthrough proto-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output node-outline outline/OutlineData :cached produce-coll-outline)
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
@@ -512,7 +515,7 @@
                                                                                                   comp-ids
                                                                                                   (g/node-value :source-id evaluation-context))]
                                                                                   p properties]
-                                                                              [(id-mapping comp-id) (properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
+                                                                              [(id-mapping comp-id) (properties/user-name->key (:id p)) (:clj-value p)])
                                                         or-node (get id-mapping coll-node)]
                                                     (concat
                                                       (:tx-data override)

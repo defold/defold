@@ -82,15 +82,6 @@
                :name "keyword.operator.lua"}]})
 
 (def ^:private lua-code-opts {:new-code {:grammar lua-grammar}})
-(def go-prop-type->property-types
-  {:property-type-number  g/Num
-   :property-type-hash    g/Str
-   :property-type-url     g/Str
-   :property-type-vector3 t/Vec3
-   :property-type-vector4 t/Vec4
-   :property-type-quat    t/Vec3
-   :property-type-boolean g/Bool})
-
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
@@ -145,68 +136,58 @@
                     :line     line
                     :message  message})))))
 
-(defn- build-script [resource _dep-resources user-data]
-  (let [user-properties (:user-properties user-data)
-        properties (mapv (fn [[k v]] (let [type (:go-prop-type v)]
-                                       {:id (properties/key->user-name k)
-                                        :value (properties/go-prop->str (:value v) type)
-                                        :type type}))
-                         (:properties user-properties))
-        modules (:modules user-data)
-        bytecode (:bytecode user-data)]
-    {:resource resource :content (protobuf/map->bytes Lua$LuaModule
-                                                      {:source {:script (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
-                                                                :filename (resource/proj-path (:resource resource))
-                                                                :bytecode (when-not (g/error? bytecode)
-                                                                            (ByteString/copyFrom ^bytes bytecode))}
-                                                       :modules modules
-                                                       :resources (mapv lua/lua-module->build-path modules)
-                                                       :properties (properties/properties->decls properties)})}))
+(defn- build-script [resource dep-resources user-data]
+  (let [modules (:modules user-data)
+        bytecode (:bytecode user-data)
+        go-props (properties/build-go-props dep-resources (:go-props user-data))]
+    {:resource resource
+     :content (protobuf/map->bytes Lua$LuaModule
+                                   {:source {:script (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
+                                             :filename (resource/proj-path (:resource resource))
+                                             :bytecode (when-not (g/error? bytecode)
+                                                         (ByteString/copyFrom ^bytes bytecode))}
+                                    :modules modules
+                                    :resources (mapv lua/lua-module->build-path modules)
+                                    :properties (properties/go-props->decls go-props)
+                                    :property-resources (properties/go-prop-resource-paths go-props)})}))
 
-(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules dep-build-targets]
-  [{:node-id _node-id
-    :resource (workspace/make-build-resource resource)
-    :build-fn build-script
-    :user-data {:lines lines :user-properties user-properties :modules modules :bytecode bytecode}
-    :deps dep-build-targets}])
+(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules module-build-targets resource-property-build-targets]
+  (let [unresolved-go-props (map properties/property-entry->go-prop (:properties user-properties))
+        [go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets unresolved-go-props)]
+    [{:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-script
+      :user-data {:lines lines :go-props go-props :modules modules :bytecode bytecode}
+      :deps (into go-prop-dep-build-targets module-build-targets)}]))
 
 (g/defnk produce-completions [completion-info module-completion-infos]
   (code-completion/combine-completions completion-info module-completion-infos))
 
-;; TODO: Remove and replace with property once DEFEDIT-1226 is addressed.
-;; See comment in lines property setter below.
-(g/defnk produce-completion-info [lines resource]
-  (let [completion-info (lua-parser/lua-info (data/lines-reader lines))
-        module (lua/path->lua-module (resource/proj-path resource))]
-    (assoc completion-info :module module)))
-
-(g/defnk produce-user-properties [_node-id completion-info]
-  (let [script-props (filter #(= :ok (:status %)) (:script-properties completion-info))
-        display-order (mapv prop->key script-props)
+(g/defnk produce-user-properties [_node-id script-properties]
+  (let [display-order (mapv prop->key script-properties)
+        read-only? (nil? (g/override-original _node-id))
         props (into {}
-                    (map (fn [key prop]
-                           (let [type (:type prop)
-                                 prop (-> (select-keys prop [:value])
-                                          (assoc :node-id _node-id
-                                                 :type (go-prop-type->property-types type)
-                                                 :error (status-errors (:status prop))
-                                                 :edit-type {:type (go-prop-type->property-types type)}
-                                                 :go-prop-type type
-                                                 :read-only? (nil? (g/override-original _node-id))))]
-                             [key prop]))
+                    (map (fn [key {:keys [type sub-type value]}]
+                           [key {:node-id _node-id
+                                 :type (properties/go-prop-type->property-type type)
+                                 :edit-type (properties/go-prop-edit-type key type sub-type)
+                                 :go-prop-type type
+                                 :go-prop-sub-type sub-type
+                                 :value value
+                                 :read-only? read-only?}])
                          display-order
-                         script-props))]
+                         script-properties))]
     {:properties props
      :display-order display-order}))
 
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
-  (input dep-build-targets g/Any :array)
+  (input module-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
+  (input resource-property-build-targets g/Any :array)
 
-  ;; TODO: Must be an output until DEFEDIT-1226 is addressed. See below.
-  ;; (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
+  (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
   ;; Overrides lines property in CodeEditorResourceNode.
   (property lines r/Lines
@@ -215,18 +196,21 @@
             (set (fn [evaluation-context self _old-value new-value]
                    (let [lua-info (lua-parser/lua-info (data/lines-reader new-value))
                          resource (g/node-value self :resource evaluation-context)
+                         resolve-resource (partial workspace/resolve-resource resource)
                          own-module (lua/path->lua-module (resource/proj-path resource))
                          completion-info (assoc lua-info :module own-module)
-                         modules (into [] (comp (map second) (remove lua/preinstalled-modules)) (:requires lua-info))]
+                         modules (into [] (comp (map second) (remove lua/preinstalled-modules)) (:requires lua-info))
+                         script-properties (into []
+                                                 (keep (fn [prop]
+                                                         (when (= :ok (:status prop))
+                                                           (case (:type prop)
+                                                             :property-type-resource (update prop :value resolve-resource)
+                                                             prop))))
+                                                 (:script-properties completion-info))]
                      (concat
-                       ;; TODO:
-                       ;; Once DEFEDIT-1226 is addressed, we can store completion-info in a property here.
-                       ;; Currently it must be an output since this deferred setter is run *after*
-                       ;; referencing Game Objects and Collections filter out property overrides for
-                       ;; mismatched types. This results in all overrides being removed, since the
-                       ;; ScriptNode reports no properties.
-                       ;; (g/set-property self :completion-info completion-info)
-                       (g/set-property self :modules modules))))))
+                       (g/set-property self :completion-info completion-info)
+                       (g/set-property self :modules modules)
+                       (g/set-property self :script-properties script-properties))))))
 
   (property modules Modules
             (default [])
@@ -235,19 +219,32 @@
                    (let [basis (:basis evaluation-context)
                          project (project/get-project self)]
                      (concat
-                       (gu/disconnect-all basis self :dep-build-targets)
+                       (gu/disconnect-all basis self :module-build-targets)
                        (gu/disconnect-all basis self :module-completion-infos)
                        (for [module new-value]
                          (let [path (lua/lua-module->path module)]
                            (project/connect-resource-node project path self
-                                                          [[:build-targets :dep-build-targets]
+                                                          [[:build-targets :module-build-targets]
                                                            [:completion-info :module-completion-infos]]))))))))
+
+  (property script-properties g/Any
+            (default [])
+            (dynamic visible (g/constantly false))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)]
+                     (concat
+                       (gu/disconnect-all basis self :resource-property-build-targets)
+                       (for [{:keys [type value]} new-value
+                             :when (and (= :property-type-resource type) (some? value))]
+                         (project/connect-resource-node project value self
+                                                        [[:build-targets :resource-property-build-targets]])))))))
 
   (output _properties g/Properties :cached produce-properties)
   (output bytecode g/Any :cached produce-bytecode)
   (output build-targets g/Any :cached produce-build-targets)
   (output completions g/Any :cached produce-completions)
-  (output completion-info g/Any :cached produce-completion-info) ;; TODO: Replace with property once DEFEDIT-1226 is addressed.
+  (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output user-properties g/Properties :cached produce-user-properties))
 
 (defn register-resource-types [workspace]

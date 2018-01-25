@@ -1,18 +1,22 @@
 (ns editor.properties
-  (:require [clojure.set :as set]
-            [clojure.string :as str]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.set :as set]
             [cognitect.transit :as transit]
-            [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
-            [util.murmur :as murmur]
-            [editor.types :as t]
+            [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.image :as image]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
-            [editor.core :as core]
-            [schema.core :as s]
-            [util.id-vec :as iv])
-  (:import [java.util StringTokenizer]
-           [javax.vecmath Quat4d Point3d Matrix4d Vector3d]))
+            [editor.resource :as resource]
+            [editor.types :as t]
+            [editor.workspace :as workspace]
+            [util.id-vec :as iv]
+            [util.murmur :as murmur])
+  (:import [com.defold.editor.pipeline LuaScanner$Property]
+           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
+           [java.util StringTokenizer]
+           [javax.vecmath Quat4d Point3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -178,6 +182,7 @@
     :property-type-vector4 (apply format "%s, %s, %s, %s" value)
     :property-type-quat (let [q (math/euler->quat value)]
                           (apply format "%s, %s, %s, %s" (map q-round (math/vecmath->clj q))))
+    :property-type-resource (resource/resource->proj-path value)
     (str value)))
 
 (defn- parse-num [s]
@@ -195,7 +200,7 @@
                (inc counter))
         result))))
 
-(defn str->go-prop [s type]
+(defn str->go-prop [base-resource s type]
   (case type
     :property-type-number (parse-num s)
     (:property-type-hash :property-type-url) s
@@ -204,7 +209,46 @@
     :property-type-quat (let [v (parse-vec s 4)
                               q (Quat4d. (double-array v))]
                           (math/quat->euler q))
-    :property-type-boolean (Boolean/parseBoolean s)))
+    :property-type-boolean (Boolean/parseBoolean s)
+    :property-type-resource (workspace/resolve-resource base-resource s)))
+
+(defn go-prop-type->property-type [go-prop-type]
+  (case go-prop-type
+    :property-type-number   g/Num
+    :property-type-hash     g/Str
+    :property-type-url      g/Str
+    :property-type-vector3  t/Vec3
+    :property-type-vector4  t/Vec4
+    :property-type-quat     t/Vec3
+    :property-type-boolean  g/Bool
+    :property-type-resource resource/Resource))
+
+;; Supported resource property sub-types.
+;; TODO: Use murmur/hash64 directly instead of LuaScanner constants once we remove the legacy code editor.
+(defonce sub-type-material LuaScanner$Property/subTypeMaterial)
+(defonce sub-type-texture LuaScanner$Property/subTypeTexture)
+(defonce sub-type-textureset LuaScanner$Property/subTypeTextureSet)
+
+(defonce sub-type-material-ext "material")
+(defonce sub-type-textureset-ext ["atlas" "tilesource"])
+(defonce sub-type-texture-ext (into sub-type-textureset-ext (cons "cubemap" image/exts)))
+
+(defn go-prop-sub-type->ext [go-prop-sub-type]
+  (condp = go-prop-sub-type
+    sub-type-material sub-type-material-ext
+    sub-type-texture sub-type-texture-ext
+    sub-type-textureset sub-type-textureset-ext))
+
+(defn go-prop-edit-type [prop-kw go-prop-type go-prop-sub-type]
+  (if (not= :property-type-resource go-prop-type)
+    {:type (go-prop-type->property-type go-prop-type)}
+    {:type (go-prop-type->property-type go-prop-type)
+     :ext (go-prop-sub-type->ext go-prop-sub-type)
+     :set-fn (fn set-resource-property [_evaluation-context self old-value new-value]
+               (concat
+                 (g/set-property self prop-kw new-value)
+                 (project/resource-setter self old-value new-value
+                                          [:build-targets :resource-property-build-targets])))}))
 
 (defn- ->decl [keys]
   (into {} (map (fn [k] [k (transient [])]) keys)))
@@ -225,20 +269,23 @@
       (recur (rest vs) (conj! values v))
       values)))
 
-(defn properties->decls [properties]
+(defn go-props->decls [properties]
   (loop [properties properties
          decl (->decl [:number-entries :hash-entries :url-entries :resource-entries
                        :vector3-entries :vector4-entries :quat-entries :bool-entries
                        :float-values :hash-values :string-values])]
     (if-let [prop (first properties)]
       (let [type (:type prop)
-            value (str->go-prop (:value prop) type)
-            value (case type
-                    (:property-type-number :property-type-url) [value]
-                    :property-type-hash [(murmur/hash64 value)]
-                    :property-type-boolean [(if value 1.0 0.0)]
-                    :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
-                    value)
+            clj-value (:clj-value prop)
+            values (case type
+                     :property-type-number [clj-value]
+                     :property-type-hash [(murmur/hash64 clj-value)]
+                     :property-type-url [clj-value]
+                     :property-type-vector3 clj-value
+                     :property-type-vector4 clj-value
+                     :property-type-quat (-> clj-value math/euler->quat math/vecmath->clj)
+                     :property-type-boolean [(if clj-value 1.0 0.0)]
+                     :property-type-resource [(resource/resource->proj-path clj-value)])
             [entry-key values-key] (type->entry-keys type)
             entry {:key (:id prop)
                    :id (murmur/hash64 (:id prop))
@@ -246,7 +293,7 @@
         (recur (rest properties)
                (-> decl
                  (update entry-key conj! entry)
-                 (update values-key append-values! value))))
+                 (update values-key append-values! values))))
       (into {} (map (fn [[k v]] [k (persistent! v)]) decl)))))
 
 (defn- property-edit-type [property]
@@ -438,22 +485,13 @@
 (defn overridden? [property]
   (and (contains? property :original-values) (not-every? nil? (:values property))))
 
-(defn- error-seq [e]
-  (tree-seq :causes :causes e))
-
-(defn- error-messages [e]
-  (distinct (keep :message (error-seq e))))
-
-(defn error-message [e]
-  (str/join "\n" (error-messages e)))
-
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
     (g/error-aggregate errors)))
 
 (defn validation-message [property]
   (when-let [err (error-aggregate (:errors property))]
-    {:severity (:severity err) :message (error-message err)}))
+    {:severity (:severity err) :message (g/error-message err)}))
 
 (defn clear-override! [property]
   (when (overridden? property)
@@ -488,3 +526,98 @@
   {:type t/Vec3
    :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
    :to-type (fn [v] (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
+
+(defn- resolve-texture-build-target [{:keys [user-data] :as build-target}]
+  (let [{:keys [pb-class pb-msg]} user-data
+        texture-build-target (if-not (= TextureSetProto$TextureSet pb-class)
+                               build-target
+                               (let [texture-build-resource (:texture pb-msg)]
+                                 (assert (some? texture-build-resource))
+                                 (some (fn [dep-build-target]
+                                         (when (= texture-build-resource (:resource dep-build-target))
+                                           dep-build-target))
+                                       (:deps build-target))))]
+    (if (= "texturec" (resource/ext (:resource texture-build-target)))
+      texture-build-target
+      (throw (ex-info (str "unable to resolve texture build target from build target for " (pr-str (:resource build-target)))
+                      {:resource-reference (:resource build-target)
+                       :build-target build-target})))))
+
+(defn property-entry->go-prop [[key {:keys [go-prop-type go-prop-sub-type value]}]]
+  (assert (keyword? key))
+  (assert (contains? type->entry-keys go-prop-type))
+  (assert (or (not= :property-type-resource go-prop-type) (integer? go-prop-sub-type)))
+  {:id (key->user-name key)
+   :type go-prop-type
+   :sub-type go-prop-sub-type
+   :clj-value value
+   :value (go-prop->str value go-prop-type)})
+
+(defn- go-prop? [value]
+  (and (string? (:id value))
+       (contains? value :clj-value)
+       (contains? value :value)
+       (contains? type->entry-keys (:type value))
+       (or (not= :property-type-resource (:type value))
+           (integer? (:sub-type value)))))
+
+(defn build-target-go-props [resource-property-build-targets go-props-with-source-resources]
+  (let [build-targets-by-source-resource (into {}
+                                               (map (juxt (comp :resource :resource) identity))
+                                               (flatten resource-property-build-targets))]
+    (loop [go-props-with-source-resources go-props-with-source-resources
+           go-props-with-build-resources (transient [])
+           dep-build-targets (transient [])]
+      (if-some [{:keys [clj-value sub-type type] :as go-prop} (first go-props-with-source-resources)]
+        (do
+          (assert (go-prop? go-prop))
+          (let [dep-build-target (when (and (= :property-type-resource type) (some? clj-value))
+                                   (if-some [build-target (build-targets-by-source-resource clj-value)]
+                                     ;; Resolve .atlas reference into built .texturesetc or .texturec build target depending on property sub-type.
+                                     ;; Doing this here means we can correctly handle sub-type changes. The texture set build targets are
+                                     ;; invalidated whenever a dependent texture changes, so it should be safe to do so.
+                                     (if (= sub-type-texture sub-type)
+                                       (resolve-texture-build-target build-target)
+                                       build-target)
+
+                                     ;; If this fails, it is likely because resource-property-build-targets does not contain a referenced resource.
+                                     (throw (ex-info (str "unable to resolve build target from value " (pr-str clj-value))
+                                                     {:property (:id go-prop)
+                                                      :resource-reference clj-value}))))
+                build-resource (some-> dep-build-target :resource)
+                go-prop (if (nil? build-resource)
+                          go-prop
+                          (assoc go-prop
+                            :clj-value build-resource
+                            :value (go-prop->str build-resource type)))]
+            (recur (next go-props-with-source-resources)
+                   (conj! go-props-with-build-resources go-prop)
+                   (if (some? dep-build-target)
+                     (conj! dep-build-targets dep-build-target)
+                     dep-build-targets))))
+        [(persistent! go-props-with-build-resources)
+         (persistent! dep-build-targets)]))))
+
+(defn build-go-props [dep-resources go-props-with-build-resources]
+  (let [build-resource->fused-build-resource (fn [build-resource]
+                                               (when (some? build-resource)
+                                                 (or (dep-resources build-resource)
+                                                     (throw (ex-info (str "unable to resolve fused build resource from referenced " (pr-str build-resource))
+                                                                     {:resource-reference build-resource})))))
+        go-props-with-fused-build-resources (mapv (fn [{:keys [clj-value type] :as go-prop}]
+                                                    (assert (go-prop? go-prop))
+                                                    (if (not= :property-type-resource type)
+                                                      go-prop
+                                                      (let [fused-build-resource (build-resource->fused-build-resource clj-value)]
+                                                        (assoc go-prop
+                                                          :clj-value fused-build-resource
+                                                          :value (go-prop->str fused-build-resource type)))))
+                                                  go-props-with-build-resources)]
+    go-props-with-fused-build-resources))
+
+(defn go-prop-resource-paths [go-props]
+  (assert (every? go-prop? go-props))
+  (into (sorted-set)
+        (comp (filter #(= :property-type-resource (:type %)))
+              (keep (comp not-empty :value)))
+        go-props))

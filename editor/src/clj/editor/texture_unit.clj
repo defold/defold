@@ -9,7 +9,8 @@
             [editor.resource :as resource]
             [internal.util :as util]
             [editor.resource-node :as resource-node]
-            [editor.graph-util :as gu])
+            [editor.graph-util :as gu]
+            [editor.properties :as properties])
   (:import (com.jogamp.opengl GL)
            (editor.gl.texture TextureLifecycle)))
 
@@ -95,7 +96,7 @@
 
 (def edit-type
   {:type resource/Resource
-   :ext (into ["atlas" "tilesource" "cubemap"] image/exts)})
+   :ext properties/sub-type-texture-ext})
 
 (defn texture-unit-property-info [node-id textures-prop-kw prop-label array-index texture-resource]
   (assert (keyword? textures-prop-kw))

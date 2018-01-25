@@ -30,16 +30,12 @@
 (def game-object-icon "icons/32/Icons_06-Game-object.png")
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn- gen-ref-ddf
-  ([id position rotation path]
-    (gen-ref-ddf id position rotation path {}))
-  ([id position rotation path ddf-properties ddf-property-decls]
-    {:id id
-     :position position
-     :rotation rotation
-     :component (resource/resource->proj-path path)
-     :properties ddf-properties
-     :property-decls ddf-property-decls}))
+(defn- gen-ref-ddf [id position rotation path ddf-properties]
+  {:id id
+   :position position
+   :rotation rotation
+   :component (resource/resource->proj-path path)
+   :properties ddf-properties})
 
 (defn- gen-embed-ddf [id position rotation save-data]
   {:id id
@@ -49,7 +45,7 @@
    :rotation rotation
    :data (or (:content save-data) "")})
 
-(defn- wrap-if-raw-sound [_node-id target]
+(defn- wrap-if-raw-sound [target _node-id]
   (let [resource (:resource (:resource target))
         source-path (resource/proj-path resource)
         ext (resource/ext resource)]
@@ -149,6 +145,7 @@
   (input source-properties g/Properties :substitute {:properties {}})
   (input scene g/Any)
   (input source-build-targets g/Any)
+  (input resource-property-build-targets g/Any)
   (input base-url g/Str)
   (input id-counts g/Any)
 
@@ -170,8 +167,7 @@
           (cond->
             (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
-  (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
-  (output rt-ddf-message g/Any :abstract)
+  (output ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                 (let [transform (if-let [local-transform (:transform scene)]
                                                   (doto (Matrix4d. ^Matrix4d transform)
@@ -185,14 +181,20 @@
                                            :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
                                     updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
-  (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets build-resource rt-ddf-message transform]
-                                             (if-let [target (first source-build-targets)]
-                                               (let [target (->> (assoc target :resource build-resource)
-                                                              (wrap-if-raw-sound _node-id))]
-                                                 [(assoc target :instance-data {:resource (:resource target)
-                                                                                :instance-msg rt-ddf-message
-                                                                                :transform transform})])
-                                               [])))
+  (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets resource-property-build-targets build-resource ddf-message transform]
+                                        (if-let [source-build-target (first source-build-targets)]
+                                          (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets (:properties ddf-message))
+                                                build-target (-> source-build-target
+                                                                 (assoc :resource build-resource)
+                                                                 (wrap-if-raw-sound _node-id)
+                                                                 (update :deps (partial into go-prop-dep-build-targets))
+                                                                 (assoc :instance-data {:resource (:resource source-build-target)
+                                                                                        :transform transform
+                                                                                        :instance-msg (if (seq go-props)
+                                                                                                        (assoc ddf-message :properties go-props)
+                                                                                                        ddf-message)}))]
+                                            [build-target])
+                                          [])))
   (output _properties g/Properties :cached produce-component-properties))
 
 (g/defnode EmbeddedComponent
@@ -200,8 +202,8 @@
 
   (input embedded-resource-id g/NodeID)
   (input save-data g/Any :cascade-delete)
-  (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
-                                              (gen-embed-ddf id position rotation save-data)))
+  (output ddf-message g/Any :cached (g/fnk [id position rotation save-data]
+                                      (gen-embed-ddf id position rotation save-data)))
   (output build-resource resource/Resource (g/fnk [source-resource save-data]
                                                   (some-> source-resource
                                                      (assoc :data (:content save-data))
@@ -248,7 +250,7 @@
                                        :from-type (fn [r] {:resource r :overrides {}})}))
             (value (g/fnk [source-resource ddf-properties]
                           {:resource source-resource
-                           :overrides (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
+                           :overrides (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (:clj-value p)]])
                                                     ddf-properties))}))
             (set (fn [evaluation-context self old-value new-value]
                    (concat
@@ -274,12 +276,13 @@
                                                                                    [:node-outline :source-outline]
                                                                                    [:_properties :source-properties]
                                                                                    [:scene :scene]
-                                                                                   [:build-targets :source-build-targets]]
+                                                                                   [:build-targets :source-build-targets]
+                                                                                   [:resource-property-build-targets :resource-property-build-targets]]
                                                                         :when (contains? outputs from)]
                                                                     (g/connect or-node from self to)))
                                                                 (for [[label [type value]] (:overrides new-value)]
                                                                   (let [original-type (get-in comp-props [label :type])
-                                                                        override-type (script/go-prop-type->property-types type)]
+                                                                        override-type (properties/go-prop-type->property-type type)]
                                                                     (when (= original-type override-type)
                                                                       (g/set-property or-node label value)))))))))
                          (project/resource-setter self (:resource old-value) (:resource new-value)
@@ -298,32 +301,34 @@
                  (let [prop-order (into {} (map-indexed (fn [i k] [k i]) (:display-order source-properties)))]
                    (->> source-properties
                      :properties
-                     (filter (fn [[key p]] (contains? p :original-value)))
+                     (filter (fn [[_ p]] (contains? p :original-value)))
                      (sort-by (comp prop-order first))
-                     (mapv (fn [[key p]]
-                             {:id (properties/key->user-name key)
-                              :type (:go-prop-type p)
-                              :value (properties/go-prop->str (:value p) (:go-prop-type p))}))))))
-  (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties)))
-  (output rt-ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
-                                              (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
+                     (mapv properties/property-entry->go-prop)))))
+  (output ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties]
+                                      (gen-ref-ddf id position rotation source-resource ddf-properties))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf
    :embedded-components embed-ddf})
 
 (defn- externalize [inst-data resources]
-  (map (fn [data]
-         (let [{:keys [resource instance-msg transform]} data
-               resource (get resources resource)
-               instance-msg (dissoc instance-msg :type :data)]
-           (merge instance-msg
-                  {:component (resource/proj-path resource)})))
+  (map (fn [{:keys [resource instance-msg]}]
+         (let [resource (get resources resource)
+               go-props (properties/build-go-props resources (:properties instance-msg))]
+           (cond-> (-> instance-msg
+                       (dissoc :data :type)
+                       (assoc :component (resource/proj-path resource)))
+
+                   (seq go-props)
+                   (assoc :properties go-props
+                          :property-decls (properties/go-props->decls go-props)))))
        inst-data))
 
 (defn- build-game-object [resource dep-resources user-data]
   (let [instance-msgs (externalize (:instance-data user-data) dep-resources)
-        msg {:components instance-msgs}]
+        property-resource-paths (properties/go-prop-resource-paths (mapcat :properties instance-msgs))
+        msg {:components instance-msgs
+             :property-resources property-resource-paths}]
     {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
 
 (g/defnk produce-build-targets [_node-id resource proto-msg dep-build-targets id-counts]
@@ -399,13 +404,12 @@
   (output component-ids g/Dict :cached (g/fnk [component-id-pairs] (reduce conj {} component-id-pairs)))
   (output ddf-component-properties g/Any :cached
           (g/fnk [ref-ddf]
-                 (reduce (fn [props m]
-                           (if (empty? (:properties m))
-                             props
-                             (conj props (-> m
-                                           (select-keys [:id :properties])
-                                           (assoc :property-decls (properties/properties->decls (:properties m)))))))
-                         [] ref-ddf)))
+            (into []
+                  (keep (fn [component-ddf]
+                          (when-some [properties (not-empty (:properties component-ddf))]
+                            {:id (:id component-ddf)
+                             :properties properties})))
+                  ref-ddf)))
   (output id-counts g/Any :cached (g/fnk [component-id-pairs]
                                          (reduce (fn [res id]
                                                    (update res id (fn [id] (inc (or id 0)))))
@@ -521,7 +525,12 @@
                 source-resource (workspace/resolve-resource resource source-path)
                 resource-type (some-> source-resource resource/resource-type)
                 transform-properties (select-transform-properties resource-type component)
-                properties (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]]) (:properties component)))]]
+                properties (into {}
+                                 (map (fn [p]
+                                        [(properties/user-name->key (:id p))
+                                         [(:type p)
+                                          (properties/str->go-prop resource (:value p) (:type p))]]))
+                                 (:properties component))]]
       (add-component self source-resource (:id component) transform-properties properties nil))
     (for [embedded (:embedded-components prototype)
           :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
@@ -529,9 +538,7 @@
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
 (defn- sanitize-component [c]
-  (cond-> c
-    (every? (fn [[key vs]] (empty? vs)) (:property-decls c))
-    (dissoc c :property-decls)))
+  (dissoc c :property-decls))
 
 (defn- sanitize-game-object [go]
   (update go :components (partial mapv sanitize-component)))

@@ -1,8 +1,7 @@
 (ns editor.validation
-  (:require [dynamo.graph :as g]
+  (:require [camel-snake-kebab :as camel]
+            [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
-            [clojure.string :as str]
-            [editor.properties :as properties]
             [editor.resource :as resource]))
 
 (set! *warn-on-reflection* true)
@@ -71,10 +70,17 @@
    (when-let [msg (apply f prop-value args)]
      (g/->error _node-id prop-kw severity prop-value msg {}))))
 
+(defn keyword->name [kw]
+  (-> kw
+      name
+      camel/->Camel_Snake_Case_String
+      (clojure.string/replace "_" " ")
+      clojure.string/trim))
+
 (defmacro prop-error-fnk
   [severity f property]
   (let [name-kw# (keyword property)
-        name# (properties/keyword->name name-kw#)]
+        name# (keyword->name name-kw#)]
     `(g/fnk [~'_node-id ~property]
             (prop-error ~severity ~'_node-id ~name-kw# ~f ~property ~name#))))
 

@@ -392,6 +392,9 @@
 
 (defn- prop-type->schema [prop-type]
   (cond
+    (util/protocol? prop-type)
+    (s/protocol prop-type)
+
     (util/schema? prop-type)
     prop-type
 

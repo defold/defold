@@ -34,15 +34,6 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private lua-code-opts {:code lua/lua})
-(def go-prop-type->property-types
-  {:property-type-number  g/Num
-   :property-type-hash    g/Str
-   :property-type-url     g/Str
-   :property-type-vector3 t/Vec3
-   :property-type-vector4 t/Vec4
-   :property-type-quat    t/Vec3
-   :property-type-boolean g/Bool})
-
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
@@ -78,19 +69,20 @@
   (-> p :name properties/user-name->key))
 
 (g/defnk produce-user-properties [_node-id script-properties]
-  (let [script-props (filter (comp #{:ok} :status) script-properties)
-        props (into {} (map (fn [p]
-                              (let [type (:type p)
-                                    prop (-> (select-keys p [:value])
-                                           (assoc :node-id _node-id
-                                                  :type (go-prop-type->property-types type)
-                                                  :error (status-errors (:status p))
-                                                  :edit-type {:type (go-prop-type->property-types type)}
-                                                  :go-prop-type type
-                                                  :read-only? (nil? (g/override-original _node-id))))]
-                                [(prop->key p) prop]))
-                            script-props))
-        display-order (mapv prop->key script-props)]
+  (let [script-properties (filter (comp #{:ok} :status) script-properties)
+        display-order (mapv prop->key script-properties)
+        read-only? (nil? (g/override-original _node-id))
+        props (into {}
+                    (map (fn [key {:keys [type sub-type value]}]
+                           [key {:node-id _node-id
+                                 :type (properties/go-prop-type->property-type type)
+                                 :edit-type (properties/go-prop-edit-type key type sub-type)
+                                 :go-prop-type type
+                                 :go-prop-sub-type sub-type
+                                 :value value
+                                 :read-only? read-only?}])
+                         display-order
+                         script-properties))]
     {:properties props
      :display-order display-order}))
 
@@ -106,29 +98,28 @@
                     :message  message})))))
 
 (defn- build-script [resource dep-resources user-data]
-  (let [user-properties (:user-properties user-data)
-        properties (mapv (fn [[k v]] (let [type (:go-prop-type v)]
-                                       {:id (properties/key->user-name k)
-                                        :value (properties/go-prop->str (:value v) type)
-                                        :type type}))
-                         (:properties user-properties))
-        modules (:modules user-data)
-        bytecode (:bytecode user-data)]
-    {:resource resource :content (protobuf/map->bytes Lua$LuaModule
-                                                      {:source {:script (ByteString/copyFromUtf8 (:content user-data))
-                                                                :filename (resource/proj-path (:resource resource))
-                                                                :bytecode (when-not (g/error? bytecode)
-                                                                            (ByteString/copyFrom ^bytes bytecode))}
-                                                      :modules modules
-                                                      :resources (mapv lua/lua-module->build-path modules)
-                                                      :properties (properties/properties->decls properties)})}))
+  (let [modules (:modules user-data)
+        bytecode (:bytecode user-data)
+        go-props (properties/build-go-props dep-resources (:go-props user-data))]
+    {:resource resource
+     :content (protobuf/map->bytes Lua$LuaModule
+                                   {:source {:script (ByteString/copyFromUtf8 (:content user-data))
+                                             :filename (resource/proj-path (:resource resource))
+                                             :bytecode (when-not (g/error? bytecode)
+                                                         (ByteString/copyFrom ^bytes bytecode))}
+                                    :modules modules
+                                    :resources (mapv lua/lua-module->build-path modules)
+                                    :properties (properties/go-props->decls go-props)
+                                    :property-resources (properties/go-prop-resource-paths go-props)})}))
 
-(g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules dep-build-targets]
-  [{:node-id   _node-id
-    :resource  (workspace/make-build-resource resource)
-    :build-fn  build-script
-    :user-data {:content code :user-properties user-properties :modules modules :bytecode bytecode}
-    :deps      dep-build-targets}])
+(g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules dep-build-targets resource-property-build-targets]
+  (let [unresolved-go-props (map properties/property-entry->go-prop (:properties user-properties))
+        [go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets unresolved-go-props)]
+  [{:node-id _node-id
+    :resource (workspace/make-build-resource resource)
+    :build-fn build-script
+    :user-data {:content code :go-props go-props :modules modules :bytecode bytecode}
+    :deps (into go-prop-dep-build-targets dep-build-targets)}]))
 
 (g/defnode ScriptNode
   (inherits resource-node/TextResourceNode)
@@ -162,6 +153,7 @@
 
   (input dep-build-targets g/Any :array)
   (input module-completion-infos g/Any :array)
+  (input resource-property-build-targets g/Any :array) ; TODO: If we want the old script node to work, referenced default resources from script-properties will have to be connected here.
 
   ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
