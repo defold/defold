@@ -266,6 +266,10 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
+    /*  Adds unique resources to list 'resources'. Each resource should once occur
+        once in the list regardless if the resource appears in several collections
+        or collectionproxies.
+    */
     private static void findResources(Project project, IResource resource, Collection<String> resources) throws CompileExceptionError {
         if (resource.getPath().equals("") || resources.contains(resource.output().getAbsPath())) {
             return;
@@ -331,6 +335,12 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
+    /*  Build a graph of resources. The graph is later used when writing archive to disk
+        to determine whether the resource should be bundled with the application or
+        excluded with liveupdate. Since liveupdate works on collectionproxies a resource
+        will appear as a single node per collectionproxy, but can still have a other nodes
+        in other collections/collectionproxies.
+    */
     private static void buildResourceGraph(Project project, IResource resource, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
         if (resource.getPath().equals("") || visitedNodes.contains(resource.output().getAbsPath())) {
             return;
