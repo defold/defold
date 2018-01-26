@@ -38,24 +38,21 @@
 #include "profile_render.h"
 
 // Embedded resources
+// Unfortunately, the draw_line et. al are used in production code
+extern unsigned char DEBUG_VPC[];
+extern uint32_t DEBUG_VPC_SIZE;
+extern unsigned char DEBUG_FPC[];
+extern uint32_t DEBUG_FPC_SIZE;
+
 #if defined(DM_RELEASE)
-    static unsigned char* DEBUG_VPC = 0;
-    static uint32_t DEBUG_VPC_SIZE = 0;
-    static unsigned char* DEBUG_FPC = 0;
-    static uint32_t DEBUG_FPC_SIZE = 0;
+    extern unsigned char BUILTINS_RELEASE_ARCD[];
+    extern uint32_t BUILTINS_RELEASE_ARCD_SIZE;
+    extern unsigned char BUILTINS_RELEASE_ARCI[];
+    extern uint32_t BUILTINS_RELEASE_ARCI_SIZE;
+    extern unsigned char BUILTINS_RELEASE_DMANIFEST[];
+    extern uint32_t BUILTINS_RELEASE_DMANIFEST_SIZE;
 
-    static unsigned char* BUILTINS_ARCD = 0;
-    static uint32_t BUILTINS_ARCD_SIZE = 0;
-    static unsigned char* BUILTINS_ARCI = 0;
-    static uint32_t BUILTINS_ARCI_SIZE = 0;
-    static unsigned char* BUILTINS_DMANIFEST = 0;
-    static uint32_t BUILTINS_DMANIFEST_SIZE = 0;
 #else
-    extern unsigned char DEBUG_VPC[];
-    extern uint32_t DEBUG_VPC_SIZE;
-    extern unsigned char DEBUG_FPC[];
-    extern uint32_t DEBUG_FPC_SIZE;
-
     extern unsigned char BUILTINS_ARCD[];
     extern uint32_t BUILTINS_ARCD_SIZE;
     extern unsigned char BUILTINS_ARCI[];
@@ -606,12 +603,21 @@ namespace dmEngine
                 params.m_Flags |= RESOURCE_FACTORY_FLAGS_HTTP_CACHE;
         }
 
+#if defined(DM_RELEASE)
+        params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_RELEASE_ARCI;
+        params.m_ArchiveIndex.m_Size = BUILTINS_RELEASE_ARCI_SIZE;
+        params.m_ArchiveData.m_Data = (const void*) BUILTINS_RELEASE_ARCD;
+        params.m_ArchiveData.m_Size = BUILTINS_RELEASE_ARCD_SIZE;
+        params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_RELEASE_DMANIFEST;
+        params.m_ArchiveManifest.m_Size = BUILTINS_RELEASE_DMANIFEST_SIZE;
+#else
         params.m_ArchiveIndex.m_Data = (const void*) BUILTINS_ARCI;
         params.m_ArchiveIndex.m_Size = BUILTINS_ARCI_SIZE;
         params.m_ArchiveData.m_Data = (const void*) BUILTINS_ARCD;
         params.m_ArchiveData.m_Size = BUILTINS_ARCD_SIZE;
         params.m_ArchiveManifest.m_Data = (const void*) BUILTINS_DMANIFEST;
         params.m_ArchiveManifest.m_Size = BUILTINS_DMANIFEST_SIZE;
+#endif
 
         const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
         dmLogInfo("Loading data from: %s", resource_uri);
@@ -696,13 +702,6 @@ namespace dmEngine
             return false;
         }
 
-        go_result = dmGameObject::SetCollectionDefaultRigCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmRig::RIG_MAX_INSTANCES_KEY, dmRig::DEFAULT_MAX_RIG_CAPACITY));
-        if(go_result != dmGameObject::RESULT_OK)
-        {
-            dmLogFatal("Failed to set max rig instance count for collections (%d)", go_result);
-            return false;
-        }
-
         dmRender::RenderContextParams render_params;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
@@ -717,7 +716,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
 
-        dmGameObject::Initialize(engine->m_GOScriptContext);
+        dmGameObject::Initialize(engine->m_Register, engine->m_GOScriptContext);
 
         engine->m_ParticleFXContext.m_Factory = engine->m_Factory;
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
@@ -738,6 +737,13 @@ namespace dmEngine
             return false;
         }
 
+        // rig.max_instance_count is deprecated in favour of component specific max count values.
+        // For backwards combatibility we get the rig generic value and take the max of it and each
+        // specific component max value.
+        int32_t max_rig_instance = dmConfigFile::GetInt(engine->m_Config, "rig.max_instance_count", 128);
+        int32_t max_model_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128), max_rig_instance);
+        int32_t max_spine_count = dmMath::Max(dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128), max_rig_instance);
+
         dmGui::NewContextParams gui_params;
         gui_params.m_ScriptContext = engine->m_GuiScriptContext;
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
@@ -756,6 +762,7 @@ namespace dmEngine
         engine->m_GuiContext.m_MaxGuiComponents = dmConfigFile::GetInt(engine->m_Config, "gui.max_count", 64);
         engine->m_GuiContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particlefx_count", 64);
         engine->m_GuiContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_particle_count", 1024);
+        engine->m_GuiContext.m_MaxSpineCount = dmConfigFile::GetInt(engine->m_Config, "gui.max_spine_count", max_spine_count);
 
         dmPhysics::NewContextParams physics_params;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
@@ -817,11 +824,11 @@ namespace dmEngine
 
         engine->m_ModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ModelContext.m_Factory = engine->m_Factory;
-        engine->m_ModelContext.m_MaxModelCount = dmConfigFile::GetInt(engine->m_Config, "model.max_count", 128);
+        engine->m_ModelContext.m_MaxModelCount = max_model_count;
 
         engine->m_SpineModelContext.m_RenderContext = engine->m_RenderContext;
         engine->m_SpineModelContext.m_Factory = engine->m_Factory;
-        engine->m_SpineModelContext.m_MaxSpineModelCount = dmConfigFile::GetInt(engine->m_Config, "spine.max_count", 128);
+        engine->m_SpineModelContext.m_MaxSpineModelCount = max_spine_count;
 
         engine->m_LabelContext.m_RenderContext      = engine->m_RenderContext;
         engine->m_LabelContext.m_MaxLabelCount      = dmConfigFile::GetInt(engine->m_Config, "label.max_count", 64);
@@ -1619,7 +1626,7 @@ bail:
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config)
     {
         dmResource::Result fact_error;
-#if !defined(DM_RELEASE)
+
         const char* system_font_map = "/builtins/fonts/system_font.fontc";
         fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
         if (fact_error != dmResource::RESULT_OK)
@@ -1640,7 +1647,6 @@ bail:
                 dmResource::ReleaseBuiltinsManifest(engine->m_Factory);
             }
         }
-#endif
 
         const char* gamepads = dmConfigFile::GetString(config, "input.gamepads", "/builtins/input/default.gamepadsc");
         dmInputDDF::GamepadMaps* gamepad_maps_ddf;

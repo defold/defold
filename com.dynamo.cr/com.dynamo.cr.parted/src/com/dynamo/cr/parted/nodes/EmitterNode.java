@@ -80,6 +80,9 @@ public class EmitterNode extends Node implements Identifiable {
     @Property
     private ValueSpread startDelay;
 
+    @Property
+    private double startOffset;
+
     @Property(displayName = "Image", editorType = EditorType.RESOURCE, extensions = { "tilesource", "tileset", "atlas" })
     private String tileSource = "";
 
@@ -125,6 +128,7 @@ public class EmitterNode extends Node implements Identifiable {
         duration.setSpread(emitter.getDurationSpread());
         startDelay.setValue(emitter.getStartDelay());
         startDelay.setSpread(emitter.getStartDelaySpread());
+        setStartOffset(emitter.getStartOffset());
         setEmissionSpace(emitter.getSpace());
         setTileSource(emitter.getTileSource());
         setAnimation(emitter.getAnimation());
@@ -445,6 +449,19 @@ public class EmitterNode extends Node implements Identifiable {
         reloadSystem(false);
     }
 
+    public double getStartOffset() {
+        return this.startOffset;
+    }
+
+    public void setStartOffset(double startOffset) {
+        this.startOffset = startOffset;
+        reloadSystem(true);
+    }
+
+    public boolean isStartOffsetEditable() {
+        return true;
+    }
+
     public String getTileSource() {
         return tileSource;
     }
@@ -636,6 +653,7 @@ public class EmitterNode extends Node implements Identifiable {
             .setDurationSpread((float)duration.getSpread())
             .setStartDelay((float)startDelay.getValue())
             .setStartDelaySpread((float)startDelay.getSpread())
+            .setStartOffset((float)getStartOffset())
             .setSpace(getEmissionSpace())
             .setTileSource(getTileSource())
             .setAnimation(getAnimation())

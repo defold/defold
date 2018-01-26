@@ -240,7 +240,7 @@ public class GameProjectBuilder extends Builder<Void> {
         }
     }
 
-    private static void findResources(Project project, Message node, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
+    private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
         List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
 
         for (FieldDescriptor fieldDescriptor : fields) {
@@ -249,32 +249,108 @@ public class GameProjectBuilder extends Builder<Void> {
             boolean isResource = (Boolean) options.getField(resourceDesc);
             Object value = node.getField(fieldDescriptor);
             if (value instanceof Message) {
-                findResources(project, (Message) value, resources, parentNode);
+                findResources(project, (Message) value, resources);
             } else if (value instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) value;
                 for (Object v : list) {
                     if (v instanceof Message) {
-                        findResources(project, (Message) v, resources, parentNode);
+                        findResources(project, (Message) v, resources);
                     } else if (isResource && v instanceof String) {
-                        findResources(project, project.getResource((String) v), resources, parentNode);
+                        findResources(project, project.getResource((String) v), resources);
                     }
                 }
             } else if (isResource && value instanceof String) {
-                findResources(project, project.getResource((String) value), resources, parentNode);
+                findResources(project, project.getResource((String) value), resources);
             }
         }
     }
 
-    private static void findResources(Project project, IResource resource, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
-        if (resource.getPath().equals("") ) {
+    /*  Adds unique resources to list 'resources'. Each resource should once occur
+        once in the list regardless if the resource appears in several collections
+        or collectionproxies.
+    */
+    private static void findResources(Project project, IResource resource, Collection<String> resources) throws CompileExceptionError {
+        if (resource.getPath().equals("") || resources.contains(resource.output().getAbsPath())) {
             return;
         }
 
-        if (!resources.contains(resource.output().getAbsPath())) {
-            resources.add(resource.output().getAbsPath());
+        resources.add(resource.output().getAbsPath());
+
+        int i = resource.getPath().lastIndexOf(".");
+        if (i == -1) {
+            return;
+        }
+        String ext = resource.getPath().substring(i);
+
+        if (leafResourceTypes.contains(ext)) {
+            return;
         }
 
+        Class<? extends GeneratedMessage> klass = extToMessageClass.get(ext);
+        if (klass != null) {
+            GeneratedMessage.Builder<?> builder;
+            try {
+                Method newBuilder = klass.getDeclaredMethod("newBuilder");
+                builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
+                final byte[] content = resource.output().getContent();
+                if(content == null) {
+                    throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
+                }
+                builder.mergeFrom(content);
+                Object message = builder.build();
+                findResources(project, (Message) message, resources);
+            } catch(CompileExceptionError e) {
+                throw e;
+            } catch(Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
+        }
+    }
+
+    private static void buildResourceGraph(Project project, Message node, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
+        List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
+        for (FieldDescriptor fieldDescriptor : fields) {
+            FieldOptions options = fieldDescriptor.getOptions();
+            FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
+            boolean isResource = (Boolean) options.getField(resourceDesc);
+            Object value = node.getField(fieldDescriptor);
+            if (value instanceof Message) {
+                buildResourceGraph(project, (Message) value, parentNode, visitedNodes);
+            } else if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                for (Object v : list) {
+                    if (v instanceof Message) {
+                        buildResourceGraph(project, (Message) v, parentNode, visitedNodes);
+                    } else if (isResource && v instanceof String) {
+                        buildResourceGraph(project, project.getResource((String) v), parentNode, visitedNodes);
+                    }
+                }
+            } else if (isResource && value instanceof String) {
+                buildResourceGraph(project, project.getResource((String) value), parentNode, visitedNodes);
+            }
+        }
+    }
+
+    /*  Build a graph of resources. The graph is later used when writing archive to disk
+        to determine whether the resource should be bundled with the application or
+        excluded with liveupdate. Since liveupdate works on collectionproxies a resource
+        will appear as a single node per collectionproxy, but can still have a other nodes
+        in other collections/collectionproxies.
+    */
+    private static void buildResourceGraph(Project project, IResource resource, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
+        if (resource.getPath().equals("") || visitedNodes.contains(resource.output().getAbsPath())) {
+            return;
+        }
+
+        if (resource.output().getPath().endsWith(".collectionproxyc")) {
+            visitedNodes = new HashSet<String>();
+        }
+
+        visitedNodes.add(resource.output().getAbsPath());
         ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
         parentNode.addChild(currentNode);
 
@@ -300,8 +376,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
                 builder.mergeFrom(content);
                 Object message = builder.build();
-                findResources(project, (Message) message, resources, currentNode);
-
+                buildResourceGraph(project, (Message) message, currentNode, visitedNodes);
             } catch(CompileExceptionError e) {
                 throw e;
             } catch(Exception e) {
@@ -311,7 +386,6 @@ public class GameProjectBuilder extends Builder<Void> {
             throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
         }
     }
-
 
     public static HashSet<String> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
         HashSet<String> resources = new HashSet<String>();
@@ -333,8 +407,10 @@ public class GameProjectBuilder extends Builder<Void> {
                                                     {"input", "gamepads", "/builtins/input/default.gamepadsc"},
                                                     {"display", "display_profiles", "/builtins/render/default.display_profilesc"}}) {
                 String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
+                HashSet<String> visitedNodes = new HashSet<String>();
                 if (path != null) {
-                    findResources(project, project.getResource(path), resources, rootNode);
+                    findResources(project, project.getResource(path), resources);
+                    buildResourceGraph(project, project.getResource(path), rootNode, visitedNodes);
                 }
             }
 

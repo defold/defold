@@ -131,8 +131,8 @@ namespace dmGameObject
     {
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
-        m_DefaultCollectionRigCapacity = dmRig::DEFAULT_MAX_RIG_CAPACITY;
         m_Mutex = dmMutex::New();
+        m_SocketToCollection.SetCapacity(32, 17);
     }
 
     Register::~Register()
@@ -145,9 +145,9 @@ namespace dmGameObject
         memset(this, 0, sizeof(*this));
     }
 
-    void Initialize(dmScript::HContext context)
+    void Initialize(HRegister regist, dmScript::HContext context)
     {
-        InitializeScript(context);
+        InitializeScript(regist, context);
     }
 
     HRegister NewRegister()
@@ -164,23 +164,10 @@ namespace dmGameObject
         return RESULT_OK;
     }
 
-    Result SetCollectionDefaultRigCapacity(HRegister regist, uint32_t capacity)
-    {
-        assert(regist != 0x0);
-        regist->m_DefaultCollectionRigCapacity = capacity;
-        return RESULT_OK;
-    }
-
     uint32_t GetCollectionDefaultCapacity(HRegister regist)
     {
         assert(regist != 0x0);
         return regist->m_DefaultCollectionCapacity;
-    }
-
-    uint32_t GetCollectionDefaultRigCapacity(HRegister regist)
-    {
-        assert(regist != 0x0);
-        return regist->m_DefaultCollectionRigCapacity;
     }
 
     void DoDeleteCollection(HCollection collection);
@@ -199,7 +186,7 @@ namespace dmGameObject
 
     void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
 
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, uint32_t max_riginstances)
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
     {
         if (max_instances > INVALID_INSTANCE_INDEX)
         {
@@ -258,16 +245,11 @@ namespace dmGameObject
             }
         }
 
-        dmRig::NewContextParams rig_params = {0};
-        rig_params.m_Context = &collection->m_RigContext;
-        rig_params.m_MaxRigInstanceCount = max_riginstances;
-        dmRig::Result rr = dmRig::NewContext(rig_params);
-        if (rr != dmRig::RESULT_OK)
-        {
-            dmLogFatal("Unable to create rig context: %d", rr);
-            DeleteCollection(collection);
-            return NULL;
+        if (regist->m_SocketToCollection.Full()) {
+            uint32_t capacity = regist->m_SocketToCollection.Capacity()+16;
+            regist->m_SocketToCollection.SetCapacity(capacity, (capacity*2)/3);
         }
+        regist->m_SocketToCollection.Put(collection->m_NameHash, collection);
 
         return collection;
     }
@@ -320,16 +302,12 @@ namespace dmGameObject
         {
             dmMessage::Consume(collection->m_ComponentSocket);
             dmMessage::DeleteSocket(collection->m_ComponentSocket);
+            regist->m_SocketToCollection.Erase(collection->m_NameHash);
         }
         if (collection->m_FrameSocket)
         {
             dmMessage::Consume(collection->m_FrameSocket);
             dmMessage::DeleteSocket(collection->m_FrameSocket);
-        }
-
-        if (collection->m_RigContext)
-        {
-            dmRig::DeleteContext(collection->m_RigContext);
         }
 
         delete collection;
@@ -2208,9 +2186,6 @@ namespace dmGameObject
             UpdateTransforms(collection);
         }
 
-        // Update rig context (will update all rig instances in this collection)
-        dmRig::Update(collection->m_RigContext, update_context->m_DT);
-
         return ret;
     }
 
@@ -2365,12 +2340,6 @@ namespace dmGameObject
         }
 
         return result;
-    }
-
-    dmRig::HRigContext GetRigContext(HCollection collection)
-    {
-        assert(collection != 0x0);
-        return collection->m_RigContext;
     }
 
     UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count)

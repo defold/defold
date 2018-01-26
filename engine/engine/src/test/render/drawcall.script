@@ -1,0 +1,3 @@
+function init(self)
+    msg.post("@system:", "toggle_physics_debug")
+end

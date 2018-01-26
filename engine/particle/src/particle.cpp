@@ -406,9 +406,22 @@ namespace dmParticle
         if (!i) return;
         dmArray<Emitter>& emitters = i->m_Emitters;
         uint32_t emitter_count = emitters.Size();
+        Prototype* prototype = i->m_Prototype;
         for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
         {
-            StartEmitter(i, &emitters[emitter_i]);
+            dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_i];
+            if (emitter_ddf->m_StartOffset < EPSILON)
+            {
+                StartEmitter(i, &emitters[emitter_i]);
+            }
+            else
+            {
+                Emitter* emitter = &emitters[emitter_i];
+                EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
+
+                float playtime = dmMath::Max(0.0f, dmMath::Min(emitter_ddf->m_StartOffset, emitter_prototype->m_MaxParticleLifeTime));
+                FastForwardEmitter(prototype, i, emitter_prototype, emitter, emitter_ddf, playtime);
+            }
         }
     }
 
