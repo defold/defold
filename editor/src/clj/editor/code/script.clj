@@ -151,8 +151,8 @@
                                     :properties (properties/go-props->decls go-props)
                                     :property-resources (properties/go-prop-resource-paths go-props)})}))
 
-(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules module-build-targets resource-property-build-targets]
-  (let [unresolved-go-props (map properties/property-entry->go-prop (:properties user-properties))
+(g/defnk produce-build-targets [_node-id _properties resource lines bytecode modules module-build-targets resource-property-build-targets]
+  (let [unresolved-go-props (keep properties/property-entry->go-prop (:properties _properties))
         [go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets unresolved-go-props)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
@@ -230,14 +230,25 @@
   (property script-properties g/Any
             (default [])
             (dynamic visible (g/constantly false))
+            (set (fn [_evaluation-context self _old-value new-value]
+                   (g/set-property self :property-resources
+                                   (into {}
+                                         (keep (fn [{:keys [name type value]}]
+                                                 (when (= :property-type-resource type)
+                                                   [(properties/user-name->key name) value])))
+                                         new-value)))))
+
+  (property property-resources g/Any
+            (default {})
+            (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
                          project (project/get-project self)]
                      (concat
                        (gu/disconnect-all basis self :resource-property-build-targets)
-                       (for [{:keys [type value]} new-value
-                             :when (and (= :property-type-resource type) (some? value))]
-                         (project/connect-resource-node project value self
+                       (for [[_prop-kw resource] new-value
+                             :when (some? resource)]
+                         (project/connect-resource-node project resource self
                                                         [[:build-targets :resource-property-build-targets]])))))))
 
   (output _properties g/Properties :cached produce-properties)

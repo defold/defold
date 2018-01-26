@@ -244,11 +244,10 @@
     {:type (go-prop-type->property-type go-prop-type)}
     {:type (go-prop-type->property-type go-prop-type)
      :ext (go-prop-sub-type->ext go-prop-sub-type)
-     :set-fn (fn set-resource-property [_evaluation-context self old-value new-value]
+     :set-fn (fn set-resource-property [_evaluation-context self _old-value new-value]
                (concat
                  (g/set-property self prop-kw new-value)
-                 (project/resource-setter self old-value new-value
-                                          [:build-targets :resource-property-build-targets])))}))
+                 (g/update-property self :property-resources assoc prop-kw new-value)))}))
 
 (defn- ->decl [keys]
   (into {} (map (fn [k] [k (transient [])]) keys)))
@@ -544,14 +543,15 @@
                        :build-target build-target})))))
 
 (defn property-entry->go-prop [[key {:keys [go-prop-type go-prop-sub-type value]}]]
-  (assert (keyword? key))
-  (assert (contains? type->entry-keys go-prop-type))
-  (assert (or (not= :property-type-resource go-prop-type) (integer? go-prop-sub-type)))
-  {:id (key->user-name key)
-   :type go-prop-type
-   :sub-type go-prop-sub-type
-   :clj-value value
-   :value (go-prop->str value go-prop-type)})
+  (when (some? go-prop-type)
+    (assert (keyword? key))
+    (assert (contains? type->entry-keys go-prop-type))
+    (assert (or (not= :property-type-resource go-prop-type) (integer? go-prop-sub-type)))
+    {:id (key->user-name key)
+     :type go-prop-type
+     :sub-type go-prop-sub-type
+     :clj-value value
+     :value (go-prop->str value go-prop-type)}))
 
 (defn- go-prop? [value]
   (and (string? (:id value))

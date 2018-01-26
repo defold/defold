@@ -113,7 +113,7 @@
                                     :property-resources (properties/go-prop-resource-paths go-props)})}))
 
 (g/defnk produce-build-targets [_node-id resource code bytecode user-properties modules dep-build-targets resource-property-build-targets]
-  (let [unresolved-go-props (map properties/property-entry->go-prop (:properties user-properties))
+  (let [unresolved-go-props (keep properties/property-entry->go-prop (:properties user-properties))
         [go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets unresolved-go-props)]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)

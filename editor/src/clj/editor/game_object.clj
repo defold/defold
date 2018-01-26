@@ -284,7 +284,11 @@
                                                                   (let [original-type (get-in comp-props [label :type])
                                                                         override-type (properties/go-prop-type->property-type type)]
                                                                     (when (= original-type override-type)
-                                                                      (g/set-property or-node label value)))))))))
+                                                                      (if (not= :property-type-resource type)
+                                                                        (g/set-property or-node label value)
+                                                                        (concat
+                                                                          (g/set-property or-node label value)
+                                                                          (g/update-property or-node :property-resources assoc label value)))))))))))
                          (project/resource-setter self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
@@ -303,7 +307,7 @@
                      :properties
                      (filter (fn [[_ p]] (contains? p :original-value)))
                      (sort-by (comp prop-order first))
-                     (mapv properties/property-entry->go-prop)))))
+                     (into [] (keep properties/property-entry->go-prop))))))
   (output ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties]
                                       (gen-ref-ddf id position rotation source-resource ddf-properties))))
 

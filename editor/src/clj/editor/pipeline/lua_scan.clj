@@ -27,6 +27,7 @@
                (protobuf/pb-enum->val))]
     {:name (.name property)
      :type type
+     :sub-type (.subType property)
      :raw-value (.rawValue property)
      :value (when (= status :ok)
               (value->clj type (.value property)))
