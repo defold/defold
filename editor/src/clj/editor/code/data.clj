@@ -1533,6 +1533,108 @@
       (and (not (ends-indentation? grammar line))
            (ends-indentation? grammar (str (subs line 0 (.col cursor)) typed (subs line (.col cursor))))))))
 
+(defn guess-indent-type [lines ^long tab-spaces]
+  (when-not (empty? lines)
+    (loop [prev-line-visual-width 0
+           sum-visual-width-from-spaces 0
+           sum-visual-width-from-tabs 0
+           sum-two-space-occurrences 0
+           sum-four-space-occurrences 0
+           lines lines]
+      (if-some [^String line (first lines)]
+        (let [line-length (count line)]
+          (if-some [[visual-width from-spaces from-tabs] (loop [index 0
+                                                                visual-width 0
+                                                                from-spaces 0
+                                                                from-tabs 0]
+                                                           (when (< index line-length)
+                                                             (let [character (.charAt line index)]
+                                                               (case character
+                                                                 \space (recur (inc index) (inc visual-width) (inc from-spaces) from-tabs)
+                                                                 \tab (let [visual-width-increase (- tab-spaces ^long (mod visual-width tab-spaces))]
+                                                                        (recur (inc index) (+ visual-width visual-width-increase) from-spaces (+ from-tabs visual-width-increase)))
+                                                                 [visual-width from-spaces from-tabs]))))]
+            ;; Indented line.
+            (let [visual-width (long visual-width)
+                  indent-width (- visual-width prev-line-visual-width)]
+              (recur (long visual-width)
+                     (+ sum-visual-width-from-spaces ^long from-spaces)
+                     (+ sum-visual-width-from-tabs ^long from-tabs)
+                     (case indent-width 2 (inc sum-two-space-occurrences) sum-two-space-occurrences)
+                     (case indent-width 4 (inc sum-four-space-occurrences) sum-four-space-occurrences)
+                     (next lines)))
+
+            ;; Empty line or nothing but whitespace. Ignore.
+            (recur prev-line-visual-width
+                   sum-visual-width-from-spaces
+                   sum-visual-width-from-tabs
+                   sum-two-space-occurrences
+                   sum-four-space-occurrences
+                   (next lines))))
+        (let [uses-spaces? (pos? sum-visual-width-from-spaces)
+              uses-tabs? (pos? sum-visual-width-from-tabs)]
+          (cond
+            (and (not uses-spaces?) (not uses-tabs?))
+            nil
+
+            (not uses-spaces?)
+            :tabs
+
+            :else
+            (let [^double tab-certainty (/ sum-visual-width-from-tabs sum-visual-width-from-spaces)]
+              (cond
+                ;; Too close to call?
+                (< 1.0 tab-certainty 1.1)
+                nil
+
+                ;; More indentation from tabs?
+                (< 1.0 tab-certainty)
+                :tabs
+
+                ;; More indentation from two spaces?
+                (< sum-four-space-occurrences sum-two-space-occurrences)
+                :two-spaces
+
+                :else
+                :four-spaces))))))))
+
+(declare ^:private transform-indentation)
+
+(defn indent-type->indent-string
+  ^String [indent-type]
+  (case indent-type
+    :tabs "\t"
+    :two-spaces "  "
+    :four-spaces "    "))
+
+(defn indent-type->tab-spaces
+  ^long [indent-type]
+  (case indent-type
+    :two-spaces 2
+    (:tabs :four-spaces) 4))
+
+(defn convert-indentation [from-indent-type to-indent-type lines cursor-ranges regions]
+  (let [rows (range (count lines))
+        from-tab-spaces (indent-type->tab-spaces from-indent-type)
+        to-indent-string (indent-type->indent-string to-indent-type)]
+    (assoc (transform-indentation rows lines cursor-ranges regions
+                                  (fn [^String line]
+                                    (let [line-length (count line)
+                                          [indent-width text] (loop [index 0
+                                                                     visual-width 0]
+                                                                (if (<= line-length index)
+                                                                  [visual-width nil]
+                                                                  (case (.charAt line index)
+                                                                    \space (recur (inc index) (inc visual-width))
+                                                                    \tab (recur (inc index) (+ visual-width (- from-tab-spaces ^long (mod visual-width from-tab-spaces))))
+                                                                    [visual-width (subs line index)])))
+                                          indent-level (unchecked-divide-int indent-width from-tab-spaces)
+                                          indent-rest (- ^long indent-width (* indent-level from-tab-spaces))]
+                                      (str (string/join (repeat indent-level to-indent-string))
+                                           (string/join (repeat indent-rest \space))
+                                           text))))
+      :indent-type to-indent-type)))
+
 (defn indent-level-pattern
   ^Pattern [^long tab-spaces]
   (re-pattern (str "(?:^|\\G)(?:\\t|" (string/join (repeat tab-spaces \space)) ")")))
