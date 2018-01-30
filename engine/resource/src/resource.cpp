@@ -304,19 +304,21 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
     HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
-    dmLogInfo("lu arci: %s", liveupdate_index_path);
     struct stat file_stat;
     bool luIndexExists = stat(liveupdate_index_path, &file_stat) == 0;
 
     if (!luIndexExists)
     {
         result = MountArchiveInternal(archive_index_path, archive_resource_path, 0x0, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
+        dmLogInfo("The mounted bundled archive from disk:");
+        PrintArchiveIndexHashes(factory->m_Manifest->m_ArchiveIndex);
     }
     else // If a liveupdate index exists, use that one instead
     {
         char liveupdate_resource_path[DMPATH_MAX_PATH];
         dmStrlCpy(liveupdate_resource_path, liveupdate_index_path, strlen(liveupdate_index_path) - index_extension_length + 1);
         dmStrlCat(liveupdate_resource_path, "arcd", DMPATH_MAX_PATH);
+        dmLogInfo("lu arci: %s", liveupdate_index_path);
         dmLogInfo("lu arcd: %s", liveupdate_resource_path);
         // Check if any liveupdate resources were stored last time engine was running
         char temp_archive_index_path[DMPATH_MAX_PATH];
@@ -337,6 +339,8 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
             dmSys::Unlink(temp_archive_index_path);
         }
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
+        dmLogInfo("The mounted liveupdate archive from disk:");
+        PrintArchiveIndexHashes(factory->m_Manifest->m_ArchiveIndex);
         if (result != RESULT_OK)
         {
             dmLogError("Failed to mount archive, result = %i", result);
@@ -391,36 +395,47 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
     uint32_t manifestLength = 0;
     uint8_t* manifestBuffer = 0x0;
 
-    // TODO dmSys::ResourceSize() and dmSys::LoadResource won't work on android since a dl:d manifest is not in the bundle, but in local storage :(
-    // TODO should maybe use MapFile() and UnmapFile() instead
-    //MapFile(const char *filename, void *&map, uint32_t &size)
-    Result map_res = MapFile(manifestPath, (void*&)manifestBuffer, manifestLength);
+    uint32_t dummy_file_size = 0;
+    dmSys::ResourceSize(manifestPath, &manifestLength);
+    dmMemory::AlignedMalloc((void**)&manifestBuffer, 16, manifestLength);
+    assert(manifestBuffer);
+    dmSys::Result sysResult = dmSys::LoadResource(manifestPath, manifestBuffer, manifestLength, &dummy_file_size);
+
+    if (sysResult != dmSys::RESULT_OK)
+    {
+        dmLogError("Failed to read Manifest (%i)", sysResult);
+        dmMemory::AlignedFree(manifestBuffer);
+        return RESULT_IO_ERROR;
+    }
+
+    Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
+    dmMemory::AlignedFree(manifestBuffer);
+
+    return result;
+}
+
+// Separate function to load manifest stored in disk instead of in bundle
+Result LoadExternalManifest(const char* manifestPath, HFactory factory)
+{
+    uint32_t manifestLength = 0;
+    uint8_t* manifestBuffer = 0x0;
+
+    dmLogInfo(" ### MOUNTING MANIFEST!");
+    Result map_res = MountManifest(manifestPath, (void*&)manifestBuffer, manifestLength);
     assert(manifestBuffer);
     if (map_res != RESULT_OK)
     {
-        dmLogError("Failed to read Manifest (%i)", map_res);
-        dmMemory::AlignedFree(manifestBuffer);
+        dmLogError(" ## Failed to read Manifest (%i)", map_res);
+        UnmountManifest((void*&)manifestBuffer, manifestLength);
+        return RESULT_IO_ERROR;
     }
-    else
+    else // DEBUG PRINT
     {
-        dmLogInfo("Successfully mapped manifest file: %s", manifestPath);
+        dmLogInfo("Successfully mounted manifest file: %s, size: %u", manifestPath, manifestLength);
     }
-    // uint32_t dummy_file_size = 0;
-    // dmSys::ResourceSize(manifestPath, &manifestLength);
-    // dmMemory::AlignedMalloc((void**)&manifestBuffer, 16, manifestLength);
-    // assert(manifestBuffer);
-    // dmSys::Result sysResult = dmSys::LoadResource(manifestPath, manifestBuffer, manifestLength, &dummy_file_size);
-
-    // if (sysResult != dmSys::RESULT_OK)
-    // {
-    //     dmLogError("Failed to read Manifest (%i)", sysResult);
-    //     dmMemory::AlignedFree(manifestBuffer);
-    //     return RESULT_IO_ERROR;
-    // }
 
     Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
-    //dmMemory::AlignedFree(manifestBuffer);
-    UnmapFile((void*&)manifestBuffer, manifestLength);
+    UnmountManifest((void*&)manifestBuffer, manifestLength);
 
     return result;
 }
@@ -536,12 +551,39 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         if (luManifestExists)
         // if (false)
         {
+            // TODO unload loaded bundled manifest?
             manifest_path = manifest_file_path;
             dmLogInfo("LiveUpdate manifest file exists! path: %s", manifest_path);
+#if defined(__ANDROID__)
+            r = LoadExternalManifest(manifest_path, factory);
+#else
             r = LoadManifest(manifest_path, factory);
+#endif
         }
         else
             dmLogInfo("No external LiveUpdate manifest file found :( Looked for path: %s", manifest_file_path);
+
+        // DEBUG PRINT CONTENTS OF LOADED MANIFEST
+        dmLogInfo("Debug-printing manifest num entries: %u", factory->m_Manifest->m_DDF->m_Data.m_Resources.m_Count);
+        for (int i = 0; i < factory->m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
+        {
+            // uint8_t* hash = factory->m_Manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
+            // int cmp = memcmp(hash, digest, digestLength);
+            // if (cmp == 0)
+            {
+                uint8_t* hash = factory->m_Manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
+                uint32_t len = factory->m_Manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Count;
+                char* slask = new char[len*2+1];
+                slask[len] = '\0';
+                for (int i = 0; i < len; ++i)
+                {
+                    sprintf(slask+i*2, "%02X", hash[i]);
+                }
+                dmLogInfo("Hash: %s, URL: %s", slask, factory->m_Manifest->m_DDF->m_Data.m_Resources[i].m_Url);
+                delete[] slask;
+            }
+        }
+        // END DEBUG
 
         if (r == RESULT_OK)
         {
@@ -594,6 +636,9 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     {
         dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest);
         dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, 0x0, 0x0, 0x0, &factory->m_BuiltinsArchiveContainer);
+
+        dmLogInfo("Builtins archive container:");
+        PrintArchiveIndexHashes(factory->m_BuiltinsArchiveContainer);
     }
 
     factory->m_LoadMutex = dmMutex::New();
@@ -773,10 +818,8 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
     int first = 0;
     int last = entry_count-1;
     uint64_t path_hash = dmHashString64(path);
-    int i=0;
     while (first <= last)
     {
-        dmLogInfo("i: %i", i);
         int mid = first + (last - first) / 2;
         uint64_t h = entries[mid].m_UrlHash;
 
@@ -809,6 +852,7 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
             else if (res == dmResourceArchive::RESULT_NOT_FOUND)
             {
                 // Resource was found in manifest, but not in archive
+                dmLogError("TEMP Resource not found: %s, result = %i", path, res);
                 return RESULT_RESOURCE_NOT_FOUND;
             }
             else
@@ -824,7 +868,6 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
         {
             first = mid + 1;
         }
-        ++i;
     }
 
     return RESULT_RESOURCE_NOT_FOUND;
@@ -834,17 +877,17 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
 static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     DM_PROFILE(Resource, "LoadResource");
-    dmLogInfo("----------------------");
-    dmLogInfo("DoLoadResourceLocked! path: %s", path);
+    // dmLogInfo("----------------------");
+    // dmLogInfo("DoLoadResourceLocked! path: %s", path);
     if (factory->m_BuiltinsManifest)
     {
-        dmLogInfo("Looking in builtins mainfest..., path: %s", path);
+        // dmLogInfo("Looking in builtins mainfest..., path: %s", path);
         if (LoadFromManifest(factory->m_BuiltinsManifest, factory->m_BuiltinsArchiveContainer, original_name, resource_size, buffer) == RESULT_OK)
         {
             dmLogInfo("Found in builtins mainfest!");
             return RESULT_OK;
         }
-        dmLogInfo("NOT found in builtins mainfest...");
+        // dmLogInfo("NOT found in builtins mainfest...");
     }
 
     // NOTE: No else if here. Fall through

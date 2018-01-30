@@ -60,6 +60,19 @@ namespace dmResource
         return RESULT_OK;
     }
 
+    Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size)
+    {
+        dmLogInfo("mount_mmap.cpp, MountManifest!");
+        out_size = 0;
+        return MapFile(manifest_filename, out_map, out_size);
+    }
+
+    Result UnmountManifest(void *& map, uint32_t size)
+    {
+        dmLogInfo("mount_mmap.cpp, UnmountManifest!");
+        return UnmapFile(map, size);
+    }
+
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
         dmLogInfo("=========================");
