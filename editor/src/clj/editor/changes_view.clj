@@ -31,13 +31,13 @@
         git (g/node-value changes-view :git)
         refresh-pending (ui/user-data list-view :refresh-pending)
         schedule-refresh (ref nil)]
-    (dosync
-      (ref-set schedule-refresh (not @refresh-pending))
-      (ref-set refresh-pending true))
-    (when @schedule-refresh
-      (future
-        (dosync (ref-set refresh-pending false))
-        (when git
+    (when git
+      (dosync
+        (ref-set schedule-refresh (not @refresh-pending))
+        (ref-set refresh-pending true))
+      (when @schedule-refresh
+        (future
+          (dosync (ref-set refresh-pending false))
           (let [unified-status (git/unified-status git)]
             (ui/run-later (refresh-list-view! list-view unified-status))))))))
 
@@ -171,7 +171,7 @@
       (ui/disable! diff-button true)
       (ui/disable! revert-button true)
       (ui/bind-double-click! list-view :open)
-      (refresh-list-view! list-view (git/unified-status git))
+      (when git (refresh-list-view! list-view (git/unified-status git)))
       (ui/observe-selection list-view
                             (fn [_ _]
                               (ui/refresh-bound-action-enabled! diff-button)
