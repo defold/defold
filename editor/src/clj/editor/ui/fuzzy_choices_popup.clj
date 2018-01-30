@@ -66,9 +66,9 @@
   (if (empty? filter-text)
     options
     (sort (partial option-order option->label-text)
-          (r/foldcat (r/filter some?
-                               (r/map (partial option->fuzzy-matched-option option->matched-text filter-text)
-                                      options))))))
+          (seq (r/foldcat (r/filter some?
+                                    (r/map (partial option->fuzzy-matched-option option->matched-text filter-text)
+                                           options)))))))
 
 (defn- make-text-run [text style-class]
   (let [text-view (Text. text)]
