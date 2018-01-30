@@ -445,13 +445,23 @@ public class BundleHelper {
 
         // If we expect a classes.dex file, try to extract it from the zip
         if (outputClassesDex != null) {
-            try {
-                Path source = zip.getPath("classes.dex");
-                try (FileOutputStream out = new FileOutputStream(outputClassesDex)) {
-                    Files.copy(source, out);
+            int nameindex = 1;
+            while(true)
+            {
+                String name = nameindex == 1 ? "classes.dex" : String.format("classes%d.dex", nameindex);
+                ++nameindex;
+
+                File dex = new File(outputClassesDex.getParent(), name);
+                try {
+                    Path source = zip.getPath(name);
+                    if (!Files.isReadable(source))
+                        break;
+                    try (FileOutputStream out = new FileOutputStream(dex)) {
+                        Files.copy(source, out);
+                    }
+                } catch (IOException e) {
+                    throw new CompileExceptionError(String.format("Failed to copy %s to %s", name, dex.getAbsolutePath()), e.getCause());
                 }
-            } catch (IOException e) {
-                throw new CompileExceptionError(String.format("Failed to copy classes.dex to %s", outputClassesDex.getAbsolutePath()), e.getCause());
             }
         }
 

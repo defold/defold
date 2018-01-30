@@ -393,6 +393,14 @@ public class ColladaUtilTest {
         }
     }
 
+    // We don't support collada files with multiple "root joints" in their skeleton.
+    // Make sure the we throw an error if we find more than one root joint/bone.
+    @Test(expected = LoaderException.class)
+    public void testMultipleRoots() throws Exception {
+        Rig.Skeleton.Builder skeleton = Rig.Skeleton.newBuilder();
+        ColladaUtil.loadSkeleton(load("two_roots.dae"), skeleton, new ArrayList<String>());
+    }
+
     @Test
     public void testBoneNoAnimation() throws Exception {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();

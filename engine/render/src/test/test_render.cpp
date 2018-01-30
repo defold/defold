@@ -487,6 +487,103 @@ TEST_F(dmRenderTest, TextAlignment)
     }
 }
 
+struct SRangeCtx
+{
+    uint32_t m_NumRanges;
+    dmRender::RenderListRange m_Ranges[16];
+};
+
+static void CollectRenderEntryRange(void* _ctx, uint32_t tag_mask, size_t start, size_t count)
+{
+    SRangeCtx* ctx = (SRangeCtx*)_ctx;
+    if (ctx->m_NumRanges >= sizeof(ctx->m_Ranges)/sizeof(ctx->m_Ranges[0]))
+    {
+        return;
+    }
+    dmRender::RenderListRange& range = ctx->m_Ranges[ctx->m_NumRanges++];
+    range.m_TagMask = tag_mask;
+    range.m_Start = start;
+    range.m_Count = count;
+}
+
+TEST_F(dmRenderTest, FindRanges)
+{
+    // Create unsorted list
+    const uint32_t count = 32; // Large enough to avoid the initial intro sort
+    dmRender::RenderListEntry entries[count];
+    uint32_t indices[count];
+    for( uint32_t i = 0; i < count; ++i) {
+        indices[i] = i;
+        entries[i].m_Order = i;
+        entries[i].m_TagMask = i % 5;
+    }
+
+    // Sort the entries
+    dmRender::RenderListEntrySorter sort;
+    sort.m_Base = entries;
+    std::stable_sort(indices, indices + count, sort);
+
+    // Make sure it's sorted
+    bool sorted = true;
+    uint32_t last_idx = 0;
+    uint32_t tag_mask = entries[0].m_TagMask;
+    for( uint32_t i = 0; i < count; ++i)
+    {
+        uint32_t idx = indices[i];
+
+        if (entries[idx].m_TagMask < tag_mask)
+        {
+            sorted = false;
+            break;
+        }
+        else if(entries[idx].m_TagMask > tag_mask)
+        {
+            last_idx = idx;
+        }
+
+        if (idx < last_idx)
+        {
+            sorted = false;
+            break;
+        }
+
+        tag_mask = entries[idx].m_TagMask;
+        last_idx = idx;
+    }
+    ASSERT_TRUE(sorted);
+
+    SRangeCtx ctx;
+    ctx.m_NumRanges = 0;
+
+    dmRender::FindRangeComparator comp;
+    comp.m_Entries = entries;
+    dmRender::FindRenderListRanges(indices, 0, sizeof(indices)/sizeof(indices[0]), entries, comp, &ctx, CollectRenderEntryRange);
+
+    ASSERT_EQ(5, ctx.m_NumRanges);
+
+    dmRender::RenderListRange range;
+    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 0, range));
+    ASSERT_EQ(0, range.m_TagMask);
+    ASSERT_EQ(0, range.m_Start);
+    ASSERT_EQ(7, range.m_Count);
+    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 1, range));
+    ASSERT_EQ(1, range.m_TagMask);
+    ASSERT_EQ(7, range.m_Start);
+    ASSERT_EQ(7, range.m_Count);
+    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 2, range));
+    ASSERT_EQ(2, range.m_TagMask);
+    ASSERT_EQ(14, range.m_Start);
+    ASSERT_EQ(6, range.m_Count);
+    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 3, range));
+    ASSERT_EQ(3, range.m_TagMask);
+    ASSERT_EQ(20, range.m_Start);
+    ASSERT_EQ(6, range.m_Count);
+    ASSERT_TRUE(dmRender::FindTagMaskRange(ctx.m_Ranges, ctx.m_NumRanges, 4, range));
+    ASSERT_EQ(4, range.m_TagMask);
+    ASSERT_EQ(26, range.m_Start);
+    ASSERT_EQ(6, range.m_Count);
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);

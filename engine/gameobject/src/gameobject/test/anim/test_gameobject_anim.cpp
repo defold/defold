@@ -24,11 +24,11 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/anim");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext);
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register), dmGameObject::GetCollectionDefaultRigCapacity(m_Register));
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
         m_FinishCount = 0;
         m_CancelCount = 0;
     }
@@ -794,6 +794,36 @@ TEST_F(AnimTest, ScaleZ)
     ASSERT_NEAR(1.0f, dmGameObject::GetScale(go).getY(), 0.000001f);
     ASSERT_NEAR(2.0f, dmGameObject::GetScale(go).getZ(), 0.000001f);
 
+    dmGameObject::Delete(m_Collection, go, false);
+}
+
+
+// This test is merely making sure that the cancelling doesn't assert
+TEST_F(AnimTest, StopAnimations)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/dummy.goc");
+    dmGameObject::SetScale(go, 1.0);
+    m_UpdateContext.m_DT = 0.1f;
+    dmGameObject::PropertyVar var(2.f);
+    float duration = 1.0f;
+    float delay = 0.0f;
+
+    dmGameObject::PropertyResult result;
+    result = Animate(m_Collection, go, 0, hash("scale.z"), dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    result = Animate(m_Collection, go, 0, hash("scale.z"), dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+
+    result = Animate(m_Collection, go, 0, hash("scale.x"), dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    result = Animate(m_Collection, go, 0, hash("scale.z"), dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+    result = Animate(m_Collection, go, 0, hash("scale.z"), dmGameObject::PLAYBACK_ONCE_FORWARD, var, dmEasing::Curve(dmEasing::TYPE_LINEAR), duration, delay, 0x0, this, 0x0);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, result);
+
+    dmGameObject::Update(m_Collection, &m_UpdateContext);
     dmGameObject::Delete(m_Collection, go, false);
 }
 

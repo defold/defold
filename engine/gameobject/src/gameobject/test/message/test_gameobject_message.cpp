@@ -29,7 +29,7 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/message");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext);
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
@@ -58,7 +58,7 @@ protected:
         dmGameObject::Result result = dmGameObject::RegisterComponentType(m_Register, mt_type);
         ASSERT_EQ(dmGameObject::RESULT_OK, result);
 
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
     }
 
 
