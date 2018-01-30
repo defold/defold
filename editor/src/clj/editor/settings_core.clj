@@ -28,7 +28,7 @@
   {:current-category nil :settings nil})
 
 (defn- parse-category-line [{:keys [current-category settings] :as parse-state} line]
-  (when-let [[_ new-category] (re-find #"\[([^\]]*)\]" line)]
+  (when-let [[_ new-category] (re-find #"^\s*\[([^\]]*)\]" line)]
     (assoc parse-state :current-category new-category)))
 
 (defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]

@@ -97,16 +97,27 @@ Links:
   -fx-text-fill: $bright-grey;
 }
 
+.progress-hbox {
+  .label {
+    -fx-text-fill: $grey;
+  }
+  -fx-alignment: center-left;
+  -fx-spacing: 10px;
+}
+
+.link-label {
+  -fx-text-fill: $defold-light-blue;
+  &:hover {
+    -fx-underline: true;
+  }
+}
+
 /* Status bar */
-#progress-status-label {
+#status-label {
   -fx-text-fill: $grey;
   -fx-padding: 7 0 7 15;
 }
 
-#update-available-label {
-    -fx-text-fill: $defold-light-blue;
-    -fx-padding: 7 15 7 0;
-    &:hover {
-	-fx-underline: true;
-    }
+#status-pane {
+  -fx-padding: 7 15 7 0;
 }
