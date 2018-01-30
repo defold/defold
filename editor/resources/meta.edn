@@ -657,12 +657,12 @@
    :help "auto-finish transactions",
    :default true,
    :path ["iap" "auto_finish_transactions"]}
-  {:type :string
+  {:type :resource
    :help "private key"
    :default nil
    :label "Private key"
    :path ["liveupdate" "privatekey"]}
-  {:type :string
+  {:type :resource
    :help "public key"
    :default nil
    :label "Public key"
