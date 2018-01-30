@@ -131,6 +131,7 @@
      ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
      ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
+     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]
      ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]]))
 
 (defn make-color-scheme [ordered-paints-by-pattern]
@@ -313,7 +314,7 @@
           (when inside-visible-end?
             (recur next-i next-x)))))))
 
-(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info visible-whitespace?]
+(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -350,37 +351,50 @@
               (.setFill gc foreground-color)
               (fill-text! gc layout line 0 (count line) line-x line-y)))
 
-          (when visible-whitespace?
-            (let [line-length (count line)
-                  baseline-offset (Math/ceil (/ line-height 4.0))
-                  visible-start-x (.x canvas-rect)
-                  visible-end-x (+ visible-start-x (.w canvas-rect))
-                  space-color (color-lookup color-scheme "editor.whitespace.space")
-                  tab-color (color-lookup color-scheme "editor.whitespace.tab")]
-              (loop [i 0
-                     x 0.0]
-                (when (< i line-length)
-                  (let [character (.charAt line i)
-                        next-i (inc i)
-                        next-x (double (data/advance-text layout line i next-i x))
-                        draw-start-x (+ x line-x)
-                        draw-end-x (+ next-x line-x)
-                        inside-visible-start? (< visible-start-x draw-end-x)
-                        inside-visible-end? (< draw-start-x visible-end-x)]
-                    (when (and inside-visible-start? inside-visible-end?)
-                      (case character
-                        \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
-                                     sy (- line-y baseline-offset)]
-                                 (.setFill gc space-color)
-                                 (.fillRect gc sx sy 1.0 1.0))
-                        \tab (let [sx (+ line-x x 2.0)
+          (let [line-length (count line)
+                baseline-offset (Math/ceil (/ line-height 4.0))
+                visible-start-x (.x canvas-rect)
+                visible-end-x (+ visible-start-x (.w canvas-rect))
+                rogue-indent-color (color-lookup color-scheme "editor.whitespace.rogue")
+                space-color (color-lookup color-scheme "editor.whitespace.space")
+                tab-color (color-lookup color-scheme "editor.whitespace.tab")]
+            (loop [inside-leading-whitespace? true
+                   i 0
+                   x 0.0]
+              (when (< i line-length)
+                (let [character (.charAt line i)
+                      next-i (inc i)
+                      next-x (double (data/advance-text layout line i next-i x))
+                      draw-start-x (+ x line-x)
+                      draw-end-x (+ next-x line-x)
+                      inside-visible-start? (< visible-start-x draw-end-x)
+                      inside-visible-end? (< draw-start-x visible-end-x)]
+                  (when (and inside-visible-start? inside-visible-end?)
+                    (case character
+                      \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
                                    sy (- line-y baseline-offset)]
-                               (.setFill gc tab-color)
-                               (.fillRect gc sx sy (- next-x x 4.0) 1.0))
-                        nil))
-                    (when inside-visible-end?
-                      (recur next-i next-x)))))))
+                               (cond
+                                 (and inside-leading-whitespace? (= :tabs indent-type))
+                                 (do (.setFill gc rogue-indent-color)
+                                     (.fillRect gc sx sy 1.0 1.0))
 
+                                 visible-whitespace?
+                                 (do (.setFill gc space-color)
+                                     (.fillRect gc sx sy 1.0 1.0))))
+
+                      \tab (let [sx (+ line-x x 2.0)
+                                 sy (- line-y baseline-offset)]
+                             (cond
+                               (and inside-leading-whitespace? (not= :tabs indent-type))
+                               (do (.setFill gc rogue-indent-color)
+                                   (.fillRect gc sx sy (- next-x x 4.0) 1.0))
+
+                               visible-whitespace?
+                               (do (.setFill gc tab-color)
+                                   (.fillRect gc sx sy (- next-x x 4.0) 1.0))))
+                      nil))
+                  (when inside-visible-end?
+                    (recur (and inside-leading-whitespace? (Character/isWhitespace character)) next-i next-x))))))
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
@@ -444,7 +458,7 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -483,7 +497,7 @@
                    (if line-has-text? (conj guide-positions guide-x) guide-positions))))))
 
     ;; Draw syntax-highlighted code.
-    (draw-code! gc font layout color-scheme lines syntax-info visible-whitespace?)
+    (draw-code! gc font layout color-scheme lines syntax-info indent-type visible-whitespace?)
 
     ;; Draw minimap.
     (when visible-minimap?
@@ -547,6 +561,16 @@
         (draw-gutter! gutter-view gc gutter-rect layout font color-scheme lines regions visible-cursors)))))
 
 ;; -----------------------------------------------------------------------------
+
+(g/defnk produce-indent-type [indent-type]
+  ;; TODO: Produce default from preferences.
+  (or indent-type :tabs))
+
+(g/defnk produce-indent-string [indent-type]
+  (data/indent-type->indent-string indent-type))
+
+(g/defnk produce-tab-spaces [indent-type]
+  (data/indent-type->tab-spaces indent-type))
 
 (g/defnk produce-indent-level-pattern [tab-spaces]
   (data/indent-level-pattern tab-spaces))
@@ -707,9 +731,9 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
   nil)
 
 (defn- make-cursor-rectangle
@@ -792,19 +816,21 @@
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default (g/constantly default-font-size)))
   (property line-height-factor g/Num (default 1.0))
-  (property indent-string g/Str (default "\t"))
-  (property tab-spaces g/Num (default 4))
   (property visible-indentation-guides? g/Bool (default false))
   (property visible-whitespace? g/Bool (default false))
   (property visible-minimap? g/Bool (default false))
 
   (input completions g/Any)
   (input cursor-ranges r/CursorRanges)
+  (input indent-type r/IndentType)
   (input invalidated-rows r/InvalidatedRows)
   (input lines r/Lines)
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
+  (output indent-type r/IndentType produce-indent-type)
+  (output indent-string g/Str produce-indent-string)
+  (output tab-spaces g/Num produce-tab-spaces)
   (output indent-level-pattern Pattern :cached produce-indent-level-pattern)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
@@ -892,7 +918,7 @@
         (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
-                          (:cursor-ranges :lines :regions)
+                          (:cursor-ranges :indent-type :lines :regions)
                           (g/set-property resource-node prop-kw value)
 
                           ;; Several rows could have been invalidated between repaints.
@@ -1575,6 +1601,15 @@
                                        (get-property view-node :regions)
                                        (get-property view-node :layout)))))
 
+(handler/defhandler :convert-indentation :new-code-view
+  (run [view-node user-data]
+       (set-properties! view-node nil
+                        (data/convert-indentation (get-property view-node :indent-type)
+                                                  user-data
+                                                  (get-property view-node :lines)
+                                                  (get-property view-node :cursor-ranges)
+                                                  (get-property view-node :regions)))))
+
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
 ;; -----------------------------------------------------------------------------
@@ -1943,6 +1978,18 @@
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
                  {:command :reindent                   :label "Reindent Lines"}
+
+                 {:label "Convert Indentation"
+                  :children [{:label "To Tabs"
+                              :command :convert-indentation
+                              :user-data :tabs}
+                             {:label "To Two Spaces"
+                              :command :convert-indentation
+                              :user-data :two-spaces}
+                             {:label "To Four Spaces"
+                              :command :convert-indentation
+                              :user-data :four-spaces}]}
+
                  {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
                  {:command :sort-lines                 :label "Sort Lines"}
@@ -1977,6 +2024,7 @@
         (g/set-property view-node :document-width document-width)
         (g/connect resource-node :completions view-node :completions)
         (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
+        (g/connect resource-node :indent-type view-node :indent-type)
         (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
         (g/connect resource-node :lines view-node :lines)
         (g/connect resource-node :regions view-node :regions)

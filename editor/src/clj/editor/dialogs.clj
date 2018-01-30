@@ -76,7 +76,7 @@
     (.show stage)
     {:stage              stage
      :render-progress-fn (fn [progress]
-                           (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
+                           (ui/render-progress-controls! progress (:progress controls) (:message controls)))}))
 
 (defn ^:dynamic make-alert-dialog [text]
   (let [root ^Parent (ui/load-fxml "alert.fxml")
