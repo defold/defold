@@ -80,11 +80,15 @@
 
 (defn- handle-application-focused! [workspace changes-view]
   (when-not (sync/sync-dialog-open?)
-    (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))]
-      (ui/->future 0.01
-                   (fn []
-                     (ui/with-progress [render-fn render-fn]
-                       (changes-view/resource-sync-after-git-change! changes-view workspace [] render-fn)))))))
+    (let [project-path (workspace/project-path workspace)
+          dependencies (workspace/dependencies workspace)]
+      (future
+        (let [snapshot-info (workspace/make-resource-snapshot-info workspace project-path dependencies)]
+          (ui/run-later
+            (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))]
+              (ui/with-progress [render-fn render-fn]
+                (->> (workspace/resource-sync! workspace [] render-fn snapshot-info)
+                     (changes-view/refresh-after-resource-sync! changes-view))))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
