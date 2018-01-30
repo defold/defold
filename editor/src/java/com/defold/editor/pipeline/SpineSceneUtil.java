@@ -13,27 +13,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 
-import javax.vecmath.AxisAngle4d;
-import javax.vecmath.Matrix4d;
 import javax.vecmath.Point2d;
 import javax.vecmath.Point3d;
-import javax.vecmath.Quat4d;
-import javax.vecmath.Vector3d;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.defold.editor.pipeline.TextureSetGenerator.UVTransform;
-import com.defold.editor.pipeline.SpineScene.AnimationTrack.Property;
+import com.defold.editor.pipeline.RigUtil.Bone;
+import com.defold.editor.pipeline.RigUtil.Mesh;
+import com.defold.editor.pipeline.RigUtil.IK;
+import com.defold.editor.pipeline.RigUtil.Animation;
+import com.defold.editor.pipeline.RigUtil.Slot;
+import com.defold.editor.pipeline.RigUtil.Event;
+import com.defold.editor.pipeline.RigUtil.Transform;
+import com.defold.editor.pipeline.RigUtil.AnimationTrack;
+import com.defold.editor.pipeline.RigUtil.AnimationTrack.Property;
+import com.defold.editor.pipeline.RigUtil.AnimationKey;
+import com.defold.editor.pipeline.RigUtil.AnimationCurve;
+import com.defold.editor.pipeline.RigUtil.IKAnimationTrack;
+import com.defold.editor.pipeline.RigUtil.IKAnimationKey;
+import com.defold.editor.pipeline.RigUtil.SlotAnimationTrack;
+import com.defold.editor.pipeline.RigUtil.SlotAnimationKey;
+import com.defold.editor.pipeline.RigUtil.EventTrack;
+import com.defold.editor.pipeline.RigUtil.EventKey;
+import com.defold.editor.pipeline.RigUtil.UVTransformProvider;
+import com.defold.editor.pipeline.RigUtil.Weight;
 
 /**
  * Convenience class for loading spine json data.
  *
  * Should preferably have been an extension to Bob rather than located inside it.
  */
-public class SpineScene {
+public class SpineSceneUtil {
     @SuppressWarnings("serial")
     public static class LoadException extends Exception {
         public LoadException(String msg) {
@@ -41,183 +56,17 @@ public class SpineScene {
         }
     }
 
-    public interface UVTransformProvider {
-        UVTransform getUVTransform(String animId);
-    }
-
-    public static class Transform {
-        public Point3d position = new Point3d();
-        public Quat4d rotation = new Quat4d();
-        public Vector3d scale = new Vector3d();
-
-        public Transform() {
-            this.position.set(0.0, 0.0, 0.0);
-            this.rotation.set(0.0, 0.0, 0.0, 1.0);
-            this.scale.set(1.0, 1.0, 1.0);
-        }
-
-        public Transform(Transform t) {
-            set(t);
-        }
-
-        public void set(Transform t) {
-            this.position.set(t.position);
-            this.rotation.set(t.rotation);
-            this.scale.set(t.scale);
-        }
-
-        public void setZAngleDeg(double angle) {
-            double rads = angle * Math.PI / 180.0;
-            this.rotation.set(new AxisAngle4d(new Vector3d(0.0, 0.0, 1.0), rads));
-        }
-
-        public void apply(Point3d p) {
-            p.set(this.scale.x * p.x, this.scale.y * p.y, this.scale.z * p.z);
-            MathUtil.rotate(this.rotation, p);
-            p.add(this.position);
-        }
-
-        public void mul(Transform t) {
-            // Scale and rotate position
-            Point3d p = new Point3d(t.position);
-            apply(p);
-            this.position.set(p);
-            // Intentionally non-rotated scale to avoid shearing in the transform
-            this.scale.set(this.scale.x * t.scale.x, this.scale.y * t.scale.y, this.scale.z * t.scale.z);
-            // Rotation
-            this.rotation.mul(t.rotation);
-        }
-
-        public void inverse() {
-            this.scale.set(1.0 / this.scale.x, 1.0 / this.scale.y, 1.0 / this.scale.z);
-            this.rotation.conjugate();
-            Point3d p = new Point3d(this.position);
-            p.scale(-1.0);
-            this.position.set(0.0, 0.0, 0.0);
-            apply(p);
-            this.position.set(p);
-        }
-
-        public void toMatrix4d(Matrix4d m) {
-            m.set(this.rotation);
-            m.setElement(0, 0, m.getElement(0, 0) * this.scale.getX());
-            m.setElement(1, 1, m.getElement(1, 1) * this.scale.getY());
-            m.setElement(2, 2, m.getElement(2, 2) * this.scale.getZ());
-            m.setColumn(3, this.position.x, this.position.y, this.position.z, 1.0);
-        }
-    }
-
-    public static class Bone {
-        public String name = "";
-        public Transform localT = new Transform();
-        public Transform worldT = new Transform();
-        public Transform invWorldT = new Transform();
-        public Bone parent = null;
-        public int index = -1;
-        public boolean inheritScale = true;
-    }
-
-    public static class Mesh {
-        public String attachment;
-        public String path;
-        public Slot slot;
-        public boolean visible;
-        // format is: x0, y0, z0, u0, v0, ...
-        public float[] vertices;
-        public int[] triangles;
-        public float[] boneWeights;
-        public int[] boneIndices;
-        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
-    }
-
-    public static class Slot {
-        public String name;
-        public Bone bone;
-        public int index;
-        public String attachment;
-        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
-
-        public Slot(String name, Bone bone, int index, String attachment) {
-            this.name = name;
-            this.bone = bone;
-            this.index = index;
-            this.attachment = attachment;
-        }
-    }
-
-    public static class AnimationCurve {
-        public float x0;
-        public float y0;
-        public float x1;
-        public float y1;
-    }
-
-    public static class AnimationKey {
-        public float t;
-        public float[] value = new float[4];
-        public boolean stepped;
-        public AnimationCurve curve;
-    }
-
-    public static abstract class AbstractAnimationTrack<Key extends AnimationKey> {
-        public List<Key> keys = new ArrayList<Key>();
-    }
-
-    public static class AnimationTrack extends AbstractAnimationTrack<AnimationKey> {
-        public enum Property {
-            POSITION, ROTATION, SCALE
-        }
-        public Bone bone;
-        public Property property;
-    }
-
-    public static class SlotAnimationKey extends AnimationKey {
-        public String attachment;
-        public int orderOffset;
-    }
-
-    public static class SlotAnimationTrack extends AbstractAnimationTrack<SlotAnimationKey> {
-        public enum Property {
-            ATTACHMENT, COLOR, DRAW_ORDER
-        }
-        public Slot slot;
-        public Property property;
-    }
-
-    public static class Event {
-        public String name;
-        public String stringPayload;
-        public float floatPayload;
-        public int intPayload;
-    }
-
-    public static class EventKey {
-        public float t;
-        public String stringPayload;
-        public float floatPayload;
-        public int intPayload;
-    }
-
-    public static class EventTrack {
-        public String name;
-        public List<EventKey> keys = new ArrayList<EventKey>();
-    }
-
-    public static class Animation {
-        public String name;
-        public float duration;
-        public List<AnimationTrack> tracks = new ArrayList<AnimationTrack>();
-        public List<SlotAnimationTrack> slotTracks = new ArrayList<SlotAnimationTrack>();
-        public List<EventTrack> eventTracks = new ArrayList<EventTrack>();
-    }
-
     public List<Bone> bones = new ArrayList<Bone>();
+    public List<IK> iks = new ArrayList<IK>();
     public Map<String, Bone> nameToBones = new HashMap<String, Bone>();
+    public Map<String, IK> nameToIKs = new HashMap<String, IK>();
     public List<Mesh> meshes = new ArrayList<Mesh>();
     public Map<String, List<Mesh>> skins = new HashMap<String, List<Mesh>>();
     public Map<String, Animation> animations = new HashMap<String, Animation>();
     public Map<String, Slot> slots = new HashMap<String, Slot>();
     public Map<String, Event> events = new HashMap<String, Event>();
+    public boolean localBoneScaling = true;
+    public int slotCount = 0;
 
     public Bone getBone(String name) {
         return nameToBones.get(name);
@@ -225,6 +74,14 @@ public class SpineScene {
 
     public Bone getBone(int index) {
         return bones.get(index);
+    }
+
+    public IK getIK(String name) {
+        return nameToIKs.get(name);
+    }
+
+    public IK getIK(int index) {
+        return iks.get(index);
     }
 
     public Slot getSlot(String name) {
@@ -239,6 +96,10 @@ public class SpineScene {
         return events.get(name);
     }
 
+    public int getSlotCount() {
+        return slotCount;
+    }
+
     private static void loadTransform(JsonNode node, Transform t) {
         t.position.set(JsonUtil.get(node, "x", 0.0), JsonUtil.get(node, "y", 0.0), 0.0);
         t.setZAngleDeg(JsonUtil.get(node, "rotation", 0.0));
@@ -251,6 +112,9 @@ public class SpineScene {
         bone.index = this.bones.size();
         if (boneNode.has("inheritScale")) {
             bone.inheritScale = boneNode.get("inheritScale").asBoolean();
+        }
+        if (boneNode.has("length")) {
+            bone.length = boneNode.get("length").asDouble();
         }
         loadTransform(boneNode, bone.localT);
         if (boneNode.has("parent")) {
@@ -272,6 +136,32 @@ public class SpineScene {
         bone.invWorldT.inverse();
         this.bones.add(bone);
         this.nameToBones.put(bone.name, bone);
+    }
+
+    private void loadIK(JsonNode ikNode) throws LoadException {
+        IK ik = new IK();
+        ik.name = JsonUtil.get(ikNode, "name", "unnamed");
+        ik.index = this.iks.size();
+        Iterator<JsonNode> bonesIt = ikNode.get("bones").getElements();
+        if (bonesIt.hasNext()) {
+            String childBone = bonesIt.next().asText();
+            ik.child = getBone(childBone);
+        }
+        if (bonesIt.hasNext()) {
+            ik.parent = ik.child;
+            String childBone = bonesIt.next().asText();
+            ik.child = getBone(childBone);
+        }
+        String targetName = JsonUtil.get(ikNode, "target", (String)null);
+        Bone target = getBone(targetName);
+        if (targetName == null || bones == null) {
+            throw new LoadException(String.format("The IK '%s' has an invalid target", ik.name));
+        }
+        ik.target = target;
+        ik.positive = JsonUtil.get(ikNode, "bendPositive", true);
+        ik.mix = JsonUtil.get(ikNode, "mix", 1.0f);
+        iks.add(ik);
+        this.nameToIKs.put(ik.name, ik);
     }
 
     private void loadRegion(JsonNode attNode, Mesh mesh, Bone bone) {
@@ -310,28 +200,6 @@ public class SpineScene {
                 0, 1, 2,
                 2, 1, 3
         };
-    }
-
-    private class Weight implements Comparable<Weight> {
-        public Point3d p;
-        public int boneIndex;
-        public float weight;
-
-        public Weight(Point3d p, int boneIndex, float weight) {
-            this.p = p;
-            this.boneIndex = boneIndex;
-            this.weight = weight;
-        }
-
-        private int toCompInt() {
-            // weight is [0.0, 1.0]
-            return (int)(Integer.MAX_VALUE * this.weight);
-        }
-
-        @Override
-        public int compareTo(Weight o) {
-            return o.toCompInt() - toCompInt();
-        }
     }
 
     private void loadMesh(JsonNode attNode, Mesh mesh, Bone bone, boolean skinned) throws LoadException {
@@ -404,15 +272,7 @@ public class SpineScene {
                 triangles.add(triangleIt.next().asInt());
             }
         }
-        mesh.triangles = toPrimitive(triangles.toArray(new Integer[triangles.size()]));
-    }
-
-    private int[] toPrimitive(Integer[] ints) {
-    	int[] result = new int[ints.length];
-    	for (int i = 0; i < ints.length; ++i) {
-    		result[i] = ints[i];
-    	}
-    	return result;
+        mesh.triangles = ArrayUtils.toPrimitive(triangles.toArray(new Integer[triangles.size()]));
     }
 
     private void loadTrack(JsonNode propNode, AnimationTrack track) {
@@ -433,12 +293,7 @@ public class SpineScene {
             case ROTATION:
                 // See the comment above why this is done for rotations
                 float angles = JsonUtil.get(keyNode, "angle", 0.0f);
-                if (prevAngles != null) {
-                    float diff = angles - prevAngles;
-                    if (Math.abs(diff) > 180.0f) {
-                        angles += 360.0f * -Math.signum(diff);
-                    }
-                }
+                angles = angles % 360.0f;
                 prevAngles = angles;
                 key.value = new float[] {angles};
                 break;
@@ -446,6 +301,32 @@ public class SpineScene {
                 key.value = new float[] {JsonUtil.get(keyNode, "x", 1.0f), JsonUtil.get(keyNode, "y", 1.0f), 1.0f};
                 break;
             }
+            if (keyNode.has("curve")) {
+                JsonNode curveNode = keyNode.get("curve");
+                if (curveNode.isArray()) {
+                    AnimationCurve curve = new AnimationCurve();
+                    Iterator<JsonNode> curveIt = curveNode.getElements();
+                    curve.x0 = (float)curveIt.next().asDouble();
+                    curve.y0 = (float)curveIt.next().asDouble();
+                    curve.x1 = (float)curveIt.next().asDouble();
+                    curve.y1 = (float)curveIt.next().asDouble();
+                    key.curve = curve;
+                } else if (curveNode.isTextual() && curveNode.asText().equals("stepped")) {
+                    key.stepped = true;
+                }
+            }
+            track.keys.add(key);
+        }
+    }
+
+    private void loadIKTrack(JsonNode propNode, IKAnimationTrack track) {
+        Iterator<JsonNode> keyIt = propNode.getElements();
+        while (keyIt.hasNext()) {
+            JsonNode keyNode =  keyIt.next();
+            IKAnimationKey key = new IKAnimationKey();
+            key.t = (float)keyNode.get("time").asDouble();
+            key.mix = (float)JsonUtil.get(keyNode, "mix", 1.0f);
+            key.positive = JsonUtil.get(keyNode, "bendPositive", true);
             if (keyNode.has("curve")) {
                 JsonNode curveNode = keyNode.get("curve");
                 if (curveNode.isArray()) {
@@ -513,15 +394,34 @@ public class SpineScene {
                 while (propIt.hasNext()) {
                     Map.Entry<String, JsonNode> propEntry = propIt.next();
                     String propName = propEntry.getKey();
+                    Property prop = spineToProperty(propName);
+                    if (prop == null) {
+                        continue;
+                    }
                     JsonNode propNode = propEntry.getValue();
                     AnimationTrack track = new AnimationTrack();
                     track.bone = getBone(boneName);
-                    track.property = spineToProperty(propName);
+                    track.property = prop;
                     loadTrack(propNode, track);
                     animation.tracks.add(track);
                 }
             }
         }
+
+        JsonNode iKsNode = animNode.get("ik");
+        if (iKsNode != null) {
+            Iterator<Map.Entry<String, JsonNode>> animIkIt = iKsNode.getFields();
+            while (animIkIt.hasNext()) {
+                Map.Entry<String, JsonNode> iKEntry = animIkIt.next();
+                String iKName = iKEntry.getKey();
+                JsonNode iKNode = iKEntry.getValue();
+                IKAnimationTrack track = new IKAnimationTrack();
+                track.ik = getIK(iKName);
+                loadIKTrack(iKNode, track);
+                animation.iKTracks.add(track);
+            }
+        }
+
         JsonNode slotsNode = animNode.get("slots");
         if (slotsNode != null) {
             Iterator<Map.Entry<String, JsonNode>> animSlotIt = slotsNode.getFields();
@@ -533,10 +433,14 @@ public class SpineScene {
                 while (propIt.hasNext()) {
                     Map.Entry<String, JsonNode> propEntry = propIt.next();
                     String propName = propEntry.getKey();
+                    SlotAnimationTrack.Property prop = spineToSlotProperty(propName);
+                    if (prop == null) {
+                        continue;
+                    }
                     JsonNode propNode = propEntry.getValue();
                     SlotAnimationTrack track = new SlotAnimationTrack();
                     track.slot = getSlot(slotName);
-                    track.property = spineToSlotProperty(propName);
+                    track.property = prop;
                     loadSlotTrack(propNode, track);
                     animation.slotTracks.add(track);
                 }
@@ -624,6 +528,11 @@ public class SpineScene {
                 duration = Math.max(duration, key.t);
             }
         }
+        for (IKAnimationTrack track : animation.iKTracks) {
+            for (AnimationKey key : track.keys) {
+                duration = Math.max(duration, key.t);
+            }
+        }
         for (SlotAnimationTrack track : animation.slotTracks) {
             for (SlotAnimationKey key : track.keys) {
                 duration = Math.max(duration, key.t);
@@ -650,8 +559,18 @@ public class SpineScene {
         }
     }
 
-    public static SpineScene loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
-        SpineScene scene = new SpineScene();
+    private static long getIteratorSize(Iterator<?> iterator) {
+        long size = 0;
+        while (iterator.hasNext()) {
+            size += 1;
+            iterator.next();
+        }
+
+        return size;
+    }
+
+    public static SpineSceneUtil loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
+        SpineSceneUtil scene = new SpineSceneUtil();
         ObjectMapper m = new ObjectMapper();
         try {
             JsonNode node = m.readValue(new InputStreamReader(is, "UTF-8"), JsonNode.class);
@@ -660,11 +579,19 @@ public class SpineScene {
                 JsonNode boneNode = boneIt.next();
                 scene.loadBone(boneNode);
             }
-            int slotIndex = 0;
+            JsonNode ikNode = node.get("ik");
+            if (ikNode != null) {
+                Iterator<JsonNode> ikIt = ikNode.getElements();
+                while (ikIt.hasNext()) {
+                    scene.loadIK(ikIt.next());
+                }
+            }
             if (!node.has("slots")) {
                 return scene;
             }
             Iterator<JsonNode> slotIt = node.get("slots").getElements();
+            int slotIndex = 0;
+            int slotCount = 0;
             while (slotIt.hasNext()) {
                 JsonNode slotNode = slotIt.next();
                 String attachment = JsonUtil.get(slotNode, "attachment", (String)null);
@@ -678,7 +605,9 @@ public class SpineScene {
                 JsonUtil.hexToRGBA(JsonUtil.get(slotNode,  "color",  "ffffffff"), slot.color);
                 scene.slots.put(slotNode.get("name").asText(), slot);
                 ++slotIndex;
+                ++slotCount;
             }
+            scene.slotCount = slotCount;
             if (node.has("events")) {
                 Iterator<Map.Entry<String, JsonNode>> eventIt = node.get("events").getFields();
                 while (eventIt.hasNext()) {
@@ -695,6 +624,18 @@ public class SpineScene {
             if (!node.has("skins")) {
                 return scene;
             }
+
+            JsonNode skeleton = node.get("skeleton");
+            String spineVersion = (skeleton != null) ? JsonUtil.get(skeleton, "spine", (String) null) : null;
+
+            // If Spine version is 3 and above it uses a different scaling model than 2.x.
+            if (spineVersion != null) {
+                String[] versionParts = spineVersion.split("\\.");
+                if (versionParts != null && Integer.parseInt(versionParts[0]) >= 3) {
+                    scene.localBoneScaling = false;
+                }
+            }
+
             Iterator<Map.Entry<String, JsonNode>> skinIt = node.get("skins").getFields();
             while (skinIt.hasNext()) {
                 Map.Entry<String, JsonNode> entry = skinIt.next();
@@ -726,14 +667,37 @@ public class SpineScene {
                         mesh.path = path;
                         mesh.slot = slot;
                         mesh.visible = attName.equals(slot.attachment);
-                        if (type.equals("region")) {
-                            scene.loadRegion(attNode, mesh, bone);
-                        } else if (type.equals("mesh")) {
-                            scene.loadMesh(attNode, mesh, bone, false);
-                        } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
-                            scene.loadMesh(attNode, mesh, bone, true);
+
+                        if ((spineVersion != null) && (spineVersion.compareTo("3.3.07") >= 0)) {
+                            // spineVersion >= 3.3.07
+                            if (type.equals("region")) {
+                                scene.loadRegion(attNode, mesh, bone);
+                            } else if (type.equals("mesh")) {
+                                // For each vertex either an x,y pair or, for a weighted mesh, first
+                                // the number of bones which influence the vertex, then for that
+                                // many bones: bone index, bind position X, bind position Y, weight.
+                                // A mesh is weighted if the number of vertices > number of UVs.
+                                // http://esotericsoftware.com/spine-json-format
+                                long verticesSize = getIteratorSize(attNode.get("vertices").getElements());
+                                long uvSize = getIteratorSize(attNode.get("uvs").getElements());
+                                if (verticesSize > uvSize) {
+                                    scene.loadMesh(attNode, mesh, bone, true);
+                                } else {
+                                    scene.loadMesh(attNode, mesh, bone, false);
+                                }
+                            } else {
+                                mesh = null;
+                            }
                         } else {
-                            mesh = null;
+                            if (type.equals("region")) {
+                                scene.loadRegion(attNode, mesh, bone);
+                            } else if (type.equals("mesh")) {
+                                scene.loadMesh(attNode, mesh, bone, false);
+                            } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
+                                scene.loadMesh(attNode, mesh, bone, true);
+                            } else {
+                                mesh = null;
+                            }
                         }
                         // Silently ignore unsupported types
                         if (mesh != null) {
@@ -826,6 +790,10 @@ public class SpineScene {
 
         public static int get(JsonNode n, String name, int defaultVal) {
             return n.has(name) ? n.get(name).asInt() : defaultVal;
+        }
+
+        public static boolean get(JsonNode n, String name, boolean defaultVal) {
+            return n.has(name) ? n.get(name).asBoolean() : defaultVal;
         }
 
         public static void hexToRGBA(String hex, float[] value) {

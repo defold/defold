@@ -2621,7 +2621,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
-            dmLogError("Could not create the node, failed to create rig instance: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the gui.max_spine_count value in game.project");
+            } else {
+                dmLogError("Could not create the node, failed to create rig instance: %d.", res);
+            }
             return RESULT_DATA_ERROR;
         }
 
@@ -3030,7 +3034,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         if (scene->m_AliveParticlefxs.Full())
         {
-            dmLogError("Particle FX gui component buffer is full (%d), component disregarded.", scene->m_AliveParticlefxs.Capacity());
+            dmLogError("Particle FX gui component buffer is full (%d), component disregarded. Increase 'gui.max_particlefx_count' as needed", scene->m_AliveParticlefxs.Capacity());
             return RESULT_OUT_OF_RESOURCES;
         }
 

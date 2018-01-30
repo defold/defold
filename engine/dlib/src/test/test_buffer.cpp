@@ -231,6 +231,49 @@ TEST_F(GetDataTest, GetStreamType)
     ASSERT_EQ(dmBuffer::RESULT_BUFFER_INVALID, r);
 }
 
+
+TEST_F(BufferTest, GetStreamNullableArgs)
+{
+    dmBuffer::HBuffer buffer = 0x0;
+    dmBuffer::StreamDeclaration streams_decl[] = {
+        {dmHashString64("dummy"), dmBuffer::VALUE_TYPE_UINT8, 1}
+    };
+
+    // NULL pointer buffer is not valid
+    dmBuffer::Result r = dmBuffer::ValidateBuffer(buffer);
+    ASSERT_EQ(dmBuffer::RESULT_BUFFER_INVALID, r);
+
+    // Create valid buffer, but write outside stream boundry
+    // Should not be a valid buffer after.
+    r = dmBuffer::Create(1, streams_decl, 1, &buffer);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    // Get and write outside buffer
+    void *out_stream = 0x0;
+    uint32_t count = 0;
+    uint32_t components = 0;
+    uint32_t stride = 0;
+    r = dmBuffer::GetStream(buffer, dmHashString64("dummy"), &out_stream, &count, &components, &stride);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    // DEF-3076 would seg fault here
+    r = dmBuffer::GetStream(buffer, dmHashString64("dummy"), &out_stream, 0, 0, 0);
+    ASSERT_EQ(dmBuffer::RESULT_OK, r);
+
+    // Get address outside stream boundry
+    uint8_t* ptr = (uint8_t*)((uintptr_t)out_stream + count);
+    ptr[0] = 0xBA;
+    ptr[1] = 0xDC;
+    ptr[2] = 0x0D;
+    ptr[3] = 0xED;
+
+    // We should have trashed the guard bytes
+    r = dmBuffer::ValidateBuffer(buffer);
+    ASSERT_EQ(dmBuffer::RESULT_GUARD_INVALID, r);
+
+    dmBuffer::Destroy(buffer);
+}
+
 TEST_F(GetDataTest, InvalidGetData)
 {
     dmBuffer::Result r;

@@ -24,11 +24,11 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/collection");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext);
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register), dmGameObject::GetCollectionDefaultRigCapacity(m_Register));
+        m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
 
         dmResource::Result e;
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
@@ -238,7 +238,7 @@ TEST_F(CollectionTest, CollectionSpawningToFail)
     const uint32_t max = 100;
 
     dmGameObject::HCollection coll;
-    coll = dmGameObject::NewCollection("TestCollection", m_Factory, m_Register, max, 0);
+    coll = dmGameObject::NewCollection("TestCollection", m_Factory, m_Register, max);
     dmGameObject::Init(coll);
 
     Vectormath::Aos::Point3 pos(0,0,0);

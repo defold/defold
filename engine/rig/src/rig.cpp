@@ -12,9 +12,6 @@ namespace dmRig
     static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
     static const int SIGNAL_SLOT_UNUSED = -1; // Used to indicate if a draw order slot is unused
 
-    /// Config key to use for tweaking the total maximum number of rig instances in a context.
-    const char* RIG_MAX_INSTANCES_KEY = "rig.max_instance_count";
-
     Result NewContext(const NewContextParams& params)
     {
         *params.m_Context = new RigContext();
@@ -365,7 +362,7 @@ namespace dmRig
     static Quat SampleQuat(uint32_t sample, float frac, float* data)
     {
         uint32_t i = sample*4;
-        return lerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
+        return slerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
     }
 
     static float CursorToTime(float cursor, float duration, bool backwards, bool once_pingpong)
@@ -474,7 +471,7 @@ namespace dmRig
             }
             if (track->m_Rotations.m_Count > 0)
             {
-                transform.SetRotation(lerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
+                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
             }
             if (track->m_Scale.m_Count > 0)
             {
@@ -732,6 +729,7 @@ namespace dmRig
     {
         const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         uint32_t count = instances.Size();
+        uint32_t updated_pose = false;
         for (uint32_t i = 0; i < count; ++i)
         {
             RigInstance* instance = instances[i];
@@ -742,12 +740,13 @@ namespace dmRig
             // Notify any listener that the pose has been recalculated
             if (instance->m_PoseCallback) {
                 instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
+                updated_pose = true;
             }
 
 
         }
 
-        return dmRig::RESULT_OK;
+        return updated_pose ? dmRig::RESULT_UPDATED_POSE : dmRig::RESULT_OK;
     }
 
     Result Update(HRigContext context, float dt)
@@ -1559,8 +1558,8 @@ namespace dmRig
 
         if (context->m_Instances.Full())
         {
-            dmLogError("Rig Instance could not be created since the buffer is full (%d), consider increasing %s.", context->m_Instances.Capacity(), RIG_MAX_INSTANCES_KEY);
-            return dmRig::RESULT_ERROR;
+            dmLogError("Rig instance could not be created since the buffer is full (%d).", context->m_Instances.Capacity());
+            return dmRig::RESULT_ERROR_BUFFER_FULL;
         }
 
         *params.m_Instance = new RigInstance;

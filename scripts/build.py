@@ -27,7 +27,7 @@ PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-
 PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
 PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0".split()
 PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.1 android-support-v4 android-23 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.1 android-support-v4 android-support-multidex android-23 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
 PACKAGES_IOS_SDK="iPhoneOS10.3.sdk"
@@ -562,7 +562,8 @@ class Configuration(object):
                              "bolts-android-1.2.0.jar",
                              "google-play-services.jar",
                              "android-support-v4.jar",
-                             'android.jar',
+                             "android-support-multidex.jar",
+                             "android.jar",
                              "in-app-purchasing-2.0.61.jar")
             jardir = os.path.join(self.dynamo_home, 'ext/share/java')
             paths = _findjars(jardir, external_jars)
@@ -597,7 +598,7 @@ class Configuration(object):
             print "Wrote %s" % path
 
     def build_builtins(self):
-        with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'w') as f:
+        with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'content', 'builtins'), outfile = f, directory = join(self.dynamo_home, 'content'))
 
     def archive_engine(self):
@@ -899,7 +900,7 @@ class Configuration(object):
         cwd = join(self.defold_root, 'engine/docs')
         cmd = 'python %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests)
         self.exec_env_command(cmd.split() + self.waf_options, cwd = cwd)
-        with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'w') as f:
+        with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
 
     def test_cr(self):
@@ -951,7 +952,7 @@ class Configuration(object):
                 elif name == 'defold.channel':
                     n.attrib['value'] = options.channel
 
-        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.product', 'w') as f:
+        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.product', 'wb') as f:
             f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
             f.write('<?pde version="3.5"?>\n')
             f.write('\n')
@@ -963,7 +964,7 @@ instructions.configure=\
   addRepository(type:1,location:http${#58}//d.defold.com/%(channel)s/update/);
 """
 
-        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'w') as f:
+        with open('com.dynamo.cr/com.dynamo.cr.editor-product/cr-generated.p2.inf', 'wb') as f:
             f.write(p2 % { 'channel': self.channel })
 
         self._build_cr('editor')

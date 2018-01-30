@@ -1,0 +1,16 @@
+name: "main"
+instances {
+  id: "main"
+  prototype: "/def-3086/main.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
