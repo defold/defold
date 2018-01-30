@@ -1,5 +1,6 @@
 (ns editor.curve-view
   (:require [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.background :as background]
@@ -216,6 +217,14 @@
                                  :world-lines world-lines}}]]
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
+(defn- prop-kw->hue [prop-kw]
+  (let [prop-name (name prop-kw)]
+    (cond
+      (string/includes? prop-name "red") 0.0
+      (string/includes? prop-name "green") 120.0
+      (string/includes? prop-name "blue") 240.0
+      (string/includes? prop-name "alpha") 60.0)))
+
 (g/defnk produce-curves [selected-node-properties]
   (let [curves (mapcat (fn [p] (->> (:properties p)
                                  (filter curve?)
@@ -225,7 +234,10 @@
                        selected-node-properties)
         ccount (count curves)
         hue-f (/ 360.0 ccount)
-        curves (map-indexed (fn [i c] (assoc c :hue (* (+ i 0.5) hue-f))) curves)]
+        curves (map-indexed (fn [i c]
+                              (assoc c :hue (or (prop-kw->hue (:property c))
+                                                (* (+ i 0.5) hue-f))))
+                            curves)]
     curves))
 
 (defn- aabb-contains? [^AABB aabb ^Point3d p]
