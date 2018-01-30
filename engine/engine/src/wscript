@@ -14,12 +14,13 @@ def build(bld):
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
                           source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
                           includes = '../proto . ..',
                           target = 'engine_release',
                           defines = 'DM_RELEASE=1',
                           proto_gen_py = True,
                           protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
+                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins_release.arci ../content/builtins_release.arcd ../content/builtins_release.dmanifest', # for draw_line/draw_text
                           source='engine.cpp engine_main.cpp ../proto/engine_ddf.proto')
 
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
@@ -74,6 +75,7 @@ def build(bld):
               '%s/ext/share/java/bolts-android-1.2.0.jar' % (dynamo_home),
               '%s/ext/share/java/google-play-services.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
+              '%s/ext/share/java/android-support-multidex.jar' % (dynamo_home),
               '%s/ext/share/java/in-app-purchasing-2.0.61.jar' % (dynamo_home),
               '%s/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/facebook_android.jar' % (dynamo_home),

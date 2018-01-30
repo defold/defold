@@ -15,6 +15,7 @@
 using namespace Vectormath::Aos;
 
 uint64_t g_DrawCount = 0;
+uint64_t g_Flipped = 0;
 
 // Used only for tests
 bool g_ForceFragmentReloadFail = false;
@@ -250,7 +251,7 @@ namespace dmGraphics
             }
         }
 
-        g_DrawCount = 0;
+        g_Flipped = 1;
     }
 
     void SetSwapInterval(HContext /*context*/, uint32_t /*swap_interval*/)
@@ -524,12 +525,23 @@ namespace dmGraphics
             }
         }
 
+        if (g_Flipped)
+        {
+            g_Flipped = 0;
+            g_DrawCount = 0;
+        }
         g_DrawCount++;
     }
 
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
         assert(context);
+
+        if (g_Flipped)
+        {
+            g_Flipped = 0;
+            g_DrawCount = 0;
+        }
         g_DrawCount++;
     }
 

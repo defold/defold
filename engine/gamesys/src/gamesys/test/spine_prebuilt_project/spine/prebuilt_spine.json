@@ -1,0 +1,21 @@
+{
+"skeleton": { "hash": "LtlYxiNUrW41avbaRKPsXlxYsDg", "spine": "3.5.44", "width": 128, "height": 128, "images": "./Downloads/" },
+"bones": [
+	{ "name": "root" },
+	{ "name": "bone", "parent": "root", "length": 200 },
+	{ "name": "bone2", "parent": "bone", "length": 200, "x": 200 }
+],
+"slots": [
+	{ "name": "circle_128", "bone": "bone", "attachment": "circle_128" }
+],
+"skins": {
+	"default": {
+		"circle_128": {
+			"circle_128": { "width": 128, "height": 128 }
+		}
+	}
+},
+"animations": {
+	"animation": {}
+}
+}

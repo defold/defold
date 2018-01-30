@@ -1316,7 +1316,7 @@ TEST_F(RigContextTest, InvalidInstanceCreation)
     ASSERT_NE((dmRig::HRigInstance)0x0, instance1);
 
     create_params.m_Instance = &instance2;
-    ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::InstanceCreate(create_params));
+    ASSERT_EQ(dmRig::RESULT_ERROR_BUFFER_FULL, dmRig::InstanceCreate(create_params));
     ASSERT_EQ((dmRig::HRigInstance)0x0, instance2);
 
     delete create_params.m_Skeleton;

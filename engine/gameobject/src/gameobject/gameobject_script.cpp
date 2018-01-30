@@ -147,6 +147,8 @@ namespace dmGameObject
         "on_reload"
     };
 
+    HRegister g_Register = 0;
+
     ScriptWorld::ScriptWorld()
     : m_Instances()
     {
@@ -475,6 +477,39 @@ namespace dmGameObject
             luaL_error(L, "function called is not available from this script-type.");
             return; // Actually never reached
         }
+    }
+
+    HCollection GetCollectionFromURL(const dmMessage::URL& url)
+    {
+        HCollection* collection = g_Register->m_SocketToCollection.Get(url.m_Socket);
+        return collection ? *collection : 0;
+    }
+
+    void* GetComponentFromURL(const dmMessage::URL& url)
+    {
+        HCollection collection = GetCollectionFromURL(url);
+        if (!collection) {
+            return 0;
+        }
+
+        Instance** instance = collection->m_IDToInstance.Get(url.m_Path);
+        if (!instance) {
+            return 0;
+        }
+
+        uintptr_t user_data;
+        uint32_t type_index;
+        // For loop over all components in the instance
+        dmGameObject::GetComponentUserData(*instance, url.m_Fragment, &type_index, &user_data);
+
+        void* world = collection->m_ComponentWorlds[type_index];
+
+        ComponentType* type = &g_Register->m_ComponentTypes[type_index];
+        if (!type->m_GetFunction) {
+            return 0;
+        }
+        ComponentGetParams params = {world, &user_data};
+        return type->m_GetFunction(params);
     }
 
     HInstance GetInstanceFromLua(lua_State* L) {
@@ -1702,8 +1737,10 @@ namespace dmGameObject
         {0, 0}
     };
 
-    void InitializeScript(dmScript::HContext context)
+    void InitializeScript(HRegister regist, dmScript::HContext context)
     {
+        g_Register = regist;
+
         lua_State* L = dmScript::GetLuaState(context);
 
         int top = lua_gettop(L);

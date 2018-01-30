@@ -11,11 +11,9 @@ def build(bld):
         uselib = 'RECORD VPX GTEST PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING SOUND_NULL DLIB DMGLFW LIVEUPDATE',
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine',
-        includes = '../build ../proto .',
+        includes = '../../proto .',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
         defines = '_XBOX',
-        proto_gen_py = True,
-        protoc_includes = '../proto',
         source = 'test_engine.cpp',
         target = 'test_engine')
 
