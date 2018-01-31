@@ -97,7 +97,7 @@
           read-only-dir-2 (make-dir-resource "read-only-dir-2" {:read-only? true})]
       (doseq [reserved-dir-name resource-watch/reserved-proj-paths]
         (fs/create-directories! (make-file (str "subdir" reserved-dir-name))))
-      (workspace/resource-sync! workspace false [])
+      (workspace/resource-sync! workspace [])
       (testing "paste?"
         (are [files-on-clipboard? target-resources expected] (= expected (asset-browser/paste? files-on-clipboard? target-resources))
           false nil false
@@ -230,7 +230,7 @@
         (let [moved (asset-browser/drop-files! workspace [[(io/as-file (resource-map "/game.project")) (make-file "collection/game.project")]
                                                           [(io/as-file (resource-map "/car/car.script")) (make-file "collection/car.script")]]
                                                :move)]
-          (workspace/resource-sync! workspace false moved)
+          (workspace/resource-sync! workspace moved)
           (let [resource-map (g/node-value workspace :resource-map)]
             (is (some? (resource-map "/game.project")))
             (is (some? (resource-map "/collection/game.project")))

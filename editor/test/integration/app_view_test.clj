@@ -89,13 +89,13 @@
   (let [from-file (path->file workspace from)
         to-file (path->file workspace to)]
     (fs/move-file! from-file to-file)
-    (workspace/resource-sync! workspace true [[from-file to-file]])))
+    (workspace/resource-sync! workspace [[from-file to-file]])))
 
 (defn- edit-and-save! [workspace atlas margin]
   (g/set-property! atlas :margin margin)
   (let [save-data (g/node-value atlas :save-data)]
     (spit-until-new-mtime (:resource save-data) (:content save-data))
-    (workspace/resource-sync! workspace true [])))
+    (workspace/resource-sync! workspace [])))
 
 (defn- revert-all! [workspace git]
   (let [status (git/unified-status git)
@@ -103,7 +103,7 @@
                       (filter #(= (:change-type %) :rename))
                       (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %)))))]
     (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) status))
-    (workspace/resource-sync! workspace true moved-files)))
+    (workspace/resource-sync! workspace moved-files)))
 
 (deftest revert-rename-of-opened-file
   (with-clean-system
