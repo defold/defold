@@ -23,14 +23,23 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- refresh-list-view! [git list-view]
-  (when git
-    (ui/items! list-view (git/unified-status git))))
+(defn- refresh-list-view! [list-view unified-status]
+  (ui/items! list-view unified-status))
 
 (defn refresh! [changes-view]
-  (let [git (g/node-value changes-view :git)
-        list-view (g/node-value changes-view :list-view)]
-    (refresh-list-view! git list-view)))
+  (let [list-view (g/node-value changes-view :list-view)
+        git (g/node-value changes-view :git)
+        refresh-pending (ui/user-data list-view :refresh-pending)
+        schedule-refresh (ref nil)]
+    (when git
+      (dosync
+        (ref-set schedule-refresh (not @refresh-pending))
+        (ref-set refresh-pending true))
+      (when @schedule-refresh
+        (future
+          (dosync (ref-set refresh-pending false))
+          (let [unified-status (git/unified-status git)]
+            (ui/run-later (refresh-list-view! list-view unified-status))))))))
 
 (defn resource-sync-after-git-change!
   ([changes-view workspace]
@@ -151,6 +160,7 @@
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
+      (ui/user-data! list-view :refresh-pending (ref false))
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
       (ui/context! parent :changes-view {:git git :changes-view view-id :workspace workspace} (ui/->selection-provider list-view) {}
                    {resource/Resource (fn [status] (status->resource workspace status))})
@@ -161,7 +171,7 @@
       (ui/disable! diff-button true)
       (ui/disable! revert-button true)
       (ui/bind-double-click! list-view :open)
-      (refresh-list-view! git list-view)
+      (when git (refresh-list-view! list-view (git/unified-status git)))
       (ui/observe-selection list-view
                             (fn [_ _]
                               (ui/refresh-bound-action-enabled! diff-button)
