@@ -128,10 +128,6 @@ public class ArchiveBuilder {
 
     public boolean excludeResource(String filepath, List<String> excludedResources) {
         boolean result = false;
-        // if (filepath.startsWith("/builtins")) {
-        //     return false;
-        // }
-
         if (this.manifestBuilder != null) {
             List<ArrayList<String>> totalParentCollectionProxies = this.manifestBuilder.getParentCollectionProxies(filepath);
             for (List<String> parentCollectionProxies : totalParentCollectionProxies) {

@@ -45,7 +45,7 @@ namespace dmLiveUpdate
             {
                 isUnique = true;
                 dmResource::HashToString(algorithm, resources[i], scratch, hexDigestLength);
-                for (int j = 0; j < uniqueCount; ++j) // only return unique hashes even if there are multiple resource instances in the collectionproxy
+                for (uint32_t j = 0; j < uniqueCount; ++j) // only return unique hashes even if there are multiple resource instances in the collectionproxy
                 {
                     if (memcmp((*buffer)[j], scratch, hexDigestLength) == 0)
                     {

@@ -36,6 +36,22 @@ namespace dmLiveUpdate
         bool        m_Status;
     };
 
+    /**
+     * Callback data from store manifest function
+     */
+    struct StoreManifestCallbackData
+    {
+        StoreManifestCallbackData()
+        {
+            memset(this, 0x0, sizeof(StoreManifestCallbackData));
+        }
+        void*       m_L;
+        int         m_Self;
+        int         m_Callback;
+        int         m_ManifestIndex;
+        bool        m_Status;
+    };
+
     const int MAX_MANIFEST_COUNT = 8;
     const int CURRENT_MANIFEST = 0x0ac83fcc;
     const uint32_t PROJ_ID_LEN = 41; // SHA1 + NULL terminator

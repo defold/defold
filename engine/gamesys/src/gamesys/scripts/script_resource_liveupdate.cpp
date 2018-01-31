@@ -100,6 +100,35 @@ namespace dmLiveUpdate
         dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_Self);
     }
 
+    static void Callback_StoreManifest(StoreManifestCallbackData* callback_data)
+    {
+        lua_State* L = (lua_State*) callback_data->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_Callback);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_Self);
+        lua_pushvalue(L, -1);
+
+        dmScript::SetInstance(L);
+        if (dmScript::IsInstanceValid(L))
+        {
+            lua_pushinteger(L, callback_data->m_ManifestIndex);
+            lua_pushboolean(L, callback_data->m_Status);
+            int ret = lua_pcall(L, 3, 0, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error while running store_manifest callback for manifest: %s", lua_tostring(L, -1));
+            }
+        }
+        else
+        {
+            dmLogError("Could not run store_manifest callback since the instance has been deleted.");
+            lua_pop(L, 2);
+        }
+
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_Self);
+    }
+
     int Resource_StoreResource(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -179,12 +208,23 @@ namespace dmLiveUpdate
         }
 
         // - (TODO) Verify manifest
+
+        luaL_checktype(L, 2, LUA_TFUNCTION);
+        lua_pushvalue(L, 2);
+        int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        dmLiveUpdate::StoreManifestCallbackData cb;
+        cb.m_L = dmScript::GetMainThread(L);
+        dmScript::GetInstance(L);
+        cb.m_Callback = callback;
+        cb.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        cb.m_ManifestIndex = manifestIndex;
         
-        // - (TODO) Write manifest to disk (app support path probably, same dir as liveupdate.arci and liveupdate.arcd)
-        bool success = dmLiveUpdate::StoreManifest(manifest) == dmLiveUpdate::RESULT_OK;
-        lua_pushboolean(L, success);
-        assert(lua_gettop(L) == top + 1);
-        return 1;
+        cb.m_Status = dmLiveUpdate::StoreManifest(manifest) == dmLiveUpdate::RESULT_OK;
+        Callback_StoreManifest(&cb);
+
+        assert(lua_gettop(L) == top);
+        return 0;
     }
 
 };

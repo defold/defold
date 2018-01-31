@@ -366,6 +366,7 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
 Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile)
 {
     // Read from manifest resource
+    dmLogInfo("Parsing manifest, size: %u", size);
     dmDDF::Result result = dmDDF::LoadMessage(manifest, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifestFile);
     if (result != dmDDF::RESULT_OK)
     {
@@ -417,6 +418,10 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
 // Separate function to load manifest stored in disk instead of in bundle
 Result LoadExternalManifest(const char* manifestPath, HFactory factory)
 {
+#if !defined(__ANDROID__)
+        return LoadManifest(manifestPath, factory);
+#endif
+
     uint32_t manifestLength = 0;
     uint8_t* manifestBuffer = 0x0;
 
@@ -554,11 +559,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             // TODO unload loaded bundled manifest?
             manifest_path = manifest_file_path;
             dmLogInfo("LiveUpdate manifest file exists! path: %s", manifest_path);
-#if defined(__ANDROID__)
             r = LoadExternalManifest(manifest_path, factory);
-#else
-            r = LoadManifest(manifest_path, factory);
-#endif
         }
         else
             dmLogInfo("No external LiveUpdate manifest file found :( Looked for path: %s", manifest_file_path);

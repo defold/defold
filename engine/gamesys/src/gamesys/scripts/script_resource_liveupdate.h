@@ -149,7 +149,8 @@ namespace dmLiveUpdate
      *
      * @name resource.store_manifest
      * @param manifest_reference [type:number] the reference that should be verified.
-     * @return stored [type:boolean] `true` if the manifest could be stored, `false` otherwise.
+     * @param callback [type:function(self, manifest_index, status)] the callback function this
+     * executed once the engine has attempted to store the manifest.
      */
     int Resource_StoreManifest(lua_State* L);
 
