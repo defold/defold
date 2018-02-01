@@ -31,6 +31,7 @@
 
 (defprotocol Dialog
   (show! [this functions])
+  (refresh! [this])
   (close! [this])
   (return! [this r])
   (dialog-root [this])
@@ -45,6 +46,8 @@
     ((:refresh this))
     (ui/show-and-wait! (:stage this))
     @(:return this))
+  (refresh! [this]
+    ((:refresh  this)))
   (close! [this] (ui/close! (:stage this)))
   (return! [this r] (reset! (:return this) r))
   (dialog-root [this] (:dialog-root this))

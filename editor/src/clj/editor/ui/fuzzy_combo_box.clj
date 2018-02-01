@@ -169,3 +169,6 @@
 
 (defn set-value! [container value]
   (reset! (selected-value-atom container) value))
+
+(defn value [container]
+  @(selected-value-atom container))
