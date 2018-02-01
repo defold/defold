@@ -204,12 +204,22 @@ ordinary paths."
   [workspace resources]
   (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status resources))
 
+(defn make-resource-snapshot-info
+  [workspace project-path dependencies]
+  (let [snapshot (resource-watch/make-snapshot workspace project-path dependencies)]
+     {:snapshot snapshot
+      :resource-map (resource-watch/make-resource-map snapshot)}))
+
 (defn resource-sync!
   ([workspace]
    (resource-sync! workspace []))
   ([workspace moved-files]
    (resource-sync! workspace moved-files progress/null-render-progress!))
   ([workspace moved-files render-progress!]
+   (resource-sync! workspace moved-files render-progress! (make-resource-snapshot-info workspace
+                                                                                       (project-path workspace)
+                                                                                       (dependencies workspace))))
+  ([workspace moved-files render-progress! {new-snapshot :snapshot new-map :resource-map}]
    (let [project-path (project-path workspace)
          moved-proj-paths (keep (fn [[src tgt]]
                                   (let [src-path (resource/file->proj-path project-path src)
@@ -221,10 +231,6 @@ ordinary paths."
                                 moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map      (resource-watch/make-resource-map old-snapshot)
-         new-snapshot (resource-watch/make-snapshot workspace
-                                                    project-path
-                                                    (g/node-value workspace :dependencies))
-         new-map      (resource-watch/make-resource-map new-snapshot)
          changes      (resource-watch/diff old-snapshot new-snapshot)]
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
