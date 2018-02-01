@@ -345,7 +345,7 @@
         (when dest-file
           (let [src-files (doall (file-seq src-file))]
             (fs/move! src-file dest-file)
-            (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files))))))))
+            (workspace/resource-sync! workspace (moved-files src-file dest-file src-files))))))))
 
 (defn rename? [resources]
   (and (= 1 (count resources))
@@ -654,7 +654,7 @@
         (when (seq pairs)
           (let [moved (drop-files! workspace pairs move?)]
             (select-files! workspace tree-view (mapv second pairs))
-            (workspace/resource-sync! workspace true moved))))))
+            (workspace/resource-sync! workspace moved))))))
   (.setDropCompleted e true)
   (.consume e))
 

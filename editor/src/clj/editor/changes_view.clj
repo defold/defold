@@ -47,7 +47,7 @@
   ([changes-view workspace moved-files]
    (resource-sync-after-git-change! changes-view workspace moved-files progress/null-render-progress!))
   ([changes-view workspace moved-files render-progress!]
-   (let [diff (workspace/resource-sync! workspace true moved-files render-progress!)]
+   (let [diff (workspace/resource-sync! workspace moved-files render-progress!)]
      ;; The call to resource-sync! will refresh the changes view if it detected changes,
      ;; but committing a file from the command line will not actually change the file
      ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
