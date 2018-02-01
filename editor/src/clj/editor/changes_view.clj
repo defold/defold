@@ -41,20 +41,23 @@
           (let [unified-status (git/unified-status git)]
             (ui/run-later (refresh-list-view! list-view unified-status))))))))
 
+(defn refresh-after-resource-sync! [changes-view diff]
+  ;; The call to resource-sync! will refresh the changes view if it detected changes,
+  ;; but committing a file from the command line will not actually change the file
+  ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
+  ;; the current Git state, we explicitly refresh the changes view here if the the
+  ;; call to resource-sync! would not have already done so.
+  (when (resource-watch/empty-diff? diff)
+    (refresh! changes-view)))
+
 (defn resource-sync-after-git-change!
   ([changes-view workspace]
    (resource-sync-after-git-change! changes-view workspace []))
   ([changes-view workspace moved-files]
    (resource-sync-after-git-change! changes-view workspace moved-files progress/null-render-progress!))
   ([changes-view workspace moved-files render-progress!]
-   (let [diff (workspace/resource-sync! workspace moved-files render-progress!)]
-     ;; The call to resource-sync! will refresh the changes view if it detected changes,
-     ;; but committing a file from the command line will not actually change the file
-     ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
-     ;; the current Git state, we explicitly refresh the changes view here if the the
-     ;; call to resource-sync! would not have already done so.
-     (when (resource-watch/empty-diff? diff)
-       (refresh! changes-view)))))
+   (->> (workspace/resource-sync! workspace moved-files render-progress!)
+        (refresh-after-resource-sync! changes-view))))
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Open"
