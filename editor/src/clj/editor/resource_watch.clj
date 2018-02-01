@@ -95,10 +95,12 @@
                         (.listFiles file))]
      (resource/make-file-resource workspace (.getPath root) file children))))
 
+(defn- file-resource-status [r]
+  {:version (str (.lastModified ^File (io/file r))) :source :directory})
+
 (defn- file-resource-status-map-entry [r]
   [(resource/proj-path r)
-   {:version (str (.lastModified ^File (io/file r)))
-    :source :directory}])
+   (file-resource-status r)])
 
 (defn- make-directory-snapshot [workspace ^File root]
   (assert (and root (.isDirectory root)))
@@ -139,6 +141,15 @@
         flat-resources (resource/resource-list-seq resources)]
     {:resources resources
      :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
+
+(defn update-snapshot-status [snapshot resources]
+  (assert (every? resource/file-resource? resources))
+  (update snapshot :status-map
+          (fn [status-map]
+            (reduce (fn [status-map resource]
+                      (assoc status-map (resource/proj-path resource) (file-resource-status resource)))
+                    status-map
+                    resources))))
 
 (defn make-snapshot [workspace project-directory library-urls]
   (let [builtins-snapshot (make-builtins-snapshot workspace)
