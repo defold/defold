@@ -245,28 +245,27 @@
   [project]
   (g/node-value project :dirty-save-data))
 
-(defn write-save-data-to-disk! [project {:keys [render-progress!]
-                                         :or {render-progress! progress/null-render-progress!}
-                                         :as opts}]
+(defn write-save-data-to-disk! [save-data {:keys [render-progress!]
+                                           :or {render-progress! progress/null-render-progress!}
+                                           :as opts}]
   (render-progress! (progress/make "Saving..."))
-  (let [save-data (dirty-save-data project)]
-    (if (g/error? save-data)
-      (throw (Exception. ^String (properties/error-message save-data)))
-      (do
-        (progress/progress-mapv
-          (fn [{:keys [resource content value node-id]} _]
-            (when-not (resource/read-only? resource)
-              ;; If the file is non-binary, convert line endings to the
-              ;; type used by the existing file.
-              (if (and (:textual? (resource/resource-type resource))
-                    (resource/exists? resource)
-                    (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
-                (spit resource (text-util/lf->crlf content))
-                (spit resource content))))
-          save-data
-          render-progress!
-          (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-        (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data))))))
+  (if (g/error? save-data)
+    (throw (Exception. ^String (properties/error-message save-data)))
+    (do
+      (progress/progress-mapv
+        (fn [{:keys [resource content value node-id]} _]
+          (when-not (resource/read-only? resource)
+            ;; If the file is non-binary, convert line endings to the
+            ;; type used by the existing file.
+            (if (and (:textual? (resource/resource-type resource))
+                     (resource/exists? resource)
+                     (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
+              (spit resource (text-util/lf->crlf content))
+              (spit resource content))))
+        save-data
+        render-progress!
+        (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
+      (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))))
 
 (defn workspace [project]
   (g/node-value project :workspace))
@@ -278,10 +277,11 @@
    ;; to no progress reporting.
    (save-all! project (progress/throttle-render-progress progress/null-render-progress!)))
   ([project render-progress!]
-   (let [workspace     (workspace project)]
+   (let [workspace (workspace project)
+         save-data (dirty-save-data project)]
      (ui/with-progress [render-progress! render-progress!]
-       (write-save-data-to-disk! project {:render-progress! render-progress!}))
-     (workspace/resource-sync! workspace false [] progress/null-render-progress!))))
+       (write-save-data-to-disk! save-data {:render-progress! render-progress!}))
+     (workspace/update-resource-snapshot! workspace (map :resource save-data)))))
 
 (defn make-collect-progress-steps-tracer [steps-atom]
   (fn [state node output-type label]
@@ -477,7 +477,7 @@
             (g/mark-defective node flaw))))
 
       (let [all-outputs (mapcat (fn [node]
-                                    (map (fn [[output _]] [node output]) (gu/outputs node)))
+                                  (map (fn [[output _]] [node output]) (gu/outputs node)))
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
 
@@ -692,7 +692,7 @@
            (workspace/install-validated-libraries! workspace-id dependencies)))
     
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
-    (workspace/resource-sync! workspace-id false [] (progress/nest-render-progress render-progress! @progress))
+    (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project"))
     (let [project (make-project graph workspace-id)
           populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress))]
