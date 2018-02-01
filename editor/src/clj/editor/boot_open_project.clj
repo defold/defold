@@ -14,6 +14,7 @@
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
+            [editor.error-reporting :as error-reporting]
             [editor.form-view :as form-view]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -83,12 +84,13 @@
     (let [project-path (workspace/project-path workspace)
           dependencies (workspace/dependencies workspace)]
       (future
-        (let [snapshot-info (workspace/make-resource-snapshot-info workspace project-path dependencies)]
-          (ui/run-later
-            (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))]
-              (ui/with-progress [render-fn render-fn]
-                (->> (workspace/resource-sync! workspace [] render-fn snapshot-info)
-                     (changes-view/refresh-after-resource-sync! changes-view))))))))))
+        (error-reporting/catch-all!
+          (let [snapshot-info (workspace/make-resource-snapshot-info workspace project-path dependencies)]
+            (ui/run-later
+              (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))]
+                (ui/with-progress [render-fn render-fn]
+                  (->> (workspace/resource-sync! workspace [] render-fn snapshot-info)
+                       (changes-view/refresh-after-resource-sync! changes-view)))))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
