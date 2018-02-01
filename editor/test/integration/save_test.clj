@@ -362,13 +362,13 @@
   (let [f (File. (workspace/project-path workspace) name)]
     (fs/delete-file! f)))
 
-(deftest save-rs-snafu
+(deftest save-all-does-not-perform-resource-sync
   ;; During save-all! we used to perform a partial resource-sync! that
   ;; would detect file additions/removes on the workspace level - new
   ;; files would be added to the resource-snapshot and appear in the
   ;; asset browser - but not create new resource nodes for them.
   ;; This could cause havoc during later, complete, resource-sync!'s.
-  ;; The file deletion below would trigger an assert that an unknown
+  ;; The file deletion below would cause an assert that an unknown
   ;; resource was deleted.
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
@@ -376,8 +376,8 @@
       (append-lua-code-line! script)
       (touch-file workspace "boom.md")
       (project/save-all! project)
-      (is (nil? (workspace/find-resource workspace "/boom.md"))) ; this test used to fail - the resource was found
-      (is (nil? (project/get-resource-node project "boom.md"))) ; this would succeed - no corresponding resource
+      (is (nil? (workspace/find-resource workspace "/boom.md"))) ; this test used to fail - the resource was found during partial resource sync
+      (is (nil? (project/get-resource-node project "boom.md"))) ; this would succeed - no corresponding resource node
       (delete-file workspace "boom.md")
-      (workspace/resource-sync! workspace) ; here, the assert would say a resource was removed but no corresponding resource node found
+      (workspace/resource-sync! workspace) ; here, the assert would say a resource was removed but no corresponding resource node was found
       (is (not (seq (g/node-value project :dirty-save-data)))))))
