@@ -200,14 +200,26 @@ ordinary paths."
                 (map :url))
           (library/current-library-state project-directory dependencies))))
 
+(defn update-resource-snapshot!
+  [workspace resources]
+  (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status resources))
+
+(defn make-resource-snapshot-info
+  [workspace project-path dependencies]
+  (let [snapshot (resource-watch/make-snapshot workspace project-path dependencies)]
+     {:snapshot snapshot
+      :resource-map (resource-watch/make-resource-map snapshot)}))
+
 (defn resource-sync!
   ([workspace]
-   (resource-sync! workspace true []))
-  ([workspace notify-listeners?]
-   (resource-sync! workspace notify-listeners? []))
-  ([workspace notify-listeners? moved-files]
-   (resource-sync! workspace notify-listeners? moved-files progress/null-render-progress!))
-  ([workspace notify-listeners? moved-files render-progress!]
+   (resource-sync! workspace []))
+  ([workspace moved-files]
+   (resource-sync! workspace moved-files progress/null-render-progress!))
+  ([workspace moved-files render-progress!]
+   (resource-sync! workspace moved-files render-progress! (make-resource-snapshot-info workspace
+                                                                                       (project-path workspace)
+                                                                                       (dependencies workspace))))
+  ([workspace moved-files render-progress! {new-snapshot :snapshot new-map :resource-map}]
    (let [project-path (project-path workspace)
          moved-proj-paths (keep (fn [[src tgt]]
                                   (let [src-path (resource/file->proj-path project-path src)
@@ -219,62 +231,57 @@ ordinary paths."
                                 moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map      (resource-watch/make-resource-map old-snapshot)
-         new-snapshot (resource-watch/make-snapshot workspace
-                                                    project-path
-                                                    (g/node-value workspace :dependencies))
-         new-map      (resource-watch/make-resource-map new-snapshot)
          changes      (resource-watch/diff old-snapshot new-snapshot)]
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
-       (when notify-listeners?
-         (let [changes (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
-               move-source-paths (map first moved-proj-paths)
-               move-target-paths (map second moved-proj-paths)
-               chain-moved-paths (set/intersection (set move-source-paths) (set move-target-paths))
-               merged-target-paths (set (map first (filter (fn [[k v]] (> v 1)) (frequencies move-target-paths))))
-               moved (keep (fn [[source-path target-path]]
-                             (when-not (or
-                                         ;; resource sync currently can't handle chained moves, so refactoring is
-                                         ;; temporarily disabled for those cases (no move pair)
-                                         (chain-moved-paths source-path) (chain-moved-paths target-path)
-                                         ;; also can't handle merged targets, multiple files with same name moved to same dir
-                                         (merged-target-paths target-path))
-                               (let [src-resource (old-map source-path)
-                                     tgt-resource (new-map target-path)]
-                                 ;; We used to (assert (some? src-resource)), but this could fail for instance if
-                                 ;; * source-path refers to a .dotfile (like .DS_Store) that we ignore in resource/make-snapshot
-                                 ;; * Some external process has created a file in a to-be-moved directory and we haven't run a resource-sync! before the move
-                                 ;; We handle these cases by ignoring the move. Any .dotfiles will stay ignored, and any new files will pop up as :added
-                                 ;;
-                                 ;; We also used to (assert (some? tgt-resource)) but an arguably very unlikely case is that the target of the move is
-                                 ;; deleted from disk after the move but before the snapshot.
-                                 ;; We handle that by ignoring the move and effectively treating target as just :removed.
-                                 ;; The source will be :removed or :changed (if a library snuck in).
-                                 (cond
-                                   (nil? src-resource)
-                                   (do (log/warn :msg (str "can't find source of move " source-path)) nil)
+       (let [changes (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
+             move-source-paths (map first moved-proj-paths)
+             move-target-paths (map second moved-proj-paths)
+             chain-moved-paths (set/intersection (set move-source-paths) (set move-target-paths))
+             merged-target-paths (set (map first (filter (fn [[k v]] (> v 1)) (frequencies move-target-paths))))
+             moved (keep (fn [[source-path target-path]]
+                           (when-not (or
+                                       ;; resource sync currently can't handle chained moves, so refactoring is
+                                       ;; temporarily disabled for those cases (no move pair)
+                                       (chain-moved-paths source-path) (chain-moved-paths target-path)
+                                       ;; also can't handle merged targets, multiple files with same name moved to same dir
+                                       (merged-target-paths target-path))
+                             (let [src-resource (old-map source-path)
+                                   tgt-resource (new-map target-path)]
+                               ;; We used to (assert (some? src-resource)), but this could fail for instance if
+                               ;; * source-path refers to a .dotfile (like .DS_Store) that we ignore in resource/make-snapshot
+                               ;; * Some external process has created a file in a to-be-moved directory and we haven't run a resource-sync! before the move
+                               ;; We handle these cases by ignoring the move. Any .dotfiles will stay ignored, and any new files will pop up as :added
+                               ;;
+                               ;; We also used to (assert (some? tgt-resource)) but an arguably very unlikely case is that the target of the move is
+                               ;; deleted from disk after the move but before the snapshot.
+                               ;; We handle that by ignoring the move and effectively treating target as just :removed.
+                               ;; The source will be :removed or :changed (if a library snuck in).
+                               (cond
+                                 (nil? src-resource)
+                                 (do (log/warn :msg (str "can't find source of move " source-path)) nil)
 
-                                   (nil? tgt-resource)
-                                   (do (log/warn :msg (str "can't find target of move " target-path)) nil)
+                                 (nil? tgt-resource)
+                                 (do (log/warn :msg (str "can't find target of move " target-path)) nil)
 
-                                   (and (= :file (resource/source-type src-resource))
-                                        (= :file (resource/source-type tgt-resource))) ; paranoia
-                                   [src-resource tgt-resource]))))
-                           moved-proj-paths)
-               changes-with-moved (assoc changes :moved moved)]
-           (assert (= (count (distinct (map (comp resource/proj-path first) moved)))
-                      (count (distinct (map (comp resource/proj-path second) moved)))
-                      (count moved))) ; no overlapping sources, dito targets
-           (assert (= (count (distinct (concat (map (comp resource/proj-path first) moved)
-                                               (map (comp resource/proj-path second) moved))))
-                      (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
-           (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
-                                             (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
-           (let [listeners @(g/node-value workspace :resource-listeners)
-                 parent-progress (atom (progress/make "" (count listeners)))]
+                                 (and (= :file (resource/source-type src-resource))
+                                      (= :file (resource/source-type tgt-resource))) ; paranoia
+                                 [src-resource tgt-resource]))))
+                         moved-proj-paths)
+             changes-with-moved (assoc changes :moved moved)]
+         (assert (= (count (distinct (map (comp resource/proj-path first) moved)))
+                    (count (distinct (map (comp resource/proj-path second) moved)))
+                    (count moved))) ; no overlapping sources, dito targets
+         (assert (= (count (distinct (concat (map (comp resource/proj-path first) moved)
+                                             (map (comp resource/proj-path second) moved))))
+                    (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
+         (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
+                                           (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
+         (let [listeners @(g/node-value workspace :resource-listeners)
+               parent-progress (atom (progress/make "" (count listeners)))]
            (doseq [listener @(g/node-value workspace :resource-listeners)]
              (resource/handle-changes listener changes-with-moved
-                                      (progress/nest-render-progress render-progress! @parent-progress)))))))
+                                      (progress/nest-render-progress render-progress! @parent-progress))))))
      changes)))
 
 (defn fetch-and-validate-libraries [workspace library-urls render-fn]

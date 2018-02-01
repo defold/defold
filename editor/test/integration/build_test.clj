@@ -387,7 +387,7 @@
         (let [atlas (test-util/resource-node project "/player/spineboy.atlas")]
           (g/transact (g/set-property atlas :margin 10))
           (let [third-time (measure (project/build project resource-node (g/make-evaluation-context) {}))]
-            (is (< (* 5 second-time) third-time))))))))
+            (is (< (* 2 second-time) third-time))))))))
 
 (defn- build-path [workspace proj-path]
   (str (workspace/build-path workspace) proj-path))
