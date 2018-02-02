@@ -56,8 +56,7 @@
   (login/login prefs)
   (let [client (client/make-client prefs)
         projects (fetch-projects prefs)
-        url->project (into {} (map (juxt :repository-url identity)) projects)
-        project-options (map (juxt :repository-url :name) projects)
+        project-options (map (juxt identity :name) projects)
         fuzzy-project-combo (doto (fuzzy-combo-box/make project-options)
                               (GridPane/setConstraints 1 0))
         dialog (dialogs/make-task-dialog "import.fxml"
@@ -75,7 +74,7 @@
     (dialogs/show! dialog {:on-ok (fn []
                                     (dialogs/task! dialog (fn [] (clone-project prefs
                                                                                 dialog
-                                                                                (url->project (fuzzy-combo-box/value fuzzy-project-combo))
+                                                                                (fuzzy-combo-box/value fuzzy-project-combo)
                                                                                 (ui/text (:location controls))))))
                            :ready? (fn []
                                      (and (fuzzy-combo-box/value fuzzy-project-combo)
