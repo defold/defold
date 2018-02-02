@@ -986,8 +986,8 @@
   (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
     ;; Snapshot completions when the popup is first opened to prevent
     ;; typed words from showing up in the completions list.
-    (when (nil? (get-property view-node :suggested-completions))
-      (set-properties! view-node :typing {:suggested-completions (suggested-completions view-node)}))
+    (when (nil? (g/node-value view-node :suggested-completions))
+      (g/set-property! view-node :suggested-completions (suggested-completions view-node)))
 
     (let [lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)
@@ -996,7 +996,7 @@
       (if-not (some #(Character/isLetter ^char %) query-text)
         (when (.isShowing suggestions-popup)
           (.hide suggestions-popup))
-        (let [completions (get-property view-node :suggested-completions)
+        (let [completions (g/node-value view-node :suggested-completions)
               context-completions (get completions context)
               filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name :display-string query-text))]
           (if (empty? filtered-completions)
@@ -1023,7 +1023,7 @@
 
 (defn- hide-suggestions! [view-node]
   (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    (set-properties! view-node :typing {:suggested-completions nil})
+    (g/set-property! view-node :suggested-completions nil)
     (when (.isShowing suggestions-popup)
       (.hide suggestions-popup))))
 
