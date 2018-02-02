@@ -82,14 +82,18 @@
 (defn- handle-application-focused! [workspace changes-view]
   (when-not (sync/sync-dialog-open?)
     (let [project-path (workspace/project-path workspace)
-          dependencies (workspace/dependencies workspace)]
+          dependencies (workspace/dependencies workspace)
+          snapshot-cache (workspace/snapshot-cache workspace)]
       (future
         (error-reporting/catch-all!
-          (let [snapshot-info (workspace/make-resource-snapshot-info workspace project-path dependencies)]
+          (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
             (ui/run-later
-              (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))]
+              (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
+              (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))
+                    new-snapshot (:snapshot snapshot-info)
+                    new-map (:map snapshot-info)]
                 (ui/with-progress [render-fn render-fn]
-                  (->> (workspace/resource-sync! workspace [] render-fn snapshot-info)
+                  (->> (workspace/resource-sync! workspace [] render-fn new-snapshot new-map)
                        (changes-view/refresh-after-resource-sync! changes-view)))))))))))
 
 (defn- find-tab [^TabPane tabs id]
