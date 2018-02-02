@@ -174,17 +174,28 @@
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
       (pass/prepare-gl pass gl glu))))
 
+
+(def ^:private last-make-current-failure (atom (System/currentTimeMillis)))
+
+(defn- time-to-log? []
+  (let [now (System/currentTimeMillis)]
+    (when (> (- now (or @last-make-current-failure 0)) (* 1000 60))
+      (do (reset! last-make-current-failure now)
+          true))))
+
 (defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
     (try
       (let [result (.makeCurrent context)]
         (if (= result GLContext/CONTEXT_NOT_CURRENT)
           (do
-            (log/warn :message "Failed to set gl context as current.")
+            (when (time-to-log?)
+              (log/warn :message "Failed to set gl context as current."))
             nil)
           context))
       (catch Exception e
-        (log/error :exception e)
+        (when (time-to-log?)
+          (log/error :exception e))
         nil))))
 
 (defmacro with-drawable-as-current [^GLAutoDrawable drawable & forms]
