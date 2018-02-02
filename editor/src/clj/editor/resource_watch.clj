@@ -51,23 +51,25 @@
   [library-snapshot-cache workspace lib-states]
   (reduce (fn [ret {:keys [^File file] :as lib-state}]
             (if file
-              (let [cached-snapshot (get library-snapshot-cache file)
+              (let [lib-file-path (.getPath file)
+                    cached-snapshot (get library-snapshot-cache lib-file-path)
                     mtime (.lastModified file)
                     snapshot (if (and cached-snapshot (= mtime (-> cached-snapshot meta :mtime)))
                                cached-snapshot
                                (with-meta (make-library-snapshot workspace lib-state)
                                  {:mtime mtime}))]
-                (assoc ret file snapshot))
+                (assoc ret lib-file-path snapshot))
               ret))
           {}
           lib-states))
 
-(defn- make-library-snapshots [workspace project-directory library-urls]
-  (let [lib-states (library/current-library-state project-directory library-urls)
-        library-snapshot-cache (-> (g/node-value workspace :library-snapshot-cache)
-                                   (update-library-snapshot-cache workspace lib-states))]
-    (g/set-property! workspace :library-snapshot-cache library-snapshot-cache)
-    (vals library-snapshot-cache)))
+(defn- make-library-snapshots [library-snapshot-cache lib-states]
+  (into [] (comp
+             (map :file)
+             (filter some?)
+             (map #(.getPath ^File %))
+             (map library-snapshot-cache))
+        lib-states))
 
 (defn- make-builtins-snapshot [workspace]
   (let [resources (:tree (resource/load-zip-resources workspace (io/resource "builtins.zip")))
@@ -151,12 +153,14 @@
                     status-map
                     resources))))
 
-(defn make-snapshot [workspace project-directory library-urls]
-  (let [builtins-snapshot (make-builtins-snapshot workspace)
-        fs-snapshot (make-directory-snapshot workspace project-directory)
-        debugger-snapshot (make-debugger-snapshot workspace)
-        library-snapshots (make-library-snapshots workspace project-directory library-urls)]
-    (combine-snapshots (list* builtins-snapshot fs-snapshot debugger-snapshot library-snapshots))))
+(defn make-snapshot-info [workspace project-directory library-urls snapshot-cache]
+  (let [lib-states (library/current-library-state project-directory library-urls)
+        new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-states)]
+    {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
+                                         (make-directory-snapshot workspace project-directory)
+                                         (make-debugger-snapshot workspace)
+                                         (make-library-snapshots new-library-snapshot-cache lib-states)))
+     :snapshot-cache new-library-snapshot-cache}))
 
 (defn make-resource-map [snapshot]
   (into {} (map (juxt resource/proj-path identity) (resource/resource-list-seq (:resources snapshot)))))

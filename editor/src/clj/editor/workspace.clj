@@ -200,15 +200,19 @@ ordinary paths."
                 (map :url))
           (library/current-library-state project-directory dependencies))))
 
-(defn update-resource-snapshot!
+(defn update-snapshot-status!
   [workspace resources]
   (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status resources))
 
-(defn make-resource-snapshot-info
-  [workspace project-path dependencies]
-  (let [snapshot (resource-watch/make-snapshot workspace project-path dependencies)]
-     {:snapshot snapshot
-      :resource-map (resource-watch/make-resource-map snapshot)}))
+(defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
+  (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
+    (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
+
+(defn update-snapshot-cache! [workspace snapshot-cache]
+  (g/set-property! workspace :snapshot-cache snapshot-cache))
+
+(defn snapshot-cache [workspace]
+  (g/node-value workspace :snapshot-cache))
 
 (defn resource-sync!
   ([workspace]
@@ -216,10 +220,11 @@ ordinary paths."
   ([workspace moved-files]
    (resource-sync! workspace moved-files progress/null-render-progress!))
   ([workspace moved-files render-progress!]
-   (resource-sync! workspace moved-files render-progress! (make-resource-snapshot-info workspace
-                                                                                       (project-path workspace)
-                                                                                       (dependencies workspace))))
-  ([workspace moved-files render-progress! {new-snapshot :snapshot new-map :resource-map}]
+   (let [snapshot-info (make-snapshot-info workspace (project-path workspace) (dependencies workspace) (snapshot-cache workspace))
+         {new-snapshot :snapshot new-map :map new-snapshot-cache :snapshot-cache} snapshot-info]
+     (update-snapshot-cache! workspace new-snapshot-cache)
+     (resource-sync! workspace moved-files render-progress! new-snapshot new-map)))
+  ([workspace moved-files render-progress! new-snapshot new-map]
    (let [project-path (project-path workspace)
          moved-proj-paths (keep (fn [[src tgt]]
                                   (let [src-path (resource/file->proj-path project-path src)
@@ -249,7 +254,7 @@ ordinary paths."
                              (let [src-resource (old-map source-path)
                                    tgt-resource (new-map target-path)]
                                ;; We used to (assert (some? src-resource)), but this could fail for instance if
-                               ;; * source-path refers to a .dotfile (like .DS_Store) that we ignore in resource/make-snapshot
+                               ;; * source-path refers to a .dotfile (like .DS_Store) that we ignore in resource-watch
                                ;; * Some external process has created a file in a to-be-moved directory and we haven't run a resource-sync! before the move
                                ;; We handle these cases by ignoring the move. Any .dotfiles will stay ignored, and any new files will pop up as :added
                                ;;
@@ -279,7 +284,7 @@ ordinary paths."
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
          (let [listeners @(g/node-value workspace :resource-listeners)
                parent-progress (atom (progress/make "" (count listeners)))]
-           (doseq [listener @(g/node-value workspace :resource-listeners)]
+           (doseq [listener listeners]
              (resource/handle-changes listener changes-with-moved
                                       (progress/nest-render-progress render-progress! @parent-progress))))))
      changes)))
@@ -307,7 +312,7 @@ ordinary paths."
   (property resource-listeners g/Any (default (atom [])))
   (property view-types g/Any)
   (property resource-types g/Any)
-  (property library-snapshot-cache g/Any (default {}))
+  (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)
 
   (output resource-tree FileResource :cached produce-resource-tree)
