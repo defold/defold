@@ -281,7 +281,7 @@
          save-data (dirty-save-data project)]
      (ui/with-progress [render-progress! render-progress!]
        (write-save-data-to-disk! save-data {:render-progress! render-progress!}))
-     (workspace/update-resource-snapshot! workspace (map :resource save-data)))))
+     (workspace/update-snapshot-status! workspace (map :resource save-data)))))
 
 (defn make-collect-progress-steps-tracer [steps-atom]
   (fn [state node output-type label]
