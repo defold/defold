@@ -175,13 +175,13 @@
       (pass/prepare-gl pass gl glu))))
 
 
-(def ^:private last-make-current-failure (atom (System/currentTimeMillis)))
+(def ^:private last-make-current-failure (atom 0))
 
 (defn- time-to-log? []
   (let [now (System/currentTimeMillis)]
-    (when (> (- now (or @last-make-current-failure 0)) (* 1000 60))
-      (do (reset! last-make-current-failure now)
-          true))))
+    (when (> (- now @last-make-current-failure) (* 1000 60))
+      (reset! last-make-current-failure now)
+      true)))
 
 (defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
