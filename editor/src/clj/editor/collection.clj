@@ -252,6 +252,20 @@
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
       (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
 
+(defn- load-component-overrides [base-resource component-property-descs]
+  (into {}
+        (map (fn [{component-id :id component-properties :properties}]
+               (assert (string? (not-empty component-id)))
+               [component-id (game-object/load-property-overrides base-resource component-properties)]))
+        component-property-descs))
+
+(defn- component-overrides [ddf-component-properties]
+  (into {}
+        (map (fn [{component-id :id go-props :properties}]
+               (assert (string? (not-empty component-id)))
+               [component-id (game-object/property-overrides go-props)]))
+        ddf-component-properties))
+
 (g/defnode ReferencedGOInstanceNode
   (inherits GameObjectInstanceNode)
 
@@ -263,7 +277,7 @@
                                        :from-type (fn [r] {:resource r :overrides {}})}))
             (value (g/fnk [source-resource ddf-component-properties]
                           {:resource source-resource
-                           :overrides ddf-component-properties}))
+                           :overrides (component-overrides ddf-component-properties)}))
             (set (fn [evaluation-context self old-value new-value]
                    (concat
                      (if-let [old-source (g/node-value self :source-id evaluation-context)]
@@ -273,10 +287,7 @@
                        (let [project (project/get-project self)]
                          (project/connect-resource-node project new-resource self []
                                                         (fn [go-node]
-                                                          (let [component-overrides (into {} (map (fn [m]
-                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (:clj-value p)]])
-                                                                                                                           (:properties m)))])
-                                                                                                  (:overrides new-value)))
+                                                          (let [component-overrides (:overrides new-value)
                                                                 override (g/override (:basis evaluation-context) go-node {:traverse? or-go-traverse?})
                                                                 id-mapping (:id-mapping override)
                                                                 or-node (get id-mapping go-node)
@@ -286,14 +297,16 @@
                                                                                  component-ids
                                                                                  (g/node-value :source-id evaluation-context)
                                                                                  id-mapping))]
+                                                            (println "ReferencedGOInstanceNode path setter component-overrides" component-overrides)
                                                             (concat
                                                               (:tx-data override)
                                                               (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                                (for [[from to] [[:_node-id                 :source-id]
-                                                                                 [:resource                 :source-resource]
-                                                                                 [:node-outline             :source-outline]
-                                                                                 [:scene                    :scene]
-                                                                                 [:ddf-component-properties :ddf-component-properties]]
+                                                                (for [[from to] [[:_node-id                        :source-id]
+                                                                                 [:resource                        :source-resource]
+                                                                                 [:node-outline                    :source-outline]
+                                                                                 [:scene                           :scene]
+                                                                                 [:ddf-component-properties        :ddf-component-properties]
+                                                                                 [:resource-property-build-targets :resource-property-build-targets]]
                                                                       :when (contains? outputs from)]
                                                                   (g/connect or-node from self to)))
                                                               (for [[from to] [[:build-targets :source-build-targets]]]
@@ -308,7 +321,12 @@
                                                                       original-type (get-in refd-component-props [key :type])
                                                                       override-type (properties/go-prop-type->property-type type)]
                                                                   (when (= original-type override-type)
-                                                                    (g/set-property comp-id key value)))))))))))))
+                                                                    (println "ReferencedGOInstanceNode path setter override" comp-id key value)
+                                                                    (if (not= :property-type-resource type)
+                                                                      (g/set-property comp-id key value)
+                                                                      (concat
+                                                                        (g/set-property comp-id key value)
+                                                                        (g/update-property comp-id :property-resources assoc key value)))))))))))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
@@ -484,6 +502,20 @@
     (g/node-instance? basis resource-node/ResourceNode src-id)
     (g/node-instance? basis InstanceNode src-id)))
 
+(defn- load-game-object-overrides [base-resource instance-property-descs]
+  (into {}
+        (map (fn [{game-object-id :id component-property-descs :properties}]
+               (assert (string? (not-empty game-object-id)))
+               [game-object-id (load-component-overrides base-resource component-property-descs)]))
+        instance-property-descs))
+
+(defn- game-object-overrides [ddf-properties]
+  (into {}
+        (map (fn [{game-object-id :id go-props :properties}]
+               (assert (string? (not-empty game-object-id)))
+               [game-object-id (component-overrides go-props)]))
+        ddf-properties))
+
 (g/defnode CollectionInstanceNode
   (inherits scene/SceneNode)
   (inherits InstanceNode)
@@ -491,8 +523,8 @@
   (property path g/Any
     (value (g/fnk [source-resource ddf-properties]
                   {:resource source-resource
-                   :overrides ddf-properties}))
-    (set (fn [evaluation-context self old-value new-value]
+                   :overrides (game-object-overrides ddf-properties)}))
+    (set (fn [evaluation-context self _old-value new-value]
            (concat
              (if-let [old-source (g/node-value self :source-id evaluation-context)]
                (g/delete-node old-source)
@@ -506,16 +538,16 @@
                                                         go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
                                                         component-overrides (for [{:keys [id properties]} (:overrides new-value)
                                                                                   :let [comp-ids (-> id
-                                                                                                   go-inst-ids
-                                                                                                   (g/node-value :source-id evaluation-context)
-                                                                                                   (g/node-value :component-ids evaluation-context))]
+                                                                                                     go-inst-ids
+                                                                                                     (g/node-value :source-id evaluation-context)
+                                                                                                     (g/node-value :component-ids evaluation-context))]
                                                                                   :when comp-ids
                                                                                   {:keys [id properties]} properties
                                                                                   :let [comp-id (-> id
-                                                                                                  comp-ids
-                                                                                                  (g/node-value :source-id evaluation-context))]
-                                                                                  p properties]
-                                                                              [(id-mapping comp-id) (properties/user-name->key (:id p)) (:clj-value p)])
+                                                                                                    comp-ids
+                                                                                                    (g/node-value :source-id evaluation-context))]
+                                                                                  [prop-kw [go-prop-type clj-value]] properties]
+                                                                              [(id-mapping comp-id) prop-kw go-prop-type clj-value])
                                                         or-node (get id-mapping coll-node)]
                                                     (concat
                                                       (:tx-data override)
@@ -532,8 +564,12 @@
                                                         (g/connect coll-node from self to))
                                                       (for [[from to] [[:url :base-url]]]
                                                         (g/connect self from or-node to))
-                                                      (for [[comp-id label value] component-overrides]
-                                                        (g/set-property comp-id label value)))))))))))
+                                                      (for [[comp-id prop-kw go-prop-type clj-value] component-overrides]
+                                                        (if (not= :property-type-resource go-prop-type)
+                                                          (g/set-property comp-id prop-kw clj-value)
+                                                          (concat
+                                                            (g/set-property comp-id prop-kw clj-value)
+                                                            (g/update-property comp-id :property-resources assoc prop-kw clj-value)))))))))))))
     (dynamic error (g/fnk [_node-id source-resource]
                           (path-error _node-id source-resource)))
     (dynamic edit-type (g/fnk [source-resource]
@@ -712,7 +748,7 @@
                                         (concat
                                           (g/operation-label "Add Collection")
                                           (g/operation-sequence op-seq)
-                                          (add-collection-instance coll-node resource id [0 0 0] [0 0 0 1] [1 1 1] []))))]
+                                          (add-collection-instance coll-node resource id [0 0 0] [0 0 0 1] [1 1 1] {}))))]
                ; Selection
                (g/transact
                  (concat
@@ -733,7 +769,8 @@
                              (for [game-object (:instances collection)
                                    :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
                                (make-ref-go self project source-resource (:id game-object) (:position game-object)
-                                            (:rotation game-object) (:scale3 game-object) nil (:component-properties game-object)))
+                                            (:rotation game-object) (:scale3 game-object) nil
+                                            (load-component-overrides resource (:component-properties game-object))))
                              (for [embedded (:embedded-instances collection)]
                                (make-embedded-go self project "go" (:data embedded) (:id embedded)
                                                  (:position embedded)
@@ -756,7 +793,8 @@
     (for [coll-instance (:collection-instances collection)
           :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
       (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
-                               (:rotation coll-instance) (:scale3 coll-instance) (:instance-properties coll-instance)))))
+                               (:rotation coll-instance) (:scale3 coll-instance)
+                               (load-game-object-overrides resource (:instance-properties coll-instance))))))
 
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]

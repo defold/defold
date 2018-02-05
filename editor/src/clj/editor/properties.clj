@@ -542,10 +542,12 @@
                       {:resource-reference (:resource build-target)
                        :build-target build-target})))))
 
+(def ^:private go-prop-type? (partial contains? type->entry-keys))
+
 (defn property-entry->go-prop [[key {:keys [go-prop-type go-prop-sub-type value]}]]
   (when (some? go-prop-type)
     (assert (keyword? key))
-    (assert (contains? type->entry-keys go-prop-type))
+    (assert (go-prop-type? go-prop-type))
     (assert (or (not= :property-type-resource go-prop-type) (integer? go-prop-sub-type)))
     {:id (key->user-name key)
      :type go-prop-type
@@ -553,13 +555,31 @@
      :clj-value value
      :value (go-prop->str value go-prop-type)}))
 
-(defn- go-prop? [value]
+(defn go-prop? [value]
   (and (string? (:id value))
        (contains? value :clj-value)
        (contains? value :value)
-       (contains? type->entry-keys (:type value))
+       (go-prop-type? (:type value))
        (or (not= :property-type-resource (:type value))
            (integer? (:sub-type value)))))
+
+(defn go-prop->property-override
+  "Takes a go-prop and returns a vector in the format [prop-kw, [go-prop-type, clj-value]]."
+  [go-prop]
+  (assert (go-prop? go-prop))
+  (let [prop-kw (user-name->key (:id go-prop))
+        go-prop-type (:type go-prop)
+        clj-value (:clj-value go-prop)]
+    [prop-kw [go-prop-type clj-value]]))
+
+(defn property-desc->property-override
+  "Takes a GameObject.PropertyDesc in map format and returns a vector in the format [prop-kw, [go-prop-type, clj-value]]."
+  [base-resource {prop-name :id go-prop-type :type value :value}]
+  (assert (string? prop-name))
+  (assert (go-prop-type? go-prop-type))
+  (let [prop-kw (user-name->key prop-name)
+        clj-value (str->go-prop base-resource value go-prop-type)]
+    [prop-kw [go-prop-type clj-value]]))
 
 (defn build-target-go-props [resource-property-build-targets go-props-with-source-resources]
   (let [build-targets-by-source-resource (into {}

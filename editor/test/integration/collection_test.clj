@@ -134,7 +134,7 @@
           go-id     (test-util/resource-node project "/game_object/test.go")
           script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-      (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] []))
+      (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] {}))
       (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
       (is (nil? (test-util/outline coll-id [0 0])))
       (let [inst (first (test-util/selection app-view))]
@@ -184,7 +184,7 @@
           go-id     (test-util/resource-node project "/game_object/test.go")
           script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
-      (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] []))
+      (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] {}))
       (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
       (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script") select-fn)
       (testing "component id should only be editable on the game object including the component"
@@ -227,7 +227,7 @@
       (testing "collection ref instance"
                (is (not (build-error? coll-id)))
                (let [res (workspace/resolve-workspace-resource workspace "/collection/test.collection")]
-                 (g/transact (collection/add-collection-instance coll-id res "coll" [0 0 0] [0 0 0 1] [1 1 1] []))
+                 (g/transact (collection/add-collection-instance coll-id res "coll" [0 0 0] [0 0 0 1] [1 1 1] {}))
                  (let [inst-id (:node-id (test-util/outline coll-id [0]))]
                    (is (nil? (test-util/prop-error inst-id :path)))
                    (test-util/with-prop [inst-id :path {:resource nil :overrides []}]

@@ -195,6 +195,7 @@
                                                                                                         ddf-message)}))]
                                             [build-target])
                                           [])))
+  (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output _properties g/Properties :cached produce-component-properties))
 
 (g/defnode EmbeddedComponent
@@ -239,6 +240,20 @@
 
 ;; -----------------------------------------------------------------------------
 
+(defn load-property-overrides
+  "Takes a sequence of GameObject.PropertyDesc in map format and returns a map of [prop-kw, [go-prop-type, clj-value]]."
+  [base-resource property-descs]
+  (into {}
+        (map (partial properties/property-desc->property-override base-resource))
+        property-descs))
+
+(defn property-overrides
+  "Takes a sequence of go-props and returns a map of [prop-kw, [go-prop-type, clj-value]]."
+  [go-props]
+  (into {}
+        (map properties/go-prop->property-override)
+        go-props))
+
 (g/defnode ReferencedComponent
   (inherits ComponentNode)
 
@@ -250,8 +265,7 @@
                                        :from-type (fn [r] {:resource r :overrides {}})}))
             (value (g/fnk [source-resource ddf-properties]
                           {:resource source-resource
-                           :overrides (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (:clj-value p)]])
-                                                    ddf-properties))}))
+                           :overrides (property-overrides ddf-properties)}))
             (set (fn [evaluation-context self old-value new-value]
                    (concat
                      (if-let [old-source (g/node-value self :source-id evaluation-context)]
@@ -302,7 +316,7 @@
   (input source-id g/NodeID :cascade-delete)
   (output ddf-properties g/Any :cached
           (g/fnk [source-properties]
-                 (let [prop-order (into {} (map-indexed (fn [i k] [k i]) (:display-order source-properties)))]
+                 (let [prop-order (into {} (map-indexed (fn [i k] [k i])) (:display-order source-properties))]
                    (->> source-properties
                      :properties
                      (filter (fn [[_ p]] (contains? p :original-value)))
@@ -359,6 +373,7 @@
     (for [[from to] [[:node-outline :child-outlines]
                      [:_node-id :nodes]
                      [:build-targets :dep-build-targets]
+                     [:resource-property-build-targets :resource-property-build-targets]
                      [:ddf-message ddf-input]
                      [:component-id :component-id-pairs]
                      [:scene :child-scenes]]]
@@ -397,6 +412,7 @@
   (input child-scenes g/Any :array)
   (input component-id-pairs g/IdPair :array)
   (input dep-build-targets g/Any :array)
+  (input resource-property-build-targets g/Any :array)
   (input base-url g/Str)
 
   (output base-url g/Str (gu/passthrough base-url))
@@ -411,6 +427,8 @@
             (into []
                   (keep (fn [component-ddf]
                           (when-some [properties (not-empty (:properties component-ddf))]
+                            (println "GameObjectNode properties" properties)
+
                             {:id (:id component-ddf)
                              :properties properties})))
                   ref-ddf)))
@@ -529,12 +547,7 @@
                 source-resource (workspace/resolve-resource resource source-path)
                 resource-type (some-> source-resource resource/resource-type)
                 transform-properties (select-transform-properties resource-type component)
-                properties (into {}
-                                 (map (fn [p]
-                                        [(properties/user-name->key (:id p))
-                                         [(:type p)
-                                          (properties/str->go-prop resource (:value p) (:type p))]]))
-                                 (:properties component))]]
+                properties (load-property-overrides resource (:properties component))]]
       (add-component self source-resource (:id component) transform-properties properties nil))
     (for [embedded (:embedded-components prototype)
           :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
