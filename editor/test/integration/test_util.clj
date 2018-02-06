@@ -74,7 +74,7 @@
 (defn make-test-prefs []
   (prefs/load-prefs "test/resources/test_prefs.json"))
 
-(def ^:dynamic use-new-code-editor? false)
+(def ^:dynamic use-new-code-editor? true)
 (declare prop prop!)
 
 (defn code-editor-source [script-id]

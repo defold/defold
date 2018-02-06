@@ -194,19 +194,12 @@
             (default [""])
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [lua-info (lua-parser/lua-info (data/lines-reader new-value))
-                         resource (g/node-value self :resource evaluation-context)
-                         resolve-resource (partial workspace/resolve-resource resource)
+                   (let [resource (g/node-value self :resource evaluation-context)
+                         lua-info (lua-parser/lua-info resource (data/lines-reader new-value))
                          own-module (lua/path->lua-module (resource/proj-path resource))
                          completion-info (assoc lua-info :module own-module)
                          modules (into [] (comp (map second) (remove lua/preinstalled-modules)) (:requires lua-info))
-                         script-properties (into []
-                                                 (keep (fn [prop]
-                                                         (when (= :ok (:status prop))
-                                                           (case (:type prop)
-                                                             :property-type-resource (update prop :value resolve-resource)
-                                                             prop))))
-                                                 (:script-properties completion-info))]
+                         script-properties (filterv #(= :ok (:status %)) (:script-properties completion-info))]
                      (concat
                        (g/set-property self :completion-info completion-info)
                        (g/set-property self :modules modules)

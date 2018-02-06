@@ -4,6 +4,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [editor.math :as math]
+            [editor.workspace :as workspace]
             [util.murmur :as murmur]))
 
 (def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
@@ -308,36 +309,43 @@
 (defn- parse-boolean-script-property-value-info [value-arg-exp]
   (when-some [boolean-value (parse-boolean-exp-node value-arg-exp)]
     {:type :property-type-boolean
+     :sub-type 0
      :value boolean-value}))
 
 (defn- parse-number-script-property-value-info [value-arg-exp]
   (when-some [number-value (parse-number-exp-node value-arg-exp)]
     {:type :property-type-number
+     :sub-type 0
      :value number-value}))
 
 (defn- parse-hash-script-property-value-info [value-arg-exp]
   (when-some [string-value (some-> value-arg-exp unpack-exp parse-hash-functioncall)]
     {:type :property-type-hash
+     :sub-type 0
      :value string-value}))
 
 (defn- parse-url-script-property-value-info [value-arg-exp]
   (when-some [string-value (some-> value-arg-exp unpack-exp parse-url-functioncall)]
     {:type :property-type-url
+     :sub-type 0
      :value string-value}))
 
 (defn- parse-vector3-script-property-value-info [value-arg-exp]
   (when-some [vector-components (some-> value-arg-exp unpack-exp parse-vector3-functioncall)]
     {:type :property-type-vector3
+     :sub-type 0
      :value vector-components}))
 
 (defn- parse-vector4-script-property-value-info [value-arg-exp]
   (when-some [vector-components (some-> value-arg-exp unpack-exp parse-vector4-functioncall)]
     {:type :property-type-vector4
+     :sub-type 0
      :value vector-components}))
 
 (defn- parse-quat-script-property-value-info [value-arg-exp]
   (when-some [euler-angles (some-> value-arg-exp unpack-exp parse-quat-functioncall)]
     {:type :property-type-quat
+     :sub-type 0
      :value euler-angles}))
 
 (defn- parse-resource-script-property-value-info [value-arg-exp]
@@ -432,7 +440,7 @@
         (mapcat (partial parse-requires (cons node node-path))
                 (next node))))))
 
-(defn lua-info [code]
+(defn lua-info [base-resource code]
   (let [tree (lua-parser code)
         info (collect-info tree)
         local-vars-info (into #{} (apply concat (map :local-vars info)))
@@ -440,7 +448,14 @@
         functions-info (or (apply merge (map :functions info)) {})
         local-functions-info (or (apply merge (map :local-functions info)) {})
         requires-info (vec (distinct (parse-requires (list) tree)))
-        script-properties-info (into [] (keep :script-properties) info)]
+        resolve-resource (partial workspace/resolve-resource base-resource)
+        script-properties-info (into []
+                                     (keep (fn [entry]
+                                             (when-some [property-info (:script-properties entry)]
+                                               (case (:type property-info)
+                                                 :property-type-resource (update property-info :value resolve-resource)
+                                                 property-info))))
+                                     info)]
     {:vars vars-info
      :local-vars local-vars-info
      :functions functions-info

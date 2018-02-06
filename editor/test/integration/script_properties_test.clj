@@ -1,5 +1,6 @@
 (ns integration.script-properties-test
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -114,11 +115,11 @@
               script-component (component game-object "script")]
           (doseq [[prop-name prop-value] {"bool" true
                                           "hash" "hash2"
-                                          "material" (workspace/resolve-workspace-resource workspace "/go_replacement.material")
+                                          "material" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.material")
                                           "number" 2.0
                                           "quat" [180.0 0.0, 0.0]
-                                          "texture" (workspace/resolve-workspace-resource workspace "/go_replacement.atlas")
-                                          "textureset" (workspace/resolve-workspace-resource workspace "/go_replacement.tilesource")
+                                          "texture" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.atlas")
+                                          "textureset" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.atlas")
                                           "url" "/url"
                                           "vec3" [1.0 2.0 3.0]
                                           "vec4" [1.0 2.0 3.0 4.0]}]
@@ -194,11 +195,11 @@
             (is (= "script" (:label script-node-outline)))
             (doseq [[prop-name prop-value] {"bool" true
                                             "hash" "hash3"
-                                            "material" (workspace/resolve-workspace-resource workspace "/go_replacement.material")
+                                            "material" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.material")
                                             "number" 3.0
                                             "quat" [180.0 0.0, 0.0]
-                                            "texture" (workspace/resolve-workspace-resource workspace "/collection_replacement.atlas")
-                                            "textureset" (workspace/resolve-workspace-resource workspace "/go_replacement.tilesource")
+                                            "texture" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_collection.atlas")
+                                            "textureset" (workspace/resolve-workspace-resource workspace "/script/resources/from_props_game_object.atlas")
                                             "url" "/url2"
                                             "vec3" [1.0 2.0 3.0]
                                             "vec4" [1.0 2.0 3.0 4.0]}]
@@ -209,3 +210,98 @@
     (perform-script-properties-collection-load-order-test!))
   (with-bindings {#'tu/use-new-code-editor? true}
     (perform-script-properties-collection-load-order-test!)))
+
+(defn- build-resource [project path]
+  (when-some [resource-node (tu/resource-node project path)]
+    (:resource (first (g/node-value resource-node :build-targets)))))
+
+(defn- texture-build-resource [project path]
+  (when-some [resource-node (tu/resource-node project path)]
+    (:resource (g/node-value resource-node :texture-build-target))))
+
+(defn- properties [node-id]
+  (:properties (g/node-value node-id :_properties)))
+
+(defn- built-resources [node-id]
+  (into #{}
+        (comp (remove sequential?)
+              (keep :resource))
+        (tree-seq #(or (sequential? %) (seq (:deps %)))
+                  #(if (sequential? %) (seq %) (:deps %))
+                  (g/node-value node-id :build-targets))))
+
+(defn- material-resource-property? [property value]
+  (and (is (= :property-type-resource (:go-prop-type property)))
+       (is (= properties/sub-type-material (:go-prop-sub-type property)))
+       (is (= value (:value property)))
+       (is (= resource/Resource (:type (:edit-type property))))
+       (is (= "material" (:ext (:edit-type property))))))
+
+(defn- texture-resource-property? [property value]
+  (and (is (= :property-type-resource (:go-prop-type property)))
+       (is (= properties/sub-type-texture (:go-prop-sub-type property)))
+       (is (= value (:value property)))
+       (is (= resource/Resource (:type (:edit-type property))))
+       (is (= ["atlas" "tilesource" "cubemap" "jpg" "png"] (:ext (:edit-type property))))))
+
+(defn- textureset-resource-property? [property value]
+  (and (is (= :property-type-resource (:go-prop-type property)))
+       (is (= properties/sub-type-textureset (:go-prop-sub-type property)))
+       (is (= value (:value property)))
+       (is (= resource/Resource (:type (:edit-type property))))
+       (is (= ["atlas" "tilesource"] (:ext (:edit-type property))))))
+
+(deftest resource-script-properties-test
+  (tu/with-loaded-project
+    (let [resource (partial tu/resource workspace)
+          resource-node (partial tu/resource-node project)
+          build-resource (partial build-resource project)
+          texture-build-resource (partial texture-build-resource project)]
+
+      (let [props-script (resource-node "/script/props.script")
+            properties (properties props-script)]
+        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_props_script.material")))
+        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_script.atlas")))
+        (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_props_script.atlas")))
+        (is (set/superset? (built-resources props-script)
+                           #{(build-resource "/script/resources/from_props_script.material")
+                             (texture-build-resource "/script/resources/from_props_script.atlas")
+                             (build-resource "/script/resources/from_props_script.atlas")})))
+
+      (let [props-game-object (tu/resource-node project "/game_object/props.go")
+            props-script-component (:node-id (tu/outline props-game-object [0]))
+            properties (properties props-script-component)]
+        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_props_game_object.material")))
+        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_game_object.atlas")))
+        (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_props_game_object.atlas")))
+        (is (set/superset? (built-resources props-game-object)
+                           #{(build-resource "/script/resources/from_props_game_object.material")
+                             (texture-build-resource "/script/resources/from_props_game_object.atlas")
+                             (build-resource "/script/resources/from_props_game_object.atlas")})))
+
+      (let [props-collection (tu/resource-node project "/collection/props.collection")
+            props-script-component (:node-id (tu/outline props-collection [0 0]))
+            properties (properties props-script-component)]
+        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_props_game_object.material")))
+        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_collection.atlas")))
+        (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_props_game_object.atlas")))
+        (is (set/superset? (built-resources props-collection)
+                           #{(texture-build-resource "/script/resources/from_props_collection.atlas")})))
+
+      (let [sub-props-collection (tu/resource-node project "/collection/sub_props.collection")
+            props-script-component (:node-id (tu/outline sub-props-collection [0 0 0]))
+            properties (properties props-script-component)]
+        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_props_game_object.material")))
+        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_collection.atlas")))
+        (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_sub_props_collection.atlas")))
+        (is (set/superset? (built-resources props-collection)
+                           #{(texture-build-resource "/script/resources/from_sub_props_collection.atlas")})))
+
+      (let [sub-sub-props-collection (tu/resource-node project "/collection/sub_sub_props.collection")
+            props-script-component (:node-id (tu/outline sub-sub-props-collection [0 0 0 0]))
+            properties (properties props-script-component)]
+        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_sub_sub_props_collection.material")))
+        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_collection.atlas")))
+        (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_sub_props_collection.atlas")))
+        (is (set/superset? (built-resources props-collection)
+                           #{(texture-build-resource "/script/resources/from_sub_sub_props_collection.material")}))))))

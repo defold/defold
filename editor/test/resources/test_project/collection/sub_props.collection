@@ -10,6 +10,7 @@ collection_instances {
             properties {id: "number" value: "4.0" type: PROPERTY_TYPE_NUMBER}
             properties {id: "hash" value: "hash4" type: PROPERTY_TYPE_HASH}
             properties {id: "url" value: "/url3" type: PROPERTY_TYPE_URL}
+            properties {id: "textureset" value: "/script/resources/from_sub_props_collection.atlas" type: PROPERTY_TYPE_RESOURCE}
         }
     }
 }

@@ -49,17 +49,17 @@ components {
   }
   properties {
     id: "material"
-    value: "/go_replacement.material"
+    value: "/script/resources/from_props_game_object.material"
     type: PROPERTY_TYPE_RESOURCE
   }
   properties {
     id: "texture"
-    value: "/go_replacement.atlas"
+    value: "/script/resources/from_props_game_object.atlas"
     type: PROPERTY_TYPE_RESOURCE
   }
   properties {
     id: "textureset"
-    value: "/go_replacement.tilesource"
+    value: "/script/resources/from_props_game_object.atlas"
     type: PROPERTY_TYPE_RESOURCE
   }
 }

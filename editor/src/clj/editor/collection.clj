@@ -297,7 +297,6 @@
                                                                                  component-ids
                                                                                  (g/node-value :source-id evaluation-context)
                                                                                  id-mapping))]
-                                                            (println "ReferencedGOInstanceNode path setter component-overrides" component-overrides)
                                                             (concat
                                                               (:tx-data override)
                                                               (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
@@ -321,7 +320,6 @@
                                                                       original-type (get-in refd-component-props [key :type])
                                                                       override-type (properties/go-prop-type->property-type type)]
                                                                   (when (= original-type override-type)
-                                                                    (println "ReferencedGOInstanceNode path setter override" comp-id key value)
                                                                     (if (not= :property-type-resource type)
                                                                       (g/set-property comp-id key value)
                                                                       (concat
@@ -536,13 +534,13 @@
                                                   (let [override (g/override (:basis evaluation-context) coll-node {:traverse? or-coll-traverse?})
                                                         id-mapping (:id-mapping override)
                                                         go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
-                                                        component-overrides (for [{:keys [id properties]} (:overrides new-value)
+                                                        component-overrides (for [[id properties] (:overrides new-value)
                                                                                   :let [comp-ids (-> id
                                                                                                      go-inst-ids
                                                                                                      (g/node-value :source-id evaluation-context)
                                                                                                      (g/node-value :component-ids evaluation-context))]
                                                                                   :when comp-ids
-                                                                                  {:keys [id properties]} properties
+                                                                                  [id properties] properties
                                                                                   :let [comp-id (-> id
                                                                                                     comp-ids
                                                                                                     (g/node-value :source-id evaluation-context))]

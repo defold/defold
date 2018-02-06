@@ -32,7 +32,7 @@ instances {
     }
     properties {
       id: "texture"
-      value: "/collection_replacement.atlas"
+      value: "/script/resources/from_props_collection.atlas"
       type: PROPERTY_TYPE_RESOURCE
     }
   }
@@ -76,7 +76,7 @@ embedded_instances {
   "  }\n"
   "  properties {\n"
   "    id: \"texture\"\n"
-  "    value: \"/collection_replacement.atlas\"\n"
+  "    value: \"/script/resources/from_props_collection.atlas\"\n"
   "    type: PROPERTY_TYPE_RESOURCE\n"
   "  }\n"
   "}\n"

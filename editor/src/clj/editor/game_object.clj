@@ -427,8 +427,6 @@
             (into []
                   (keep (fn [component-ddf]
                           (when-some [properties (not-empty (:properties component-ddf))]
-                            (println "GameObjectNode properties" properties)
-
                             {:id (:id component-ddf)
                              :properties properties})))
                   ref-ddf)))

@@ -210,11 +210,11 @@
       (testing "game object ref instance"
                (is (not (build-error? coll-id)))
                (is (nil? (test-util/prop-error inst-id :path)))
-               (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
+               (test-util/with-prop [inst-id :path {:resource nil :overrides {}}]
                  (is (g/error? (test-util/prop-error inst-id :path)))
                  (is (build-error? coll-id)))
                (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.go")]
-                 (test-util/with-prop [inst-id :path {:resource not-found :overrides []}]
+                 (test-util/with-prop [inst-id :path {:resource not-found :overrides {}}]
                    (is (g/error? (test-util/prop-error inst-id :path)))))
                (test-util/with-prop [inst-id :id "props_embedded"]
                  (is (g/error? (test-util/prop-error inst-id :id)))
@@ -230,11 +230,11 @@
                  (g/transact (collection/add-collection-instance coll-id res "coll" [0 0 0] [0 0 0 1] [1 1 1] {}))
                  (let [inst-id (:node-id (test-util/outline coll-id [0]))]
                    (is (nil? (test-util/prop-error inst-id :path)))
-                   (test-util/with-prop [inst-id :path {:resource nil :overrides []}]
+                   (test-util/with-prop [inst-id :path {:resource nil :overrides {}}]
                      (is (g/error? (test-util/prop-error inst-id :path)))
                      (is (build-error? coll-id)))
                    (let [not-found (workspace/resolve-workspace-resource workspace "/not_found.collection")]
-                     (test-util/with-prop [inst-id :path {:resource not-found :overrides []}]
+                     (test-util/with-prop [inst-id :path {:resource not-found :overrides {}}]
                        (is (g/error? (test-util/prop-error inst-id :path)))))
                    (is (nil? (test-util/prop-error inst-id :id)))
                    (test-util/with-prop [inst-id :id "props"]

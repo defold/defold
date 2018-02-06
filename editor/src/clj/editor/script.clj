@@ -79,8 +79,8 @@
                                  :edit-type (properties/go-prop-edit-type key type sub-type)
                                  :go-prop-type type
                                  :go-prop-sub-type sub-type
-                                 :value value
-                                 :read-only? read-only?}])
+                                 :read-only? read-only?
+                                 :value value}])
                          display-order
                          script-properties))]
     {:properties props
@@ -157,8 +157,8 @@
 
   ;; todo replace this with the lua-parser modules
   (output modules g/Any :cached (g/fnk [code] (lua-scan/src->modules code)))
-  (output script-properties g/Any :cached (g/fnk [code]
-                                                 (->> (lua-scan/src->properties code)
+  (output script-properties g/Any :cached (g/fnk [code resource]
+                                                 (->> (lua-scan/src->properties resource code)
                                                       (filter #(not (string/blank? (:name %))))
                                                       (iutil/distinct-by :name)
                                                       vec)))
@@ -175,7 +175,7 @@
   (output build-targets g/Any :cached produce-build-targets)
 
   (output completion-info g/Any :cached (g/fnk [_node-id code resource]
-                                          (assoc (lua-parser/lua-info code)
+                                          (assoc (lua-parser/lua-info resource code)
                                                  :module (lua/path->lua-module (resource/proj-path resource)))))
   (output completions g/Any :cached (g/fnk [completion-info module-completion-infos]
                                            (code-completion/combine-completions completion-info module-completion-infos))))
