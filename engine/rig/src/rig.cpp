@@ -742,7 +742,7 @@ namespace dmRig
         for (uint32_t i = 0; i < count; ++i)
         {
             RigInstance* instance = instances[i];
-            updated_pose = updated_pose || DoPostUpdate(instances[i]);
+            updated_pose = updated_pose || DoPostUpdate(instance);
         }
 
         return updated_pose ? dmRig::RESULT_UPDATED_POSE : dmRig::RESULT_OK;
