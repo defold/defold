@@ -290,6 +290,15 @@ namespace dmGameSystem
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
 
+        // Create GO<->bone representation
+        // We need to make sure that bone GOs are created before we start the default animation.
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
+            DestroyComponent(world, index);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
         create_params.m_Context = world->m_RigContext;
@@ -319,13 +328,11 @@ namespace dmGameSystem
             } else {
                 dmLogError("Failed to create a rig instance needed by model: %d.", res);
             }
+            DestroyComponent(world, index);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
         ReHash(component);
-
-        // Create GO<->bone representation
-        CreateGOBones(world, component);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -674,7 +681,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component)
+    static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component, int index)
     {
         dmRig::HRigContext rig_context = world->m_RigContext;
 
@@ -683,6 +690,16 @@ namespace dmGameSystem
         destroy_params.m_Context = rig_context;
         destroy_params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(destroy_params);
+
+        // Delete old bones, recreate with new data.
+        // Make sure that bone GOs are created before we start the default animation.
+        dmGameObject::DeleteBones(component->m_Instance);
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
+            DestroyComponent(world, index);
+            return false;
+        }
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
@@ -708,14 +725,16 @@ namespace dmGameSystem
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
-            dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the model.max_count value in game.project");
+            } else {
+                dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            }
+            DestroyComponent(world, index);
             return false;
         }
 
         ReHash(component);
-
-        // Create GO<->bone representation
-        CreateGOBones(world, component);
         return true;
     }
 
@@ -723,9 +742,10 @@ namespace dmGameSystem
     void CompModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
-        ModelComponent* component = world->m_Components.Get(*params.m_UserData);
+        int index = *params.m_UserData;
+        ModelComponent* component = world->m_Components.Get(index);
         component->m_Resource = (ModelResource*)params.m_Resource;
-        (void)OnResourceReloaded(world, component);
+        (void)OnResourceReloaded(world, component, index);
     }
 
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -823,14 +843,14 @@ namespace dmGameSystem
                 if(component->m_Resource == params.m_Resource->m_Resource)
                 {
                     // Model resource reload
-                    OnResourceReloaded(world, component);
+                    OnResourceReloaded(world, component, i);
                     continue;
                 }
                 RigSceneResource *rig_scene_res = component->m_Resource->m_RigScene;
                 if((rig_scene_res) && (rig_scene_res->m_AnimationSetRes == params.m_Resource->m_Resource))
                 {
                     // Model resource reload because animset used in rig was reloaded
-                    OnResourceReloaded(world, component);
+                    OnResourceReloaded(world, component, i);
                 }
             }
         }

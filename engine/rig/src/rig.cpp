@@ -12,6 +12,9 @@ namespace dmRig
     static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
     static const int SIGNAL_SLOT_UNUSED = -1; // Used to indicate if a draw order slot is unused
 
+    static void DoAnimate(RigInstance* instance, float dt);
+    static bool DoPostUpdate(RigInstance* instance);
+
     Result NewContext(const NewContextParams& params)
     {
         *params.m_Context = new RigContext();
@@ -116,6 +119,7 @@ namespace dmRig
         }
 
         RigPlayer* player = SwitchPlayer(instance);
+        player->m_Completed = 0;
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
         player->m_Playing = 1;
@@ -132,6 +136,9 @@ namespace dmRig
         SetPlaybackRate(instance, playback_rate);
 
         UpdateMeshProperties(instance);
+
+        DoAnimate(instance, 0.0f);
+        DoPostUpdate(instance);
 
         return dmRig::RESULT_OK;
     }
@@ -330,19 +337,17 @@ namespace dmRig
             PostEvents(instance, player, animation, dt, prev_cursor, duration, completed, blend_weight);
         }
 
-        if (completed)
+        if (completed && !player->m_Completed)
         {
-            player->m_Playing = 0;
-            // Only report completeness for the primary player
-            if (player == GetPlayer(instance) && instance->m_EventCallback)
-            {
-                RigCompletedEventData event_data;
-                event_data.m_AnimationId = player->m_AnimationId;
-                event_data.m_Playback = player->m_Playback;
+            player->m_Completed = true;
 
-                instance->m_EventCallback(RIG_EVENT_TYPE_COMPLETED, (void*)&event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
+            // Set playing to false if the player isn't the current player
+            // avoids calling the complete callback in DoPostUpdate.
+            if (player != GetPlayer(instance)) {
+                player->m_Playing = false;
             }
         }
+
     }
 
     static Vector3 SampleVec3(uint32_t sample, float frac, float* data)
@@ -542,9 +547,15 @@ namespace dmRig
         for (uint32_t i = 0; i < n; ++i)
         {
             RigInstance* instance = instances[i];
+            DoAnimate(instance, dt);
+        }
+    }
+
+    static void DoAnimate(RigInstance* instance, float dt)
+    {
             // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
             if (instance->m_Pose.Empty() || !instance->m_Enabled)
-                continue;
+                return;
 
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
             const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
@@ -721,8 +732,6 @@ namespace dmRig
                         ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Positive, ik_animation[i].m_Mix);
                 }
             }
-
-        }
     }
 
     static Result PostUpdate(HRigContext context)
@@ -733,20 +742,41 @@ namespace dmRig
         for (uint32_t i = 0; i < count; ++i)
         {
             RigInstance* instance = instances[i];
+            updated_pose = updated_pose || DoPostUpdate(instances[i]);
+        }
+
+        return updated_pose ? dmRig::RESULT_UPDATED_POSE : dmRig::RESULT_OK;
+    }
+
+    static bool DoPostUpdate(RigInstance* instance)
+    {
+            // Check if player has completed and call event callback if set.
+            RigPlayer* player = GetPlayer(instance);
+            if (player->m_Playing && player->m_Completed)
+            {
+                player->m_Playing = 0;
+                if (instance->m_EventCallback)
+                {
+                    RigCompletedEventData event_data;
+                    event_data.m_AnimationId = player->m_AnimationId;
+                    event_data.m_Playback = player->m_Playback;
+
+                    instance->m_EventCallback(RIG_EVENT_TYPE_COMPLETED, (void*)&event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
+                }
+            }
+
+            // If pose is empty, there are no bones to update
             dmArray<dmTransform::Transform>& pose = instance->m_Pose;
             if (pose.Empty())
-                continue;
+                return false;
 
             // Notify any listener that the pose has been recalculated
             if (instance->m_PoseCallback) {
                 instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
-                updated_pose = true;
+                return true;
             }
 
-
-        }
-
-        return updated_pose ? dmRig::RESULT_UPDATED_POSE : dmRig::RESULT_OK;
+        return false;
     }
 
     Result Update(HRigContext context, float dt)
