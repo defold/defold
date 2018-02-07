@@ -341,7 +341,7 @@ namespace dmRig
             PostEvents(instance, player, animation, dt, prev_cursor, duration, completed, blend_weight);
         }
 
-        if (completed && !player->m_Completed)
+        if (completed)
         {
             player->m_Completed = true;
 
@@ -742,11 +742,13 @@ namespace dmRig
     {
         const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         uint32_t count = instances.Size();
-        uint32_t updated_pose = false;
+        bool updated_pose = false;
         for (uint32_t i = 0; i < count; ++i)
         {
             RigInstance* instance = instances[i];
-            updated_pose = updated_pose || DoPostUpdate(instance);
+            if (DoPostUpdate(instance)) {
+                updated_pose = true;
+            }
         }
 
         return updated_pose ? dmRig::RESULT_UPDATED_POSE : dmRig::RESULT_OK;
