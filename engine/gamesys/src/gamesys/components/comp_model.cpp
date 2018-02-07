@@ -294,7 +294,7 @@ namespace dmGameSystem
         // We need to make sure that bone GOs are created before we start the default animation.
         if (!CreateGOBones(world, component))
         {
-            dmLogError("Failed to create game objects for bones in model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
+            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
             DestroyComponent(world, index);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
@@ -323,10 +323,9 @@ namespace dmGameSystem
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
+            dmLogError("Failed to create a rig instance needed by model: %d.", res);
             if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
                 dmLogError("Try increasing the model.max_count value in game.project");
-            } else {
-                dmLogError("Failed to create a rig instance needed by model: %d.", res);
             }
             DestroyComponent(world, index);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
@@ -696,7 +695,7 @@ namespace dmGameSystem
         dmGameObject::DeleteBones(component->m_Instance);
         if (!CreateGOBones(world, component))
         {
-            dmLogError("Failed to create game objects for bones in model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
+            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
             DestroyComponent(world, index);
             return false;
         }
@@ -725,10 +724,9 @@ namespace dmGameSystem
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
+            dmLogError("Failed to create a rig instance needed by model: %d.", res);
             if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
                 dmLogError("Try increasing the model.max_count value in game.project");
-            } else {
-                dmLogError("Failed to create a rig instance needed by model: %d.", res);
             }
             DestroyComponent(world, index);
             return false;

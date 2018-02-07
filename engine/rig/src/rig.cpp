@@ -135,8 +135,12 @@ namespace dmRig
         SetCursor(instance, offset, true);
         SetPlaybackRate(instance, playback_rate);
 
+        // Reset mesh properties (color, draw order etc)
         UpdateMeshProperties(instance);
 
+        // Kick animation step once, without any dt, to get correct bone transforms and draw order.
+        // Important to do this here in PlayAnimation if it was triggered inside a
+        // script callback, otherwise we would render the "bind pose" on current frame.
         DoAnimate(instance, 0.0f);
         DoPostUpdate(instance);
 
