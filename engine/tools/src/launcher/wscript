@@ -20,9 +20,20 @@ def build(bld):
     if 'win32' in bld.env.BUILD_PLATFORM:
         exe.linkflags = ['/subsystem:windows', '/entry:mainCRTStartup']
         exe.source.append('launcher.rc')
-        if waf_dynamo.authenticode_certificate_installed(bld):
-            exe.features.append('authenticode')
-            exe.install_path = None
-            bld.install_as("${PREFIX}/bin/${PLATFORM}/launcher.exe", "launcher_signed.exe")
+        #
+        # FIXME - 2018-02-07 - andsve
+        # Commented out due to Windows CI build server failing for beta release.
+        # Error recieved during build:
+        # > SignTool Error: No certificates were found that met all the given criteria.
+        #
+        # We are currently unable to login to old Windows build servers, and thus also
+        # unable to update the certificates.
+        # Uncomment this block again once we have updated the build servers with
+        # new certificates.
+        #
+        # if waf_dynamo.authenticode_certificate_installed(bld):
+        #     exe.features.append('authenticode')
+        #     exe.install_path = None
+        #     bld.install_as("${PREFIX}/bin/${PLATFORM}/launcher.exe", "launcher_signed.exe")
 
     bld.add_subdirs('test')
