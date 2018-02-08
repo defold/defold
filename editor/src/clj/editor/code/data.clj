@@ -2190,7 +2190,9 @@
                                (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
                                  (assoc reference-cursor-range
                                    :from (cursor-range-end reference-cursor-range)
-                                   :to (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range)))
+                                   :to (if (= (.col mouse-cursor) (count (lines (.row mouse-cursor))))
+                                         mouse-cursor
+                                         (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range))))
                                  (assoc reference-cursor-range
                                    :from (cursor-range-start reference-cursor-range)
                                    :to (max-cursor (cursor-range-end word-cursor-range) (cursor-range-end reference-cursor-range)))))
