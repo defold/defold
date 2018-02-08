@@ -1104,6 +1104,10 @@
       (is (= (cr [0 start-col] [0 end-col])
              (word-cursor-range-at-cursor [line] (->Cursor 0 col)))))
 
+    (testing "Empty line"
+      (is (= (cr [1 0] [1 0])
+             (word-cursor-range-at-cursor ["" ""] (->Cursor 1 0)))))
+
     (testing "Whitespace"
       (let [lines ["\t  \t  word  \t  \t"]]
         (doseq [col (range 6)]
@@ -1115,6 +1119,16 @@
         (doseq [col (range 11 16)] ;; 11 because the end of "word" has priority.
           (is (= (cr [0 10] [0 16])
                  (word-cursor-range-at-cursor lines (->Cursor 0 col)))))))))
+
+(deftest word-cursor-range-test
+  (is (true? (data/word-cursor-range? ["one" "two" "three"] (cr [0 0] [0 3]))))
+  (is (true? (data/word-cursor-range? ["one" "two" "three"] (cr [1 0] [1 3]))))
+  (is (true? (data/word-cursor-range? ["one" "two" "three"] (cr [2 0] [2 5]))))
+  (is (false? (data/word-cursor-range? [""] (cr [0 0] [0 0]))))
+  (is (false? (data/word-cursor-range? ["one" "" "three"] (cr [1 0] [1 0]))))
+  (is (false? (data/word-cursor-range? ["one" "two" "three"] (cr [0 0] [1 3]))))
+  (is (false? (data/word-cursor-range? ["one"] (cr [0 1] [0 3]))))
+  (is (false? (data/word-cursor-range? ["one"] (cr [0 0] [0 2])))))
 
 (defn- find-prev-occurrence [haystack-lines needle-lines from-cursor]
   (data/find-prev-occurrence haystack-lines needle-lines from-cursor false false))
