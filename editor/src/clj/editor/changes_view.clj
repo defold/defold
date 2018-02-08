@@ -28,17 +28,17 @@
 
 (defn refresh! [changes-view]
   (let [list-view (g/node-value changes-view :list-view)
-        git (g/node-value changes-view :git)
+        unconfigured-git (g/node-value changes-view :unconfigured-git)
         refresh-pending (ui/user-data list-view :refresh-pending)
         schedule-refresh (ref nil)]
-    (when git
+    (when unconfigured-git
       (dosync
         (ref-set schedule-refresh (not @refresh-pending))
         (ref-set refresh-pending true))
       (when @schedule-refresh
         (future
           (dosync (ref-set refresh-pending false))
-          (let [unified-status (git/unified-status git)]
+          (let [unified-status (git/unified-status unconfigured-git)]
             (ui/run-later (refresh-list-view! list-view unified-status))))))))
 
 (defn refresh-after-resource-sync! [changes-view diff]
@@ -109,7 +109,7 @@
 
 (handler/defhandler :synchronize :global
   (enabled? [changes-view]
-            (g/node-value changes-view :git))
+            (g/node-value changes-view :unconfigured-git))
   (run [changes-view workspace project]
     (let [git   (g/node-value changes-view :git)
           prefs (g/node-value changes-view :prefs)]
