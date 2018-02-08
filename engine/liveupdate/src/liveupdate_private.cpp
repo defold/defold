@@ -4,7 +4,6 @@
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
 #include <dlib/log.h>
-#include <dlib/dstrings.h>
 #include <axtls/crypto/crypto.h>
 
 namespace dmLiveUpdate

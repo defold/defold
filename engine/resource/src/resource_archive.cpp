@@ -687,6 +687,9 @@ namespace dmResourceArchive
 
     Result NewArchiveIndexWithResource(HArchiveIndexContainer archive_container, const uint8_t* hash_digest, uint32_t hash_digest_len, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, HArchiveIndex& out_new_index)
     {
+        if (out_new_index != 0x0)
+            delete out_new_index;
+
         out_new_index = 0x0;
 
         int idx = -1;

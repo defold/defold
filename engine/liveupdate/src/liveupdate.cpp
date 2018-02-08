@@ -150,7 +150,6 @@ namespace dmLiveUpdate
 
     Result NewArchiveIndexWithResource(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
     {
-        out_new_index = 0x0;
         if(!VerifyResource(manifest, (const char*) expected_digest, expected_digest_length, resource))
         {
             dmLogError("Verification failure for Liveupdate archive for resource: %s", expected_digest);
