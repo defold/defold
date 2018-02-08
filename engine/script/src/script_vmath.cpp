@@ -1774,18 +1774,18 @@ namespace dmScript
         return 1;
     }
 
-    /*# calculates the squared vector length
+    /*# calculates the squared length of a vector or quaternion
      *
-     * Returns the squared length of the supplied vector.
+     * Returns the squared length of the supplied vector or quaternion.
      *
      * @name vmath.length_sqr
-     * @param v [type:vector3|vector4|quat] vector of which to calculate the squared length
-     * @return n [type:number] squared vector length
+     * @param v [type:vector3|vector4|quat] value of which to calculate the squared length
+     * @return n [type:number] squared length
      * @examples
      *
      * ```lua
-     * if vmath.length_sqr(vector1) == 1 then
-     *     -- The vector is normalized
+     * if vmath.length_sqr(vector1) < vmath.length_sqr(vector2) then
+     *     -- Vector 1 has less magnitude than vector 2
      *     ...
      * end
      * ```
@@ -1816,18 +1816,25 @@ namespace dmScript
         return 1;
     }
 
-    /*# calculates the vector length
+    /*# calculates the length of a vector or quaternion
      *
-     * Returns the length of the supplied vector.
+     * Returns the length of the supplied vector or quaternion.
+     *
+     * If you are comparing the lengths of vectors or quaternions, you should compare
+     * the length squared instead as it is slightly more efficient to calculate
+     * (it eliminates a square root calculation).
      *
      * @name vmath.length
-     * @param v [type:vector3|vector4|quat] vector of which to calculate the length
-     * @return n [type:number] vector length
+     * @param v [type:vector3|vector4|quat] value of which to calculate the length
+     * @return n [type:number] length
      * @examples
      *
      * ```lua
      * if vmath.length(self.velocity) < max_velocity then
      *     -- The speed (velocity vector) is below max.
+     *
+     *     -- TODO: max_velocity can be expressed as squared
+     *     -- so we can compare with length_sqr() instead.
      *     ...
      * end
      * ```
