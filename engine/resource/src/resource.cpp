@@ -416,31 +416,31 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
 }
 
 // Separate function to load manifest stored in disk instead of in bundle
-Result LoadExternalManifest(const char* manifestPath, HFactory factory)
+Result LoadExternalManifest(const char* manifest_path, HFactory factory)
 {
 #if !defined(__ANDROID__)
-        return LoadManifest(manifestPath, factory);
+        return LoadManifest(manifest_path, factory);
 #endif
 
-    uint32_t manifestLength = 0;
-    uint8_t* manifestBuffer = 0x0;
+    uint32_t manifest_len = 0;
+    uint8_t* manifest_buf = 0x0;
 
     dmLogInfo(" ### MOUNTING MANIFEST!");
-    Result map_res = MountManifest(manifestPath, (void*&)manifestBuffer, manifestLength);
-    assert(manifestBuffer);
+    Result map_res = MountManifest(manifest_path, (void*&)manifest_buf, manifest_len);
+    assert(manifest_buf);
     if (map_res != RESULT_OK)
     {
         dmLogError(" ## Failed to read Manifest (%i)", map_res);
-        UnmountManifest((void*&)manifestBuffer, manifestLength);
+        UnmountManifest((void*&)manifest_buf, manifest_len);
         return RESULT_IO_ERROR;
     }
     else // DEBUG PRINT
     {
-        dmLogInfo("Successfully mounted manifest file: %s, size: %u", manifestPath, manifestLength);
+        dmLogInfo("Successfully mounted manifest file: %s, size: %u", manifest_path, manifest_len);
     }
 
-    Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
-    UnmountManifest((void*&)manifestBuffer, manifestLength);
+    Result result = ParseManifestDDF(manifest_buf, manifest_len, factory->m_Manifest->m_DDF);
+    UnmountManifest((void*&)manifest_buf, manifest_len);
 
     return result;
 }

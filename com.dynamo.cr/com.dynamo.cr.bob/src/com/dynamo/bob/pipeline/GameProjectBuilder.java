@@ -208,7 +208,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
@@ -220,23 +220,16 @@ public class GameProjectBuilder extends Builder<Void> {
             archiveBuilder.add(s, compress);
         }
 
-        Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
         archiveIndex.close();
         archiveData.close();
 
-        // Populate the zip archive with the resource pack
+        // Populate publisher with the resource pack
         for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
             if (fhandle.isFile()) {
                 project.getPublisher().AddEntry(fhandle.getName(), fhandle);
             }
-        }
-
-        project.getPublisher().Publish();
-        File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
-        if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
-            FileUtils.deleteDirectory(resourcePackDirectoryHandle);
         }
     }
 
@@ -537,7 +530,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
-                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources);
+                Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
+                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources, resourcePackDirectory);
 
                 // Create manifest
                 byte[] manifestFile = manifestBuilder.buildManifest();
@@ -553,6 +547,20 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
+
+                // Add copy of game.dmanifest to be published with liveuodate resources
+                File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
+                String liveupdateManifestFilename = "liveupdate.v" + project.getProjectProperties().getStringValue("project", "version", "") + ".game.dmanifest";
+                File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
+                FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
+                project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
+                project.getPublisher().Publish();
+                
+                manifestTmpFileHandle.delete();
+                File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
+                if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
+                    FileUtils.deleteDirectory(resourcePackDirectoryHandle);
+                }
 
                 List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
                 for (int i = 0; i < publisherOutputs.size(); ++i) {
