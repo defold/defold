@@ -2049,26 +2049,28 @@
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
 (defn repaint-view! [view-node elapsed-time]
-  (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action)
-        old-cursor-opacity (g/node-value view-node :cursor-opacity)
+  (let [evaluation-context (g/make-evaluation-context)
+        elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
+        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
         new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
     (set-properties! view-node nil
-                     (data/tick (get-property view-node :lines)
-                                (get-property view-node :layout)
-                                (get-property view-node :gesture-start)))
+                     (data/tick (g/node-value view-node :lines evaluation-context)
+                                (g/node-value view-node :layout evaluation-context)
+                                (g/node-value view-node :gesture-start evaluation-context)))
     (g/transact
       (into [(g/set-property view-node :elapsed-time elapsed-time)]
             (when (not= old-cursor-opacity new-cursor-opacity)
-              (g/set-property view-node :cursor-opacity new-cursor-opacity)))))
-  (g/node-value view-node :repaint-canvas)
-  (g/node-value view-node :repaint-cursors)
-  (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
-    (let [^long repaint-trigger (g/node-value view-node :repaint-trigger)
-          ^Canvas canvas (g/node-value view-node :canvas)]
-      (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
-      (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
-      (when (= 0 (mod repaint-trigger 10))
-        (.resetAverageFPS performance-tracker)))))
+              (g/set-property view-node :cursor-opacity new-cursor-opacity))))
+    (g/node-value view-node :repaint-canvas evaluation-context)
+    (g/node-value view-node :repaint-cursors evaluation-context)
+    (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
+      (let [^long repaint-trigger (g/node-value view-node :repaint-trigger evaluation-context)
+            ^Canvas canvas (g/node-value view-node :canvas evaluation-context)]
+        (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
+        (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
+        (when (= 0 (mod repaint-trigger 10))
+          (.resetAverageFPS performance-tracker))))
+    (g/update-cache-from-evaluation-context! evaluation-context)))
 
 (defn- make-suggestions-list-view
   ^ListView [^Canvas canvas]
