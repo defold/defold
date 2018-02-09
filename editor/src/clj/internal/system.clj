@@ -273,12 +273,9 @@
 
 (defn default-evaluation-context [sys]
   (dosync
-    {:basis (basis sys)
-     :cache (system-cache sys)
-     :initial-invalidate-counters @(:invalidate-counters sys)
-     :local (atom {})
-     :hits (atom [])
-     :in-production #{}}))
+    (in/default-evaluation-context (basis sys)
+                                   (system-cache sys)
+                                   @(:invalidate-counters sys))))
 
 (defn custom-evaluation-context
   ;; Basis & cache options:
@@ -307,7 +304,7 @@
                          (some? (:basis options))
                          (basis-graphs-identical? (:basis options) (:basis sys-options)))
                     sys-options))]
-    (in/make-evaluation-context options)))
+    (in/custom-evaluation-context options)))
 
 (defn update-cache-from-evaluation-context!
   [sys evaluation-context]
