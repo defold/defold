@@ -792,29 +792,32 @@
 
 (defn- word-cursor-range-at-cursor
   ^CursorRange [lines ^Cursor cursor]
-  (let [line (lines (.row cursor))
-        line-length (count line)
-        on-whitespace? (and (whitespace-character-at-index? line (.col cursor))
-                            (or (zero? (.col cursor))
-                                (whitespace-character-at-index? line (dec (.col cursor)))))
-        same-word? (if on-whitespace?
-                     (partial whitespace-character-at-index? line)
-                     (partial identifier-character-at-index? line))
-        col (if (or (= line-length (.col cursor))
-                    (not (same-word? (.col cursor))))
-              (max 0 (dec (.col cursor)))
-              (.col cursor))
-        start-col (inc (or (long (first (drop-while same-word? (iterate dec col)))) -1))
-        end-col (or (first (drop-while same-word? (iterate inc col))) line-length)]
-    (->CursorRange (->Cursor (.row cursor) start-col)
-                   (->Cursor (.row cursor) end-col))))
+  (let [row (.row cursor)
+        line (lines row)
+        line-length (count line)]
+    (if (zero? line-length)
+      (Cursor->CursorRange (->Cursor row 0))
+      (let [on-whitespace? (and (whitespace-character-at-index? line (.col cursor))
+                                (or (zero? (.col cursor))
+                                    (whitespace-character-at-index? line (dec (.col cursor)))))
+            same-word? (if on-whitespace?
+                         (partial whitespace-character-at-index? line)
+                         (partial identifier-character-at-index? line))
+            col (if (or (= line-length (.col cursor))
+                        (not (same-word? (.col cursor))))
+                  (max 0 (dec (.col cursor)))
+                  (.col cursor))
+            start-col (inc (or (long (first (drop-while same-word? (iterate dec col)))) -1))
+            end-col (or (first (drop-while same-word? (iterate inc col))) line-length)]
+        (->CursorRange (->Cursor row start-col)
+                       (->Cursor row end-col))))))
 
 (defn word-cursor-range? [lines ^CursorRange adjusted-cursor-range]
   (let [cursor (cursor-range-start adjusted-cursor-range)
         word-cursor-range (word-cursor-range-at-cursor lines cursor)]
-    (when (and (cursor-range-equals? word-cursor-range adjusted-cursor-range)
-               (not (Character/isWhitespace (.charAt ^String (lines (.row cursor)) (.col cursor)))))
-      adjusted-cursor-range)))
+    (and (not (cursor-range-empty? word-cursor-range))
+         (cursor-range-equals? word-cursor-range adjusted-cursor-range)
+         (not (Character/isWhitespace (.charAt ^String (lines (.row cursor)) (.col cursor)))))))
 
 (defn selected-word-cursor-range
   ^CursorRange [lines cursor-ranges]
@@ -2187,7 +2190,9 @@
                                (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
                                  (assoc reference-cursor-range
                                    :from (cursor-range-end reference-cursor-range)
-                                   :to (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range)))
+                                   :to (if (= (.col mouse-cursor) (count (lines (.row mouse-cursor))))
+                                         mouse-cursor
+                                         (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range))))
                                  (assoc reference-cursor-range
                                    :from (cursor-range-start reference-cursor-range)
                                    :to (max-cursor (cursor-range-end word-cursor-range) (cursor-range-end reference-cursor-range)))))
