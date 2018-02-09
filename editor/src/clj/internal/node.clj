@@ -7,13 +7,10 @@
             [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
-            [plumbing.fnk.pfnk :as pf]
             [schema.core :as s]
             [clojure.walk :as walk]
             [clojure.zip :as zip])
-  (:import [internal.graph.types IBasis]
-           [internal.graph.error_values ErrorValue]
-           [clojure.lang Named]
+  (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe Either]))
 
 ;; TODO - replace use of 'transform' as a variable name with 'label'
@@ -49,8 +46,8 @@
 (defn nodevalstr [this node-type label & t]
   (apply str "\t" (:_node-id this) "\t"  (:name @node-type) label "\t" t))
 
-(prefer-method clojure.pprint/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
-(prefer-method clojure.pprint/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
+(prefer-method pp/code-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
+(prefer-method pp/simple-dispatch clojure.lang.IPersistentMap clojure.lang.IDeref)
 
 (defprotocol Ref
   (ref-key [this]))
@@ -358,7 +355,19 @@
   (assert (every? #{:basis :cache :initial-invalidate-counters :tracer :dry-run} (keys options)) (str (keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
-(defn make-evaluation-context
+(defn default-evaluation-context
+  [basis cache initial-invalidate-counters]
+  (assert (gt/basis? basis))
+  (assert (c/cache? cache))
+  (assert (map? initial-invalidate-counters))
+  {:basis basis
+   :cache cache
+   :initial-invalidate-counters initial-invalidate-counters
+   :local (atom {})
+   :hits (atom [])
+   :in-production #{}})
+
+(defn custom-evaluation-context
   [options]
   (validate-evaluation-context-options options)
   (assoc options
