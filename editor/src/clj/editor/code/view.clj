@@ -795,7 +795,6 @@
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
-  (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property grammar g/Any (dynamic visible (g/constantly false)))
   (property gutter-view GutterView (dynamic visible (g/constantly false)))
@@ -879,6 +878,10 @@
           [(g/operation-sequence opseq)
            (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
 
+;; Since the elapsed time updates at 60 fps, we keep it outside the graph to avoid transaction churn.
+;; This is updated from the repaint-view! function elsewhere in this file.
+(defonce ^:private *elapsed-time-by-view-node (atom {}))
+
 (defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
   ;; Along with undo grouping info, we also keep track of when an action was
   ;; last performed in the document. We use this to stop the cursor from
@@ -886,7 +889,7 @@
   (into (operation-sequence-tx-data view-node undo-grouping)
         (when (or (contains? values-by-prop-kw :cursor-ranges)
                   (contains? values-by-prop-kw :lines))
-          (g/set-property view-node :elapsed-time-at-last-action (g/node-value view-node :elapsed-time)))))
+          (g/set-property view-node :elapsed-time-at-last-action (get @*elapsed-time-by-view-node view-node 0.0)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -2049,18 +2052,18 @@
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
 (defn repaint-view! [view-node elapsed-time]
+  (swap! *elapsed-time-by-view-node assoc view-node elapsed-time)
   (let [evaluation-context (g/make-evaluation-context)
         elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
         old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
         new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
     (set-properties! view-node nil
-                     (data/tick (g/node-value view-node :lines evaluation-context)
-                                (g/node-value view-node :layout evaluation-context)
-                                (g/node-value view-node :gesture-start evaluation-context)))
-    (g/transact
-      (into [(g/set-property view-node :elapsed-time elapsed-time)]
-            (when (not= old-cursor-opacity new-cursor-opacity)
-              (g/set-property view-node :cursor-opacity new-cursor-opacity))))
+                     (cond-> (data/tick (g/node-value view-node :lines evaluation-context)
+                                        (g/node-value view-node :layout evaluation-context)
+                                        (g/node-value view-node :gesture-start evaluation-context))
+                             (not= old-cursor-opacity new-cursor-opacity) (assoc :cursor-opacity new-cursor-opacity)))
+    (g/update-cache-from-evaluation-context! evaluation-context))
+  (let [evaluation-context (g/make-evaluation-context)]
     (g/node-value view-node :repaint-canvas evaluation-context)
     (g/node-value view-node :repaint-cursors evaluation-context)
     (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
@@ -2298,6 +2301,8 @@
                            (dispose-goto-line-bar! goto-line-bar)
                            (dispose-find-bar! find-bar)
                            (dispose-replace-bar! replace-bar)
+                           (swap! *elapsed-time-by-view-node dissoc view-node)
+                           (g/set-property! view-node :elapsed-time-at-last-action 0.0)
                            (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                            (.removeListener find-whole-word-property find-whole-word-setter)
                            (.removeListener font-size-property font-size-setter)
