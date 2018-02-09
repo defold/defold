@@ -325,8 +325,8 @@
                                                      (get invalidate-counters node-id+output 0))))
             safe-cache-hits (remove invalidated-during-node-value? @(:hits evaluation-context))
             safe-cache-misses (remove (comp invalidated-during-node-value? first) @(:local evaluation-context))]
-        (alter cache c/cache-hit safe-cache-hits)
-        (alter cache c/cache-encache safe-cache-misses)))))
+        (when (seq safe-cache-hits) (alter cache c/cache-hit safe-cache-hits))
+        (when (seq safe-cache-misses) (alter cache c/cache-encache safe-cache-misses))))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
