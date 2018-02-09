@@ -271,7 +271,16 @@
                             (map (:graphs basis1) gids)
                             (map (:graphs basis2) gids))))))
 
-(defn make-evaluation-context
+(defn default-evaluation-context [sys]
+  (dosync
+    {:basis (basis sys)
+     :cache (system-cache sys)
+     :initial-invalidate-counters @(:invalidate-counters sys)
+     :local (atom {})
+     :hits (atom [])
+     :in-production #{}}))
+
+(defn custom-evaluation-context
   ;; Basis & cache options:
   ;;  * only supplying a cache makes no sense and is a programmer error
   ;;  * if neither is supplied, use from sys
@@ -318,15 +327,18 @@
     (when-let [initial-invalidate-counters (:initial-invalidate-counters evaluation-context)]
       (let [cache (:cache sys)
             invalidate-counters @(:invalidate-counters sys)
-            invalidated-during-node-value? (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
-                                             (constantly false)
-                                             (fn [node-id+output]
-                                               (not= (get initial-invalidate-counters node-id+output 0)
-                                                     (get invalidate-counters node-id+output 0))))
-            safe-cache-hits (remove invalidated-during-node-value? @(:hits evaluation-context))
-            safe-cache-misses (remove (comp invalidated-during-node-value? first) @(:local evaluation-context))]
-        (alter cache c/cache-hit safe-cache-hits)
-        (alter cache c/cache-encache safe-cache-misses)))))
+            evaluation-context-hits @(:hits evaluation-context)
+            evaluation-context-misses @(:local evaluation-context)]
+        (if (identical? invalidate-counters initial-invalidate-counters) ; nice case
+          (do (when (seq evaluation-context-hits) (alter cache c/cache-hit evaluation-context-hits))
+              (when (seq evaluation-context-misses) (alter cache c/cache-encache evaluation-context-misses)))
+          (let [invalidated-during-node-value? (fn [node-id+output]
+                                                 (not= (get initial-invalidate-counters node-id+output 0)
+                                                       (get invalidate-counters node-id+output 0)))
+                safe-cache-hits (remove invalidated-during-node-value? evaluation-context-hits)
+                safe-cache-misses (remove (comp invalidated-during-node-value? first) evaluation-context-misses)]
+            (when (seq safe-cache-hits) (alter cache c/cache-hit safe-cache-hits))
+            (when (seq safe-cache-misses) (alter cache c/cache-encache safe-cache-misses))))))))
 
 (defn node-value
   "Get a value, possibly cached, from a node. This is the entry point
