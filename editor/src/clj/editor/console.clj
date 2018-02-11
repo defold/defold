@@ -1,7 +1,6 @@
 (ns editor.console
   (:require [dynamo.graph :as g]
             [editor.code.data :as data]
-            [editor.code.integration :as code-integration]
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.code.view :as view]
@@ -13,7 +12,7 @@
            (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Button Tab TabPane TextField)
            (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
-           (javafx.scene.layout GridPane Pane Region)
+           (javafx.scene.layout GridPane Pane)
            (javafx.scene.paint Color)
            (javafx.scene.text Font FontSmoothingType TextAlignment)))
 
@@ -195,15 +194,14 @@
 (handler/defhandler :select-all :console-view
   (run [view-node] (view/select-all! view-node)))
 
-(when code-integration/use-new-code-editor?
-  (handler/defhandler :select-next-occurrence :console-view
-    (run [view-node] (view/select-next-occurrence! view-node)))
+(handler/defhandler :select-next-occurrence :console-view
+  (run [view-node] (view/select-next-occurrence! view-node)))
 
-  (handler/defhandler :select-next-occurrence :console-tool-bar
-    (run [view-node] (view/select-next-occurrence! view-node)))
+(handler/defhandler :select-next-occurrence :console-tool-bar
+  (run [view-node] (view/select-next-occurrence! view-node)))
 
-  (handler/defhandler :split-selection-into-lines :console-view
-    (run [view-node] (view/split-selection-into-lines! view-node))))
+(handler/defhandler :split-selection-into-lines :console-view
+  (run [view-node] (view/split-selection-into-lines! view-node)))
 
 ;; -----------------------------------------------------------------------------
 ;; Console view action handlers
@@ -369,7 +367,7 @@
      ["editor.gutter.eval.result" (Color/valueOf "#52575C")]
      ["editor.selection.background" (Color/valueOf "#264A8B")]
      ["editor.selection.background.inactive" (Color/valueOf "#264A8B")]
-     ["editor.selection.occurrence.outline" (if code-integration/use-new-code-editor? (Color/valueOf "#A2B0BE") Color/TRANSPARENT)]]))
+     ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]]))
 
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
