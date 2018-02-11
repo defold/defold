@@ -1,10 +1,7 @@
 (ns editor.code.text-file
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.code.lang.cish :as cish]
-            [editor.code.resource :as r]
-            [editor.resource :as resource]
-            [editor.workspace :as workspace]))
+            [editor.code.resource :as r]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
