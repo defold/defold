@@ -6,7 +6,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private cish-opts {:new-code {:grammar cish/grammar}})
+(def ^:private cish-opts {:code {:grammar cish/grammar}})
 
 (def ^:private text-file-defs
   [{:ext "cpp"
@@ -55,5 +55,5 @@
   (for [def text-file-defs
         :let [args (assoc def
                           :node-type TextNode
-                          :view-types [:new-code :default])]]
+                          :view-types [:code :default])]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
