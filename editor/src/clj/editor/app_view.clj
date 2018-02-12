@@ -958,7 +958,7 @@ If you do not specifically require different script states, consider changing th
      (if (defective-resource-node? resource-node)
        (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
            false)
-       (if-let [custom-editor (and (#{:new-code :text} (:id view-type))
+       (if-let [custom-editor (and (#{:code :text} (:id view-type))
                                    (let [ed-pref (some->
                                                    (prefs/get-prefs prefs "code-custom-editor" "")
                                                    string/trim)]
