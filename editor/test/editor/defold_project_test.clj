@@ -43,20 +43,21 @@
 (deftest loading
   (reset! load-counter 0)
   (with-clean-system
-    (let [workspace (workspace/make-workspace world
-                                              (.getAbsolutePath (io/file "test/resources/load_project"))
-                                              {})]
-      (g/transact
-       (register-resource-types workspace [{:ext "type_a"
-                                            :node-type ANode
-                                            :load-fn load-a
-                                            :label "Type A"}
-                                           {:ext "type_b"
-                                            :node-type BNode
-                                            :load-fn load-b
-                                            :label "Type B"}]))
-      (workspace/resource-sync! workspace)
-      (let [project (test-util/setup-project! workspace)
-            a1 (project/get-resource-node project "/a1.type_a")]
-        (is (= 3 @load-counter))
-        (is (= "t" (g/node-value a1 :value-piece)))))))
+    (test-util/with-ui-run-later-rebound
+      (let [workspace (workspace/make-workspace world
+                                                (.getAbsolutePath (io/file "test/resources/load_project"))
+                                                {})]
+        (g/transact
+          (register-resource-types workspace [{:ext "type_a"
+                                               :node-type ANode
+                                               :load-fn load-a
+                                               :label "Type A"}
+                                              {:ext "type_b"
+                                               :node-type BNode
+                                               :load-fn load-b
+                                               :label "Type B"}]))
+        (workspace/resource-sync! workspace)
+        (let [project (test-util/setup-project! workspace)
+              a1 (project/get-resource-node project "/a1.type_a")]
+          (is (= 3 @load-counter))
+          (is (= "t" (g/node-value a1 :value-piece))))))))
