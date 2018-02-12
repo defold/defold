@@ -81,7 +81,7 @@
               {:match #"\+|-|%|#|\*|\/|\^|==?|~=|<=?|>=?|(?<!\.)\.{2}(?!\.)"
                :name "keyword.operator.lua"}]})
 
-(def ^:private lua-code-opts {:new-code {:grammar lua-grammar}})
+(def ^:private lua-code-opts {:code {:grammar lua-grammar}})
 (def go-prop-type->property-types
   {:property-type-number  g/Num
    :property-type-hash    g/Str
@@ -94,26 +94,26 @@
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "gui_script"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}])
 
