@@ -105,11 +105,6 @@
    :default "2D",
    :path ["physics" "type"]
    :options [["2D" "2D"] ["3D" "3D"]]}
-  {:type :number,
-   :help
-   "world gravity along y-axis, -10 by default (natural gravity)",
-   :default -10.0,
-   :path ["physics" "gravity_y"]}
   {:type :boolean,
    :help
    "visualize physics for debugging",
@@ -120,6 +115,11 @@
    "alpha component for visualized physics, 0 - 1 (0.9 by default)",
    :default 0.9,
    :path ["physics" "debug_alpha"]}
+  {:type :number,
+   :help
+   "how big to draw unit objects in physics, like triads and normals, 30 by default",
+   :default 30.0,
+   :path ["physics" "debug_scale"]}
   {:type :integer,
    :help
    "max number of concurrent physics worlds, 4 by default (careful, they waste memory)",
@@ -130,6 +130,11 @@
    :default 0.0,
    :path ["physics" "gravity_x"]}
   {:type :number,
+   :help
+   "world gravity along y-axis, -10 by default (natural gravity)",
+   :default -10.0,
+   :path ["physics" "gravity_y"]}
+  {:type :number,
    :help "world gravity along z-axis, 0 by default",
    :default 0.0,
    :path ["physics" "gravity_z"]}
@@ -138,11 +143,6 @@
    "how to scale the physics worlds in relation to the game world for numerical precision, 0.01 - 1 (default)",
    :default 1.0,
    :path ["physics" "scale"]}
-  {:type :number,
-   :help
-   "how big to draw unit objects in physics, like triads and normals, 30 by default",
-   :default 30.0,
-   :path ["physics" "debug_scale"]}
   {:type :integer,
    :help
    "how many collisions that will be reported back to the scripts, 64 by default",
@@ -158,6 +158,21 @@
    "contacts with an impulse below this limit will not be reported to scripts, 0 (disabled) by default",
    :default 0.0,
    :path ["physics" "contact_impulse_limit"]}
+  {:type :integer,
+   :help
+   "maximum number of ray casts per frame when using 2D physics",
+   :default 64,
+   :path ["physics" "ray_cast_limit_2d"]},
+  {:type :integer,
+   :help
+   "maximum number of ray casts per frame when using 3D physics",
+   :default 128,
+   :path ["physics" "ray_cast_limit_3d"]},
+  {:type :integer,
+   :help
+   "maximum number of overlapping triggers that can be detected, 16 by default",
+   :default 16,
+   :path ["physics" "trigger_overlap_capacity"]},
   {:type :string,
    :help
    "which filtering to use for min filtering, linear (default) or nearest",
@@ -276,7 +291,17 @@
   {:type :integer,
    :help "max number of gui components per collection, 64 by default",
    :default 64,
-   :path ["gui" "max_count"]}
+   :path ["gui" "max_count"]},
+  {:type :integer,
+   :help
+   "max number of particlefx nodes per collection",
+   :default 64,
+   :path ["gui" "max_particlefx_count"]}
+  {:type :integer,
+   :help
+   "max total number of living particles in gui per collection, 1024 by default",
+   :default 1024,
+   :path ["gui" "max_particle_count"]}
   {:type :integer,
    :help "max number of labels, 64 by default",
    :default 64,
@@ -309,29 +334,19 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "retina iPhone 5 and 6 bundle icon file (.png)",
-   :path ["ios" "app_icon_120x120"]}
+   :help
+   "iPhone/iPod touch icon file (.png) [required for iOS 6.1 and earlier]",
+   :path ["ios" "app_icon_57x57"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPhone6 plus icon file (.png)",
-   :path ["ios" "app_icon_180x180"]}
+   :help "iPad icon file (.png) [required for iOS 6.1 and earlier]",
+   :path ["ios" "app_icon_72x72"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
    :help "iPad icon file (.png)",
    :path ["ios" "app_icon_76x76"]}
-  {:type :resource,
-   :filter "png",
-   :preserve-extension true,
-   :help "retina iPad icon file (.png)",
-   :path ["ios" "app_icon_152x152"]}
-  {:type :resource,
-   :filter "png",
-   :preserve-extension true,
-   :help
-   "iPhone/iPod touch icon file (.png) [required for iOS 6.1 and earlier]",
-   :path ["ios" "app_icon_57x57"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
@@ -341,8 +356,8 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPad icon file (.png) [required for iOS 6.1 and earlier]",
-   :path ["ios" "app_icon_72x72"]}
+   :help "retina iPhone 5 and 6 bundle icon file (.png)",
+   :path ["ios" "app_icon_120x120"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
@@ -352,8 +367,18 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
+   :help "retina iPad icon file (.png)",
+   :path ["ios" "app_icon_152x152"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
    :help "iPad Pro bundle icon file (.png)",
    :path ["ios" "app_icon_167x167"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPhone6 plus icon file (.png)",
+   :path ["ios" "app_icon_180x180"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
@@ -590,15 +615,16 @@
    :preserve-extension true,
    :help "bundle icon file (.icns)",
    :path ["osx" "app_icon"]}
-  {:type :resource,
-   :filter "plist",
-   :preserve-extension true,
-   :help "custom Info.plist template file",
-   :path ["osx" "infoplist"]}
   {:type :string,
    :help "bundle identifier (CFBundleIdentifier)",
    :default "example.unnamed",
    :path ["osx" "bundle_identifier"]}
+  {:type :resource,
+   :filter "plist",
+   :preserve-extension true,
+   :help "custom Info.plist template file",
+   :label "Info.plist",
+   :path ["osx" "infoplist"]}
   {:type :resource,
    :filter "ico",
    :preserve-extension true,
@@ -656,12 +682,12 @@
    :help "auto-finish transactions",
    :default true,
    :path ["iap" "auto_finish_transactions"]}
-  {:type :string
+  {:type :resource
    :help "private key"
    :default nil
    :label "Private key"
    :path ["liveupdate" "privatekey"]}
-  {:type :string
+  {:type :resource
    :help "public key"
    :default nil
    :label "Public key"

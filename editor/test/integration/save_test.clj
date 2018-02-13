@@ -4,7 +4,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :refer [with-clean-system touch-until-new-mtime]]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.git :as git]
@@ -156,7 +156,7 @@
     (perform-save-all-literal-equality-test!)))
 
 (defn- save-all! [project]
-  (project/write-save-data-to-disk! project nil))
+  (project/write-save-data-to-disk! (project/dirty-save-data project) nil))
 
 (defn- dirty? [node-id]
   (some-> (g/node-value node-id :save-data)
@@ -330,7 +330,7 @@
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (< 100 lf))
           (is (> 100 crlf))
-          (project/write-save-data-to-disk! project nil)
+          (project/write-save-data-to-disk! (project/dirty-save-data project) nil)
           (is (= line-endings-before (line-endings-by-resource project))))))
 
     (testing "autocrlf true"
@@ -343,7 +343,7 @@
               {:keys [lf crlf] :or {lf 0 crlf 0}} (frequencies (map second line-endings-before))]
           (is (> 100 lf))
           (is (< 100 crlf))
-          (project/write-save-data-to-disk! project nil)
+          (project/write-save-data-to-disk! (project/dirty-save-data project) nil)
           (is (= line-endings-before (line-endings-by-resource project))))))))
 
 (deftest save-respects-line-endings
@@ -351,3 +351,33 @@
     (perform-save-respects-line-endings-test!))
   (with-bindings {#'test-util/use-new-code-editor? true}
     (perform-save-respects-line-endings-test!)))
+
+(defn- touch-file
+  [workspace name]
+  (let [f (File. (workspace/project-path workspace) name)]
+    (fs/create-parent-directories! f)
+    (touch-until-new-mtime f)))
+
+(defn- delete-file [workspace name]
+  (let [f (File. (workspace/project-path workspace) name)]
+    (fs/delete-file! f)))
+
+(deftest save-all-does-not-perform-resource-sync
+  ;; During save-all! we used to perform a partial resource-sync! that
+  ;; would detect file additions/removes on the workspace level - new
+  ;; files would be added to the resource-snapshot and appear in the
+  ;; asset browser - but not create new resource nodes for them.
+  ;; This could cause havoc during later, complete, resource-sync!'s.
+  ;; The file deletion below would cause an assert that an unknown
+  ;; resource was deleted.
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)
+          script (test-util/resource-node project "/script/props.script")]
+      (append-lua-code-line! script)
+      (touch-file workspace "boom.md")
+      (project/save-all! project)
+      (is (nil? (workspace/find-resource workspace "/boom.md"))) ; this test used to fail - the resource was found during partial resource sync
+      (is (nil? (project/get-resource-node project "boom.md"))) ; this would succeed - no corresponding resource node
+      (delete-file workspace "boom.md")
+      (workspace/resource-sync! workspace) ; here, the assert would say a resource was removed but no corresponding resource node was found
+      (is (not (seq (g/node-value project :dirty-save-data)))))))
