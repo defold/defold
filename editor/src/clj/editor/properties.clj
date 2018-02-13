@@ -4,7 +4,6 @@
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.core :as core]
-            [editor.defold-project :as project]
             [editor.image :as image]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
