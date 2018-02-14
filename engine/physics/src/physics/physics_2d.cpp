@@ -978,4 +978,217 @@ namespace dmPhysics
             }
         }
     }
+
+    static void GetAABB(const b2Body* body, b2AABB& aabb)
+    {
+        b2Transform t;
+        t.SetIdentity();
+        aabb.lowerBound = b2Vec2(FLT_MAX,FLT_MAX);
+        aabb.upperBound = b2Vec2(-FLT_MAX,-FLT_MAX);
+        const b2Fixture* fixture = body->GetFixtureList();
+        while (fixture != 0) {
+             const b2Shape* shape = fixture->GetShape();
+             const int childCount = shape->GetChildCount();
+             for (int child = 0; child < childCount; ++child) {
+                    const b2Vec2 r(shape->m_radius, shape->m_radius);
+                    b2AABB shapeAABB;
+                    shape->ComputeAABB(&shapeAABB, t, child);
+                    aabb.Combine(shapeAABB);
+            }
+            fixture = fixture->GetNext();
+        }
+    }
+
+    // Tests two fixtures for contact points, and calls the supplied callback with the contact point+normal etc
+    static void TestFixtureProxies(const b2FixtureProxy* proxyA, const b2FixtureProxy* proxyB,
+                                    ContactPointTestCallback callback, void* callback_ctx, float inv_scale,
+                                    b2ContactFilter* contact_filter, b2BlockAllocator* allocator)
+    {
+        // Most pieces from b2ContactManager.cpp
+
+        b2Fixture* fixtureA = proxyA->fixture;
+        b2Fixture* fixtureB = proxyB->fixture;
+
+        int32 indexA = proxyA->childIndex;
+        int32 indexB = proxyB->childIndex;
+
+        b2Body* bodyA = fixtureA->GetBody();
+        b2Body* bodyB = fixtureB->GetBody();
+
+        // Are the fixtures on the same body?
+        if (bodyA == bodyB)
+        {
+            return;
+        }
+
+        if (fixtureA->IsSensor() || fixtureB->IsSensor())
+        {
+            return;
+        }
+
+        // Defold mod: We disregard checking for constraints, since we allow teleportation anyways!
+        { // This code is from b2Body:ShouldCollide())
+            // At least one body should be dynamic.
+            // Defold mod: At least one body should be dynamic or kinematic
+            b2BodyType typeA = bodyA->GetType();
+            b2BodyType typeB = bodyB->GetType();
+            if (typeA != b2_dynamicBody && typeB != b2_dynamicBody && typeA != b2_kinematicBody && typeB != b2_kinematicBody)
+            {
+                return;
+            }
+        }
+
+        // Check user filtering.
+        if (contact_filter && contact_filter->ShouldCollide(fixtureA, indexA, fixtureB, indexB) == false)
+        {
+            return;
+        }
+
+        b2Shape::Type typeA = fixtureA->GetType();
+        b2Shape::Type typeB = fixtureB->GetType();
+        bool is_primary = b2Contact::IsPrimary(typeA, typeB);
+
+        // Call the factory.
+        b2Contact* contact;
+        if (is_primary)
+            contact = b2Contact::Create(fixtureA, indexA, fixtureB, indexB, allocator);
+        else
+            contact = b2Contact::Create(fixtureB, indexB, fixtureA, indexA, allocator);
+        if (contact == 0)
+        {
+            return;
+        }
+
+        const b2Transform& xfA = bodyA->GetTransform();
+        const b2Transform& xfB = bodyB->GetTransform();
+
+        // DEFOLD specific. Here we actually make the contact evaluate contact point and normal
+        b2Manifold* manifold = contact->GetManifold();
+        if (is_primary) {
+            contact->Evaluate(manifold, xfA, xfB);
+        }
+        else {
+            contact->Evaluate(manifold, xfB, xfA);
+        }
+
+        // NOTE: We're skipping the time related properties (impulse + velocity) due
+        // to the teleportation nature of this code
+        int32 n_p = manifold->pointCount;
+        if (n_p)
+        {
+            float massA = bodyA->GetMass();
+            massA = dmMath::Select(-massA, 0.0f, massA);
+            float massB = bodyB->GetMass();
+            massB = dmMath::Select(-massB, 0.0f, massB);
+            uint16_t groupA = fixtureA->GetFilterData(indexA).categoryBits;
+            uint16_t groupB = fixtureB->GetFilterData(indexB).categoryBits;
+            void* userDataA = bodyA->GetUserData();
+            void* userDataB = bodyB->GetUserData();
+
+            b2WorldManifold world_manifold;
+            contact->GetWorldManifold(&world_manifold);
+
+            for (int32 i = 0; i < n_p; ++i)
+            {
+                ContactPoint cp;
+
+                FromB2(world_manifold.points[i], cp.m_PositionA, inv_scale);
+                FromB2(world_manifold.points[i], cp.m_PositionB, inv_scale);
+                FromB2(world_manifold.normal, cp.m_Normal, is_primary ? -1.0f : 1.0f);
+                cp.m_Distance = manifold->points[i].distance * inv_scale;
+                cp.m_UserDataA = userDataA;
+                cp.m_UserDataB = userDataB;
+                cp.m_MassA = massA;
+                cp.m_MassB = massB;
+                cp.m_GroupA = groupA;
+                cp.m_GroupB = groupB;
+
+                callback(cp, callback_ctx);
+            }
+        }
+
+        // Defold mod: A trick to avoid calling SetAwake() on the bodies before destroying the contact
+        manifold->pointCount = 0;
+        b2Contact::Destroy(contact, allocator);
+    }
+
+    class AABBQueryCallback : public b2QueryCallback
+    {
+    public:
+        const b2Body* m_Body;
+        b2ContactFilter* m_ContactFilter; // For filtering contacts (See b2ContactManager.cpp)
+        b2BlockAllocator* m_Allocator;
+        ContactPointTestCallback m_Callback;
+        void* m_CallbackContext;
+        float m_InvScale;
+
+        bool ReportFixture(b2Fixture* fixtureB) {
+            const b2Body* bodyA = m_Body;
+            const b2Body* bodyB = fixtureB->GetBody();
+            if (bodyA == bodyB)
+                return true; // continue
+
+            const b2Fixture* fixtureA = bodyA->GetFixtureList();
+            while (fixtureA != 0)
+            {
+                int32_t num_proxies_a = fixtureA->GetNumProxies();
+
+                int32_t num_proxies_b = fixtureB->GetNumProxies();
+
+                for( int32_t index_a = 0; index_a < num_proxies_a; ++index_a)
+                {
+                    const b2FixtureProxy* proxyA = fixtureA->GetProxy(index_a);
+                    for( int32_t index_b = 0; index_b < num_proxies_b; ++index_b)
+                    {
+                        const b2FixtureProxy* proxyB = fixtureB->GetProxy(index_b);
+                        TestFixtureProxies(proxyA, proxyB, m_Callback, m_CallbackContext, m_InvScale, m_ContactFilter, m_Allocator);
+                    }
+                }
+
+                fixtureA = fixtureA->GetNext();
+            }
+            return true; // keep going to find all fixtures in the query area
+        }
+    };
+
+    void ContactPointTest2D(HContext2D context, HCollisionObject2D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx)
+    {
+        b2Body* body = (b2Body*)object;
+        const b2World* world = body->GetWorld();
+
+        b2Vec2 b2_position;
+        ToB2(position, b2_position, context->m_Scale);
+
+        b2Transform old_xf = body->GetTransform();
+        b2Transform xf;
+        xf.q.Set(atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ())));
+        xf.p = b2_position;
+        body->SetTransformNoUpdate(xf);
+
+        // Get all intersecting objects with the aabb
+        b2AABB aabb;
+        GetAABB(body, aabb);
+
+        // Transform the bounding box
+        b2Vec2 lowerBound = b2Mul(xf, aabb.lowerBound);
+        b2Vec2 upperBound = b2Mul(xf, aabb.upperBound);
+        b2Vec2 topLeft = b2Mul(xf, b2Vec2(aabb.lowerBound.x, aabb.upperBound.y));
+        b2Vec2 bottomRight = b2Mul(xf, b2Vec2(aabb.upperBound.x, aabb.lowerBound.y));
+        // and recalc the bounds
+        aabb.lowerBound.x = b2Min(b2Min(lowerBound.x, upperBound.x), b2Min(topLeft.x, bottomRight.x));
+        aabb.lowerBound.y = b2Min(b2Min(lowerBound.y, upperBound.y), b2Min(topLeft.y, bottomRight.y));
+        aabb.upperBound.x = b2Max(b2Max(lowerBound.x, upperBound.x), b2Max(topLeft.x, bottomRight.x));
+        aabb.upperBound.y = b2Max(b2Max(lowerBound.y, upperBound.y), b2Max(topLeft.y, bottomRight.y));
+
+        AABBQueryCallback query_callback;
+        query_callback.m_Body = body;
+        query_callback.m_ContactFilter = world->GetContactManager().m_contactFilter;
+        query_callback.m_Allocator = world->GetContactManager().m_allocator;
+        query_callback.m_Callback = callback;
+        query_callback.m_CallbackContext = user_ctx;
+        query_callback.m_InvScale = context->m_InvScale;
+        world->QueryAABB( &query_callback, aabb );
+
+        body->SetTransformNoUpdate(old_xf);
+    }
 }

@@ -5,6 +5,12 @@
 
 #include <gameobject/gameobject.h>
 
+namespace dmPhysics
+{
+    typedef void* HCollisionObject2D;
+    typedef void* HCollisionObject3D;
+}
+
 namespace dmGameSystem
 {
     dmGameObject::CreateResult CompCollisionObjectNewWorld(const dmGameObject::ComponentNewWorldParams& params);
@@ -25,13 +31,41 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
+    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params);
+
     void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
     dmGameObject::PropertyResult CompCollisionObjectGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
     dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
+    // Public functions (used from script_physics.cpp)
+    struct CollisionComponent;
+    struct CollisionWorld;
+    struct PhysicsContext;
+
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
+    uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask);
+
+    /**
+     * Gets the physics context used for a world
+     */
+    PhysicsContext* CompCollisionGetPhysicsContext(const CollisionWorld* world);
+
+    /**
+     * Gets the 2D physics object given a component
+     */
+    dmPhysics::HCollisionObject2D CompCollisionGetCollisionObject2D(const CollisionComponent* component);
+
+    /**
+     * Gets the 3D physics object given a component
+     */
+    dmPhysics::HCollisionObject3D CompCollisionGetCollisionObject3D(const CollisionComponent* component);
+
+    /**
+     * Gets the game object from a collision component
+     */
+    dmGameObject::HInstance CompCollisionGetGameObject(const CollisionComponent* component);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

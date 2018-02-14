@@ -207,7 +207,7 @@ static int GetTextMetrics(lua_State* L)
     dmMessage::URL sender;
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    dmGameSystem::LabelComponent* component = (dmGameSystem::LabelComponent*)dmGameObject::GetComponentFromURL(receiver);
+    dmGameSystem::LabelComponent* component = (dmGameSystem::LabelComponent*)dmGameObject::GetComponentFromURL(receiver, 0);
     if (!component) {
         return DM_LUA_ERROR("Could not find instance %s:%s#%s", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(receiver.m_Path), dmHashReverseSafe64(receiver.m_Fragment));
     }

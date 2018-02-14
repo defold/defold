@@ -1077,6 +1077,21 @@ namespace dmPhysics
      * @param new_shape The shape to connect
      */
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape);
+
+    /**
+     * A callback type to be used with ContactPointTest3D/ContactPointTest2D
+     */
+    typedef void (*ContactPointTestCallback)(const dmPhysics::ContactPoint& contact_point, void* user_ctx);
+
+    /**
+     *
+     */
+    void ContactPointTest3D(HContext3D context, HCollisionObject3D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx);
+
+    /**
+     *
+     */
+    void ContactPointTest2D(HContext2D context, HCollisionObject2D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx);
 }
 
 #endif // PHYSICS_H

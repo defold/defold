@@ -197,6 +197,10 @@ public:
 	/// Dump this fixture to the log file.
 	void Dump(int32 bodyIndex);
 
+	// DEFOLD modifications
+	int32 GetNumProxies() const;
+	const b2FixtureProxy* GetProxy(int32 index) const;
+
 protected:
 
 	friend class b2Body;

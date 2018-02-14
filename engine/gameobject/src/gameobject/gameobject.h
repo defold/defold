@@ -928,9 +928,10 @@ namespace dmGameObject
     /**
      * Gets a component given an URL
      * @param url the url to the object
+     * @param world if set, will receive the world the component belongs to
      * @return the component matching the url. returns null if no match was found
      */
-    void* GetComponentFromURL(const dmMessage::URL& url);
+    void* GetComponentFromURL(const dmMessage::URL& url, void** world);
 
     /**
      * Get current game object instance from the lua state, if any.

@@ -138,6 +138,12 @@ public:
 	/// Evaluate this contact with your own manifold and transforms.
 	virtual void Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB) = 0;
 
+	// Defold mod: The Create/Destroy functions were protected members
+	static b2Contact* Create(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB, b2BlockAllocator* allocator);
+	static void Destroy(b2Contact* contact, b2BlockAllocator* allocator);
+	// Defold mod: Checks to see if the fixture order should be swapped
+	static bool IsPrimary(b2Shape::Type type1, b2Shape::Type type2);
+
 protected:
 	friend class b2ContactManager;
 	friend class b2World;
@@ -173,9 +179,7 @@ protected:
 	static void AddType(b2ContactCreateFcn* createFcn, b2ContactDestroyFcn* destroyFcn,
 						b2Shape::Type typeA, b2Shape::Type typeB);
 	static void InitializeRegisters();
-	static b2Contact* Create(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB, b2BlockAllocator* allocator);
 	static void Destroy(b2Contact* contact, b2Shape::Type typeA, b2Shape::Type typeB, b2BlockAllocator* allocator);
-	static void Destroy(b2Contact* contact, b2BlockAllocator* allocator);
 
 	b2Contact() : m_fixtureA(NULL), m_fixtureB(NULL) {}
 	b2Contact(b2Fixture* fixtureA, int32 indexA, b2Fixture* fixtureB, int32 indexB);

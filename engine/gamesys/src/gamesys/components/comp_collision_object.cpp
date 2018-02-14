@@ -38,7 +38,8 @@ namespace dmGameSystem
             dmPhysics::HWorld2D m_World2D;
             dmPhysics::HWorld3D m_World3D;
         };
-        uint8_t m_ComponentIndex;
+        PhysicsContext* m_PhysicsContext;
+        uint8_t m_ComponentIndex;   // The component type index
         uint8_t m_3D : 1;
     };
 
@@ -112,6 +113,7 @@ namespace dmGameSystem
             world->m_World3D = dmPhysics::NewWorld3D(physics_context->m_Context3D, world_params);
         else
             world->m_World2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
+        world->m_PhysicsContext = physics_context;
         world->m_ComponentIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
         *params.m_World = world;
@@ -156,7 +158,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask)
+    uint64_t GetLSBGroupHash(CollisionWorld* world, uint16_t mask)
     {
         if (mask > 0)
         {
@@ -1010,5 +1012,30 @@ namespace dmGameSystem
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash)
     {
         return GetGroupBitIndex((CollisionWorld*)world, group_hash);
+    }
+
+    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        return (void*)*params.m_UserData;
+    }
+
+    PhysicsContext* CompCollisionGetPhysicsContext(const CollisionWorld* world)
+    {
+        return world->m_PhysicsContext;
+    }
+
+    dmPhysics::HCollisionObject2D CompCollisionGetCollisionObject2D(const CollisionComponent* component)
+    {
+        return component->m_Object2D;
+    }
+
+    dmPhysics::HCollisionObject3D CompCollisionGetCollisionObject3D(const CollisionComponent* component)
+    {
+        return component->m_Object3D;
+    }
+
+    dmGameObject::HInstance CompCollisionGetGameObject(const CollisionComponent* component)
+    {
+        return component->m_Instance;
     }
 }

@@ -427,6 +427,12 @@ void b2Body::SetTransform(const b2Vec2& position, float32 angle)
 	m_world->m_contactManager.FindNewContacts();
 }
 
+// Defold mod
+void b2Body::SetTransformNoUpdate(const b2Transform& xf)
+{
+	m_xf = xf;
+}
+
 void b2Body::SynchronizeFixtures()
 {
 	b2Transform xf1;

@@ -252,3 +252,8 @@ void b2Contact::Update(b2ContactListener* listener)
 		listener->PreSolve(this, &oldManifold);
 	}
 }
+
+bool b2Contact::IsPrimary(b2Shape::Type type1, b2Shape::Type type2)
+{
+	return s_registers[type1][type2].primary;
+}

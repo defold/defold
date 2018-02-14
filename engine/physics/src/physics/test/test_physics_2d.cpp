@@ -101,6 +101,7 @@ Test2D::Test2D()
 , m_RequestRayCastFunc(dmPhysics::RequestRayCast2D)
 , m_SetDebugCallbacksFunc(dmPhysics::SetDebugCallbacks2D)
 , m_ReplaceShapeFunc(dmPhysics::ReplaceShape2D)
+, m_ContactPointTestFunc(dmPhysics::ContactPointTest2D)
 , m_Vertices(new float[3*2])
 , m_VertexCount(3)
 , m_PolygonRadius(b2_polygonRadius)
@@ -547,7 +548,7 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
     dmPhysics::DeleteHullSet2D(hull_set);
 }
 
-// We changed tilegrids from doind edge checks to polygon checks
+// We changed tilegrids from doing edge checks to polygon checks
 // in order to get more solid collisions
 TYPED_TEST(PhysicsTest, PolygonShape)
 {
@@ -1243,6 +1244,297 @@ TYPED_TEST(PhysicsTest, GridShapeFlipped)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
     dmPhysics::DeleteHullSet2D(hull_set);
+}
+
+
+struct ContactPointTestUserData
+{
+    int m_Count;
+    dmPhysics::ContactPoint m_LastCP;
+};
+
+static void ContactPointTestCallback(const dmPhysics::ContactPoint& cp, void* user_ctx)
+{
+    ContactPointTestUserData* user_data = (ContactPointTestUserData*)user_ctx;
+    user_data->m_Count++;
+    user_data->m_LastCP = cp;
+}
+
+TYPED_TEST(PhysicsTest, ContactTestBox)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    vo_a.m_Position = Point3(5.0f, 5.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 2.0f, 0.0f));
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setY(1.5f);
+    vo_b.m_Scale = 1.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    ContactPointTestUserData ctx;
+
+    Quat rotation = Quat::rotation(1, Vector3::xAxis());
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(0,0,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,1.5,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5.5,5,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(2, ctx.m_Count);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+TYPED_TEST(PhysicsTest, ContactTestSphere)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    vo_a.m_Position = Point3(5.0f, 5.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.0f);
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Scale = 1.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.0f);
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    ContactPointTestUserData ctx;
+    ctx.m_Count = 0;
+
+    Quat rotation = Quat::rotation(1, Vector3::xAxis());
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(0,0,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,2,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,3.5,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(1, ctx.m_Count);
+    ASSERT_EQ(4.25f, ctx.m_LastCP.m_PositionA.getY());
+    ASSERT_EQ(4.25f, ctx.m_LastCP.m_PositionB.getY());
+    ASSERT_EQ(0.5f, ctx.m_LastCP.m_Distance);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,3,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(1, ctx.m_Count);
+    ASSERT_EQ(4.0f, ctx.m_LastCP.m_PositionA.getY());
+    ASSERT_EQ(4.0f, ctx.m_LastCP.m_PositionB.getY());
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Distance);
+
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+
+TYPED_TEST(PhysicsTest, ContactTestBoxSphere)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    vo_a.m_Position = Point3(5.0f, 5.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 2.0f, 0.0f));
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Scale = 1.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.0f);
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    ContactPointTestUserData ctx;
+    ctx.m_Count = 0;
+
+    Quat rotation = Quat::rotation(1, Vector3::xAxis());
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,1,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,2,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(1, ctx.m_Count);
+    ASSERT_NEAR(3.0f, ctx.m_LastCP.m_PositionA.getY(), 0.02f);
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Normal.getX());
+    ASSERT_EQ(-1.0f, ctx.m_LastCP.m_Normal.getY());
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Distance);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(3,4,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(3.5,4,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(1, ctx.m_Count);
+    ASSERT_NEAR(4.5f, ctx.m_LastCP.m_PositionA.getX(), 0.02f);
+    ASSERT_EQ(-1.0f, ctx.m_LastCP.m_Normal.getX());
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Normal.getY());
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Distance);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+TYPED_TEST(PhysicsTest, ContactTestSphereBox)
+{
+    VisualObject vo_a;
+    dmPhysics::CollisionObjectData data;
+    vo_a.m_Position = Point3(5.0f, 5.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.0f);
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    VisualObject vo_b;
+    vo_b.m_Position.setY(1.5f);
+    vo_b.m_Scale = 1.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(0.5f, 0.5f, 0.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    ContactPointTestUserData ctx;
+    ctx.m_Count = 0;
+
+    Quat rotation = Quat::rotation(1, Vector3::xAxis());
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,1,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,3.5f,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(1, ctx.m_Count);
+    ASSERT_NEAR(4.0f, ctx.m_LastCP.m_PositionA.getY(), 0.02f);
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Normal.getX());
+    ASSERT_EQ(-1.0f, ctx.m_LastCP.m_Normal.getY());
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Distance);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(3,7,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,6.5f,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(1, ctx.m_Count);
+    ASSERT_NEAR(6.0f, ctx.m_LastCP.m_PositionA.getY(), 0.02f);
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Normal.getX());
+    ASSERT_EQ(1.0f, ctx.m_LastCP.m_Normal.getY());
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Distance);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+}
+
+
+TYPED_TEST(PhysicsTest, ContactTestTileGridSphere)
+{
+    int32_t rows = 1;
+    int32_t columns = 2;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    VisualObject vo_a;
+    vo_a.m_Position = Point3(0, 0, 0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+
+    // The tile center is (0,0)
+    const float hull_vertices[] = {-0.5f, -0.5f,
+                                    0.5f, -0.5f,
+                                    0.5f,  0.5f,
+                                   -0.5f,  0.5f};
+
+    const dmPhysics::HullDesc hulls[] = { {0, 4}, {0, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 2);
+    dmPhysics::HCollisionShape2D shape_a = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_a, 1u);
+
+    for (int32_t row = 0; row < rows; ++row)
+    {
+        for (int32_t col = 0; col < columns; ++col)
+        {
+            dmPhysics::SetGridShapeHull(static_co, 0, row, col, 0, EMPTY_FLAGS);
+        }
+    }
+
+    VisualObject vo_b;
+    vo_b.m_Scale = 1.0f;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
+    data.m_Mass = 1.0f;
+    data.m_UserData = &vo_b;
+    typename TypeParam::CollisionShapeType shape_b = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, 1.0f);
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape_b, 1u);
+
+    ContactPointTestUserData ctx;
+    ctx.m_Count = 0;
+
+    Quat rotation = Quat::rotation(1, Vector3::xAxis());
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(0,10,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,9.5,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(0, ctx.m_Count);
+
+    ctx.m_Count = 0;
+    (*TestFixture::m_Test.m_ContactPointTestFunc)(TestFixture::m_Context, dynamic_co, Point3(5,9,0), rotation, ContactPointTestCallback, (void*)&ctx );
+    ASSERT_EQ(1, ctx.m_Count);
+    ASSERT_NEAR(8.0f, ctx.m_LastCP.m_PositionA.getY(), 0.02f);
+    ASSERT_NEAR(8.0f, ctx.m_LastCP.m_PositionB.getY(), 0.02f);
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Normal.getX());
+    ASSERT_EQ(1.0f, ctx.m_LastCP.m_Normal.getY());
+    ASSERT_EQ(0.0f, ctx.m_LastCP.m_Distance);
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
 }
 
 int main(int argc, char **argv)

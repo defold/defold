@@ -106,6 +106,7 @@ struct Funcs
     typedef void (*RequestRayCastFunc)(typename T::WorldType world, const dmPhysics::RayCastRequest& request);
     typedef void (*SetDebugCallbacks)(typename T::ContextType context, const dmPhysics::DebugCallbacks& callbacks);
     typedef void (*ReplaceShapeFunc)(typename T::ContextType context, typename T::CollisionShapeType old_shape, typename T::CollisionShapeType new_shape);
+    typedef void (*ContactPointTestFunc)(typename T::ContextType context, typename T::CollisionObjectType object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, dmPhysics::ContactPointTestCallback callback, void* user_ctx);
 };
 
 struct Test3D
@@ -207,6 +208,7 @@ struct Test2D
     Funcs<Test2D>::RequestRayCastFunc               m_RequestRayCastFunc;
     Funcs<Test2D>::SetDebugCallbacks                m_SetDebugCallbacksFunc;
     Funcs<Test2D>::ReplaceShapeFunc                 m_ReplaceShapeFunc;
+    Funcs<Test2D>::ContactPointTestFunc             m_ContactPointTestFunc;
 
     float*      m_Vertices;
     uint32_t    m_VertexCount;

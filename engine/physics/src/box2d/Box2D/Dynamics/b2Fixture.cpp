@@ -359,3 +359,15 @@ void b2Fixture::Dump(int32 bodyIndex)
 	b2Log("\n");
 	b2Log("    bodies[%d]->CreateFixture(&fd);\n", bodyIndex);
 }
+
+
+// DEFOLD modifications
+int32 b2Fixture::GetNumProxies() const
+{
+	return m_proxyCount;
+}
+
+const b2FixtureProxy* b2Fixture::GetProxy(int32 index) const
+{
+	return &m_proxies[index];
+}

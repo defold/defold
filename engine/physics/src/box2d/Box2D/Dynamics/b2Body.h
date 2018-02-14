@@ -160,6 +160,10 @@ public:
 	/// @param angle the world rotation in radians.
 	void SetTransform(const b2Vec2& position, float32 angle);
 
+	/// Defold mod: In order to do ad hoc collision testing, we need to be able to temporarily set the transform
+	/// without changing the state in the body/world
+	void SetTransformNoUpdate(const b2Transform& xf);
+
 	/// Get the body transform for the body's origin.
 	/// @return the world transform of the body's origin.
 	const b2Transform& GetTransform() const;

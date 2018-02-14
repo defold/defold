@@ -485,7 +485,7 @@ namespace dmGameObject
         return collection ? *collection : 0;
     }
 
-    void* GetComponentFromURL(const dmMessage::URL& url)
+    void* GetComponentFromURL(const dmMessage::URL& url, void** out_world)
     {
         HCollection collection = GetCollectionFromURL(url);
         if (!collection) {
@@ -502,12 +502,16 @@ namespace dmGameObject
         // For loop over all components in the instance
         dmGameObject::GetComponentUserData(*instance, url.m_Fragment, &type_index, &user_data);
 
-        void* world = collection->m_ComponentWorlds[type_index];
-
         ComponentType* type = &g_Register->m_ComponentTypes[type_index];
         if (!type->m_GetFunction) {
             return 0;
         }
+
+        void* world = collection->m_ComponentWorlds[type_index];
+        if (out_world) {
+            *out_world = world;
+        }
+
         ComponentGetParams params = {world, &user_data};
         return type->m_GetFunction(params);
     }
