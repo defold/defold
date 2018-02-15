@@ -112,24 +112,25 @@
 
 (deftest open-project
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
-          ^File project-directory (workspace/project-path workspace)
-          server (test-util/->lib-server)
-          url (test-util/lib-server-url server "lib_resource_project")
-          game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
-      (write-deps! game-project-res url)
-      (let [project (project/open-project! world workspace game-project-res progress/null-render-progress! nil)
-            ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
-            int-gui (test-util/resource-node project "/gui/empty.gui")]
-        (is (some? ext-gui))
-        (is (some? int-gui))
-        (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template nil)]
-          (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
-                                                    :overrides {}}))
-        (let [original (:node-id (test-util/outline ext-gui [0 0]))
-              or (:node-id (test-util/outline int-gui [0 0 0]))]
-          (is (= [or] (g/overrides original)))))
-      (test-util/kill-lib-server server))))
+    (test-util/with-ui-run-later-rebound
+      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
+            ^File project-directory (workspace/project-path workspace)
+            server (test-util/->lib-server)
+            url (test-util/lib-server-url server "lib_resource_project")
+            game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
+        (write-deps! game-project-res url)
+        (let [project (project/open-project! world workspace game-project-res progress/null-render-progress! nil)
+              ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
+              int-gui (test-util/resource-node project "/gui/empty.gui")]
+          (is (some? ext-gui))
+          (is (some? int-gui))
+          (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template nil)]
+            (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
+                                                      :overrides {}}))
+          (let [original (:node-id (test-util/outline ext-gui [0 0]))
+                or (:node-id (test-util/outline int-gui [0 0 0]))]
+            (is (= [or] (g/overrides original)))))
+        (test-util/kill-lib-server server)))))
 
 (defn- fetch-validate-install-libraries! [workspace library-urls render-fn login-fn]
   (when (workspace/dependencies-reachable? library-urls login-fn)
