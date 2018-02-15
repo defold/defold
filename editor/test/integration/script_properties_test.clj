@@ -15,7 +15,7 @@
             [integration.test-util :as tu]
             [support.test-support :refer [with-clean-system]])
   (:import (java.io ByteArrayOutputStream)
-           (com.dynamo.gameobject.proto GameObject$PrototypeDesc)
+           (com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc)
            (com.dynamo.lua.proto Lua$LuaModule)))
 
 (defn- unpack-property-declarations [property-declarations]
@@ -398,7 +398,7 @@
               built-item))
           built-items)))
 
-(deftest edit-resource-script-properties-test
+(deftest edit-script-resource-properties-test
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
@@ -415,10 +415,6 @@
       (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
-        (make-atlas!    "/from-props-game-object.atlas")
-        (make-material! "/from-props-game-object.material")
-        (make-atlas!    "/from-props-collection.atlas")
-        (make-material! "/from-props-collection.material")
         (let [props-script (doto (make-resource-node! "/props.script")
                              (edit-property! :lines ["go.property('material',     material('/from-props-script.material'))"
                                                      "go.property('texture',       texture('/from-props-script.atlas'))"
@@ -523,143 +519,217 @@
                     (is (= (unpack-property-declarations (:properties built-props-script))
                            {"chameleon" (texture-build-resource-path "/from-props-script.atlas")}))
                     (is (= (:property-resources built-props-script)
-                           [(texture-build-resource-path "/from-props-script.atlas")])))))))
+                           [(texture-build-resource-path "/from-props-script.atlas")]))))))))))))
 
-          (testing "Game object overrides"
-            (let [props-game-object (make-resource-node! "/props.go")
-                  props-script-component (add-component! props-game-object props-script)]
+(deftest edit-game-object-resource-properties-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          project-graph (g/node-id->graph-id project)
+          resource (partial tu/resource workspace)
+          build-resource (partial build-resource project)
+          build-resource-path (comp resource/proj-path build-resource)
+          build-output (partial build-output project)
+          texture-build-resource (partial texture-build-resource project)
+          texture-build-resource-path (comp resource/proj-path texture-build-resource)
+          make-atlas! (partial make-atlas! project)
+          make-material! (partial make-material! project)
+          make-resource-node! (partial tu/make-resource-node! project)]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas!    "/from-props-script.atlas")
+        (make-material! "/from-props-script.material")
+        (make-atlas!    "/from-props-game-object.atlas")
+        (make-material! "/from-props-game-object.material")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (edit-property! :lines ["go.property('material',     material('/from-props-script.material'))"
+                                                     "go.property('texture',       texture('/from-props-script.atlas'))"
+                                                     "go.property('textureset', textureset('/from-props-script.atlas'))"]))
+              props-game-object (make-resource-node! "/props.go")
+              props-script-component (add-component! props-game-object props-script)]
 
-              (testing "Before overrides"
-                (let [properties (properties props-script-component)]
-                  (is (material-resource-property?   (:__material properties)   (resource "/from-props-script.material")))
-                  (is (texture-resource-property?    (:__texture properties)    (resource "/from-props-script.atlas")))
-                  (is (textureset-resource-property? (:__textureset properties) (resource "/from-props-script.atlas")))
-                  (is (not (tu/prop-overridden? props-script-component :__material)))
-                  (is (not (tu/prop-overridden? props-script-component :__texture)))
-                  (is (not (tu/prop-overridden? props-script-component :__textureset)))
-                  (is (= (built-resources props-game-object)
-                         #{(build-resource         "/props.go")
-                           (build-resource         "/props.script")
-                           (build-resource         "/from-props-script.atlas")
-                           (texture-build-resource "/from-props-script.atlas")
-                           (build-resource         "/from-props-script.material")
-                           (build-resource         "/from-props-script.fp")
-                           (build-resource         "/from-props-script.vp")}))
+          (testing "Before overrides"
+            (let [properties (properties props-script-component)]
+              (is (material-resource-property?   (:__material properties)   (resource "/from-props-script.material")))
+              (is (texture-resource-property?    (:__texture properties)    (resource "/from-props-script.atlas")))
+              (is (textureset-resource-property? (:__textureset properties) (resource "/from-props-script.atlas")))
+              (is (not (tu/prop-overridden? props-script-component :__material)))
+              (is (not (tu/prop-overridden? props-script-component :__texture)))
+              (is (not (tu/prop-overridden? props-script-component :__textureset)))
+              (is (= (built-resources props-game-object)
+                     #{(build-resource         "/props.go")
+                       (build-resource         "/props.script")
+                       (build-resource         "/from-props-script.atlas")
+                       (texture-build-resource "/from-props-script.atlas")
+                       (build-resource         "/from-props-script.material")
+                       (build-resource         "/from-props-script.fp")
+                       (build-resource         "/from-props-script.vp")}))
+              (with-open [_ (build! props-game-object)]
+                (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))]
+                  (is (empty? (unpack-property-declarations (:properties built-props-game-object))))
+                  (is (empty? (:property-resources built-props-game-object)))))))
+
+          (testing "Overrides do not affect props script"
+            (with-open [_ (tu/make-graph-reverter project-graph)]
+              (edit-property! props-script-component :__material   (resource "/from-props-game-object.material"))
+              (edit-property! props-script-component :__texture    (resource "/from-props-game-object.atlas"))
+              (edit-property! props-script-component :__textureset (resource "/from-props-game-object.atlas"))
+
+              (let [properties (properties props-script)]
+                (is (material-resource-property?   (:__material properties)   (resource "/from-props-script.material")))
+                (is (texture-resource-property?    (:__texture properties)    (resource "/from-props-script.atlas")))
+                (is (textureset-resource-property? (:__textureset properties) (resource "/from-props-script.atlas")))
+                (is (= (built-resources props-script)
+                       #{(build-resource         "/props.script")
+                         (build-resource         "/from-props-script.atlas")
+                         (texture-build-resource "/from-props-script.atlas")
+                         (build-resource         "/from-props-script.material")
+                         (build-resource         "/from-props-script.fp")
+                         (build-resource         "/from-props-script.vp")}))
+                (with-open [_ (build! props-game-object)]
+                  (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                    (is (= (unpack-property-declarations (:properties built-props-script))
+                           {"material"   (build-resource-path         "/from-props-script.material")
+                            "texture"    (texture-build-resource-path "/from-props-script.atlas")
+                            "textureset" (build-resource-path         "/from-props-script.atlas")}))
+                    (is (= (sort (:property-resources built-props-script))
+                           (sort [(build-resource-path         "/from-props-script.material")
+                                  (texture-build-resource-path "/from-props-script.atlas")
+                                  (build-resource-path         "/from-props-script.atlas")]))))))))
+
+          (testing "Overrides"
+            (with-open [_ (tu/make-graph-reverter project-graph)]
+              (let [original-property-values (into {}
+                                                   (map (fn [[prop-kw {:keys [value]}]]
+                                                          [prop-kw value]))
+                                                   (properties props-script))
+                    original-property-resources (map resource/proj-path
+                                                     [(build-resource         "/from-props-script.material")
+                                                      (texture-build-resource "/from-props-script.atlas")
+                                                      (build-resource         "/from-props-script.atlas")])]
+                (doseq [[assigned? prop-kw resource build-resource] [[material-resource-property?   :__material   (resource "/from-props-game-object.material") (build-resource         "/from-props-game-object.material")]
+                                                                     [texture-resource-property?    :__texture    (resource "/from-props-game-object.atlas")    (texture-build-resource "/from-props-game-object.atlas")]
+                                                                     [textureset-resource-property? :__textureset (resource "/from-props-game-object.atlas")    (build-resource         "/from-props-game-object.atlas")]]]
+                  ;; Apply override.
+                  (edit-property! props-script-component prop-kw resource)
+                  (is (tu/prop-overridden? props-script-component prop-kw))
+                  (is (assigned? (get (properties props-script-component) prop-kw) resource))
+                  (is (contains? (built-resources props-game-object) build-resource))
+                  (with-open [_ (build! props-game-object)]
+                    (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                          built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                      (is (= (:property-resources built-props-game-object)
+                             [(resource/proj-path build-resource)]))
+                      (is (= (sort (:property-resources built-props-script))
+                             (sort original-property-resources)))))
+
+                  ;; Clear override.
+                  (reset-property! props-script-component prop-kw)
+                  (is (not (tu/prop-overridden? props-script-component prop-kw)))
+                  (is (assigned? (get (properties props-script-component) prop-kw) (original-property-values prop-kw)))
+                  (is (not (contains? (built-resources props-game-object) build-resource)))
                   (with-open [_ (build! props-game-object)]
                     (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))]
                       (is (empty? (unpack-property-declarations (:properties built-props-game-object))))
-                      (is (empty? (:property-resources built-props-game-object)))))))
+                      (is (empty? (:property-resources built-props-game-object)))))))))
 
-              (testing "Overrides do not affect props script"
-                (with-open [_ (tu/make-graph-reverter project-graph)]
-                  (edit-property! props-script-component :__material   (resource "/from-props-game-object.material"))
-                  (edit-property! props-script-component :__texture    (resource "/from-props-game-object.atlas"))
-                  (edit-property! props-script-component :__textureset (resource "/from-props-game-object.atlas"))
+          (testing "Property type change texture -> textureset"
+            (with-open [_ (tu/make-graph-reverter project-graph)]
 
-                  (let [properties (properties props-script)]
-                    (is (material-resource-property?   (:__material properties)   (resource "/from-props-script.material")))
-                    (is (texture-resource-property?    (:__texture properties)    (resource "/from-props-script.atlas")))
-                    (is (textureset-resource-property? (:__textureset properties) (resource "/from-props-script.atlas")))
-                    (is (= (built-resources props-script)
-                           #{(build-resource         "/props.script")
-                             (build-resource         "/from-props-script.atlas")
-                             (texture-build-resource "/from-props-script.atlas")
-                             (build-resource         "/from-props-script.material")
-                             (build-resource         "/from-props-script.fp")
-                             (build-resource         "/from-props-script.vp")}))
-                    (with-open [_ (build! props-game-object)]
-                      (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
-                        (is (= (unpack-property-declarations (:properties built-props-script))
-                               {"material"   (build-resource-path         "/from-props-script.material")
-                                "texture"    (texture-build-resource-path "/from-props-script.atlas")
-                                "textureset" (build-resource-path         "/from-props-script.atlas")}))
-                        (is (= (sort (:property-resources built-props-script))
-                               (sort [(build-resource-path         "/from-props-script.material")
-                                      (texture-build-resource-path "/from-props-script.atlas")
-                                      (build-resource-path         "/from-props-script.atlas")]))))))))
+              ;; Set up a script with a single property, referenced from a game object.
+              (edit-property! props-script :lines ["go.property('chameleon', texture('/from-props-script.atlas'))"])
+              (is (texture-resource-property? (:__chameleon (properties props-script-component)) (resource "/from-props-script.atlas")))
+              (is (= (built-resources props-game-object)
+                     #{(build-resource         "/props.go")
+                       (build-resource         "/props.script")
+                       (texture-build-resource "/from-props-script.atlas")}))
+              (with-open [_ (build! props-game-object)]
+                (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))]
+                  (is (empty? (unpack-property-declarations (:properties built-props-game-object))))
+                  (is (empty? (:property-resources built-props-game-object)))))
 
-              (testing "Overrides"
-                (let [original-property-values (into {}
-                                                     (map (fn [[prop-kw {:keys [value]}]]
-                                                            [prop-kw value]))
-                                                     (properties props-script))
-                      original-property-resources (map resource/proj-path
-                                                       [(build-resource         "/from-props-script.material")
-                                                        (texture-build-resource "/from-props-script.atlas")
-                                                        (build-resource         "/from-props-script.atlas")])]
-                  (doseq [[assigned? prop-kw resource build-resource] [[material-resource-property?   :__material   (resource "/from-props-game-object.material") (build-resource         "/from-props-game-object.material")]
-                                                                       [texture-resource-property?    :__texture    (resource "/from-props-game-object.atlas")    (texture-build-resource "/from-props-game-object.atlas")]
-                                                                       [textureset-resource-property? :__textureset (resource "/from-props-game-object.atlas")    (build-resource         "/from-props-game-object.atlas")]]]
-                    (with-open [_ (tu/make-graph-reverter project-graph)]
+              ;; Override the property in the game object.
+              (edit-property! props-script-component :__chameleon (resource "/from-props-game-object.atlas"))
+              (is (texture-resource-property? (:__chameleon (properties props-script-component)) (resource "/from-props-game-object.atlas")))
+              (is (= (built-resources props-game-object)
+                     #{(build-resource         "/props.go")
+                       (build-resource         "/props.script")
+                       (texture-build-resource "/from-props-script.atlas")
+                       (texture-build-resource "/from-props-game-object.atlas")}))
+              (with-open [_ (build! props-game-object)]
+                (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                      built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
+                  (is (= (unpack-property-declarations (:property-decls built-props-script-component))
+                         {"chameleon" (texture-build-resource-path "/from-props-game-object.atlas")}))
+                  (is (= (:property-resources built-props-game-object)
+                         [(texture-build-resource-path "/from-props-game-object.atlas")]))))
 
-                      ;; Apply override.
-                      (edit-property! props-script-component prop-kw resource)
-                      (is (tu/prop-overridden? props-script-component prop-kw))
-                      (is (assigned? (get (properties props-script-component) prop-kw) resource))
-                      (is (contains? (built-resources props-game-object) build-resource))
-                      (with-open [_ (build! props-game-object)]
-                        (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
-                              built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
-                          (is (= (:property-resources built-props-game-object)
-                                 [(resource/proj-path build-resource)]))
-                          (is (= (sort (:property-resources built-props-script))
-                                 (sort original-property-resources)))))
+              ;; Change the type of the property by editing the script code.
+              (edit-property! props-script :lines ["go.property('chameleon', textureset('/from-props-script.atlas'))"])
+              (is (textureset-resource-property? (:__chameleon (properties props-script-component)) (resource "/from-props-game-object.atlas")))
+              (is (= (built-resources props-game-object)
+                     #{(build-resource         "/props.go")
+                       (build-resource         "/props.script")
+                       (build-resource         "/from-props-script.atlas")
+                       (texture-build-resource "/from-props-script.atlas")
+                       (build-resource         "/from-props-game-object.atlas")
+                       (texture-build-resource "/from-props-game-object.atlas")}))
+              (with-open [_ (build! props-game-object)]
+                (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                      built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
+                  (is (= (unpack-property-declarations (:property-decls built-props-script-component))
+                         {"chameleon" (build-resource-path "/from-props-game-object.atlas")}))
+                  (is (= (:property-resources built-props-game-object)
+                         [(build-resource-path "/from-props-game-object.atlas")])))))))))))
 
-                      ;; Clear override.
-                      (reset-property! props-script-component prop-kw)
-                      (is (not (tu/prop-overridden? props-script-component prop-kw)))
-                      (is (assigned? (get (properties props-script-component) prop-kw) (original-property-values prop-kw)))
-                      (is (not (contains? (built-resources props-game-object) build-resource)))
-                      (with-open [_ (build! props-game-object)]
-                        (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))]
-                          (is (empty? (unpack-property-declarations (:properties built-props-game-object))))
-                          (is (empty? (:property-resources built-props-game-object)))))))))
+(deftest edit-collection-resource-properties-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          project-graph (g/node-id->graph-id project)
+          resource (partial tu/resource workspace)
+          build-resource (partial build-resource project)
+          build-resource-path (comp resource/proj-path build-resource)
+          build-output (partial build-output project)
+          texture-build-resource (partial texture-build-resource project)
+          texture-build-resource-path (comp resource/proj-path texture-build-resource)
+          make-atlas! (partial make-atlas! project)
+          make-material! (partial make-material! project)
+          make-resource-node! (partial tu/make-resource-node! project)]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas!    "/from-props-script.atlas")
+        (make-material! "/from-props-script.material")
+        (make-atlas!    "/from-props-game-object.atlas")
+        (make-material! "/from-props-game-object.material")
+        (make-atlas!    "/from-props-collection.atlas")
+        (make-material! "/from-props-collection.material")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (edit-property! :lines ["go.property('material',     material('/from-props-script.material'))"
+                                                     "go.property('texture',       texture('/from-props-script.atlas'))"
+                                                     "go.property('textureset', textureset('/from-props-script.atlas'))"]))
+              props-collection (make-resource-node! "/props.collection")
+              props-game-object (doto (make-resource-node! "/props.go")
+                                  (add-component! props-script))
+              ov-props-game-object (add-game-object! props-collection props-game-object)
+              ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))]
 
-              (testing "Property type change texture -> textureset"
-                (with-open [_ (tu/make-graph-reverter project-graph)]
-
-                  ;; Set up a script with a single property, referenced from a game object.
-                  (edit-property! props-script :lines ["go.property('chameleon', texture('/from-props-script.atlas'))"])
-                  (is (texture-resource-property? (:__chameleon (properties props-script-component)) (resource "/from-props-script.atlas")))
-                  (is (= (built-resources props-game-object)
-                         #{(build-resource         "/props.go")
-                           (build-resource         "/props.script")
-                           (texture-build-resource "/from-props-script.atlas")}))
-                  (with-open [_ (build! props-game-object)]
-                    (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))]
-                      (is (empty? (unpack-property-declarations (:properties built-props-game-object))))
-                      (is (empty? (:property-resources built-props-game-object)))))
-
-                  ;; Override the property in the game object.
-                  (edit-property! props-script-component :__chameleon (resource "/from-props-game-object.atlas"))
-                  (is (texture-resource-property? (:__chameleon (properties props-script-component)) (resource "/from-props-game-object.atlas")))
-                  (is (= (built-resources props-game-object)
-                         #{(build-resource         "/props.go")
-                           (build-resource         "/props.script")
-                           (texture-build-resource "/from-props-script.atlas")
-                           (texture-build-resource "/from-props-game-object.atlas")}))
-                  (with-open [_ (build! props-game-object)]
-                    (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
-                          built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
-                      (is (= (unpack-property-declarations (:property-decls built-props-script-component))
-                             {"chameleon" (texture-build-resource-path "/from-props-game-object.atlas")}))
-                      (is (= (:property-resources built-props-game-object)
-                             [(texture-build-resource-path "/from-props-game-object.atlas")]))))
-
-                  ;; Change the type of the property by editing the script code.
-                  (edit-property! props-script :lines ["go.property('chameleon', textureset('/from-props-script.atlas'))"])
-                  (is (textureset-resource-property? (:__chameleon (properties props-script-component)) (resource "/from-props-game-object.atlas")))
-                  (is (= (built-resources props-game-object)
-                         #{(build-resource         "/props.go")
-                           (build-resource         "/props.script")
-                           (build-resource         "/from-props-script.atlas")
-                           (texture-build-resource "/from-props-script.atlas")
-                           (build-resource         "/from-props-game-object.atlas")
-                           (texture-build-resource "/from-props-game-object.atlas")}))
-                  (with-open [_ (build! props-game-object)]
-                    (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
-                          built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)]
-                      (is (= (unpack-property-declarations (:property-decls built-props-script-component))
-                             {"chameleon" (build-resource-path "/from-props-game-object.atlas")}))
-                      (is (= (:property-resources built-props-game-object)
-                             [(build-resource-path "/from-props-game-object.atlas")])))))))))))))
+          (testing "Before overrides"
+            (let [properties (properties ov-props-script-component)]
+              (is (material-resource-property?   (:__material properties)   (resource "/from-props-script.material")))
+              (is (texture-resource-property?    (:__texture properties)    (resource "/from-props-script.atlas")))
+              (is (textureset-resource-property? (:__textureset properties) (resource "/from-props-script.atlas")))
+              (is (not (tu/prop-overridden? ov-props-script-component :__material)))
+              (is (not (tu/prop-overridden? ov-props-script-component :__texture)))
+              (is (not (tu/prop-overridden? ov-props-script-component :__textureset)))
+              (is (= (built-resources props-collection)
+                     #{(build-resource         "/props.collection")
+                       (build-resource         "/props.go")
+                       (build-resource         "/props.script")
+                       (build-resource         "/from-props-script.atlas")
+                       (texture-build-resource "/from-props-script.atlas")
+                       (build-resource         "/from-props-script.material")
+                       (build-resource         "/from-props-script.fp")
+                       (build-resource         "/from-props-script.vp")}))
+              (with-open [_ (build! props-collection)]
+                (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))]
+                  (is (empty? (unpack-property-declarations (:properties built-props-collection))))
+                  (is (empty? (:property-resources built-props-collection))))))))))))
