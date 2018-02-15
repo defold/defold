@@ -16,8 +16,6 @@ public:
 	~b2GridAndPolygonContact() {}
 
 	void Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB);
-
-	uint32 m_edgeMask;
 };
 
 #endif
