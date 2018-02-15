@@ -1011,7 +1011,10 @@ instructions.configure=\
 
         cwd = join(self.defold_root, 'editor')
 
-        self.exec_env_command(cmd, cwd = cwd)
+        process = subprocess.Popen(cmd, env = self._form_env(), cwd = cwd)
+
+        if process.wait() != 0:
+            sys.exit(process.returncode)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
