@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
+	<classpathentry exported="true" kind="lib" path="ext/aws/aws-java-sdk-s3-1.11.80.jar"/>
+	<classpathentry exported="true" kind="lib" path="ext/aws/aws-java-sdk-core-1.11.80.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/commons-codec-1.10.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/httpclient-4.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/aws/httpcore-4.4.4.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/aws/httpmime-4.5.2.jar"/>
-	<classpathentry exported="true" kind="lib" path="ext/aws/aws-java-sdk-1.11.80.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/aws/commons-logging-1.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/aws/fluent-hc-4.5.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="ext/aws/httpclient-cache-4.5.2.jar"/>

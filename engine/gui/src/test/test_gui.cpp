@@ -4839,6 +4839,7 @@ TEST_F(dmGuiTest, SpineNodeSetCursor)
     rig_scene_desc.m_Skeleton = m_Skeleton;
     rig_scene_desc.m_MeshSet = m_MeshSet;
     rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
@@ -4868,6 +4869,7 @@ TEST_F(dmGuiTest, SpineNodeGetCursor)
     rig_scene_desc.m_Skeleton = m_Skeleton;
     rig_scene_desc.m_MeshSet = m_MeshSet;
     rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
@@ -4896,6 +4898,7 @@ TEST_F(dmGuiTest, SpineNodeSetPlaybackRate)
     rig_scene_desc.m_Skeleton = m_Skeleton;
     rig_scene_desc.m_MeshSet = m_MeshSet;
     rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
@@ -4925,6 +4928,7 @@ TEST_F(dmGuiTest, SpineNodeGetPlaybackRate)
     rig_scene_desc.m_Skeleton = m_Skeleton;
     rig_scene_desc.m_MeshSet = m_MeshSet;
     rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
