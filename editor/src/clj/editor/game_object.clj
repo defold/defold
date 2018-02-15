@@ -180,15 +180,15 @@
                                     true (assoc :transform transform
                                            :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
                                     updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
-  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
+  (output build-resource resource/Resource :abstract)
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets resource-property-build-targets build-resource ddf-message transform]
                                         (if-let [source-build-target (first source-build-targets)]
                                           (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets (:properties ddf-message))
                                                 build-target (-> source-build-target
                                                                  (assoc :resource build-resource)
                                                                  (wrap-if-raw-sound _node-id)
-                                                                 (update :deps (partial into go-prop-dep-build-targets))
                                                                  (assoc :instance-data {:resource (:resource source-build-target)
+                                                                                        :resource-property-build-targets go-prop-dep-build-targets
                                                                                         :transform transform
                                                                                         :instance-msg (if (seq go-props)
                                                                                                         (assoc ddf-message :properties go-props)
@@ -314,6 +314,7 @@
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
 
   (input source-id g/NodeID :cascade-delete)
+  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output ddf-properties g/Any :cached
           (g/fnk [source-properties]
                  (let [prop-order (into {} (map-indexed (fn [i k] [k i])) (:display-order source-properties))]
@@ -353,11 +354,15 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-      [{:node-id _node-id
-        :resource (workspace/make-build-resource resource)
-        :build-fn build-game-object
-        :user-data {:proto-msg proto-msg :instance-data (map :instance-data (flatten dep-build-targets))}
-        :deps (flatten dep-build-targets)}]))
+      (let [instance-data (map :instance-data (flatten dep-build-targets))]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-game-object
+          :user-data {:proto-msg proto-msg :instance-data instance-data}
+          :deps (into (vec (flatten dep-build-targets))
+                      (comp (mapcat :resource-property-build-targets)
+                            (distinct))
+                      instance-data)}])))
 
 (g/defnk produce-scene [_node-id child-scenes]
   {:node-id _node-id

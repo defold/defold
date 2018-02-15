@@ -11,7 +11,6 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
-            [editor.types :as t]
             [editor.workspace :as workspace])
   (:import (com.dynamo.lua.proto Lua$LuaModule)
            (com.google.protobuf ByteString)))
@@ -131,7 +130,7 @@
     (luajit/bytecode (data/lines-reader lines) (resource/proj-path resource))
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error _node-id :code :fatal e (.getMessage e)
+        (g/->error _node-id :lines :fatal e (.getMessage e)
                    {:filename filename
                     :line     line
                     :message  message})))))
@@ -151,9 +150,11 @@
                                     :properties (properties/go-props->decls go-props)
                                     :property-resources (properties/go-prop-resource-paths go-props)})}))
 
-(g/defnk produce-build-targets [_node-id _properties resource lines bytecode modules module-build-targets resource-property-build-targets]
-  (let [unresolved-go-props (keep properties/property-entry->go-prop (:properties _properties))
-        [go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets unresolved-go-props)]
+(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules module-build-targets original-resource-property-build-targets]
+  ;; NOTE: This build target should contain the non-overridden property values from the code.
+  ;; Since this build target is shared, overrides belong in the instancing build targets.
+  (let [unresolved-go-props (keep properties/property-entry->go-prop (:properties user-properties))
+        [go-props go-prop-dep-build-targets] (properties/build-target-go-props original-resource-property-build-targets unresolved-go-props)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-script
@@ -186,6 +187,7 @@
   (input module-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
   (input resource-property-build-targets g/Any :array)
+  (input original-resource-property-build-targets g/Any :array)
 
   (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
@@ -223,13 +225,16 @@
   (property script-properties g/Any
             (default [])
             (dynamic visible (g/constantly false))
-            (set (fn [_evaluation-context self _old-value new-value]
-                   (g/set-property self :property-resources
-                                   (into {}
-                                         (keep (fn [{:keys [name type value]}]
-                                                 (when (= :property-type-resource type)
-                                                   [(properties/user-name->key name) value])))
-                                         new-value)))))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)]
+                     (concat
+                       (gu/disconnect-all basis self :original-resource-property-build-targets)
+                       (for [{:keys [type value]} new-value
+                             :when (= :property-type-resource type)
+                             :when (some? value)]
+                         (project/connect-resource-node project value self
+                                                        [[:build-targets :original-resource-property-build-targets]])))))))
 
   (property property-resources g/Any
             (default {})

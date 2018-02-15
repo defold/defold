@@ -251,14 +251,14 @@
 (defn- ->decl [keys]
   (into {} (map (fn [k] [k (transient [])]) keys)))
 
-(def ^:private type->entry-keys {:property-type-number [:number-entries :float-values]
-                                 :property-type-hash [:hash-entries :hash-values]
-                                 :property-type-url [:url-entries :string-values]
-                                 :property-type-vector3 [:vector3-entries :float-values]
-                                 :property-type-vector4 [:vector4-entries :float-values]
-                                 :property-type-quat [:quat-entries :float-values]
-                                 :property-type-boolean [:bool-entries :float-values]
-                                 :property-type-resource [:resource-entries :string-values]})
+(def type->entry-keys {:property-type-number [:number-entries :float-values]
+                       :property-type-hash [:hash-entries :hash-values]
+                       :property-type-url [:url-entries :string-values]
+                       :property-type-vector3 [:vector3-entries :float-values]
+                       :property-type-vector4 [:vector4-entries :float-values]
+                       :property-type-quat [:quat-entries :float-values]
+                       :property-type-boolean [:bool-entries :float-values]
+                       :property-type-resource [:resource-entries :string-values]})
 
 (defn append-values! [values vs]
   (loop [vs vs
@@ -620,6 +620,9 @@
 (defn build-go-props [dep-resources go-props-with-build-resources]
   (let [build-resource->fused-build-resource (fn [build-resource]
                                                (when (some? build-resource)
+                                                 (when-not (workspace/build-resource? build-resource)
+                                                   (throw (ex-info (format ":clj-value field in resource go-prop \"%s\" should be a build resource, got " (pr-str build-resource))
+                                                                   {:resource-reference build-resource})))
                                                  (or (dep-resources build-resource)
                                                      (throw (ex-info (str "unable to resolve fused build resource from referenced " (pr-str build-resource))
                                                                      {:resource-reference build-resource})))))

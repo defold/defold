@@ -528,16 +528,44 @@
   (game-object/add-embedded-component-handler {:_node-id go-id :resource-type resource-type} select-fn)
   (first (selection app-view)))
 
+(defonce ^:private png-image-bytes
+  ;; Bytes representing a single-color 256 by 256 pixel PNG file.
+  ;; Source: https://www.mjt.me.uk/posts/smallest-png/
+  (byte-array [0x89 0x50 0x4E 0x47  0x0D 0x0A 0x1A 0x0A  0x00 0x00 0x00 0x0D  0x49 0x48 0x44 0x52
+               0x00 0x00 0x01 0x00  0x00 0x00 0x01 0x00  0x01 0x03 0x00 0x00  0x00 0x66 0xBC 0x3A
+               0x25 0x00 0x00 0x00  0x03 0x50 0x4C 0x54  0x45 0xB5 0xD0 0xD0  0x63 0x04 0x16 0xEA
+               0x00 0x00 0x00 0x1F  0x49 0x44 0x41 0x54  0x68 0x81 0xED 0xC1  0x01 0x0D 0x00 0x00
+               0x00 0xC2 0xA0 0xF7  0x4F 0x6D 0x0E 0x37  0xA0 0x00 0x00 0x00  0x00 0x00 0x00 0x00
+               0x00 0xBE 0x0D 0x21  0x00 0x00 0x01 0x9A  0x60 0xE1 0xD5 0x00  0x00 0x00 0x00 0x49
+               0x45 0x4E 0x44 0xAE  0x42 0x60 0x82]))
+
+(defn make-png-resource!
+  [workspace proj-path]
+  "Adds a PNG image file to the workspace. Returns the created FileResource."
+  (assert (integer? workspace))
+  (assert (.startsWith proj-path "/"))
+  (let [resource (workspace/file-resource workspace proj-path)]
+    (with-open [out (io/output-stream resource)]
+      (.write out png-image-bytes))
+    resource))
+
+(defn make-resource!
+  "Adds a new file to the workspace. Returns the created FileResource."
+  [workspace proj-path]
+  (assert (integer? workspace))
+  (assert (.startsWith proj-path "/"))
+  (let [resource (workspace/file-resource workspace proj-path)
+        resource-type (resource/resource-type resource)
+        template (workspace/template resource-type)]
+    (spit resource template)
+    resource))
+
 (defn make-resource-node!
   "Adds a new file to the project. Returns the node-id of the created resource."
   [project proj-path]
   (assert (integer? project))
-  (assert (.startsWith proj-path "/"))
   (let [workspace (project/workspace project)
-        resource (workspace/file-resource workspace proj-path)
-        resource-type (resource/resource-type resource)
-        template (workspace/template resource-type)]
-    (spit resource template)
+        resource (make-resource! workspace proj-path)]
     (workspace/resource-sync! workspace)
     (project/get-resource-node project resource)))
 
@@ -565,4 +593,3 @@
                  (g/node-value material-node :shader)))
           (is (= (get-in scene-data (conj gpu-texture-path :params))
                    (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
-

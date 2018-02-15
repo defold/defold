@@ -75,7 +75,8 @@
             (dynamic read-only? (g/constantly true)))
   (input base-url g/Str)
   (input source-id g/NodeID :cascade-delete)
-  (input id-counts g/Any))
+  (input id-counts g/Any)
+  (input resource-property-build-targets g/Any))
 
 (defn- child-go-go [go-id child-id]
   (for [[from to] [[:_node-id :nodes]
@@ -169,7 +170,6 @@
   (input child-ids g/Str :array)
 
   (input ddf-component-properties g/Any :substitute [])
-  (input resource-property-build-targets g/Any)
   (input source-outline outline/OutlineData :substitute source-outline-subst)
   (output source-outline outline/OutlineData (gu/passthrough source-outline))
 
@@ -299,15 +299,13 @@
                                                                                  id-mapping))]
                                                             (concat
                                                               (:tx-data override)
-                                                              (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                                (for [[from to] [[:_node-id                        :source-id]
-                                                                                 [:resource                        :source-resource]
-                                                                                 [:node-outline                    :source-outline]
-                                                                                 [:scene                           :scene]
-                                                                                 [:ddf-component-properties        :ddf-component-properties]
-                                                                                 [:resource-property-build-targets :resource-property-build-targets]]
-                                                                      :when (contains? outputs from)]
-                                                                  (g/connect or-node from self to)))
+                                                              (for [[from to] [[:_node-id                        :source-id]
+                                                                               [:resource                        :source-resource]
+                                                                               [:node-outline                    :source-outline]
+                                                                               [:scene                           :scene]
+                                                                               [:ddf-component-properties        :ddf-component-properties]
+                                                                               [:resource-property-build-targets :resource-property-build-targets]]]
+                                                                (g/connect or-node from self to))
                                                               (for [[from to] [[:build-targets :source-build-targets]]]
                                                                 (g/connect go-node from self to))
                                                               (for [[from to] [[:url :base-url]]]
@@ -463,25 +461,33 @@
         (vals)
         (vec))))
 
-(defn- flatten-instance-data [data base-id ^Matrix4d base-transform all-child-ids ddf-properties]
+(defn- flatten-instance-data [data base-id ^Matrix4d base-transform all-child-ids ddf-properties resource-property-build-targets]
   (let [{:keys [resource instance-msg ^Matrix4d transform]} data
         {:keys [id children component-properties]} instance-msg
-        is-child? (contains? all-child-ids id)
+        component-property-entries (map (fn [entry]
+                                          (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets (:properties entry))]
+                                            (assoc entry
+                                              :properties go-props
+                                              :_dep-build-targets go-prop-dep-build-targets)))
+                                        (merge-component-properties component-properties (ddf-properties id)))
+        component-properties (mapv #(dissoc % :_dep-build-targets) component-property-entries)
+        component-property-dep-build-targets (into [] (mapcat :_dep-build-targets) component-property-entries)
         instance-msg {:id (str base-id id)
                       :children (map #(str base-id %) children)
-                      :component-properties (merge-component-properties component-properties (ddf-properties id))}
+                      :component-properties component-properties}
+        is-child? (contains? all-child-ids id)
         transform (if is-child?
                     transform
                     (doto (Matrix4d. transform) (.mul base-transform transform)))]
     {:resource resource :instance-msg instance-msg :transform transform}))
 
-(g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets ddf-properties]
+(g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets ddf-properties resource-property-build-targets]
   (or (path-error _node-id source-resource)
       (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
             base-id (str id path-sep)
             instance-data (get-in build-targets [0 :user-data :instance-data])
             child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
-        (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties) instance-data)))))
+        (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties resource-property-build-targets) instance-data)))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id
@@ -549,15 +555,13 @@
                                                         or-node (get id-mapping coll-node)]
                                                     (concat
                                                       (:tx-data override)
-                                                      (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                        (for [[from to] [[:_node-id       :source-id]
-                                                                         [:resource       :source-resource]
-                                                                         [:node-outline   :source-outline]
-                                                                         [:scene          :scene]
-                                                                         [:ddf-properties :ddf-properties]
-                                                                         [:go-inst-ids    :go-inst-ids]]
-                                                              :when (contains? outputs from)]
-                                                          (g/connect or-node from self to)))
+                                                      (for [[from to] [[:_node-id                        :source-id]
+                                                                       [:resource                        :source-resource]
+                                                                       [:node-outline                    :source-outline]
+                                                                       [:scene                           :scene]
+                                                                       [:ddf-properties                  :ddf-properties]
+                                                                       [:go-inst-ids                     :go-inst-ids]]]
+                                                        (g/connect or-node from self to))
                                                       (for [[from to] [[:build-targets :build-targets]]]
                                                         (g/connect coll-node from self to))
                                                       (for [[from to] [[:url :base-url]]]
