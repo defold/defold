@@ -258,14 +258,19 @@
      (let [~'path              ~path
            ~'resource-node     (test-util/resource-node ~'project ~path)
            evaluation-context# (g/make-evaluation-context)
-           ~'build-results     (project/build ~'project ~'resource-node evaluation-context# {})
-           ~'_ (g/update-cache-from-evaluation-context! evaluation-context#)
+           old-artifact-map#   (workspace/artifact-map ~'workspace)
+           ~'build-results     (project/build ~'project ~'resource-node evaluation-context# nil old-artifact-map# progress/null-render-progress!)
+           ~'build-artifacts   (:artifacts ~'build-results)
+           ~'_                 (when-not (contains? ~'build-results :error)
+                                 (workspace/artifact-map! ~'workspace (:artifact-map ~'build-results))
+                                 (workspace/etags! ~'workspace (:etags ~'build-results)))
+           ~'_                 (g/update-cache-from-evaluation-context! evaluation-context#)
            ~'content-by-source (into {} (keep #(when-let [~'r (:resource (:resource %))]
                                                  [(resource/proj-path ~'r) (content-bytes %)])
-                                              ~'build-results))
+                                              ~'build-artifacts))
            ~'content-by-target (into {} (keep #(when-let [~'r (:resource %)]
                                                  [(resource/proj-path ~'r) (content-bytes %)])
-                                             ~'build-results))]
+                                              ~'build-artifacts))]
        ~@forms)))
 
 (deftest build-pb-cases
@@ -299,27 +304,39 @@
 (defn- count-exts [paths ext]
   (count (filter #(.endsWith % ext) paths)))
 
+(defn- project-build [project resource-node evaluation-context]
+  (let [workspace (project/workspace project)
+        old-artifact-map (workspace/artifact-map workspace)
+        build-results (project/build project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)]
+    (when-not (contains? build-results :error)
+      (workspace/artifact-map! workspace (:artifact-map build-results))
+      (workspace/etags! workspace (:etags build-results)))
+    build-results))
+
+(defn- project-build-artifacts [project resource-node evaluation-context]
+  (:artifacts (project-build project resource-node evaluation-context)))
+
 (deftest merge-gos
   (testing "Verify equivalent game objects are merged"
     (with-loaded-project project-path
       (doseq [path ["/merge/merge_embed.collection"
                     "/merge/merge_refs.collection"]
               :let [resource-node (test-util/resource-node project path)
-                    build-results (project/build project resource-node (g/make-evaluation-context) {})
+                    build-artifacts (project-build-artifacts project resource-node (g/make-evaluation-context))
                     content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)])
-                                                 build-results))
+                                                    build-artifacts))
                     content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
-                                                 build-results))]]
+                                                    build-artifacts))]]
         (is (= 1 (count-exts (keys content-by-target) "goc")))
         (is (= 1 (count-exts (keys content-by-target) "spritec")))
-        (let [content (get content-by-source path)
-              desc (GameObject$CollectionDesc/parseFrom content)
-              target-paths (set (map #(resource/proj-path (:resource %)) build-results))]
+        (let [content      (get content-by-source path)
+              desc         (GameObject$CollectionDesc/parseFrom content)
+              target-paths (set (map #(resource/proj-path (:resource %)) build-artifacts))]
           (doseq [inst (.getInstancesList desc)
                   :let [prototype (.getPrototype inst)]]
             (is (contains? target-paths prototype))
             (let [content (get content-by-target prototype)
-                  desc (GameObject$PrototypeDesc/parseFrom content)]
+                  desc    (GameObject$PrototypeDesc/parseFrom content)]
               (doseq [comp (.getComponentsList desc)
                       :let [component (.getComponent comp)]]
                 (is (contains? target-paths component))))))))))
@@ -346,18 +363,18 @@
           comp-node (first-source go-node :child-scenes)]
       (testing "Verify equivalent game objects are not merged after being changed in memory"
                (g/transact (g/delete-node comp-node))
-               (let [build-results     (project/build project resource-node (g/make-evaluation-context) {})
+               (let [build-artifacts   (project-build-artifacts project resource-node (g/make-evaluation-context))
                      content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
-                                                     build-results))]
+                                                     build-artifacts))]
                  (is (= 2 (count-exts (keys content-by-target) "goc")))
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))))
       (g/undo! (g/node-id->graph-id project))
       (testing "Verify equivalent sprites are not merged after being changed in memory"
-               (let [sprite (test-util/prop-node-id comp-node :blend-mode)]
+        (let [sprite (test-util/prop-node-id comp-node :blend-mode)]
                  (test-util/prop! sprite :blend-mode :blend-mode-add)
-                 (let [build-results     (project/build project resource-node (g/make-evaluation-context) {})
+                 (let [build-artifacts   (project-build-artifacts project resource-node (g/make-evaluation-context))
                        content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
-                                                       build-results))]
+                                                       build-artifacts))]
                    (is (= 2 (count-exts (keys content-by-target) "goc")))
                    (is (= 2 (count-exts (keys content-by-target) "spritec")))))))))
 
@@ -372,24 +389,24 @@
       (let [path          "/game.project"
             resource-node (test-util/resource-node project path)
             evaluation-context (g/make-evaluation-context)
-            first-time    (measure (project/build project resource-node evaluation-context {}))
+            first-time    (measure (project-build-artifacts project resource-node evaluation-context))
             _ (g/update-cache-from-evaluation-context! evaluation-context)
             evaluation-context (g/make-evaluation-context)
-            second-time   (measure (project/build project resource-node evaluation-context {}))]
+            second-time   (measure (project-build-artifacts project resource-node evaluation-context))]
         (is (< (* 20 second-time) first-time))
         (let [atlas (test-util/resource-node project "/player/spineboy.atlas")]
           (g/transact (g/set-property atlas :margin 10))
-          (let [third-time (measure (project/build project resource-node (g/make-evaluation-context) {}))]
+          (let [third-time (measure (project-build-artifacts project resource-node (g/make-evaluation-context)))]
             (is (< (* 2 second-time) third-time))))))))
 
 (defn- build-path [workspace proj-path]
-  (str (workspace/build-path workspace) proj-path))
+  (io/file (workspace/build-path workspace) proj-path))
 
 (defn- abs-project-path [workspace proj-path]
-  (str (workspace/project-path workspace) proj-path))
+  (io/file (workspace/project-path workspace) proj-path))
 
-(defn mtime [path]
-  (.lastModified (File. path)))
+(defn mtime [f]
+  (.lastModified f))
 
 (deftest build-atlas
   (testing "Building atlas"
@@ -404,11 +421,8 @@
       (let [path              "/background/background.atlas"
             resource-node     (test-util/resource-node project path)
             _                 (g/set-property! resource-node :margin -42)
-            build-error       (atom nil)
-            build-results     (project/build project resource-node (g/make-evaluation-context) {:render-progress! progress/null-render-progress!
-                                                                                                :render-error!    #(reset! build-error %)})]
-        (is (nil? build-results))
-        (is (instance? internal.graph.error_values.ErrorValue @build-error))))))
+            build-results     (project-build project resource-node (g/make-evaluation-context))]
+        (is (instance? internal.graph.error_values.ErrorValue (:error build-results)))))))
 
 (deftest build-font
   (testing "Building font"
@@ -522,9 +536,9 @@
   (with-loaded-project
     (let [path              "/gui/scene.gui"
           resource-node     (test-util/resource-node project path)
-          build-results     (project/build project resource-node (g/make-evaluation-context) {})
-          content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)]) build-results))
-          content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)]) build-results))
+          build-artifacts   (project-build-artifacts project resource-node (g/make-evaluation-context))
+          content-by-source (into {} (map #(do [(resource/proj-path (:resource (:resource %))) (content-bytes %)]) build-artifacts))
+          content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)]) build-artifacts))
           content           (get content-by-source path)
           desc              (protobuf/pb->map (Gui$SceneDesc/parseFrom content))]
       (is (= ["box" "pie" "sub_scene/sub_box" "box1" "text"] (mapv :id (:nodes desc))))
@@ -545,7 +559,7 @@
 
 (deftest build-game-project
   (with-build-results "/game.project"
-    (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-results))
+    (let [target-exts (into #{} (map #(:build-ext (resource/resource-type (:resource %))) build-artifacts))
           exp-paths   [path
                        "/main/main.collection"
                        "/main/main.script"
@@ -577,11 +591,8 @@
           atlas-path          "/background/background.atlas"
           atlas-resource-node (test-util/resource-node project atlas-path)
           _                   (g/set-property! atlas-resource-node :inner-padding -42)
-          build-error         (atom nil)
-          build-results       (project/build project resource-node (g/make-evaluation-context) {:render-progress! progress/null-render-progress!
-                                                                                                :render-error!    #(reset! build-error %)})]
-      (is (nil? build-results))
-      (is (instance? internal.graph.error_values.ErrorValue @build-error)))))
+          build-results       (project-build project resource-node (g/make-evaluation-context))]
+      (is (instance? internal.graph.error_values.ErrorValue (:error build-results))))))
 
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
@@ -595,7 +606,7 @@
 
 (defn- check-file-contents [workspace specs]
   (doseq [[path content] specs]
-    (let [file (File. (build-path workspace path))]
+    (let [file (build-path workspace path)]
       (is (true? (.exists file)))
       (is (= (slurp file) content)))))
 
@@ -603,41 +614,41 @@
   (with-loaded-project "test/resources/custom_resources_project"
     (let [game-project (test-util/resource-node project "/game.project")]
       (with-setting "project/custom_resources" "root.stuff"
-        (project/build project game-project (g/make-evaluation-context) {})
+        (project-build project game-project (g/make-evaluation-context))
         (check-file-contents workspace [["root.stuff" "root.stuff"]])
       (with-setting "project/custom_resources" "/root.stuff"
-        (project/build project game-project (g/make-evaluation-context) {})
+        (project-build project game-project (g/make-evaluation-context))
         (check-file-contents workspace [["root.stuff" "root.stuff"]])
       (with-setting "project/custom_resources" "assets"
-        (project/build project game-project (g/make-evaluation-context) {})
+        (project-build project game-project (g/make-evaluation-context))
         (check-file-contents workspace
-                             [["/assets/some.stuff" "some.stuff"]
-                              ["/assets/some2.stuff" "some2.stuff"]]))
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]]))
       (with-setting "project/custom_resources" "/assets"
-        (project/build project game-project (g/make-evaluation-context) {})
+        (project-build project game-project (g/make-evaluation-context))
         (check-file-contents workspace
-                             [["/assets/some.stuff" "some.stuff"]
-                              ["/assets/some2.stuff" "some2.stuff"]]))
-      (with-setting "project/custom_resources" "/assets, root.stuff"
-        (project/build project game-project (g/make-evaluation-context) {})
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]]))
+      (with-setting "project/custom_resources" "assets, root.stuff"
+        (project-build project game-project (g/make-evaluation-context))
         (check-file-contents workspace
-                             [["/assets/some.stuff" "some.stuff"]
-                              ["/assets/some2.stuff" "some2.stuff"]
-                              ["/root.stuff" "root.stuff"]]))
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]
+                              ["root.stuff" "root.stuff"]]))
       (with-setting "project/custom_resources" "assets, root.stuff, /more_assets/"
-        (project/build project game-project (g/make-evaluation-context) {})
+        (project-build project game-project (g/make-evaluation-context))
         (check-file-contents workspace
-                             [["/assets/some.stuff" "some.stuff"]
-                              ["/assets/some2.stuff" "some2.stuff"]
-                              ["/root.stuff" "root.stuff"]
-                              ["/more_assets/some_more.stuff" "some_more.stuff"]
-                              ["/more_assets/some_more2.stuff" "some_more2.stuff"]]))
+                             [["assets/some.stuff" "some.stuff"]
+                              ["assets/some2.stuff" "some2.stuff"]
+                              ["root.stuff" "root.stuff"]
+                              ["more_assets/some_more.stuff" "some_more.stuff"]
+                              ["more_assets/some_more2.stuff" "some_more2.stuff"]]))
       (with-setting "project/custom_resources" "nonexistent_path"
-        (project/build project game-project (g/make-evaluation-context) {})
-        (doseq [path ["/assets/some.stuff" "/assets/some2.stuff"
-                      "/root.stuff"
-                      "/more_assets/some_more.stuff" "/more_assets/some_more2.stuff"]]
-          (is (false? (.exists (File. (build-path workspace path))))))))))))
+        (project-build project game-project (g/make-evaluation-context))
+        (doseq [path ["assets/some.stuff" "assets/some2.stuff"
+                      "root.stuff"
+                      "more_assets/some_more.stuff" "more_assets/some_more2.stuff"]]
+          (is (false? (.exists (build-path workspace path)))))))))))
 
 (deftest custom-resources-cached
   (testing "Check custom resources are only rebuilt when source has changed"
@@ -646,15 +657,15 @@
             project (test-util/setup-project! workspace)
             game-project (test-util/resource-node project "/game.project")]
         (with-setting "project/custom_resources" "assets"
-          (project/build project game-project (g/make-evaluation-context) {})
-          (let [initial-some-mtime (mtime (build-path workspace "/assets/some.stuff"))
-                initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))]
+          (project-build project game-project (g/make-evaluation-context))
+          (let [initial-some-mtime (mtime (build-path workspace "assets/some.stuff"))
+                initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))]
             (Thread/sleep 1000)
-            (spit (File. (abs-project-path workspace "/assets/some.stuff")) "new stuff")
+            (spit (abs-project-path workspace "assets/some.stuff") "new stuff")
             (workspace/resource-sync! workspace)
-            (project/build project game-project (g/make-evaluation-context) {})
-            (is (not (= initial-some-mtime (mtime (build-path workspace "/assets/some.stuff")))))
-            (is (= initial-some2-mtime (mtime (build-path workspace "/assets/some2.stuff"))))))))))
+            (project-build project game-project (g/make-evaluation-context))
+            (is (not (= initial-some-mtime (mtime (build-path workspace "assets/some.stuff")))))
+            (is (= initial-some2-mtime (mtime (build-path workspace "assets/some2.stuff"))))))))))
 
 (deftest dependencies-are-removed-from-game-project
   (with-loaded-project project-path
@@ -662,10 +673,10 @@
           game-project   (test-util/resource-node project path)
           dependency-url "http://localhost:1234/dependency.zip"]
       (game-project/set-setting! game-project ["project" "dependencies"] dependency-url)
-      (let [build-results        (project/build project game-project (g/make-evaluation-context) {})
+      (let [build-artifacts      (project-build-artifacts project game-project (g/make-evaluation-context))
             content-by-source    (into {} (keep #(when-let [r (:resource (:resource %))]
                                                    [(resource/proj-path r) (content-bytes %)]))
-                                       build-results)
+                                       build-artifacts)
             content              (get content-by-source "/game.project")
             game-project-content (String. content)]
         (is (not (.contains game-project-content dependency-url)))))))
