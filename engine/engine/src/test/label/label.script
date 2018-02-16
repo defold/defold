@@ -84,8 +84,9 @@ local function test_set_vector4(name, startvalue)
 end
 
 
-local function test_bad_params(url, text)
-	label.set_text(url, text)
+local function test_bad_url()
+	label.set_text(nil, "hello") -- script
+	label.set_text("#", "hello") -- script
 end
 
 function init(self)
@@ -114,14 +115,10 @@ function init(self)
 
 
 	--
-	-- TEST BAD PARAMS
+	--
 	--
 
-	if pcall(test_bad_params, nil, "lorem ipsum") then
-	 	assert(false, string.format("Shouldn't get here: %s", tostring(error())) )
-	else
-		-- good
-	end
+	test_bad_url()
 
 	--
 	-- END TEST
