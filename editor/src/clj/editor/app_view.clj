@@ -607,15 +607,15 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-active-tabs app-view)))
   (run [app-view]
-    (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
-      (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+    (let [tab-pane (g/node-value app-view :active-tab-pane)]
+      (when-let [tab (ui/selected-tab tab-pane)]
         (remove-tab tab-pane tab)))))
 
 (handler/defhandler :close-other :global
   (enabled? [app-view] (not-empty (next (get-active-tabs app-view))))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
-      (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+      (when-let [selected-tab (ui/selected-tab tab-pane)]
         (doseq [tab (.getTabs tab-pane)]
           (when (not= tab selected-tab)
             (remove-tab tab-pane tab)))))))
@@ -626,6 +626,18 @@ If you do not specifically require different script states, consider changing th
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
       (doseq [tab (.getTabs tab-pane)]
         (remove-tab tab-pane tab)))))
+
+(handler/defhandler :move-tab :global
+  (enabled? [app-view user-data]
+    (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
+      (not= (.getId tab-pane) (:tab-pane-id user-data))))
+  (run [app-view user-data]
+       (let [tab-panes (g/node-value app-view :tab-panes)
+             source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
+             selected-tab (ui/selected-tab source-tab-pane)]
+         (when-some [dest-tab-pane ^TabPane (ui/node-with-id (:tab-pane-id user-data) tab-panes)]
+           (.remove (.getTabs source-tab-pane) selected-tab)
+           (.add (.getTabs dest-tab-pane) selected-tab)))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -756,10 +768,17 @@ If you do not specifically require different script states, consider changing th
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Show In Asset Browser"
+                [{:label "Move to Primary Tab Pane"
+                  :command :move-tab
+                  :user-data {:tab-pane-id "editor-tabs-primary"}}
+                 {:label "Move to Secondary Tab Pane"
+                  :command :move-tab
+                  :user-data {:tab-pane-id "editor-tabs-secondary"}}
+                 {:label :separator}
+                 {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-asset-browser}
-                 {:label "Show In Desktop"
+                 {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
                  {:label "Copy Project Path"
