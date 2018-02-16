@@ -99,7 +99,7 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes changes-view editor-tabs]
+(defn- handle-resource-changes! [changes-view]
   (ui/run-later
     (changes-view/refresh! changes-view)))
 
@@ -172,14 +172,14 @@
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^Node menu-bar-space (.lookup root "#menu-bar-space")
-          ^TabPane editor-tabs (.lookup root "#editor-tabs")
+          editor-tab-panes     [(.lookup root "#editor-tabs-a") (.lookup root "#editor-tabs-b")]
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^TreeView assets     (.lookup root "#assets")
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs tool-tabs)
+          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tab-panes tool-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
@@ -217,8 +217,8 @@
         (.setManaged menu-bar-space collapse-menu-bar?))
 
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
-                                                    (handle-changes [_ changes _]
-                                                      (handle-resource-changes! changes changes-view editor-tabs))))
+                                                    (handle-changes [_ _ _]
+                                                      (handle-resource-changes! changes-view))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
@@ -263,7 +263,7 @@
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
           (let [auto-pulls [[properties-view :pane]
-                            [app-view :refresh-tab-pane]
+                            [app-view :refresh-tab-panes]
                             [outline-view :tree-view]
                             [asset-browser :tree-view]
                             [curve-view :update-list-view]

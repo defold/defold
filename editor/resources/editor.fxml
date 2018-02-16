@@ -77,9 +77,16 @@
                                 <items>
                                   <AnchorPane prefHeight="100.0" prefWidth="160.0">
                                        <children>
-                                          <TabPane id="editor-tabs" layoutX="30.0" layoutY="66.0" minHeight="200.0" minWidth="200.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="ALL_TABS" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                           <SplitPane id="editor-tabs-split" dividerPositions="0.5" orientation="HORIZONTAL" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                               <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                                                   <TabPane id="editor-tabs-a" tabClosingPolicy="ALL_TABS" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                               </AnchorPane>
+                                               <AnchorPane prefHeight="100.0" prefWidth="160.0">
+                                                   <TabPane id="editor-tabs-b" tabClosingPolicy="ALL_TABS" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                               </AnchorPane>
+                                           </SplitPane>
                                        </children>
-                                    </AnchorPane>
+                                  </AnchorPane>
                                   <AnchorPane prefHeight="100.0" prefWidth="160.0" SplitPane.resizableWithParent="false">
                                        <children>
                                           <TabPane id="tool-tabs" layoutX="3.0" layoutY="38.0" prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
