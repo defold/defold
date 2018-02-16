@@ -918,12 +918,9 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ListChangeListener
           (onChanged [_this _change]
-            (if (seq (.getTabs tab-pane))
-              ;; There are Tabs in this TabPane. Update style classes.
-              (ui/restyle-tabs! tab-pane)
-
-              ;; We've ended up with an empty TabPane.
-              ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
+            ;; Check if we've ended up with an empty TabPane.
+            ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
+            (when (empty? (.getTabs tab-pane))
               (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
                     tab-panes (.getItems editor-tabs-split)]
 
@@ -943,13 +940,15 @@ If you do not specifically require different script states, consider changing th
                                                               (TabPaneBehavior/isTraversalEvent event))
                                                      (.consume event)))))
 
-(defn- handle-focus-owner-change! [app-view old-focus-owner new-focus-owner]
-  (let [old-editor-tab-pane (editor-tab-pane old-focus-owner)
+(defn- handle-focus-owner-change! [app-view new-focus-owner]
+  (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
         new-editor-tab-pane (editor-tab-pane new-focus-owner)]
     (when (and (some? new-editor-tab-pane)
                (not (identical? old-editor-tab-pane new-editor-tab-pane)))
       (let [selected-tab (ui/selected-tab new-editor-tab-pane)
             resource-node (tab->resource-node selected-tab)]
+        (ui/add-style! old-editor-tab-pane "inactive")
+        (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
         (on-selected-tab-changed app-view resource-node)))))
 
@@ -963,8 +962,8 @@ If you do not specifically require different script states, consider changing th
       (configure-editor-tab-pane! tab-pane app-scene app-view)
       (.add (.getItems editor-tabs-split) tab-pane)
       (ui/observe (.focusOwnerProperty app-scene)
-                  (fn [_ old-focus-owner new-focus-owner]
-                    (handle-focus-owner-change! app-view old-focus-owner new-focus-owner)))
+                  (fn [_ _ new-focus-owner]
+                    (handle-focus-owner-change! app-view new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
 

@@ -403,15 +403,6 @@
                  0.0
                  items))))
 
-(defn restyle-tabs! [^TabPane tab-pane]
-  (let [tabs (seq (.getTabs tab-pane))]
-    (doseq [tab tabs]
-      (remove-styles! tab ["first-tab" "last-tab"]))
-    (when-let [first-tab (first tabs)]
-      (add-style! first-tab "first-tab"))
-    (when-let [last-tab (last tabs)]
-      (add-style! last-tab "last-tab"))))
-
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
     (let [root ^Parent (.getRoot scene)
