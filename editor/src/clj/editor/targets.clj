@@ -22,6 +22,9 @@
 
 (defonce ^:private launched-targets (atom []))
 (defonce ^:private ssdp-targets (atom []))
+;; We cache the selected target in an atom to avoid garbage from parsing prefs.
+;; Must clear when launched-targets or ssdp-targets change.
+(defonce ^:private selected-target-atom (atom ::undefined))
 (defonce ^:private manual-device (atom nil))
 (defonce ^:private last-search (atom 0))
 (defonce ^:private running (atom false))
@@ -36,6 +39,9 @@
 (def ^:const timeout 200)
 (def ^:const max-log-entries 512)
 
+(defn- clear-selected-target-hint! []
+  (reset! selected-target-atom ::undefined))
+
 (defn kill-launched-target! [target]
   (let [^Process process (:process target)]
     (when (.isAlive process)
@@ -44,7 +50,8 @@
 (defn kill-launched-targets! []
   (doseq [launched-target @launched-targets]
     (kill-launched-target! launched-target))
-  (reset! launched-targets []))
+  (reset! launched-targets [])
+  (clear-selected-target-hint!))
 
 (def ^:private kill-lingering-launched-targets-hook
   (Thread. (fn [] (kill-launched-targets!))))
@@ -65,10 +72,12 @@
                                :id (str (UUID/randomUUID)))]
     (kill-launched-targets!)
     (swap! launched-targets conj launched-target)
+    (clear-selected-target-hint!)
     (invalidate-target-menu!)
     (process/watchdog! (:process launched-target)
                        (fn []
                          (swap! launched-targets (partial remove #(= (:id %) (:id launched-target))))
+                         (clear-selected-target-hint!)
                          (invalidate-target-menu!)))
     launched-target))
 
@@ -81,6 +90,7 @@
                      launched-target))
                  old))
     (when (not= old @launched-targets)
+      (clear-selected-target-hint!)
       (invalidate-target-menu!))))
 
 (defn launched-targets? []
@@ -185,6 +195,7 @@
       (log-fn error))
     (reset! targets-atom targets)
     (when (not= targets old-targets)
+      (clear-selected-target-hint!)
       (on-targets-changed-fn))))
 
 (defn- search-interval [^SSDP ssdp]
@@ -291,9 +302,6 @@
     (ui/on-closed! stage (fn [_]
                            (remove-watch event-log :dialog)))
     (ui/show! stage)))
-
-;; We cache the selected target in an atom to avoid garbage from parsing prefs.
-(defonce ^:private selected-target-atom (atom ::undefined))
 
 (defn selected-target [prefs]
   (swap! selected-target-atom
