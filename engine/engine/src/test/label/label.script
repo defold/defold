@@ -83,11 +83,16 @@ local function test_set_vector4(name, startvalue)
 	test_vector4(name, expected)
 end
 
+
+local function test_bad_params(url, text)
+	label.set_text(url, text)
+end
+
 function init(self)
 
 	--
 	-- GET PROPERTIES
-	-- 
+	--
 
 	test_vector3("scale", vmath.vector3(1,2,3))
 	test_vector3("size", vmath.vector3(128,32,0))
@@ -98,7 +103,7 @@ function init(self)
 
 	--
 	-- SET PROPERTIES
-	-- 
+	--
 
 	test_set_vector3("scale", 100)
 	test_set_vector3("size", 200)
@@ -109,8 +114,18 @@ function init(self)
 
 
 	--
+	-- TEST BAD PARAMS
+	--
+
+	if pcall(test_bad_params, nil, "lorem ipsum") then
+	 	assert(false, string.format("Shouldn't get here: %s", tostring(error())) )
+	else
+		-- good
+	end
+
+	--
 	-- END TEST
-	-- 
+	--
 
 	msg.post("main:/main#script", "done")
 end
