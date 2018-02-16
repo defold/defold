@@ -1854,6 +1854,10 @@ command."
   [^Node node]
   (closest-node-of-type TabPane node))
 
+(defn selected-tab
+  ^Tab [^TabPane tab-pane]
+  (.. tab-pane getSelectionModel getSelectedItem))
+
 (defn select-tab!
   [^TabPane tab-pane tab-id]
   (when-some [tab (->> (.getTabs tab-pane)
