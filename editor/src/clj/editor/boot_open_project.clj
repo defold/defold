@@ -172,14 +172,14 @@
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^Node menu-bar-space (.lookup root "#menu-bar-space")
-          editor-tab-panes     [(.lookup root "#editor-tabs-primary") (.lookup root "#editor-tabs-secondary")]
+          editor-tabs-split    (.lookup root "#editor-tabs-split")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^TreeView assets     (.lookup root "#assets")
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tab-panes tool-tabs)
+          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)

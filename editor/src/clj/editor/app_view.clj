@@ -54,7 +54,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip SplitPane]
+           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy ProgressBar Tooltip]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -73,16 +73,16 @@
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
   (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
-(g/defnk produce-refresh-tab-panes [tab-panes open-views open-dirty-views]
+(g/defnk produce-refresh-tab-panes [^SplitPane editor-tabs-split open-views open-dirty-views]
   ;; Remove tabs that are no longer valid.
-  (doseq [^TabPane tab-pane tab-panes
+  (doseq [^TabPane tab-pane (.getItems editor-tabs-split)
           ^Tab tab (.getTabs tab-pane)
           :let [view (ui/user-data tab ::view)]]
     (when-not (contains? open-views view)
       (remove-tab tab-pane tab)))
 
   ;; Refresh "unsaved changes" indicators.
-  (doseq [^TabPane tab-pane tab-panes
+  (doseq [^TabPane tab-pane (.getItems editor-tabs-split)
           ^Tab tab (.getTabs tab-pane)
           :let [view (ui/user-data tab ::view)
                 dirty? (contains? open-dirty-views view)
@@ -93,7 +93,7 @@
 
 (g/defnode AppView
   (property stage Stage)
-  (property tab-panes g/Any)
+  (property editor-tabs-split SplitPane)
   (property active-tab-pane TabPane)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
@@ -627,17 +627,44 @@ If you do not specifically require different script states, consider changing th
       (doseq [tab (.getTabs tab-pane)]
         (remove-tab tab-pane tab)))))
 
+(defonce ^:private primary-editor-tab-pane-id "editor-tabs-primary")
+(defonce ^:private secondary-editor-tab-pane-id "editor-tabs-secondary")
+
+(defn- editor-tab-pane
+  ^TabPane [node]
+  (when-some [parent-tab-pane (ui/parent-tab-pane node)]
+    (when (= "editor-tabs-split" (some-> (ui/tab-pane-parent parent-tab-pane) (.getId)))
+      parent-tab-pane)))
+
+(declare ^:private configure-editor-tab-pane!)
+
+(defn- find-or-add-editor-tab-pane!
+  ^TabPane [app-view ^SplitPane editor-tabs-split ^String id]
+  (let [tab-panes (.getItems editor-tabs-split)]
+    (if-some [existing-tab-pane (ui/node-with-id id tab-panes)]
+      existing-tab-pane
+      (let [app-stage ^Stage (g/node-value app-view :stage)
+            app-scene (.getScene app-stage)
+            new-tab-pane (doto (TabPane.) (.setId id))]
+        (assert (= 1 (count tab-panes)))
+        (configure-editor-tab-pane! new-tab-pane app-scene app-view)
+        (.add tab-panes
+              ^long (if (= primary-editor-tab-pane-id id) 0 1)
+              new-tab-pane)
+        new-tab-pane))))
+
 (handler/defhandler :move-tab :global
   (enabled? [app-view user-data]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
       (not= (.getId tab-pane) (:tab-pane-id user-data))))
   (run [app-view user-data]
-       (let [tab-panes (g/node-value app-view :tab-panes)
+       (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
+             dest-tab-pane (find-or-add-editor-tab-pane! app-view editor-tabs-split (:tab-pane-id user-data))
              selected-tab (ui/selected-tab source-tab-pane)]
-         (when-some [dest-tab-pane ^TabPane (ui/node-with-id (:tab-pane-id user-data) tab-panes)]
-           (.remove (.getTabs source-tab-pane) selected-tab)
-           (.add (.getTabs dest-tab-pane) selected-tab)))))
+         (.remove (.getTabs source-tab-pane) selected-tab)
+         (.add (.getTabs dest-tab-pane) selected-tab)
+         (.select (.getSelectionModel dest-tab-pane) selected-tab))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -770,10 +797,10 @@ If you do not specifically require different script states, consider changing th
 (ui/extend-menu ::tab-menu nil
                 [{:label "Move to Primary Tab Pane"
                   :command :move-tab
-                  :user-data {:tab-pane-id "editor-tabs-primary"}}
+                  :user-data {:tab-pane-id primary-editor-tab-pane-id}}
                  {:label "Move to Secondary Tab Pane"
                   :command :move-tab
-                  :user-data {:tab-pane-id "editor-tabs-secondary"}}
+                  :user-data {:tab-pane-id secondary-editor-tab-pane-id}}
                  {:label :separator}
                  {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
@@ -875,52 +902,69 @@ If you do not specifically require different script states, consider changing th
     second
     :resource-node))
 
-(defn- editor-tab-pane [node]
-  (when-some [parent-tab-pane (ui/parent-tab-pane node)]
-    (when (some? (ui/closest-node-where #(= "editor-tabs-split" (.getId ^Node %)) parent-tab-pane))
-      parent-tab-pane)))
+(defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
+  (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
+  (-> tab-pane
+      (.getSelectionModel)
+      (.selectedItemProperty)
+      (.addListener
+        (reify ChangeListener
+          (changed [_this _observable _old-val new-val]
+            (->> (tab->resource-node new-val)
+                 (on-selected-tab-changed app-view))
+            (ui/refresh app-scene)))))
+  (-> tab-pane
+      (.getTabs)
+      (.addListener
+        (reify ListChangeListener
+          (onChanged [_this _change]
+            (if (seq (.getTabs tab-pane))
+              ;; There are Tabs in this TabPane. Update style classes.
+              (ui/restyle-tabs! tab-pane)
 
-(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar tab-panes ^TabPane tool-tab-pane]
+              ;; We've ended up with an empty TabPane.
+              ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
+              (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
+                    tab-panes (.getItems editor-tabs-split)]
+
+                ;; Remove the surplus TabPane.
+                (when (< 1 (count tab-panes))
+                  (.remove tab-panes tab-pane))
+
+                ;; The remaining TabPane takes on the role of the primary TabPane.
+                (.setId ^TabPane (first tab-panes) primary-editor-tab-pane-id)))))))
+
+  (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
+
+  ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
+  ;; Consume key events that would select non-existing tabs in case we have none.
+  (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
+                                                   (when (and (empty? (.getTabs tab-pane))
+                                                              (TabPaneBehavior/isTraversalEvent event))
+                                                     (.consume event)))))
+
+(defn- handle-focus-owner-change! [app-view old-focus-owner new-focus-owner]
+  (let [old-editor-tab-pane (editor-tab-pane old-focus-owner)
+        new-editor-tab-pane (editor-tab-pane new-focus-owner)]
+    (when (and (some? new-editor-tab-pane)
+               (not (identical? old-editor-tab-pane new-editor-tab-pane)))
+      (let [selected-tab (ui/selected-tab new-editor-tab-pane)
+            resource-node (tab->resource-node selected-tab)]
+        (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
+        (on-selected-tab-changed app-view resource-node)))))
+
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
-    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-panes tab-panes :active-tab-pane (first tab-panes) :tool-tab-pane tool-tab-pane :active-tool :move))))]
+    (let [tab-pane (doto (TabPane.) (.setId primary-editor-tab-pane-id))
+          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
+      (configure-editor-tab-pane! tab-pane app-scene app-view)
+      (.add (.getItems editor-tabs-split) tab-pane)
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ old-focus-owner new-focus-owner]
-                    (let [old-editor-tab-pane (editor-tab-pane old-focus-owner)
-                          new-editor-tab-pane (editor-tab-pane new-focus-owner)]
-                      (when (and (some? new-editor-tab-pane)
-                                 (not (identical? old-editor-tab-pane new-editor-tab-pane)))
-                        (let [selected-tab (ui/selected-tab new-editor-tab-pane)
-                              resource-node (tab->resource-node selected-tab)]
-                          (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-                          (on-selected-tab-changed app-view resource-node))))))
-      (doseq [^TabPane tab-pane tab-panes]
-        (-> tab-pane
-            (.getSelectionModel)
-            (.selectedItemProperty)
-            (.addListener
-              (reify ChangeListener
-                (changed [_this _observable _old-val new-val]
-                  (->> (tab->resource-node new-val)
-                       (on-selected-tab-changed app-view))
-                  (ui/refresh app-scene)))))
-        (-> tab-pane
-            (.getTabs)
-            (.addListener
-              (reify ListChangeListener
-                (onChanged [_this _change]
-                  (ui/restyle-tabs! tab-pane)))))
-
-        (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
-
-        ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
-        ;; Consume key events that would select non-existing tabs in case we have none.
-        (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
-                                                         (when (and (empty? (.getTabs tab-pane))
-                                                                    (TabPaneBehavior/isTraversalEvent event))
-                                                           (.consume event)))))
+                    (handle-focus-owner-change! app-view old-focus-owner new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
 
@@ -1016,7 +1060,8 @@ If you do not specifically require different script states, consider changing th
              (.start))
            false)
          (if-let [make-view-fn (:make-view-fn view-type)]
-           (let [tab-panes (g/node-value app-view :tab-panes)
+           (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
+                 tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
                  ^Tab tab (or (some #(when (and (= (tab->resource-node %) resource-node)
                                                 (= view-type (ui/user-data % ::view-type)))
