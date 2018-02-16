@@ -74,6 +74,11 @@ def exec_command(args, stdout = None, stderr = None):
         sys.exit(process.returncode)
     return output
 
+def run_command(args):
+    process = subprocess.Popen(args, shell = False)
+    if process.wait() != 0:
+        sys.exit(process.returncode)
+
 def ziptree(path, outfile, directory = None):
     # Directory is similar to -C in tar
 
@@ -329,15 +334,15 @@ if __name__ == '__main__':
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
-    exec_command(init_command)
+    run_command(init_command)
     check_reflections()
 
     if options.skip_tests:
         print 'Skipping tests'
     else:
-        exec_command(['./scripts/lein', 'test'])
+        run_command(['./scripts/lein', 'test'])
 
-    exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
+    run_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
     jar_file = 'defold-%s.jar' % options.editor_sha1
 
