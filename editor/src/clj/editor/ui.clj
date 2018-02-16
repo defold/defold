@@ -116,6 +116,13 @@
 (defn- ^MenuBar main-menu-id []
   (:menu-id (user-data (main-root) ::menubar)))
 
+(defn node-with-id
+  ^Node [id nodes]
+  (some (fn [^Node node]
+          (when (= id (.getId node))
+            node))
+        nodes))
+
 (defn closest-node-where
   ^Node [pred ^Node leaf-node]
   (cond

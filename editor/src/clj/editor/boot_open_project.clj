@@ -172,7 +172,7 @@
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^Node menu-bar-space (.lookup root "#menu-bar-space")
-          editor-tab-panes     [(.lookup root "#editor-tabs-a") (.lookup root "#editor-tabs-b")]
+          editor-tab-panes     [(.lookup root "#editor-tabs-primary") (.lookup root "#editor-tabs-secondary")]
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^TreeView assets     (.lookup root "#assets")
