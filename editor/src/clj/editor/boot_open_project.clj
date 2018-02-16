@@ -235,7 +235,6 @@
                              (ui/remove-application-focused-callback! :main-stage)
                              (g/transact (g/delete-node project))))
 
-      (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view            app-view
                          :project             project
                          :project-graph       (project/graph project)
