@@ -647,8 +647,8 @@ If you do not specifically require different script states, consider changing th
         app-scene (.getScene app-stage)
         new-tab-pane (TabPane.)]
     (assert (= 1 (count tab-panes)))
-    (configure-editor-tab-pane! new-tab-pane app-scene app-view)
     (.add tab-panes new-tab-pane)
+    (configure-editor-tab-pane! new-tab-pane app-scene app-view)
     new-tab-pane))
 
 (defn open-tab-count
@@ -677,7 +677,7 @@ If you do not specifically require different script states, consider changing th
          (.remove (.getTabs source-tab-pane) selected-tab)
          (.add (.getTabs dest-tab-pane) selected-tab)
          (.select (.getSelectionModel dest-tab-pane) selected-tab)
-         (ui/run-later (.requestFocus dest-tab-pane)))))
+         (.requestFocus dest-tab-pane))))
 
 (handler/defhandler :swap-tabs :global
   (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
@@ -697,7 +697,7 @@ If you do not specifically require different script states, consider changing th
          (.set other-tabs other-tab-index active-tab)
          (.select active-tab-pane-selection other-tab)
          (.select other-tab-pane-selection active-tab)
-         (ui/run-later (.requestFocus other-tab-pane)))))
+         (.requestFocus other-tab-pane))))
 
 (handler/defhandler :join-tab-panes :global
   (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
@@ -713,7 +713,8 @@ If you do not specifically require different script states, consider changing th
              moved-tabs (vec second-tabs)]
          (.clear second-tabs)
          (.addAll first-tabs ^Collection moved-tabs)
-         (.select (.getSelectionModel first-tab-pane) selected-tab))))
+         (.select (.getSelectionModel first-tab-pane) selected-tab)
+         (.requestFocus first-tab-pane))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -973,7 +974,7 @@ If you do not specifically require different script states, consider changing th
                     tab-panes (.getItems editor-tabs-split)]
                 (when (< 1 (count tab-panes))
                   (.remove tab-panes tab-pane)
-                  (ui/run-later (.requestFocus ^TabPane (.get tab-panes 0))))))))))
+                  (.requestFocus ^TabPane (.get tab-panes 0)))))))))
 
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
 
@@ -1003,8 +1004,8 @@ If you do not specifically require different script states, consider changing th
     (.setTitle stage (make-title))
     (let [editor-tab-pane (TabPane.)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane editor-tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
-      (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (.add (.getItems editor-tabs-split) editor-tab-pane)
+      (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
                     (handle-focus-owner-change! app-view new-focus-owner)))
