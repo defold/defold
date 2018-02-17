@@ -635,18 +635,21 @@ If you do not specifically require different script states, consider changing th
 
 (declare ^:private configure-editor-tab-pane!)
 
-(defn- find-or-add-other-tab-pane!
-  ^TabPane [app-view ^SplitPane editor-tabs-split ^TabPane source-tab-pane]
-  (let [tab-panes (.getItems editor-tabs-split)]
-    (if-some [existing-tab-pane (first-where #(not (identical? source-tab-pane %)) tab-panes)]
-      existing-tab-pane
-      (let [app-stage ^Stage (g/node-value app-view :stage)
-            app-scene (.getScene app-stage)
-            new-tab-pane (TabPane.)]
-        (assert (= 1 (count tab-panes)))
-        (configure-editor-tab-pane! new-tab-pane app-scene app-view)
-        (.add tab-panes new-tab-pane)
-        new-tab-pane))))
+(defn- find-other-tab-pane
+  ^TabPane [^SplitPane editor-tabs-split ^TabPane current-tab-pane]
+  (first-where #(not (identical? current-tab-pane %))
+               (.getItems editor-tabs-split)))
+
+(defn- add-other-tab-pane!
+  ^TabPane [^SplitPane editor-tabs-split app-view]
+  (let [tab-panes (.getItems editor-tabs-split)
+        app-stage ^Stage (g/node-value app-view :stage)
+        app-scene (.getScene app-stage)
+        new-tab-pane (TabPane.)]
+    (assert (= 1 (count tab-panes)))
+    (configure-editor-tab-pane! new-tab-pane app-scene app-view)
+    (.add tab-panes new-tab-pane)
+    new-tab-pane))
 
 (defn open-tab-count
   ^long [app-view]
@@ -658,16 +661,41 @@ If you do not specifically require different script states, consider changing th
                (+ tab-count (.size (.getTabs tab-pane))))
         tab-count))))
 
+(defn open-tab-pane-count
+  ^long [app-view]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+    (.size (.getItems editor-tabs-split))))
+
 (handler/defhandler :move-tab :global
   (enabled? [app-view] (< 1 (open-tab-count app-view)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
-             dest-tab-pane (find-or-add-other-tab-pane! app-view editor-tabs-split source-tab-pane)
-             selected-tab (ui/selected-tab source-tab-pane)]
+             selected-tab (ui/selected-tab source-tab-pane)
+             dest-tab-pane (or (find-other-tab-pane editor-tabs-split source-tab-pane)
+                               (add-other-tab-pane! editor-tabs-split app-view))]
          (.remove (.getTabs source-tab-pane) selected-tab)
          (.add (.getTabs dest-tab-pane) selected-tab)
          (.select (.getSelectionModel dest-tab-pane) selected-tab))))
+
+(handler/defhandler :swap-tabs :global
+  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (run [app-view user-data]
+       (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+             active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
+             other-tab-pane (find-other-tab-pane editor-tabs-split active-tab-pane)
+             active-tab-pane-selection (.getSelectionModel active-tab-pane)
+             other-tab-pane-selection (.getSelectionModel other-tab-pane)
+             active-tab-index (.getSelectedIndex active-tab-pane-selection)
+             other-tab-index (.getSelectedIndex other-tab-pane-selection)
+             active-tabs (.getTabs active-tab-pane)
+             other-tabs (.getTabs other-tab-pane)
+             active-tab (.get active-tabs active-tab-index)
+             other-tab (.get other-tabs other-tab-index)]
+         (.set active-tabs active-tab-index other-tab)
+         (.set other-tabs other-tab-index active-tab)
+         (.select active-tab-pane-selection other-tab)
+         (.select other-tab-pane-selection active-tab))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -800,6 +828,8 @@ If you do not specifically require different script states, consider changing th
 (ui/extend-menu ::tab-menu nil
                 [{:label "Move to Other Tab Pane"
                   :command :move-tab}
+                 {:label "Swap With Other Tab Pane"
+                  :command :swap-tabs}
                  {:label :separator}
                  {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
