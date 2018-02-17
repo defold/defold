@@ -164,7 +164,7 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed [app-view resource-node]
+(defn- on-selected-tab-changed! [app-view resource-node]
   (g/transact
     (replace-connection resource-node :node-outline app-view :outline))
   (g/invalidate-outputs! [[app-view :active-tab]]))
@@ -627,9 +627,6 @@ If you do not specifically require different script states, consider changing th
       (doseq [tab (.getTabs tab-pane)]
         (remove-tab tab-pane tab)))))
 
-(defonce ^:private primary-editor-tab-pane-id "editor-tabs-primary")
-(defonce ^:private secondary-editor-tab-pane-id "editor-tabs-secondary")
-
 (defn- editor-tab-pane
   ^TabPane [node]
   (when-some [parent-tab-pane (ui/parent-tab-pane node)]
@@ -638,29 +635,35 @@ If you do not specifically require different script states, consider changing th
 
 (declare ^:private configure-editor-tab-pane!)
 
-(defn- find-or-add-editor-tab-pane!
-  ^TabPane [app-view ^SplitPane editor-tabs-split ^String id]
+(defn- find-or-add-other-tab-pane!
+  ^TabPane [app-view ^SplitPane editor-tabs-split ^TabPane source-tab-pane]
   (let [tab-panes (.getItems editor-tabs-split)]
-    (if-some [existing-tab-pane (ui/node-with-id id tab-panes)]
+    (if-some [existing-tab-pane (first-where #(not (identical? source-tab-pane %)) tab-panes)]
       existing-tab-pane
       (let [app-stage ^Stage (g/node-value app-view :stage)
             app-scene (.getScene app-stage)
-            new-tab-pane (doto (TabPane.) (.setId id))]
+            new-tab-pane (TabPane.)]
         (assert (= 1 (count tab-panes)))
         (configure-editor-tab-pane! new-tab-pane app-scene app-view)
-        (.add tab-panes
-              ^long (if (= primary-editor-tab-pane-id id) 0 1)
-              new-tab-pane)
+        (.add tab-panes new-tab-pane)
         new-tab-pane))))
 
+(defn open-tab-count
+  ^long [app-view]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+    (loop [tab-panes (.getItems editor-tabs-split)
+           tab-count 0]
+      (if-some [^TabPane tab-pane (first tab-panes)]
+        (recur (next tab-panes)
+               (+ tab-count (.size (.getTabs tab-pane))))
+        tab-count))))
+
 (handler/defhandler :move-tab :global
-  (enabled? [app-view user-data]
-    (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
-      (not= (.getId tab-pane) (:tab-pane-id user-data))))
+  (enabled? [app-view] (< 1 (open-tab-count app-view)))
   (run [app-view user-data]
        (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
              source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
-             dest-tab-pane (find-or-add-editor-tab-pane! app-view editor-tabs-split (:tab-pane-id user-data))
+             dest-tab-pane (find-or-add-other-tab-pane! app-view editor-tabs-split source-tab-pane)
              selected-tab (ui/selected-tab source-tab-pane)]
          (.remove (.getTabs source-tab-pane) selected-tab)
          (.add (.getTabs dest-tab-pane) selected-tab)
@@ -795,12 +798,8 @@ If you do not specifically require different script states, consider changing th
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Move to Primary Tab Pane"
-                  :command :move-tab
-                  :user-data {:tab-pane-id primary-editor-tab-pane-id}}
-                 {:label "Move to Secondary Tab Pane"
-                  :command :move-tab
-                  :user-data {:tab-pane-id secondary-editor-tab-pane-id}}
+                [{:label "Move to Other Tab Pane"
+                  :command :move-tab}
                  {:label :separator}
                  {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
@@ -910,8 +909,7 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (->> (tab->resource-node new-val)
-                 (on-selected-tab-changed app-view))
+            (on-selected-tab-changed! app-view (tab->resource-node new-val))
             (ui/refresh app-scene)))))
   (-> tab-pane
       (.getTabs)
@@ -923,13 +921,8 @@ If you do not specifically require different script states, consider changing th
             (when (empty? (.getTabs tab-pane))
               (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
                     tab-panes (.getItems editor-tabs-split)]
-
-                ;; Remove the surplus TabPane.
                 (when (< 1 (count tab-panes))
-                  (.remove tab-panes tab-pane))
-
-                ;; The remaining TabPane takes on the role of the primary TabPane.
-                (.setId ^TabPane (first tab-panes) primary-editor-tab-pane-id)))))))
+                  (.remove tab-panes tab-pane))))))))
 
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
 
@@ -950,17 +943,17 @@ If you do not specifically require different script states, consider changing th
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (on-selected-tab-changed app-view resource-node)))))
+        (on-selected-tab-changed! app-view resource-node)))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
-    (let [tab-pane (doto (TabPane.) (.setId primary-editor-tab-pane-id))
-          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
-      (configure-editor-tab-pane! tab-pane app-scene app-view)
-      (.add (.getItems editor-tabs-split) tab-pane)
+    (let [editor-tab-pane (TabPane.)
+          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane editor-tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
+      (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
+      (.add (.getItems editor-tabs-split) editor-tab-pane)
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
                     (handle-focus-owner-change! app-view new-focus-owner)))
