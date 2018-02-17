@@ -2205,6 +2205,7 @@
 
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
+        app-view (:app-view opts)
         grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
@@ -2226,7 +2227,7 @@
                                              :visible-indentation-guides? (.getValue visible-indentation-guides-property)
                                              :visible-minimap? (.getValue visible-minimap-property)
                                              :visible-whitespace? (.getValue visible-whitespace-property))
-                               (:app-view opts))
+                               app-view)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
@@ -2277,7 +2278,12 @@
     (ui/observe (.selectedProperty tab)
                 (fn [_ _ became-selected?]
                   (when became-selected?
-                    (ui/run-later (.requestFocus canvas)))))
+                    ;; Must run-later here since we're not part of the Scene when we observe the property change.
+                    ;; Also note that we don't want to steal focus from the inactive tab pane, if present.
+                    (ui/run-later
+                      (when (identical? (.getTabPane tab)
+                                        (g/node-value app-view :active-tab-pane))
+                        (.requestFocus canvas))))))
 
     ;; Highlight occurrences of search term while find bar is open.
     (let [find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
