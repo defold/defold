@@ -676,7 +676,8 @@ If you do not specifically require different script states, consider changing th
                                (add-other-tab-pane! editor-tabs-split app-view))]
          (.remove (.getTabs source-tab-pane) selected-tab)
          (.add (.getTabs dest-tab-pane) selected-tab)
-         (.select (.getSelectionModel dest-tab-pane) selected-tab))))
+         (.select (.getSelectionModel dest-tab-pane) selected-tab)
+         (ui/run-later (.requestFocus dest-tab-pane)))))
 
 (handler/defhandler :swap-tabs :global
   (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
@@ -695,7 +696,24 @@ If you do not specifically require different script states, consider changing th
          (.set active-tabs active-tab-index other-tab)
          (.set other-tabs other-tab-index active-tab)
          (.select active-tab-pane-selection other-tab)
-         (.select other-tab-pane-selection active-tab))))
+         (.select other-tab-pane-selection active-tab)
+         (ui/run-later (.requestFocus other-tab-pane)))))
+
+(handler/defhandler :join-tab-panes :global
+  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (run [app-view user-data]
+       (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+             active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
+             selected-tab (ui/selected-tab active-tab-pane)
+             tab-panes (.getItems editor-tabs-split)
+             first-tab-pane ^TabPane (.get tab-panes 0)
+             second-tab-pane ^TabPane (.get tab-panes 1)
+             first-tabs (.getTabs first-tab-pane)
+             second-tabs (.getTabs second-tab-pane)
+             moved-tabs (vec second-tabs)]
+         (.clear second-tabs)
+         (.addAll first-tabs ^Collection moved-tabs)
+         (.select (.getSelectionModel first-tab-pane) selected-tab))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -826,10 +844,19 @@ If you do not specifically require different script states, consider changing th
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Move to Other Tab Pane"
+                [{:label "Close"
+                  :command :close}
+                 {:label "Close Others"
+                  :command :close-other}
+                 {:label "Close All"
+                  :command :close-all}
+                 {:label :separator}
+                 {:label "Move to Other Tab Pane"
                   :command :move-tab}
                  {:label "Swap With Other Tab Pane"
                   :command :swap-tabs}
+                 {:label "Join Tab Panes"
+                  :command :join-tab-panes}
                  {:label :separator}
                  {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
@@ -846,14 +873,7 @@ If you do not specifically require different script states, consider changing th
                  {:label "Dependencies..."
                   :command :dependencies}
                  {:label "Hot Reload"
-                  :command :hot-reload}
-                 {:label :separator}
-                 {:label "Close"
-                  :command :close}
-                 {:label "Close Others"
-                  :command :close-other}
-                 {:label "Close All"
-                  :command :close-all}])
+                  :command :hot-reload}])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
@@ -952,7 +972,8 @@ If you do not specifically require different script states, consider changing th
               (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
                     tab-panes (.getItems editor-tabs-split)]
                 (when (< 1 (count tab-panes))
-                  (.remove tab-panes tab-pane))))))))
+                  (.remove tab-panes tab-pane)
+                  (ui/run-later (.requestFocus ^TabPane (.get tab-panes 0))))))))))
 
   (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
 
