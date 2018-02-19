@@ -289,19 +289,33 @@ namespace dmRig
         HRigInstance m_Instance;
     };
 
-    Result NewContext(const NewContextParams& params);
-    void DeleteContext(HRigContext context);
-    Result Update(HRigContext context, float dt);
+#define DM_RIG_PROTO(ret, name,  ...) \
+    \
+    ret name(__VA_ARGS__);\
+    extern "C" DM_DLLEXPORT ret Rig_##name(__VA_ARGS__)
+
+
+    // Result NewContext(const NewContextParams& params);
+    DM_RIG_PROTO(Result, NewContext, const NewContextParams& params);
+    // void DeleteContext(HRigContext context);
+    DM_RIG_PROTO(void, DeleteContext, HRigContext context);
+    // Result Update(HRigContext context, float dt);
+    DM_RIG_PROTO(Result, Update, HRigContext context, float dt);
 
     Result InstanceCreate(const InstanceCreateParams& params);
     Result InstanceDestroy(const InstanceDestroyParams& params);
 
-    Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
-    Result CancelAnimation(HRigInstance instance);
-    dmhash_t GetAnimation(HRigInstance instance);
+    //Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
+    DM_RIG_PROTO(Result, PlayAnimation, HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
+    //Result CancelAnimation(HRigInstance instance);
+    DM_RIG_PROTO(Result, CancelAnimation, HRigInstance instance);
+    //dmhash_t GetAnimation(HRigInstance instance);
+    DM_RIG_PROTO(dmhash_t, GetAnimation, HRigInstance instance);
 
-    void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
-    uint32_t GetVertexCount(HRigInstance instance);
+    //void* GenerateVertexData(HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
+    DM_RIG_PROTO(void*, GenerateVertexData, HRigContext context, HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out);
+    //uint32_t GetVertexCount(HRigInstance instance);
+    DM_RIG_PROTO(uint32_t, GetVertexCount, HRigInstance instance);
 
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
     dmhash_t GetMesh(HRigInstance instance);
@@ -322,6 +336,17 @@ namespace dmRig
     // used in rig tests and loading rig resources.
     void CreateBindPose(dmRigDDF::Skeleton& skeleton, dmArray<RigBone>& bind_pose);
     void FillBoneListArrays(const dmRigDDF::MeshSet& meshset, const dmRigDDF::AnimationSet& animationset, const dmRigDDF::Skeleton& skeleton, dmArray<uint32_t>& track_idx_to_pose, dmArray<uint32_t>& pose_idx_to_influence);
+
+    // Exposed here since it's used for both GenerateVertexData and GetPoseMatrices (used by editor for previewing)
+    void PoseToMatrix(const dmArray<dmTransform::Transform>& pose, dmArray<Matrix4>& out_matrices);
+    void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<dmTransform::Transform>& pose, dmArray<dmTransform::Transform>& out_pose);
+    void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<Matrix4>& pose, dmArray<Matrix4>& out_pose);
+
+    // FIXME - Functions specific for Ed2 preivew
+    DM_RIG_PROTO(HRigInstance, InstanceCreate, HRigContext context, const void* buffer_skeleton, uint32_t buffer_skeleton_size, const void* buffer_meshset, uint32_t buffer_meshset_size, const void* buffer_animationset, uint32_t buffer_animationset_size, dmhash_t mesh_id, dmhash_t default_animation);
+    DM_RIG_PROTO(bool, InstanceDestroy, HRigContext context, HRigInstance instance);
+    DM_RIG_PROTO(Matrix4*, GetPoseMatrices, HRigContext context, HRigInstance instance);
+    DM_RIG_PROTO(void, ReleasePoseMatrices, Matrix4* matrices);
 }
 
 #endif // DM_RIG_H

@@ -1230,7 +1230,7 @@ namespace dmRig
         return out_buffer;
     }
 
-    static void PoseToMatrix(const dmArray<dmTransform::Transform>& pose, dmArray<Matrix4>& out_matrices)
+    void PoseToMatrix(const dmArray<dmTransform::Transform>& pose, dmArray<Matrix4>& out_matrices)
     {
         uint32_t bone_count = pose.Size();
         for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -1239,7 +1239,7 @@ namespace dmRig
         }
     }
 
-    static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<dmTransform::Transform>& pose, dmArray<dmTransform::Transform>& out_pose)
+    void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<dmTransform::Transform>& pose, dmArray<dmTransform::Transform>& out_pose)
     {
         const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
@@ -1264,7 +1264,7 @@ namespace dmRig
         }
     }
 
-    static void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<Matrix4>& pose, dmArray<Matrix4>& out_pose)
+    void PoseToModelSpace(const dmRigDDF::Skeleton* skeleton, const dmArray<Matrix4>& pose, dmArray<Matrix4>& out_pose)
     {
         const dmRigDDF::Bone* bones = skeleton->m_Bones.m_Data;
         uint32_t bone_count = skeleton->m_Bones.m_Count;
@@ -1741,4 +1741,58 @@ namespace dmRig
         }
     }
 
+#define DM_RIG_TRAMPOLINE1(ret, name, t1) \
+    ret Rig_##name(t1 a1)\
+    {\
+        return name(a1);\
+    }\
+
+#define DM_RIG_TRAMPOLINE2(ret, name, t1, t2) \
+    ret Rig_##name(t1 a1, t2 a2)\
+    {\
+        return name(a1, a2);\
+    }\
+
+#define DM_RIG_TRAMPOLINE3(ret, name, t1, t2, t3) \
+    ret Rig_##name(t1 a1, t2 a2, t3 a3)\
+    {\
+        return name(a1, a2, a3);\
+    }\
+
+#define DM_RIG_TRAMPOLINE6(ret, name, t1, t2, t3, t4, t5, t6) \
+    ret Rig_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6);\
+    }\
+
+#define DM_RIG_TRAMPOLINE7(ret, name, t1, t2, t3, t4, t5, t6, t7) \
+    ret Rig_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6, a7);\
+    }\
+
+#define DM_RIG_TRAMPOLINE9(ret, name, t1, t2, t3, t4, t5, t6, t7, t8, t9) \
+    ret Rig_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8, t9 a9)\
+    {\
+        return name(a1, a2, a3, a4, a5, a6, a7, a8, a9);\
+    }\
+
+
+    DM_RIG_TRAMPOLINE1(Result, NewContext, const NewContextParams&);
+    DM_RIG_TRAMPOLINE1(void, DeleteContext, HRigContext);
+    DM_RIG_TRAMPOLINE2(Result, Update, HRigContext, float);
+
+    DM_RIG_TRAMPOLINE7(void*, GenerateVertexData, HRigContext, HRigInstance, const Matrix4&, const Matrix4&, const Vector4, RigVertexFormat, void*);
+    DM_RIG_TRAMPOLINE1(uint32_t, GetVertexCount, HRigInstance);
+
+    // DM_RIG_TRAMPOLINE6(HRigInstance, InstanceCreate, HRigContext, dmRigDDF::Skeleton*, const dmRigDDF::MeshSet*, const dmRigDDF::AnimationSet*, dmhash_t, dmhash_t);
+    DM_RIG_TRAMPOLINE9(HRigInstance, InstanceCreate, HRigContext, const void*, uint32_t, const void*, uint32_t, const void*, uint32_t, dmhash_t, dmhash_t);
+    DM_RIG_TRAMPOLINE2(bool, InstanceDestroy, HRigContext, HRigInstance);
+
+    DM_RIG_TRAMPOLINE6(Result, PlayAnimation, HRigInstance, dmhash_t, RigPlayback, float, float, float);
+    DM_RIG_TRAMPOLINE1(Result, CancelAnimation, HRigInstance);
+    DM_RIG_TRAMPOLINE1(dmhash_t, GetAnimation, HRigInstance);
+
+    DM_RIG_TRAMPOLINE2(Matrix4*, GetPoseMatrices, HRigContext, HRigInstance);
+    DM_RIG_TRAMPOLINE1(void, ReleasePoseMatrices, Matrix4*);
 }
