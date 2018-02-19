@@ -65,19 +65,25 @@ def download(url):
         log('Downloading %s failed' % (url))
     return path
 
-def exec_command(args, stdout = None, stderr = None):
+def exec_command(args):
     print('[EXEC] %s' % args)
-    process = subprocess.Popen(args, stdout=stdout, stderr=stderr, shell = False)
-    output = process.communicate()[0]
-    if process.returncode != 0:
-        print(output)
-        sys.exit(process.returncode)
-    return output
+    process = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, shell = False)
 
-def run_command(args):
-    process = subprocess.Popen(args, shell = False)
+    output = ''
+    while True:
+        line = process.stdout.readline()
+        if line != '':
+            output += line
+            print line.rstrip()
+            sys.stdout.flush()
+            sys.stderr.flush()
+        else:
+            break
+
     if process.wait() != 0:
         sys.exit(process.returncode)
+
+    return output
 
 def ziptree(path, outfile, directory = None):
     # Directory is similar to -C in tar
@@ -126,7 +132,7 @@ def create_dmg(dmg_dir, bundle_dir, dmg_file):
     # This certificate must be installed on the computer performing the operation
     certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
 
-    certificate_found = exec_command(['security', 'find-identity', '-p', 'codesigning', '-v'], stdout = subprocess.PIPE).find(certificate) >= 0
+    certificate_found = exec_command(['security', 'find-identity', '-p', 'codesigning', '-v']).find(certificate) >= 0
 
     if not certificate_found:
         print("Warning: Codesigning certificate not found, DMG will not be signed")
@@ -226,9 +232,6 @@ def bundle(platform, jar_file, options):
     if not 'win32' in platform:
         exec_command(['chmod', '+x', '%s/Defold%s' % (exe_dir, exe_suffix)])
 
-    if 'win32' in platform:
-        exec_command(['java', '-cp', 'target/classes', 'com.defold.util.IconExe', '%s/Defold%s' % (exe_dir, exe_suffix), 'bundle-resources/logo.ico'])
-
     extract(jre, 'tmp', is_mac)
 
     print 'Creating bundle'
@@ -254,7 +257,7 @@ def check_reflections():
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = exec_command(['./scripts/lein', 'check'], stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
+    output = exec_command(['./scripts/lein', 'check'])
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
@@ -334,15 +337,15 @@ if __name__ == '__main__':
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
-    run_command(init_command)
+    exec_command(init_command)
     check_reflections()
 
     if options.skip_tests:
         print 'Skipping tests'
     else:
-        run_command(['./scripts/lein', 'test'])
+        exec_command(['./scripts/lein', 'test'])
 
-    run_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
+    exec_command(['bash', './scripts/lein', 'with-profile', '+release', 'uberjar'])
 
     jar_file = 'defold-%s.jar' % options.editor_sha1
 

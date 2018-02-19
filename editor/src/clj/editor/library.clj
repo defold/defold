@@ -8,24 +8,26 @@
             [clojure.string :as str])
   (:import [java.io File InputStream]
            [java.util.zip ZipInputStream]
-           [java.net URL URLConnection HttpURLConnection]
+           [java.net URI URLConnection HttpURLConnection]
            [org.apache.commons.io FilenameUtils]
            [org.apache.commons.codec.digest DigestUtils]))
 
 (set! *warn-on-reflection* true)
 
-(defn parse-library-urls [url-string]
-  (when url-string
-    (into [] (keep url/try-parse) (str/split url-string #"[,\s]"))))
+(defn parse-library-uris [uri-string]
+  (when uri-string
+    (into []
+          (keep url/try-parse)
+          (str/split uri-string #"[,\s]"))))
 
 (defmethod settings-core/parse-setting-value :library-list [_ raw]
-  (parse-library-urls raw))
+  (parse-library-uris raw))
 
 (defmethod settings-core/render-raw-setting-value :library-list [_ value]
   (when (seq value) (str/join "," value)))
 
-(defn- mangle-library-url [^URL url]
-  (DigestUtils/sha1Hex (str url)))
+(defn- mangle-library-uri [^URI uri]
+  (DigestUtils/sha1Hex (str uri)))
 
 (defn- str->b64 [^String s]
   (.encodeToString (java.util.Base64/getUrlEncoder) (.getBytes s "UTF-8")))
@@ -33,33 +35,33 @@
 (defn- b64->str [^String b64str]
   (String. (.decode (java.util.Base64/getUrlDecoder) b64str) "UTF-8"))
 
-(defn- library-url-to-file-name ^String [url tag]
-  (str (mangle-library-url url) "-" (str->b64 (or tag "")) ".zip"))
+(defn- library-uri-to-file-name ^String [uri tag]
+  (str (mangle-library-uri uri) "-" (str->b64 (or tag "")) ".zip"))
 
 (defn library-directory ^File [project-directory]
   (io/file (io/as-file project-directory) ".internal/lib"))
 
-(defn library-file ^File [project-directory lib-url tag]
+(defn library-file ^File [project-directory lib-uri tag]
   (io/file (library-directory project-directory)
-           (library-url-to-file-name lib-url tag)))
+           (library-uri-to-file-name lib-uri tag)))
 
 (defn library-files [project-directory]
   (seq (.listFiles (library-directory project-directory))))
 
-(defn- library-file-regexp [lib-url]
+(defn- library-file-regexp [lib-uri]
   ;; matches any etag
-  (re-pattern (str (mangle-library-url lib-url) "-(.*)\\.zip")))
+  (re-pattern (str (mangle-library-uri lib-uri) "-(.*)\\.zip")))
 
-(defn- find-matching-library [libs lib-url]
-  (let [lib-regexp (library-file-regexp lib-url)]
+(defn- find-matching-library [libs lib-uri]
+  (let [lib-regexp (library-file-regexp lib-uri)]
     (first (keep #(when-let [match (re-matches lib-regexp (.getName ^File %))] {:file % :tag (b64->str (second match))}) libs))))
 
-(defn- library-cache-info [project-directory lib-urls]
+(defn- library-cache-info [project-directory lib-uris]
   (let [libs (library-files project-directory)]
-    (map #(assoc (find-matching-library libs %) :url %) lib-urls)))
+    (map #(assoc (find-matching-library libs %) :uri %) lib-uris)))
 
-(defn current-library-state [project-directory lib-urls]
-  (map #(assoc % :status :unknown) (library-cache-info project-directory (distinct lib-urls))))
+(defn current-library-state [project-directory lib-uris]
+  (map #(assoc % :status :unknown) (library-cache-info project-directory (distinct lib-uris))))
 
 ;; -----
 
@@ -87,9 +89,9 @@
   {"X-Auth" (prefs/get-prefs prefs "token" nil)
    "X-Email" (prefs/get-prefs prefs "email" nil)})
 
-(defn- headers-for-url [^URL lib-url]
-  (let [host (str/lower-case (.getHost lib-url))
-        user-info (.getUserInfo lib-url)]
+(defn- headers-for-uri [^URI lib-uri]
+  (let [host (str/lower-case (.getHost lib-uri))
+        user-info (.getUserInfo lib-uri)]
     (cond
       (some? user-info)
       (make-basic-auth-headers user-info)
@@ -97,9 +99,9 @@
       (some #{host} ["www.defold.com"])
       (make-defold-auth-headers (prefs/make-prefs "defold")))))
 
-(defn default-http-resolver [^URL url ^String tag]
-  (let [http-headers (headers-for-url url)
-        connection (.openConnection url)
+(defn default-http-resolver [^URI uri ^String tag]
+  (let [http-headers (headers-for-uri uri)
+        connection (.. uri toURL openConnection)
         http-connection (when (instance? HttpURLConnection connection) connection)]
     (when http-connection
       (doseq [[header value] http-headers]
@@ -115,9 +117,9 @@
        :stream (when (= status :stale) (.getInputStream connection))
        :tag tag})))
 
-(defn- fetch-library! [resolver ^URL url tag]
+(defn- fetch-library! [resolver ^URI uri tag]
   (try
-    (let [response (resolver url tag)]
+    (let [response (resolver uri tag)]
       {:status (:status response)
        :new-file (when (= (:status response) :stale) (dump-to-temp-file! (:stream response)))
        :tag (:tag response)})
@@ -126,15 +128,15 @@
        :reason :fetch-failed
        :exception e})))
 
-(defn- fetch-library-update! [{:keys [tag url] :as lib-state} resolver render-progress!]
-  (let [progress (progress/make (str url))]
+(defn- fetch-library-update! [{:keys [tag uri] :as lib-state} resolver render-progress!]
+  (let [progress (progress/make (str uri))]
     (render-progress! progress)
     ;; tag may not be available ...
-    (merge lib-state (fetch-library! resolver url tag))))
+    (merge lib-state (fetch-library! resolver uri tag))))
 
 (defn- locate-zip-entry
-  [url file-name]
-  (with-open [zip (ZipInputStream. (io/input-stream url))]
+  [zip-file file-name]
+  (with-open [zip (ZipInputStream. (io/input-stream zip-file))]
     (loop [entry (.getNextEntry zip)]
       (if entry
         (let [parts (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
@@ -159,19 +161,19 @@
               :reason :invalid-zip
               :exception e}))))
 
-(defn- purge-all-library-versions! [project-directory lib-url]
-  (let [lib-regexp (library-file-regexp lib-url)
+(defn- purge-all-library-versions! [project-directory lib-uri]
+  (let [lib-regexp (library-file-regexp lib-uri)
         lib-files (filter #(re-matches lib-regexp (.getName ^File %)) (library-files project-directory))]
     (doseq [^File lib-file lib-files]
       (fs/delete-file! lib-file {:fail :silently}))))
 
-(defn- install-library! [project-directory {:keys [url tag ^File new-file]}]
-  (fs/copy-file! new-file (library-file project-directory url tag)))
+(defn- install-library! [project-directory {:keys [uri tag ^File new-file]}]
+  (fs/copy-file! new-file (library-file project-directory uri tag)))
 
 (defn- install-updated-library! [lib-state project-directory]
   (merge lib-state
          (try
-           (purge-all-library-versions! project-directory (:url lib-state))
+           (purge-all-library-versions! project-directory (:uri lib-state))
            (let [file (install-library! project-directory lib-state)]
              {:status :up-to-date
               :file file})

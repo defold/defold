@@ -60,10 +60,10 @@
 ;; │   └── test.sprite
 ;; └── test.particlefx
 
-(def ^:private lib-urls (library/parse-library-urls "file:/scriptlib file:/imagelib1 file:/imagelib2"))
+(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2"))
 
-(def ^:private scriptlib-url (first lib-urls)) ; /scripts/main.script
-(def ^:private imagelib1-url (second lib-urls)) ; /images/{pow,paddle}.png
+(def ^:private scriptlib-uri (first lib-uris)) ; /scripts/main.script
+(def ^:private imagelib1-uri (second lib-uris)) ; /images/{pow,paddle}.png
 
 (defn- setup-scratch
   ([ws-graph] (setup-scratch ws-graph reload-project-path))
@@ -471,7 +471,7 @@
         (is (= initial-graph-nodes (graph-nodes project)))
 
         ;; actual test
-        (workspace/set-project-dependencies! workspace [imagelib1-url])
+        (workspace/set-project-dependencies! workspace [imagelib1-uri])
         (let [images-dir-resource (workspace/find-resource workspace "/images")]
           (asset-browser/rename images-dir-resource "graphics"))
 
@@ -513,7 +513,7 @@
         (is (= (map g/override-original game_object>main-go-scripts)
                [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [scriptlib-url])
+        (workspace/set-project-dependencies! workspace [scriptlib-uri])
         (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
           (asset-browser/rename scripts-dir-resource "project_scripts"))
 
@@ -548,7 +548,7 @@
             images>pow-resource (resource images>pow)
             image>ball (project/get-resource-node project "/images/ball.png")
             initial-graph-nodes (graph-nodes project)]
-        (workspace/set-project-dependencies! workspace [imagelib1-url])
+        (workspace/set-project-dependencies! workspace [imagelib1-uri])
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [images-dir-resource (workspace/find-resource workspace "/images")]
             (asset-browser/rename images-dir-resource "graphics")))
@@ -587,7 +587,7 @@
             initial-graph-nodes (graph-nodes project)]
         (is (= (map g/override-original game_object>main-scripts) [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [scriptlib-url]) ; /scripts/main.script
+        (workspace/set-project-dependencies! workspace [scriptlib-uri]) ; /scripts/main.script
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
             (asset-browser/rename scripts-dir-resource "main")))
