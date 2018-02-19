@@ -2270,7 +2270,7 @@ namespace dmScript
      * Performs an element wise multiplication between two vectors of the same type
      * The returned value is a vector defined as (e.g. for a vector3):
      *
-     * <code>v = mul_per_elem(a, b) = vmath.vector3(a.x * b.x, a.y * b.y, a.z * b.z)</code>
+     * <code>v = vmath.mul_per_elem(a, b) = vmath.vector3(a.x * b.x, a.y * b.y, a.z * b.z)</code>
      *
      * @name vmath.mul_per_elem
      * @param v1 [type:vector3|vector4] first vector
