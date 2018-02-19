@@ -709,9 +709,8 @@ class Configuration(object):
 
     def build_bob_light(self):
         self._log('Building bob')
-        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
-                              cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'),
-                              shell = True)
+        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install']),
+                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'))
 
     def build_engine(self):
         cmd = self._build_engine_cmd(**self._get_build_flags())
@@ -848,13 +847,12 @@ class Configuration(object):
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            self.exec_env_command("./scripts/copy.sh", cwd = cwd, shell = True)
+            self.exec_env_shell_command("./scripts/copy.sh", cwd = cwd)
         else:
             self.copy_local_bob_artefacts()
 
-        self.exec_env_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
-                              cwd = cwd,
-                              shell = True)
+        self.exec_env_shell_command(" ".join([join(self.dynamo_home, 'ext/share/ant/bin/ant'), 'clean', 'install-full']),
+                              cwd = cwd)
 
     def build_sdk(self):
         tempdir = tempfile.mkdtemp() # where the sdk ends up
@@ -1011,10 +1009,7 @@ instructions.configure=\
 
         cwd = join(self.defold_root, 'editor')
 
-        process = subprocess.Popen(cmd, env = self._form_env(), cwd = cwd)
-
-        if process.wait() != 0:
-            sys.exit(process.returncode)
+        self.exec_env_command(cmd, cwd = cwd)
 
     def archive_editor2(self):
         sha1 = self._git_sha1()
@@ -1079,7 +1074,13 @@ instructions.configure=\
             preexec_fn = None
         else:
             preexec_fn = self.check_ems
-        self.exec_env_command([SHELL, '-l'], preexec_fn=preexec_fn)
+
+        process = subprocess.Popen([SHELL, '-l'], env = self._form_env(), preexec_fn=preexec_fn)
+        output = process.communicate()[0]
+
+        if process.returncode != 0:
+            self._log(output)
+            sys.exit(process.returncode)
 
     def _get_tagged_releases(self):
         u = urlparse.urlparse(self.archive_path)
@@ -1117,7 +1118,7 @@ instructions.configure=\
                         files.append({'name': name, 'path': '/' + x.name})
             return files
 
-        tags = self.exec_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
+        tags = self.exec_shell_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
         tags.reverse()
         releases = []
         for line in tags:
@@ -1126,7 +1127,7 @@ instructions.configure=\
                 continue
             m = re.match('(.*?) refs/tags/(.*?)$', line)
             sha1, tag = m.groups()
-            epoch = self.exec_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
+            epoch = self.exec_shell_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
             date = datetime.fromtimestamp(float(epoch))
             files = get_files(sha1)
             if len(files) > 0:
@@ -1285,12 +1286,12 @@ instructions.configure=\
 </repository>
 """
 
-        if self.exec_command('git config -l').find('remote.origin.url') != -1:
+        if self.exec_shell_command('git config -l').find('remote.origin.url') != -1:
             # NOTE: Only run fetch when we have a configured remote branch.
             # When running on buildbot we don't but fetching should not be required either
             # as we're already up-to-date
             self._log('Running git fetch to get latest tags and refs...')
-            self.exec_command('git fetch')
+            self.exec_shell_command('git fetch')
 
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
@@ -1417,16 +1418,16 @@ instructions.configure=\
                 fp_defold_app = os.path.join(dp_defold, 'Defold.app')
                 fp_defold_dmg = os.path.join(root, 'Defold-macosx.cocoa.x86_64.dmg')
 
-                self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold], False)
-                self.exec_command(['chmod', '-R', '755', dp_defold], False)
+                self.exec_command(['unzip', '-qq', '-o', filepath, '-d', dp_defold])
+                self.exec_command(['chmod', '-R', '755', dp_defold])
                 os.symlink('/Applications', os.path.join(builddir, 'Applications'))
 
                 # Create a signature for Defold.app and the container
                 # This certificate must be installed on the computer performing the operation
                 certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
-                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app], False)
-                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg], False)
-                self.exec_command(['codesign', '-s', certificate, fp_defold_dmg], False)
+                self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app])
+                self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg])
+                self.exec_command(['codesign', '-s', certificate, fp_defold_dmg])
                 self._log('Signed %s' % (fp_defold_dmg))
 
                 # Upload the signed container to S3
@@ -1503,7 +1504,7 @@ instructions.configure=\
         host2 = get_host_platform2()
         install_path = join('tmp', 'smoke_test')
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'attach', bundle], False)
+            out = self.exec_command(['hdiutil', 'attach', bundle])
             print("cmd:" + out)
             last = [l2 for l2 in (l1.strip() for l1 in out.split('\n')) if l2][-1]
             words = last.split()
@@ -1529,7 +1530,7 @@ instructions.configure=\
         host2 = get_host_platform2()
         shutil.rmtree(info['install_path'])
         if 'darwin' in host2:
-            out = self.exec_command(['hdiutil', 'detach', info['fs']], False)
+            out = self.exec_command(['hdiutil', 'detach', info['fs']])
 
     def _get_config(self, config, section, option, overrides):
         combined = '%s.%s' % (section, option)
@@ -1704,18 +1705,34 @@ instructions.configure=\
             f()
         self.futures = []
 
-    def exec_command(self, args, shell = True):
-        arg_str = args
-        if not isinstance(arg_str, basestring):
-            arg_str = ' '.join(arg_str)
-        self._log('[exec] %s' % arg_str)
-        process = subprocess.Popen(args, stdout = subprocess.PIPE, shell = shell)
 
-        output = process.communicate()[0]
-        if process.returncode != 0:
-            self._log(output)
+    def _exec_command(self, arg_list, **kwargs):
+        arg_str = arg_list
+        if not isinstance(arg_str, basestring):
+            arg_str = ' '.join(arg_list)
+        self._log('[exec] %s' % arg_str)
+
+        process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
+
+        output = ''
+        while True:
+            line = process.stdout.readline()
+            if line != '':
+                output += line
+                self._log(line.rstrip())
+            else:
+                break
+
+        if process.wait() != 0:
             sys.exit(process.returncode)
+
         return output
+
+    def exec_command(self, args):
+        return self._exec_command(args, shell = False)
+
+    def exec_shell_command(self, args):
+        return self._exec_command(args, shell = True)
 
     def _form_env(self):
         env = dict(os.environ)
@@ -1765,19 +1782,11 @@ instructions.configure=\
 
         return env
 
-    def exec_env_command(self, arg_list, **kwargs):
-        env = self._form_env()
-        arg_str = arg_list
-        if not isinstance(arg_str, basestring):
-            arg_str = ' '.join(arg_list)
-        self._log('[exec] %s' % arg_str)
-        process = subprocess.Popen(arg_list, env = env, **kwargs)
-        output = process.communicate()[0]
+    def exec_env_command(self, args, **kwargs):
+        return self._exec_command(args, shell = False, env = self._form_env(), **kwargs)
 
-        if process.returncode != 0:
-            self._log(output)
-            sys.exit(process.returncode)
-        return output
+    def exec_env_shell_command(self, args, **kwargs):
+        return self._exec_command(args, shell = True, env = self._form_env(), **kwargs)
 
 if __name__ == '__main__':
     boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
