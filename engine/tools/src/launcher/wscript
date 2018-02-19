@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-import os
+#import os
 import waf_dynamo
 
 def configure(conf):

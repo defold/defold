@@ -608,7 +608,7 @@ def authenticode_sign(task):
         error("Unable to copy file before signing")
         return 1
 
-    ret = task.exec_command('"%s" sign /sm /n "%s" /fd sha256 /tr http://timestamp.comodoca.com /td sha256 /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), log=True)
+    ret = task.exec_command('"%s" sign /debug /sm /n "%s" /fd sha256 /tr http://timestamp.comodoca.com /td sha256 /d defold /du https://www.defold.com /v %s' % (task.env['SIGNTOOL'], AUTHENTICODE_CERTIFICATE, exe_file_to_sign), log=True)
     if ret != 0:
         error("Unable to sign executable")
         return 1
