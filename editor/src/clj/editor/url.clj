@@ -1,14 +1,15 @@
 (ns editor.url
-  (:import [java.net HttpURLConnection MalformedURLException URL]
+  (:import [java.net HttpURLConnection MalformedURLException URL URISyntaxException URI]
            [java.io IOException]))
 
 (defn defold-hosted?
-  [^URL url]
-  (= "www.defold.com" (.getHost url)))
+  [^URI uri]
+  (= "www.defold.com" (.getHost uri)))
 
 (defn reachable?
-  [^URL url]
-  (let [conn (doto ^HttpURLConnection (.openConnection url)
+  [^URI uri]
+  (let [url (.toURL uri)
+        conn (doto ^HttpURLConnection (.openConnection url)
                (.setAllowUserInteraction false)
                (.setInstanceFollowRedirects false)
                (.setConnectTimeout 2000)
@@ -24,9 +25,11 @@
         (.disconnect conn)))))
 
 (defn strip-path
-  ^URL [^URL url]
-  (URL. (.getProtocol url) (.getHost url) (.getPort url) ""))
+  ^URI [^URI uri]
+  (URI. (.getScheme uri) nil (.getHost uri) (.getPort uri) nil nil nil))
 
 (defn try-parse
-  ^URL [^String s]
-  (try (URL. s) (catch MalformedURLException _ nil)))
+  ^URI [^String s]
+  (try (.toURI (URL. s))
+       (catch MalformedURLException _ nil)
+       (catch URISyntaxException _ nil)))
