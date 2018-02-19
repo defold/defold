@@ -26,7 +26,7 @@
 
 (defn strip-path
   ^URI [^URI uri]
-  (URI. (.getScheme uri) "" (.getHost uri) (.getPort uri) "" "" ""))
+  (URI. (.getScheme uri) nil (.getHost uri) (.getPort uri) nil nil nil))
 
 (defn try-parse
   ^URI [^String s]
