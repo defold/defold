@@ -17,12 +17,12 @@
 
 (def ^:dynamic *project-path* "test/resources/lib_resource_project")
 
-(def ^:private lib-urls (library/parse-library-urls "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus"))
+(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus"))
 
-(def ^:private scriptlib-url (first lib-urls))
-(def ^:private imagelib1-url (nth lib-urls 1))
-(def ^:private imagelib2-url (nth lib-urls 2))
-(def ^:private bogus-url (nth lib-urls 3))
+(def ^:private scriptlib-uri (first lib-uris))
+(def ^:private imagelib1-uri (nth lib-uris 1))
+(def ^:private imagelib2-uri (nth lib-uris 2))
+(def ^:private bogus-uri (nth lib-uris 3))
 
 (defn- setup [ws-graph]
   (let [workspace (test-util/setup-workspace! ws-graph *project-path*)
@@ -73,31 +73,31 @@
 (deftest only-load-specified-libraries
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world))]
-      (workspace/set-project-dependencies! workspace [imagelib1-url])
+      (workspace/set-project-dependencies! workspace [imagelib1-uri])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources)))
-      (workspace/set-project-dependencies! workspace [imagelib2-url])
+      (workspace/set-project-dependencies! workspace [imagelib2-uri])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib2-resources)))
-      (workspace/set-project-dependencies! workspace [scriptlib-url])
+      (workspace/set-project-dependencies! workspace [scriptlib-uri])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace) (set/union directory-resources scriptlib-resources)))
-      (workspace/set-project-dependencies! workspace [imagelib1-url scriptlib-url])
+      (workspace/set-project-dependencies! workspace [imagelib1-uri scriptlib-uri])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace) (set/union directory-resources imagelib1-resources scriptlib-resources))))))
 
 (deftest skip-colliding-libraries
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world))]
-      (workspace/set-project-dependencies! workspace [imagelib1-url imagelib2-url])
+      (workspace/set-project-dependencies! workspace [imagelib1-uri imagelib2-uri])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace)
              (clojure.set/union directory-resources imagelib1-resources))))))
 
-(deftest skip-bad-lib-urls []
+(deftest skip-bad-lib-uris []
   (with-clean-system
     (let [[workspace projec†] (log/without-logging (setup world))]
-      (workspace/set-project-dependencies! workspace [imagelib1-url bogus-url])
+      (workspace/set-project-dependencies! workspace [imagelib1-uri bogus-uri])
       (workspace/resource-sync! workspace)
       (is (= (workspace-resource-paths workspace)
              (clojure.set/union directory-resources imagelib1-resources))))))
@@ -105,7 +105,7 @@
 (deftest resource-sync!-diff
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))]
-      (workspace/set-project-dependencies! workspace [imagelib1-url])
+      (workspace/set-project-dependencies! workspace [imagelib1-uri])
       (let [il1-diff (workspace/resource-sync! workspace)]
         (is (= (resource-paths (:added il1-diff)) imagelib1-resources))
         (is (empty? (:removed il1-diff)))
@@ -115,12 +115,12 @@
         (is (empty? (:added remove-il1-diff)))
         (is (= (resource-paths (:removed remove-il1-diff)) imagelib1-resources))
         (is (empty? (:changed remove-il1-diff))))
-      (workspace/set-project-dependencies! workspace [imagelib1-url])
+      (workspace/set-project-dependencies! workspace [imagelib1-uri])
       (workspace/resource-sync! workspace)
       (let [project-directory (workspace/project-path workspace)]
         ;; this fakes having downloaded a different version of the library
-        (fs/move-file! (library/library-file project-directory imagelib1-url "")
-                       (library/library-file project-directory imagelib1-url "updated")))
+        (fs/move-file! (library/library-file project-directory imagelib1-uri "")
+                       (library/library-file project-directory imagelib1-uri "updated")))
       (let [update-il1-diff (workspace/resource-sync! workspace)]
         (is (empty? (:added update-il1-diff)))
         (is (empty? (:removed update-il1-diff)))
@@ -133,12 +133,12 @@
 (deftest exchange-of-zipresource-updates-corresponding-resource-node
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world))]
-      (workspace/set-project-dependencies! workspace [imagelib1-url])
+      (workspace/set-project-dependencies! workspace [imagelib1-uri])
       (workspace/resource-sync! workspace)
       (let [lib1-pow (project/get-resource-node project "/images/pow.png")
             lib1-pow-resource (g/node-value lib1-pow :resource)]
         (is (not (g/error? lib1-pow-resource)))
-        (workspace/set-project-dependencies! workspace [imagelib2-url])
+        (workspace/set-project-dependencies! workspace [imagelib2-uri])
         (workspace/resource-sync! workspace)
         (let [lib2-pow (project/get-resource-node project "/images/pow.png")
               lib2-pow-resource (g/node-value lib2-pow :resource)]
@@ -149,11 +149,11 @@
 (deftest delete-of-zipresource-marks-corresponding-resource-node-defective
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup world))]
-      (workspace/set-project-dependencies! workspace [imagelib1-url])
+      (workspace/set-project-dependencies! workspace [imagelib1-uri])
       (workspace/resource-sync! workspace)
       (let [lib1-paddle (project/get-resource-node project "/images/paddle.png")]
         (is (not (g/error? (g/node-value lib1-paddle :content))))
-        (workspace/set-project-dependencies! workspace [imagelib2-url])
+        (workspace/set-project-dependencies! workspace [imagelib2-uri])
         (workspace/resource-sync! workspace)
         (is (g/error? (g/node-value lib1-paddle :content))))))) ; removed, should emit errors
 

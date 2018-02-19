@@ -415,7 +415,7 @@
 (defn kill-lib-server [server]
   (http-server/stop! server))
 
-(defn lib-server-url [server lib]
+(defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
 
 (defn handler-run [command command-contexts user-data]
