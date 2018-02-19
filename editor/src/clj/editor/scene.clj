@@ -414,11 +414,13 @@
 (g/defnode SceneRenderer
   (property frame-version g/Any)
 
+  (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
   (input camera Camera)
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
 
+  (output inactive? g/Bool :abstract)
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
   (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera] (produce-render-data scene selection aux-renderables camera)))
@@ -539,8 +541,9 @@
                   pass/selection-passes))))
       []))
 
-(g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
+(g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer inactive?]
   (or (and tool-picking-rect
+        (not inactive?)
         (with-drawable-as-current drawable
           (let [render-args (generic-render-args viewport camera)
                 tool-renderables (apply merge-with into tool-renderables)
@@ -582,13 +585,18 @@
   (input active-tool g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
+  (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
                                                  (into [] (keep updatables) active-updatable-ids)))
 
   (output selection g/Any (gu/passthrough selection))
-  (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables]
-                                                       (reduce (partial merge-with into) renderables tool-renderables)))
+  (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables inactive?]
+                                                         (if inactive?
+                                                           renderables
+                                                           (reduce (partial merge-with into)
+                                                                   renderables
+                                                                   tool-renderables))))
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
@@ -1038,7 +1046,7 @@
                     (g/connect view-id              :viewport                  camera           :viewport)
 
                     (g/connect app-view-id          :selected-node-ids         view-id          :selection)
-
+                    (g/connect app-view-id          :active-view               view-id          :active-view)
                     (g/connect app-view-id          :active-tool               view-id          :active-tool)
 
                     (g/connect tool-controller      :input-handler             view-id          :input-handlers)
