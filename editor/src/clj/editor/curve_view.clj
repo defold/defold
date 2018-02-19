@@ -497,6 +497,7 @@
   (input picking-rect Rect)
   (input sub-selection g/Any)
 
+  (output inactive? g/Bool (g/constantly false))
   (output all-renderables g/Any :cached (g/fnk [renderables curve-renderables cp-renderables tool-renderables]
                                           (reduce (partial merge-with into) renderables (into [curve-renderables cp-renderables] tool-renderables))))
   (output curves g/Any :cached produce-curves)
