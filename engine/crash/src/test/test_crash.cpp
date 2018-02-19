@@ -12,6 +12,7 @@ extern "C"
 }
 
 #include "../crash.h"
+#include "../crash_private.h"
 
 class dmCrashTest : public ::testing::Test
 {
@@ -61,6 +62,55 @@ TEST_F(dmCrashTest, TestLoad)
     ASSERT_EQ(0, strcmp(info.m_DeviceLanguage, dmCrash::GetSysField(d, dmCrash::SYSFIELD_DEVICE_LANGUAGE)));
     ASSERT_EQ(0, strcmp(info.m_Territory, dmCrash::GetSysField(d, dmCrash::SYSFIELD_TERRITORY)));
 
+// DEBUG START
+// Due to a new behavior, the following test fails.
+// And, since we currently don't have access to the CI machines, this is our way forward
+{
+    // Excerpt from our crashtool.cpp
+
+    printf("\n%s:\n", "USERDATA");
+    for( int i = 0; i < (int)dmCrash::AppState::USERDATA_SLOTS; ++i)
+    {
+        const char* value = dmCrash::GetUserField(d, i);
+        if(!value || strcmp(value, "")==0)
+        {
+            break;
+        }
+        printf("%02d: %s\n", i, value);
+    }
+
+    printf("\n%s:\n", "BACKTRACE");
+
+    int frames = dmCrash::GetBacktraceAddrCount(d);
+    for( int i = 0; i < frames; ++i )
+    {
+        uintptr_t ptr = (uintptr_t)dmCrash::GetBacktraceAddr(d, i);
+
+        const char* value = 0;//PlatformGetSymbol(info, ptr);
+        printf("%02d  0x%016llX: %s\n", frames - i - 1, (unsigned long long)ptr, value ? value : "<no symbol name>");
+    }
+
+    printf("\n%s:\n", "EXTRA DATA");
+
+    const char* extra_data = dmCrash::GetExtraData(d);
+    printf("%s\n", extra_data ? extra_data : "<null>");
+
+
+    printf("\n%s:\n", "MODULES");
+    for( int i = 0; i < (int)dmCrash::AppState::MODULES_MAX; ++i)
+    {
+        const char* modulename = dmCrash::GetModuleName(d, i);
+        if( modulename == 0 )
+        {
+            break;
+        }
+        uintptr_t ptr = (uintptr_t)dmCrash::GetModuleAddr(d, i);
+        printf("%02d: %s  0x%016llx\n", i, modulename ? modulename : "<null>", (unsigned long long)ptr);
+    }
+    printf("\n");
+}
+// DEBUG END
+
     uint32_t addresses = dmCrash::GetBacktraceAddrCount(d);
     ASSERT_GT(addresses, 4);
     for (uint32_t i=0;i!=addresses;i++)
@@ -95,18 +145,18 @@ TEST_F(dmCrashTest, TestPurgeCustomPath)
     dmCrash::SetFilePath("remove-me");
     dmCrash::Purge();
     dmCrash::WriteDump();
-    ASSERT_NE(dmCrash::LoadPrevious(), 0);
+    ASSERT_NE(0, dmCrash::LoadPrevious());
     dmCrash::Purge();
-    ASSERT_EQ(dmCrash::LoadPrevious(), 0);
+    ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
 
 TEST_F(dmCrashTest, TestPurgeDefaultPath)
 {
     dmCrash::Purge();
     dmCrash::WriteDump();
-    ASSERT_NE(dmCrash::LoadPrevious(), 0);
+    ASSERT_NE(0, dmCrash::LoadPrevious());
     dmCrash::Purge();
-    ASSERT_EQ(dmCrash::LoadPrevious(), 0);
+    ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
 
 
