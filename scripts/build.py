@@ -1729,10 +1729,10 @@ instructions.configure=\
         return output
 
     def exec_command(self, args):
-        self._exec_command(args, shell = False)
+        return self._exec_command(args, shell = False)
 
     def exec_shell_command(self, args):
-        self._exec_command(args, shell = True)
+        return self._exec_command(args, shell = True)
 
     def _form_env(self):
         env = dict(os.environ)
@@ -1783,10 +1783,10 @@ instructions.configure=\
         return env
 
     def exec_env_command(self, args, **kwargs):
-        self._exec_command(args, shell = False, env = self._form_env(), **kwargs)
+        return self._exec_command(args, shell = False, env = self._form_env(), **kwargs)
 
     def exec_env_shell_command(self, args, **kwargs):
-        self._exec_command(args, shell = True, env = self._form_env(), **kwargs)
+        return self._exec_command(args, shell = True, env = self._form_env(), **kwargs)
 
 if __name__ == '__main__':
     boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
