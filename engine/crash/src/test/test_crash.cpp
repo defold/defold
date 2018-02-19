@@ -68,7 +68,9 @@ TEST_F(dmCrashTest, TestLoad)
     {
         // DEF-3128: Skip the last one, since it might be 0 on Win32
         if (i != addresses-1 )
+        {
             ASSERT_NE((void*)0, dmCrash::GetBacktraceAddr(d, i));
+        }
     }
 
     char buf[4096];
