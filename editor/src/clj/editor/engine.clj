@@ -21,8 +21,8 @@
 
 (def ^:const timeout 2000)
 
-(defn- get-connection [^URL url]
-  (doto ^HttpURLConnection (.openConnection url)
+(defn- get-connection [^URI uri]
+  (doto ^HttpURLConnection (.openConnection (.toURL uri))
     (.setRequestProperty "Connection" "close")
     (.setConnectTimeout timeout)
     (.setReadTimeout timeout)
@@ -40,8 +40,8 @@
         nil))))
 
 (defn reload-resource [target resource]
-  (let [url  (URL. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection url)]
+  (let [uri  (URI. (str (:url target) "/post/@resource/reload"))
+        conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -53,8 +53,8 @@
         (.disconnect conn)))))
 
 (defn reboot [target local-url debug?]
-  (let [url  (URL. (format "%s/post/@system/reboot" (:url target)))
-        conn ^HttpURLConnection (get-connection url)
+  (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))
+        conn ^HttpURLConnection (get-connection uri)
         args (cond-> [(str "--config=resource.uri=" local-url)]
                debug?
                (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
@@ -73,8 +73,8 @@
         (.disconnect conn)))))
 
 (defn run-script [target lua-module]
-  (let [url  (URL. (format "%s/post/@system/run_script" (:url target)))
-        conn ^HttpURLConnection (get-connection url)]
+  (let [uri  (URI. (format "%s/post/@system/run_script" (:url target)))
+        conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os  (.getOutputStream conn)]
         (let [bytes (protobuf/map->bytes com.dynamo.engine.proto.Engine$RunScript {:module lua-module})]
