@@ -289,6 +289,10 @@
    :default 128,
    :path ["spine" "max_count"]}
   {:type :integer,
+   :help "max number of models, 128 by default",
+   :default 128,
+   :path ["model" "max_count"]}
+  {:type :integer,
    :help "max number of gui components per collection, 64 by default",
    :default 64,
    :path ["gui" "max_count"]},
