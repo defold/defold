@@ -1187,8 +1187,8 @@ If you do not specifically require different script states, consider changing th
          (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
 (defn- fetch-libraries [workspace project prefs]
-  (let [library-urls (project/project-dependencies project)
-        hosts (into #{} (map url/strip-path) library-urls)]
+  (let [library-uris (project/project-dependencies project)
+        hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
       (dialogs/make-alert-dialog (string/join "\n" ["Fetch was aborted because the following host could not be reached:"
                                                     (str "\u00A0\u00A0\u2022\u00A0" first-unreachable-host) ; "  * " (NO-BREAK SPACE, NO-BREAK SPACE, BULLET, NO-BREAK SPACE)
@@ -1198,10 +1198,10 @@ If you do not specifically require different script states, consider changing th
         (ui/with-disabled-ui
           (ui/with-progress [render-fn (make-render-task-progress :fetch-libraries)]
             (error-reporting/catch-all!
-              (when (workspace/dependencies-reachable? library-urls (partial login/login prefs))
-                (let [lib-states (workspace/fetch-and-validate-libraries workspace library-urls render-fn)]
+              (when (workspace/dependencies-reachable? library-uris (partial login/login prefs))
+                (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fn)]
                   (ui/run-later
-                    (workspace/install-validated-libraries! workspace library-urls lib-states)
+                    (workspace/install-validated-libraries! workspace library-uris lib-states)
                     (workspace/resource-sync! workspace)))))))))))
 
 (handler/defhandler :fetch-libraries :global
