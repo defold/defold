@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <gtest/gtest.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -63,9 +64,13 @@ TEST_F(dmCrashTest, TestLoad)
 
     uint32_t addresses = dmCrash::GetBacktraceAddrCount(d);
     ASSERT_GT(addresses, 4);
+    printf("addresses: %u\n", addresses);
+
     for (uint32_t i=0;i!=addresses;i++)
     {
-        ASSERT_NE((void*)0, dmCrash::GetBacktraceAddr(d, i));
+        void* addr = dmCrash::GetBacktraceAddr(d, i);
+        printf("%u: %p\n", i, addr);
+        ASSERT_NE((void*)0, addr);
     }
 
     char buf[4096];
