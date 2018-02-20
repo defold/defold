@@ -102,24 +102,21 @@
 
 (def ^:dynamic *no-sync* nil)
 (def ^:dynamic *moved-files* nil)
-(def ^:dynamic *notify-listeners?* nil)
 
 (defn- sync!
   ([workspace]
     (when (not *no-sync*) (workspace/resource-sync! workspace)))
-  ([workspace notify-listeners? moved-files]
+  ([workspace moved-files]
     (if (not *no-sync*)
-      (workspace/resource-sync! workspace notify-listeners? moved-files)
+      (workspace/resource-sync! workspace moved-files)
       (do
-        (swap! *moved-files* into moved-files)
-        (swap! *notify-listeners?* #(and %1 %2) notify-listeners?)))))
+        (swap! *moved-files* into moved-files)))))
 
 (defmacro bulk-change [workspace & forms]
  `(with-bindings {#'*no-sync* true
-                  #'*moved-files* (atom [])
-                  #'*notify-listeners?* (atom true)}
+                  #'*moved-files* (atom [])}
     ~@forms
-    (workspace/resource-sync! ~workspace @*notify-listeners?* @*moved-files*)))
+    (workspace/resource-sync! ~workspace @*moved-files*)))
 
 (defn- touch-file
   ([workspace name]
@@ -166,7 +163,7 @@
 (defn- move-file [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
     (fs/move-file! f new-f)
-    (sync! workspace true [[f new-f]])))
+    (sync! workspace [[f new-f]])))
 
 (defn- add-img [workspace name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)

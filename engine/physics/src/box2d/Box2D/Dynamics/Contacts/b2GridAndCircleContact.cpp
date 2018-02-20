@@ -28,11 +28,6 @@ b2GridAndCircleContact::b2GridAndCircleContact(b2Fixture* fixtureA, int32 indexA
 {
 	b2Assert(m_fixtureA->GetType() == b2Shape::e_grid);
 	b2Assert(m_fixtureB->GetType() == b2Shape::e_circle);
-
-    b2GridShape* gridShape = (b2GridShape*)m_fixtureA->GetShape();
-    int32 row = m_indexA / gridShape->m_columnCount;
-    int32 col = m_indexA - (gridShape->m_columnCount * row);
-    m_edgeMask = gridShape->CalculateCellMask(m_fixtureA, row, col);
 }
 
 void b2GridAndCircleContact::Evaluate(b2Manifold* manifold, const b2Transform& xfA, const b2Transform& xfB)
@@ -48,37 +43,7 @@ void b2GridAndCircleContact::Evaluate(b2Manifold* manifold, const b2Transform& x
         return;
     }
 
-    const uint32 completeHull = ~0u;
-    // TODO Checking sensor here is a work-around for the budget edge-collisions below (see case 808)
-    if (m_edgeMask == completeHull || m_fixtureB->IsSensor())
-    {
-        b2PolygonShape polyA;
-        gridShape->GetPolygonShapeForCell(m_indexA, polyA);
-        b2CollidePolygonAndCircle(manifold, &polyA, xfA, circleB, xfB);
-    }
-    else
-    {
-        b2Manifold bestManifold = *manifold;
-        bestManifold.pointCount = 0;
-        float minDistance = b2_maxFloat;
-        b2EdgeShape edgeShapes[b2_maxPolygonVertices];
-        uint32 edgeCount = gridShape->GetEdgeShapesForCell(m_indexA, edgeShapes, b2_maxPolygonVertices, m_edgeMask);
-        for (uint32 i = 0; i < edgeCount; ++i)
-        {
-            b2EdgeShape& edge = edgeShapes[i];
-            manifold->pointCount = 0;
-            b2CollideEdgeAndCircle(manifold, &edge, xfA, circleB, xfB);
-            int32 pc = manifold->pointCount;
-            for (int32 j = 0; j < pc; ++j)
-            {
-                float distance = manifold->points[j].distance;
-                if (distance < minDistance)
-                {
-                    minDistance = distance;
-                    bestManifold = *manifold;
-                }
-            }
-        }
-        *manifold = bestManifold;
-    }
+    b2PolygonShape polyA;
+    gridShape->GetPolygonShapeForCell(m_indexA, polyA);
+    b2CollidePolygonAndCircle(manifold, &polyA, xfA, circleB, xfB);
 }

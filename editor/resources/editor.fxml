@@ -230,8 +230,13 @@
       </SplitPane>
       <HBox>
         <children>
-          <Label id="progress-status-label" text="Ready" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308"/>
-          <Label id="update-available-label" text="Update Available" visible="false"/>
+          <Label id="status-label" text="Ready" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308"/>
+	  <AnchorPane id="status-pane"/>
+	  <!--
+	      status-pane will contain either:
+	      - update available label
+	      - progress controls
+	  -->
         </children>
       </HBox>
    </children>

@@ -21,7 +21,7 @@ namespace dmScript
      * Functions for mathematical operations on vectors, matrices and quaternions.
      *
      * - The vector types (`vmath.vector3` and `vmath.vector4`) supports addition, subtraction,
-     * negation and multiplication with numbers and other vectors of the same type.
+     * negation and multiplication with numbers.
      * - The quaternion type (`vmath.quat`) supports multiplication with other quaternions.
      * - The matrix type (`vmath.matrix4`) can be multiplied with numbers, other matrices and `vmath.vector4` values.
      * - All types performs equality comparison by each component value.
@@ -56,6 +56,46 @@ namespace dmScript
 #define SCRIPT_TYPE_NAME_VECTOR4 "vector4"
 #define SCRIPT_TYPE_NAME_QUAT "quat"
 #define SCRIPT_TYPE_NAME_MATRIX4 "matrix4"
+
+    enum ScriptUserType
+    {
+        SCRIPT_TYPE_VECTOR3,
+        SCRIPT_TYPE_VECTOR4,
+        SCRIPT_TYPE_QUAT,
+        SCRIPT_TYPE_MATRIX4,
+        SCRIPT_TYPE_VECTOR,
+        SCRIPT_TYPE_UNKNOWN,
+    };
+
+    static ScriptUserType GetType(lua_State* L, int index)
+    {
+        void *p = lua_touserdata(L, index);
+        if (p != 0x0)
+        {
+            if (lua_getmetatable(L, index))
+            {
+                // Order of most likely occurrance first
+                const char* type_names[] = { SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT,
+                                        SCRIPT_TYPE_NAME_MATRIX4, SCRIPT_TYPE_NAME_VECTOR };
+
+                const ScriptUserType types[] = { SCRIPT_TYPE_VECTOR3, SCRIPT_TYPE_VECTOR4, SCRIPT_TYPE_QUAT,
+                                        SCRIPT_TYPE_MATRIX4, SCRIPT_TYPE_VECTOR };
+
+                for(uint32_t i = 0; i < sizeof(types)/sizeof(types[0]); ++i)
+                {
+                    lua_getfield(L, LUA_REGISTRYINDEX, type_names[i]);
+                    if (lua_rawequal(L, -1, -2))
+                    {
+                        lua_pop(L, 2);
+                        return types[i];
+                    }
+                    lua_pop(L, 1);
+                }
+                lua_pop(L, 1);
+            }
+        }
+        return SCRIPT_TYPE_UNKNOWN;
+    }
 
     bool IsVector(lua_State *L, int index)
     {
@@ -1072,7 +1112,7 @@ namespace dmScript
 
     /*# creates a new identity quaternion
      *
-     * Creates a new identity quaternion. The identity 
+     * Creates a new identity quaternion. The identity
      * quaternion is equal to:
      *
      * `vmath.quat(0, 0, 0, 1)`
@@ -1708,7 +1748,20 @@ namespace dmScript
      */
     static int Dot(lua_State* L)
     {
-        if (IsVector4(L, 1) && IsVector4(L, 2))
+        const ScriptUserType type1 = GetType(L, 1);
+        const ScriptUserType type2 = GetType(L, 2);
+
+        if (type1 != type2)
+        {
+            return luaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "dot");
+        }
+        if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
+        {
+            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+            lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2));
+        }
+        else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
         {
             Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
             Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
@@ -1716,71 +1769,97 @@ namespace dmScript
         }
         else
         {
-            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
-            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
-            lua_pushnumber(L, Vectormath::Aos::dot(*v1, *v2));
+            return luaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "dot", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
         }
         return 1;
     }
 
-    /*# calculates the squared vector length
+    /*# calculates the squared length of a vector or quaternion
      *
-     * Returns the squared length of the supplied vector.
+     * Returns the squared length of the supplied vector or quaternion.
      *
      * @name vmath.length_sqr
-     * @param v [type:vector3|vector4] vector of which to calculate the squared length
-     * @return n [type:number] squared vector length
+     * @param v [type:vector3|vector4|quat] value of which to calculate the squared length
+     * @return n [type:number] squared length
      * @examples
      *
      * ```lua
-     * if vmath.length_sqr(vector1) == 1 then
-     *     -- The vector is normalized
+     * if vmath.length_sqr(vector1) < vmath.length_sqr(vector2) then
+     *     -- Vector 1 has less magnitude than vector 2
      *     ...
      * end
      * ```
      */
     static int LengthSqr(lua_State* L)
     {
-        if (IsVector4(L, 1))
-        {
-            Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
-            lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
-        }
-        else
+        const ScriptUserType type = GetType(L, 1);
+        if (type == SCRIPT_TYPE_VECTOR3)
         {
             Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
             lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
         }
+        else if (type == SCRIPT_TYPE_VECTOR4)
+        {
+            Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
+            lua_pushnumber(L, Vectormath::Aos::lengthSqr(*v));
+        }
+        else if (type == SCRIPT_TYPE_QUAT)
+        {
+            Vectormath::Aos::Quat* value = CheckQuat(L, 1);
+            // quat doesn't have a lengthSqr(), but this is what's called before the sqrtf in length()
+            lua_pushnumber(L, Vectormath::Aos::norm(*value));
+        }
+        else
+        {
+            return luaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "lengthSqr", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
+        }
         return 1;
     }
 
-    /*# calculates the vector length
+    /*# calculates the length of a vector or quaternion
      *
-     * Returns the length of the supplied vector.
+     * Returns the length of the supplied vector or quaternion.
+     *
+     * If you are comparing the lengths of vectors or quaternions, you should compare
+     * the length squared instead as it is slightly more efficient to calculate
+     * (it eliminates a square root calculation).
      *
      * @name vmath.length
-     * @param v [type:vector3|vector4] vector of which to calculate the length
-     * @return n [type:number] vector length
+     * @param v [type:vector3|vector4|quat] value of which to calculate the length
+     * @return n [type:number] length
      * @examples
      *
      * ```lua
      * if vmath.length(self.velocity) < max_velocity then
      *     -- The speed (velocity vector) is below max.
+     *
+     *     -- TODO: max_velocity can be expressed as squared
+     *     -- so we can compare with length_sqr() instead.
      *     ...
      * end
      * ```
      */
     static int Length(lua_State* L)
     {
-        if (IsVector4(L, 1))
+        const ScriptUserType type = GetType(L, 1);
+        if (type == SCRIPT_TYPE_VECTOR3)
+        {
+            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+            lua_pushnumber(L, Vectormath::Aos::length(*v));
+        }
+        else if (type == SCRIPT_TYPE_VECTOR4)
         {
             Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
             lua_pushnumber(L, Vectormath::Aos::length(*v));
         }
+        else if (type == SCRIPT_TYPE_QUAT)
+        {
+            Vectormath::Aos::Quat* value = CheckQuat(L, 1);
+            lua_pushnumber(L, Vectormath::Aos::length(*value));
+        }
         else
         {
-            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
-            lua_pushnumber(L, Vectormath::Aos::length(*v));
+            return luaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "length", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
         }
         return 1;
     }
@@ -1794,8 +1873,8 @@ namespace dmScript
      * division-by-zero will occur.
      *
      * @name vmath.normalize
-     * @param v1 [type:vector3|vector4] vector to normalize
-     * @return v [type:vector3|vector4] new normalized vector
+     * @param v1 [type:vector3|vector4|quat] vector to normalize
+     * @return v [type:vector3|vector4|quat] new normalized vector
      * @examples
      *
      * ```lua
@@ -1807,15 +1886,25 @@ namespace dmScript
      */
     static int Normalize(lua_State* L)
     {
-        if (IsVector4(L, 1))
+        const ScriptUserType type = GetType(L, 1);
+        if (type == SCRIPT_TYPE_VECTOR3)
+        {
+            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
+            PushVector3(L, Vectormath::Aos::normalize(*v));
+        }
+        else if (type == SCRIPT_TYPE_VECTOR4)
         {
             Vectormath::Aos::Vector4* v = CheckVector4(L, 1);
             PushVector4(L, Vectormath::Aos::normalize(*v));
         }
+        else if (type == SCRIPT_TYPE_QUAT)
+        {
+            Vectormath::Aos::Quat* value = CheckQuat(L, 1);
+            PushQuat(L, Vectormath::Aos::normalize(*value));
+        }
         else
         {
-            Vectormath::Aos::Vector3* v = CheckVector3(L, 1);
-            PushVector3(L, Vectormath::Aos::normalize(*v));
+            return luaL_error(L, "%s.%s accepts (%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "normalize", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_QUAT);
         }
         return 1;
     }
@@ -1951,27 +2040,32 @@ namespace dmScript
 
     static int Lerp(lua_State* L)
     {
+        const ScriptUserType type1 = GetType(L, 2);
+        const ScriptUserType type2 = GetType(L, 3);
         float t = (float) luaL_checknumber(L, 1);
-        if (IsVector4(L, 2) && IsVector4(L, 3))
+        if (type1 == type2 && type1 != SCRIPT_TYPE_UNKNOWN)
         {
-            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
-            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 3);
-            PushVector4(L, Vectormath::Aos::lerp(t, *v1, *v2));
-            return 1;
-        }
-        else if (IsVector3(L, 2) && IsVector3(L, 3))
-        {
-            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
-            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
-            PushVector3(L, Vectormath::Aos::lerp(t, *v1, *v2));
-            return 1;
-        }
-        else if (IsQuat(L, 2) && IsQuat(L, 3))
-        {
-            Vectormath::Aos::Quat* q1 = CheckQuat(L, 2);
-            Vectormath::Aos::Quat* q2 = CheckQuat(L, 3);
-            PushQuat(L, Vectormath::Aos::lerp(t, *q1, *q2));
-            return 1;
+            if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
+            {
+                Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
+                Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
+                PushVector3(L, Vectormath::Aos::lerp(t, *v1, *v2));
+                return 1;
+            }
+            else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
+            {
+                Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
+                Vectormath::Aos::Vector4* v2 = CheckVector4(L, 3);
+                PushVector4(L, Vectormath::Aos::lerp(t, *v1, *v2));
+                return 1;
+            }
+            else if (type1 == SCRIPT_TYPE_QUAT && type2 == SCRIPT_TYPE_QUAT)
+            {
+                Vectormath::Aos::Quat* q1 = CheckQuat(L, 2);
+                Vectormath::Aos::Quat* q2 = CheckQuat(L, 3);
+                PushQuat(L, Vectormath::Aos::lerp(t, *q1, *q2));
+                return 1;
+            }
         }
         else if (lua_isnumber(L, 2) && lua_isnumber(L, 3))
         {
@@ -2057,27 +2151,33 @@ namespace dmScript
      */
     static int Slerp(lua_State* L)
     {
-        float t = (float) luaL_checknumber(L, 1);
-        if (IsVector4(L, 2) && IsVector4(L, 3))
+        const ScriptUserType type1 = GetType(L, 2);
+        const ScriptUserType type2 = GetType(L, 3);
+
+        if (type1 == type2)
         {
-            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
-            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 3);
-            PushVector4(L, Vectormath::Aos::slerp(t, *v1, *v2));
-            return 1;
-        }
-        else if (IsVector3(L, 2) && IsVector3(L, 3))
-        {
-            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
-            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
-            PushVector3(L, Vectormath::Aos::slerp(t, *v1, *v2));
-            return 1;
-        }
-        else
-        {
-            Vectormath::Aos::Quat* q1 = (Vectormath::Aos::Quat*)luaL_checkudata(L, 2, SCRIPT_TYPE_NAME_QUAT);
-            Vectormath::Aos::Quat* q2 = (Vectormath::Aos::Quat*)luaL_checkudata(L, 3, SCRIPT_TYPE_NAME_QUAT);
-            PushQuat(L, Vectormath::Aos::slerp(t, *q1, *q2));
-            return 1;
+            float t = (float) luaL_checknumber(L, 1);
+            if (type1 == SCRIPT_TYPE_QUAT && type2 == SCRIPT_TYPE_QUAT)
+            {
+                Vectormath::Aos::Quat* q1 = (Vectormath::Aos::Quat*)luaL_checkudata(L, 2, SCRIPT_TYPE_NAME_QUAT);
+                Vectormath::Aos::Quat* q2 = (Vectormath::Aos::Quat*)luaL_checkudata(L, 3, SCRIPT_TYPE_NAME_QUAT);
+                PushQuat(L, Vectormath::Aos::slerp(t, *q1, *q2));
+                return 1;
+            }
+            else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
+            {
+                Vectormath::Aos::Vector4* v1 = CheckVector4(L, 2);
+                Vectormath::Aos::Vector4* v2 = CheckVector4(L, 3);
+                PushVector4(L, Vectormath::Aos::slerp(t, *v1, *v2));
+                return 1;
+            }
+            else if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
+            {
+                Vectormath::Aos::Vector3* v1 = CheckVector3(L, 2);
+                Vectormath::Aos::Vector3* v2 = CheckVector3(L, 3);
+                PushVector3(L, Vectormath::Aos::slerp(t, *v1, *v2));
+                return 1;
+            }
         }
         return luaL_error(L, "%s.%s takes one number and either two %s.%s or two %s.%s as arguments.", SCRIPT_LIB_NAME, "slerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
@@ -2165,6 +2265,51 @@ namespace dmScript
         return 1;
     }
 
+    /*# performs an element wise multiplication of two vectors
+     *
+     * Performs an element wise multiplication between two vectors of the same type
+     * The returned value is a vector defined as (e.g. for a vector3):
+     *
+     * <code>v = vmath.mul_per_elem(a, b) = vmath.vector3(a.x * b.x, a.y * b.y, a.z * b.z)</code>
+     *
+     * @name vmath.mul_per_elem
+     * @param v1 [type:vector3|vector4] first vector
+     * @param v2 [type:vector3|vector4] second vector
+     * @return v [type:vector3|vector4] multiplied vector
+     * @examples
+     *
+     * ```lua
+     * local blend_color = vmath.mul_per_elem(color1, color2)
+     * ```
+     */
+    static int MulPerElem(lua_State* L)
+    {
+        const ScriptUserType type1 = GetType(L, 1);
+        const ScriptUserType type2 = GetType(L, 2);
+
+        if (type1 != type2)
+        {
+            return luaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "mul_per_elem");
+        }
+        if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
+        {
+            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+            PushVector3(L, Vectormath::Aos::mulPerElem(*v1, *v2));
+        }
+        else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
+        {
+            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
+            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+            PushVector4(L, Vectormath::Aos::mulPerElem(*v1, *v2));
+        }
+        else
+        {
+            return luaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "mul_per_elem", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
+        }
+        return 1;
+    }
+
     static const luaL_reg methods[] =
     {
         {SCRIPT_TYPE_NAME_VECTOR, Vector_new},
@@ -2199,6 +2344,7 @@ namespace dmScript
         {"project", Project},
         {"inv", Inverse},
         {"ortho_inv", OrthoInverse},
+        {"mul_per_elem", MulPerElem},
         {0, 0}
     };
 

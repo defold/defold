@@ -83,6 +83,11 @@
   []
   (is/system-cache @*the-system*))
 
+(defn clear-system-cache!
+  "Clears *the-system* cache, useful when debugging"
+  []
+  (swap! *the-system* assoc :cache (ref (is/make-cache {}))))
+
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
   (is/graph @*the-system* graph-id))
@@ -692,11 +697,60 @@
   (transact (mark-defective node-id defective-value)))
 
 ;; ---------------------------------------------------------------------------
+;; Tracing
+;; ---------------------------------------------------------------------------
+;;
+;; Run several tracers using (juxt (g/make-print-tracer) (g/make-tree-tracer result))
+;;
+
+(defn make-print-tracer
+  "Prints an indented tree of all eval steps taken."
+  []
+  (let [depth (atom 0)]
+    (fn [state node output-type label]
+      (when (or (= :end state) (= :fail state))
+        (swap! depth dec))
+      (println (str (apply str (take @depth (repeat "  "))) state " " node " " output-type " " label))
+      (when (= :begin state)
+        (swap! depth inc)))))
+
+(defn make-tree-tracer
+  "Creates a tree trace of the evaluation of the form
+  {:node-id ... :output-type ... :label ... :state ... :dependencies [{...} ...]}
+
+  You can also pass in a function to decorate the steps. For timing for instance:
+
+    (defn timing-decorator [step state]
+      (case state
+        :begin (assoc step :start-time (System/currentTimeMillis))
+        (:end :fail) (-> step
+                         (assoc :elapsed (- (System/currentTimeMillis) (:start-time step)))
+                         (dissoc :start-time))))
+
+    (g/node-value node :output (g/make-evaluation-context {:tracer (g/make-tree-tracer result-atom timing-decorator)}))"
+  ([result-atom]
+   (make-tree-tracer result-atom (fn [step _] step)))
+  ([result-atom step-decorator]
+   (let [stack (atom '())]
+     (fn [state node output-type label]
+       (case state
+         :begin
+         (swap! stack conj (step-decorator {:node-id node :output-type output-type :label label :dependencies []} state))
+
+         (:end :fail)
+         (let [step (step-decorator (assoc (first @stack) :state state) state)]
+           (swap! stack rest)
+           (let [parent (first @stack)]
+             (if parent
+               (swap! stack #(conj (rest %) (update parent :dependencies conj step)))
+               (reset! result-atom step)))))))))
+
+;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
 (defn make-evaluation-context
-  ([] (make-evaluation-context {}))
-  ([options] (is/make-evaluation-context @*the-system* options)))
+  ([] (is/default-evaluation-context @*the-system*))
+  ([options] (is/custom-evaluation-context @*the-system* options)))
 
 (defn- do-node-value [node-id label evaluation-context]
   (is/node-value @*the-system* node-id label evaluation-context))

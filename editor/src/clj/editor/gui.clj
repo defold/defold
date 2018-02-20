@@ -1195,7 +1195,7 @@
   (output node-rt-msgs g/Any :cached
     (g/fnk [node-msgs node-rt-msgs bone-node-msgs spine-skin-ids]
       (let [pb-msg (first node-msgs)
-            rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (if (str/blank? skin) (first spine-skin-ids) skin)))])]
+            rt-pb-msgs (into node-rt-msgs [(update pb-msg :spine-skin (fn [skin] (or skin "")))])]
         (into rt-pb-msgs bone-node-msgs))))
   (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-visual-node spine-anim-ids spine-default-animation spine-skin-ids spine-skin spine-scene spine-scene-names]
                                            (g/package-errors _node-id

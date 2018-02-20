@@ -292,14 +292,22 @@
                            (remove-watch event-log :dialog)))
     (ui/show! stage)))
 
+;; We cache the selected target in an atom to avoid garbage from parsing prefs.
+(defonce ^:private selected-target-atom (atom ::undefined))
+
 (defn selected-target [prefs]
-  (let [target-address (prefs/get-prefs prefs "selected-target-id" nil)]
-    (first (filter #(= (:id %) target-address) (all-targets)))))
+  (swap! selected-target-atom
+         (fn [selected-target]
+           (if (not= ::undefined selected-target)
+             selected-target
+             (let [target-address (prefs/get-prefs prefs "selected-target-id" nil)]
+               (first (filter #(= (:id %) target-address) (all-targets))))))))
 
 (defn controllable-target? [target]
   (when (:url target) target))
 
 (defn select-target! [prefs target]
+  (reset! selected-target-atom target)
   (prefs/set-prefs prefs "selected-target-id" (:id target))
   target)
 
@@ -334,7 +342,7 @@
            (or (= user-data selected-target)
                (and (nil? selected-target)
                     (= user-data :new-local-engine)))))
-  (options [user-data prefs]
+  (options [user-data]
            (when-not user-data
              (let [launched-options (mapv target-option @launched-targets)
                    ssdp-options (mapv target-option @ssdp-targets)]

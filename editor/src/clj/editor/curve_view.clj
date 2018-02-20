@@ -1,5 +1,6 @@
 (ns editor.curve-view
   (:require [clojure.set :as set]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.background :as background]
@@ -216,6 +217,14 @@
                                  :world-lines world-lines}}]]
     (into {} (map #(do [% renderables]) [pass/transparent]))))
 
+(defn- prop-kw->hue [prop-kw]
+  (let [prop-name (name prop-kw)]
+    (cond
+      (string/includes? prop-name "red") 0.0
+      (string/includes? prop-name "green") 120.0
+      (string/includes? prop-name "blue") 240.0
+      (string/includes? prop-name "alpha") 60.0)))
+
 (g/defnk produce-curves [selected-node-properties]
   (let [curves (mapcat (fn [p] (->> (:properties p)
                                  (filter curve?)
@@ -225,7 +234,10 @@
                        selected-node-properties)
         ccount (count curves)
         hue-f (/ 360.0 ccount)
-        curves (map-indexed (fn [i c] (assoc c :hue (* (+ i 0.5) hue-f))) curves)]
+        curves (map-indexed (fn [i c]
+                              (assoc c :hue (or (prop-kw->hue (:property c))
+                                                (* (+ i 0.5) hue-f))))
+                            curves)]
     curves))
 
 (defn- aabb-contains? [^AABB aabb ^Point3d p]
@@ -352,9 +364,9 @@
   (input curve-handle g/Any)
   (output input-handler Runnable :cached (g/constantly handle-input)))
 
-(defn- pick-control-points [curves picking-rect camera viewport]
+(defn- pick-control-points [visible-curves picking-rect camera viewport]
   (let [aabb (geom/centered-rect->aabb picking-rect)]
-    (->> curves
+    (->> visible-curves
       (mapcat (fn [c]
                 (->> (:curve c)
                   (filterv (fn [[idx cp]]
@@ -366,7 +378,7 @@
                   (mapv (fn [[idx _]] [(:node-id c) (:property c) idx])))))
       (keep identity))))
 
-(defn- pick-tangent [curves ^Rect picking-rect camera viewport sub-selection-map]
+(defn- pick-tangent [visible-curves ^Rect picking-rect camera viewport sub-selection-map]
   (let [aabb (geom/centered-rect->aabb picking-rect)
         [scale-x scale-y] (camera/scale-factor camera viewport)]
     (some (fn [c]
@@ -387,9 +399,9 @@
                                     (aabb-contains? aabb p1))
                             [(:node-id c) (:property c) idx])))
                       cps))))
-          curves)))
+          visible-curves)))
 
-(defn- pick-closest-curve [curves ^Rect picking-rect camera viewport]
+(defn- pick-closest-curve [visible-curves ^Rect picking-rect camera viewport]
   (let [p (let [p (camera/camera-unproject camera viewport (.x picking-rect) (.y picking-rect) 0.0)]
             (Point3d. (.x p) (.y p) 0.0))
         min-distance (Double/MAX_VALUE)
@@ -404,7 +416,7 @@
                             (if (< dist min-dist)
                               [dist [node-id property closest]]
                               [min-dist closest-curve])))
-                        [min-distance nil] curves))
+                        [min-distance nil] visible-curves))
         [_ _ ^Point3d closest] curve
         screen-p (and closest (camera/camera-project camera viewport closest))]
     (when (and screen-p (< (.distanceSquared screen-p (Point3d. (.x picking-rect) (.y picking-rect) 0.0))
@@ -497,12 +509,12 @@
                                                  (sub-selection->map sub-selection)))
   (output aabb AABB :cached produce-aabb)
   (output selected-aabb AABB :cached produce-selected-aabb)
-  (output curve-handle g/Any :cached (g/fnk [curves tool-picking-rect camera viewport sub-selection-map]
-                                            (if-let [cp (first (pick-control-points curves tool-picking-rect camera viewport))]
+  (output curve-handle g/Any :cached (g/fnk [visible-curves tool-picking-rect camera viewport sub-selection-map]
+                                            (if-let [cp (first (pick-control-points visible-curves tool-picking-rect camera viewport))]
                                               [:control-point cp]
-                                              (if-let [tangent (pick-tangent curves tool-picking-rect camera viewport sub-selection-map)]
+                                              (if-let [tangent (pick-tangent visible-curves tool-picking-rect camera viewport sub-selection-map)]
                                                 [:tangent tangent]
-                                                (if-let [curve (pick-closest-curve curves tool-picking-rect camera viewport)]
+                                                (if-let [curve (pick-closest-curve visible-curves tool-picking-rect camera viewport)]
                                                   [:curve curve]
                                                   nil)))))
   (output update-list-view g/Any :cached (g/fnk [curves ^ListView list selected-node-properties sub-selection-map]
