@@ -1082,6 +1082,24 @@ instructions.configure=\
         u = urlparse.urlparse(self.archive_path)
         bucket = self._get_s3_bucket(u.hostname)
 
+        # Packaged editor installation files
+        def get_editors(sha1):
+            # Editor 2 are stored in a different structure
+            root = 'editor2'
+            base_prefix = os.path.join(root, sha1)
+            editors = []
+            prefix = os.path.join(base_prefix, 'editor2')
+            for x in bucket.list(prefix = prefix):
+                print(x)
+                if x.name[-1] != '/':
+                    # Skip directory "keys". When creating empty directories
+                    # a psudeo-key is created. Directories isn't a first-class object on s3
+                    if re.match('.*(/Defold-.*)$', x.name):
+                        name = os.path.relpath(x.name, prefix)
+                        editors.append({'name': name, 'path': '/' + x.name})
+            return editors
+
+        # Standalone engines and tools (engines, bob etc)
         def get_files(sha1):
             root = urlparse.urlparse(self.archive_path).path[1:]
             base_prefix = os.path.join(root, sha1)
@@ -1103,18 +1121,25 @@ instructions.configure=\
                     if re.match('.*(/bob.jar)$', x.name):
                         name = os.path.relpath(x.name, base_prefix)
                         files.append({'name': name, 'path': '/' + x.name})
+            return files
 
+        # Legacy files (editor 1)
+        def get_legacy(sha1):
+            root = urlparse.urlparse(self.archive_path).path[1:]
+            base_prefix = os.path.join(root, sha1)
+            legacy = []
             prefix = os.path.join(base_prefix, self.channel, 'editor')
             for x in bucket.list(prefix = prefix):
                 if x.name[-1] != '/':
                     # Skip directory "keys". When creating empty directories
                     # a psudeo-key is created. Directories isn't a first-class object on s3
-                    if re.match('.*(/Defold-*)$', x.name):
-                        name = os.path.relpath(x.name, base_prefix)
-                        files.append({'name': name, 'path': '/' + x.name})
-            return files
+                    if re.match('.*(/Defold-.*)$', x.name):
+                        name = os.path.relpath(x.name, prefix)
+                        legacy.append({'name': name, 'path': '/' + x.name})
+            return legacy
 
         tags = self.exec_command("git for-each-ref --sort=taggerdate --format '%(*objectname) %(refname)' refs/tags").split('\n')
+        tags = tags[-3:]
         tags.reverse()
         releases = []
         for line in tags:
@@ -1125,60 +1150,53 @@ instructions.configure=\
             sha1, tag = m.groups()
             epoch = self.exec_command('git log -n1 --pretty=%%ct %s' % sha1.strip())
             date = datetime.fromtimestamp(float(epoch))
+            editors = get_editors(sha1)
             files = get_files(sha1)
+            legacy = get_legacy(sha1)
             if len(files) > 0:
                 releases.append({'tag': tag,
                                  'sha1': sha1,
                                  'abbrevsha1': sha1[:7],
                                  'date': str(date),
-                                 'files': files})
+                                 'editors': editors,
+                                 'files': files,
+                                 'legacy': legacy})
 
         return releases
 
 
     def release(self):
         page = """
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
     <head>
+        <!-- Required meta tags -->
         <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
         <title>Defold Downloads</title>
+
         <link href='//fonts.googleapis.com/css?family=Open+Sans:400,300' rel='stylesheet' type='text/css'>
-        <link rel="stylesheet" href="//d.defold.com/static/bootstrap/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
         <style>
             body {
-                padding-top: 50px;
-            }
-            .starter-template {
-                padding: 40px 15px;
-                text-align: center;
+                padding-top: 100px;
             }
             #eula-text{
                 height: 400px;
                 overflow: scroll;
             }
         </style>
-
     </head>
     <body>
-    <div class="navbar navbar-fixed-top">
-        <div class="navbar-inner">
-            <div class="container">
-                <a class="brand" href="/">Defold Downloads</a>
-                <ul class="nav">
-                </ul>
-            </div>
-        </div>
-    </div>
+
+    <nav class="navbar navbar-dark bg-primary fixed-top">
+        <a class="navbar-brand" href="/">Defold Downloads</a>
+    </nav>
+
 
     <div class="container">
 
         <div id="releases"></div>
-        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
-        <script src="//d.defold.com/static/bootstrap/js/bootstrap.min.js"></script>
-        <script src="//cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
 
         <div id="eula" class="container">
             <div class="well well-large">
@@ -1190,46 +1208,91 @@ instructions.configure=\
             </div>
         </div>
 
+    </div>
+
         <script id="templ-releases" type="text/html">
             <h2>Editor</h2>
-            {{#editor.stable}}
-                <p>
-                    <a href="{{url}}" class="btn btn-primary" style="width: 20em;" role="button">Download for {{name}}</a>
-                </p>
-            {{/editor.stable}}
-
+            <div class="btn-group-vertical">
+                {{#editor.stable}}
+                <a class="btn btn-lg btn-outline-primary mb-3" href="{{url}}">Download for {{name}}<a>
+                {{/editor.stable}}
+            </div>
             {{#has_releases}}
-                <h2>Releases</h2>
+            <h2>Downloads by release</h2>
             {{/has_releases}}
 
             {{#releases}}
-                <div class="panel-group" id="accordion">
-                  <div class="panel panel-default">
-                    <div class="panel-heading">
-                      <h4 class="panel-title">
-                        <a data-toggle="collapse" data-parent="#accordion" href="#{{sha1}}">
-                          <h3>{{tag}} <small>{{date}} ({{abbrevsha1}})</small></h3>
-                        </a>
-                      </h4>
+                <div id="accordion">
+                  <div class="card">
+                    <div class="card-heading" id="h_{{sha1}}">
+                        <h5 class="mb-0">
+                            <button class="btn btn-link collapsed btn-light btn-lg btn-block text-left" data-toggle="collapse" data-target="#{{sha1}}" aria-expanded="false" aria-controls="{{sha1}}">
+
+                                 <span class="font-weight-bold">{{tag}}</span>
+                                 <small class="font-weight-light text-muted">{{date}} ({{abbrevsha1}})</small>
+                            </button>
+                        </h5>
                     </div>
-                    <div id="{{sha1}}" class="panel-collapse collapse ">
-                      <div class="panel-body">
-                        <table class="table table-striped">
-                          <tbody>
-                            {{#files}}
-                            <tr><td><a href="{{path}}">{{name}}</a></td></tr>
-                            {{/files}}
-                            {{^files}}
-                            <i>No files</i>
-                            {{/files}}
-                          </tbody>
-                        </table>
-                      </div>
+
+                    <div id="{{sha1}}" class="collapse" data-parent="#accordion" aria-labelledby="h_{{sha1}}">
+                        <div class="card-body">
+                            <p>
+                                <a href="//www.defold.com/release-notes/{{tag}}">RELEASE NOTES</a>
+                            </p>
+
+                            <table class="table table-sm">
+                              <tbody>
+                                <tr class="table-primary">
+                                    <th>Editor installers</th>
+                                </tr>
+
+                                {{#editors}}
+                                <tr>
+                                   <td><a href="{{path}}">{{name}}</a></td>
+                                </tr>
+                                {{/editors}}
+                                {{^editors}}
+                                <tr><td><i>No files</i></td></tr>
+                                {{/editors}}
+
+                                <tr class="table-primary">
+                                    <th>Standalone engines and tools</th>
+                                </tr>
+
+                                {{#files}}
+                                <tr>
+                                   <td><a href="{{path}}">{{name}}</a></td>
+                                </tr>
+                                {{/files}}
+                                {{^files}}
+                                <tr><td><i>No files</i></td></tr>
+                                {{/files}}
+
+
+                                <tr class="table-primary">
+                                    <th>Legacy editor installers</th>
+                                </tr>
+
+                                {{#legacy}}
+                                <tr>
+                                   <td><a href="{{path}}">{{name}}</a></td>
+                                </tr>
+                                {{/legacy}}
+                                {{^legacy}}
+                                <tr><td><i>No files</i></td></tr>
+                                {{/legacy}}
+                              </tbody>
+                            </table>
+                        </div>
                     </div>
                   </div>
                 </div>
             {{/releases}}
         </script>
+
+        <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/mustache.js/0.7.2/mustache.min.js"></script>
 
         <script>
             var model = %(model)s
@@ -1306,6 +1369,7 @@ instructions.configure=\
         # - The beta and alpha channels are based on the latest
         #   commit in their branches, i.e. origin/dev for alpha
         if self.channel == 'stable':
+            print(model)
             release_sha1 = model['releases'][0]['sha1']
         else:
             release_sha1 = self._git_sha1()
@@ -1316,10 +1380,9 @@ instructions.configure=\
             if response[0] != 'y':
                 return
 
-        model['editor'] = {'stable': [ dict(name='Mac OSX', url='/%s/Defold-macosx.cocoa.x86_64.dmg' % self.channel),
-                                       dict(name='Windows', url='/%s/Defold-win32.win32.x86.zip' % self.channel),
-                                       dict(name='Linux (64-bit)', url='/%s/Defold-linux.gtk.x86_64.zip' % self.channel),
-                                       dict(name='Linux (32-bit)', url='/%s/Defold-linux.gtk.x86.zip' % self.channel)] }
+        model['editor'] = {'stable': [ dict(name='macOS', url='/%s/Defold-x86_64-darwin.dmg' % self.channel),
+                                       dict(name='Windows', url='/%s/Defold-x86_64-win32.zip' % self.channel),
+                                       dict(name='Linux', url='/%s/Defold-x86_64-linux.zip' % self.channel)] }
 
         # NOTE: We upload index.html to /CHANNEL/index.html
         # The root-index, /index.html, redirects to /stable/index.html
@@ -1609,7 +1672,7 @@ instructions.configure=\
         # NOTE: We hard-code host (region) here and it should not be required.
         # but we had problems with certain buckets with period characters in the name.
         # Probably related to the following issue https://github.com/boto/boto/issues/621
-        conn = S3Connection(key, secret, host='s3-eu-west-1.amazonaws.com', calling_format=OrdinaryCallingFormat())
+        conn = S3Connection(key, secret, host='s3-eu-central-1.amazonaws.com', calling_format=OrdinaryCallingFormat())
         bucket = conn.get_bucket(bucket_name)
         self.s3buckets[bucket_name] = bucket
         return bucket
@@ -1777,7 +1840,7 @@ instructions.configure=\
         return output
 
 if __name__ == '__main__':
-    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.28.0-py2.7.egg'))
+    boto_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../packages/boto-2.48.0-py2.7.egg'))
     sys.path.insert(0, boto_path)
     usage = '''usage: %prog [options] command(s)
 
