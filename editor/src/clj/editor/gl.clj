@@ -62,7 +62,6 @@
 
 (defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~gl ~face ~mode))
 
-(defmacro gl-active-texture [gl texunit]                                 `(.glActiveTexture ~gl ~texunit))
 (defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~gl ~shader ~name))
 (defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~gl ~type ~name))
 (defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~gl ~type ~size ~data ~usage))
