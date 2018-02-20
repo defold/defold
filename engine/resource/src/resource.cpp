@@ -261,18 +261,15 @@ Result StoreManifest(Manifest* manifest)
     dmPath::Concat(app_support_path, "liveupdate.dmanifest", manifest_file_path, DMPATH_MAX_PATH);
     dmStrlCpy(manifest_tmp_file_path, manifest_file_path, DMPATH_MAX_PATH);
     dmStrlCat(manifest_tmp_file_path, ".tmp", DMPATH_MAX_PATH);
-    dmLogInfo("Storing new manifest file to path: %s, (%s)", manifest_file_path, manifest_tmp_file_path);
     // write to tempfile, if successful move/rename and then delete tmpfile
     dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
     if (ddf_result != dmDDF::RESULT_OK)
     {
-        dmLogInfo("Failed to store manifest with result: %u", ddf_result);
         return RESULT_DDF_ERROR;
     }
     dmSys::Result sys_result = dmSys::WriteWithMove(manifest_file_path, manifest_tmp_file_path);
     if (sys_result !=dmSys::RESULT_OK)
     {
-        dmLogError("Failed to write manifest to storage, result = %i", sys_result); 
         return RESULT_IO_ERROR;
     }
     dmSys::Unlink(manifest_tmp_file_path);
@@ -319,7 +316,6 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
         bool luTempIndexExists = stat(temp_archive_index_path, &file_stat) == 0;
         if (luTempIndexExists)
         {
-            dmLogInfo("Temp exists!");
             dmSys::Result moveResult = dmSys::WriteWithMove(liveupdate_index_path, temp_archive_index_path);
 
             if (moveResult != dmSys::RESULT_OK)
@@ -339,7 +335,6 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
         int archive_id_cmp = dmResourceArchive::CmpArchiveIdentifier(factory->m_Manifest->m_ArchiveIndex, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Data, factory->m_Manifest->m_DDF->m_ArchiveIdentifier.m_Count);
         if (archive_id_cmp != 0)
         {
-            dmLogInfo("Reloading index!");
             dmResourceArchive::Result reload_res = ReloadBundledArchiveIndex(archive_index_path, archive_resource_path, liveupdate_index_path, liveupdate_resource_path, factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
 
             if (reload_res != dmResourceArchive::RESULT_OK)
@@ -420,18 +415,12 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
     uint32_t manifest_len = 0;
     uint8_t* manifest_buf = 0x0;
 
-    dmLogInfo(" ### MOUNTING MANIFEST!");
     Result map_res = MountManifest(manifest_path, (void*&)manifest_buf, manifest_len);
     assert(manifest_buf);
     if (map_res != RESULT_OK)
     {
-        dmLogError(" ## Failed to read Manifest (%i)", map_res);
         UnmountManifest((void*&)manifest_buf, manifest_len);
         return RESULT_IO_ERROR;
-    }
-    else // DEBUG PRINT
-    {
-        dmLogInfo("Successfully mounted manifest file: %s, size: %u", manifest_path, manifest_len);
     }
 
     Result result = ParseManifestDDF(manifest_buf, manifest_len, factory->m_Manifest);

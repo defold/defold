@@ -19,14 +19,15 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    // TODO implement
     Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size)
     {
+        // Not used
         return RESULT_OK;
     }
 
     Result UnmountManifest(void *& map, uint32_t size)
     {
+        // Not used
         return RESULT_OK;
     }
 
