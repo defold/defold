@@ -64,51 +64,8 @@ namespace dmResourceArchive
 
     int CmpArchiveIdentifier(const HArchiveIndexContainer archive_container, uint8_t* archive_id, uint32_t len)
     {
-        char* wasd = (char*)malloc(len+1);
-        char* asd = (char*)malloc(len+1);
-        memcpy(wasd, archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, len);
-        memcpy(asd, archive_id, len);
-        wasd[len] = '\0';
-        asd[len] = '\0';
-        dmLogInfo("in loaded archive-index: %s", wasd);
-        dmLogInfo("in loaded manifest file: %s", asd);
         return memcmp(archive_container->m_ArchiveIndex->m_ArchiveIndexMD5, archive_id, len);
     }
-
-    // DEBUG print liveupdate namehash
-    void PrintHash(const uint8_t* hash, uint32_t len)
-    {
-        char* slask = new char[len*2+1];
-        slask[len] = '\0';
-        for (int i = 0; i < len; ++i)
-        {
-            sprintf(slask+i*2, "%02X", hash[i]);
-        }
-        dmLogInfo("HASH PRINTED: %s", slask);
-        delete[] slask;
-    }
-    void PrintArchiveIndexHashes(const ArchiveIndexContainer* archive_container)
-    {
-        uint32_t count = 0;
-        uint32_t entry_count = JAVA_TO_C(archive_container->m_ArchiveIndex->m_EntryDataCount);
-        uint32_t entries_offset = JAVA_TO_C(archive_container->m_ArchiveIndex->m_EntryDataOffset);
-        uint32_t hash_offset = JAVA_TO_C(archive_container->m_ArchiveIndex->m_HashOffset);
-
-        uint8_t* hashes = (!archive_container->m_IsMemMapped) ? archive_container->m_Hashes : (uint8_t*)((uintptr_t)archive_container->m_ArchiveIndex + hash_offset);
-        EntryData* entries = (!archive_container->m_IsMemMapped) ? archive_container->m_Entries : (EntryData*)((uintptr_t)archive_container->m_ArchiveIndex + entries_offset);
-
-        // Count number of liveupdate entries to cache
-        dmLogInfo("Printing hashes for archive-index entries, entry_count in archive_container m_ArchiveIndex: %u", entry_count);
-        for (int i = 0; i < entry_count; ++i)
-        {
-            EntryData& e = entries[i];
-            {
-                uint8_t* entry_hash = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * i);
-                PrintHash(entry_hash, 20);
-            }
-        }   
-    }
-    // END DEBUG
 
     uint32_t CountLiveUpdateEntries(const ArchiveIndexContainer* lu_archive_container, const ArchiveIndexContainer* bundled_archive_container)
     {
@@ -207,11 +164,6 @@ namespace dmResourceArchive
             delete lu_entries;
             return RESULT_IO_ERROR;
         }
-
-        dmLogInfo("LIVEUPDATE archive index: ");
-        PrintArchiveIndexHashes(lu_index_container);
-        dmLogInfo("BUNDLED archive index: ");
-        PrintArchiveIndexHashes(bundled_archive_container);
 
         // Cache liveupdate entries and unmount liveupdate index
         CacheLiveUpdateEntries(lu_index_container, bundled_archive_container, lu_entries);
