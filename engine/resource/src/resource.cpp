@@ -648,7 +648,6 @@ Result VerifyManifest(Manifest* manifest)
     char* hexDigest = new char[dmResource::HashLength(signature_hash_algorithm) * 2 + 1];
     dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, hash, hexDigest, dmResource::HashLength(signature_hash_algorithm) * 2 + 1);
     dmLogInfo("Hash printed: %s", hexDigest);
-    PrintHash(hash, hash_algo_size);
     delete[] hexDigest;
     
     free(hash_decrypted);
