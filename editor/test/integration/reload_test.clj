@@ -2,10 +2,8 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [clojure.set :as set]
-            [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [support.test-support :as test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
-            [editor.math :as math]
+            [support.test-support :as test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.library :as library]
@@ -14,26 +12,14 @@
             [editor.game-object :as game-object]
             [editor.asset-browser :as asset-browser]
             [editor.progress :as progress]
-            [editor.protobuf :as protobuf]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
-            GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
-           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-           [com.dynamo.render.proto Font$FontMap]
-           [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.rig.proto Rig$RigScene]
-           [editor.types Region]
-           [editor.workspace BuildResource]
-           [editor.resource FileResource]
-           [java.awt.image BufferedImage]
+  (:import [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
 (def ^:private reload-project-path "test/resources/reload_project")
@@ -78,16 +64,6 @@
 
 (def ^:private scriptlib-uri (first lib-uris)) ; /scripts/main.script
 (def ^:private imagelib1-uri (second lib-uris)) ; /images/{pow,paddle}.png
-
-;; Temporary hack to run tests in both implementations of the code editor resource nodes.
-(defmacro with-clean-system [& forms]
-  `(do
-     (with-bindings {#'test-util/use-new-code-editor? false}
-       (test-support/with-clean-system
-         ~@forms))
-     (with-bindings {#'test-util/use-new-code-editor? true}
-       (test-support/with-clean-system
-         ~@forms))))
 
 (defn- setup-scratch
   ([ws-graph] (setup-scratch ws-graph reload-project-path))
