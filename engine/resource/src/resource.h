@@ -95,6 +95,7 @@ namespace dmResource
 
         dmResourceArchive::HArchiveIndexContainer   m_ArchiveIndex;
         dmLiveUpdateDDF::ManifestFile*              m_DDF;
+        dmLiveUpdateDDF::ManifestData*              m_DDFData;
     };
 
     /// Resource descriptor
@@ -593,11 +594,13 @@ namespace dmResource
 
     Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFactory factory);
 
-    Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile);
+    Result ParseManifestDDF(uint8_t* manifestBuf, uint32_t size, dmResource::Manifest*& manifest);
 
     Result LoadManifest(const char* manifestPath, HFactory factory);
 
     Result StoreManifest(Manifest* manifest);
+
+    Result VerifyManifest(Manifest* manifest);
 
     /**
      * Create new archive index with resource.
@@ -644,7 +647,7 @@ namespace dmResource
     // Platform specific implementation of archive loading. Data written into mount_info must
     // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info);
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
     Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);
     Result UnmountManifest(void *& map, uint32_t size);
     // Files mapped with this function should be unmapped with UnmapFile(...)

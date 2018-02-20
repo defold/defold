@@ -94,25 +94,17 @@ namespace dmResource
     // TODO implement
     Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size)
     {
-        dmLogInfo("mount_android.cpp, MountManifest!");
         out_size = 0;
         return MapFile(manifest_filename, out_map, out_size);
     }
 
     Result UnmountManifest(void *& map, uint32_t size)
     {
-        dmLogInfo("mount_android.cpp, UnmountManifest!");
         return UnmapFile(map, size);
     }
 
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info)
     {
-        dmLogInfo("=========================");
-        dmLogInfo("MOUNTING ANDROID");
-        dmLogInfo("index: %s", index_path);
-        dmLogInfo("data: %s", data_path);
-        dmLogInfo("lu data: %s", lu_data_path);
-        dmLogInfo("=========================");
         AAssetManager* am = g_AndroidApp->activity->assetManager;
         AAsset* index_asset = 0x0;
         uint32_t index_length = 0;
@@ -203,7 +195,7 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer archive, void* mount_info)
+    void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info)
     {
         MountInfo* info = (MountInfo*) mount_info;
 

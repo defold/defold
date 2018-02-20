@@ -346,8 +346,8 @@ public class ManifestTest {
         fins.close();
         
         assertEquals(true, manifestFile2.hasData());
-        
-        ManifestHeader header = manifestFile2.getData().getHeader();
+        ManifestData data = ManifestData.parseFrom(manifestFile2.getData());
+        ManifestHeader header = data.getHeader();
         
         assertEquals(ManifestBuilder.CONST_MAGIC_NUMBER, header.getMagicNumber());
         assertEquals(ManifestBuilder.CONST_VERSION, header.getVersion());

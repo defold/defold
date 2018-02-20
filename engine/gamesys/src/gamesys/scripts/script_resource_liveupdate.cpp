@@ -91,6 +91,7 @@ namespace dmLiveUpdate
             if (ret != 0)
             {
                 dmLogError("Error while running create_manifest callback for manifest: %s", lua_tostring(L, -1));
+                lua_pop(L, 1);
             }
         }
         else
@@ -124,10 +125,17 @@ namespace dmLiveUpdate
 
         dmResource::Manifest* manifest = new dmResource::Manifest();
         // TODO call async
-        dmResource::Result result = dmResource::ParseManifestDDF((uint8_t*) manifestData, manifestLength, manifest->m_DDF);
+        dmResource::Result result = dmResource::ParseManifestDDF((uint8_t*) manifestData, manifestLength, manifest);
 
         if (result == dmResource::RESULT_OK)
         {
+            // Verify manifest
+            if (!dmLiveUpdate::VerifyManifest(manifest, (const uint8_t*) manifestData, manifestLength))
+            {
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "The manifest could not be verified");
+            }
+            
             cb.m_ManifestIndex = dmLiveUpdate::AddManifest(manifest);
             if (cb.m_ManifestIndex == -1)
             {
@@ -238,7 +246,6 @@ namespace dmLiveUpdate
 
     int Resource_StoreManifest(lua_State* L)
     {
-        dmLogInfo(" ### Resource_StoreManifest")
         int top = lua_gettop(L);
 
         int manifestIndex = luaL_checkint(L, 1);
@@ -248,8 +255,6 @@ namespace dmLiveUpdate
             assert(top == lua_gettop(L));
             return luaL_error(L, "The manifest identifier does not exist");
         }
-
-        // - (TODO) Verify manifest
 
         luaL_checktype(L, 2, LUA_TFUNCTION);
         lua_pushvalue(L, 2);

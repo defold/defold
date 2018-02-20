@@ -126,7 +126,7 @@ namespace dmResourceArchive
      * Delete archive index. Only required for archives created with LoadArchive function
      * @param archive archive index handle
      */
-    void Delete(HArchiveIndexContainer archive);
+    void Delete(HArchiveIndexContainer &archive);
 
     /**
      * Get total entries, i.e. files/resources in archive
@@ -163,7 +163,6 @@ namespace dmResourceArchive
      * The archive now has the entries from the bundled index, as well as the liveupdate entries
      */
     Result ReloadBundledArchiveIndex(const char* bundled_index_path, const char* bundled_resource_path, const char* lu_index_path, const char* lu_resource_path, ArchiveIndexContainer*& lu_index_container, void*& index_mount_info);
-    void PrintArchiveIndexHashes(const ArchiveIndexContainer* archive_container);
 
     /**
      * Compare the archive container id, to decide if a reload is needed.

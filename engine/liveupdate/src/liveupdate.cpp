@@ -37,7 +37,7 @@ namespace dmLiveUpdate
             *buffer = (char**) malloc(resourceCount * sizeof(char**));
             MissingResources(g_LiveUpdate.m_Manifest, urlHash, resources, resourceCount);
 
-            dmLiveUpdateDDF::HashAlgorithm algorithm = g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
+            dmLiveUpdateDDF::HashAlgorithm algorithm = g_LiveUpdate.m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
             uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
             bool isUnique;
             char* scratch = (char*) malloc(hexDigestLength * sizeof(char*));
@@ -75,7 +75,7 @@ namespace dmLiveUpdate
         }
 
         bool result = true;
-        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
         uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
         if (digest == 0x0)
@@ -118,6 +118,41 @@ namespace dmLiveUpdate
         return result;
     }
 
+    bool VerifyManifest(dmResource::Manifest* manifest, const uint8_t* manifestData, size_t manifestLen)
+    {
+        uint8_t* expected_hash_encrypted = manifest->m_DDF->m_Signature.m_Data;
+        uint32_t encrypted_len = manifest->m_DDF->m_Signature.m_Count;
+
+         // Don't include manifest file when hashing
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
+        dmLogInfo("Signature hash algorithm: %u", algorithm);
+        uint32_t digestLength = dmResource::HashLength(algorithm);
+        uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
+        if (digest == 0x0)
+        {
+            dmLogError("Failed to allocate memory for hash calculation.");
+            return false;
+        }
+
+        dmLogInfo("VerifyManifest, manifest size in bytes; %u", manifest->m_DDF->m_Data.m_Count);
+        dmLiveUpdate::CreateManifestHash(algorithm, manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, digest);
+
+        uint32_t hexDigestLength = digestLength * 2 + 1;
+        char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
+        if (hexDigest == 0x0)
+        {
+            dmLogError("Failed to allocate memory for hash calculation.");
+            free(digest);
+            return false;
+        }
+
+        dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
+        dmLogInfo("Hashed manifest; %s", hexDigest);
+
+
+        return dmResource::VerifyManifest(manifest) == dmResource::RESULT_OK;
+    }
+
     Result StoreManifest(dmResource::Manifest* manifest)
     {
         if (manifest == 0x0)
@@ -156,7 +191,7 @@ namespace dmLiveUpdate
             return RESULT_INVALID_RESOURCE;
         }
 
-        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
         uint8_t* digest = (uint8_t*) malloc(digestLength);
         if(digest == 0x0)
@@ -167,7 +202,7 @@ namespace dmLiveUpdate
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
 
         char proj_id[dmResource::MANIFEST_PROJ_ID_LEN];
-        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, proj_id, dmResource::MANIFEST_PROJ_ID_LEN);
+        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, proj_id, dmResource::MANIFEST_PROJ_ID_LEN);
 
         dmResource::Result res = dmResource::NewArchiveIndexWithResource(manifest, digest, digestLength, resource, proj_id, out_new_index);
         free(digest);

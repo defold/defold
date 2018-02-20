@@ -505,7 +505,7 @@ public class ManifestBuilder {
         ManifestFile.Builder builder = ManifestFile.newBuilder();
 
         ManifestData manifestData = this.buildManifestData();
-        builder.setData(manifestData);
+        builder.setData(ByteString.copyFrom(manifestData.toByteArray()));
         builder.setArchiveIdentifier(ByteString.copyFrom(this.archiveIdentifier));
         PrivateKey privateKey = null;
         try {

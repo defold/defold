@@ -104,9 +104,8 @@ struct SResourceFactory
     int                                          m_HttpStatus;
     Result                                       m_HttpFactoryResult;
 
-    // Manifest and archive for builtin resources
-    dmLiveUpdateDDF::ManifestFile*               m_BuiltinsManifest;
-    dmResourceArchive::HArchiveIndexContainer    m_BuiltinsArchiveContainer;
+    // Manifest for builtin resources
+    Manifest*                                   m_BuiltinsManifest;
 
     // Resource manifest
     Manifest*                                    m_Manifest;
@@ -257,7 +256,7 @@ Result StoreManifest(Manifest* manifest)
     char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
     char manifest_file_path[DMPATH_MAX_PATH];
     char manifest_tmp_file_path[DMPATH_MAX_PATH];
-    HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+    HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.dmanifest", manifest_file_path, DMPATH_MAX_PATH);
     dmStrlCpy(manifest_tmp_file_path, manifest_file_path, DMPATH_MAX_PATH);
@@ -298,10 +297,7 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
     dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
     archive_index_path[strlen(archive_index_path) - 1] = 'i';
 
-    dmLogInfo("bundle arci: %s", archive_index_path);
-    dmLogInfo("bundle arcd: %s", archive_resource_path);
-
-    HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+    HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
     struct stat file_stat;
@@ -310,16 +306,12 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
     if (!luIndexExists)
     {
         result = MountArchiveInternal(archive_index_path, archive_resource_path, 0x0, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
-        dmLogInfo("The mounted bundled archive from disk:");
-        PrintArchiveIndexHashes(factory->m_Manifest->m_ArchiveIndex);
     }
     else // If a liveupdate index exists, use that one instead
     {
         char liveupdate_resource_path[DMPATH_MAX_PATH];
         dmStrlCpy(liveupdate_resource_path, liveupdate_index_path, strlen(liveupdate_index_path) - index_extension_length + 1);
         dmStrlCat(liveupdate_resource_path, "arcd", DMPATH_MAX_PATH);
-        dmLogInfo("lu arci: %s", liveupdate_index_path);
-        dmLogInfo("lu arcd: %s", liveupdate_resource_path);
         // Check if any liveupdate resources were stored last time engine was running
         char temp_archive_index_path[DMPATH_MAX_PATH];
         dmStrlCpy(temp_archive_index_path, liveupdate_index_path, strlen(liveupdate_index_path)+1);
@@ -339,8 +331,6 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
             dmSys::Unlink(temp_archive_index_path);
         }
         result = MountArchiveInternal(liveupdate_index_path, archive_resource_path, liveupdate_resource_path, &factory->m_Manifest->m_ArchiveIndex, &factory->m_ArchiveMountInfo);
-        dmLogInfo("The mounted liveupdate archive from disk:");
-        PrintArchiveIndexHashes(factory->m_Manifest->m_ArchiveIndex);
         if (result != RESULT_OK)
         {
             dmLogError("Failed to mount archive, result = %i", result);
@@ -363,28 +353,31 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
     return result;
 }
 
-Result ParseManifestDDF(uint8_t* manifest, uint32_t size, dmLiveUpdateDDF::ManifestFile*& manifestFile)
+Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manifest*& manifest)
 {
     // Read from manifest resource
-    dmLogInfo("Parsing manifest, size: %u", size);
-    dmDDF::Result result = dmDDF::LoadMessage(manifest, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifestFile);
+    dmDDF::Result result = dmDDF::LoadMessage(manifest_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifest->m_DDF);
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest (%i)", result);
         return RESULT_IO_ERROR;
     }
 
-    if (manifestFile->m_Data.m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
+    // Read data blob from ManifestFile into ManifestData message
+    result = dmDDF::LoadMessage(manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &manifest->m_DDFData);
+    if (manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
     {
         dmLogError("Manifest format mismatch (expected '%x', actual '%x')",
-            MANIFEST_MAGIC_NUMBER, manifestFile->m_Data.m_Header.m_MagicNumber);
+            MANIFEST_MAGIC_NUMBER, manifest->m_DDFData->m_Header.m_MagicNumber);
+        dmDDF::FreeMessage(manifest->m_DDF);
         return RESULT_FORMAT_ERROR;
     }
 
-    if (manifestFile->m_Data.m_Header.m_Version != MANIFEST_VERSION)
+    if (manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
     {
         dmLogError("Manifest version mismatch (expected '%i', actual '%i')",
-            dmResourceArchive::VERSION, manifestFile->m_Data.m_Header.m_Version);
+            dmResourceArchive::VERSION, manifest->m_DDFData->m_Header.m_Version);
+        dmDDF::FreeMessage(manifest->m_DDF);
         return RESULT_FORMAT_ERROR;
     }
 
@@ -409,7 +402,9 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest->m_DDF);
+    Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest);
+    if (result == RESULT_OK)
+        dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
     dmMemory::AlignedFree(manifestBuffer);
 
     return result;
@@ -439,10 +434,226 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
         dmLogInfo("Successfully mounted manifest file: %s, size: %u", manifest_path, manifest_len);
     }
 
-    Result result = ParseManifestDDF(manifest_buf, manifest_len, factory->m_Manifest->m_DDF);
+    Result result = ParseManifestDDF(manifest_buf, manifest_len, factory->m_Manifest);
+    if (result == RESULT_OK)
+        dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
     UnmountManifest((void*&)manifest_buf, manifest_len);
 
     return result;
+}
+
+// -- BEGIN -- WIP DEBUG RSA decypt using public key, functions missing in axTLS lib
+#include <axtls/ssl/ssl.h>
+typedef struct {
+    uint8_t *buffer;
+    size_t size;
+} DER_key;
+
+typedef struct {
+    bigint *m;              /* modulus */
+    bigint *e;              /* public exponent */
+    int num_octets;
+    BI_CTX *bi_ctx;         /* big integer handle */
+} RSA_parameters;
+
+// TODO move to dlib axtls
+/**
+ * Similar to RSA_pub_key_new, rewritten to make this program depend only on bi module
+ */
+void RSA_pub_key_raw_new(RSA_parameters **rsa, const uint8_t *modulus, int mod_len, const uint8_t *pub_exp, int pub_len)
+{
+    RSA_parameters *rsa_parameters;
+
+    BI_CTX *bi_ctx = bi_initialize();
+    *rsa = (RSA_parameters *)calloc(1, sizeof(RSA_parameters));
+    rsa_parameters = *rsa;
+    rsa_parameters->bi_ctx = bi_ctx;
+    rsa_parameters->num_octets = (mod_len & 0xFFF0);
+    rsa_parameters->m = bi_import(bi_ctx, modulus, mod_len);
+    bi_set_mod(bi_ctx, rsa_parameters->m, BIGINT_M_OFFSET);
+    rsa_parameters->e = bi_import(bi_ctx, pub_exp, pub_len);
+    bi_permanent(rsa_parameters->e);
+}
+
+// TODO move to dlib axtls
+/**
+ * Get the public key specifics from an ASN.1 encoded file
+ * A function lacking in the axTLS API
+ *
+ * This is a really weird hack that only works with RSA public key
+ * files
+ */
+static int asn1_get_public_key(const uint8_t *buf, int len, RSA_parameters **rsa_parameters)
+{
+    uint8_t *modulus, *pub_exp;
+    int mod_len, pub_len;
+
+    pub_len = 3;
+    mod_len = len - 34;
+    if (buf[0] != 0x30) {
+        return -1;
+    }
+
+    pub_exp = (uint8_t *)malloc(3);
+    modulus = (uint8_t *)malloc(mod_len);
+
+    printf("mod_len: %i\n", mod_len);
+    printf("pub_exp buf offset: %i\n", len - 3);
+
+    memcpy(modulus, buf + 25, mod_len);
+    // memcpy(pub_exp, buf + 31 + mod_len, 3);
+    memcpy(pub_exp, buf + len - 3, 3);
+
+    // memcpy(pub_exp, buf + 50 + mod_len, 3); 
+    if (mod_len <= 0 || pub_len <= 0 )
+        return -1;
+    RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
+
+    free(modulus);
+    free(pub_exp);
+    return 0;
+}
+
+// TODO move to dlib axtls
+/**
+ * Decrypts the signature buffer using the rsa public key loaded
+ */
+int RSA_decrypt_public(RSA_parameters *rsa, uint8_t *buffer_in, uint8_t *buffer_out)
+{
+    bigint *dat_bi;
+    bigint *decrypted_bi;
+    int byte_size;
+
+    byte_size = rsa->num_octets; 
+    if (byte_size != 128)
+        return 1;
+    dat_bi = bi_import(rsa->bi_ctx, buffer_in, byte_size);
+    rsa->bi_ctx->mod_offset = BIGINT_M_OFFSET;
+    bi_copy(rsa->m);
+    decrypted_bi = bi_mod_power(rsa->bi_ctx, dat_bi, rsa->e);
+    bi_export(rsa->bi_ctx, decrypted_bi, buffer_out, byte_size);
+    free(dat_bi);
+    free(decrypted_bi);
+    return 0;
+}
+
+void bi_print(const char *label, bigint *x)
+{
+    int i, j;
+
+    if (x == NULL)
+    {
+        printf("%s: (null)\n", label);
+        return;
+    }
+
+    printf("%s: (size %d)\n", label, x->size);
+    for (i = x->size-1; i >= 0; i--)
+    {
+        for (j = COMP_NUM_NIBBLES-1; j >= 0; j--)
+        {
+            comp mask = 0x0f << (j*4);
+            comp num = (x->comps[i] & mask) >> (j*4);
+            putc((num <= 9) ? (num + '0') : (num + 'A' - 10), stdout);
+        }
+    }
+
+    printf("\n");
+}
+void RSA_param_print(const RSA_parameters* rsa_parameters)
+{
+    if (rsa_parameters == NULL)
+        return;
+
+    printf("-----------------   RSA PARAMETERS DEBUG   ----------------\n");
+    printf("Size:\t%d\n", rsa_parameters->num_octets);
+    bi_print("Modulus", rsa_parameters->m);
+    bi_print("Public Key", rsa_parameters->e);
+    printf("-----------------------------------------------------------\n");
+}
+// -- END -- WIP DEBUG RSA decypt using public key, functions missing in axTLS lib
+
+// Diagram of what need to be done; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
+// Inspect asn1 key; http://lapo.it/asn1js/#
+Result VerifyManifest(Manifest* manifest)
+{
+    Result res = RESULT_INVALID_DATA;
+    dmLogInfo("## VerifyManifest ##");
+    char public_key_path[DMPATH_MAX_PATH];
+    uint32_t public_cert_size = 0;
+    uint32_t out_resource_size = 0; // not used
+    uint8_t* public_cert_buf = 0x0, *public_cert_buf_flipped = 0x0;
+
+    char game_dir[DMPATH_MAX_PATH];
+    dmSys::GetResourcesPath(0, 0, game_dir, DMPATH_MAX_PATH);
+    // const char* game_dir = "/Applications/eclipse/branches/42506/21869/master/build/default/Defold test.app/Contents/Resources"; // FOR LLDB DEBUGGING ONLY
+    dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
+
+    // Read public key from file to buffer
+    dmSys::ResourceSize(public_key_path, &public_cert_size);
+    dmLogInfo("public_cert_size: %u", public_cert_size);
+    public_cert_buf = (uint8_t*)malloc(public_cert_size);
+    public_cert_buf_flipped = (uint8_t*)malloc(public_cert_size);
+
+
+    assert(public_cert_buf);
+    dmSys::Result sys_res = dmSys::LoadResource(public_key_path, public_cert_buf, public_cert_size, &out_resource_size);
+
+    if (sys_res != dmSys::RESULT_OK)
+    {
+        dmLogError("Failed to verify manifest (%i)", sys_res);
+        return RESULT_IO_ERROR;
+    }
+
+    // Decrypt signed manifest hash
+    dmLiveUpdateDDF::HashAlgorithm signature_hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
+    uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+    uint8_t* cert_buf = (uint8_t*)malloc(public_cert_size);
+
+    int hash_algo_size = 128;
+    if (signature_hash_algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        hash_algo_size = 128;
+    else if (signature_hash_algorithm == dmLiveUpdateDDF::HASH_SHA256)
+        hash_algo_size = 256;
+    else if (signature_hash_algorithm == dmLiveUpdateDDF::HASH_SHA512)
+        hash_algo_size = 512;
+    dmLogInfo("hash_algo_size: %i", hash_algo_size);
+    uint8_t* hash_decrypted = (uint8_t*)malloc(hash_algo_size);
+
+    for(uint32_t i = 0; i<public_cert_size; i+=2)
+    {
+        memset(public_cert_buf_flipped, htons((uint16_t)*(public_cert_buf+i)), sizeof(uint16_t));
+    }
+    
+    uint8_t* hash = new uint8_t[hash_algo_size];
+    RSA_parameters* rsa_parameters;
+    DER_key* derkey = new DER_key;
+    derkey->buffer = public_cert_buf;
+    derkey->size = public_cert_size;
+    if ((asn1_get_public_key(derkey->buffer, derkey->size, &rsa_parameters)) != 0) {
+        dmLogError("Call to asn1_get_public_key failed :(");
+    } else {
+        dmLogInfo("Call to asn1_get_public_key successful!");
+        RSA_param_print(rsa_parameters);
+    }
+    // TODO free derkey here
+    if (rsa_parameters->num_octets != hash_algo_size)
+        dmLogError("The RSA public key size is not 1024 bits, actual: %i", rsa_parameters->num_octets)
+    if(RSA_decrypt_public(rsa_parameters, signature, hash_decrypted)) {
+        dmLogError("Decrypting signature :(");
+    }
+    memcpy(hash, hash_decrypted, hash_algo_size);
+    // PrintHash(hash, 20);
+
+    char* hexDigest = new char[dmResource::HashLength(signature_hash_algorithm) * 2 + 1];
+    dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, hash, hexDigest, dmResource::HashLength(signature_hash_algorithm) * 2 + 1);
+    dmLogInfo("Hash printed: %s", hexDigest);
+    PrintHash(hash, hash_algo_size);
+    delete[] hexDigest;
+    
+    free(hash_decrypted);
+    free(cert_buf);
+    return res;
 }
 
 Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hashDigest, uint32_t hashDigestLength, const dmResourceArchive::LiveUpdateResource* resource, const char* proj_id, dmResourceArchive::HArchiveIndex& out_new_index)
@@ -548,7 +759,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         char app_support_path[DMPATH_MAX_PATH];
         char manifest_file_path[DMPATH_MAX_PATH];
         char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
-        HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+        HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
         dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
         dmPath::Concat(app_support_path, "liveupdate.dmanifest", manifest_file_path, DMPATH_MAX_PATH);
         struct stat file_stat;
@@ -563,28 +774,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         }
         else
             dmLogInfo("No external LiveUpdate manifest file found :( Looked for path: %s", manifest_file_path);
-
-        // DEBUG PRINT CONTENTS OF LOADED MANIFEST
-        dmLogInfo("Debug-printing manifest num entries: %u", factory->m_Manifest->m_DDF->m_Data.m_Resources.m_Count);
-        for (int i = 0; i < factory->m_Manifest->m_DDF->m_Data.m_Resources.m_Count; ++i)
-        {
-            // uint8_t* hash = factory->m_Manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
-            // int cmp = memcmp(hash, digest, digestLength);
-            // if (cmp == 0)
-            {
-                uint8_t* hash = factory->m_Manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
-                uint32_t len = factory->m_Manifest->m_DDF->m_Data.m_Resources[i].m_Hash.m_Data.m_Count;
-                char* slask = new char[len*2+1];
-                slask[len] = '\0';
-                for (int i = 0; i < len; ++i)
-                {
-                    sprintf(slask+i*2, "%02X", hash[i]);
-                }
-                dmLogInfo("Hash: %s, URL: %s", slask, factory->m_Manifest->m_DDF->m_Data.m_Resources[i].m_Url);
-                delete[] slask;
-            }
-        }
-        // END DEBUG
 
         if (r == RESULT_OK)
         {
@@ -635,11 +824,18 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
     if (params->m_ArchiveManifest.m_Size)
     {
-        dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest);
-        dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, 0x0, 0x0, 0x0, &factory->m_BuiltinsArchiveContainer);
+        factory->m_BuiltinsManifest = new Manifest();
+        dmDDF::Result res = dmDDF::LoadMessage(params->m_ArchiveManifest.m_Data, params->m_ArchiveManifest.m_Size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest->m_DDF);
 
-        dmLogInfo("Builtins archive container:");
-        PrintArchiveIndexHashes(factory->m_BuiltinsArchiveContainer);
+        if (res != dmDDF::RESULT_OK)
+        {
+            dmLogError("Failed to load builtins manifest, result: %u", res);
+        }
+        else
+        {
+            res = dmDDF::LoadMessage(factory->m_BuiltinsManifest->m_DDF->m_Data.m_Data, factory->m_BuiltinsManifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest->m_DDFData);
+            dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, 0x0, 0x0, 0x0, &factory->m_BuiltinsManifest->m_ArchiveIndex);
+        }
     }
 
     factory->m_LoadMutex = dmMutex::New();
@@ -666,10 +862,9 @@ void DeleteFactory(HFactory factory)
     }
     if (factory->m_Manifest)
     {
-
-        if (factory->m_Manifest->m_DDF)
+        if (factory->m_Manifest->m_DDFData)
         {
-            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
         }
 
         if (factory->m_Manifest->m_ArchiveIndex)
@@ -679,9 +874,9 @@ void DeleteFactory(HFactory factory)
         delete factory->m_Manifest;
     }
 
-    if (factory->m_BuiltinsArchiveContainer)
+    if (factory->m_Manifest->m_ArchiveIndex)
     {
-        dmResourceArchive::Delete(factory->m_BuiltinsArchiveContainer);
+        dmResourceArchive::Delete(factory->m_Manifest->m_ArchiveIndex);
     }
 
 
@@ -772,49 +967,11 @@ uint32_t HexDigestLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
     return dmResource::HashLength(algorithm) * 2U;
 }
 
-// DEBUG print liveupdate namehash
-void PrintHash(const uint8_t* hash, uint32_t len)
-{
-    char* slask = new char[len*2+1];
-    slask[len] = '\0';
-    for (int i = 0; i < len; ++i)
-    {
-        sprintf(slask+i*2, "%02X", hash[i]);
-    }
-    dmLogInfo("HASH PRINTED: %s", slask);
-    delete[] slask;
-}
-// END DEBUG
-
-Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmResourceArchive::HArchiveIndexContainer archiveIndex, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
+Result LoadFromManifest(const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
 {
     // Get resource hash from path_hash
-    uint32_t entry_count = manifest->m_Data.m_Resources.m_Count;
-    dmLogInfo("LoadFromManifest, entry_count: %u", entry_count);
-    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_Data.m_Resources.m_Data;
-
-    // // DEBUG 
-    // dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_Data.m_Header.m_ResourceHashAlgorithm;
-    // uint32_t digestLength = dmResource::HashLength(algorithm);
-    // uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
-    // uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
-    // char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
-    // dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
-    // char* slask = new char[hexDigestLength+1];
-    // memcpy(slask, hexDigest, hexDigestLength);
-    // slask[hexDigestLength] = '\0';
-    // dmLogInfo("hash: %s", slask);
-    // for (int i = 0; i < manifest->m_Data.m_Resources.m_Count; ++i)
-    // {
-    //    // uint8_t* hash = manifest->m_Data.m_Resources[i].m_Hash.m_Data.m_Data;
-    //    // int cmp = memcmp(hash, digest, digestLength);
-    //    //  if (cmp == 0)
-    //    {
-    //        dmLogInfo("URL: %s", manifest->m_Data.m_Resources[i].m_Url);
-    //        PrintHash(manifest->m_Data.m_Resources[i].m_Hash.m_Data.m_Data, manifest->m_Data.m_Resources[i].m_Hash.m_Data.m_Count);
-    //    }
-    // }
-    // // END DEBUG
+    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
+    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
 
     int first = 0;
     int last = entry_count-1;
@@ -827,21 +984,19 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
         if (h == path_hash)
         {
             dmResourceArchive::EntryData ed;
-            dmResourceArchive::Result res = dmResourceArchive::FindEntry(archiveIndex, entries[mid].m_Hash.m_Data.m_Data, &ed);
+            dmResourceArchive::Result res = dmResourceArchive::FindEntry(manifest->m_ArchiveIndex, entries[mid].m_Hash.m_Data.m_Data, &ed);
             if (res == dmResourceArchive::RESULT_OK)
             {
                 uint32_t file_size = ed.m_ResourceSize;
-                dmLogInfo("LoadFromManifest, file_size: %u, path: %s", file_size, path);
                 if (buffer->Capacity() < file_size)
                 {
                     buffer->SetCapacity(file_size);
                 }
 
                 buffer->SetSize(0);
-                dmResourceArchive::Result read_result = dmResourceArchive::Read(archiveIndex, &ed, buffer->Begin());
+                dmResourceArchive::Result read_result = dmResourceArchive::Read(manifest->m_ArchiveIndex, &ed, buffer->Begin());
                 if (read_result != dmResourceArchive::RESULT_OK)
                 {
-                    dmLogError("Failed to read resource, result = %i", read_result);
                     return RESULT_IO_ERROR;
                 }
 
@@ -853,7 +1008,6 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
             else if (res == dmResourceArchive::RESULT_NOT_FOUND)
             {
                 // Resource was found in manifest, but not in archive
-                dmLogError("TEMP Resource not found: %s, result = %i", path, res);
                 return RESULT_RESOURCE_NOT_FOUND;
             }
             else
@@ -878,17 +1032,12 @@ Result LoadFromManifest(const dmLiveUpdateDDF::ManifestFile* manifest, const dmR
 static Result DoLoadResourceLocked(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     DM_PROFILE(Resource, "LoadResource");
-    // dmLogInfo("----------------------");
-    // dmLogInfo("DoLoadResourceLocked! path: %s", path);
     if (factory->m_BuiltinsManifest)
     {
-        // dmLogInfo("Looking in builtins mainfest..., path: %s", path);
-        if (LoadFromManifest(factory->m_BuiltinsManifest, factory->m_BuiltinsArchiveContainer, original_name, resource_size, buffer) == RESULT_OK)
+        if (LoadFromManifest(factory->m_BuiltinsManifest, original_name, resource_size, buffer) == RESULT_OK)
         {
-            dmLogInfo("Found in builtins mainfest!");
             return RESULT_OK;
         }
-        // dmLogInfo("NOT found in builtins mainfest...");
     }
 
     // NOTE: No else if here. Fall through
@@ -937,7 +1086,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
     }
     else if (factory->m_Manifest)
     {
-        Result r = LoadFromManifest(factory->m_Manifest->m_DDF, factory->m_Manifest->m_ArchiveIndex, original_name, resource_size, buffer);
+        Result r = LoadFromManifest(factory->m_Manifest, original_name, resource_size, buffer);
         return r;
     }
     else
@@ -1798,10 +1947,13 @@ void ReleaseBuiltinsManifest(HFactory factory)
 {
     if (factory->m_BuiltinsManifest)
     {
-        dmLogInfo("ReleaseBuiltinsManifest");
-        dmDDF::FreeMessage(factory->m_BuiltinsManifest);
+        dmDDF::FreeMessage(factory->m_BuiltinsManifest->m_DDFData);
+        dmDDF::FreeMessage(factory->m_BuiltinsManifest->m_DDF);
+        factory->m_BuiltinsManifest->m_DDFData = 0;
+        factory->m_BuiltinsManifest->m_DDF = 0;
+        delete factory->m_BuiltinsManifest;
+        factory->m_BuiltinsManifest = 0;
     }
-    factory->m_BuiltinsManifest = 0;
 }
 
 }
