@@ -1164,9 +1164,11 @@ namespace dmSound
         uint32_t total_buffers = free_slots;
         while (free_slots > 0) {
             MixContext mix_context(current_buffer, total_buffers);
-            MixInstances(&mix_context);
+            Result result = MixInstances(&mix_context);
 
-            if (sound->m_IsSoundActive == false)
+            // DEF-3130 Don't request the audio focus when we know nothing it being played
+            // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
+            if (result == RESULT_OK && sound->m_IsSoundActive == false)
             {
                 sound->m_IsSoundActive = true;
                 (void) PlatformAcquireAudioFocus();
@@ -1175,8 +1177,8 @@ namespace dmSound
             Master(&mix_context);
 
             // DEF-2540: By not feeding the sound device, you'll get more slots free,
-            // thus updating sound (redundantly) every call, resulting in a hug performance hit.
-            // Also, you'll fast forward the sound.
+            // thus updating sound (redundantly) every call, resulting in a huge performance hit.
+            // Also, you'll fast forward the sounds.
             sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
