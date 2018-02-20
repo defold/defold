@@ -749,6 +749,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     else if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") == 0)
     {
         factory->m_Manifest = new Manifest();
+        factory->m_ArchiveMountInfo = 0x0;
 
         /* DEF-2411 Check app support path for if "liveupdate.dmanifest" exists, if it does load that one instead of bundled*/
         char* manifest_path = factory->m_UriParts.m_Path;
@@ -868,14 +869,13 @@ void DeleteFactory(HFactory factory)
 
         if (factory->m_Manifest->m_ArchiveIndex)
         {
-            UnmountArchiveInternal(factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
+            if (factory->m_ArchiveMountInfo)
+                UnmountArchiveInternal(factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
+            else
+                dmResourceArchive::Delete(factory->m_Manifest->m_ArchiveIndex);
         }
-        delete factory->m_Manifest;
 
-        if (factory->m_Manifest->m_ArchiveIndex)
-        {
-            dmResourceArchive::Delete(factory->m_Manifest->m_ArchiveIndex);
-        }
+        delete factory->m_Manifest;
     }
 
     ReleaseBuiltinsManifest(factory);
@@ -1941,10 +1941,11 @@ dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)
     return factory->m_LoadMutex;
 }
 
-void ReleaseBuiltinsManifest(HFactory factory)
+void ReleaseBuiltinsManifest(HFactory factory) 
 {
     if (factory->m_BuiltinsManifest)
     {
+        dmResourceArchive::Delete(factory->m_BuiltinsManifest->m_ArchiveIndex);
         dmDDF::FreeMessage(factory->m_BuiltinsManifest->m_DDFData);
         dmDDF::FreeMessage(factory->m_BuiltinsManifest->m_DDF);
         factory->m_BuiltinsManifest->m_DDFData = 0;
