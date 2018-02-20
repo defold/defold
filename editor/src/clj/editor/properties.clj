@@ -541,7 +541,7 @@
                       {:resource-reference (:resource build-target)
                        :build-target build-target})))))
 
-(def ^:private go-prop-type? (partial contains? type->entry-keys))
+(def go-prop-type? (partial contains? type->entry-keys))
 
 (defn property-entry->go-prop [[key {:keys [go-prop-type go-prop-sub-type value]}]]
   (when (some? go-prop-type)
