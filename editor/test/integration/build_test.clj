@@ -114,7 +114,7 @@
                  :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
                  :test-fn (fn [pb targets]
                             (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
                             (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
                             (is (< 0 (-> pb :animation-set (target targets) :animations count)))
                             (is (< 0 (-> pb :skeleton (target targets) :bones count))))}
@@ -134,7 +134,7 @@
                  :resource-fields [:texture-set :skeleton :animation-set :mesh-set]
                  :test-fn (fn [pb targets]
                             (is (some? (-> pb :texture-set (target targets) :texture)))
-                            (is (not= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
+                            (is (= 0 (-> pb :mesh-set (target targets) :mesh-entries first :id)))
                             (is (< 0 (-> pb :mesh-set (target targets) :mesh-entries count)))
                             (is (< 0 (-> pb :animation-set (target targets) :animations count)))
                             (is (< 0 (-> pb :skeleton (target targets) :bones count)))
@@ -215,7 +215,7 @@
                  :test-fn (fn [pb targets]
                             (let [main-node (first (filter #(= "spine" (:id %)) (:nodes pb)))
                                   nodes (into #{} (map :id (:nodes pb)))]
-                              (is (= "default" (:spine-skin main-node)))
+                              (is (= "" (:spine-skin main-node)))
                               (is (every? nodes ["spine" "spine/root" "box"]))))}]
                "/model/book_of_defold_no_tex.model"
                [{:label "Model with empty texture"
@@ -383,11 +383,11 @@
             _ (g/update-cache-from-evaluation-context! evaluation-context)
             evaluation-context (g/make-evaluation-context)
             second-time   (measure (project/build project resource-node evaluation-context {}))]
-        (is (< (* 50 second-time) first-time))
+        (is (< (* 20 second-time) first-time))
         (let [atlas (test-util/resource-node project "/player/spineboy.atlas")]
           (g/transact (g/set-property atlas :margin 10))
           (let [third-time (measure (project/build project resource-node (g/make-evaluation-context) {}))]
-            (is (< (* 5 second-time) third-time))))))))
+            (is (< (* 2 second-time) third-time))))))))
 
 (defn- build-path [workspace proj-path]
   (str (workspace/build-path workspace) proj-path))

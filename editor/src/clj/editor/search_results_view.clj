@@ -138,7 +138,8 @@
                                              (ui/close! stage))
             open-selected! (fn []
                              (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection resources-tree))]
-                               (open-fn resource opts)))]
+                               (open-fn resource opts))
+                             (dismiss-and-abort-search!))]
         (ui/title! stage "Search in Files")
         (init-search-in-files-tree-view! resources-tree)
 

@@ -46,6 +46,9 @@
 ;; ----------------------------------------
 (def default-cache-limit 1000)
 
+(defn cache? [value]
+  (satisfies? cc/CacheProtocol value))
+
 (defn make-cache
   ([]
     (make-cache default-cache-limit))

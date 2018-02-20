@@ -484,7 +484,7 @@
         push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label" "diff" "stage" "unstage"])
         render-progress (fn [progress]
                           (ui/run-later
-                            (ui/update-progress-controls! progress (:progress-bar dialog-controls) nil)))
+                            (ui/render-progress-controls! progress (:progress-bar dialog-controls) nil)))
         update-push-buttons! (fn []
                                ;; The stage, unstage and diff buttons are enabled
                                ;; if the changed or staged views have input focus
