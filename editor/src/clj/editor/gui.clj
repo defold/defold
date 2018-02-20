@@ -694,11 +694,14 @@
                :aabb aabb
                :passes [pass/transparent pass/selection pass/outline]
                :user-data (assoc scene-renderable-user-data
+                                 :blend-mode blend-mode
                                  :gpu-texture gpu-texture
                                  :inherit-alpha inherit-alpha
-                                 :material-shader material-shader
-                                 :blend-mode blend-mode)
-               :batch-key [clipping-state blend-mode gpu-texture material-shader]
+                                 :material-shader material-shader)
+               :batch-key {:clipping-state clipping-state
+                           :blend-mode blend-mode
+                           :gpu-texture gpu-texture
+                           :material-shader material-shader}
                :select-batch-key _node-id
                :layer-index layer-index
                :topmost? true
@@ -1808,7 +1811,7 @@
                :aabb aabb
                :renderable {:render-fn render-lines
                             :passes [pass/transparent]
-                            :batch-key []
+                            :batch-key nil
                             :user-data {:line-data [[0 0 0] [w 0 0] [w 0 0] [w h 0] [w h 0] [0 h 0] [0 h 0] [0 0 0]]
                                         :line-color colors/defold-white}}
                :children (mapv (partial apply-alpha 1.0) child-scenes)}]
