@@ -374,8 +374,6 @@ namespace dmGameSystem
             rot = dmGameObject::GetRotation(instance);
         }
 
-// TODO: Make sure GetComponentFromURL is type safe!!! Pass in a type?!
-
         CollisionWorld* world = 0;
         dmGameSystem::CollisionComponent* component = (dmGameSystem::CollisionComponent*)dmGameObject::GetComponentFromURL(receiver, (void**)&world);
         if (!component) {
