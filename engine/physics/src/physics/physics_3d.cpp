@@ -110,9 +110,9 @@ namespace dmPhysics
     }
 
     World3D::World3D(HContext3D context, const NewWorldParams& params)
-    : m_DebugDraw(&context->m_DebugCallbacks)
+    : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
+    , m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
-    , m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);
@@ -983,5 +983,98 @@ namespace dmPhysics
                 }
             }
         }
+    }
+
+    struct DMContactResultCallback : public btCollisionWorld::ContactResultCallback
+    {
+        ContactPointTestCallback    m_Callback;
+        void*                       m_CallbackContext;
+        btCollisionObject*          m_Object;       // The original input object
+        btCollisionObject*          m_Ghost;        // The ghost object we use
+        float                       m_ObjectMass;   // The mass of the object we're temporarily using
+        float                       m_InvScale;     // The inverse scale of the world
+
+        virtual btScalar addSingleResult(btManifoldPoint& pt, const btCollisionObject* object_a, int part_id_a, int part_index_a,
+                                                              const btCollisionObject* object_b, int part_id_b, int part_index_b)
+        {
+            // Don't collide with itself!
+            if (m_Object == object_a || m_Object == object_b)
+            {
+                return 1.0f;
+            }
+
+            const btRigidBody* body_a = btRigidBody::upcast(object_a);
+            const btRigidBody* body_b = btRigidBody::upcast(object_b);
+
+            ContactPoint point;
+
+            // Default case is that the ghost object is object B
+            // but we want our query object to be in place A
+            bool flip_objects = object_a == m_Ghost;
+            if (flip_objects)
+            {
+                // Our test object
+                FromBt(pt.getPositionWorldOnA(), point.m_PositionA, m_InvScale);
+                point.m_UserDataA = object_a->getUserPointer();
+                point.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
+                point.m_MassA = m_ObjectMass;
+                // The "other" object
+                FromBt(pt.getPositionWorldOnB(), point.m_PositionB, m_InvScale);
+                point.m_UserDataB = object_b->getUserPointer();
+                point.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
+                point.m_MassB = body_b ? 1.0f / body_b->getInvMass() : 0.0f;
+                const btVector3& normal = pt.m_normalWorldOnB;
+                FromBt(normal, point.m_Normal, 1.0f); // Don't scale normals
+            }
+            else
+            {
+                // The "other" object
+                FromBt(pt.getPositionWorldOnA(), point.m_PositionB, m_InvScale);
+                point.m_UserDataB = object_a->getUserPointer();
+                point.m_GroupB = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
+                point.m_MassB = body_a ? 1.0f / body_a->getInvMass() : 0.0f;
+                // Our test object
+                FromBt(pt.getPositionWorldOnB(), point.m_PositionA, m_InvScale);
+                point.m_UserDataA = object_b->getUserPointer();
+                point.m_GroupA = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
+                point.m_MassA = m_ObjectMass;
+                const btVector3& normal = pt.m_normalWorldOnB;
+                FromBt(normal, point.m_Normal, -1.0f); // Don't scale normals
+            }
+
+            point.m_Distance = -pt.getDistance() * m_InvScale;
+
+            m_Callback(point, m_CallbackContext);
+            return 1.0f;
+        }
+    };
+
+    void ContactPointTest3D(HContext3D context, HWorld3D world, HCollisionObject3D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx)
+    {
+        btTransform transform;
+        btVector3 origin;
+        ToBt(position, origin, context->m_Scale);
+        transform.setOrigin(origin);
+        transform.setRotation(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()));
+
+        btCollisionObject* btobject = GetCollisionObject(object);
+        btCollisionShape* shape = btobject->getCollisionShape();
+
+        btPairCachingGhostObject ghost;
+        ghost.setCollisionShape(shape);
+        ghost.setWorldTransform(transform);
+
+        world->m_DynamicsWorld->addCollisionObject(&ghost);
+
+        DMContactResultCallback contact_callback;
+        contact_callback.m_Callback = callback;
+        contact_callback.m_CallbackContext = user_ctx;
+        contact_callback.m_InvScale = world->m_Context->m_InvScale;
+        contact_callback.m_Object = btobject;
+        contact_callback.m_Ghost = &ghost;
+        contact_callback.m_ObjectMass = GetMass3D(object);
+        world->m_DynamicsWorld->contactTest(&ghost, contact_callback);
+
+        world->m_DynamicsWorld->removeCollisionObject(&ghost);
     }
 }

@@ -255,5 +255,10 @@ void b2Contact::Update(b2ContactListener* listener)
 
 bool b2Contact::IsPrimary(b2Shape::Type type1, b2Shape::Type type2)
 {
+	if (s_initialized == false)
+	{
+		InitializeRegisters();
+		s_initialized = true;
+	}
 	return s_registers[type1][type2].primary;
 }

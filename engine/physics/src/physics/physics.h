@@ -963,7 +963,7 @@ namespace dmPhysics
         void* m_UserData;
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
-        
+
         uint16_t _padding;
 
         /// User supplied id to identify this query when the response is handled
@@ -1086,12 +1086,12 @@ namespace dmPhysics
     /**
      *
      */
-    void ContactPointTest3D(HContext3D context, HCollisionObject3D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx);
+    void ContactPointTest3D(HContext3D context, HWorld3D world, HCollisionObject3D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx);
 
     /**
      *
      */
-    void ContactPointTest2D(HContext2D context, HCollisionObject2D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx);
+    void ContactPointTest2D(HContext2D context, HWorld2D world, HCollisionObject2D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx);
 }
 
 #endif // PHYSICS_H

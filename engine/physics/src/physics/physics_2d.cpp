@@ -1151,10 +1151,10 @@ namespace dmPhysics
         }
     };
 
-    void ContactPointTest2D(HContext2D context, HCollisionObject2D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx)
+    void ContactPointTest2D(HContext2D context, HWorld2D _world, HCollisionObject2D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx)
     {
         b2Body* body = (b2Body*)object;
-        const b2World* world = body->GetWorld();
+        const b2World* world = &_world->m_World;
 
         b2Vec2 b2_position;
         ToB2(position, b2_position, context->m_Scale);
