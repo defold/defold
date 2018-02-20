@@ -1328,6 +1328,7 @@ TYPED_TEST(PhysicsTest, ContactTestTileGridSphere)
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_a);
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape_b);
+    dmPhysics::DeleteHullSet2D(hull_set);
 }
 
 int main(int argc, char **argv)
