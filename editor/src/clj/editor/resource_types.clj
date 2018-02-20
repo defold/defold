@@ -17,7 +17,6 @@
             [editor.font :as font]
             [editor.game-object :as game-object]
             [editor.game-project :as game-project]
-            [editor.gl.shader :as shader]
             [editor.gui :as gui]
             [editor.html :as html]
             [editor.image :as image]
@@ -31,15 +30,13 @@
             [editor.protobuf-types :as protobuf-types]
             [editor.render-pb :as render-pb]
             [editor.rig :as rig]
-            [editor.script :as script]
             [editor.sound :as sound]
             [editor.spine :as spine]
             [editor.sprite :as sprite]
-            [editor.text-file :as text-file]
             [editor.tile-map :as tile-map]
             [editor.tile-source :as tile-source]))
 
-(defn register-resource-types! [workspace use-new-code-editor?]
+(defn register-resource-types! [workspace]
   (g/transact
     (concat
       (animation-set/register-resource-types workspace)
@@ -73,14 +70,8 @@
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
-      (if use-new-code-editor?
-        (concat
-          ;; TODO: Disabled due to conflict with spine .json files.
-          #_(code-json/register-resource-types workspace)
-          (code-script/register-resource-types workspace)
-          (code-shader/register-resource-types workspace)
-          (code-text-file/register-resource-types workspace))
-        (concat
-          (script/register-resource-types workspace)
-          (shader/register-resource-types workspace)
-          (text-file/register-resource-types workspace))))))
+      ;; TODO: Disabled due to conflict with spine .json files.
+      #_(code-json/register-resource-types workspace)
+      (code-script/register-resource-types workspace)
+      (code-shader/register-resource-types workspace)
+      (code-text-file/register-resource-types workspace))))
