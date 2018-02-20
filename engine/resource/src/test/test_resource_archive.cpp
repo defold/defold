@@ -297,30 +297,38 @@ TEST(dmResourceArchive, GetInsertionIndex)
 
 TEST(dmResourceArchive, ManifestHeader)
 {
-    dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, instance);
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmLiveUpdateDDF::ManifestData* manifest_data;
+    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(dmResource::MANIFEST_MAGIC_NUMBER, instance->m_Data.m_Header.m_MagicNumber);
-    ASSERT_EQ(dmResource::MANIFEST_VERSION, instance->m_Data.m_Header.m_Version);
+    manifest_data = manifest->m_DDFData;
 
-    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, instance->m_Data.m_Header.m_ResourceHashAlgorithm);
-    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, instance->m_Data.m_Header.m_SignatureHashAlgorithm);
+    ASSERT_EQ(dmResource::MANIFEST_MAGIC_NUMBER, manifest_data->m_Header.m_MagicNumber);
+    ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
 
-    ASSERT_EQ(dmLiveUpdateDDF::SIGN_RSA, instance->m_Data.m_Header.m_SignatureSignAlgorithm);
+    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_ResourceHashAlgorithm);
+    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_SignatureHashAlgorithm);
 
-    dmDDF::FreeMessage(instance);
+    ASSERT_EQ(dmLiveUpdateDDF::SIGN_RSA, manifest_data->m_Header.m_SignatureSignAlgorithm);
+
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
 }
 
 TEST(dmResourceArchive, ResourceEntries)
 {
-    dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, instance);
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmLiveUpdateDDF::ManifestData* manifest_data;
+    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(7U, instance->m_Data.m_Resources.m_Count);
-    for (uint32_t i = 0; i < instance->m_Data.m_Resources.m_Count; ++i) {
-        const char* current_path = instance->m_Data.m_Resources.m_Data[i].m_Url;
+    manifest_data = manifest->m_DDFData;
+
+    ASSERT_EQ(7U, manifest_data->m_Resources.m_Count);
+    for (uint32_t i = 0; i < manifest_data->m_Resources.m_Count; ++i) {
+        const char* current_path = manifest_data->m_Resources.m_Data[i].m_Url;
         uint64_t current_hash = dmHashString64(current_path);
 
         if (IsLiveUpdateResource(current_hash)) continue;
@@ -328,24 +336,29 @@ TEST(dmResourceArchive, ResourceEntries)
         ASSERT_STRCASEEQ(path_name[i], current_path);
         ASSERT_EQ(path_hash[i], current_hash);
 
-        for (uint32_t n = 0; n < instance->m_Data.m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
-            uint8_t current_byte = instance->m_Data.m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
+        for (uint32_t n = 0; n < manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
+            uint8_t current_byte = manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
             ASSERT_EQ(content_hash[i][n], current_byte);
         }
     }
 
-    dmDDF::FreeMessage(instance);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
 }
 
 TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
-    dmLiveUpdateDDF::ManifestFile* instance;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, instance);
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmLiveUpdateDDF::ManifestData* manifest_data;
+    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
-    ASSERT_EQ(7U, instance->m_Data.m_Resources.m_Count);
-    for (uint32_t i = 0; i < instance->m_Data.m_Resources.m_Count; ++i) {
-        const char* current_path = instance->m_Data.m_Resources.m_Data[i].m_Url;
+    manifest_data = manifest->m_DDFData;
+
+    ASSERT_EQ(7U, manifest_data->m_Resources.m_Count);
+    for (uint32_t i = 0; i < manifest_data->m_Resources.m_Count; ++i) {
+        const char* current_path = manifest_data->m_Resources.m_Data[i].m_Url;
         uint64_t current_hash = dmHashString64(current_path);
 
         if (IsLiveUpdateResource(current_hash)) continue;
@@ -353,14 +366,16 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
         ASSERT_STRCASEEQ(path_name[i], current_path);
         ASSERT_EQ(path_hash[i], current_hash);
 
-        for (uint32_t n = 0; n < instance->m_Data.m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
-            uint8_t current_byte = instance->m_Data.m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
+        for (uint32_t n = 0; n < manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Count; ++n) {
+            uint8_t current_byte = manifest_data->m_Resources.m_Data[i].m_Hash.m_Data.m_Data[n];
 
             ASSERT_EQ(compressed_content_hash[i][n], current_byte);
         }
     }
 
-    dmDDF::FreeMessage(instance);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
 }
 
 TEST(dmResourceArchive, Wrap)

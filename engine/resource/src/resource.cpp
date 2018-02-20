@@ -871,13 +871,12 @@ void DeleteFactory(HFactory factory)
             UnmountArchiveInternal(factory->m_Manifest->m_ArchiveIndex, factory->m_ArchiveMountInfo);
         }
         delete factory->m_Manifest;
-    }
 
-    if (factory->m_Manifest->m_ArchiveIndex)
-    {
-        dmResourceArchive::Delete(factory->m_Manifest->m_ArchiveIndex);
+        if (factory->m_Manifest->m_ArchiveIndex)
+        {
+            dmResourceArchive::Delete(factory->m_Manifest->m_ArchiveIndex);
+        }
     }
-
 
     ReleaseBuiltinsManifest(factory);
 
