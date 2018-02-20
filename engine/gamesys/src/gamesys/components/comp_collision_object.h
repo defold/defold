@@ -9,6 +9,8 @@ namespace dmPhysics
 {
     typedef void* HCollisionObject2D;
     typedef void* HCollisionObject3D;
+    struct ContactPoint;
+    typedef void (*ContactPointTestCallback)(const dmPhysics::ContactPoint& contact_point, void* user_ctx);
 }
 
 namespace dmGameSystem
@@ -66,6 +68,13 @@ namespace dmGameSystem
      * Gets the game object from a collision component
      */
     dmGameObject::HInstance CompCollisionGetGameObject(const CollisionComponent* component);
+
+
+    /**
+     * Gets the contact points from
+     */
+    void ContactPointTest3D(PhysicsContext* context, CollisionWorld* world, CollisionComponent* component, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, dmPhysics::ContactPointTestCallback callback, void* user_ctx);
+
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

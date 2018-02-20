@@ -266,7 +266,7 @@ namespace dmGameSystem
         dmScript::PushVector3(L, Vector3(cp.m_PositionA));
         lua_setfield(L, -2, "position");
 
-        dmScript::PushVector3(L, -cp.m_Normal); // it's pointing A -> B, so we need to negate it
+        dmScript::PushVector3(L, cp.m_Normal);
         lua_setfield(L, -2, "normal");
 
         lua_pushnumber(L, cp.m_Distance);
@@ -389,10 +389,7 @@ namespace dmGameSystem
         ctx.m_Count = 0;
         ctx.m_World = world;
 
-        // if (physics_context->m_3D)
-        //     dmPhysics::ContactPointTest3D(physics_context->m_Context3D, dmGameSystem::CompCollisionGetCollisionObject3D(component), pos, rot, ContactPointCallback, (void*)&ctx);
-        // else
-            dmPhysics::ContactPointTest2D(physics_context->m_Context2D, dmGameSystem::CompCollisionGetCollisionObject2D(component), pos, rot, ContactPointCallback, (void*)&ctx);
+        ContactPointTest3D(physics_context, world, component, pos, rot, ContactPointCallback, (void*)&ctx);
 
         if (ctx.m_Count == 0)
             lua_pushnil(L);

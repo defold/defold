@@ -1038,4 +1038,12 @@ namespace dmGameSystem
     {
         return component->m_Instance;
     }
+
+    void ContactPointTest3D(PhysicsContext* context, CollisionWorld* world, CollisionComponent* component, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, dmPhysics::ContactPointTestCallback callback, void* user_ctx)
+    {
+        if (context->m_3D)
+            dmPhysics::ContactPointTest3D(context->m_Context3D, world->m_World3D, dmGameSystem::CompCollisionGetCollisionObject3D(component), position, rotation, callback, user_ctx);
+        else
+            dmPhysics::ContactPointTest2D(context->m_Context2D, world->m_World2D, dmGameSystem::CompCollisionGetCollisionObject2D(component), position, rotation, callback, user_ctx);
+    }
 }
