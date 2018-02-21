@@ -110,26 +110,6 @@
                :write-fn (partial protobuf/map->str ddf-type))]
     (apply workspace/register-resource-type workspace (mapcat identity args))))
 
-(g/defnode TextResourceNode
-  (inherits ResourceNode)
-  ;; TODO - modeled after script, rename to something less 'code'
-  (property code g/Str)
-  (output save-value g/Any (g/fnk [code] code)))
-
-(defn register-text-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label] :as args}]
-  (let [read-fn (comp text-util/crlf->lf slurp)
-        args (assoc args
-               :textual? true
-               :load-fn (fn [project self resource]
-                          (let [source-value (read-fn resource)]
-                            (concat
-                              (g/set-property self :code source-value)
-                              (when (contains? (g/output-labels node-type) :breakpoints)
-                                (g/connect self :breakpoints project :breakpoints)))))
-               :read-fn read-fn
-               :write-fn identity)]
-    (apply workspace/register-resource-type workspace (mapcat identity args))))
-
 (defn register-settings-resource-type [workspace & {:keys [ext node-type load-fn icon view-types tags tag-opts label] :as args}]
   (let [read-fn (fn [resource]
                   (with-open [setting-reader (io/reader resource)]
