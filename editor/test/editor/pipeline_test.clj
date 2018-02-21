@@ -114,19 +114,22 @@
         (is (= 4 @build-fn-calls))
         (is (= #{"1" "2" "3" "4"} (set (map content build-results))))))))
 
-(deftest make-protobuf-build-target-test
+(deftest make-pb-map-build-target-test
   (with-clean-system
     (let [tile-set-target (make-asserting-build-target workspace "1" nil {})
           material-target (make-asserting-build-target workspace "2" nil {})
-          sprite-target   (pipeline/make-protobuf-build-target
-                            (workspace/file-resource workspace "/dir/test.sprite")
+          source-resource (workspace/file-resource workspace "/dir/test.sprite")
+          sprite-target   (pipeline/make-pb-map-build-target
+                            12345
+                            source-resource
                             [tile-set-target material-target]
                             Sprite$SpriteDesc
                             {:tile-set          (-> tile-set-target :resource :resource)
                              :default-animation "gurka"
-                             :material          (-> material-target :resource :resource)}
-                            [:tile-set :material])]
+                             :material          (-> material-target :resource :resource)})]
       (testing "produces correct build-target"
+        (is (= 12345 (:node-id sprite-target)))
+        (is (= source-resource (-> sprite-target :resource :resource)))
         (is (= (set (:deps sprite-target)) #{tile-set-target material-target})))
       (testing "produces correct build content"
         (let [build-results (pipeline/build! workspace [sprite-target])

@@ -253,7 +253,7 @@ namespace dmBuffer
     {
         return memcmp(ptr, GUARD_VALUES, GUARD_SIZE) == 0;
     }
-    
+
     static Result ValidateBuffer(Buffer* buffer)
     {
         if (!buffer) {
@@ -461,9 +461,12 @@ namespace dmBuffer
         }
 
         *out_stream = (void*)((uintptr_t)buffer->m_Data + stream->m_Offset);
-        *count = buffer->m_Count;
-        *component_count = stream->m_ValueCount;
-        *stride = buffer->m_Stride / GetSizeForValueType((dmBuffer::ValueType)stream->m_ValueType);
+        if (count)
+            *count = buffer->m_Count;
+        if (component_count)
+            *component_count = stream->m_ValueCount;
+        if (stride)
+            *stride = buffer->m_Stride / GetSizeForValueType((dmBuffer::ValueType)stream->m_ValueType);
         return RESULT_OK;
     }
 

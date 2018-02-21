@@ -396,7 +396,7 @@
 
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
   (try
-    (let [setter-actions (setter-fn (in/make-evaluation-context {:basis basis}) node-id old-value new-value)]
+    (let [setter-actions (setter-fn (in/custom-evaluation-context {:basis basis}) node-id old-value new-value)]
       (when *tx-debug*
         (println (txerrstr ctx "setter actions" (seq setter-actions))))
       setter-actions)
@@ -467,7 +467,7 @@
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
-            old-value (is/node-property-value node property (in/make-evaluation-context {:basis basis}))
+            old-value (is/node-property-value node property (in/custom-evaluation-context {:basis basis}))
             new-value (apply fn old-value args)
             override-node? (some? (gt/original node))
             dynamic? (not (contains? (some-> (gt/node-type node basis) in/all-properties) property))]

@@ -14,7 +14,7 @@
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
-            [editor.script :as script]
+            [editor.code.script :as script]
             [editor.outline :as outline]
             [editor.types :as types]
             [editor.workspace :as workspace]

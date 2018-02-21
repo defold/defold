@@ -311,9 +311,6 @@ namespace dmGameSystem
                 case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP:
                 case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP_LOSSY:
                 {
-                    dmGraphics::TextureImage::Image* new_image = new dmGraphics::TextureImage::Image();
-                    memcpy(new_image, image, sizeof(dmGraphics::TextureImage::Image));
-
                     uint32_t w = image->m_Width;
                     uint32_t h = image->m_Height;
                     for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)

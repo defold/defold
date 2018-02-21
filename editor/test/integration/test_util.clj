@@ -74,18 +74,13 @@
 (defn make-test-prefs []
   (prefs/load-prefs "test/resources/test_prefs.json"))
 
-(def ^:dynamic use-new-code-editor? true)
 (declare prop prop!)
 
 (defn code-editor-source [script-id]
-  (if use-new-code-editor?
-    (string/join "\n" (prop script-id :lines))
-    (prop script-id :code)))
+  (string/join "\n" (prop script-id :lines)))
 
 (defn code-editor-source! [script-id source]
-  (if use-new-code-editor?
-    (prop! script-id :lines (string/split source #"\r?\n" -1))
-    (prop! script-id :code source)))
+  (prop! script-id :lines (string/split source #"\r?\n" -1)))
 
 (defn setup-workspace!
   ([graph]
@@ -97,7 +92,7 @@
      (g/transact
        (concat
          (scene/register-view-types workspace)))
-     (resource-types/register-resource-types! workspace use-new-code-editor?)
+     (resource-types/register-resource-types! workspace)
      (workspace/resource-sync! workspace)
      workspace)))
 
@@ -243,7 +238,7 @@
           app-view  (setup-app-view! project)]
       [workspace project app-view])))
 
-(defn- load-system-and-project-raw [path _use-new-code-editor?]
+(defn- load-system-and-project-raw [path]
   (test-support/with-clean-system
     (let [workspace (setup-workspace! world path)
           project (setup-project! workspace)]
@@ -256,7 +251,7 @@
   (let [custom-path?  (or (string? (first forms)) (symbol? (first forms)))
         project-path  (if custom-path? (first forms) project-path)
         forms         (if custom-path? (next forms) forms)]
-    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path use-new-code-editor?)
+    `(let [[system# ~'workspace ~'project] (load-system-and-project ~project-path)
            ~'system (is/clone-system system#)
            ~'cache  (:cache ~'system)
            ~'world  (g/node-id->graph-id ~'workspace)]
@@ -415,7 +410,7 @@
 (defn kill-lib-server [server]
   (http-server/stop! server))
 
-(defn lib-server-url [server lib]
+(defn lib-server-uri [server lib]
   (format "%s/lib/%s" (http-server/local-url server) lib))
 
 (defn handler-run [command command-contexts user-data]

@@ -12,8 +12,7 @@
             [editor.workspace :as workspace]
             [util.id-vec :as iv]
             [util.murmur :as murmur])
-  (:import [com.defold.editor.pipeline LuaScanner$Property]
-           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
+  (:import [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [java.util StringTokenizer]
            [javax.vecmath Quat4d Point3d Matrix4d]))
 
@@ -223,10 +222,9 @@
     :property-type-resource resource/Resource))
 
 ;; Supported resource property sub-types.
-;; TODO: Use murmur/hash64 directly instead of LuaScanner constants once we remove the legacy code editor.
-(defonce sub-type-material LuaScanner$Property/subTypeMaterial)
-(defonce sub-type-texture LuaScanner$Property/subTypeTexture)
-(defonce sub-type-textureset LuaScanner$Property/subTypeTextureSet)
+(defonce sub-type-material (murmur/hash64 "material"))
+(defonce sub-type-texture (murmur/hash64 "texture"))
+(defonce sub-type-textureset (murmur/hash64 "textureset"))
 
 (defonce sub-type-material-ext "material")
 (defonce sub-type-textureset-ext ["atlas" "tilesource"])

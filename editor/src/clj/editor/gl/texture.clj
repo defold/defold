@@ -37,13 +37,13 @@
    :wrap-t       GL2/GL_TEXTURE_WRAP_T
    :wrap-r       GL2/GL_TEXTURE_WRAP_R})
 
-(defn- apply-params
-  [gl ^Texture texture params]
+(defn- apply-params!
+  [^GL gl ^long texture-target params]
   (doseq [[p v] params]
     (if-let [pname (texture-params p)]
-      (.setTexParameteri texture gl pname v)
+      (.glTexParameteri gl texture-target pname v)
       (if (integer? p)
-        (.setTexParameteri texture gl p v)
+        (.glTexParameteri gl texture-target p v)
         (println "WARNING: ignoring unknown texture parameter " p)))))
 
 (defprotocol TextureProxy
@@ -56,17 +56,20 @@
 
   GlBind
   (bind [this gl _render-args]
-    (let [tex (->texture this gl)]
-      (.glActiveTexture ^GL2 gl unit)
-      (.enable tex gl)
-      (.bind tex gl)
-      (apply-params gl tex params)))
+    (let [tex (->texture this gl)
+          tgt (.getTarget tex)]
+      (.enable tex gl)                ; Enable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
+      (.glActiveTexture ^GL2 gl unit) ; Set the active texture unit. Implicit parameter to (.bind ...)
+      (.bind tex gl)                  ; Bind our texture to the active texture unit. Used for subsequent render calls. Also implicit parameter to (apply-params! ...)
+      (apply-params! gl tgt params))) ; Apply filtering settings to the bound texture
 
   (unbind [this gl _render-args]
-    (let [tex (->texture this gl)]
-      (.glActiveTexture ^GL2 gl unit)
-      (.disable tex gl))
-    (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0)))
+    (let [tex (->texture this gl)
+          tgt (.getTarget tex)]
+      (.glActiveTexture ^GL2 gl unit)           ; Set the active texture unit. Implicit parameter to (.glBindTexture ...)
+      (.glBindTexture ^GL2 gl tgt 0)            ; Re-bind default "no-texture" to the active texture unit
+      (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0) ; Set TEXTURE0 as the active texture unit in case anything outside of the bind / unbind cycle forgets to call (.glActiveTexture ...)
+      (.disable tex gl))))                      ; Disable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
 
 (defn set-unit-index [^TextureLifecycle tlc ^long unit-index]
   (assert (<= 0 unit-index 7))

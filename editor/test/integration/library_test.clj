@@ -13,7 +13,7 @@
             [editor.url :as url]
             [integration.test-util :as test-util]
             [service.log :as log])
-  (:import [java.net URL]
+  (:import [java.net URI]
            [org.apache.commons.io FileUtils]
            [org.apache.commons.codec.digest DigestUtils]))
 
@@ -27,21 +27,21 @@
           project (test-util/setup-project! workspace)]
       [workspace project])))
 
-(def ^:private url-string "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus")
-(def ^:private urls (library/parse-library-urls url-string))
+(def ^:private uri-string "file:/scriptlib file:/imagelib1 file:/imagelib2 file:/bogus")
+(def ^:private uris (library/parse-library-uris uri-string))
 
-(deftest url-parsing
-  (testing "sane urls"
-    (is (= urls [(URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus")]))
-    (is (= (library/parse-library-urls "file:/scriptlib,file:/imagelib1,file:/imagelib2,file:/bogus")
-           [(URL. "file:/scriptlib") (URL. "file:/imagelib1") (URL. "file:/imagelib2") (URL. "file:/bogus")])))
+(deftest uri-parsing
+  (testing "sane uris"
+    (is (= uris [(URI. "file:/scriptlib") (URI. "file:/imagelib1") (URI. "file:/imagelib2") (URI. "file:/bogus")]))
+    (is (= (library/parse-library-uris "file:/scriptlib,file:/imagelib1,file:/imagelib2,file:/bogus")
+           [(URI. "file:/scriptlib") (URI. "file:/imagelib1") (URI. "file:/imagelib2") (URI. "file:/bogus")])))
   (testing "various spacing and commas allowed"
-    (is (= urls (library/parse-library-urls "   file:/scriptlib   file:/imagelib1\tfile:/imagelib2  file:/bogus\t")))
-    (is (= urls (library/parse-library-urls " ,, file:/scriptlib ,  ,,  file:/imagelib1\tfile:/imagelib2 ,,,,  file:/bogus\t,")))
-    (is (= urls (library/parse-library-urls "\tfile:/scriptlib\tfile:/imagelib1\tfile:/imagelib2\tfile:/bogus   ")))
-    (is (= urls (library/parse-library-urls "\r\nfile:/scriptlib\nfile:/imagelib1\rfile:/imagelib2\tfile:/bogus "))))
-  (testing "ignore non-urls"
-    (is (= urls (library/parse-library-urls "this file:/scriptlib sure file:/imagelib1 aint file:/imagelib2 no file:/bogus url")))))
+    (is (= uris (library/parse-library-uris "   file:/scriptlib   file:/imagelib1\tfile:/imagelib2  file:/bogus\t")))
+    (is (= uris (library/parse-library-uris " ,, file:/scriptlib ,  ,,  file:/imagelib1\tfile:/imagelib2 ,,,,  file:/bogus\t,")))
+    (is (= uris (library/parse-library-uris "\tfile:/scriptlib\tfile:/imagelib1\tfile:/imagelib2\tfile:/bogus   ")))
+    (is (= uris (library/parse-library-uris "\r\nfile:/scriptlib\nfile:/imagelib1\rfile:/imagelib2\tfile:/bogus "))))
+  (testing "ignore non-uris"
+    (is (= uris (library/parse-library-uris "this file:/scriptlib sure file:/imagelib1 aint file:/imagelib2 no file:/bogus uri")))))
 
 (deftest initial-state
   (with-clean-system
@@ -52,7 +52,7 @@
       (testing "initially unknown library state"
         (let [states (library/current-library-state
                       (workspace/project-path workspace)
-                      urls)]
+                      uris)]
           (is (every? (fn [state] (= (:status state) :unknown)) states))
           (is (not (seq (filter :file states)))))))))
 
@@ -68,16 +68,16 @@
           (let [files (library/library-files project-directory)]
             (is (= 3 (count files)))))
         (testing "library-state visible"
-          (let [state (library/current-library-state project-directory urls)]
+          (let [state (library/current-library-state project-directory uris)]
             (is (= 4 (count state)))
             (is (= 3 (count (filter :file state))))))  ; no file for bogus
-        (testing "ignore duplicate library urls"
-          (let [state (library/current-library-state project-directory (concat urls urls))]
+        (testing "ignore duplicate library uris"
+          (let [state (library/current-library-state project-directory (concat uris uris))]
             (is (= 4 (count state)))
             (is (= 3 (count (filter :file state))))))))))
 
-(defn dummy-lib-resolver [url tag]
-  (let [file-name (str "lib_resource_project/.internal/lib/" (DigestUtils/sha1Hex (str url)) "-.zip")]
+(defn dummy-lib-resolver [uri tag]
+  (let [file-name (str "lib_resource_project/.internal/lib/" (DigestUtils/sha1Hex (str uri)) "-.zip")]
     {:status :stale
      :stream (some-> file-name io/resource io/input-stream)
      :tag    "tag"
@@ -87,13 +87,16 @@
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))]
       (let [project-directory (workspace/project-path workspace)]
-        (let [update-states   (library/update-libraries! project-directory urls dummy-lib-resolver)
+        (let [update-states   (->> (library/current-library-state project-directory uris)
+                                   (library/fetch-library-updates dummy-lib-resolver progress/null-render-progress!)
+                                   (library/validate-updated-libraries)
+                                   (library/install-validated-libraries! project-directory))
               update-statuses (group-by :status update-states)
               files           (library/library-files project-directory)
-              states          (library/current-library-state project-directory urls)]
+              states          (library/current-library-state project-directory uris)]
           (is (= 3 (count (update-statuses :up-to-date))))
           (is (= 1 (count (update-statuses :error))))
-          (is (= (str (:url (first (update-statuses :error)))) "file:/bogus"))
+          (is (= (str (:uri (first (update-statuses :error)))) "file:/bogus"))
           (is (every? (fn [state] (= (:tag state) "tag")) (update-statuses :up-to-date)))
           (is (= 3 (count files)))
           (is (= 4 (count states)))
@@ -109,48 +112,59 @@
 
 (deftest open-project
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
-          ^File project-directory (workspace/project-path workspace)
-          server (test-util/->lib-server)
-          url (test-util/lib-server-url server "lib_resource_project")
-          game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
-      (write-deps! game-project-res url)
-      (let [project (project/open-project! world workspace game-project-res progress/null-render-progress! nil)
-            ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
-            int-gui (test-util/resource-node project "/gui/empty.gui")]
-        (is (some? ext-gui))
-        (is (some? int-gui))
-        (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template nil)]
-          (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
-                                                    :overrides {}}))
-        (let [original (:node-id (test-util/outline ext-gui [0 0]))
-              or (:node-id (test-util/outline int-gui [0 0 0]))]
-          (is (= [or] (g/overrides original)))))
-      (test-util/kill-lib-server server))))
+    (test-util/with-ui-run-later-rebound
+      (let [workspace (test-util/setup-scratch-workspace! world "test/resources/test_project")
+            ^File project-directory (workspace/project-path workspace)
+            server (test-util/->lib-server)
+            uri (test-util/lib-server-uri server "lib_resource_project")
+            game-project-res (workspace/resolve-workspace-resource workspace "/game.project")]
+        (write-deps! game-project-res uri)
+        (let [project (project/open-project! world workspace game-project-res progress/null-render-progress! nil)
+              ext-gui (test-util/resource-node project "/lib_resource_project/simple.gui")
+              int-gui (test-util/resource-node project "/gui/empty.gui")]
+          (is (some? ext-gui))
+          (is (some? int-gui))
+          (let [template-node (gui/add-gui-node! project int-gui (:node-id (test-util/outline int-gui [0])) :type-template nil)]
+            (g/set-property! template-node :template {:resource (workspace/resolve-workspace-resource workspace "/lib_resource_project/simple.gui")
+                                                      :overrides {}}))
+          (let [original (:node-id (test-util/outline ext-gui [0 0]))
+                or (:node-id (test-util/outline int-gui [0 0 0]))]
+            (is (= [or] (g/overrides original)))))
+        (test-util/kill-lib-server server)))))
+
+(defn- fetch-validate-install-libraries! [workspace library-uris render-fn login-fn]
+  (when (workspace/dependencies-reachable? library-uris login-fn)
+    (->> (workspace/fetch-and-validate-libraries workspace library-uris render-fn)
+         (workspace/install-validated-libraries! workspace library-uris))
+    (workspace/resource-sync! workspace)))
 
 (deftest fetch-libraries
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))
           server (test-util/->lib-server)
-          url (test-util/lib-server-url server "lib_resource_project")
+          uri (test-util/lib-server-uri server "lib_resource_project")
           game-project (project/get-resource-node project "/game.project")]
       ;; make sure we don't have library file to begin with
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
       ;; add dependency, fetch libraries, we should now have library file
-      (game-project/set-setting! game-project ["project" "dependencies"] [url])
-      (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
-      (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
+      (game-project/set-setting! game-project ["project" "dependencies"] [uri])
+      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity (constantly true))
+      (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui"))))
+      ;; remove dependency again, fetch libraries, we should no longer have the file
+      (game-project/set-setting! game-project ["project" "dependencies"] nil)
+      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity (constantly true))
+      (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui")))))))
 
 (deftest fetch-libraries-from-library-archive-with-nesting
   (with-clean-system
     (let [[workspace project] (log/without-logging (setup-scratch world))
           server (test-util/->lib-server)
-          url (test-util/lib-server-url server "lib_resource_project_with_nesting")
+          uri (test-util/lib-server-uri server "lib_resource_project_with_nesting")
           game-project (project/get-resource-node project "/game.project")]
       ;; make sure we don't have library file to begin with
       (is (= 0 (count (project/find-resources project "lib_resource_project/simple.gui"))))
 
       ;; add dependency, fetch libraries, we should now have library file
-      (game-project/set-setting! game-project ["project" "dependencies"] [url])
-      (workspace/fetch-libraries! workspace (project/project-dependencies project) identity (constantly true))
+      (game-project/set-setting! game-project ["project" "dependencies"] [uri])
+      (fetch-validate-install-libraries! workspace (project/project-dependencies project) identity (constantly true))
       (is (= 1 (count (project/find-resources project "lib_resource_project/simple.gui")))))))

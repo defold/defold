@@ -2,7 +2,12 @@
   (:require [clojure.test :refer :all]
             [clojure.java.io :as io]
             [editor.protobuf :as protobuf])
-  (:import [com.google.protobuf ByteString]))
+  (:import [com.defold.editor.test TestDdf TestDdf$Msg TestDdf$SubMsg TestDdf$Transform TestDdf$DefaultValue
+            TestDdf$OptionalNoDefaultValue TestDdf$EmptyMsg TestDdf$Uint64Msg TestDdf$RepeatedUints
+            TestDdf$NestedMessages TestDdf$NestedMessages$NestedEnum$Enum TestDdf$BooleanMsg TestDdf$BytesMsg
+            TestAtlasProto$AtlasAnimation TestAtlasProto$AtlasImage TestDdf$JavaCasingMsg]
+           [javax.vecmath Point3d Vector3d]
+           [com.google.protobuf ByteString]))
 
 (defn- read-text [^java.lang.Class cls s]
   (with-in-str s

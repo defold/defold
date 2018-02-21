@@ -68,7 +68,7 @@
   (let [root-dir (workspace/project-path workspace)]
     (tu/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir proj-path) (.getBytes text "UTF-8"))))
 
-(defn- perform-script-properties-source-test! []
+(deftest script-properties-source
   (tu/with-loaded-project
     (let [script-id (tu/resource-node project "/script/props.script")]
       (testing "reading values"
@@ -78,13 +78,7 @@
                (with-source script-id "go.property(\"number\", \"my_string\")\n"
                  (is (nil? (prop script-id "number"))))))))
 
-(deftest script-properties-source
-  (with-bindings {#'tu/use-new-code-editor? false}
-    (perform-script-properties-source-test!))
-  (with-bindings {#'tu/use-new-code-editor? true}
-    (perform-script-properties-source-test!)))
-
-(defn- perform-script-properties-component-test! []
+(deftest script-properties-component
   (tu/with-loaded-project
     (let [go-id (tu/resource-node project "/game_object/props.go")
           script-c (component go-id "script")]
@@ -97,13 +91,7 @@
       (is (= 1.0 (prop script-c "number")))
       (is (not (overridden? script-c "number"))))))
 
-(deftest script-properties-component
-  (with-bindings {#'tu/use-new-code-editor? false}
-    (perform-script-properties-component-test!))
-  (with-bindings {#'tu/use-new-code-editor? true}
-    (perform-script-properties-component-test!)))
-
-(defn- perform-script-properties-broken-component-test! []
+(deftest script-properties-broken-component
   (tu/with-loaded-project
     (let [go-id (tu/resource-node project "/game_object/type_faulty_props.go")
           script-c (component go-id "script")]
@@ -116,13 +104,7 @@
       (is (not (overridden? script-c "number")))
       (is (= 1.0 (prop script-c "number"))))))
 
-(deftest script-properties-broken-component
-  (with-bindings {#'tu/use-new-code-editor? false}
-    (perform-script-properties-broken-component-test!))
-  (with-bindings {#'tu/use-new-code-editor? true}
-    (perform-script-properties-broken-component-test!)))
-
-(defn perform-script-properties-component-load-order-test! []
+(deftest script-properties-component-load-order
   (tu/with-loaded-project "test/resources/empty_project"
     (let [script-text (slurp "test/resources/test_project/script/props.script")
           game-object-text (slurp "test/resources/test_project/game_object/props.go")
@@ -147,13 +129,7 @@
             (is (overridden? script-component prop-name))
             (is (= prop-value (prop script-component prop-name)))))))))
 
-(deftest script-properties-component-load-order
-  (with-bindings {#'tu/use-new-code-editor? false}
-    (perform-script-properties-component-load-order-test!))
-  (with-bindings {#'tu/use-new-code-editor? true}
-    (perform-script-properties-component-load-order-test!)))
-
-(defn- perform-script-properties-collection-test! []
+(deftest script-properties-collection
   (tu/with-loaded-project
     (doseq [[resource paths val] [["/collection/props.collection" [[0 0] [1 0]] 3.0]
                                   ["/collection/sub_props.collection" [[0 0 0]] 4.0]
@@ -166,13 +142,7 @@
           (is (= val (prop script-c "number")))
           (is (overridden? script-c "number")))))))
 
-(deftest script-properties-collection
-  (with-bindings {#'tu/use-new-code-editor? false}
-    (perform-script-properties-collection-test!))
-  (with-bindings {#'tu/use-new-code-editor? true}
-    (perform-script-properties-collection-test!)))
-
-(defn- perform-script-properties-broken-collection-test! []
+(deftest script-properties-broken-collection
   (tu/with-loaded-project
     ;; [0 0] instance script, bad collection level override, fallback to instance override = 2.0
     ;; [1 0] embedded instance script, bad collection level override, fallback to script setting = 1.0
@@ -187,13 +157,7 @@
           (is (= val (prop script-c "number")))
           (is (= overriden (overridden? script-c "number"))))))))
 
-(deftest script-properties-broken-collection
-  (with-bindings {#'tu/use-new-code-editor? false}
-    (perform-script-properties-broken-collection-test!))
-  (with-bindings {#'tu/use-new-code-editor? true}
-    (perform-script-properties-broken-collection-test!)))
-
-(defn perform-script-properties-collection-load-order-test! []
+(deftest script-properties-collection-load-order
   (tu/with-loaded-project "test/resources/empty_project"
     (let [script-text (slurp "test/resources/test_project/script/props.script")
           game-object-text (slurp "test/resources/test_project/game_object/props.go")
@@ -225,12 +189,6 @@
                                             "vec3" [1.0 2.0 3.0]
                                             "vec4" [1.0 2.0 3.0 4.0]}]
               (is (= prop-value (prop script-component prop-name))))))))))
-
-(deftest script-properties-collection-load-order
-  (with-bindings {#'tu/use-new-code-editor? false}
-    (perform-script-properties-collection-load-order-test!))
-  (with-bindings {#'tu/use-new-code-editor? true}
-    (perform-script-properties-collection-load-order-test!)))
 
 (defn- build-resource [project path]
   (when-some [resource-node (tu/resource-node project path)]

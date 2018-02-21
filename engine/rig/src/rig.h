@@ -18,12 +18,6 @@ using namespace Vectormath::Aos;
 
 namespace dmRig
 {
-    /// Config key to use for tweaking the total maximum number of rig instances in a context.
-    extern const char* RIG_MAX_INSTANCES_KEY;
-
-    /// Default max rig instances in each context
-    const uint32_t DEFAULT_MAX_RIG_CAPACITY = 128;
-
     using namespace dmRigDDF;
 
     typedef struct RigContext*  HRigContext;
@@ -33,7 +27,9 @@ namespace dmRig
     {
         RESULT_OK             = 0,
         RESULT_ERROR          = 1,
-        RESULT_ANIM_NOT_FOUND = 2
+        RESULT_ERROR_BUFFER_FULL = 2,
+        RESULT_ANIM_NOT_FOUND = 3,
+        RESULT_UPDATED_POSE   = 4
     };
 
     enum RigMeshType
@@ -61,7 +57,8 @@ namespace dmRig
                       m_Cursor(0.0f),
                       m_Playback(dmRig::PLAYBACK_ONCE_FORWARD),
                       m_Playing(0x0),
-                      m_Backwards(0x0) {};
+                      m_Backwards(0x0),
+                      m_Completed(0x0) {};
         /// Currently playing animation
         const dmRigDDF::RigAnimation* m_Animation;
         dmhash_t                      m_AnimationId;
@@ -75,6 +72,8 @@ namespace dmRig
         uint16_t                      m_Playing : 1;
         /// Whether the animation is playing backwards (e.g. ping pong)
         uint16_t                      m_Backwards : 1;
+        /// Flag if player is completed and should call complete callback.
+        uint16_t                      m_Completed : 1;
     };
 
     struct RigBone
