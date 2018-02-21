@@ -7,6 +7,7 @@
             [editor.system :as system]
             [dynamo.graph :as g])
   (:import [java.io File]
+           [java.net URI]
            [editor.resource Resource FileResource ZipResource]))
 
 (set! *warn-on-reflection* true)
@@ -37,6 +38,7 @@
 (defn- make-library-snapshot [workspace lib-state]
   (let [file ^File (:file lib-state)
         tag (:tag lib-state)
+        uri-string (.toString ^URI (:uri lib-state))
         zip-file-version (if-not (str/blank? tag) tag (str (.lastModified file)))
         {resources :tree crc :crc} (load-library-zip workspace file)
         flat-resources (resource/resource-list-seq resources)]
@@ -44,7 +46,7 @@
      :status-map (into {} (map (fn [resource]
                                  (let [path (resource/proj-path resource)
                                        version (str zip-file-version ":" (crc path))]
-                                   [path {:version version :source :library :library (:url lib-state)}]))
+                                   [path {:version version :source :library :library uri-string}]))
                                flat-resources))}))
 
 (defn- update-library-snapshot-cache
@@ -153,8 +155,8 @@
                     status-map
                     resources))))
 
-(defn make-snapshot-info [workspace project-directory library-urls snapshot-cache]
-  (let [lib-states (library/current-library-state project-directory library-urls)
+(defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
+  (let [lib-states (library/current-library-state project-directory library-uris)
         new-library-snapshot-cache (update-library-snapshot-cache snapshot-cache workspace lib-states)]
     {:snapshot (combine-snapshots (list* (make-builtins-snapshot workspace)
                                          (make-directory-snapshot workspace project-directory)
