@@ -150,7 +150,7 @@ namespace dmLiveUpdate
         dmLogInfo("Hashed manifest; %s", hexDigest);
 
 
-        return dmResource::VerifyManifest(manifest) == dmResource::RESULT_OK;
+        return dmResource::VerifyManifest(manifest, (const uint8_t*)hexDigest, hexDigestLength) == dmResource::RESULT_OK;
     }
 
     Result StoreManifest(dmResource::Manifest* manifest)

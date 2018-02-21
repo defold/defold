@@ -447,96 +447,6 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
 
 // -- BEGIN -- WIP DEBUG RSA decypt using public key, functions missing in axTLS lib
 #include <axtls/ssl/ssl.h>
-typedef struct {
-    uint8_t *buffer;
-    size_t size;
-} DER_key;
-
-typedef struct {
-    bigint *m;              /* modulus */
-    bigint *e;              /* public exponent */
-    int num_octets;
-    BI_CTX *bi_ctx;         /* big integer handle */
-} RSA_parameters;
-
-// TODO move to dlib axtls
-/**
- * Similar to RSA_pub_key_new, rewritten to make this program depend only on bi module
- */
-void RSA_pub_key_raw_new(RSA_parameters **rsa, const uint8_t *modulus, int mod_len, const uint8_t *pub_exp, int pub_len)
-{
-    RSA_parameters *rsa_parameters;
-
-    BI_CTX *bi_ctx = bi_initialize();
-    *rsa = (RSA_parameters *)calloc(1, sizeof(RSA_parameters));
-    rsa_parameters = *rsa;
-    rsa_parameters->bi_ctx = bi_ctx;
-    rsa_parameters->num_octets = (mod_len & 0xFFF0);
-    rsa_parameters->m = bi_import(bi_ctx, modulus, mod_len);
-    bi_set_mod(bi_ctx, rsa_parameters->m, BIGINT_M_OFFSET);
-    rsa_parameters->e = bi_import(bi_ctx, pub_exp, pub_len);
-    bi_permanent(rsa_parameters->e);
-}
-
-// TODO move to dlib axtls
-/**
- * Get the public key specifics from an ASN.1 encoded file
- * A function lacking in the axTLS API
- *
- * This is a really weird hack that only works with RSA public key
- * files
- */
-static int asn1_get_public_key(const uint8_t *buf, int len, RSA_parameters **rsa_parameters)
-{
-    // Explanation of leading 02 81 81 00 in asn1 integer (for example the modulus)
-    // https://crypto.stackexchange.com/questions/30608/leading-00-in-rsa-public-private-key-file
-    uint8_t *modulus, *pub_exp;
-    int mod_len, pub_len;
-    
-    if (buf[0] != 0x30) {
-        return -1;
-    }
-
-    pub_len = 3;
-    mod_len = len - 33;
-    pub_exp = (uint8_t *)malloc(3);
-    modulus = (uint8_t *)malloc(mod_len);
-    printf("mod_len: %i\n", mod_len);
-    printf("pub_exp buf offset: %i\n", len - 3);
-    memcpy(modulus, buf + 28, mod_len);
-    memcpy(pub_exp, buf + len - 3, 3);
-    if (mod_len <= 0 || pub_len <= 0 )
-        return -1;
-
-    RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
-
-    free(modulus);
-    free(pub_exp);
-    return 0;
-}
-
-// TODO move to dlib axtls
-/**
- * Decrypts the signature buffer using the rsa public key loaded
- */
-int RSA_decrypt_public(RSA_parameters *rsa, uint8_t *buffer_in, uint8_t *buffer_out, int out_len)
-{
-    dmLogInfo("RSA_decrypt_public, out_len: %i", out_len);
-    bigint *dat_bi;
-    bigint *decrypted_bi;
-    int byte_size;
-
-    byte_size = rsa->num_octets; 
-    if (out_len < byte_size)
-        return 1;
-    dat_bi = bi_import(rsa->bi_ctx, buffer_in, byte_size);
-    rsa->bi_ctx->mod_offset = BIGINT_M_OFFSET;
-    decrypted_bi = bi_mod_power(rsa->bi_ctx, dat_bi, rsa->e);
-    bi_export(rsa->bi_ctx, decrypted_bi, buffer_out, byte_size);
-    free(dat_bi);
-    free(decrypted_bi);
-    return 0;
-}
 
 void bi_print(const char *label, bigint *x)
 {
@@ -561,7 +471,7 @@ void bi_print(const char *label, bigint *x)
 
     printf("\n");
 }
-void RSA_param_print(const RSA_parameters* rsa_parameters)
+void RSA_param_print(const RSA_CTX* rsa_parameters)
 {
     if (rsa_parameters == NULL)
         return;
@@ -576,9 +486,9 @@ void RSA_param_print(const RSA_parameters* rsa_parameters)
 
 // Diagram of what need to be done; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
 // Inspect asn1 key; http://lapo.it/asn1js/#
-Result VerifyManifest(Manifest* manifest)
+Result VerifyManifest(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
 {
-    Result res = RESULT_INVALID_DATA;
+    Result res = RESULT_OK;
     dmLogInfo("## VerifyManifest ##");
     char public_key_path[DMPATH_MAX_PATH];
     uint32_t public_cert_size = 0;
@@ -602,51 +512,63 @@ Result VerifyManifest(Manifest* manifest)
     if (sys_res != dmSys::RESULT_OK)
     {
         dmLogError("Failed to verify manifest (%i)", sys_res);
+        free(public_cert_buf);
         return RESULT_IO_ERROR;
     }
 
     // Decrypt signed manifest hash
     dmLiveUpdateDDF::HashAlgorithm signature_hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
+    uint32_t signature_len = HashLength(signature_hash_algorithm);
     uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
     dmLogInfo("Manifest signature size: %u", manifest->m_DDF->m_Signature.m_Count);
+    dmLogInfo("Manifest signature algo len: %u", signature_len);
 
-    int hash_algo_size = 128;
-    if (signature_hash_algorithm == dmLiveUpdateDDF::HASH_SHA1)
-        hash_algo_size = 128;
-    else if (signature_hash_algorithm == dmLiveUpdateDDF::HASH_SHA256)
-        hash_algo_size = 256;
-    else if (signature_hash_algorithm == dmLiveUpdateDDF::HASH_SHA512)
-        hash_algo_size = 512;
-    dmLogInfo("hash_algo_size: %i", hash_algo_size);
-    uint8_t* hash_decrypted = (uint8_t*)malloc(hash_algo_size);
-    
-    uint8_t* hash = new uint8_t[hash_algo_size];
-    RSA_parameters* rsa_parameters;
-    DER_key* derkey = new DER_key;
-    derkey->buffer = public_cert_buf;
-    derkey->size = public_cert_size;
-    if ((asn1_get_public_key(derkey->buffer, derkey->size, &rsa_parameters)) != 0) {
+    uint8_t* hash = (uint8_t*)malloc(signature_len);
+    RSA_CTX* rsa_parameters;
+    if ((asn1_get_public_key(public_cert_buf, public_cert_size, &rsa_parameters)) != 0) {
         dmLogError("Call to asn1_get_public_key failed :(");
     } else {
-        dmLogInfo("Call to asn1_get_public_key successful!");
+        // DEBUG PRINT
         RSA_param_print(rsa_parameters);
     }
-    // TODO free derkey here
-    if (rsa_parameters->num_octets != hash_algo_size)
-        dmLogError("The RSA public key size is not 1024 bits, actual: %i", rsa_parameters->num_octets)
-    if(RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, hash_algo_size)) {
-        dmLogError("Decrypting signature :(");
+
+    uint8_t* hash_decrypted = (uint8_t*)malloc(rsa_parameters->num_octets);
+    if(RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets)) {
+        dmLogError("Failed to decrypt manifest signature for verification");
+        free(hash);
+        free(hash_decrypted);
+        free(public_cert_buf);
+        free(rsa_parameters);
+        return RESULT_FORMAT_ERROR;
     }
-    memcpy(hash, hash_decrypted, hash_algo_size);
+    memcpy(hash, hash_decrypted + 128 - signature_len, signature_len);
 
-    char* hexDigest = new char[dmResource::HashLength(signature_hash_algorithm) * 2 + 1];
-    dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, hash+108, hexDigest, dmResource::HashLength(signature_hash_algorithm) * 2 + 1);
-    dmLogInfo("Hash printed: %s", hexDigest);
-    PrintHash(hash, hash_algo_size);
+    uint32_t hex_digest_len = signature_len * 2 + 1;
+    char* hex_digest = (char*)malloc(hex_digest_len);
+    dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, hash, hex_digest, signature_len * 2 + 1);
+    dmLogInfo("Hash printed: %s", hex_digest);
 
-    delete[] hexDigest;
-    delete derkey;
-    delete[] hash;
+    if (expected_len == hex_digest_len)
+    {
+        for (uint32_t i = 0; i < expected_len; ++i)
+        {
+            if (expected_digest[i] != hex_digest[i])
+            {
+                dmLogError("Byte mismatch in decrypted manifest signature.");
+                res = RESULT_FORMAT_ERROR;
+                break;
+            }
+        }
+    }
+    else
+    {
+        dmLogError("Length mismatch decrypted in manifest signature.");
+        res = RESULT_FORMAT_ERROR;
+    }
+
+    free(rsa_parameters);
+    free(hex_digest);
+    free(hash);
     free(hash_decrypted);
     free(public_cert_buf);
     return res;

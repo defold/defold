@@ -75,6 +75,24 @@ void RSA_priv_key_new(RSA_CTX **ctx,
 #endif
 }
 
+/**
+ * Similar to RSA_pub_key_new, rewritten to make this program depend only on bi module
+ */
+void RSA_pub_key_raw_new(RSA_CTX **rsa, const uint8_t *modulus, int mod_len, const uint8_t *pub_exp, int pub_len)
+{
+    RSA_CTX *rsa_parameters;
+
+    BI_CTX *bi_ctx = bi_initialize();
+    *rsa = (RSA_CTX *)calloc(1, sizeof(RSA_CTX));
+    rsa_parameters = *rsa;
+    rsa_parameters->bi_ctx = bi_ctx;
+    rsa_parameters->num_octets = (mod_len & 0xFFF0);
+    rsa_parameters->m = bi_import(bi_ctx, modulus, mod_len);
+    bi_set_mod(bi_ctx, rsa_parameters->m, BIGINT_M_OFFSET);
+    rsa_parameters->e = bi_import(bi_ctx, pub_exp, pub_len);
+    bi_permanent(rsa_parameters->e);
+}
+
 void RSA_pub_key_new(RSA_CTX **ctx,
         const uint8_t *modulus, int mod_len,
         const uint8_t *pub_exp, int pub_len)
@@ -129,6 +147,27 @@ void RSA_free(RSA_CTX *rsa_ctx)
 
     bi_terminate(bi_ctx);
     free(rsa_ctx);
+}
+
+/**
+ * Decrypts the buffer using the rsa public key loaded
+ */
+int RSA_decrypt_public(RSA_CTX *rsa, uint8_t *buffer_in, uint8_t *buffer_out, int out_len)
+{
+    bigint *dat_bi;
+    bigint *decrypted_bi;
+    int byte_size;
+
+    byte_size = rsa->num_octets; 
+    if (out_len < byte_size)
+        return 1;
+    dat_bi = bi_import(rsa->bi_ctx, buffer_in, byte_size);
+    rsa->bi_ctx->mod_offset = BIGINT_M_OFFSET;
+    decrypted_bi = bi_mod_power(rsa->bi_ctx, dat_bi, rsa->e);
+    bi_export(rsa->bi_ctx, decrypted_bi, buffer_out, byte_size);
+    free(dat_bi);
+    free(decrypted_bi);
+    return 0;
 }
 
 /**

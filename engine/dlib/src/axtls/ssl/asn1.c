@@ -525,6 +525,40 @@ end_name:
 }
 
 /**
+ * Get the public key specifics from an ASN.1 encoded file
+ * A function lacking in the axTLS API
+ *
+ * This is a really weird hack that only works with RSA public key
+ * files
+ */
+int asn1_get_public_key(const uint8_t *buf, int len, RSA_CTX **rsa_parameters)
+{
+    // Explanation of leading 02 81 81 00 in asn1 integer (for example the modulus)
+    // https://crypto.stackexchange.com/questions/30608/leading-00-in-rsa-public-private-key-file
+    uint8_t *modulus, *pub_exp;
+    int mod_len, pub_len;
+    
+    if (buf[0] != 0x30) {
+        return -1;
+    }
+
+    pub_len = 3;
+    mod_len = len - 33;
+    pub_exp = (uint8_t *)malloc(3);
+    modulus = (uint8_t *)malloc(mod_len);
+    memcpy(modulus, buf + 28, mod_len);
+    memcpy(pub_exp, buf + len - 3, 3);
+    if (mod_len <= 0 || pub_len <= 0 )
+        return -1;
+
+    RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
+
+    free(modulus);
+    free(pub_exp);
+    return 0;
+}
+
+/**
  * Read the modulus and public exponent of a certificate.
  */
 int asn1_public_key(const uint8_t *cert, int *offset, X509_CTX *x509_ctx)
