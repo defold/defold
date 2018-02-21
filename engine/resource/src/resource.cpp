@@ -115,6 +115,20 @@ struct SResourceFactory
     uint32_t                                    m_NonSharedCount; // a running number, helping id the potentially non shared assets
 };
 
+// DEBUG print liveupdate namehash
+void PrintHash(const uint8_t* hash, uint32_t len)
+{
+    char* slask = new char[len*2+1];
+    slask[len] = '\0';
+    for (int i = 0; i < len; ++i)
+    {
+        sprintf(slask+i*2, "%02X", hash[i]);
+    }
+    dmLogInfo("HASH PRINTED: %s", slask);
+    delete[] slask;
+}
+// END DEBUG
+
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
 {
     for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
@@ -474,28 +488,26 @@ void RSA_pub_key_raw_new(RSA_parameters **rsa, const uint8_t *modulus, int mod_l
  */
 static int asn1_get_public_key(const uint8_t *buf, int len, RSA_parameters **rsa_parameters)
 {
+    // Explanation of leading 02 81 81 00 in asn1 integer (for example the modulus)
+    // https://crypto.stackexchange.com/questions/30608/leading-00-in-rsa-public-private-key-file
     uint8_t *modulus, *pub_exp;
     int mod_len, pub_len;
-
-    pub_len = 3;
-    mod_len = len - 34;
+    
     if (buf[0] != 0x30) {
         return -1;
     }
 
+    pub_len = 3;
+    mod_len = len - 33;
     pub_exp = (uint8_t *)malloc(3);
     modulus = (uint8_t *)malloc(mod_len);
-
     printf("mod_len: %i\n", mod_len);
     printf("pub_exp buf offset: %i\n", len - 3);
-
-    memcpy(modulus, buf + 25, mod_len);
-    // memcpy(pub_exp, buf + 31 + mod_len, 3);
+    memcpy(modulus, buf + 28, mod_len);
     memcpy(pub_exp, buf + len - 3, 3);
-
-    // memcpy(pub_exp, buf + 50 + mod_len, 3); 
     if (mod_len <= 0 || pub_len <= 0 )
         return -1;
+
     RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
 
     free(modulus);
@@ -507,18 +519,18 @@ static int asn1_get_public_key(const uint8_t *buf, int len, RSA_parameters **rsa
 /**
  * Decrypts the signature buffer using the rsa public key loaded
  */
-int RSA_decrypt_public(RSA_parameters *rsa, uint8_t *buffer_in, uint8_t *buffer_out)
+int RSA_decrypt_public(RSA_parameters *rsa, uint8_t *buffer_in, uint8_t *buffer_out, int out_len)
 {
+    dmLogInfo("RSA_decrypt_public, out_len: %i", out_len);
     bigint *dat_bi;
     bigint *decrypted_bi;
     int byte_size;
 
     byte_size = rsa->num_octets; 
-    if (byte_size != 128)
+    if (out_len < byte_size)
         return 1;
     dat_bi = bi_import(rsa->bi_ctx, buffer_in, byte_size);
     rsa->bi_ctx->mod_offset = BIGINT_M_OFFSET;
-    bi_copy(rsa->m);
     decrypted_bi = bi_mod_power(rsa->bi_ctx, dat_bi, rsa->e);
     bi_export(rsa->bi_ctx, decrypted_bi, buffer_out, byte_size);
     free(dat_bi);
@@ -571,19 +583,18 @@ Result VerifyManifest(Manifest* manifest)
     char public_key_path[DMPATH_MAX_PATH];
     uint32_t public_cert_size = 0;
     uint32_t out_resource_size = 0; // not used
-    uint8_t* public_cert_buf = 0x0, *public_cert_buf_flipped = 0x0;
+    uint8_t* public_cert_buf = 0x0;
 
     char game_dir[DMPATH_MAX_PATH];
     dmSys::GetResourcesPath(0, 0, game_dir, DMPATH_MAX_PATH);
     // const char* game_dir = "/Applications/eclipse/branches/42506/21869/master/build/default/Defold test.app/Contents/Resources"; // FOR LLDB DEBUGGING ONLY
     dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
+    dmLogInfo("Loaded pub key from: %s", public_key_path);
 
     // Read public key from file to buffer
     dmSys::ResourceSize(public_key_path, &public_cert_size);
     dmLogInfo("public_cert_size: %u", public_cert_size);
     public_cert_buf = (uint8_t*)malloc(public_cert_size);
-    public_cert_buf_flipped = (uint8_t*)malloc(public_cert_size);
-
 
     assert(public_cert_buf);
     dmSys::Result sys_res = dmSys::LoadResource(public_key_path, public_cert_buf, public_cert_size, &out_resource_size);
@@ -597,7 +608,7 @@ Result VerifyManifest(Manifest* manifest)
     // Decrypt signed manifest hash
     dmLiveUpdateDDF::HashAlgorithm signature_hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
     uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
-    uint8_t* cert_buf = (uint8_t*)malloc(public_cert_size);
+    dmLogInfo("Manifest signature size: %u", manifest->m_DDF->m_Signature.m_Count);
 
     int hash_algo_size = 128;
     if (signature_hash_algorithm == dmLiveUpdateDDF::HASH_SHA1)
@@ -608,11 +619,6 @@ Result VerifyManifest(Manifest* manifest)
         hash_algo_size = 512;
     dmLogInfo("hash_algo_size: %i", hash_algo_size);
     uint8_t* hash_decrypted = (uint8_t*)malloc(hash_algo_size);
-
-    for(uint32_t i = 0; i<public_cert_size; i+=2)
-    {
-        memset(public_cert_buf_flipped, htons((uint16_t)*(public_cert_buf+i)), sizeof(uint16_t));
-    }
     
     uint8_t* hash = new uint8_t[hash_algo_size];
     RSA_parameters* rsa_parameters;
@@ -628,19 +634,21 @@ Result VerifyManifest(Manifest* manifest)
     // TODO free derkey here
     if (rsa_parameters->num_octets != hash_algo_size)
         dmLogError("The RSA public key size is not 1024 bits, actual: %i", rsa_parameters->num_octets)
-    if(RSA_decrypt_public(rsa_parameters, signature, hash_decrypted)) {
+    if(RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, hash_algo_size)) {
         dmLogError("Decrypting signature :(");
     }
     memcpy(hash, hash_decrypted, hash_algo_size);
-    // PrintHash(hash, 20);
 
     char* hexDigest = new char[dmResource::HashLength(signature_hash_algorithm) * 2 + 1];
-    dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, hash, hexDigest, dmResource::HashLength(signature_hash_algorithm) * 2 + 1);
+    dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, hash+108, hexDigest, dmResource::HashLength(signature_hash_algorithm) * 2 + 1);
     dmLogInfo("Hash printed: %s", hexDigest);
+    PrintHash(hash, hash_algo_size);
+
     delete[] hexDigest;
-    
+    delete derkey;
+    delete[] hash;
     free(hash_decrypted);
-    free(cert_buf);
+    free(public_cert_buf);
     return res;
 }
 
