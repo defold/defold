@@ -671,7 +671,7 @@
   (with-open [game-project-reader (io/reader game-project-resource)]
     (-> (settings-core/parse-settings game-project-reader)
         (settings-core/get-setting ["project" "dependencies"])
-        (library/parse-library-urls))))
+        (library/parse-library-uris))))
 
 (defn- cache-save-data! [project]
   ;; Save data is required for the Search in Files feature so we pull

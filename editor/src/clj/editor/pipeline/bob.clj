@@ -16,7 +16,7 @@
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream]
-    [java.net URLDecoder]))
+    [java.net URI URLDecoder]))
 
 (set! *warn-on-reflection* true)
 
@@ -104,7 +104,7 @@
               (.scan bob-project scanner pkg)))
           (let [deps (workspace/dependencies ws)]
             (when (seq deps)
-              (.setLibUrls bob-project deps)
+              (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
               (.resolveLibUrls bob-project (->progress))))
           (.mount bob-project (->graph-resource-scanner ws))
           (.findSources bob-project proj-path skip-dirs)
