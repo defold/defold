@@ -1,5 +1,6 @@
 (ns editor.collection
-  (:require [clojure.java.io :as io]
+  (:require [clojure.set :as set]
+            [clojure.string :as str]
             [editor.core :as core]
             [schema.core :as s]
             [dynamo.graph :as g]
@@ -26,8 +27,7 @@
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.util :as util]
-            [service.log :as log]
-            [clojure.string :as str])
+            [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
            [com.dynamo.proto DdfMath$Point3 DdfMath$Quat]
@@ -186,16 +186,15 @@
                                                                             :_dep-build-targets go-prop-dep-build-targets)))
                                                                       (:component-properties ddf-message))
                                       component-properties (mapv #(dissoc % :_dep-build-targets) component-property-entries)
-                                      component-property-dep-build-targets (into [] (mapcat :_dep-build-targets) component-property-entries)
-                                      source-build-target (first source-build-targets)
-                                      build-target (-> source-build-target
-                                                       (update :deps (partial into component-property-dep-build-targets))
-                                                       (assoc :resource build-resource
-                                                              :instance-data {:resource build-resource
-                                                                              :transform transform
-                                                                              :instance-msg (if (seq component-properties)
-                                                                                              (assoc ddf-message :component-properties component-properties)
-                                                                                              ddf-message)}))]
+                                      property-deps (into #{} (mapcat :_dep-build-targets) component-property-entries)
+                                      build-target (assoc (first source-build-targets)
+                                                     :resource build-resource
+                                                     :instance-data {:resource build-resource
+                                                                     :transform transform
+                                                                     :property-deps property-deps
+                                                                     :instance-msg (if (seq component-properties)
+                                                                                     (assoc ddf-message :component-properties component-properties)
+                                                                                     ddf-message)})]
                                   [build-target])))
   (output build-error g/Err (g/constantly nil))
 
@@ -340,34 +339,36 @@
    :embedded-instances embed-inst-ddf
    :collection-instances ref-coll-ddf})
 
-(defn- externalize [inst-data resources]
+(defn- externalize [inst-data dep-resources]
+  ;; Note: Returns a seq of GameObject$InstanceDesc in map form.
   (map (fn [{:keys [resource instance-msg transform]}]
-         (let [resource (get resources resource)
+         (let [resource (get dep-resources resource)
                pos (Point3d.)
                rot (Quat4d.)
                scale (Vector3d.)
-               _ (math/split-mat4 transform pos rot scale)
-               go-props (properties/build-go-props resources (:properties instance-msg))]
-           (cond-> (-> instance-msg
-                       (dissoc :data)
-                       (assoc :id (str path-sep (:id instance-msg))
-                              :prototype (resource/proj-path resource)
-                              :children (map #(str path-sep %) (:children instance-msg))
-                              :position (math/vecmath->clj pos)
-                              :rotation (math/vecmath->clj rot)
-                              :scale3 (math/vecmath->clj scale)))
-
-                   (seq go-props)
-                   (assoc :properties go-props
-                          :property-decls (properties/go-props->decls go-props)))))
+               _ (math/split-mat4 transform pos rot scale)]
+           (-> instance-msg
+               (dissoc :data)
+               (assoc :id (str path-sep (:id instance-msg))
+                      :prototype (resource/proj-path resource)
+                      :children (map #(str path-sep %) (:children instance-msg))
+                      :position (math/vecmath->clj pos)
+                      :rotation (math/vecmath->clj rot)
+                      :scale3 (math/vecmath->clj scale)
+                      :component-properties (mapv #(game-object/externalize-component-property-desc % dep-resources)
+                                                  (:component-properties instance-msg))))))
        inst-data))
 
 (defn build-collection [resource dep-resources user-data]
   (let [{:keys [name instance-data scale-along-z]} user-data
-        instance-msgs (externalize instance-data dep-resources)
-        property-resource-paths (properties/go-prop-resource-paths (mapcat :properties instance-msgs))
+        instance-descs (externalize instance-data dep-resources)
+        property-resource-paths (into (sorted-set)
+                                      (comp (mapcat :component-properties)
+                                            (mapcat :properties)
+                                            (keep properties/try-get-go-prop-proj-path))
+                                      instance-descs)
         msg {:name name
-             :instances instance-msgs
+             :instances instance-descs
              :scale-along-z (if scale-along-z 1 0)
              :property-resources property-resource-paths}]
     {:resource resource :content (protobuf/map->bytes GameObject$CollectionDesc msg)}))
@@ -376,15 +377,18 @@
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (when (not-empty dup-ids)
           (g/->error _node-id :build-targets :fatal nil (format "the following ids are not unique: %s" (str/join ", " dup-ids)))))
-    (let [sub-build-targets (flatten sub-build-targets)
-         dep-build-targets (flatten dep-build-targets)
-         instance-data (map :instance-data dep-build-targets)
-         instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))]
-     [{:node-id _node-id
-       :resource (workspace/make-build-resource resource)
-       :build-fn build-collection
-       :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
-       :deps (vec (reduce into dep-build-targets (map :deps sub-build-targets)))}])))
+      (let [sub-build-targets (flatten sub-build-targets)
+            dep-build-targets (flatten dep-build-targets)
+            instance-data (map :instance-data dep-build-targets)
+            instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))
+            property-deps (sort-by (comp resource/proj-path :resource) (apply set/union (map :property-deps instance-data)))]
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-collection
+          :user-data {:name name :instance-data instance-data :scale-along-z scale-along-z}
+          :deps (reduce into
+                        (vec (concat dep-build-targets property-deps))
+                        (map :deps sub-build-targets))}])))
 
 (declare CollectionInstanceNode)
 

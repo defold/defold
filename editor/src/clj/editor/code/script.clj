@@ -148,7 +148,9 @@
                                     :modules modules
                                     :resources (mapv lua/lua-module->build-path modules)
                                     :properties (properties/go-props->decls go-props)
-                                    :property-resources (properties/go-prop-resource-paths go-props)})}))
+                                    :property-resources (into (sorted-set)
+                                                              (keep properties/try-get-go-prop-proj-path)
+                                                              go-props)})}))
 
 (g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules module-build-targets original-resource-property-build-targets]
   ;; NOTE: This build target should contain the non-overridden property values from the code.

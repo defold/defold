@@ -330,23 +330,38 @@
   {:components ref-ddf
    :embedded-components embed-ddf})
 
-(defn- externalize [inst-data resources]
-  (map (fn [{:keys [resource instance-msg]}]
-         (let [resource (get resources resource)
-               go-props (properties/build-go-props resources (:properties instance-msg))]
-           (cond-> (-> instance-msg
-                       (dissoc :data :type)
-                       (assoc :component (resource/proj-path resource)))
+(defn externalize-component-property-desc
+  "Takes a GameObject$ComponentDesc or GameObject$ComponentPropertyDesc in map
+  form and patches up any resource references to use the fused build resources
+  from the dep-resources map and updates :properties. It then packages the
+  new property values into PropertyDeclarations and updates :property-decls."
+  [component-property-desc dep-resources]
+  (assert (map? component-property-desc))
+  (assert (string? (not-empty (:id component-property-desc))))
+  (let [go-props (properties/build-go-props dep-resources (:properties component-property-desc))]
+    (if (empty? go-props)
+      component-property-desc
+      (assoc component-property-desc
+        :properties go-props
+        :property-decls (properties/go-props->decls go-props)))))
 
-                   (seq go-props)
-                   (assoc :properties go-props
-                          :property-decls (properties/go-props->decls go-props)))))
+(defn- externalize [inst-data dep-resources]
+  ;; Note: Returns a seq of GameObject$ComponentDesc in map form.
+  (map (fn [{:keys [resource instance-msg]}]
+         (let [fused-build-resource (get dep-resources resource)]
+           (-> instance-msg
+               (dissoc :data :type)
+               (assoc :component (resource/proj-path fused-build-resource))
+               (externalize-component-property-desc dep-resources))))
        inst-data))
 
 (defn- build-game-object [resource dep-resources user-data]
-  (let [instance-msgs (externalize (:instance-data user-data) dep-resources)
-        property-resource-paths (properties/go-prop-resource-paths (mapcat :properties instance-msgs))
-        msg {:components instance-msgs
+  (let [component-descs (externalize (:instance-data user-data) dep-resources)
+        property-resource-paths (into (sorted-set)
+                                      (comp (mapcat :properties)
+                                            (keep properties/try-get-go-prop-proj-path))
+                                      component-descs)
+        msg {:components (mapv #(dissoc % :properties) component-descs) ; Runtime only uses :property-decls
              :property-resources property-resource-paths}]
     {:resource resource :content (protobuf/map->bytes GameObject$PrototypeDesc msg)}))
 

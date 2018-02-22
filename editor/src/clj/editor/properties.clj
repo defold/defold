@@ -635,9 +635,17 @@
                                                   go-props-with-build-resources)]
     go-props-with-fused-build-resources))
 
-(defn go-prop-resource-paths [go-props]
-  (assert (every? go-prop? go-props))
-  (into (sorted-set)
-        (comp (filter #(= :property-type-resource (:type %)))
-              (keep (comp not-empty :value)))
-        go-props))
+(defn try-get-go-prop-proj-path
+  "Returns a non-empty string of the assigned proj-path, or nil if no
+  resource was assigned or the go-prop is not a resource property."
+  ^String [go-prop]
+  (assert (go-prop? go-prop))
+  (when (= :property-type-resource (:type go-prop))
+    (let [{:keys [value clj-value]} go-prop]
+      ;; Sanity checks to ensure our go-prop is well-formed.
+      (if (nil? clj-value)
+        (do (assert (= "" value))
+            nil)
+        (do (assert (workspace/build-resource? clj-value))
+            (assert (= value (resource/proj-path clj-value)))
+            value)))))
