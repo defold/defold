@@ -542,15 +542,24 @@ int asn1_get_public_key(const uint8_t *buf, int len, RSA_CTX **rsa_parameters)
         return -1;
     }
 
-    pub_len = 3;
-    mod_len = len - 33;
-    pub_exp = (uint8_t *)malloc(3);
-    modulus = (uint8_t *)malloc(mod_len);
-    memcpy(modulus, buf + 28, mod_len);
-    memcpy(pub_exp, buf + len - 3, 3);
-    if (mod_len <= 0 || pub_len <= 0 )
+    int offset = 0;
+    if (asn1_next_obj(buf, &offset, ASN1_SEQUENCE) < 0 ||
+        asn1_skip_obj(buf, &offset, ASN1_SEQUENCE) ||
+        asn1_next_obj(buf, &offset, ASN1_BIT_STRING) < 0)
         return -1;
 
+    offset++; // Ignore padding byte
+
+    if (asn1_next_obj(buf, &offset, ASN1_SEQUENCE) < 0)
+        return -1;
+
+    mod_len = asn1_get_big_int(buf, &offset, &modulus);
+    pub_len = asn1_get_big_int(buf, &offset, &pub_exp);
+
+    if (mod_len <= 0 || pub_len <= 0 )
+        return -1;
+    
+    // RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
     RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
 
     free(modulus);
