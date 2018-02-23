@@ -97,21 +97,7 @@ namespace dmLiveUpdate
 
         dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
 
-        if (expectedLength == (hexDigestLength - 1))
-        {
-            for (uint32_t i = 0; i < expectedLength; ++i)
-            {
-                if (expected[i] != hexDigest[i])
-                {
-                    result = false;
-                    break;
-                }
-            }
-        }
-        else
-        {
-            result = false;
-        }
+        result = dmResource::HashCompare((const uint8_t*)hexDigest, hexDigestLength-1, (const uint8_t*)expected, expectedLength) == dmResource::RESULT_OK;
 
         free(digest);
         free(hexDigest);
@@ -120,12 +106,7 @@ namespace dmLiveUpdate
 
     bool VerifyManifest(dmResource::Manifest* manifest, const uint8_t* manifestData, size_t manifestLen)
     {
-        uint8_t* expected_hash_encrypted = manifest->m_DDF->m_Signature.m_Data;
-        uint32_t encrypted_len = manifest->m_DDF->m_Signature.m_Count;
-
-         // Don't include manifest file when hashing
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
-        dmLogInfo("Signature hash algorithm: %u", algorithm);
         uint32_t digestLength = dmResource::HashLength(algorithm);
         uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
         if (digest == 0x0)
@@ -134,7 +115,6 @@ namespace dmLiveUpdate
             return false;
         }
 
-        dmLogInfo("VerifyManifest, manifest size in bytes; %u", manifest->m_DDF->m_Data.m_Count);
         dmLiveUpdate::CreateManifestHash(algorithm, manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, digest);
 
         uint32_t hexDigestLength = digestLength * 2 + 1;
@@ -148,7 +128,6 @@ namespace dmLiveUpdate
 
         dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
         dmLogInfo("Hashed manifest; %s", hexDigest);
-
 
         return dmResource::VerifyManifest(manifest, (const uint8_t*)hexDigest, hexDigestLength) == dmResource::RESULT_OK;
     }
@@ -185,7 +164,7 @@ namespace dmLiveUpdate
 
     Result NewArchiveIndexWithResource(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
     {
-        if(!VerifyResource(manifest, (const char*) expected_digest, expected_digest_length, resource))
+        if(!VerifyResource(manifest, expected_digest, expected_digest_length, resource))
         {
             dmLogError("Verification failure for Liveupdate archive for resource: %s", expected_digest);
             return RESULT_INVALID_RESOURCE;

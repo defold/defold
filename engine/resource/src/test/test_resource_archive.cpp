@@ -308,7 +308,7 @@ TEST(dmResourceArchive, ManifestHeader)
     ASSERT_EQ(dmResource::MANIFEST_VERSION, manifest_data->m_Header.m_Version);
 
     ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_ResourceHashAlgorithm);
-    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA1, manifest_data->m_Header.m_SignatureHashAlgorithm);
+    ASSERT_EQ(dmLiveUpdateDDF::HASH_SHA256, manifest_data->m_Header.m_SignatureHashAlgorithm);
 
     ASSERT_EQ(dmLiveUpdateDDF::SIGN_RSA, manifest_data->m_Header.m_SignatureSignAlgorithm);
 

@@ -13,6 +13,7 @@
 #include <sys/param.h>
 #endif
 
+#include <axtls/ssl/ssl.h>
 #include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
@@ -422,9 +423,10 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
 // Separate function to load manifest stored in disk instead of in bundle
 Result LoadExternalManifest(const char* manifest_path, HFactory factory)
 {
+// Android uses different functions to access resources in local storage compared to bundled resources
 #if !defined(__ANDROID__)
         return LoadManifest(manifest_path, factory);
-#endif
+#else
 
     uint32_t manifest_len = 0;
     uint8_t* manifest_buf = 0x0;
@@ -443,10 +445,10 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
     UnmountManifest((void*&)manifest_buf, manifest_len);
 
     return result;
+#endif
 }
 
 // -- BEGIN -- WIP DEBUG RSA decypt using public key, functions missing in axTLS lib
-#include <axtls/ssl/ssl.h>
 
 void bi_print(const char *label, bigint *x)
 {
@@ -484,93 +486,96 @@ void RSA_param_print(const RSA_CTX* rsa_parameters)
 }
 // -- END -- WIP DEBUG RSA decypt using public key, functions missing in axTLS lib
 
-// Diagram of what need to be done; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
-// Inspect asn1 key; http://lapo.it/asn1js/#
-Result VerifyManifest(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
+Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len)
 {
-    Result res = RESULT_OK;
-    dmLogInfo("## VerifyManifest ##");
-    char public_key_path[DMPATH_MAX_PATH];
-    uint32_t public_cert_size = 0;
-    uint32_t out_resource_size = 0; // not used
-    uint8_t* public_cert_buf = 0x0;
-
-    char game_dir[DMPATH_MAX_PATH];
-    dmSys::GetResourcesPath(0, 0, game_dir, DMPATH_MAX_PATH);
-    // const char* game_dir = "/Applications/eclipse/branches/42506/21869/master/build/default/Defold test.app/Contents/Resources"; // FOR LLDB DEBUGGING ONLY
-    dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
-    dmLogInfo("Loaded pub key from: %s", public_key_path);
-
-    // Read public key from file to buffer
-    dmSys::ResourceSize(public_key_path, &public_cert_size);
-    dmLogInfo("public_cert_size: %u", public_cert_size);
-    public_cert_buf = (uint8_t*)malloc(public_cert_size);
-
-    assert(public_cert_buf);
-    dmSys::Result sys_res = dmSys::LoadResource(public_key_path, public_cert_buf, public_cert_size, &out_resource_size);
-
-    if (sys_res != dmSys::RESULT_OK)
+    if (expected_len != len)
     {
-        dmLogError("Failed to verify manifest (%i)", sys_res);
-        free(public_cert_buf);
-        return RESULT_IO_ERROR;
+        dmLogError("Length mismatch in hash comparison. Expected %u, got %u", expected_len, len);
+        return RESULT_FORMAT_ERROR;
     }
+    for (uint32_t i = 0; i < expected_len; ++i)
+    {
+        if (expected_digest[i] != digest[i])
+        {
+            dmLogError("Byte mismatch in decrypted manifest signature.");
+            return RESULT_FORMAT_ERROR;
+        }
+    }
+    return RESULT_OK;
+}
 
-    // Decrypt signed manifest hash
+Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, char*& out_digest, uint32_t &out_digest_len)
+{
     dmLiveUpdateDDF::HashAlgorithm signature_hash_algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
-    uint32_t signature_len = HashLength(signature_hash_algorithm);
     uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+    uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
+    uint32_t signature_hash_len = HashLength(signature_hash_algorithm);
+    out_digest_len = 0;
     dmLogInfo("Manifest signature size: %u", manifest->m_DDF->m_Signature.m_Count);
-    dmLogInfo("Manifest signature algo len: %u", signature_len);
+    dmLogInfo("Manifest signature algo len: %u", signature_hash_len);
 
-    uint8_t* hash = (uint8_t*)malloc(signature_len);
     RSA_CTX* rsa_parameters;
-    if ((asn1_get_public_key(public_cert_buf, public_cert_size, &rsa_parameters)) != 0) {
-        dmLogError("Call to asn1_get_public_key failed :(");
+    int ret = asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
+    if (ret != 0) {
+        dmLogError("Failed to parse public key during manifest verification.");
+        return RESULT_INVALID_DATA;
     } else {
         // DEBUG PRINT
         RSA_param_print(rsa_parameters);
     }
 
     uint8_t* hash_decrypted = (uint8_t*)malloc(rsa_parameters->num_octets);
-    if(RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets)) {
+    ret = RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets);
+    if(ret != 0) {
         dmLogError("Failed to decrypt manifest signature for verification");
-        free(hash);
         free(hash_decrypted);
-        free(public_cert_buf);
         free(rsa_parameters);
-        return RESULT_FORMAT_ERROR;
+        return RESULT_INVALID_DATA;
     }
-    memcpy(hash, hash_decrypted + 128 - signature_len, signature_len);
+    uint8_t* hash = (uint8_t*)malloc(signature_hash_len);
+    memcpy(hash, hash_decrypted + signature_len - signature_hash_len, signature_hash_len);
 
-    uint32_t hex_digest_len = signature_len * 2 + 1;
-    char* hex_digest = (char*)malloc(hex_digest_len);
-    dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, hash, hex_digest, signature_len * 2 + 1);
-    dmLogInfo("Hash printed: %s", hex_digest);
+    out_digest_len = signature_hash_len * 2 + 1;
+    out_digest = (char*)malloc(out_digest_len);
+    dmResource::HashToString(signature_hash_algorithm, hash, out_digest, out_digest_len);
+    dmLogInfo("Hash printed: %s", out_digest); // DEBUG PRINT
 
-    if (expected_len == hex_digest_len)
-    {
-        for (uint32_t i = 0; i < expected_len; ++i)
-        {
-            if (expected_digest[i] != hex_digest[i])
-            {
-                dmLogError("Byte mismatch in decrypted manifest signature.");
-                res = RESULT_FORMAT_ERROR;
-                break;
-            }
-        }
-    }
-    else
-    {
-        dmLogError("Length mismatch decrypted in manifest signature.");
-        res = RESULT_FORMAT_ERROR;
-    }
-
-    free(rsa_parameters);
-    free(hex_digest);
     free(hash);
     free(hash_decrypted);
-    free(public_cert_buf);
+    return RESULT_OK;
+}
+
+// Diagram of what need to be done; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
+// Inspect asn1 key; http://lapo.it/asn1js/#
+Result VerifyManifest(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
+{
+    Result res = RESULT_OK;
+    char public_key_path[DMPATH_MAX_PATH];
+    char game_dir[DMPATH_MAX_PATH];
+    uint32_t pub_key_size = 0, hex_digest_len = 0, out_resource_size = 0;
+    uint8_t* pub_key_buf = 0x0;
+    char* hex_digest = 0x0;
+
+    // Load public key
+    dmSys::GetResourcesPath(0, 0, game_dir, DMPATH_MAX_PATH);
+    dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
+    dmSys::ResourceSize(public_key_path, &pub_key_size);
+    pub_key_buf = (uint8_t*)malloc(pub_key_size);
+    assert(pub_key_buf);
+    dmSys::Result sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
+
+    if (sys_res != dmSys::RESULT_OK)
+    {
+        dmLogError("Failed to load public key for manifest verification (%i)", sys_res);
+        free(pub_key_buf);
+        return RESULT_IO_ERROR;
+    }
+
+    DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hex_digest, hex_digest_len);
+    res = HashCompare((const uint8_t*)hex_digest, hex_digest_len, expected_digest, expected_len);
+
+    free(hex_digest);
+    free(pub_key_buf);
     return res;
 }
 
