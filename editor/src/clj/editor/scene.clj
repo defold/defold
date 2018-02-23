@@ -981,6 +981,7 @@
   (input picking-rect Rect)
   (input tool-renderables pass/RenderData :array)
 
+  (output inactive? g/Bool (g/constantly false))
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
   (output selection g/Any (gu/passthrough selection))
