@@ -179,21 +179,20 @@
   (output node-outline-extras g/Any (g/constantly {}))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
   (output build-targets g/Any (g/fnk [build-resource source-build-targets resource-property-build-targets build-error ddf-message transform]
-                                (let [component-property-entries (map (fn [entry]
-                                                                        (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets (:properties entry))]
-                                                                          (assoc entry
-                                                                            :properties go-props
-                                                                            :_dep-build-targets go-prop-dep-build-targets)))
-                                                                      (:component-properties ddf-message))
-                                      component-properties (mapv #(dissoc % :_dep-build-targets) component-property-entries)
-                                      property-deps (into #{} (mapcat :_dep-build-targets) component-property-entries)
+                                (let [build-target-go-props (partial properties/build-target-go-props resource-property-build-targets)
+                                      component-property-infos (map (comp build-target-go-props :properties) (:component-properties ddf-message))
+                                      component-go-props (map first component-property-infos)
+                                      component-property-descs (map #(assoc %1 :properties %2)
+                                                                    (:component-properties ddf-message)
+                                                                    component-go-props)
+                                      property-dep-build-targets (into #{} (mapcat second) component-property-infos)
                                       build-target (assoc (first source-build-targets)
                                                      :resource build-resource
                                                      :instance-data {:resource build-resource
                                                                      :transform transform
-                                                                     :property-deps property-deps
-                                                                     :instance-msg (if (seq component-properties)
-                                                                                     (assoc ddf-message :component-properties component-properties)
+                                                                     :property-deps property-dep-build-targets
+                                                                     :instance-msg (if (seq component-property-descs)
+                                                                                     (assoc ddf-message :component-properties component-property-descs)
                                                                                      ddf-message)})]
                                   [build-target])))
   (output build-error g/Err (g/constantly nil))
@@ -339,34 +338,45 @@
    :embedded-instances embed-inst-ddf
    :collection-instances ref-coll-ddf})
 
-(defn- externalize [inst-data dep-resources]
-  ;; Note: Returns a seq of GameObject$InstanceDesc in map form.
-  (map (fn [{:keys [resource instance-msg transform]}]
-         (let [resource (get dep-resources resource)
-               pos (Point3d.)
-               rot (Quat4d.)
-               scale (Vector3d.)
-               _ (math/split-mat4 transform pos rot scale)]
-           (-> instance-msg
-               (dissoc :data)
-               (assoc :id (str path-sep (:id instance-msg))
-                      :prototype (resource/proj-path resource)
-                      :children (map #(str path-sep %) (:children instance-msg))
-                      :position (math/vecmath->clj pos)
-                      :rotation (math/vecmath->clj rot)
-                      :scale3 (math/vecmath->clj scale)
-                      :component-properties (mapv #(game-object/externalize-component-property-desc % dep-resources)
-                                                  (:component-properties instance-msg))))))
-       inst-data))
+(defn- build-transform [transform]
+  (let [pos (Point3d.)
+        rot (Quat4d.)
+        scale (Vector3d.)]
+    (math/split-mat4 transform pos rot scale)
+    {:position (math/vecmath->clj pos)
+     :rotation (math/vecmath->clj rot)
+     :scale3 (math/vecmath->clj scale)}))
 
 (defn build-collection [resource dep-resources user-data]
   (let [{:keys [name instance-data scale-along-z]} user-data
-        instance-descs (externalize instance-data dep-resources)
+        build-go-props (partial properties/build-go-props dep-resources)
+        go-instance-msgs (map :instance-msg instance-data)
+        go-instance-transform-properties (map (comp build-transform :transform) instance-data)
+        go-instance-build-resource-paths (map (comp resource/proj-path dep-resources :resource) instance-data)
+        go-instance-component-go-props (map (fn [instance-desc] ; GameObject$InstanceDesc in map form
+                                              (map (fn [component-property-desc] ; GameObject$ComponentPropertyDesc in map form
+                                                     (build-go-props (:properties component-property-desc)))
+                                                   (:component-properties instance-desc)))
+                                            go-instance-msgs)
+        instance-descs (map (fn [instance-desc transform-properties fused-build-resource-path component-go-props]
+                              (-> instance-desc
+                                  (merge transform-properties)
+                                  (dissoc :data)
+                                  (assoc :id (str path-sep (:id instance-desc))
+                                         :prototype fused-build-resource-path
+                                         :children (mapv (partial str path-sep) (:children instance-desc))
+                                         :component-properties (map (fn [component-property-desc go-props]
+                                                                      (cond-> (dissoc component-property-desc :properties) ; Runtime uses :property-decls, not :properties
+                                                                              (seq go-props) (assoc :property-decls (properties/go-props->decls go-props))))
+                                                                    (:component-properties instance-desc)
+                                                                    component-go-props))))
+                            go-instance-msgs
+                            go-instance-transform-properties
+                            go-instance-build-resource-paths
+                            go-instance-component-go-props)
         property-resource-paths (into (sorted-set)
-                                      (comp (mapcat :component-properties)
-                                            (mapcat :properties)
-                                            (keep properties/try-get-go-prop-proj-path))
-                                      instance-descs)
+                                      (comp cat cat (keep properties/try-get-go-prop-proj-path))
+                                      go-instance-component-go-props)
         msg {:name name
              :instances instance-descs
              :scale-along-z (if scale-along-z 1 0)
