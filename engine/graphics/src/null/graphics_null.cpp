@@ -680,6 +680,18 @@ namespace dmGraphics
         delete p;
     }
 
+    uint32_t GetVertexProgramSourceSize(HVertexProgram program)
+    {
+        assert(program);
+        return 0;
+    }
+
+    uint32_t GetFragmentProgramSourceSize(HVertexProgram program)
+    {
+        assert(program);
+        return 0;
+    }
+
     void EnableProgram(HContext context, HProgram program)
     {
         assert(context);
@@ -869,6 +881,7 @@ namespace dmGraphics
 
         tex->m_Width = params.m_Width;
         tex->m_Height = params.m_Height;
+        tex->m_MipMapCount = 0;
         tex->m_Data = 0;
 
         if (params.m_OriginalWidth == 0) {
@@ -904,10 +917,30 @@ namespace dmGraphics
         // Allocate even for 0x0 size so that the rendertarget dummies will work.
         texture->m_Data = new char[params.m_DataSize];
         memcpy(texture->m_Data, params.m_Data, params.m_DataSize);
+        texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
     }
 
     uint8_t* GetTextureData(HTexture texture) {
         return 0x0;
+    }
+
+    uint32_t GetTextureFormatBPP(TextureFormat format)
+    {
+        static TextureFormatToBPP g_TextureFormatToBPP;
+        assert(format < TEXTURE_FORMAT_ENUM);
+        return g_TextureFormatToBPP.m_FormatToBPP[format];
+    }
+
+    uint32_t GetTextureResourceSize(HTexture texture)
+    {
+        uint32_t size_total = 0;
+        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Format)) >> 3;
+        for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+        {
+            size_total += size;
+            size >>= 2;
+        }
+        return size_total + sizeof(Texture);
     }
 
     uint16_t GetTextureWidth(HTexture texture)

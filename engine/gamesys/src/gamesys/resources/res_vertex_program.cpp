@@ -30,4 +30,13 @@ namespace dmGameSystem
         bool success = dmGraphics::ReloadVertexProgram(prog, params.m_Buffer, params.m_BufferSize);
         return success ? dmResource::RESULT_OK : dmResource::RESULT_FORMAT_ERROR;
     }
+
+    dmResource::Result ResVertexProgramGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        // Todo: This returns the shaders source size. It's currently the best we can do (ES2.0) since there is no way of retreiving the binary size of a compiled shader.
+        // The shader source is allocated and used in the driver, so this is not irrelevant data.
+        params.m_DataSize = dmGraphics::GetVertexProgramSourceSize((dmGraphics::HVertexProgram) params.m_Resource->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
 }

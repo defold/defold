@@ -15,6 +15,7 @@ namespace dmGameObject
             m_LuaModule(lua_module) {}
 
         dmLuaDDF::LuaModule* m_LuaModule;
+        uint32_t m_DDFSize;
 
     };
 
@@ -23,6 +24,9 @@ namespace dmGameObject
     dmResource::Result ResLuaDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResLuaRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResLuaGetInfo(dmResource::ResourceGetInfoParams& params);
+
 }
 
 #endif // DM_GAMEOBJECT_RES_LUA_H

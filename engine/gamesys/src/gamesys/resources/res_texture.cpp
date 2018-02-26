@@ -432,4 +432,11 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResTextureGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = dmGraphics::GetTextureResourceSize((dmGraphics::HTexture) params.m_Resource->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
 }

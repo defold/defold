@@ -1823,7 +1823,7 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    static bool LoadScript(lua_State* L, dmLuaDDF::LuaSource *source, Script* script)
+    static bool LoadScript(lua_State* L, dmLuaDDF::LuaSource *source, Script* script, uint32_t lua_module_resource_size)
     {
         for (uint32_t i = 0; i < MAX_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
@@ -1877,6 +1877,8 @@ bail:
             lua_pushnil(L);
             lua_setglobal(L, SCRIPT_FUNCTION_NAMES[i]);
         }
+
+        script->m_LuaModuleResourceSize = lua_module_resource_size - source->m_Script.m_Count;
         assert(top == lua_gettop(L));
         return result;
     }
@@ -1891,7 +1893,7 @@ bail:
         script->m_InstanceReference = LUA_NOREF;
     }
 
-    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module)
+    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module, uint32_t lua_module_resource_size)
     {
         Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
         ResetScript(script);
@@ -1906,7 +1908,7 @@ bail:
         luaL_getmetatable(L, SCRIPT);
         lua_setmetatable(L, -2);
 
-        if (!LoadScript(L, &lua_module->m_Source, script))
+        if (!LoadScript(L, &lua_module->m_Source, script, lua_module_resource_size))
         {
             DeleteScript(script);
             return 0;
@@ -1916,10 +1918,10 @@ bail:
         return script;
     }
 
-    bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module)
+    bool ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, uint32_t lua_module_resource_size)
     {
         script->m_LuaModule = lua_module;
-        return LoadScript(script->m_LuaState, &lua_module->m_Source, script);
+        return LoadScript(script->m_LuaState, &lua_module->m_Source, script, lua_module_resource_size);
     }
 
     void DeleteScript(HScript script)
@@ -1935,6 +1937,11 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, script->m_InstanceReference);
         script->~Script();
         ResetScript(script);
+    }
+
+    uint32_t GetScriptResourceSize(HScript script)
+    {
+        return sizeof(Script) + script->m_LuaModuleResourceSize;
     }
 
     static PropertyResult GetPropertyDefault(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var)

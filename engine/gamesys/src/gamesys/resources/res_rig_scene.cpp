@@ -127,6 +127,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename, false);
         if (r == dmResource::RESULT_OK)
         {
+            ss_resource->m_DDFSize = params.m_BufferSize;
             params.m_Resource->m_Resource = (void*) ss_resource;
         }
         else
@@ -157,6 +158,38 @@ namespace dmGameSystem
         RigSceneResource* ss_resource = (RigSceneResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
         ss_resource->m_RigScene = rig_scene;
+        ss_resource->m_DDFSize = params.m_BufferSize;
         return AcquireResources(params.m_Factory, ss_resource, params.m_Filename, true);
     }
+
+    dmResource::Result ResRigSceneGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        RigSceneResource* res = (RigSceneResource*)params.m_Resource->m_Resource;
+        uint32_t size = sizeof(RigSceneResource);
+        size += res->m_DDFSize;
+        size += res->m_BindPose.Capacity()*sizeof(dmRig::RigBone);
+        size += res->m_PoseIdxToInfluence.Capacity()*sizeof(uint32_t);
+        size += res->m_TrackIdxToPose.Capacity()*sizeof(uint32_t);
+        params.m_DataSize = size;
+        params.m_SubResourceIds->SetCapacity(4);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_SkeletonRes, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_MeshSetRes, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_AnimationSetRes, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_TextureSet, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

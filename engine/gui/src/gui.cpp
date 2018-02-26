@@ -3866,6 +3866,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             script->m_FunctionReferences[i] = LUA_NOREF;
         }
         script->m_InstanceReference = LUA_NOREF;
+        script->m_ScriptResourceSize = 0;
     }
 
     HScript NewScript(HContext context)
@@ -3896,7 +3897,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         ResetScript(script);
     }
 
-    Result SetScript(HScript script, dmLuaDDF::LuaSource *source)
+    Result SetScript(HScript script, dmLuaDDF::LuaSource *source, uint32_t source_resource_size)
     {
         lua_State* L = script->m_Context->m_LuaState;
         int top = lua_gettop(L);
@@ -3953,7 +3954,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
 bail:
         assert(top == lua_gettop(L));
+        script->m_ScriptResourceSize = source_resource_size - source->m_Script.m_Count;
         return res;
+    }
+
+    uint32_t GetScriptResourceSize(HScript script)
+    {
+        return script->m_ScriptResourceSize + sizeof(Script);
     }
 
     lua_State* GetLuaState(HContext context)

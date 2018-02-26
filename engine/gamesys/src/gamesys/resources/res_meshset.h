@@ -11,7 +11,8 @@ namespace dmGameSystem
     struct MeshSetResource
     {
         dmRigDDF::MeshSet* m_MeshSet;
-    };
+        uint32_t           m_DDFSize;
+   };
 
     dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams& params);
 
@@ -20,6 +21,8 @@ namespace dmGameSystem
     dmResource::Result ResMeshSetDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResMeshSetRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResMeshSetGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_MESHSET_H

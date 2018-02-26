@@ -47,6 +47,7 @@ namespace dmGameSystem
 
         if(res == dmResource::RESULT_OK)
         {
+            factory_res->m_DDFSize = params.m_BufferSize;
             params.m_Resource->m_Resource = (void*) factory_res;
         }
         else
@@ -81,6 +82,7 @@ namespace dmGameSystem
             FactoryResource* factory_res = (FactoryResource*) params.m_Resource->m_Resource;
             ReleaseResources(params.m_Factory, factory_res);
             *factory_res = tmp_factory_res;
+            factory_res->m_DDFSize = params.m_BufferSize;
         }
         else
         {
@@ -88,4 +90,12 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResFactoryGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        FactoryResource* res  = (FactoryResource*) params.m_Resource->m_Resource;
+        params.m_DataSize = sizeof(FactoryResource) + res->m_DDFSize;
+        return dmResource::RESULT_OK;
+    }
+
 }

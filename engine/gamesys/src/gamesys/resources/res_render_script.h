@@ -12,6 +12,9 @@ namespace dmGameSystem
     dmResource::Result ResRenderScriptDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResRenderScriptRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResRenderScriptGetInfo(dmResource::ResourceGetInfoParams& params);
+
 }
 
 #endif // DMGAMESYSTEM_RES_RENDERSCRIPT_H

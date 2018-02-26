@@ -117,6 +117,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, tile_grid, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
+            tile_grid->m_DDFSize = params.m_BufferSize;
             params.m_Resource->m_Resource = (void*) tile_grid;
         }
         else
@@ -147,6 +148,7 @@ namespace dmGameSystem
 //            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
 //            tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
 //            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
+//            tile_grid->m_DDFSize = params.m_BufferSize;
 //        }
 //        else
 //        {
@@ -155,4 +157,25 @@ namespace dmGameSystem
 //        return r;
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResTileGridGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        TileGridResource* res  = (TileGridResource*) params.m_Resource->m_Resource;
+        uint32_t size = sizeof(TileGridResource);
+        size += res->m_DDFSize;
+        size += res->m_GridShapes.Capacity() * sizeof(dmPhysics::HCollisionShape2D);    // TODO: Get size of CollisionShape2D
+        params.m_DataSize = size;
+        params.m_SubResourceIds->SetCapacity(2);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_TextureSet, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_Material, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

@@ -11,6 +11,7 @@ namespace dmGameSystem
     struct AnimationSetResource
     {
         dmRigDDF::AnimationSet* m_AnimationSet;
+        uint32_t                m_DDFSize;
     };
 
     dmResource::Result ResAnimationSetPreload(const dmResource::ResourcePreloadParams& params);
@@ -20,6 +21,8 @@ namespace dmGameSystem
     dmResource::Result ResAnimationSetDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResAnimationSetRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResAnimationSetGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_ANIMATIONSET_H

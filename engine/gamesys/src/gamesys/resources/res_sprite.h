@@ -17,6 +17,7 @@ namespace dmGameSystem
         dmhash_t m_DefaultAnimation;
         TextureSetResource* m_TextureSet;
         dmGameSystemDDF::SpriteDesc* m_DDF;
+        uint32_t m_DDFSize;
         dmRender::HMaterial m_Material;
     };
 
@@ -27,6 +28,8 @@ namespace dmGameSystem
     dmResource::Result ResSpriteDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResSpriteRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResSpriteGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_SPRITE_H

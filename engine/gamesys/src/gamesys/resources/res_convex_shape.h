@@ -22,6 +22,8 @@ namespace dmGameSystem
     dmResource::Result ResConvexShapeDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResConvexShapeRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResConvexShapeGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_CONVEX_SHAPE_H

@@ -13,6 +13,7 @@ namespace dmGameSystem
         }
         params.m_Resource->m_Resource = (void*) cam_resource;
 
+        cam_resource->m_DDFSize = params.m_BufferSize;
         return dmResource::RESULT_OK;
     }
 
@@ -35,6 +36,14 @@ namespace dmGameSystem
         CameraResource* cam_resource = (CameraResource*)params.m_Resource->m_Resource;
         dmDDF::FreeMessage((void*)cam_resource->m_DDF);
         cam_resource->m_DDF = ddf;
+        cam_resource->m_DDFSize = params.m_BufferSize;
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResCameraGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        CameraResource* res  = (CameraResource*) params.m_Resource->m_Resource;
+        params.m_DataSize = sizeof(CameraResource) + res->m_DDFSize;
         return dmResource::RESULT_OK;
     }
 }

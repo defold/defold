@@ -16,6 +16,8 @@ namespace dmGameSystem
     dmResource::Result ResParticleFXDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResParticleFXRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResParticleFXGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_PARTICLEFX_H

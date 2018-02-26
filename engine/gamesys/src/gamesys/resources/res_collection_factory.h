@@ -22,6 +22,7 @@ namespace dmGameSystem
         dmGameObject::HCollectionDesc m_CollectionDesc;
         dmArray<void*> m_CollectionResources;
         bool m_LoadDynamically;
+        uint32_t m_DDFSize;
     };
 
     dmResource::Result ResCollectionFactoryPreload(const dmResource::ResourcePreloadParams& params);
@@ -31,6 +32,8 @@ namespace dmGameSystem
     dmResource::Result ResCollectionFactoryDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResCollectionFactoryRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResCollectionFactoryGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_FACTORY_H

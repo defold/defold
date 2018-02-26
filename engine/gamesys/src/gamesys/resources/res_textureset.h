@@ -30,6 +30,7 @@ namespace dmGameSystem
         dmhash_t                            m_TexturePath;
         dmGameSystemDDF::TextureSet*        m_TextureSet;
         dmPhysics::HHullSet2D               m_HullSet;
+        uint32_t                            m_DDFSize;
     };
 
     dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams& params);
@@ -39,6 +40,8 @@ namespace dmGameSystem
     dmResource::Result ResTextureSetDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResTextureSetRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResTextureSetGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DMGAMESYSTEM_RES_TEXTURESET_H

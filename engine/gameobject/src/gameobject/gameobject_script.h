@@ -47,6 +47,7 @@ namespace dmGameObject
         int                     m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         PropertySet             m_PropertySet;
         dmLuaDDF::LuaModule*    m_LuaModule;
+        uint32_t                m_LuaModuleResourceSize;
         int                     m_InstanceReference;
     };
 
@@ -73,9 +74,10 @@ namespace dmGameObject
 
     void    InitializeScript(HRegister regist, dmScript::HContext context);
 
-    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module);
-    bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
+    HScript NewScript(lua_State* L, dmLuaDDF::LuaModule* lua_module, uint32_t lua_module_resource_size);
+    bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module, uint32_t lua_module_resource_size);
     void    DeleteScript(HScript script);
+    uint32_t GetScriptResourceSize(HScript script);
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);

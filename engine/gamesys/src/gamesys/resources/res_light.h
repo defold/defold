@@ -12,6 +12,8 @@ namespace dmGameSystem
     dmResource::Result ResLightDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResLightRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResLightGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_LIGHT_H

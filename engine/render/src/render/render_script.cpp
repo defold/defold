@@ -2432,7 +2432,7 @@ namespace dmRender
         context.m_LuaState = 0;
     }
 
-    static bool LoadRenderScript(lua_State* L, dmLuaDDF::LuaSource *source, RenderScript* script)
+    static bool LoadRenderScript(lua_State* L, dmLuaDDF::LuaSource *source, RenderScript* script, uint32_t source_resource_size)
     {
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
             script->m_FunctionReferences[i] = LUA_NOREF;
@@ -2489,10 +2489,13 @@ bail:
             lua_setglobal(L, RENDER_SCRIPT_FUNCTION_NAMES[i]);
         }
         assert(top == lua_gettop(L));
+
+        script->m_ScriptResourceSize = source_resource_size - source->m_Script.m_Count;
         return result;
     }
 
     static void ResetRenderScript(HRenderScript render_script) {
+        render_script->m_ScriptResourceSize = 0;
         memset(render_script, 0, sizeof(RenderScript));
         render_script->m_InstanceReference = LUA_NOREF;
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i) {
@@ -2500,7 +2503,7 @@ bail:
         }
     }
 
-    HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
+    HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source, uint32_t source_resource_size)
     {
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
@@ -2513,7 +2516,7 @@ bail:
         luaL_getmetatable(L, RENDER_SCRIPT);
         lua_setmetatable(L, -2);
         render_script->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        if (LoadRenderScript(L, source, render_script))
+        if (LoadRenderScript(L, source, render_script, source_resource_size))
         {
             assert(top == lua_gettop(L));
             return render_script;
@@ -2526,9 +2529,9 @@ bail:
         }
     }
 
-    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
+    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source, uint32_t source_resource_size)
     {
-        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
+        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script, source_resource_size);
     }
 
     void DeleteRenderScript(HRenderContext render_context, HRenderScript render_script)
@@ -2542,6 +2545,11 @@ bail:
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script->m_InstanceReference);
         render_script->~RenderScript();
         ResetRenderScript(render_script);
+    }
+
+    uint32_t GetRenderScriptResourceSize(HRenderScript render_script)
+    {
+        return render_script->m_ScriptResourceSize + sizeof(RenderScript);
     }
 
     static void ResetRenderScriptInstance(HRenderScriptInstance render_script_instance) {

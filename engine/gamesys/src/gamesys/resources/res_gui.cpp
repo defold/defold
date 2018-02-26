@@ -40,7 +40,7 @@ namespace dmGameSystem
         }
 
         dmGui::HScript script = dmGui::NewScript(gui_context->m_GuiContext);
-        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source);
+        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source, params.m_BufferSize);
         if (result == dmGui::RESULT_OK)
         {
             params.m_Resource->m_Resource = script;
@@ -78,7 +78,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source);
+        dmGui::Result result = dmGui::SetScript(script, &lua_module->m_Source, params.m_BufferSize);
         if (result == dmGui::RESULT_OK)
         {
             GuiContext* gui_context = (GuiContext*) params.m_Context;
@@ -105,9 +105,10 @@ namespace dmGameSystem
     }
 
     dmResource::Result AcquireResources(dmResource::HFactory factory, dmGui::HContext context,
-        dmGuiDDF::SceneDesc *desc, GuiSceneResource* resource, const char* filename)
+        dmGuiDDF::SceneDesc *desc, GuiSceneResource* resource, const char* filename, uint32_t ddf_buffer_size)
     {
         resource->m_SceneDesc = desc;
+        resource->m_DDFSize = ddf_buffer_size;
 
         dmResource::Result fr = dmResource::Get(factory, resource->m_SceneDesc->m_Material, (void**) &resource->m_Material);
         if (fr != dmResource::RESULT_OK) {
@@ -248,7 +249,7 @@ namespace dmGameSystem
     {
         GuiSceneResource* scene_resource = new GuiSceneResource();
         memset(scene_resource, 0, sizeof(GuiSceneResource));
-        dmResource::Result r = AcquireResources(params.m_Factory, ((GuiContext*) params.m_Context)->m_GuiContext, (dmGuiDDF::SceneDesc*) params.m_PreloadData, scene_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, ((GuiContext*) params.m_Context)->m_GuiContext, (dmGuiDDF::SceneDesc*) params.m_PreloadData, scene_resource, params.m_Filename, params.m_BufferSize);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*)scene_resource;
@@ -280,7 +281,7 @@ namespace dmGameSystem
 
         GuiSceneResource tmp_scene_resource;
         memset(&tmp_scene_resource, 0, sizeof(GuiSceneResource));
-        dmResource::Result r = AcquireResources(params.m_Factory, ((GuiContext*) params.m_Context)->m_GuiContext, scene_desc, &tmp_scene_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, ((GuiContext*) params.m_Context)->m_GuiContext, scene_desc, &tmp_scene_resource, params.m_Filename, params.m_BufferSize);
         if (r == dmResource::RESULT_OK)
         {
             GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource->m_Resource;
@@ -299,4 +300,55 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResGetInfoGuiScript(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = dmGui::GetScriptResourceSize( (dmGui::HScript) params.m_Resource->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResGetInfoSceneDesc(dmResource::ResourceGetInfoParams& params)
+    {
+        GuiSceneResource* res  = (GuiSceneResource*) params.m_Resource->m_Resource;
+        uint32_t size = sizeof(GuiSceneResource);
+        size += res->m_FontMaps.Capacity()*sizeof(dmRender::HFontMap);
+        size += res->m_GuiTextureSets.Capacity()*sizeof(GuiSceneTextureSetResource);
+        size += res->m_RigScenes.Capacity()*sizeof(RigSceneResource*);
+        size += res->m_ParticlePrototypes.Capacity()*sizeof(dmParticle::HPrototype);
+        params.m_DataSize = size;
+
+        uint32_t subrescount = res->m_FontMaps.Size() + res->m_GuiTextureSets.Size() + res->m_RigScenes.Size() + res->m_ParticlePrototypes.Size();
+        params.m_SubResourceIds->SetCapacity(subrescount);
+        dmhash_t res_hash;
+        for(uint32_t i = 0; i < res->m_FontMaps.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_FontMaps[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        for(uint32_t i = 0; i < res->m_GuiTextureSets.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_GuiTextureSets[i].m_TextureSet ? (void*)res->m_GuiTextureSets[i].m_TextureSet : (void*)res->m_GuiTextureSets[i].m_Texture, &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        for(uint32_t i = 0; i < res->m_RigScenes.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_RigScenes[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        for(uint32_t i = 0; i < res->m_ParticlePrototypes.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_ParticlePrototypes[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

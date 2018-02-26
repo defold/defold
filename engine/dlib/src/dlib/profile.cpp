@@ -5,6 +5,7 @@
 #include "hashtable.h"
 #include "hash.h"
 #include "spinlock.h"
+#include "mutex.h"
 #include "stringpool.h"
 #include "math.h"
 #include "time.h"
@@ -60,6 +61,7 @@ namespace dmProfile
     bool g_Paused = false;
     dmSpinlock::lock_t g_ProfileLock;
     dmHttpServer::HServer g_HttpServer = 0;
+    dmMutex::Mutex g_ProfileExtensionMutex;
 
     dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
     uint32_t g_ThreadCount = 0;
@@ -68,15 +70,78 @@ namespace dmProfile
     ScopeData g_DummyScopeData;
     Scope g_DummyScope = { "foo", 0, &g_DummyScopeData };
 
-    struct InitSpinLocks
+    static struct SynchronizationObjects
     {
-        InitSpinLocks()
+        SynchronizationObjects()
         {
             dmSpinlock::Init(&g_ProfileLock);
+            g_ProfileExtensionMutex = dmMutex::New();
         }
-    };
 
-    InitSpinLocks g_InitSpinlocks;
+        ~SynchronizationObjects()
+        {
+            dmMutex::Delete(g_ProfileExtensionMutex);
+        }
+    } g_SynchronizationObjects;
+
+    struct ProfileExtension
+    {
+        static const uint32_t m_HttpResponseTagMaxSize = 64;
+        char    m_HttpResponseTag[m_HttpResponseTagMaxSize];
+        void*   m_Context;
+        ProfileExtensionHttpRequestCallback m_Callback;
+    };
+    static dmArray<ProfileExtension> g_ProfilerExtensions;
+
+    static ProfileExtension* GetProfileExtension(const char* http_response_tag)
+    {
+        for(uint32_t i = 0; i < g_ProfilerExtensions.Size(); ++i)
+        {
+            if(strcmp(http_response_tag, g_ProfilerExtensions[i].m_HttpResponseTag) == 0)
+                return &g_ProfilerExtensions[i];
+        }
+        return 0;
+    }
+
+    bool RegisterProfileExtension(void* context, const char* http_response_tag, ProfileExtensionHttpRequestCallback callback)
+    {
+        if(ProfileExtension::m_HttpResponseTagMaxSize < (strlen(http_response_tag)+1))
+        {
+            dmLogError("RegisterProfileExtension tag length exceeded (max %d characters)", ProfileExtension::m_HttpResponseTagMaxSize-1);
+            return false;
+        }
+        dmMutex::Lock(g_ProfileExtensionMutex);
+        if(g_ProfilerExtensions.Full())
+        {
+            g_ProfilerExtensions.OffsetCapacity(16);
+        }
+        ProfileExtension* extension = GetProfileExtension(http_response_tag);
+        if(!extension)
+        {
+            g_ProfilerExtensions.SetSize(g_ProfilerExtensions.Size()+1);
+            extension = &g_ProfilerExtensions.Back();
+        }
+        extension->m_Context = context;
+        extension->m_Callback = callback;
+        dmStrlCpy(extension->m_HttpResponseTag, http_response_tag, ProfileExtension::m_HttpResponseTagMaxSize);
+        dmMutex::Unlock(g_ProfileExtensionMutex);
+        return true;
+    }
+
+    void UnregisterProfileExtension(void* context)
+    {
+        dmMutex::Lock(g_ProfileExtensionMutex);
+        for(uint32_t i = 0; i < g_ProfilerExtensions.Size(); ++i)
+        {
+            if(g_ProfilerExtensions[i].m_Context == context)
+            {
+                g_ProfilerExtensions.EraseSwap(i);
+                break;
+            }
+        }
+        dmMutex::Unlock(g_ProfileExtensionMutex);
+    }
+
 
     static void HttpHeader(void* user_data, const char* key, const char* value)
     {
@@ -217,10 +282,21 @@ namespace dmProfile
         }
         else
         {
-            dmHttpServer::SetStatusCode(request, 404);
-            const char* not_found = "Resource not found\n";
-            dmHttpServer::Send(request, not_found, strlen(not_found));
-            dmHttpServer::Send(request, request->m_Resource, strlen(request->m_Resource));
+            dmMutex::Lock(g_ProfileExtensionMutex);
+            ProfileExtension* extension = GetProfileExtension(request->m_Resource);
+            if(extension)
+            {
+                dmHttpServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+                extension->m_Callback(extension->m_Context, request);
+            }
+            dmMutex::Unlock(g_ProfileExtensionMutex);
+            if(!extension)
+            {
+                dmHttpServer::SetStatusCode(request, 404);
+                const char* not_found = "Resource not found\n";
+                dmHttpServer::Send(request, not_found, strlen(not_found));
+                dmHttpServer::Send(request, request->m_Resource, strlen(request->m_Resource));
+            }
         }
     }
 

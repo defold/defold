@@ -30,6 +30,7 @@ namespace dmGameSystem
         SkeletonResource* ss_resource = new SkeletonResource();
         ss_resource->m_Skeleton = (dmRigDDF::Skeleton*) params.m_PreloadData;
         params.m_Resource->m_Resource = (void*) ss_resource;
+        ss_resource->m_DDFSize = params.m_BufferSize;
         return dmResource::RESULT_OK;
     }
 
@@ -53,6 +54,15 @@ namespace dmGameSystem
         SkeletonResource* ss_resource = (SkeletonResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
         ss_resource->m_Skeleton = spine_scene;
+        ss_resource->m_DDFSize = params.m_BufferSize;
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResSkeletonGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        SkeletonResource* res = (SkeletonResource*)params.m_Resource->m_Resource;
+        params.m_DataSize = sizeof(SkeletonResource) + res->m_DDFSize;
+        return dmResource::RESULT_OK;
+    }
+
 }

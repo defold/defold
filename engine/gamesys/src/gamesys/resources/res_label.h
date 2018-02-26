@@ -15,6 +15,7 @@ namespace dmGameSystem
     struct LabelResource
     {
         dmGameSystemDDF::LabelDesc* m_DDF;
+        uint32_t m_DDFSize;
         dmRender::HMaterial m_Material;
         dmRender::HFontMap m_FontMap;
     };
@@ -26,6 +27,8 @@ namespace dmGameSystem
     dmResource::Result ResLabelDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResLabelRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResLabelGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_LABEL_H

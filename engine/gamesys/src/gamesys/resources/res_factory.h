@@ -13,6 +13,7 @@ namespace dmGameSystem
     struct FactoryResource
     {
         dmGameSystemDDF::FactoryDesc* m_FactoryDesc;
+        uint32_t m_DDFSize;
         dmGameObject::HPrototype m_Prototype;
     };
 
@@ -23,6 +24,8 @@ namespace dmGameSystem
     dmResource::Result ResFactoryDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResFactoryRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResFactoryGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_FACTORY_H

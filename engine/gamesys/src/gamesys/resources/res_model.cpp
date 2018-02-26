@@ -92,6 +92,7 @@ namespace dmGameSystem
     {
         ModelResource* model_resource = new ModelResource();
         model_resource->m_Model = (dmModelDDF::Model*) params.m_PreloadData;
+        model_resource->m_DDFSize = params.m_BufferSize;
         dmResource::Result r = AcquireResources(params.m_Factory, model_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
@@ -122,8 +123,38 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
         ModelResource* model_resource = (ModelResource*)params.m_Resource->m_Resource;
+        model_resource->m_DDFSize = params.m_BufferSize;
         ReleaseResources(params.m_Factory, model_resource);
         model_resource->m_Model = ddf;
         return AcquireResources(params.m_Factory, model_resource, params.m_Filename);
     }
+
+    dmResource::Result ResModelGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        ModelResource* res  = (ModelResource*) params.m_Resource->m_Resource;
+        params.m_DataSize = sizeof(ModelResource) + res->m_DDFSize;
+        uint32_t texture_count = 0;
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (res->m_TexturePaths[i])
+                ++texture_count;
+        }
+        params.m_SubResourceIds->SetCapacity(2 + texture_count);
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (res->m_TexturePaths[i])
+                params.m_SubResourceIds->Push(res->m_TexturePaths[i]);
+        }
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_RigScene, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_Material, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

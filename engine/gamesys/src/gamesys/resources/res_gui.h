@@ -22,6 +22,7 @@ namespace dmGameSystem
     struct GuiSceneResource
     {
         dmGuiDDF::SceneDesc*            m_SceneDesc;
+        uint32_t                        m_DDFSize;
         dmGui::HScript                  m_Script;
         dmArray<dmRender::HFontMap>     m_FontMaps;
         dmArray<GuiSceneTextureSetResource> m_GuiTextureSets;
@@ -40,6 +41,8 @@ namespace dmGameSystem
 
     dmResource::Result ResRecreateSceneDesc(const dmResource::ResourceRecreateParams& params);
 
+    dmResource::Result ResGetInfoSceneDesc(dmResource::ResourceGetInfoParams& params);
+
     dmResource::Result ResPreloadGuiScript(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResCreateGuiScript(const dmResource::ResourceCreateParams& params);
@@ -47,6 +50,8 @@ namespace dmGameSystem
     dmResource::Result ResDestroyGuiScript(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResRecreateGuiScript(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResGetInfoGuiScript(dmResource::ResourceGetInfoParams& params);
 
 }
 

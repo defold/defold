@@ -105,7 +105,9 @@ namespace dmGameObject
                                                                               component_desc.m_Position,
                                                                               component_desc.m_Rotation);
                 c.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                bool r = CreatePropertySetUserData(&component_desc.m_PropertyDecls, &c.m_PropertySet.m_UserData);
+                uint32_t userdata_size;
+                bool r = CreatePropertySetUserData(&component_desc.m_PropertyDecls, &c.m_PropertySet.m_UserData, &userdata_size);
+                proto->m_ComponentsUserDataSize += userdata_size;
                 proto->m_Components.Push(c);
                 if (!r)
                 {
@@ -128,4 +130,17 @@ namespace dmGameObject
         DestroyPrototype(proto, params.m_Factory);
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResPrototypeGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
+        params.m_DataSize = GetPrototypeResourceSize(proto);
+        params.m_SubResourceIds->SetCapacity(proto->m_Components.Size());
+        for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
+        {
+            params.m_SubResourceIds->Push(proto->m_Components[i].m_ResourceId);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

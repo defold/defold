@@ -11,6 +11,7 @@ namespace dmGameSystem
     struct SkeletonResource
     {
         dmRigDDF::Skeleton* m_Skeleton;
+        uint32_t                m_DDFSize;
     };
 
     dmResource::Result ResSkeletonPreload(const dmResource::ResourcePreloadParams& params);
@@ -20,6 +21,9 @@ namespace dmGameSystem
     dmResource::Result ResSkeletonDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResSkeletonRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResSkeletonGetInfo(dmResource::ResourceGetInfoParams& params);
+
 }
 
 #endif // DM_GAMESYS_RES_SKELETON_H

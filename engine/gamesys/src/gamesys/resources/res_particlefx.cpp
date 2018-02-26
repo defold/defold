@@ -120,4 +120,26 @@ namespace dmGameSystem
         }
         return AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, prototype, params.m_Filename);
     }
+
+    dmResource::Result ResParticleFXGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        dmParticle::HPrototype prototype = (dmParticle::HPrototype)params.m_Resource->m_Resource;
+        params.m_DataSize = dmParticle::GetPrototypeResourceSize(prototype);
+        uint32_t emitter_count = dmParticle::GetEmitterCount(prototype);
+        params.m_SubResourceIds->SetCapacity(emitter_count*2);
+        for (uint32_t i = 0; i < emitter_count; ++i)
+        {
+            dmhash_t res_hash;
+            if(dmResource::GetPath(params.m_Factory, dmParticle::GetMaterial(prototype, i), &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+            if(dmResource::GetPath(params.m_Factory, dmParticle::GetTileSource(prototype, i), &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

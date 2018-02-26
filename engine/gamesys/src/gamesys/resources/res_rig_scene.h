@@ -19,6 +19,7 @@ namespace dmGameSystem
     {
         dmArray<dmRig::RigBone> m_BindPose;
         dmRigDDF::RigScene*     m_RigScene;
+        uint32_t                m_DDFSize;
 
         SkeletonResource*       m_SkeletonRes;
         MeshSetResource*        m_MeshSetRes;
@@ -36,6 +37,8 @@ namespace dmGameSystem
     dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResRigSceneGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_SPINE_SCENE_H

@@ -141,18 +141,18 @@ namespace dmFontView
             context->m_Factory = dmResource::NewFactory(&params, data_dir);
 
             dmResource::Result factory_result;
-    #define REGISTER_RESOURCE_TYPE(extension, precreate_func, create_func, post_create_func, destroy_func, recreate_func, duplicate_func)\
-            factory_result = dmResource::RegisterType(context->m_Factory, extension, 0, precreate_func, create_func, post_create_func, destroy_func, recreate_func, duplicate_func);\
+    #define REGISTER_RESOURCE_TYPE(extension, precreate_func, create_func, post_create_func, destroy_func, recreate_func, duplicate_func, getdesc_func)\
+            factory_result = dmResource::RegisterType(context->m_Factory, extension, 0, precreate_func, create_func, post_create_func, destroy_func, recreate_func, duplicate_func, getdesc_func);\
             if( factory_result != dmResource::RESULT_OK )\
             {\
                 dmLogFatal("Unable to register resource type: %s", extension);\
                 return false;\
             }\
 
-            REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontMapCreate, 0, dmGameSystem::ResFontMapDestroy, dmGameSystem::ResFontMapRecreate, 0);
-            REGISTER_RESOURCE_TYPE("vpc", 0, dmGameSystem::ResVertexProgramCreate, 0, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate, 0);
-            REGISTER_RESOURCE_TYPE("fpc", 0, dmGameSystem::ResFragmentProgramCreate, 0, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate, 0);
-            REGISTER_RESOURCE_TYPE("materialc", 0, dmGameSystem::ResMaterialCreate, 0, dmGameSystem::ResMaterialDestroy, 0, 0);
+            REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontMapCreate, 0, dmGameSystem::ResFontMapDestroy, dmGameSystem::ResFontMapRecreate, 0, 0);
+            REGISTER_RESOURCE_TYPE("vpc", 0, dmGameSystem::ResVertexProgramCreate, 0, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate, 0, 0);
+            REGISTER_RESOURCE_TYPE("fpc", 0, dmGameSystem::ResFragmentProgramCreate, 0, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate, 0, 0);
+            REGISTER_RESOURCE_TYPE("materialc", 0, dmGameSystem::ResMaterialCreate, 0, dmGameSystem::ResMaterialDestroy, 0, 0, 0);
 
     #undef REGISTER_RESOURCE_TYPE
 

@@ -140,4 +140,18 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Factory, (dmRender::HRenderContext) params.m_Context, ddf, font_map, params.m_Filename, &font_map, true);
         return r;
     }
+
+    dmResource::Result ResFontMapGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        dmRender::HFontMap font_map = (dmRender::HFontMap)params.m_Resource->m_Resource;
+        params.m_DataSize = dmRender::GetFontMapResourceSize(font_map);
+        params.m_SubResourceIds->SetCapacity(1);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, dmRender::GetFontMapMaterial(font_map), &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

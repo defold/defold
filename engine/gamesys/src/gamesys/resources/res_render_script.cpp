@@ -21,7 +21,7 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, &lua_module->m_Source);
+        dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, &lua_module->m_Source, params.m_BufferSize);
         dmDDF::FreeMessage(lua_module);
         if (render_script)
         {
@@ -56,7 +56,7 @@ namespace dmGameSystem
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_FORMAT_ERROR;
         }
-        if (dmRender::ReloadRenderScript(render_context, render_script, &lua_module->m_Source))
+        if (dmRender::ReloadRenderScript(render_context, render_script, &lua_module->m_Source, params.m_BufferSize))
         {
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
@@ -67,4 +67,11 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
+
+    dmResource::Result ResRenderScriptGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = dmRender::GetRenderScriptResourceSize((dmRender::HRenderScript) params.m_Resource->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
 }

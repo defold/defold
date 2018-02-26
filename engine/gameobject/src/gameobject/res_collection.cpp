@@ -169,7 +169,7 @@ namespace dmGameObject
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &set_params.m_PropertySet.m_UserData);
+                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &set_params.m_PropertySet.m_UserData, 0);
                                 if (!r)
                                 {
                                     dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, params.m_Filename);
@@ -219,6 +219,17 @@ bail:
     {
         HCollection collection = (HCollection) params.m_Resource->m_Resource;
         DeleteCollection(collection);
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResCollectionGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        HCollection res = (HCollection) params.m_Resource->m_Resource;
+        params.m_DataSize = GetCollectionResourceSize(res);
+        dmArray<dmhash_t> references;
+        dmGameObject::GetCollectionResourceReferences(res, references);
+        params.m_SubResourceIds->SetCapacity(references.Size());
+        params.m_SubResourceIds->PushArray(references.Begin(), references.Size());
         return dmResource::RESULT_OK;
     }
 }

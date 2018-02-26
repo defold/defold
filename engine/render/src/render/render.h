@@ -275,9 +275,9 @@ namespace dmRender
      */
     void Line3D(HRenderContext context, Point3 start, Point3 end, Vector4 start_color, Vector4 end_color);
 
-    HRenderScript   NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source);
+    HRenderScript   NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source, uint32_t source_resource_size);
 
-    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source);
+    bool            ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source, uint32_t source_resource_size);
 
     void            DeleteRenderScript(HRenderContext render_context, HRenderScript render_script);
 
@@ -290,6 +290,7 @@ namespace dmRender
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance);
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
+    uint32_t                GetRenderScriptResourceSize(HRenderScript render_script);
 
     // Material
     HMaterial                       NewMaterial(dmRender::HRenderContext render_context, dmGraphics::HVertexProgram vertex_program, dmGraphics::HFragmentProgram fragment_program);
@@ -302,6 +303,7 @@ namespace dmRender
     dmGraphics::HFragmentProgram    GetMaterialFragmentProgram(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, Constant& out_value);
+    uint32_t                        GetMaterialResourceSize(HMaterial material);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.

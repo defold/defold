@@ -16,6 +16,8 @@ namespace dmGameObject
     dmResource::Result ResScriptDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResScriptRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResScriptGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMEOBJECT_RES_SCRIPT_H

@@ -8,6 +8,7 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
+        resource->m_DDFSize = buffer_size;
         return dmResource::RESULT_OK;
     }
 
@@ -57,4 +58,12 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResCollectionProxyGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        CollectionProxyResource* res  = (CollectionProxyResource*) params.m_Resource->m_Resource;
+        params.m_DataSize = sizeof(CollectionProxyResource) + res->m_DDFSize;
+        return dmResource::RESULT_OK;
+    }
+
 }

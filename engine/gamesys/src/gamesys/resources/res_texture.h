@@ -16,6 +16,8 @@ namespace dmGameSystem
     dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResTextureRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResTextureGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif

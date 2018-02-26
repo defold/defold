@@ -12,6 +12,7 @@ namespace dmGameSystem
     struct CameraResource
     {
         dmGamesysDDF::CameraDesc* m_DDF;
+        uint32_t m_DDFSize;
     };
 
     dmResource::Result ResCameraCreate(const dmResource::ResourceCreateParams& params);
@@ -19,6 +20,8 @@ namespace dmGameSystem
     dmResource::Result ResCameraDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResCameraRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResCameraGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_CAMERA_H

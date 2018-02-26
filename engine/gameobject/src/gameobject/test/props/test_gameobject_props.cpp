@@ -61,7 +61,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;

@@ -49,4 +49,11 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, profiles, params.m_Filename);
         return r;
     }
+
+    dmResource::Result ResDisplayProfilesGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = dmRender::GetDisplayProfilesResourceSize((dmRender::HDisplayProfiles) params.m_Resource->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
 }

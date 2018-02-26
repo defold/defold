@@ -205,7 +205,7 @@ int main(void)
         luaSource.m_Script.m_Data = (uint8_t*) buf;
         luaSource.m_Script.m_Count = file_size;
         luaSource.m_Filename = script_file;
-        dmGui::SetScript(script, &luaSource);
+        dmGui::SetScript(script, &luaSource, 0);
 
         delete [] buf;
     }

@@ -14,6 +14,8 @@ namespace dmGameSystem
     dmResource::Result ResFontMapDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResFontMapRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResFontMapGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_FONT_MAP_H

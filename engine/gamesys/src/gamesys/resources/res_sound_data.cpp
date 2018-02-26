@@ -47,4 +47,11 @@ namespace dmGameSystem
         }
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResSoundDataGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = dmSound::GetSoundResourceSize((dmSound::HSoundData) params.m_Resource->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
 }

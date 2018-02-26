@@ -152,7 +152,9 @@ namespace dmGameObject
 
     HRegister NewRegister()
     {
-        return new Register();
+        HRegister regist = new Register();
+        ProfilerInitialize(regist);
+        return regist;
     }
 
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
@@ -174,6 +176,7 @@ namespace dmGameObject
 
     void DeleteRegister(HRegister regist)
     {
+        ProfilerFinalize(regist);
         uint32_t collection_count = regist->m_Collections.Size();
         for (uint32_t i = 0; i < collection_count; ++i)
         {
@@ -403,23 +406,23 @@ namespace dmGameObject
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, 0, 0);
+        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, 0, 0, ResPrototypeGetInfo);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate, 0);
+        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate, 0, ResScriptGetInfo);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate, 0);
+        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate, 0, ResLuaGetInfo);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, 0, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, 0, 0, ResCollectionGetInfo);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0, 0);
+        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0, 0, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -1077,7 +1080,7 @@ namespace dmGameObject
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData);
+                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData, 0);
                                 if (!r)
                                 {
                                     dmLogError("Could not read properties of game object '%s' in collection.", instance_desc.m_Id);
@@ -3132,6 +3135,58 @@ namespace dmGameObject
                         next_component_instance_data++;
                     }
                 }
+            }
+        }
+    }
+
+    uint32_t GetPrototypeResourceSize(HPrototype prototype)
+    {
+        return sizeof(Prototype) + prototype->m_ComponentsUserDataSize + (prototype->m_Components.Capacity()*sizeof(Prototype::Component));
+    }
+
+    uint32_t GetCollectionResourceSize(HCollection collection)
+    {
+        // We don't include the size of the instances created as we are returning the size of the created resource (not the subresources thereof)
+        uint32_t size = sizeof(Collection);
+        size += collection->m_InstanceIndices.Capacity()*sizeof(uint16_t);
+        size += collection->m_WorldTransforms.Capacity()*sizeof(Matrix4);
+        size += collection->m_IDToInstance.Capacity()*(sizeof(Instance*)+sizeof(dmhash_t));
+        size += collection->m_InputFocusStack.Capacity()*sizeof(Instance*);
+        size += collection->m_Instances.Capacity()*sizeof(Instance*);
+        return size;
+    }
+
+    void GetCollectionResourceReferences(HCollection collection, dmArray<dmhash_t>& references)
+    {
+        uint32_t count = collection->m_InstanceIndices.Size();
+        dmArray<Prototype*> reference_ptrs;
+        reference_ptrs.SetCapacity(count);
+        for (uint32_t level_i = 0; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+        {
+            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+            uint32_t ic = level.Size();
+            for (uint32_t i = 0; i < ic; ++i)
+            {
+                Instance* instance = collection->m_Instances[level[i]];
+                if(instance->m_ToBeDeleted || instance->m_Bone)
+                    continue;
+                uint32_t j = 0;
+                uint32_t k = reference_ptrs.Size();
+                for(; j < k; ++j)
+                    if(reference_ptrs[j] == instance->m_Prototype)
+                        break;
+                if(j == k)
+                    reference_ptrs.Push(instance->m_Prototype);
+            }
+        }
+        count = reference_ptrs.Size();
+        references.SetCapacity(count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmhash_t res_hash;
+            if(dmResource::GetPath(collection->m_Factory, reference_ptrs[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                references.Push(res_hash);
             }
         }
     }

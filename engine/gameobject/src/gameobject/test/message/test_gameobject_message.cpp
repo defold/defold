@@ -37,7 +37,7 @@ protected:
 
         m_MessageTargetCounter = 0;
 
-        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, 0, ResMessageTargetCreate, 0, ResMessageTargetDestroy, 0, 0);
+        dmResource::Result e = dmResource::RegisterType(m_Factory, "mt", this, 0, ResMessageTargetCreate, 0, ResMessageTargetDestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         // MessageTargetComponent

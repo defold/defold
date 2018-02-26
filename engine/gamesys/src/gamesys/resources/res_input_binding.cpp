@@ -43,4 +43,11 @@ namespace dmGameSystem
         dmDDF::FreeMessage((void*)ddf);
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResInputBindingGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = dmInput::GetBindingResourceSize((dmInput::HBinding)params.m_Resource->m_Resource);
+        return dmResource::RESULT_OK;
+    }
+
 }

@@ -2,6 +2,7 @@
 #define DM_GRAPHICS_H
 
 #include <stdint.h>
+#include <string.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
 #if defined(__AVM2__)
@@ -131,6 +132,43 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG16F                = 22,
         TEXTURE_FORMAT_R32F                 = 23,
         TEXTURE_FORMAT_RG32F                = 24,
+
+        TEXTURE_FORMAT_ENUM
+    };
+
+    // Translation table to translate TextureFormat texture to BPP
+    struct TextureFormatToBPP
+    {
+        uint8_t m_FormatToBPP[TEXTURE_FORMAT_ENUM];
+        TextureFormatToBPP()
+        {
+            memset(m_FormatToBPP, 0x0, sizeof(m_FormatToBPP));
+            m_FormatToBPP[TEXTURE_FORMAT_LUMINANCE]          = 8;
+            m_FormatToBPP[TEXTURE_FORMAT_LUMINANCE_ALPHA]    = 16;
+            m_FormatToBPP[TEXTURE_FORMAT_RGB]                = 24;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA]               = 32;
+            m_FormatToBPP[TEXTURE_FORMAT_RGB_16BPP]          = 16;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA_16BPP]         = 16;
+            m_FormatToBPP[TEXTURE_FORMAT_RGB_DXT1]           = 4;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT1]          = 4;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT3]          = 8;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT5]          = 8;
+            m_FormatToBPP[TEXTURE_FORMAT_DEPTH]              = 24;
+            m_FormatToBPP[TEXTURE_FORMAT_STENCIL]            = 8;
+            m_FormatToBPP[TEXTURE_FORMAT_RGB_PVRTC_2BPPV1]   = 2;
+            m_FormatToBPP[TEXTURE_FORMAT_RGB_PVRTC_4BPPV1]   = 4;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1]  = 2;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1]  = 4;
+            m_FormatToBPP[TEXTURE_FORMAT_RGB_ETC1]           = 4;
+            m_FormatToBPP[TEXTURE_FORMAT_RGB16F]             = 48;
+            m_FormatToBPP[TEXTURE_FORMAT_RGB32F]             = 96;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA16F]            = 64;
+            m_FormatToBPP[TEXTURE_FORMAT_RGBA32F]            = 128;
+            m_FormatToBPP[TEXTURE_FORMAT_R16F]               = 16;
+            m_FormatToBPP[TEXTURE_FORMAT_RG16F]              = 32;
+            m_FormatToBPP[TEXTURE_FORMAT_R32F]               = 32;
+            m_FormatToBPP[TEXTURE_FORMAT_RG32F]              = 64;
+        }
     };
 
     // Texture type
@@ -544,6 +582,9 @@ namespace dmGraphics
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void DeleteProgram(HContext context, HProgram program);
 
+    uint32_t GetVertexProgramSourceSize(HVertexProgram program);
+    uint32_t GetFragmentProgramSourceSize(HFragmentProgram program);
+
     bool ReloadVertexProgram(HVertexProgram prog, const void* program, uint32_t program_size);
     bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
@@ -609,6 +650,7 @@ namespace dmGraphics
 
     uint8_t* GetTextureData(HTexture texture);
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
+    uint32_t GetTextureResourceSize(HTexture texture);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);

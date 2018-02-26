@@ -27,6 +27,7 @@ namespace dmRender
         int             m_FunctionReferences[MAX_RENDER_SCRIPT_FUNCTION_COUNT];
         RenderContext*  m_RenderContext;
         int             m_InstanceReference;
+        uint32_t        m_ScriptResourceSize;
     };
 
     static const uint32_t MAX_PREDICATE_COUNT = 64;

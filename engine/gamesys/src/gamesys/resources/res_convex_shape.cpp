@@ -156,4 +156,11 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
+
+    dmResource::Result ResConvexShapeGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = sizeof(ConvexShapeResource);
+        return dmResource::RESULT_OK;
+    }
+
 }

@@ -38,7 +38,7 @@ namespace dmGameObject
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        HScript script = NewScript(L, lua_module);
+        HScript script = NewScript(L, lua_module, params.m_BufferSize);
         if (script)
         {
             params.m_Resource->m_Resource = (void*) script;
@@ -76,7 +76,7 @@ namespace dmGameObject
         }
 
         dmLuaDDF::LuaModule* old_lua_module = script->m_LuaModule;
-        bool ok = ReloadScript(script, lua_module);
+        bool ok = ReloadScript(script, lua_module, params.m_BufferSize);
         if (ok)
         {
             dmDDF::FreeMessage(old_lua_module);
@@ -88,4 +88,12 @@ namespace dmGameObject
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
+
+    dmResource::Result ResScriptGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = dmGameObject::GetScriptResourceSize((HScript)params.m_Resource->m_Resource);
+        return dmResource::RESULT_OK;
+
+    }
+
 }

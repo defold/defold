@@ -46,6 +46,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Factory, model_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
+            model_resource->m_DDFSize = params.m_BufferSize;
             params.m_Resource->m_Resource = (void*) model_resource;
         }
         else
@@ -75,6 +76,25 @@ namespace dmGameSystem
         SpineModelResource* model_resource = (SpineModelResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, model_resource);
         model_resource->m_Model = ddf;
+        model_resource->m_DDFSize = params.m_BufferSize;
         return AcquireResources(params.m_Factory, model_resource, params.m_Filename);
     }
+
+    dmResource::Result ResSpineModelGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        SpineModelResource* res = (SpineModelResource*)params.m_Resource->m_Resource;
+        params.m_DataSize = sizeof(SpineModelResource) + res->m_DDFSize;
+        params.m_SubResourceIds->SetCapacity(2);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_RigScene, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_Material, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

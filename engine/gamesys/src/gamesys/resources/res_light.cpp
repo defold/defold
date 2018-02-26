@@ -39,4 +39,11 @@ namespace dmGameSystem
         *light_resource = light_desc;
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResLightGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        params.m_DataSize = sizeof(dmGameSystemDDF::LightDesc);
+        return dmResource::RESULT_OK;
+    }
+
 }

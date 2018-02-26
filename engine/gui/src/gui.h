@@ -645,7 +645,7 @@ namespace dmGui
      * @param particlefx_name Name of the particlefx that will be used in the gui scripts
      */
     void RemoveParticlefx(HScene scene, const char* particlefx_name);
-    
+
     /**
      * Adds a spine scene with the specified name to the scene.
      * @note Any nodes connected to the same spine_scene_name will also be connected to the new spine scene. This makes this function O(n), where n is #nodes.
@@ -1144,7 +1144,8 @@ namespace dmGui
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);
-    Result SetScript(HScript script, dmLuaDDF::LuaSource *source);
+    Result SetScript(HScript script, dmLuaDDF::LuaSource *source, uint32_t source_resource_size);
+    uint32_t GetScriptResourceSize(HScript script);
 
     /** Gets the lua state used for gui scripts.
      * @return lua state

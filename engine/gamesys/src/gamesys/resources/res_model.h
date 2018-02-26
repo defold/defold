@@ -12,6 +12,7 @@ namespace dmGameSystem
     struct ModelResource
     {
         dmModelDDF::Model*      m_Model;
+        uint32_t                m_DDFSize;
         RigSceneResource*       m_RigScene;
         dmRender::HMaterial     m_Material;
         dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
@@ -25,6 +26,8 @@ namespace dmGameSystem
     dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResModelGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_MODEL_H

@@ -12,6 +12,8 @@ namespace dmGameSystem
     dmResource::Result ResDisplayProfilesDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResDisplayProfilesRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResDisplayProfilesGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif

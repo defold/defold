@@ -37,6 +37,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
+            ss_resource->m_DDFSize = params.m_BufferSize;
             params.m_Resource->m_Resource = (void*) ss_resource;
         }
         else
@@ -67,6 +68,15 @@ namespace dmGameSystem
         MeshSetResource* ss_resource = (MeshSetResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
         ss_resource->m_MeshSet = spine_scene;
+        ss_resource->m_DDFSize = params.m_BufferSize;
         return AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
     }
+
+    dmResource::Result ResMeshSetGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        MeshSetResource* res = (MeshSetResource*)params.m_Resource->m_Resource;
+        params.m_DataSize = sizeof(MeshSetResource) + res->m_DDFSize;
+        return dmResource::RESULT_OK;
+    }
+
 }

@@ -210,6 +210,7 @@ namespace dmGui
         int         m_FunctionReferences[MAX_SCRIPT_FUNCTION_COUNT];
         Context*    m_Context;
         int         m_InstanceReference;
+        uint32_t    m_ScriptResourceSize;
     };
 
     struct TextureInfo

@@ -104,7 +104,7 @@ TEST_F(dmGuiScriptTest, URLOutsideFunctions)
     params.m_RigContext = m_RigContext;
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
@@ -137,7 +137,7 @@ TEST_F(dmGuiScriptTest, GetScreenPos)
                       "    assert(gui.get_screen_position(n1) == gui.get_screen_position(n2))\n"
                       "    assert(gui.get_screen_position(n1) == gui.get_screen_position(n3))\n"
                       "end\n";
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(scene));
@@ -185,7 +185,7 @@ TEST_F(dmGuiScriptTest, TestInstanceCallback)
             "    test_ref()\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     dmGui::InitScene(scene);
@@ -232,7 +232,7 @@ TEST_F(dmGuiScriptTest, TestGlobalNodeFail)
             "    assert(gui.get_position(n).x == 1)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -270,7 +270,7 @@ TEST_F(dmGuiScriptTest, TestParenting)
             "    assert(gui.get_parent(child) == nil)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -310,7 +310,7 @@ TEST_F(dmGuiScriptTest, TestGetIndex)
             "    assert(gui.get_index(child) == 1)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -357,7 +357,7 @@ TEST_F(dmGuiScriptTest, TestCloneTree)
             "    assert(gui.get_text(t.n4) ~= gui.get_text(n4))\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -395,7 +395,7 @@ TEST_F(dmGuiScriptTest, TestPieNodeScript)
             "    assert(gui.get_fill_angle(n) == 90)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -426,7 +426,7 @@ TEST_F(dmGuiScriptTest, TestTextNodeScript)
             "    assert(gui.get_tracking(n) == 0.5)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -457,7 +457,7 @@ TEST_F(dmGuiScriptTest, TestSlice9)
             "    assert(gui.get_slice9(n) == v)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -497,7 +497,7 @@ TEST_F(dmGuiScriptTest, TestSizeMode)
             "    assert(gui.get_size(n) == vmath.vector3(1, 1, 0))\n"
             "end\n";
 
-    result = SetScript(script, LuaSourceFromStr(src));
+    result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -536,7 +536,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformSetPos)
             "    gui.set_position(n1, vmath.vector3(2, 2, 2))\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -572,7 +572,7 @@ static void InitializeScriptScene(dmGui::HContext* context,
     result = dmGui::SetSceneScript(*scene, *script);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    result = SetScript(*script, LuaSourceFromStr(source));
+    result = SetScript(*script, LuaSourceFromStr(source), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(*scene);
@@ -653,7 +653,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnim)
             "    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -710,7 +710,7 @@ TEST_F(dmGuiScriptTest, TestLocalTransformAnimWithCallback)
             "    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1, 0, anim_done)\n"
             "end\n";
 
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+    dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     result = dmGui::InitScene(scene);
@@ -766,7 +766,7 @@ TEST_F(dmGuiScriptTest, TestCustomEasingAnimation)
 			"    gui.animate(n1, gui.PROP_POSITION, vmath.vector3(1, 1, 1), curve, 1)\n"
 			"end\n";
 
-	dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+	dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
 	ASSERT_EQ(dmGui::RESULT_OK, result);
 
 	result = dmGui::InitScene(scene);
@@ -821,7 +821,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimation)
                 "    end\n"
                 "end\n";
 
-        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         result = dmGui::InitScene(scene);
@@ -888,7 +888,7 @@ TEST_F(dmGuiScriptTest, TestCancelAnimationComponent)
                 "    end\n"
                 "end\n";
 
-        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         result = dmGui::InitScene(scene);
@@ -1029,7 +1029,7 @@ TEST_F(dmGuiScriptTest, SpineScenes)
                 "    gui.animate(n, gui.PROP_SCALE, vmath.vector3(2, 2, 2), gui.EASING_LINEAR, 1, 0, nil, gui.PLAYBACK_LOOP_FORWARD)\n"
                 "end\n";
 
-        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         result = dmGui::InitScene(scene);
@@ -1071,7 +1071,7 @@ TEST_F(dmGuiScriptTest, DeleteSpine)
                 "    gui.delete_node(n)\n"
                 "end\n";
 
-        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         result = dmGui::InitScene(scene);
@@ -1120,7 +1120,7 @@ TEST_F(dmGuiScriptTest, DeleteBone)
                 "    gui.delete_node(bone_node)\n"
                 "end\n";
 
-        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         result = dmGui::InitScene(scene);
@@ -1177,7 +1177,7 @@ TEST_F(dmGuiScriptTest, SetBoneNodeProperties)
                 "    assert(gui.get_spine_scene(bone_node) == hash(\"\"))\n"
                 "end\n";
 
-        dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
+        dmGui::Result result = SetScript(script, LuaSourceFromStr(src), 0);
         ASSERT_EQ(dmGui::RESULT_OK, result);
 
         result = dmGui::InitScene(scene);

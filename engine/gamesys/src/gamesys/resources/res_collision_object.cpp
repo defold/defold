@@ -133,6 +133,7 @@ range_error:
         {
             return false;
         }
+        resource->m_DDFSize = buffer_size;
         resource->m_Group = dmHashString64(resource->m_DDF->m_Group);
         uint32_t mask_count = resource->m_DDF->m_Mask.m_Count;
         if (mask_count > 16)
@@ -313,4 +314,18 @@ range_error:
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
+
+    dmResource::Result ResCollisionObjectGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        CollisionObjectResource* res  = (CollisionObjectResource*) params.m_Resource->m_Resource;
+        params.m_DataSize = sizeof(CollisionObjectResource) + res->m_DDFSize;
+        params.m_SubResourceIds->SetCapacity(1);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_TileGridResource, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

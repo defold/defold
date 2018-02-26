@@ -24,6 +24,7 @@ namespace dmGameSystem
         uint32_t                                m_RowCount;
         int32_t                                 m_MinCellX;
         int32_t                                 m_MinCellY;
+        uint32_t                                m_DDFSize;
     };
 
     dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams& params);
@@ -33,6 +34,9 @@ namespace dmGameSystem
     dmResource::Result ResTileGridDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResTileGridGetInfo(dmResource::ResourceGetInfoParams& params);
+
 }
 
 #endif // DM_GAMESYS_RES_TILEGRID_H

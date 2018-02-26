@@ -1336,6 +1336,38 @@ namespace dmGameObject
      */
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context);
 
+    /**
+     * Get resource size of a prototype
+     * @param prototype HPrototype handle
+     * @return size
+     */
+    uint32_t GetPrototypeResourceSize(HPrototype prototype);
+
+    /**
+     * Get resource size of a collection
+     * @param collection HCollection handle
+     * @return size
+     */
+    uint32_t GetCollectionResourceSize(HCollection collection);
+
+    /**
+     * Get resource references of a collection
+     * @param collection HCollection handle
+     * @param references Array that will receive the resource reference hashes
+     */
+    void GetCollectionResourceReferences(HCollection collection, dmArray<dmhash_t>& references);
+
+    /**
+     * Creates a snapshot of current state of gameobject registry. Contains information about all existing collections, their underlying gameobjects and components.
+     * @param tag Unique nametag of snapshot
+     */
+    void ProfilerSnapshot(const char *tag);
+
+    /**
+     * Reset profiler. Clears all existing snapshots
+     */
+    void ProfilerReset();
+
 }
 
 #endif // GAMEOBJECT_H

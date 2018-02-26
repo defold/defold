@@ -36,6 +36,7 @@ namespace dmGameSystem
         uint32_t m_ShapeCount;
 
         dmPhysicsDDF::CollisionObjectDesc* m_DDF;
+        uint32_t m_DDFSize;
         uint32_t m_TileGrid : 1;
     };
 
@@ -46,6 +47,8 @@ namespace dmGameSystem
     dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params);
 
     dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResCollisionObjectGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif
