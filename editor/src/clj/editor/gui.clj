@@ -687,16 +687,21 @@
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
           (g/fnk [_node-id layer-index blend-mode inherit-alpha gpu-texture material-shader scene-renderable-user-data aabb]
-            (let [gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))]
+            (let [clipping-state (:clipping-state scene-renderable-user-data)
+                  gpu-texture (or gpu-texture (:gpu-texture scene-renderable-user-data))
+                  material-shader (get scene-renderable-user-data :override-material-shader material-shader)]
               {:render-fn render-nodes
                :aabb aabb
                :passes [pass/transparent pass/selection pass/outline]
                :user-data (assoc scene-renderable-user-data
+                                 :blend-mode blend-mode
                                  :gpu-texture gpu-texture
                                  :inherit-alpha inherit-alpha
-                                 :material-shader material-shader
-                                 :blend-mode blend-mode)
-               :batch-key {:texture gpu-texture :blend-mode blend-mode}
+                                 :material-shader material-shader)
+               :batch-key {:clipping-state clipping-state
+                           :blend-mode blend-mode
+                           :gpu-texture gpu-texture
+                           :material-shader material-shader}
                :select-batch-key _node-id
                :layer-index layer-index
                :topmost? true
@@ -925,17 +930,20 @@
                                         (font-datas ""))))
 
   ;; Overloaded outputs
-  (output material-shader ShaderLifecycle (g/fnk [font-shaders font]
-                                            (or (font-shaders font)
-                                                (font-shaders ""))))
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [aabb-size pivot text-data]
+          (g/fnk [aabb-size font font-shaders pivot text-data]
                  (let [[w h] aabb-size
                        offset (pivot-offset pivot aabb-size)
-                       lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
+                       lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
+                       font-shader (or (font-shaders font) (font-shaders ""))]
+                   ;; The material-shader output is used to propagate the shader
+                   ;; from the GuiSceneNode to our child nodes. Thus we cannot
+                   ;; simply overload the material-shader output on this node.
+                   ;; Instead, the base VisualNode will pick it up from here.
                    {:line-data lines
-                    :text-data text-data})))
+                    :text-data text-data
+                    :override-material-shader font-shader})))
   (output text-layout g/Any :cached (g/fnk [size font-data text line-break text-leading text-tracking]
                                            (font/layout-text (:font-map font-data) text line-break (first size) text-tracking text-leading)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
@@ -1803,7 +1811,7 @@
                :aabb aabb
                :renderable {:render-fn render-lines
                             :passes [pass/transparent]
-                            :batch-key []
+                            :batch-key nil
                             :user-data {:line-data [[0 0 0] [w 0 0] [w 0 0] [w h 0] [w h 0] [0 h 0] [0 h 0] [0 0 0]]
                                         :line-color colors/defold-white}}
                :children (mapv (partial apply-alpha 1.0) child-scenes)}]

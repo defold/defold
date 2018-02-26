@@ -749,8 +749,8 @@
 ;; Values
 ;; ---------------------------------------------------------------------------
 (defn make-evaluation-context
-  ([] (make-evaluation-context {}))
-  ([options] (is/make-evaluation-context @*the-system* options)))
+  ([] (is/default-evaluation-context @*the-system*))
+  ([options] (is/custom-evaluation-context @*the-system* options)))
 
 (defn- do-node-value [node-id label evaluation-context]
   (is/node-value @*the-system* node-id label evaluation-context))

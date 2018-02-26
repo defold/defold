@@ -3,8 +3,6 @@
             [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [editor.script :as script]
-            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [editor.code-completion :refer :all]
@@ -15,7 +13,7 @@
   (let [root-dir (workspace/project-path workspace)]
     (test-util/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir path) (.getBytes code "UTF-8"))))
 
-(defn- perform-script-node-dependencies-test! []
+(deftest script-node-dependencies
   (test-util/with-loaded-project "test/resources/empty_project"
     (let [script-resource  (make-script-resource world workspace "test.script"
                                                  "x = 42")
@@ -64,15 +62,9 @@
         (test-util/code-editor-source! script-node "require \"\"\"\"")
         (test-util/code-editor-source! script-node "require \"a.b.c\"\"")))))
 
-(deftest script-node-dependencies
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-script-node-dependencies-test!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-script-node-dependencies-test!)))
-
 (defn- lines [& args] (str (str/join "\n" args) "\n"))
 
-(defn- perform-script-node-completions-test! []
+(deftest script-node-completions
   (testing "includes completions from direct requires"
     (test-util/with-loaded-project "test/resources/empty_project"
       (let [script-resource  (make-script-resource world workspace "test.script"
@@ -112,9 +104,3 @@
             completions      (g/node-value script-node :completions)]
         (is (= #{"a.f"}
                (set (map :name (get completions "a")))))))))
-
-(deftest script-node-completions
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-script-node-completions-test!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-script-node-completions-test!)))

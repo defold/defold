@@ -11,6 +11,11 @@
 #include "gamesys_ddf.h"
 #include "label_ddf.h"
 
+#if defined(_WIN32)
+#include <malloc.h>
+#define alloca(_SIZE) _alloca(_SIZE)
+#endif
+
 namespace dmGameSystem
 {
 
@@ -128,11 +133,6 @@ namespace dmGameSystem
  * ```
  */
 
-static void FreeLabelString(dmMessage::Message* message)
-{
-    dmGameSystemDDF::SetText* textmsg = (dmGameSystemDDF::SetText*) message->m_Data;
-    free( (void*)textmsg->m_Text );
-}
 
 /*# set the text for a label
  *
@@ -161,16 +161,23 @@ static int SetText(lua_State* L)
         return DM_LUA_ERROR("Expected string as second argument");
     }
 
+    size_t len = strlen(text)+1;
+    size_t size = sizeof(dmGameSystemDDF::SetText);
+    uint8_t* mem = (uint8_t*)alloca(size+len);
+
     dmGameSystemDDF::SetText msg;
-    msg.m_Text = strdup(text);
+    msg.m_Text = (const char*)(uintptr_t)size; // The text is directory behind the message
+
+    memcpy(mem, &msg, size);
+    memcpy(mem+size, text, len);
 
     dmMessage::URL receiver;
     dmMessage::URL sender;
+    dmScript::GetURL(L, &sender);
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, &msg, sizeof(msg), FreeLabelString) )
+    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, mem, size+len, 0) )
     {
-        free((void*)msg.m_Text);
         return DM_LUA_ERROR("Failed to send label string as message!");
     }
     return 0;
