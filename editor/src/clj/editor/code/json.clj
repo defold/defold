@@ -30,7 +30,7 @@
 (def json-defs [{:ext "json"
                  :label "JSON"
                  :icon "icons/32/Icons_11-Script-general.png"
-                 :view-types [:new-code :default]
+                 :view-types [:code :default]
                  :view-opts json-code-opts}])
 
 (defn register-resource-types [workspace]

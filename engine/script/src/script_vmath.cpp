@@ -1776,18 +1776,18 @@ namespace dmScript
         return 1;
     }
 
-    /*# calculates the squared vector length
+    /*# calculates the squared length of a vector or quaternion
      *
-     * Returns the squared length of the supplied vector.
+     * Returns the squared length of the supplied vector or quaternion.
      *
      * @name vmath.length_sqr
-     * @param v [type:vector3|vector4|quat] vector of which to calculate the squared length
-     * @return n [type:number] squared vector length
+     * @param v [type:vector3|vector4|quat] value of which to calculate the squared length
+     * @return n [type:number] squared length
      * @examples
      *
      * ```lua
-     * if vmath.length_sqr(vector1) == 1 then
-     *     -- The vector is normalized
+     * if vmath.length_sqr(vector1) < vmath.length_sqr(vector2) then
+     *     -- Vector 1 has less magnitude than vector 2
      *     ...
      * end
      * ```
@@ -1818,18 +1818,25 @@ namespace dmScript
         return 1;
     }
 
-    /*# calculates the vector length
+    /*# calculates the length of a vector or quaternion
      *
-     * Returns the length of the supplied vector.
+     * Returns the length of the supplied vector or quaternion.
+     *
+     * If you are comparing the lengths of vectors or quaternions, you should compare
+     * the length squared instead as it is slightly more efficient to calculate
+     * (it eliminates a square root calculation).
      *
      * @name vmath.length
-     * @param v [type:vector3|vector4|quat] vector of which to calculate the length
-     * @return n [type:number] vector length
+     * @param v [type:vector3|vector4|quat] value of which to calculate the length
+     * @return n [type:number] length
      * @examples
      *
      * ```lua
      * if vmath.length(self.velocity) < max_velocity then
      *     -- The speed (velocity vector) is below max.
+     *
+     *     -- TODO: max_velocity can be expressed as squared
+     *     -- so we can compare with length_sqr() instead.
      *     ...
      * end
      * ```
@@ -2260,6 +2267,51 @@ namespace dmScript
         return 1;
     }
 
+    /*# performs an element wise multiplication of two vectors
+     *
+     * Performs an element wise multiplication between two vectors of the same type
+     * The returned value is a vector defined as (e.g. for a vector3):
+     *
+     * <code>v = vmath.mul_per_elem(a, b) = vmath.vector3(a.x * b.x, a.y * b.y, a.z * b.z)</code>
+     *
+     * @name vmath.mul_per_elem
+     * @param v1 [type:vector3|vector4] first vector
+     * @param v2 [type:vector3|vector4] second vector
+     * @return v [type:vector3|vector4] multiplied vector
+     * @examples
+     *
+     * ```lua
+     * local blend_color = vmath.mul_per_elem(color1, color2)
+     * ```
+     */
+    static int MulPerElem(lua_State* L)
+    {
+        const ScriptUserType type1 = GetType(L, 1);
+        const ScriptUserType type2 = GetType(L, 2);
+
+        if (type1 != type2)
+        {
+            return luaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "mul_per_elem");
+        }
+        if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
+        {
+            Vectormath::Aos::Vector3* v1 = CheckVector3(L, 1);
+            Vectormath::Aos::Vector3* v2 = CheckVector3(L, 2);
+            PushVector3(L, Vectormath::Aos::mulPerElem(*v1, *v2));
+        }
+        else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
+        {
+            Vectormath::Aos::Vector4* v1 = CheckVector4(L, 1);
+            Vectormath::Aos::Vector4* v2 = CheckVector4(L, 2);
+            PushVector4(L, Vectormath::Aos::mulPerElem(*v1, *v2));
+        }
+        else
+        {
+            return luaL_error(L, "%s.%s accepts (%s|%s) as arguments.", SCRIPT_LIB_NAME, "mul_per_elem", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
+        }
+        return 1;
+    }
+
     static const luaL_reg methods[] =
     {
         {SCRIPT_TYPE_NAME_VECTOR, Vector_new},
@@ -2294,6 +2346,7 @@ namespace dmScript
         {"project", Project},
         {"inv", Inverse},
         {"ortho_inv", OrthoInverse},
+        {"mul_per_elem", MulPerElem},
         {0, 0}
     };
 

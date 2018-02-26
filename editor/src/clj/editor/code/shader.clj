@@ -51,17 +51,17 @@
               {:match #"\b(asm|enum|extern|goto|inline|long|short|sizeof|static|typedef|union|unsigned|volatile)\b"
                :name "invalid.illegal.glsl"}]})
 
-(def ^:private glsl-opts {:new-code {:grammar glsl-grammar}})
+(def ^:private glsl-opts {:code {:grammar glsl-grammar}})
 
 (def shader-defs [{:ext "vp"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts glsl-opts}])
 
 (defn- build-shader [resource _dep-resources user-data]

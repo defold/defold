@@ -795,7 +795,6 @@
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
-  (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property grammar g/Any (dynamic visible (g/constantly false)))
   (property gutter-view GutterView (dynamic visible (g/constantly false)))
@@ -879,6 +878,10 @@
           [(g/operation-sequence opseq)
            (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
 
+;; Since the elapsed time updates at 60 fps, we keep it outside the graph to avoid transaction churn.
+;; This is updated from the repaint-view! function elsewhere in this file.
+(defonce ^:private *elapsed-time-by-view-node (atom {}))
+
 (defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
   ;; Along with undo grouping info, we also keep track of when an action was
   ;; last performed in the document. We use this to stop the cursor from
@@ -886,7 +889,7 @@
   (into (operation-sequence-tx-data view-node undo-grouping)
         (when (or (contains? values-by-prop-kw :cursor-ranges)
                   (contains? values-by-prop-kw :lines))
-          (g/set-property view-node :elapsed-time-at-last-action (g/node-value view-node :elapsed-time)))))
+          (g/set-property view-node :elapsed-time-at-last-action (get @*elapsed-time-by-view-node view-node 0.0)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -1277,13 +1280,13 @@
     :else
     (deindent! view-node)))
 
-(handler/defhandler :tab :new-code-view
+(handler/defhandler :tab :code-view
   (run [view-node] (tab! view-node)))
 
-(handler/defhandler :backwards-tab-trigger :new-code-view
+(handler/defhandler :backwards-tab-trigger :code-view
   (run [view-node] (shift-tab! view-node)))
 
-(handler/defhandler :proposals :new-code-view
+(handler/defhandler :proposals :code-view
   (run [view-node] (show-suggestions! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -1482,103 +1485,103 @@
                    (data/split-selection-into-lines (get-property view-node :lines)
                                                     (get-property view-node :cursor-ranges))))
 
-(handler/defhandler :select-up :new-code-view
+(handler/defhandler :select-up :code-view
   (run [view-node] (move! view-node :selection :up)))
 
-(handler/defhandler :select-down :new-code-view
+(handler/defhandler :select-down :code-view
   (run [view-node] (move! view-node :selection :down)))
 
-(handler/defhandler :select-left :new-code-view
+(handler/defhandler :select-left :code-view
   (run [view-node] (move! view-node :selection :left)))
 
-(handler/defhandler :select-right :new-code-view
+(handler/defhandler :select-right :code-view
   (run [view-node] (move! view-node :selection :right)))
 
-(handler/defhandler :prev-word :new-code-view
+(handler/defhandler :prev-word :code-view
   (run [view-node] (move! view-node :navigation :prev-word)))
 
-(handler/defhandler :select-prev-word :new-code-view
+(handler/defhandler :select-prev-word :code-view
   (run [view-node] (move! view-node :selection :prev-word)))
 
-(handler/defhandler :next-word :new-code-view
+(handler/defhandler :next-word :code-view
   (run [view-node] (move! view-node :navigation :next-word)))
 
-(handler/defhandler :select-next-word :new-code-view
+(handler/defhandler :select-next-word :code-view
   (run [view-node] (move! view-node :selection :next-word)))
 
-(handler/defhandler :beginning-of-line :new-code-view
+(handler/defhandler :beginning-of-line :code-view
   (run [view-node] (move! view-node :navigation :line-start)))
 
-(handler/defhandler :select-beginning-of-line :new-code-view
+(handler/defhandler :select-beginning-of-line :code-view
   (run [view-node] (move! view-node :selection :line-start)))
 
-(handler/defhandler :beginning-of-line-text :new-code-view
+(handler/defhandler :beginning-of-line-text :code-view
   (run [view-node] (move! view-node :navigation :home)))
 
-(handler/defhandler :select-beginning-of-line-text :new-code-view
+(handler/defhandler :select-beginning-of-line-text :code-view
   (run [view-node] (move! view-node :selection :home)))
 
-(handler/defhandler :end-of-line :new-code-view
+(handler/defhandler :end-of-line :code-view
   (run [view-node] (move! view-node :navigation :end)))
 
-(handler/defhandler :select-end-of-line :new-code-view
+(handler/defhandler :select-end-of-line :code-view
   (run [view-node] (move! view-node :selection :end)))
 
-(handler/defhandler :page-up :new-code-view
+(handler/defhandler :page-up :code-view
   (run [view-node] (page-up! view-node :navigation)))
 
-(handler/defhandler :select-page-up :new-code-view
+(handler/defhandler :select-page-up :code-view
   (run [view-node] (page-up! view-node :selection)))
 
-(handler/defhandler :page-down :new-code-view
+(handler/defhandler :page-down :code-view
   (run [view-node] (page-down! view-node :navigation)))
 
-(handler/defhandler :select-page-down :new-code-view
+(handler/defhandler :select-page-down :code-view
   (run [view-node] (page-down! view-node :selection)))
 
-(handler/defhandler :beginning-of-file :new-code-view
+(handler/defhandler :beginning-of-file :code-view
   (run [view-node] (move! view-node :navigation :file-start)))
 
-(handler/defhandler :select-beginning-of-file :new-code-view
+(handler/defhandler :select-beginning-of-file :code-view
   (run [view-node] (move! view-node :selection :file-start)))
 
-(handler/defhandler :end-of-file :new-code-view
+(handler/defhandler :end-of-file :code-view
   (run [view-node] (move! view-node :navigation :file-end)))
 
-(handler/defhandler :select-end-of-file :new-code-view
+(handler/defhandler :select-end-of-file :code-view
   (run [view-node] (move! view-node :selection :file-end)))
 
-(handler/defhandler :cut :new-code-view
+(handler/defhandler :cut :code-view
   (enabled? [view-node] (has-selection? view-node))
   (run [view-node clipboard] (cut! view-node clipboard)))
 
-(handler/defhandler :copy :new-code-view
+(handler/defhandler :copy :code-view
   (enabled? [view-node] (has-selection? view-node))
   (run [view-node clipboard] (copy! view-node clipboard)))
 
-(handler/defhandler :paste :new-code-view
+(handler/defhandler :paste :code-view
   (enabled? [view-node clipboard] (can-paste? view-node clipboard))
   (run [view-node clipboard] (paste! view-node clipboard)))
 
-(handler/defhandler :select-all :new-code-view
+(handler/defhandler :select-all :code-view
   (run [view-node] (select-all! view-node)))
 
-(handler/defhandler :delete :new-code-view
+(handler/defhandler :delete :code-view
   (run [view-node] (delete! view-node :delete-after)))
 
-(handler/defhandler :delete-backward :new-code-view
+(handler/defhandler :delete-backward :code-view
   (run [view-node] (delete! view-node :delete-before)))
 
-(handler/defhandler :select-next-occurrence :new-code-view
+(handler/defhandler :select-next-occurrence :code-view
   (run [view-node] (select-next-occurrence! view-node)))
 
-(handler/defhandler :select-next-occurrence :new-console
+(handler/defhandler :select-next-occurrence :code-view-tools
   (run [view-node] (select-next-occurrence! view-node)))
 
-(handler/defhandler :split-selection-into-lines :new-code-view
+(handler/defhandler :split-selection-into-lines :code-view
   (run [view-node] (split-selection-into-lines! view-node)))
 
-(handler/defhandler :toggle-breakpoint :new-code-view
+(handler/defhandler :toggle-breakpoint :code-view
   (run [view-node]
        (let [lines (get-property view-node :lines)
              cursor-ranges (get-property view-node :cursor-ranges)
@@ -1589,7 +1592,7 @@
                                                   regions
                                                   breakpoint-rows)))))
 
-(handler/defhandler :reindent :new-code-view
+(handler/defhandler :reindent :code-view
   (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
   (run [view-node]
        (set-properties! view-node nil
@@ -1601,7 +1604,7 @@
                                        (get-property view-node :regions)
                                        (get-property view-node :layout)))))
 
-(handler/defhandler :convert-indentation :new-code-view
+(handler/defhandler :convert-indentation :code-view
   (run [view-node user-data]
        (set-properties! view-node nil
                         (data/convert-indentation (get-property view-node :indent-type)
@@ -1624,11 +1627,11 @@
                                     (get-property view-node :regions)
                                     sort-key-fn)))
 
-(handler/defhandler :sort-lines :new-code-view
+(handler/defhandler :sort-lines :code-view
   (enabled? [view-node] (can-sort-lines? view-node))
   (run [view-node] (sort-lines! view-node string/lower-case)))
 
-(handler/defhandler :sort-lines-case-sensitive :new-code-view
+(handler/defhandler :sort-lines-case-sensitive :code-view
   (enabled? [view-node] (can-sort-lines? view-node))
   (run [view-node] (sort-lines! view-node identity)))
 
@@ -1677,28 +1680,28 @@
 ;; View Settings
 ;; -----------------------------------------------------------------------------
 
-(handler/defhandler :zoom-out :new-console
+(handler/defhandler :zoom-out :code-view-tools
   (enabled? [] (<= 4.0 ^double (.getValue font-size-property)))
   (run [] (when (<= 4.0 ^double (.getValue font-size-property))
             (.setValue font-size-property (dec ^double (.getValue font-size-property))))))
 
-(handler/defhandler :zoom-in :new-console
+(handler/defhandler :zoom-in :code-view-tools
   (enabled? [] (>= 32.0 ^double (.getValue font-size-property)))
   (run [] (when (>= 32.0 ^double (.getValue font-size-property))
             (.setValue font-size-property (inc ^double (.getValue font-size-property))))))
 
-(handler/defhandler :reset-zoom :new-console
+(handler/defhandler :reset-zoom :code-view-tools
   (run [] (.setValue font-size-property default-font-size)))
 
-(handler/defhandler :toggle-indentation-guides :new-console
+(handler/defhandler :toggle-indentation-guides :code-view-tools
   (run [] (.setValue visible-indentation-guides-property (not (.getValue visible-indentation-guides-property))))
   (state [] (.getValue visible-indentation-guides-property)))
 
-(handler/defhandler :toggle-minimap :new-console
+(handler/defhandler :toggle-minimap :code-view-tools
   (run [] (.setValue visible-minimap-property (not (.getValue visible-minimap-property))))
   (state [] (.getValue visible-minimap-property)))
 
-(handler/defhandler :toggle-visible-whitespace :new-console
+(handler/defhandler :toggle-visible-whitespace :code-view-tools
   (run [] (.setValue visible-whitespace-property (not (.getValue visible-whitespace-property))))
   (state [] (.getValue visible-whitespace-property)))
 
@@ -1761,7 +1764,7 @@
 (defn- dispose-goto-line-bar! [^GridPane goto-line-bar]
   (.unbind (.visibleProperty goto-line-bar)))
 
-(handler/defhandler :goto-line :new-console
+(handler/defhandler :goto-line :code-view-tools
   (run [goto-line-bar]
        (set-bar-ui-type! :goto-line)
        (ui/with-controls goto-line-bar [^TextField line-field]
@@ -1791,7 +1794,7 @@
   (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) bar-ui-type-property))
   (.bind (.managedProperty find-bar) (.visibleProperty find-bar))
   (doto find-bar
-    (ui/context! :new-find-bar {:find-bar find-bar :view-node view-node} nil)
+    (ui/context! :code-view-find-bar {:find-bar find-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
@@ -1816,7 +1819,7 @@
   (.bind (.visibleProperty replace-bar) (Bindings/equal (name :replace) bar-ui-type-property))
   (.bind (.managedProperty replace-bar) (.visibleProperty replace-bar))
   (doto replace-bar
-    (ui/context! :new-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
+    (ui/context! :code-view-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
@@ -1899,31 +1902,31 @@
                                      (.getValue find-case-sensitive-property)
                                      (.getValue find-whole-word-property))))
 
-(handler/defhandler :find-text :new-code-view
+(handler/defhandler :find-text :code-view
   (run [find-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-bar-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :replace-text :new-code-view
+(handler/defhandler :replace-text :code-view
   (run [replace-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :find-text :new-console ;; In practice, from find / replace bars.
+(handler/defhandler :find-text :code-view-tools ;; In practice, from find / replace and go to line bars.
   (run [find-bar]
        (set-bar-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :replace-text :new-console
+(handler/defhandler :replace-text :code-view-tools
   (run [replace-bar]
        (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :escape :new-console
+(handler/defhandler :escape :code-view-tools
   (run [find-bar replace-bar view-node]
        (cond
          (in-tab-trigger? view-node)
@@ -1940,31 +1943,31 @@
          (set-properties! view-node :selection
                           (data/escape (get-property view-node :cursor-ranges))))))
 
-(handler/defhandler :find-next :new-find-bar
+(handler/defhandler :find-next :code-view-find-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :new-replace-bar
+(handler/defhandler :find-next :code-view-replace-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :new-code-view
+(handler/defhandler :find-next :code-view
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-prev :new-find-bar
+(handler/defhandler :find-prev :code-view-find-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :new-replace-bar
+(handler/defhandler :find-prev :code-view-replace-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :new-code-view
+(handler/defhandler :find-prev :code-view
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :replace-next :new-replace-bar
+(handler/defhandler :replace-next :code-view-replace-bar
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :replace-next :new-code-view
+(handler/defhandler :replace-next :code-view
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :replace-all :new-replace-bar
+(handler/defhandler :replace-all :code-view-replace-bar
   (run [view-node] (replace-all! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -2049,26 +2052,28 @@
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
 (defn repaint-view! [view-node elapsed-time]
-  (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action)
-        old-cursor-opacity (g/node-value view-node :cursor-opacity)
+  (swap! *elapsed-time-by-view-node assoc view-node elapsed-time)
+  (let [evaluation-context (g/make-evaluation-context)
+        elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
+        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
         new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
     (set-properties! view-node nil
-                     (data/tick (get-property view-node :lines)
-                                (get-property view-node :layout)
-                                (get-property view-node :gesture-start)))
-    (g/transact
-      (into [(g/set-property view-node :elapsed-time elapsed-time)]
-            (when (not= old-cursor-opacity new-cursor-opacity)
-              (g/set-property view-node :cursor-opacity new-cursor-opacity)))))
-  (g/node-value view-node :repaint-canvas)
-  (g/node-value view-node :repaint-cursors)
-  (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
-    (let [^long repaint-trigger (g/node-value view-node :repaint-trigger)
-          ^Canvas canvas (g/node-value view-node :canvas)]
-      (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
-      (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
-      (when (= 0 (mod repaint-trigger 10))
-        (.resetAverageFPS performance-tracker)))))
+                     (cond-> (data/tick (g/node-value view-node :lines evaluation-context)
+                                        (g/node-value view-node :layout evaluation-context)
+                                        (g/node-value view-node :gesture-start evaluation-context))
+                             (not= old-cursor-opacity new-cursor-opacity) (assoc :cursor-opacity new-cursor-opacity)))
+    (g/update-cache-from-evaluation-context! evaluation-context))
+  (let [evaluation-context (g/make-evaluation-context)]
+    (g/node-value view-node :repaint-canvas evaluation-context)
+    (g/node-value view-node :repaint-cursors evaluation-context)
+    (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
+      (let [^long repaint-trigger (g/node-value view-node :repaint-trigger evaluation-context)
+            ^Canvas canvas (g/node-value view-node :canvas evaluation-context)]
+        (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
+        (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
+        (when (= 0 (mod repaint-trigger 10))
+          (.resetAverageFPS performance-tracker))))
+    (g/update-cache-from-evaluation-context! evaluation-context)))
 
 (defn- make-suggestions-list-view
   ^ListView [^Canvas canvas]
@@ -2254,7 +2259,7 @@
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (handle-mouse-exited! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
 
-    (ui/context! grid :new-console context-env nil)
+    (ui/context! grid :code-view-tools context-env nil)
 
     (doto (.getColumnConstraints grid)
       (.add (doto (ColumnConstraints.)
@@ -2266,7 +2271,7 @@
     (ui/children! grid [canvas-pane goto-line-bar find-bar replace-bar])
     (ui/children! parent [grid])
     (ui/fill-control grid)
-    (ui/context! canvas :new-code-view context-env nil)
+    (ui/context! canvas :code-view context-env nil)
 
     ;; Steal input focus when our tab becomes selected.
     (ui/observe (.selectedProperty tab)
@@ -2296,6 +2301,8 @@
                            (dispose-goto-line-bar! goto-line-bar)
                            (dispose-find-bar! find-bar)
                            (dispose-replace-bar! replace-bar)
+                           (swap! *elapsed-time-by-view-node dissoc view-node)
+                           (g/set-property! view-node :elapsed-time-at-last-action 0.0)
                            (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                            (.removeListener find-whole-word-property find-whole-word-setter)
                            (.removeListener font-size-property font-size-setter)
@@ -2318,7 +2325,7 @@
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
-                                :id :new-code
+                                :id :code
                                 :label "Code"
                                 :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
                                 :focus-fn (fn [view-node opts] (focus-view! view-node opts))
