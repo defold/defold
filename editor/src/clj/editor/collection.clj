@@ -26,7 +26,7 @@
             [editor.gl.pass :as pass]
             [editor.progress :as progress]
             [editor.properties :as properties]
-            [editor.util :as util]
+            [internal.util :as util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc GameObject$CollectionDesc]
            [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
@@ -76,7 +76,9 @@
   (input base-url g/Str)
   (input source-id g/NodeID :cascade-delete)
   (input id-counts g/Any)
-  (input resource-property-build-targets g/Any))
+
+  (input resource-property-build-targets g/Any)
+  (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets)))
 
 (defn- child-go-go [go-id child-id]
   (for [[from to] [[:_node-id :nodes]
@@ -97,7 +99,8 @@
                      [:build-targets :dep-build-targets]
                      [:id :ids]
                      [:go-inst-ids :go-inst-ids]
-                     [:ddf-properties :ddf-properties]]]
+                     [:ddf-properties :ddf-properties]
+                     [:resource-property-build-targets :resource-property-build-targets]]]
       (g/connect child-id from coll-id to))
     (for [[from to] [[:base-url :base-url]
                      [:id-counts :id-counts]]]
@@ -116,7 +119,8 @@
                      [:id :ids]
                      [:build-targets :sub-build-targets]
                      [:go-inst-ids :go-inst-ids]
-                     [:sub-ddf-properties :ddf-properties]]]
+                     [:sub-ddf-properties :ddf-properties]
+                     [:resource-property-build-targets :resource-property-build-targets]]]
       (g/connect child-id from coll-id to))
     (for [[from to] [[:base-url :base-url]
                      [:id-counts :id-counts]]]
@@ -185,12 +189,15 @@
                                       component-property-descs (map #(assoc %1 :properties %2)
                                                                     (:component-properties ddf-message)
                                                                     component-go-props)
-                                      property-dep-build-targets (into #{} (mapcat second) component-property-infos)
+                                      go-prop-dep-build-targets (into []
+                                                                      (comp (mapcat second)
+                                                                            (util/distinct-by (comp resource/proj-path :resource)))
+                                                                      component-property-infos)
                                       build-target (assoc (first source-build-targets)
                                                      :resource build-resource
                                                      :instance-data {:resource build-resource
                                                                      :transform transform
-                                                                     :property-deps property-dep-build-targets
+                                                                     :property-deps go-prop-dep-build-targets
                                                                      :instance-msg (if (seq component-property-descs)
                                                                                      (assoc ddf-message :component-properties component-property-descs)
                                                                                      ddf-message)})]
@@ -391,7 +398,9 @@
             dep-build-targets (flatten dep-build-targets)
             instance-data (map :instance-data dep-build-targets)
             instance-data (reduce concat instance-data (map #(get-in % [:user-data :instance-data]) sub-build-targets))
-            property-deps (sort-by (comp resource/proj-path :resource) (apply set/union (map :property-deps instance-data)))]
+            property-deps (sequence (comp (mapcat :property-deps)
+                                          (util/distinct-by (comp resource/proj-path :resource)))
+                                    instance-data)]
         [{:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-collection
@@ -447,7 +456,9 @@
   (input base-url g/Str)
   (input go-inst-ids g/Any :array)
   (input ddf-properties g/Any :array)
+  (input resource-property-build-targets g/Any :array)
 
+  (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output base-url g/Str (gu/passthrough base-url))
   (output proto-msg g/Any :cached produce-proto-msg)
   (output save-value g/Any :cached (gu/passthrough proto-msg))
@@ -478,30 +489,33 @@
 (defn- flatten-instance-data [data base-id ^Matrix4d base-transform all-child-ids ddf-properties resource-property-build-targets]
   (let [{:keys [resource instance-msg ^Matrix4d transform]} data
         {:keys [id children component-properties]} instance-msg
-        component-property-entries (map (fn [entry]
-                                          (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets (:properties entry))]
-                                            (assoc entry
-                                              :properties go-props
-                                              :_dep-build-targets go-prop-dep-build-targets)))
-                                        (merge-component-properties component-properties (ddf-properties id)))
-        component-properties (mapv #(dissoc % :_dep-build-targets) component-property-entries)
-        component-property-dep-build-targets (into [] (mapcat :_dep-build-targets) component-property-entries)
+        build-target-go-props (partial properties/build-target-go-props resource-property-build-targets)
+        component-properties (merge-component-properties component-properties (ddf-properties id))
+        component-property-infos (map (comp build-target-go-props :properties) component-properties)
+        component-go-props (map first component-property-infos)
+        component-property-descs (map #(assoc %1 :properties %2)
+                                      component-properties
+                                      component-go-props)
+        go-prop-dep-build-targets (into []
+                                        (comp (mapcat second)
+                                              (util/distinct-by (comp resource/proj-path :resource)))
+                                        component-property-infos)
         instance-msg {:id (str base-id id)
                       :children (map #(str base-id %) children)
-                      :component-properties component-properties}
+                      :component-properties component-property-descs}
         is-child? (contains? all-child-ids id)
         transform (if is-child?
                     transform
                     (doto (Matrix4d. transform) (.mul base-transform transform)))]
-    {:resource resource :instance-msg instance-msg :transform transform}))
+    {:resource resource :instance-msg instance-msg :transform transform :property-deps go-prop-dep-build-targets}))
 
-(g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets ddf-properties resource-property-build-targets]
-  (or (path-error _node-id source-resource)
-      (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
-            base-id (str id path-sep)
-            instance-data (get-in build-targets [0 :user-data :instance-data])
-            child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
-        (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties resource-property-build-targets) instance-data)))))
+(g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets resource-property-build-targets ddf-properties]
+    (or (path-error _node-id source-resource)
+        (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
+              base-id (str id path-sep)
+              instance-data (get-in build-targets [0 :user-data :instance-data])
+              child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
+          (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties resource-property-build-targets) instance-data)))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id
@@ -574,7 +588,8 @@
                                                                        [:node-outline                    :source-outline]
                                                                        [:scene                           :scene]
                                                                        [:ddf-properties                  :ddf-properties]
-                                                                       [:go-inst-ids                     :go-inst-ids]]]
+                                                                       [:go-inst-ids                     :go-inst-ids]
+                                                                       [:resource-property-build-targets :resource-property-build-targets]]]
                                                         (g/connect or-node from self to))
                                                       (for [[from to] [[:build-targets :build-targets]]]
                                                         (g/connect coll-node from self to))

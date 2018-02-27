@@ -255,30 +255,30 @@
 
       (let [props-script (resource-node "/script/props.script")
             properties (properties props-script)]
-        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_props_script.material")))
-        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_script.atlas")))
+        (is (material-resource-property?   (:__material properties)   (resource "/script/resources/from_props_script.material")))
+        (is (texture-resource-property?    (:__texture properties)    (resource "/script/resources/from_props_script.atlas")))
         (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_props_script.atlas")))
         (is (set/superset? (built-resources props-script)
-                           #{(build-resource "/script/resources/from_props_script.material")
+                           #{(build-resource         "/script/resources/from_props_script.material")
                              (texture-build-resource "/script/resources/from_props_script.atlas")
-                             (build-resource "/script/resources/from_props_script.atlas")})))
+                             (build-resource         "/script/resources/from_props_script.atlas")})))
 
       (let [props-game-object (resource-node "/game_object/props.go")
             props-script-component (:node-id (tu/outline props-game-object [0]))
             properties (properties props-script-component)]
-        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_props_game_object.material")))
-        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_game_object.atlas")))
+        (is (material-resource-property?   (:__material properties)   (resource "/script/resources/from_props_game_object.material")))
+        (is (texture-resource-property?    (:__texture properties)    (resource "/script/resources/from_props_game_object.atlas")))
         (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_props_game_object.atlas")))
         (is (set/superset? (built-resources props-game-object)
-                           #{(build-resource "/script/resources/from_props_game_object.material")
+                           #{(build-resource         "/script/resources/from_props_game_object.material")
                              (texture-build-resource "/script/resources/from_props_game_object.atlas")
-                             (build-resource "/script/resources/from_props_game_object.atlas")})))
+                             (build-resource         "/script/resources/from_props_game_object.atlas")})))
 
       (let [props-collection (resource-node "/collection/props.collection")
             props-script-component (:node-id (tu/outline props-collection [0 0]))
             properties (properties props-script-component)]
-        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_props_game_object.material")))
-        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_collection.atlas")))
+        (is (material-resource-property?   (:__material properties)   (resource "/script/resources/from_props_game_object.material")))
+        (is (texture-resource-property?    (:__texture properties)    (resource "/script/resources/from_props_collection.atlas")))
         (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_props_game_object.atlas")))
         (is (set/superset? (built-resources props-collection)
                            #{(texture-build-resource "/script/resources/from_props_collection.atlas")})))
@@ -286,8 +286,8 @@
       (let [sub-props-collection (resource-node "/collection/sub_props.collection")
             props-script-component (:node-id (tu/outline sub-props-collection [0 0 0]))
             properties (properties props-script-component)]
-        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_props_game_object.material")))
-        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_collection.atlas")))
+        (is (material-resource-property?   (:__material properties)   (resource "/script/resources/from_props_game_object.material")))
+        (is (texture-resource-property?    (:__texture properties)    (resource "/script/resources/from_props_collection.atlas")))
         (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_sub_props_collection.atlas")))
         (is (set/superset? (built-resources sub-props-collection)
                            #{(build-resource "/script/resources/from_sub_props_collection.atlas")})))
@@ -295,8 +295,8 @@
       (let [sub-sub-props-collection (resource-node "/collection/sub_sub_props.collection")
             props-script-component (:node-id (tu/outline sub-sub-props-collection [0 0 0 0]))
             properties (properties props-script-component)]
-        (is (material-resource-property? (:__material properties) (resource "/script/resources/from_sub_sub_props_collection.material")))
-        (is (texture-resource-property? (:__texture properties) (resource "/script/resources/from_props_collection.atlas")))
+        (is (material-resource-property?   (:__material properties)   (resource "/script/resources/from_sub_sub_props_collection.material")))
+        (is (texture-resource-property?    (:__texture properties)    (resource "/script/resources/from_props_collection.atlas")))
         (is (textureset-resource-property? (:__textureset properties) (resource "/script/resources/from_sub_props_collection.atlas")))
         (is (set/superset? (built-resources sub-sub-props-collection)
                            #{(build-resource "/script/resources/from_sub_sub_props_collection.material")}))))))
@@ -308,15 +308,27 @@
         node-id (first selection)]
     node-id))
 
+(defn- add-component! [game-object component]
+  (let [select-fn (tu/make-call-logger)]
+    (game-object/add-component-file game-object (g/node-value component :resource) select-fn)
+    (created-node select-fn)))
+
 (defn- add-game-object! [collection game-object]
   (let [select-fn (tu/make-call-logger)]
     (collection/add-game-object-file collection collection (g/node-value game-object :resource) select-fn)
     (created-node select-fn)))
 
-(defn- add-component! [game-object component]
-  (let [select-fn (tu/make-call-logger)]
-    (game-object/add-component-file game-object (g/node-value component :resource) select-fn)
-    (created-node select-fn)))
+(defn- add-collection! [collection instantiated-collection]
+  (let [resource (g/node-value instantiated-collection :resource)
+        id (resource/base-name resource)
+        position [0.0 0.0 0.0]
+        rotation [0.0 0.0 0.0 1.0]
+        scale [1.0 1.0 1.0]
+        overrides {}]
+    (first
+      (g/tx-nodes-added
+        (g/transact
+          (collection/add-collection-instance collection resource id position rotation scale overrides))))))
 
 (defn- make-atlas! [project proj-path]
   (assert (string/ends-with? proj-path ".atlas"))
@@ -495,7 +507,7 @@
                     (is (= (:property-resources built-props-script)
                            [(texture-build-resource-path "/from-props-script.atlas")]))))))))))))
 
-(deftest edit-game-object-resource-properties-test
+(deftest edit-component-instance-resource-properties-test
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
@@ -777,7 +789,7 @@
                   (is (= (:property-resources built-props-game-object)
                          [(texture-build-resource-path "/from-props-game-object.atlas")])))))))))))
 
-(deftest edit-collection-resource-properties-test
+(deftest edit-game-object-instance-resource-properties-test
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
           project (tu/setup-project! workspace)
@@ -802,9 +814,9 @@
                              (edit-property! :lines ["go.property('material',     material('/from-props-script.material'))"
                                                      "go.property('texture',       texture('/from-props-script.atlas'))"
                                                      "go.property('textureset', textureset('/from-props-script.atlas'))"]))
-              props-collection (make-resource-node! "/props.collection")
               props-game-object (doto (make-resource-node! "/props.go")
                                   (add-component! props-script))
+              props-collection (make-resource-node! "/props.collection")
               ov-props-game-object (add-game-object! props-collection props-game-object)
               ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
               props-game-object-instance (ffirst (g/sources-of props-collection :ref-inst-ddf))
@@ -930,3 +942,174 @@
                         built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)]
                     (is (= [] (:component-properties built-props-game-object-instance)))
                     (is (= [] (:property-resources built-props-collection)))))))))))))
+
+(deftest edit-collection-instance-resource-properties-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          project-graph (g/node-id->graph-id project)
+          resource (partial tu/resource workspace)
+          build-resource (partial build-resource project)
+          build-resource-path (comp resource/proj-path build-resource)
+          build-output (partial build-output project)
+          texture-build-resource (partial texture-build-resource project)
+          texture-build-resource-path (comp resource/proj-path texture-build-resource)
+          make-atlas! (partial make-atlas! project)
+          make-material! (partial make-material! project)
+          make-resource-node! (partial tu/make-resource-node! project)]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas!    "/from-props-script.atlas")
+        (make-material! "/from-props-script.material")
+        (make-atlas!    "/from-props-game-object.atlas")
+        (make-material! "/from-props-game-object.material")
+        (make-atlas!    "/from-props-collection.atlas")
+        (make-material! "/from-props-collection.material")
+        (make-atlas!    "/from-sub-props-collection.atlas")
+        (make-material! "/from-sub-props-collection.material")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (edit-property! :lines ["go.property('material',     material('/from-props-script.material'))"
+                                                     "go.property('texture',       texture('/from-props-script.atlas'))"
+                                                     "go.property('textureset', textureset('/from-props-script.atlas'))"]))
+              props-game-object (doto (make-resource-node! "/props.go")
+                                  (add-component! props-script))
+              props-collection (doto (make-resource-node! "/props.collection")
+                                 (add-game-object! props-game-object))
+              sub-props-collection (make-resource-node! "/sub-props.collection")
+              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-game-object-instance (ffirst (g/sources-of ov-props-collection :ref-inst-ddf))
+              ov-props-game-object (ffirst (g/sources-of ov-props-game-object-instance :source-resource))
+              ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
+              props-collection-instance (ffirst (g/sources-of sub-props-collection :ref-coll-ddf))
+              original-property-values (into {}
+                                             (map (fn [[prop-kw {:keys [value]}]]
+                                                    [prop-kw value]))
+                                             (properties props-script))]
+          (is (g/node-instance? script/ScriptNode props-script))
+          (is (g/node-instance? game-object/ReferencedComponent ov-props-script-component))
+          (is (g/node-instance? game-object/GameObjectNode props-game-object))
+          (is (g/node-instance? game-object/GameObjectNode ov-props-game-object))
+          (is (g/node-instance? collection/ReferencedGOInstanceNode ov-props-game-object-instance))
+          (is (g/node-instance? collection/CollectionNode ov-props-collection))
+          (is (g/node-instance? collection/CollectionNode props-collection))
+          (is (g/node-instance? collection/CollectionNode sub-props-collection))
+          (is (g/node-instance? collection/CollectionInstanceNode props-collection-instance))
+          (is (not (g/override? props-script)))
+          (is (not (g/override? props-game-object)))
+          (is (not (g/override? props-collection)))
+          (is (not (g/override? sub-props-collection)))
+          (is (not (g/override? props-collection-instance)))
+          (is (g/override? ov-props-script-component))
+          (is (g/override? ov-props-game-object))
+          (is (g/override? ov-props-game-object-instance))
+          (is (g/override? ov-props-collection))
+
+          (testing "Before overrides"
+            (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+                  saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
+              (is (= [] (:instance-properties saved-props-collection-instance))))
+
+            (let [properties (properties ov-props-script-component)]
+              (is (material-resource-property?   (:__material properties)   (resource "/from-props-script.material")))
+              (is (texture-resource-property?    (:__texture properties)    (resource "/from-props-script.atlas")))
+              (is (textureset-resource-property? (:__textureset properties) (resource "/from-props-script.atlas")))
+              (is (not (tu/prop-overridden? ov-props-script-component :__material)))
+              (is (not (tu/prop-overridden? ov-props-script-component :__texture)))
+              (is (not (tu/prop-overridden? ov-props-script-component :__textureset)))
+              (is (= (built-resources sub-props-collection)
+                     #{(build-resource         "/sub-props.collection")
+                       (build-resource         "/props.go")
+                       (build-resource         "/props.script")
+                       (build-resource         "/from-props-script.atlas")
+                       (texture-build-resource "/from-props-script.atlas")
+                       (build-resource         "/from-props-script.material")
+                       (build-resource         "/from-props-script.fp")
+                       (build-resource         "/from-props-script.vp")}))
+              (with-open [_ (build! sub-props-collection)]
+                (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                      built-props-game-object-instance (first (:instances built-sub-props-collection))]
+                  (is (= [] (:collection-instances built-sub-props-collection)))
+                  (is (= [] (:embedded-instances built-sub-props-collection)))
+                  (is (= [] (:component-properties built-props-game-object-instance)))
+                  (is (= [] (:property-resources built-sub-props-collection)))))))
+
+          (testing "Overrides do not affect props script or game object"
+            (with-open [_ (tu/make-graph-reverter project-graph)]
+              (edit-property! ov-props-script-component :__material   (resource "/from-sub-props-collection.material"))
+              (edit-property! ov-props-script-component :__texture    (resource "/from-sub-props-collection.atlas"))
+              (edit-property! ov-props-script-component :__textureset (resource "/from-sub-props-collection.atlas"))
+
+              (let [properties (properties props-script)]
+                (is (material-resource-property?   (:__material properties)   (resource "/from-props-script.material")))
+                (is (texture-resource-property?    (:__texture properties)    (resource "/from-props-script.atlas")))
+                (is (textureset-resource-property? (:__textureset properties) (resource "/from-props-script.atlas")))
+                (is (= (built-resources props-script)
+                       #{(build-resource         "/props.script")
+                         (build-resource         "/from-props-script.atlas")
+                         (texture-build-resource "/from-props-script.atlas")
+                         (build-resource         "/from-props-script.material")
+                         (build-resource         "/from-props-script.fp")
+                         (build-resource         "/from-props-script.vp")}))
+                (with-open [_ (build! sub-props-collection)]
+                  (let [built-props-script (protobuf/bytes->map Lua$LuaModule (build-output "/props.script"))]
+                    (is (= (unpack-property-declarations (:properties built-props-script))
+                           {"material"   (build-resource-path         "/from-props-script.material")
+                            "texture"    (texture-build-resource-path "/from-props-script.atlas")
+                            "textureset" (build-resource-path         "/from-props-script.atlas")}))
+                    (is (= (sort (:property-resources built-props-script))
+                           (sort [(build-resource-path         "/from-props-script.material")
+                                  (texture-build-resource-path "/from-props-script.atlas")
+                                  (build-resource-path         "/from-props-script.atlas")]))))
+                  (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                        built-props-script-component (find-corresponding (:components built-props-game-object) ov-props-script-component)]
+                    (is (= {} (unpack-property-declarations (:property-decls built-props-script-component))))
+                    (is (= [] (:property-resources built-props-game-object))))))))
+
+          (testing "Overrides"
+            (with-open [_ (tu/make-graph-reverter project-graph)]
+              (doseq [[sub-type prop-kw resource build-resource] [[properties/sub-type-material   :__material   (resource "/from-sub-props-collection.material") (build-resource         "/from-sub-props-collection.material")]
+                                                                  [properties/sub-type-texture    :__texture    (resource "/from-sub-props-collection.atlas")    (texture-build-resource "/from-sub-props-collection.atlas")]
+                                                                  [properties/sub-type-textureset :__textureset (resource "/from-sub-props-collection.atlas")    (build-resource         "/from-sub-props-collection.atlas")]]]
+                ;; Apply override.
+                (edit-property! ov-props-script-component prop-kw resource)
+                (is (tu/prop-overridden? ov-props-script-component prop-kw))
+                (is (resource-property? (get (properties ov-props-script-component) prop-kw) resource sub-type))
+                (is (contains? (built-resources sub-props-collection) build-resource))
+
+                (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+                      saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)
+                      saved-props-game-object-instance (find-corresponding (:instance-properties saved-props-collection-instance) ov-props-game-object-instance)
+                      saved-props-script-component (find-corresponding (:properties saved-props-game-object-instance) ov-props-script-component)]
+                  (is (= {} (unpack-property-declarations (:property-decls saved-props-script-component))))
+                  (is (= (:properties saved-props-script-component)
+                         [{:id (properties/key->user-name prop-kw)
+                           :value (resource/proj-path resource)
+                           :type :property-type-resource
+                           :sub-type sub-type}])))
+
+                (with-open [_ (build! sub-props-collection)]
+                  (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                        built-props-game-object-instance (first (:instances built-sub-props-collection))
+                        built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)]
+                    (is (= [] (:collection-instances built-sub-props-collection)))
+                    (is (= [] (:embedded-instances built-sub-props-collection)))
+                    (is (= [] (:properties built-props-script-component)))
+                    (is (= (unpack-property-declarations (:property-decls built-props-script-component))
+                           {(properties/key->user-name prop-kw) (resource/proj-path build-resource)}))
+                    (is (= (:property-resources built-sub-props-collection)
+                           [(resource/proj-path build-resource)]))))
+
+                ;; Clear override.
+                (reset-property! ov-props-script-component prop-kw)
+                (is (not (tu/prop-overridden? ov-props-script-component prop-kw)))
+                (is (resource-property? (get (properties ov-props-script-component) prop-kw) (original-property-values prop-kw) sub-type))
+                (is (not (contains? (built-resources sub-props-collection) build-resource)))
+
+                (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+                      saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)]
+                  (is (= [] (:instance-properties saved-props-collection-instance))))
+
+                (with-open [_ (build! sub-props-collection)]
+                  (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                        built-props-game-object-instance (first (:instances built-sub-props-collection))]
+                    (is (= [] (:component-properties built-props-game-object-instance)))
+                    (is (= [] (:property-resources built-sub-props-collection)))))))))))))

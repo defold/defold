@@ -584,7 +584,8 @@
                                                (flatten resource-property-build-targets))]
     (loop [go-props-with-source-resources go-props-with-source-resources
            go-props-with-build-resources (transient [])
-           dep-build-targets (transient [])]
+           dep-build-targets (transient [])
+           seen-dep-build-resource-paths #{}]
       (if-some [{:keys [clj-value sub-type type] :as go-prop} (first go-props-with-source-resources)]
         (do
           (assert (go-prop? go-prop))
@@ -602,16 +603,21 @@
                                                      {:property (:id go-prop)
                                                       :resource-reference clj-value}))))
                 build-resource (some-> dep-build-target :resource)
+                build-resource-path (some-> build-resource (go-prop->str type))
                 go-prop (if (nil? build-resource)
                           go-prop
                           (assoc go-prop
                             :clj-value build-resource
-                            :value (go-prop->str build-resource type)))]
+                            :value build-resource-path))]
             (recur (next go-props-with-source-resources)
                    (conj! go-props-with-build-resources go-prop)
-                   (if (some? dep-build-target)
+                   (if (and (some? dep-build-target)
+                            (not (contains? seen-dep-build-resource-paths build-resource-path)))
                      (conj! dep-build-targets dep-build-target)
-                     dep-build-targets))))
+                     dep-build-targets)
+                   (if (some? build-resource-path)
+                     (conj seen-dep-build-resource-paths build-resource-path)
+                     seen-dep-build-resource-paths))))
         [(persistent! go-props-with-build-resources)
          (persistent! dep-build-targets)]))))
 

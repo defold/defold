@@ -12,13 +12,13 @@
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
-            [editor.code.script :as script]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [editor.properties :as properties]
             [editor.validation :as validation]
             [editor.outline :as outline]
+            [internal.util :as util]
             [service.log :as log])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.sound.proto Sound$SoundDesc]
@@ -186,13 +186,14 @@
                                           (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets (:properties ddf-message))
                                                 build-target (-> source-build-target
                                                                  (assoc :resource build-resource)
-                                                                 (wrap-if-raw-sound _node-id)
-                                                                 (assoc :instance-data {:resource (:resource source-build-target)
-                                                                                        :resource-property-build-targets go-prop-dep-build-targets
-                                                                                        :transform transform
-                                                                                        :instance-msg (if (seq go-props)
-                                                                                                        (assoc ddf-message :properties go-props)
-                                                                                                        ddf-message)}))]
+                                                                 (wrap-if-raw-sound _node-id))
+                                                build-target (assoc build-target
+                                                               :instance-data {:resource (:resource build-target)
+                                                                               :transform transform
+                                                                               :property-deps go-prop-dep-build-targets
+                                                                               :instance-msg (if (seq go-props)
+                                                                                               (assoc ddf-message :properties go-props)
+                                                                                               ddf-message)})]
                                             [build-target])
                                           [])))
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
@@ -241,7 +242,7 @@
 ;; -----------------------------------------------------------------------------
 
 (defn load-property-overrides
-  "Takes a sequence of GameObject.PropertyDesc in map format and returns a map of [prop-kw, [go-prop-type, clj-value]]."
+  "Takes a sequence of GameObject$PropertyDesc in map format and returns a map of [prop-kw, [go-prop-type, clj-value]]."
   [base-resource property-descs]
   (into {}
         (map (partial properties/property-desc->property-override base-resource))
@@ -361,8 +362,8 @@
           :build-fn build-game-object
           :user-data {:proto-msg proto-msg :instance-data instance-data}
           :deps (into (vec (flatten dep-build-targets))
-                      (comp (mapcat :resource-property-build-targets)
-                            (distinct))
+                      (comp (mapcat :property-deps)
+                            (util/distinct-by (comp resource/proj-path :resource)))
                       instance-data)}])))
 
 (g/defnk produce-scene [_node-id child-scenes]
