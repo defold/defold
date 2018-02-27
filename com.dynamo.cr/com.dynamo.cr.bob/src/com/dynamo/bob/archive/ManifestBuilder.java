@@ -267,6 +267,8 @@ public class ManifestBuilder {
     private String publicKeyFilepath = null;
     private String projectIdentifier = null;
     private ResourceNode dependencies = null;
+    private boolean outputManifestHash = false;
+    private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
     private Set<HashDigest> supportedEngineVersions = new HashSet<HashDigest>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
@@ -291,6 +293,14 @@ public class ManifestBuilder {
 
     public ManifestBuilder() {
 
+    }
+
+    public ManifestBuilder(boolean outputManifestHash) {
+        this.outputManifestHash = outputManifestHash;
+    }
+
+    public byte[] getManifestDataHash() {
+        return (this.manifestDataHash != null) ? this.manifestDataHash : null;
     }
 
     public void setResourceHashAlgorithm(HashAlgorithm algorithm) {
@@ -512,6 +522,9 @@ public class ManifestBuilder {
             privateKey = CryptographicOperations.loadPrivateKey(this.privateKeyFilepath, this.signatureSignAlgorithm);
             byte[] signature = CryptographicOperations.sign(manifestData.toByteArray(), this.signatureHashAlgorithm, this.signatureSignAlgorithm, privateKey);
             builder.setSignature(ByteString.copyFrom(signature));
+            if (this.outputManifestHash) {
+                this.manifestDataHash = CryptographicOperations.hash(manifestData.toByteArray(), this.signatureHashAlgorithm);
+            }
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create ManifestFile, hashing algorithm is not supported!");
         } catch (InvalidKeySpecException | InvalidKeyException exception) {
