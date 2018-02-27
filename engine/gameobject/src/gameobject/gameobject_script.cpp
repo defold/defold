@@ -676,11 +676,15 @@ namespace dmGameObject
             {
                 // The supplied URL parameter don't need to be a string,
                 // we let Lua handle the "conversion" to string using concatenation.
-                lua_pushliteral(L, "");
-                lua_pushvalue(L, 1);
-                lua_concat(L, 2);
-                const char* name = lua_tostring(L, -1);
-                lua_pop(L, 1);
+                const char* name = "nil";
+                if (!lua_isnil(L, 1))
+                {
+                    lua_pushliteral(L, "");
+                    lua_pushvalue(L, 1);
+                    lua_concat(L, 2);
+                    name = lua_tostring(L, -1);
+                    lua_pop(L, 1);
+                }
                 return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:

@@ -12,7 +12,7 @@
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
-            [editor.script :as script]
+            [editor.code.script :as script]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]

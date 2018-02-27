@@ -39,7 +39,7 @@
                            "spinemodel" Spine$SpineModelDesc
                            "tilesource" Tile$TileSet})
 
-(defn- perform-save-all-test! []
+(deftest save-all
   (let [queries ["**/env.cubemap"
                  "**/switcher.atlas"
                  "**/atlas_sprite.collection"
@@ -106,13 +106,7 @@
                         (is (nil? save)))
                       (is (= file (:content save)))))))))))
 
-(deftest save-all
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-save-all-test!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-save-all-test!)))
-
-(defn- perform-save-all-literal-equality-test! []
+(deftest save-all-literal-equality
   (let [paths ["/collection/embedded_instances.collection"
                "/editor1/test.collection"
                "/game_object/embedded_components.go"
@@ -149,12 +143,6 @@
                       (prn "s" s))))))
             (is (= file (:content save)))))))))
 
-(deftest save-all-literal-equality
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-save-all-literal-equality-test!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-save-all-literal-equality-test!)))
-
 (defn- save-all! [project]
   (project/write-save-data-to-disk! (project/dirty-save-data project) nil))
 
@@ -186,7 +174,7 @@
       (let [{:keys [user-data set]} (:form-ops form-data)]
         (set user-data path value)))))
 
-(defn- perform-save-dirty-tests! []
+(deftest save-dirty
   (let [black-list #{"/game_object/type_faulty_props.go"
                      "/collection/type_faulty_props.collection"}
         paths [["/sprite/atlas.sprite" (set-prop-fn :default-animation "no-anim")]
@@ -253,12 +241,6 @@
           (save-all! project)
           (is (clean?)))))))
 
-(deftest save-dirty
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-save-dirty-tests!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-save-dirty-tests!)))
-
 (defn- setup-scratch
   [ws-graph]
   (let [workspace (test-util/setup-scratch-workspace! ws-graph test-util/project-path)
@@ -313,7 +295,7 @@
   (-> git .reset (.setRef "HEAD") (.setMode ResetCommand$ResetType/HARD) .call)
   nil)
 
-(defn- perform-save-respects-line-endings-test! []
+(deftest save-respects-line-endings
   (with-git [project-path (test-util/make-temp-project-copy! test-util/project-path)
              git (git/init project-path)]
     (set-autocrlf! git false)
@@ -345,12 +327,6 @@
           (is (< 100 crlf))
           (project/write-save-data-to-disk! (project/dirty-save-data project) nil)
           (is (= line-endings-before (line-endings-by-resource project))))))))
-
-(deftest save-respects-line-endings
-  (with-bindings {#'test-util/use-new-code-editor? false}
-    (perform-save-respects-line-endings-test!))
-  (with-bindings {#'test-util/use-new-code-editor? true}
-    (perform-save-respects-line-endings-test!)))
 
 (defn- touch-file
   [workspace name]

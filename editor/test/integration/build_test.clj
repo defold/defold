@@ -15,7 +15,7 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [util.murmur :as murmur]
-            [integration.test-util :as test-util])
+            [integration.test-util :refer [with-loaded-project] :as test-util])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -252,13 +252,6 @@
               out (ByteArrayOutputStream.)]
     (IOUtils/copy in out)
     (.toByteArray out)))
-
-(defmacro with-loaded-project [path & forms]
-  `(do
-     (with-bindings {#'test-util/use-new-code-editor? false}
-       (test-util/with-loaded-project ~path ~@forms))
-     (with-bindings {#'test-util/use-new-code-editor? true}
-       (test-util/with-loaded-project ~path ~@forms))))
 
 (defmacro with-build-results [path & forms]
   `(with-loaded-project project-path

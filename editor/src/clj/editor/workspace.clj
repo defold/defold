@@ -14,7 +14,7 @@ ordinary paths."
             [editor.url :as url]
             [service.log :as log])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
-           [java.net URL]
+           [java.net URI]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils]
            [editor.resource FileResource]))
@@ -178,9 +178,9 @@ ordinary paths."
       (when-let [workspace (:workspace base-resource)]
         (resolve-workspace-resource workspace path)))))
 
-(defn set-project-dependencies! [workspace library-urls]
-  (g/set-property! workspace :dependencies library-urls)
-  library-urls)
+(defn set-project-dependencies! [workspace library-uris]
+  (g/set-property! workspace :dependencies library-uris)
+  library-uris)
 
 (defn dependencies [workspace]
   (g/node-value workspace :dependencies))
@@ -197,7 +197,7 @@ ordinary paths."
         dependencies (g/node-value workspace :dependencies)]
     (into #{}
           (comp (remove :file)
-                (map :url))
+                (map :uri))
           (library/current-library-state project-directory dependencies))))
 
 (defn update-snapshot-status!
@@ -289,24 +289,24 @@ ordinary paths."
                                       (progress/nest-render-progress render-progress! @parent-progress))))))
      changes)))
 
-(defn fetch-and-validate-libraries [workspace library-urls render-fn]
-  (->> (library/current-library-state (project-path workspace) library-urls)
+(defn fetch-and-validate-libraries [workspace library-uris render-fn]
+  (->> (library/current-library-state (project-path workspace) library-uris)
        (library/fetch-library-updates library/default-http-resolver render-fn)
        (library/validate-updated-libraries)))
 
-(defn install-validated-libraries! [workspace library-urls lib-states]
-  (set-project-dependencies! workspace library-urls)
+(defn install-validated-libraries! [workspace library-uris lib-states]
+  (set-project-dependencies! workspace library-uris)
   (library/install-validated-libraries! (project-path workspace) lib-states))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))
 
 
-(g/deftype UrlVec [URL])
+(g/deftype UriVec [URI])
 
 (g/defnode Workspace
   (property root g/Str)
-  (property dependencies UrlVec)
+  (property dependencies UriVec)
   (property opened-files g/Any (default (atom #{})))
   (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))
