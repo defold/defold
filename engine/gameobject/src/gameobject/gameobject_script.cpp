@@ -90,7 +90,7 @@ namespace dmGameObject
     /*# [type:vector3] game object euler rotation
      *
      * The rotation of the game object expressed in Euler angles.
-     * Euler angles are specified in degrees.
+     * Euler angles are specified in degrees in the interval (-360, 360).
      * The type of the property is vector3.
      *
      * @name euler
