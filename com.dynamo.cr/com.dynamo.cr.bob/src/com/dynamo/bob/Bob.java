@@ -10,6 +10,7 @@ import java.net.URL;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
@@ -31,8 +32,11 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.archive.EngineVersion;
+import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.LibraryUtil;
+
+import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 
 public class Bob {
 
@@ -238,6 +242,8 @@ public class Bob {
 
         options.addOption(null, "version", false, "Prints the version number to the output");
 
+        options.addOption(null, "gen-manifest-keys", true, "Generates and outputs public/private key pair for manifest signing to the supplied path");
+
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
@@ -288,6 +294,19 @@ public class Bob {
 
         if (cmd.hasOption("version")) {
             System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+            System.exit(0);
+            return;
+        }
+
+        if (cmd.hasOption("gen-manifest-keys")) {
+            String genManifestKeysDir = cmd.getOptionValue("gen-manifest-keys");
+            try {
+                Path path = Paths.get(genManifestKeysDir);
+                ManifestBuilder.CryptographicOperations.generateKeyPair(SignAlgorithm.SIGN_RSA, path.resolve("game.private.der").toString(), path.resolve("game.public.der").toString());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
             System.exit(0);
             return;
         }

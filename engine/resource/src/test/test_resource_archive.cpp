@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <gtest/gtest.h>
 #include "../resource.h"
+#include "../resource_private.h"
 #include "../resource_archive.h"
 #include "../resource_archive_private.h"
 
@@ -19,6 +20,8 @@ extern unsigned char RESOURCES_ARCD[];
 extern uint32_t RESOURCES_ARCD_SIZE;
 extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
+extern unsigned char RESOURCES_PUBLIC[];
+extern uint32_t RESOURCES_PUBLIC_SIZE;
 
 extern unsigned char RESOURCES_COMPRESSED_ARCI[];
 extern uint32_t RESOURCES_COMPRESSED_ARCI_SIZE;
@@ -314,6 +317,68 @@ TEST(dmResourceArchive, ManifestHeader)
 
     dmDDF::FreeMessage(manifest->m_DDFData);
     dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
+
+TEST(dmResourceArchive, ManifestSignatureVerification)
+{
+    const char* expected_digest = "135115eefb9ead23235490bbe4ec3381727ce073273933439842e879a36af225";
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    char* hex_digest = 0x0;
+    uint32_t hex_digest_len;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len - 1, (const uint8_t*) expected_digest, strlen(expected_digest)));
+
+    free(hex_digest);
+    delete manifest;
+}
+
+TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
+{
+    // Actual expected digest is "135115eefb9ead23235490bbe4ec3381727ce073273933439842e879a36af225"
+    const char* expected_digest = "135115eefb9ead23235490bbe4ec338";
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    char* hex_digest = 0x0;
+    uint32_t hex_digest_len;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len - 1, (const uint8_t*) expected_digest, strlen(expected_digest)));
+
+    free(hex_digest);
+    delete manifest;
+}
+
+TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
+{
+    // Actual expected digest is "135115eefb9ead23235490bbe4ec3381727ce073273933439842e879a36af225"
+    const char* expected_digest = "135115eefb9ead23235490bbe4ec3381727ce000000000000000000000000000";
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    char* hex_digest = 0x0;
+    uint32_t hex_digest_len;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len - 1, (const uint8_t*) expected_digest, strlen(expected_digest)));
+
+    free(hex_digest);
+    delete manifest;
+}
+
+TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    unsigned char resources_public_wrong[RESOURCES_PUBLIC_SIZE];
+    resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1;
+    char* hex_digest = 0x0;
+    uint32_t hex_digest_len;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+
+    free(hex_digest);
     delete manifest;
 }
 

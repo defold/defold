@@ -596,8 +596,6 @@ namespace dmResource
 
     Result ParseManifestDDF(uint8_t* manifestBuf, uint32_t size, dmResource::Manifest*& manifest);
 
-    Result LoadManifest(const char* manifestPath, HFactory factory);
-
     Result StoreManifest(Manifest* manifest);
 
     Result VerifyManifest(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
@@ -640,14 +638,32 @@ namespace dmResource
      */
     void ReleaseBuiltinsManifest(HFactory factory);
 
+    /**
+     * Returns the length in bytes of the supplied hash algorithm
+     */
     uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
 
+    /**
+     * Converts the supplied hash to hexadecimal string representation using the hash algorithm supplied
+     * @param algorithm The hash algorithm
+     * @param hash The hash buffer
+     * @param buf The output string buffer
+     * @param buflen The output buffer length
+     */
     void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
 
+    /**
+     * Compares two hash buffers byte for byte
+     * @param digest The hash digest to compare
+     * @param len The hash digest length
+     * @param buf The expected hash digest
+     * @param buflen The expected hash digest length
+     * @return RESULT_OK if the hashes are equal in length and content
+     */
     Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
 
-    // Platform specific implementation of archive loading. Data written into mount_info must
-    // be provided when UnloadArchiveInternal and may contain information about memory mapping etc.
+    // Platform specific implementation of archive and manifest loading. Data written into mount_info must
+    // be provided when unloading and may contain information about memory mapping etc.
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
     void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
     Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);

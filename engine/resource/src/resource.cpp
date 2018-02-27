@@ -571,7 +571,11 @@ Result VerifyManifest(Manifest* manifest, const uint8_t* expected_digest, uint32
         return RESULT_IO_ERROR;
     }
 
-    DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hex_digest, hex_digest_len);
+    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hex_digest, hex_digest_len);
+    if (res != RESULT_OK)
+    {
+        return res;
+    }
     res = HashCompare((const uint8_t*)hex_digest, hex_digest_len, expected_digest, expected_len);
 
     free(hex_digest);

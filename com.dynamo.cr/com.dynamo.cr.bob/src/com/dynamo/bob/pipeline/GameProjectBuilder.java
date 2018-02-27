@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -439,6 +440,27 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
 
+
+        // If keys cannot be found with absolute path, try to resolve project relative path
+        if (privateKeyFilepath != null && publicKeyFilepath != null ) {
+            if (!Files.exists(Paths.get(privateKeyFilepath))) {
+                privateKeyFilepath = project.getResource(privateKeyFilepath).getPath();
+                if (!Files.exists(Paths.get(privateKeyFilepath))) {
+                    System.out.println("Warning: Failed to load private key for manifest signing, generating keys instead.");
+                    privateKeyFilepath = null;
+                }
+            }
+
+            if (!Files.exists(Paths.get(publicKeyFilepath))) {
+                publicKeyFilepath = project.getResource(publicKeyFilepath).getPath();
+                if (!Files.exists(Paths.get(publicKeyFilepath))) {
+                    System.out.println("Warning: Failed to load public key for manifest signing, generating keys instead.");
+                    publicKeyFilepath = null;
+                }
+            }
+        }
+
+        // If loading supplied keys fail or no were supplied, generate them instead
         if (privateKeyFilepath == null || publicKeyFilepath == null) {
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
