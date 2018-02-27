@@ -178,7 +178,7 @@
 (defn- build-html5-output-path [project]
   (let [ws (project/workspace project)
         build-path (workspace/build-path ws)]
-    (io/file build-path  "__htmlLaunchDir")))
+    (io/file build-path "__htmlLaunchDir")))
 
 (defn build-html5! [project prefs]
   (let [output-path (build-html5-output-path project)
@@ -204,7 +204,6 @@
     (let [path (-> url
                    (subs (count html5-url-prefix))
                    (URLDecoder/decode "UTF-8"))
-;;          path (format "%s/%s%s" (build-html5-output-path project) (project-title project) path)
           f (io/file (build-html5-output-path project) (project-title project) path)]
       (if (.exists f)
         (let [length (.length f)
