@@ -133,13 +133,13 @@ namespace dmGraphics
         TEXTURE_FORMAT_R32F                 = 23,
         TEXTURE_FORMAT_RG32F                = 24,
 
-        TEXTURE_FORMAT_ENUM
+        TEXTURE_FORMAT_COUNT
     };
 
     // Translation table to translate TextureFormat texture to BPP
     struct TextureFormatToBPP
     {
-        uint8_t m_FormatToBPP[TEXTURE_FORMAT_ENUM];
+        uint8_t m_FormatToBPP[TEXTURE_FORMAT_COUNT];
         TextureFormatToBPP()
         {
             memset(m_FormatToBPP, 0x0, sizeof(m_FormatToBPP));

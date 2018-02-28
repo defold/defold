@@ -915,7 +915,7 @@ namespace dmGraphics
     uint32_t GetTextureFormatBPP(TextureFormat format)
     {
         static TextureFormatToBPP g_TextureFormatToBPP;
-        assert(format < TEXTURE_FORMAT_ENUM);
+        assert(format < TEXTURE_FORMAT_COUNT);
         return g_TextureFormatToBPP.m_FormatToBPP[format];
     }
 

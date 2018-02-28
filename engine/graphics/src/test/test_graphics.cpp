@@ -571,7 +571,7 @@ TEST_F(dmGraphicsTest, TestTextureSupport)
 
 TEST_F(dmGraphicsTest, TestTextureFormatBPP)
 {
-    for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_ENUM; ++i)
+    for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
     {
         ASSERT_NE(0, dmGraphics::GetTextureFormatBPP((dmGraphics::TextureFormat) i));
     }
