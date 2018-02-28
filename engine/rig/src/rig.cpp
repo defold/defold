@@ -119,7 +119,7 @@ namespace dmRig
         }
 
         RigPlayer* player = SwitchPlayer(instance);
-        player->m_Completed = 0;
+        player->m_Initial = 1;
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
         player->m_Playing = 1;
@@ -134,15 +134,6 @@ namespace dmRig
 
         SetCursor(instance, offset, true);
         SetPlaybackRate(instance, playback_rate);
-
-        // Reset mesh properties (color, draw order etc)
-        UpdateMeshProperties(instance);
-
-        // Kick animation step once, without any dt, to get correct bone transforms and draw order.
-        // Important to do this here in PlayAnimation if it was triggered inside a
-        // script callback, otherwise we would render the "bind pose" on current frame.
-        DoAnimate(instance, 0.0f);
-        DoPostUpdate(instance);
 
         return dmRig::RESULT_OK;
     }
@@ -343,12 +334,15 @@ namespace dmRig
 
         if (completed)
         {
-            player->m_Completed = true;
+            player->m_Playing = 0;
+            // Only report completeness for the primary player
+            if (player == GetPlayer(instance) && instance->m_EventCallback)
+            {
+                RigCompletedEventData event_data;
+                event_data.m_AnimationId = player->m_AnimationId;
+                event_data.m_Playback = player->m_Playback;
 
-            // Set playing to false if the player isn't the current player
-            // avoids calling the complete callback in DoPostUpdate.
-            if (player != GetPlayer(instance)) {
-                player->m_Playing = false;
+                instance->m_EventCallback(RIG_EVENT_TYPE_COMPLETED, (void*)&event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
             }
         }
 
@@ -597,6 +591,13 @@ namespace dmRig
 
             bool updated_draw_order = false;
             RigPlayer* player = GetPlayer(instance);
+
+            // If the animation has just started, we reset mesh properties (color, draw order etc)
+            if (player->m_Initial) {
+                UpdateMeshProperties(instance);
+                player->m_Initial = 0;
+            }
+
             if (instance->m_Blending)
             {
                 float fade_rate = instance->m_BlendTimer / instance->m_BlendDuration;
@@ -756,21 +757,6 @@ namespace dmRig
 
     static bool DoPostUpdate(RigInstance* instance)
     {
-            // Check if player has completed and call event callback if set.
-            RigPlayer* player = GetPlayer(instance);
-            if (player->m_Playing && player->m_Completed)
-            {
-                player->m_Playing = 0;
-                if (instance->m_EventCallback)
-                {
-                    RigCompletedEventData event_data;
-                    event_data.m_AnimationId = player->m_AnimationId;
-                    event_data.m_Playback = player->m_Playback;
-
-                    instance->m_EventCallback(RIG_EVENT_TYPE_COMPLETED, (void*)&event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
-                }
-            }
-
             // If pose is empty, there are no bones to update
             dmArray<dmTransform::Transform>& pose = instance->m_Pose;
             if (pose.Empty())
