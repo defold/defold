@@ -514,10 +514,11 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     dmLogInfo("Manifest signature size: %u", manifest->m_DDF->m_Signature.m_Count);
     dmLogInfo("Manifest signature algo len: %u", signature_hash_len);
 
-    RSA_CTX* rsa_parameters;
+    RSA_CTX* rsa_parameters = 0x0;
     int ret = asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
     if (ret != 0) {
         dmLogError("Failed to parse public key during manifest verification.");
+        RSA_free(rsa_parameters);
         return RESULT_INVALID_DATA;
     } else {
         // DEBUG PRINT
@@ -529,7 +530,6 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     if(ret != 0) {
         dmLogError("Failed to decrypt manifest signature for verification");
         free(hash_decrypted);
-        free(rsa_parameters);
         return RESULT_INVALID_DATA;
     }
     uint8_t* hash = (uint8_t*)malloc(signature_hash_len);

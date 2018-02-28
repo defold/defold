@@ -165,8 +165,7 @@ int RSA_decrypt_public(RSA_CTX *rsa, uint8_t *buffer_in, uint8_t *buffer_out, in
     rsa->bi_ctx->mod_offset = BIGINT_M_OFFSET;
     decrypted_bi = bi_mod_power(rsa->bi_ctx, dat_bi, rsa->e);
     bi_export(rsa->bi_ctx, decrypted_bi, buffer_out, byte_size);
-    free(dat_bi);
-    free(decrypted_bi);
+    RSA_free(rsa);
     return 0;
 }
 

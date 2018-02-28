@@ -338,6 +338,8 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
 
     free(expected_digest);
     free(hex_digest);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
 
@@ -358,6 +360,8 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 
     free(expected_digest);
     free(hex_digest);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
 
@@ -378,6 +382,8 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 
     free(expected_digest);
     free(hex_digest);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
 
@@ -393,6 +399,8 @@ TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
     ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
 
     free(hex_digest);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
 }
 
