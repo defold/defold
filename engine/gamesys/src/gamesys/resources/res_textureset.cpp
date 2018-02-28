@@ -93,6 +93,15 @@ namespace dmGameSystem
             dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
     }
 
+    static uint32_t GetResourceSize(TextureSetResource* res, uint32_t ddf_size)
+    {
+        uint32_t size = sizeof(TextureSetResource);
+        size += ddf_size;
+        size += res->m_HullCollisionGroups.Capacity()*sizeof(dmhash_t);
+        size += res->m_AnimationIds.Capacity()*(sizeof(dmhash_t)+sizeof(uint32_t));
+        return size;
+    }
+
     dmResource::Result ResTextureSetPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::TextureSet* texture_set_ddf;
@@ -116,6 +125,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) tile_set;
+            params.m_Resource->m_ResourceSize = GetResourceSize(tile_set, params.m_BufferSize);
         }
         else
         {
@@ -154,6 +164,7 @@ namespace dmGameSystem
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
             tile_set->m_HullSet = tmp_tile_set.m_HullSet;
             tile_set->m_AnimationIds.Swap(tmp_tile_set.m_AnimationIds);
+            params.m_Resource->m_ResourceSize = GetResourceSize(tile_set, params.m_BufferSize);
         }
         else
         {
