@@ -149,10 +149,10 @@
     (prune-build-dir! build-dir build-targets-by-key)
     (let [results (into []
                         (map (fn [[key {:keys [resource] :as build-target}]]
-                               (swap! progress #(-> %
-                                                    (progress/advance)
-                                                    (progress/with-message (str "Writing " (resource/proj-path resource)))))
-                               (render-progress! @progress)
+                               (render-progress! (swap! progress
+                                                        #(-> %
+                                                             (progress/advance)
+                                                             (progress/with-message (str "Writing " (resource/proj-path resource))))))
                                (or (when-let [artifact (get artifacts resource)]
                                      (and (valid? artifact) artifact))
                                    (let [{:keys [resource deps build-fn user-data]} build-target

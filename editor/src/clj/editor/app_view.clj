@@ -575,11 +575,16 @@ If you do not specifically require different script states, consider changing th
                       (console/show! console-view)
                       (launch-built-project! project prefs web-server false (make-render-build-error build-errors-view)))))))
 
-(defn- handle-bob-error! [render-error! project error]
-  (if (instance? Exception error)
-    (when-not (engine-build-errors/handle-build-error! render-error! project error)
-      (throw error))
-    (render-error! error)))
+(defn- handle-bob-error! [render-error! project {:keys [error exception] :as _result}]
+  (cond
+    error
+    (do (render-error! error)
+        true)
+
+    exception
+    (if (engine-build-errors/handle-build-error! render-error! project exception)
+      true
+      (throw exception))))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
@@ -595,8 +600,7 @@ If you do not specifically require different script states, consider changing th
                    (fn []
                      (let [result (deref (bob/build-html5! project prefs))]
                        (render-main-task-progress! progress/done)
-                       (if-let [error (:error result)]
-                         (handle-bob-error! render-error! project error)
+                       (when-not (handle-bob-error! render-error! project result)
                          (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))
 
 (def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
@@ -1213,8 +1217,7 @@ If you do not specifically require different script states, consider changing th
                  (fn []
                    (let [result (deref (bob/bundle! project prefs platform bundle-options))]
                      (render-main-task-progress! progress/done)
-                     (if-let [error (:error result)]
-                       (handle-bob-error! render-error! project error)
+                     (when-not (handle-bob-error! render-error! project result)
                        (if (some-> output-directory .isDirectory)
                          (ui/open-file output-directory)
                          (ui/run-later
