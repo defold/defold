@@ -370,7 +370,7 @@
                  (is (= 1 (count-exts (keys content-by-target) "spritec")))))
       (g/undo! (g/node-id->graph-id project))
       (testing "Verify equivalent sprites are not merged after being changed in memory"
-        (let [sprite (test-util/prop-node-id comp-node :blend-mode)]
+               (let [sprite (test-util/prop-node-id comp-node :blend-mode)]
                  (test-util/prop! sprite :blend-mode :blend-mode-add)
                  (let [build-artifacts   (project-build-artifacts project resource-node (g/make-evaluation-context))
                        content-by-target (into {} (map #(do [(resource/proj-path (:resource %)) (content-bytes %)])
@@ -405,7 +405,7 @@
 (defn- abs-project-path [workspace proj-path]
   (io/file (workspace/project-path workspace) proj-path))
 
-(defn mtime [f]
+(defn mtime [^File f]
   (.lastModified f))
 
 (deftest build-atlas
