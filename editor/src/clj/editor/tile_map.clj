@@ -324,7 +324,7 @@
    :material   (resource/resource->proj-path material)
    :blend-mode blend-mode
    :layers     (sort-by :z layer-msgs)
-   :textures   (mapv resource/resource->proj-path textures)})
+   :textures   (texture-unit/resources->paths textures)})
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)

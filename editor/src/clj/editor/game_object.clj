@@ -560,33 +560,39 @@
                 transform-properties (select-transform-properties resource-type embedded)]]
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
-(defn- sanitize-go-prop-entry [workspace go-prop-entry]
-  (let [value (:value go-prop-entry)
-        type (:type go-prop-entry)]
+(defn- sanitize-property-desc [workspace property-desc]
+  (let [value (:value property-desc)
+        type (:type property-desc)]
     (assert (string? value))
     (assert (keyword? type))
-    (assoc go-prop-entry :value (-> (properties/str->go-prop workspace value type)
+    (assoc property-desc :value (-> (properties/str->go-prop workspace value type)
                                     (properties/go-prop->str type)))))
 
-(defn sanitize-go-prop-entries [workspace go-prop-entries-path instance]
-  (if-some [path-token (first go-prop-entries-path)]
-    (if-some [unsanitized-entries (not-empty (get instance path-token))]
-      (assoc instance path-token (mapv (partial sanitize-go-prop-entries workspace (next go-prop-entries-path)) unsanitized-entries))
-      instance)
-    (sanitize-go-prop-entry workspace instance)))
+(defn- sanitize-component-property-desc [workspace component-property-desc]
+  ;; Note: component-property-desc can be either a GameObject$ComponentDesc
+  ;; or a GameObject$ComponentPropertyDesc in map form.
+  (assert (map? component-property-desc))
+  (assert (map? (:property-decls component-property-desc)))
+  (assert (vector? (:properties component-property-desc)))
+  (-> component-property-desc
+      (dissoc :property-decls) ; Only used in built data by the runtime.
+      (update :properties (partial mapv (partial sanitize-property-desc workspace)))))
 
-(defn- sanitize-component [workspace component]
-  (cond-> (sanitize-go-prop-entries workspace [:properties] component)
-          (every? (fn [[_key vs]] (empty? vs)) (:property-decls component)) (dissoc :property-decls)))
+(defn sanitize-component-property-desc-at-path [workspace component-property-desc-path instance]
+  (if-some [path-token (first component-property-desc-path)]
+    (if-some [unsanitized-entries (not-empty (get instance path-token))]
+      (assoc instance path-token (mapv (partial sanitize-component-property-desc-at-path workspace (next component-property-desc-path)) unsanitized-entries))
+      instance)
+    (sanitize-component-property-desc workspace instance)))
 
 (defn- sanitize-embedded-component [workspace embedded]
   (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace (:type embedded))]
     (assoc embedded :data (with-open [reader (StringReader. (:data embedded))]
                             (write-fn (read-fn reader))))))
 
-(defn sanitize-game-object [workspace go]
-  (-> go
-      (update :components (partial mapv (partial sanitize-component workspace)))
+(defn sanitize-game-object [workspace game-object]
+  (-> game-object
+      (update :components (partial mapv (partial sanitize-component-property-desc workspace)))
       (update :embedded-components (partial mapv (partial sanitize-embedded-component workspace)))))
 
 (defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]

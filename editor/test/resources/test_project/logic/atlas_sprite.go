@@ -1,7 +1,12 @@
 embedded_components {
   id: "sprite"
   type: "sprite"
-  data: "tile_set: \"/switcher/switcher.atlas\"\ndefault_animation: \"blue_candy\"\nmaterial: \"/builtins/materials/sprite.material\"\nblend_mode: BLEND_MODE_ALPHA\n"
+  data: "tile_set: \"/switcher/switcher.atlas\"\n"
+  "default_animation: \"blue_candy\"\n"
+  "material: \"/builtins/materials/sprite.material\"\n"
+  "blend_mode: BLEND_MODE_ALPHA\n"
+  "textures: \"/switcher/switcher.atlas\"\n"
+  ""
   position {
     x: 0.0
     y: 0.0

@@ -19,16 +19,19 @@ instances {
       id: "number"
       value: "3.0"
       type: PROPERTY_TYPE_NUMBER
+      sub_type: 0
     }
     properties {
       id: "hash"
       value: "hash3"
       type: PROPERTY_TYPE_HASH
+      sub_type: 0
     }
     properties {
       id: "url"
       value: "/url2"
       type: PROPERTY_TYPE_URL
+      sub_type: 0
     }
     properties {
       id: "texture"
@@ -64,16 +67,19 @@ embedded_instances {
   "    id: \"number\"\n"
   "    value: \"3.0\"\n"
   "    type: PROPERTY_TYPE_NUMBER\n"
+  "    sub_type: 0\n"
   "  }\n"
   "  properties {\n"
   "    id: \"hash\"\n"
   "    value: \"hash3\"\n"
   "    type: PROPERTY_TYPE_HASH\n"
+  "    sub_type: 0\n"
   "  }\n"
   "  properties {\n"
   "    id: \"url\"\n"
   "    value: \"/url2\"\n"
   "    type: PROPERTY_TYPE_URL\n"
+  "    sub_type: 0\n"
   "  }\n"
   "  properties {\n"
   "    id: \"texture\"\n"

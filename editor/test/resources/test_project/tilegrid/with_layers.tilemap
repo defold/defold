@@ -37,3 +37,4 @@ layers {
 }
 material: "/builtins/materials/tile_map.material"
 blend_mode: BLEND_MODE_ALPHA
+textures: "/tilegrid/tilegrid_test.tileset"

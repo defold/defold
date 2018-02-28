@@ -798,14 +798,12 @@
                       :sample-rate (:sample-rate spine)))))
 
 (g/defnk produce-model-save-value [spine-scene-resource default-animation skin material-resource blend-mode texture1-7-resources]
-  (cond-> {:spine-scene (resource/resource->proj-path spine-scene-resource)
-           :default-animation default-animation
-           :skin skin
-           :material (resource/resource->proj-path material-resource)
-           :blend-mode blend-mode}
-
-          (seq texture1-7-resources)
-          (assoc :textures (into [""] (map resource/resource->proj-path) texture1-7-resources))))
+  {:spine-scene (resource/resource->proj-path spine-scene-resource)
+   :default-animation default-animation
+   :skin skin
+   :material (resource/resource->proj-path material-resource)
+   :blend-mode blend-mode
+   :textures (texture-unit/resources->paths (into [nil] texture1-7-resources))})
 
 (defn ->skin-choicebox [spine-skins]
   (properties/->choicebox (cons "" (remove (partial = "default") spine-skins))))

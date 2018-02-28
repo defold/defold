@@ -141,6 +141,13 @@
 (defn properties-with-texture-set [node-id declared-properties samplers textures texture-set]
   (augment-properties declared-properties (texture-properties-with-texture-set node-id samplers textures texture-set)))
 
+(defn resources->paths [resources]
+  (let [kept-count (inc (or (util/last-index-where some? resources) -1))]
+    (into []
+          (comp (take kept-count)
+                (map resource/resource->proj-path))
+          resources)))
+
 (g/defnode TextureUnitBaseNode
   (inherits resource-node/ResourceNode)
 

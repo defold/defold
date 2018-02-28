@@ -156,7 +156,7 @@
    :default-animation default-animation
    :material (resource/resource->proj-path material)
    :blend-mode blend-mode
-   :textures (mapv resource/resource->proj-path textures)})
+   :textures (texture-unit/resources->paths textures)})
 
 (g/defnk produce-scene
   [_node-id aabb gpu-textures material-shader animation blend-mode]
@@ -262,7 +262,7 @@
                                              (texture-unit/properties-with-texture-set _node-id _declared-properties material-samplers textures image))))
 
 (defn- sanitize-sprite [sprite]
-  (let [image (:image sprite)
+  (let [image (:tile-set sprite)
         textures (or (:textures sprite) [])]
     (assoc sprite :textures (assoc textures 0 image))))
 

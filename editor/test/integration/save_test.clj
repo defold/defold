@@ -24,7 +24,8 @@
            [com.dynamo.model.proto ModelProto$ModelDesc]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc]
-           [com.dynamo.tile.proto Tile$TileSet]
+           [com.dynamo.sprite.proto Sprite$SpriteDesc]
+           [com.dynamo.tile.proto Tile$TileGrid Tile$TileSet]
            [org.apache.commons.io FileUtils]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]))
 
@@ -37,6 +38,8 @@
                            "particlefx" Particle$ParticleFX
                            "spinescene" Spine$SpineSceneDesc
                            "spinemodel" Spine$SpineModelDesc
+                           "sprite" Sprite$SpriteDesc
+                           "tilemap" Tile$TileGrid
                            "tilesource" Tile$TileSet})
 
 (deftest save-all

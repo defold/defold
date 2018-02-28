@@ -841,10 +841,10 @@
       (assoc :scale3 (read-scale3-or-scale instance))
       (dissoc :scale)))
 
-(defn- sanitize-instance-data [instance workspace go-prop-entries-path]
+(defn- sanitize-instance-data [instance workspace component-property-desc-path]
   (->> instance
        uniform->non-uniform-scale
-       (game-object/sanitize-go-prop-entries workspace go-prop-entries-path)))
+       (game-object/sanitize-component-property-desc-at-path workspace component-property-desc-path)))
 
 (defn- sanitize-embedded-go-data [embedded workspace key]
   (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace "go")]
@@ -854,16 +854,16 @@
 (defn- sanitize-instance [workspace instance]
   (-> instance
       (update :children (comp vec sort))
-      (sanitize-instance-data workspace [:component-properties :properties])))
+      (sanitize-instance-data workspace [:component-properties])))
 
 (defn- sanitize-embedded-instance [workspace embedded-instance]
   (-> embedded-instance
-      (sanitize-instance-data workspace [:component-properties :properties])
+      (sanitize-instance-data workspace [:component-properties])
       (sanitize-embedded-go-data workspace :data)))
 
 (defn- sanitize-collection-instance [workspace collection-instance]
   (-> collection-instance
-      (sanitize-instance-data workspace [:instance-properties :properties :properties])))
+      (sanitize-instance-data workspace [:instance-properties :properties])))
 
 (defn- sanitize-collection [workspace collection]
   (-> collection
