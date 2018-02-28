@@ -17,27 +17,31 @@ TEST(dmVMath, QuatFromAngle)
 
 TEST(dmMath, TestQuatToEuler)
 {
-    const float epsilon = 0.02f;
+    const float epsilon = 0.015f;
     Vector3 euler;
 
     // different degrees around different single axis
     const float half_rad_factor = (float) (M_PI / 360.0);
     for (uint32_t i = 0; i < 3; ++i)
     {
-        for (float a = 0.0f; a < 105.0f; a += 10.0f)
+        for (float a = -355.0f; a < 360.0f; a += 5.0f)
         {
-            float ap = dmMath::Min(a, 90.0f);
-            float sa2 = sin(ap * half_rad_factor);
-            float ca2 = cos(ap * half_rad_factor);
+            float sa2 = sin(a * half_rad_factor);
+            float ca2 = cos(a * half_rad_factor);
             float v[] = {0.0f, 0.0f, 0.0f};
             v[i] = sa2;
             euler = dmVMath::QuatToEuler(v[0], v[1], v[2], ca2);
-            float expected_i = ap;
+            float expected_i = a;
             float expected_i_1 = 0.0f;
             float expected_i_n_1 = 0.0f;
             ASSERT_NEAR(expected_i, euler.getElem(i), epsilon);
             ASSERT_NEAR(expected_i_1, euler.getElem((i + 1) % 3), epsilon);
             ASSERT_NEAR(expected_i_n_1, euler.getElem((i + 2) % 3), epsilon);
+            Quat exp_q = dmVMath::EulerToQuat(euler);
+            ASSERT_NEAR(exp_q.getX(), v[0], epsilon);
+            ASSERT_NEAR(exp_q.getY(), v[1], epsilon);
+            ASSERT_NEAR(exp_q.getZ(), v[2], epsilon);
+            ASSERT_NEAR(exp_q.getW(), ca2, epsilon);
         }
     }
 
@@ -58,13 +62,13 @@ TEST(dmMath, TestQuatToEuler)
 
 TEST(dmMath, TestEulerToQuat)
 {
-    const float epsilon = 0.001f;
+    const float epsilon = 0.015f;
 
     // different degrees around different single axis
     const float half_rad_factor = (float) (M_PI / 360.0);
     for (uint32_t i = 0; i < 3; ++i)
     {
-        for (float a = 0.0f; a < 105.0f; a += 10.0f)
+        for (float a = -355.f; a < 360.0f; a += 5.0f)
         {
             Vector3 v(0.0f, 0.0f, 0.0f);
             v.setElem(i, a);
@@ -75,6 +79,10 @@ TEST(dmMath, TestEulerToQuat)
             ASSERT_NEAR(expected.getY(), q.getY(), epsilon);
             ASSERT_NEAR(expected.getZ(), q.getZ(), epsilon);
             ASSERT_NEAR(expected.getW(), q.getW(), epsilon);
+            Vector3 exp_euler = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+            ASSERT_NEAR(exp_euler.getX(), v[0], epsilon);
+            ASSERT_NEAR(exp_euler.getY(), v[1], epsilon);
+            ASSERT_NEAR(exp_euler.getZ(), v[2], epsilon);
         }
     }
 

@@ -2,7 +2,6 @@
 #define DM_VMATH_H
 
 #include <vectormath/cpp/vectormath_aos.h>
-
 #include "math.h"
 #include "trig_lookup.h"
 
@@ -68,6 +67,20 @@ namespace dmVMath
      */
     inline Vectormath::Aos::Vector3 QuatToEuler(float q0, float q1, float q2, float q3)
     {
+        // Early-out when the rotation axis is either X, Y or Z.
+        // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
+        uint8_t mask = (q2 != 0.f) << 2 | (q1 != 0.f) << 1 | (q0 != 0.f);
+        switch (mask) {
+        case 0b001:
+        case 0b010:
+        case 0b100:
+            {
+                Vectormath::Aos::Vector3 r(0.0f, 0.0f, 0.0f);
+                // the sum of the values yields one value, as the others are 0
+                r.setElem(mask >> 1, atan2(q0+q1+q2, q3) * 2.0f * DEG_FACTOR);
+                return r;
+            }
+        }
         // Implementation based on:
         // * http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
         // * http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToEuler/
@@ -112,6 +125,21 @@ namespace dmVMath
      */
     inline Vectormath::Aos::Quat EulerToQuat(Vectormath::Aos::Vector3 xyz)
     {
+        // Early-out when the rotation axis is either X, Y or Z.
+        // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
+        uint8_t mask = (xyz.getZ() != 0.f) << 2 | (xyz.getY() != 0.f) << 1 | (xyz.getX() != 0.f);
+        switch (mask) {
+        case 0b001:
+        case 0b010:
+        case 0b100:
+            {
+                // the sum of the angles yields one angle, as the others are 0
+                float ha = (xyz.getX()+xyz.getY()+xyz.getZ()) * HALF_RAD_FACTOR;
+                Vectormath::Aos::Quat q(0.0f, 0.0f, 0.0f, dmTrigLookup::Cos(ha));
+                q.setElem(mask >> 1, dmTrigLookup::Sin(ha));
+                return q;
+            }
+        }
         // Implementation based on:
         // http://ntrs.nasa.gov/archive/nasa/casi.ntrs.nasa.gov/19770024290.pdf
         // Rotation sequence: 231 (YZX)
