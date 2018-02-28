@@ -201,5 +201,6 @@
                   dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
                   source-value (g/node-value node-id :source-value)]
               (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
+              (is (not (g/error? source-value)))
               (is (= (sort (dependencies-fn source-value))
                      (sort (non-broken-dependencies resource-path))) resource-path))))))))

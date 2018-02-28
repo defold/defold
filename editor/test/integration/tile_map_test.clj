@@ -39,10 +39,10 @@
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/tilegrid/with_layers.tilemap")]
       (doseq [n (range 3)]
-        (test-util/test-uses-assigned-material workspace project node-id
-                                               :material
-                                               [:children n :renderable :user-data :shader]
-                                               [:children n :renderable :user-data :gpu-texture])))))
+        (test-util/test-uses-assigned-multi-texture-material workspace project node-id
+                                                             :material
+                                                             [:children n :renderable :user-data :shader]
+                                                             [:children n :renderable :user-data :gpu-textures])))))
 
 (deftest tile-map-cell-order-deterministic
   (test-util/with-loaded-project

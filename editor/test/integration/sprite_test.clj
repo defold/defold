@@ -33,7 +33,7 @@
 (deftest sprite-scene
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/sprite/atlas.sprite")]
-      (test-util/test-uses-assigned-material workspace project node-id
-                                             :material
-                                             [:renderable :user-data :shader]
-                                             [:renderable :user-data :gpu-texture]))))
+      (test-util/test-uses-assigned-multi-texture-material workspace project node-id
+                                                           :material
+                                                           [:renderable :user-data :shader]
+                                                           [:renderable :user-data :gpu-textures]))))

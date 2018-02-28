@@ -301,15 +301,12 @@
               {:type :property-type-resource :sub-type properties/sub-type-material :value nil}
               {:type :property-type-resource :sub-type properties/sub-type-material :value nil}
               {:type :property-type-resource :sub-type properties/sub-type-material :value (resolve-workspace-resource "/absolute/path/to/resource.material")}
-              {:type :property-type-resource :sub-type properties/sub-type-material :value (resolve-workspace-resource "/script/relative/path/to/resource.material")}
               {:type :property-type-resource :sub-type properties/sub-type-texture :value nil}
               {:type :property-type-resource :sub-type properties/sub-type-texture :value nil}
               {:type :property-type-resource :sub-type properties/sub-type-texture :value (resolve-workspace-resource "/absolute/path/to/resource.atlas")}
-              {:type :property-type-resource :sub-type properties/sub-type-texture :value (resolve-workspace-resource "/script/relative/path/to/resource.atlas")}
               {:type :property-type-resource :sub-type properties/sub-type-textureset :value nil}
               {:type :property-type-resource :sub-type properties/sub-type-textureset :value nil}
-              {:type :property-type-resource :sub-type properties/sub-type-textureset :value (resolve-workspace-resource "/absolute/path/to/resource.tilesource")}
-              {:type :property-type-resource :sub-type properties/sub-type-textureset :value (resolve-workspace-resource "/script/relative/path/to/resource.tilesource")}]
+              {:type :property-type-resource :sub-type properties/sub-type-textureset :value (resolve-workspace-resource "/absolute/path/to/resource.tilesource")}]
              (map #(select-keys % [:value :type :sub-type])
                   (src->properties workspace
                     (string/join "\n" ["go.property(\"test\", true)"
@@ -342,15 +339,12 @@
                                        "go.property(\"test\", material())"
                                        "go.property(\"test\", material(''))"
                                        "go.property(\"test\", material('/absolute/path/to/resource.material'))"
-                                       "go.property(\"test\", material('relative/path/to/resource.material'))"
                                        "go.property(\"test\", texture())"
                                        "go.property(\"test\", texture(''))"
                                        "go.property(\"test\", texture('/absolute/path/to/resource.atlas'))"
-                                       "go.property(\"test\", texture('relative/path/to/resource.atlas'))"
                                        "go.property(\"test\", textureset())"
                                        "go.property(\"test\", textureset(''))"
-                                       "go.property(\"test\", textureset('/absolute/path/to/resource.tilesource'))"
-                                       "go.property(\"test\", textureset('relative/path/to/resource.tilesource'))"])))))
+                                       "go.property(\"test\", textureset('/absolute/path/to/resource.tilesource'))"])))))
 
       (is (= []
              (src->properties workspace "foo.property(\"test\", true)")))

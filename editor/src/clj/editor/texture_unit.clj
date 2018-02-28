@@ -116,14 +116,14 @@
                                         texture-properties))))
 
 (defn texture-properties [node-id samplers textures]
-  (when (seq samplers)
+  (when (sequential? samplers)
     (map (partial texture-unit-property node-id :textures)
          (map :name samplers)
          (range 8)
          (concat textures (repeat nil)))))
 
 (defn texture-properties-with-texture-set [node-id samplers textures texture-set]
-  (when (seq samplers)
+  (when (sequential? samplers)
     (concat
       {:texture0 {:node-id node-id
                   :type g/Str

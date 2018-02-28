@@ -949,7 +949,8 @@
   (output gpu-textures g/Any :cached (g/fnk [default-tex-params gpu-texture-generators material-samplers]
                                        (texture-unit/gpu-textures-by-sampler-name default-tex-params gpu-texture-generators material-samplers)))
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties material-samplers texture0-resource texture1-7-resources]
-                                             (if (empty? material-samplers)
+                                             (if (or (g/error? material-samplers)
+                                                     (g/error? texture0-resource)) ; Can be an ErrorValue if the spine-scene Resource is missing.
                                                _declared-properties
                                                (texture-unit/augment-properties _declared-properties
                                                                                 (concat

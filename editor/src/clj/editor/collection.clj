@@ -510,12 +510,12 @@
     {:resource resource :instance-msg instance-msg :transform transform :property-deps go-prop-dep-build-targets}))
 
 (g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets resource-property-build-targets ddf-properties]
-    (or (path-error _node-id source-resource)
-        (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
-              base-id (str id path-sep)
-              instance-data (get-in build-targets [0 :user-data :instance-data])
-              child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
-          (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties resource-property-build-targets) instance-data)))))
+  (or (path-error _node-id source-resource)
+      (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
+            base-id (str id path-sep)
+            instance-data (get-in build-targets [0 :user-data :instance-data])
+            child-ids (reduce (fn [child-ids data] (into child-ids (:children (:instance-msg data)))) #{} instance-data)]
+        (assoc-in build-targets [0 :user-data :instance-data] (map #(flatten-instance-data % base-id transform child-ids ddf-properties resource-property-build-targets) instance-data)))))
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id

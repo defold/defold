@@ -4,13 +4,12 @@
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.outline :as outline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
-            [util.text-util :as text-util]
             [editor.workspace :as workspace]
-            [editor.outline :as outline]
-            [util.digest :as digest])
+            [service.log :as log])
   (:import [org.apache.commons.codec.digest DigestUtils]
            [java.io StringReader]))
 
@@ -98,8 +97,27 @@
             (distinct))
           ((protobuf/get-fields-fn (protobuf/resource-field-paths ddf-type)) source-value))))
 
+(defn- input->path
+  ^String [input]
+  (if (resource/resource? input)
+    (resource/proj-path input)
+    (str input)))
+
+(defn- make-sanitizing-read-fn [read-fn sanitize-fn]
+  (if (nil? sanitize-fn)
+    read-fn
+    (fn [input]
+      (let [source-value (read-fn input)]
+        (try
+          (sanitize-fn source-value)
+          (catch Exception e
+            (log/warn :msg (format "Unable to sanitize data read from '%s'. Data corrupt?"
+                                   (input->path input))
+                      :exception e)
+            source-value))))))
+
 (defn register-ddf-resource-type [workspace & {:keys [ext node-type ddf-type load-fn dependencies-fn sanitize-fn icon view-types tags tag-opts label] :as args}]
-  (let [read-fn (comp (or sanitize-fn identity) (partial protobuf/read-text ddf-type))
+  (let [read-fn (make-sanitizing-read-fn (partial protobuf/read-text ddf-type) sanitize-fn)
         args (assoc args
                :textual? true
                :load-fn (fn [project self resource]

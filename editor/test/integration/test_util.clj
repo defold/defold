@@ -581,10 +581,27 @@
 (defn test-uses-assigned-material
   [workspace project node-id material-prop shader-path gpu-texture-path]
   (let [material-node (project/get-resource-node project "/materials/test_samplers.material")]
-    (testing "uses shader and texture params from assigned material "
+    (testing "uses shader and texture params from assigned material"
       (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
         (let [scene-data (g/node-value node-id :scene)]
           (is (= (get-in scene-data shader-path)
                  (g/node-value material-node :shader)))
           (is (= (get-in scene-data (conj gpu-texture-path :params))
-                   (material/sampler->tex-params  (first (g/node-value material-node :samplers))))))))))
+                 (material/sampler->tex-params (first (g/node-value material-node :samplers))))))))))
+
+(defn test-uses-assigned-multi-texture-material
+  [workspace project node-id material-prop shader-path gpu-textures-path]
+  (let [material-node (project/get-resource-node project "/materials/test_samplers.material")]
+    (testing "uses shader and texture params from assigned material"
+      (with-prop [node-id material-prop (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
+        (let [material-shader (g/node-value material-node :shader)
+              material-tex-params-by-sampler-name (into {}
+                                                        (map (juxt :name material/sampler->tex-params))
+                                                        (g/node-value material-node :samplers))
+              scene-data (g/node-value node-id :scene)
+              scene-shader (get-in scene-data shader-path)
+              scene-tex-params-by-sampler-name (into {}
+                                                     (map (juxt key (comp :params val)))
+                                                     (get-in scene-data gpu-textures-path))]
+          (and (is (= material-shader scene-shader))
+               (is (= material-tex-params-by-sampler-name scene-tex-params-by-sampler-name))))))))
