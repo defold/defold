@@ -15,6 +15,7 @@ namespace dmGameSystem
         dmGameSystemDDF::LightDesc** light_resource = new dmGameSystemDDF::LightDesc*;
         *light_resource = light_desc;
         params.m_Resource->m_Resource = (void*) light_resource;
+        params.m_Resource->m_ResourceSize = sizeof(dmGameSystemDDF::LightDesc);
         return dmResource::RESULT_OK;
     }
 
