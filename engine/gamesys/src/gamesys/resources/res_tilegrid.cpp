@@ -156,7 +156,7 @@ namespace dmGameSystem
 //            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
 //            tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
 //            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
-//            tile_grid->m_DDFSize = params.m_BufferSize;
+//            params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
 //        }
 //        else
 //        {

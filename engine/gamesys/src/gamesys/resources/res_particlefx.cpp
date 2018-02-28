@@ -125,6 +125,6 @@ namespace dmGameSystem
             return r;
         }
         params.m_Resource->m_ResourceSize = dmParticle::GetPrototypeResourceSize(prototype);
-
+        return dmResource::RESULT_OK;
     }
 }

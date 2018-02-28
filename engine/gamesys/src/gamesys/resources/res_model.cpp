@@ -127,7 +127,10 @@ namespace dmGameSystem
         model_resource->m_Model = ddf;
         dmResource::Result result = AcquireResources(params.m_Factory, model_resource, params.m_Filename);
         if(result != dmResource::RESULT_OK)
+        {
             return result;
+        }
         params.m_Resource->m_ResourceSize = sizeof(ModelResource) + params.m_BufferSize;
+        return dmResource::RESULT_OK;
     }
 }
