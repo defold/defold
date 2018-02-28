@@ -87,6 +87,7 @@ namespace dmResource
     // Internal data structure for passing parameters to postcreate function callbacks
     struct ResourcePostCreateParamsInternal
     {
+        uint64_t m_CanonicalPathHash;
         ResourcePostCreateParams m_Params;
         SResourceDescriptor m_ResourceDesc;
         bool m_Removed;
@@ -317,6 +318,7 @@ namespace dmResource
                     ip.m_Params.m_Context = resource_type->m_Context;
                     ip.m_Params.m_PreloadData = req->m_PreloadData;
                     ip.m_Params.m_Resource = 0;
+                    ip.m_CanonicalPathHash = req->m_CanonicalPathHash;
                     memcpy(&ip.m_ResourceDesc, &tmp_resource, sizeof(SResourceDescriptor));
                 }
             }
@@ -636,10 +638,10 @@ namespace dmResource
 
         ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
         ResourcePostCreateParams& params = ip.m_Params;
-        params.m_Resource = &ip.m_ResourceDesc;
-        SResourceType *resource_type = (SResourceType*) params.m_Resource->m_ResourceType;
+        SResourceType *resource_type = (SResourceType*) ip.m_ResourceDesc.m_ResourceType;
         if(resource_type->m_PostCreateFunction)
         {
+            params.m_Resource = GetByHash(ip.m_Params.m_Factory, ip.m_CanonicalPathHash);
             ret = resource_type->m_PostCreateFunction(params);
         }
 
