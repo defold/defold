@@ -190,6 +190,7 @@ namespace dmGameSystem
 
             SetMaterial(material, &resources);
             params.m_Resource->m_Resource = (void*) material;
+            params.m_Resource->m_ResourceSize = dmRender::GetMaterialResourceSize(material);
         }
         else
         {
@@ -222,6 +223,7 @@ namespace dmGameSystem
             dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialVertexProgram(material));
             dmRender::ClearMaterialTags(material);
             SetMaterial(material, &resources);
+            params.m_Resource->m_ResourceSize = dmRender::GetMaterialResourceSize(material);
         }
         else
         {

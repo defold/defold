@@ -54,6 +54,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) sound;
+            params.m_Resource->m_ResourceSize = sizeof(Sound);
         }
         return r;
     }

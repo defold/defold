@@ -107,6 +107,7 @@ namespace dmGameSystem
         if (AcquireResources(params.m_Factory, (PhysicsContext*) params.m_Context, params.m_Buffer, params.m_BufferSize, convex_shape, params.m_Filename))
         {
             params.m_Resource->m_Resource = convex_shape;
+            params.m_Resource->m_ResourceSize = sizeof(ConvexShapeResource);
             return dmResource::RESULT_OK;
         }
         else

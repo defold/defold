@@ -531,6 +531,14 @@ namespace dmParticle
         return i->m_WorldTransform.GetTranslation();
     }
 
+    uint32_t GetPrototypeResourceSize(HPrototype prototype)
+    {
+        uint32_t size = sizeof(Prototype);
+        size += prototype->m_DDFSize;
+        size += prototype->m_Emitters.Capacity()*sizeof(ModifierPrototype);
+        return size;
+    }
+
     static bool IsSleeping(Emitter* emitter)
     {
         return emitter->m_State == EMITTER_STATE_SLEEPING;
@@ -613,7 +621,7 @@ namespace dmParticle
             return;
 
         Instance* inst = GetInstance(context, instance);
-        
+
         if (IsSleeping(inst))
             return;
 
@@ -1724,7 +1732,9 @@ namespace dmParticle
         dmDDF::Result r = dmDDF::LoadMessage<dmParticleDDF::ParticleFX>(buffer, buffer_size, &ddf);
         if (r == dmDDF::RESULT_OK)
         {
-            return NewPrototypeFromDDF(ddf);
+            Prototype* p = NewPrototypeFromDDF(ddf);
+            p->m_DDFSize = buffer_size;
+            return p;
         }
         dmLogError("Failed to load particle data");
         return 0x0;

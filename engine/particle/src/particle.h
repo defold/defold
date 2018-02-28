@@ -223,6 +223,9 @@ namespace dmParticle
     // For tests
     Vector3 GetPosition(HParticleContext context, HInstance instance);
 
+    // For profiling
+    uint32_t GetPrototypeResourceSize(HPrototype prototype);
+
 #define DM_PARTICLE_PROTO(ret, name,  ...) \
     \
     ret name(__VA_ARGS__);\
