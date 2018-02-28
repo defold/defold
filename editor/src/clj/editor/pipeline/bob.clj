@@ -73,7 +73,7 @@
         nil
         {:error {:causes (engine-build-errors/failed-tasks-error-causes project failed-tasks)}}))
     (catch Exception e
-      {:error e})))
+      {:exception e})))
 
 (defn- bob-build! [project bob-commands bob-args]
   (assert (vector? bob-commands))
