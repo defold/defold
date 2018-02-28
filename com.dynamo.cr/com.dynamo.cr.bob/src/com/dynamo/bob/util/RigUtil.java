@@ -596,7 +596,7 @@ public class RigUtil {
         if (track.keys.isEmpty()) {
             return;
         }
-        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        int sampleCount = Math.max(2, (int)Math.ceil(duration * sampleRate) + 1);
         double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();
