@@ -243,9 +243,9 @@
 
 (defn load-property-overrides
   "Takes a sequence of GameObject$PropertyDesc in map format and returns a map of [prop-kw, [go-prop-type, clj-value]]."
-  [base-resource property-descs]
+  [workspace property-descs]
   (into {}
-        (map (partial properties/property-desc->property-override base-resource))
+        (map (partial properties/property-desc->property-override workspace))
         property-descs))
 
 (defn property-overrides
@@ -553,18 +553,41 @@
                 source-resource (workspace/resolve-resource resource source-path)
                 resource-type (some-> source-resource resource/resource-type)
                 transform-properties (select-transform-properties resource-type component)
-                properties (load-property-overrides resource (:properties component))]]
+                properties (load-property-overrides (resource/workspace resource) (:properties component))]]
       (add-component self source-resource (:id component) transform-properties properties nil))
     (for [embedded (:embedded-components prototype)
           :let [resource-type (get (g/node-value project :resource-types) (:type embedded))
                 transform-properties (select-transform-properties resource-type embedded)]]
       (add-embedded-component self project (:type embedded) (:data embedded) (:id embedded) transform-properties false))))
 
-(defn- sanitize-component [c]
-  (dissoc c :property-decls))
+(defn- sanitize-go-prop-entry [workspace go-prop-entry]
+  (let [value (:value go-prop-entry)
+        type (:type go-prop-entry)]
+    (assert (string? value))
+    (assert (keyword? type))
+    (assoc go-prop-entry :value (-> (properties/str->go-prop workspace value type)
+                                    (properties/go-prop->str type)))))
 
-(defn- sanitize-game-object [go]
-  (update go :components (partial mapv sanitize-component)))
+(defn sanitize-go-prop-entries [workspace go-prop-entries-path instance]
+  (if-some [path-token (first go-prop-entries-path)]
+    (if-some [unsanitized-entries (not-empty (get instance path-token))]
+      (assoc instance path-token (mapv (partial sanitize-go-prop-entries workspace (next go-prop-entries-path)) unsanitized-entries))
+      instance)
+    (sanitize-go-prop-entry workspace instance)))
+
+(defn- sanitize-component [workspace component]
+  (cond-> (sanitize-go-prop-entries workspace [:properties] component)
+          (every? (fn [[_key vs]] (empty? vs)) (:property-decls component)) (dissoc :property-decls)))
+
+(defn- sanitize-embedded-component [workspace embedded]
+  (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace (:type embedded))]
+    (assoc embedded :data (with-open [reader (StringReader. (:data embedded))]
+                            (write-fn (read-fn reader))))))
+
+(defn sanitize-game-object [workspace go]
+  (-> go
+      (update :components (partial mapv (partial sanitize-component workspace)))
+      (update :embedded-components (partial mapv (partial sanitize-embedded-component workspace)))))
 
 (defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
   (when-let [resource-type (resource-types type)]
@@ -593,7 +616,7 @@
     :ddf-type GameObject$PrototypeDesc
     :load-fn load-game-object
     :dependencies-fn (make-dependencies-fn workspace)
-    :sanitize-fn sanitize-game-object
+    :sanitize-fn (partial sanitize-game-object workspace)
     :icon game-object-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid true}}))

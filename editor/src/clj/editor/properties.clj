@@ -198,7 +198,7 @@
                (inc counter))
         result))))
 
-(defn str->go-prop [base-resource s type]
+(defn str->go-prop [workspace s type]
   (case type
     :property-type-number (parse-num s)
     (:property-type-hash :property-type-url) s
@@ -208,7 +208,7 @@
                               q (Quat4d. (double-array v))]
                           (math/quat->euler q))
     :property-type-boolean (Boolean/parseBoolean s)
-    :property-type-resource (workspace/resolve-resource base-resource s)))
+    :property-type-resource (workspace/resolve-workspace-resource workspace s)))
 
 (defn go-prop-type->property-type [go-prop-type]
   (case go-prop-type
@@ -571,11 +571,11 @@
 
 (defn property-desc->property-override
   "Takes a GameObject.PropertyDesc in map format and returns a vector in the format [prop-kw, [go-prop-type, clj-value]]."
-  [base-resource {prop-name :id go-prop-type :type value :value}]
+  [workspace {prop-name :id go-prop-type :type value :value}]
   (assert (string? prop-name))
   (assert (go-prop-type? go-prop-type))
   (let [prop-kw (user-name->key prop-name)
-        clj-value (str->go-prop base-resource value go-prop-type)]
+        clj-value (str->go-prop workspace value go-prop-type)]
     [prop-kw [go-prop-type clj-value]]))
 
 (defn build-target-go-props [resource-property-build-targets go-props-with-source-resources]

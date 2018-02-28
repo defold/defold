@@ -178,6 +178,8 @@
   (let [black-list #{"/game_object/type_faulty_props.go"
                      "/collection/type_faulty_props.collection"}
         paths [["/sprite/atlas.sprite" (set-prop-fn :default-animation "no-anim")]
+               ["/spine/player/spineboy.spinescene" (set-prop-fn :sample-rate 120.0)]
+               ["/spine/player/spineboy.spinemodel" (set-prop-fn :blend-mode :blend-mode-add)]
                ["/collection/empty_go.collection" delete-first-child!]
                ["/collection/embedded_embedded_sounds.collection" delete-first-child!]
                ["/collection/empty_props_go.collection" delete-first-child!]
@@ -223,11 +225,24 @@
     (with-clean-system
       (let [workspace (test-util/setup-scratch-workspace! world)
             project   (test-util/setup-project! workspace)]
-        (let [xf (comp (map :resource)
-                   (map resource/resource->proj-path)
-                   (filter (complement black-list)))
-              clean? (fn [] (empty? (into [] xf (g/node-value project :dirty-save-data))))]
-          (is (clean?))
+        (let [save-data-path (comp resource/resource->proj-path :resource)
+              dirty-save-data (fn []
+                                (sort-by save-data-path
+                                         (filterv (comp (complement black-list)
+                                                        resource/resource->proj-path
+                                                        :resource)
+                                                  (g/node-value project :dirty-save-data))))
+              clean? (comp empty? dirty-save-data)]
+
+          ;; We could do the initial check here by simply checking (is (clean?)),
+          ;; but doing it this way highlights sanitation issues we've missed.
+          (let [dirty-at-start (dirty-save-data)]
+            (is (= [] (map save-data-path dirty-at-start)))
+            (when-some [node-id (some-> dirty-at-start first :node-id)]
+              (let [source-value (g/node-value node-id :source-value)
+                    cleaned-save-value (g/node-value node-id :cleaned-save-value)]
+                (is (= source-value cleaned-save-value)))))
+
           (doseq [[path f] paths]
             (testing (format "Verifying %s" path)
               (let [node-id (test-util/resource-node project path)]

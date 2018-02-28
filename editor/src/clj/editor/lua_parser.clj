@@ -440,7 +440,7 @@
         (mapcat (partial parse-requires (cons node node-path))
                 (next node))))))
 
-(defn lua-info [base-resource code]
+(defn lua-info [workspace code]
   (let [tree (lua-parser code)
         info (collect-info tree)
         local-vars-info (into #{} (apply concat (map :local-vars info)))
@@ -448,7 +448,7 @@
         functions-info (or (apply merge (map :functions info)) {})
         local-functions-info (or (apply merge (map :local-functions info)) {})
         requires-info (vec (distinct (parse-requires (list) tree)))
-        resolve-resource (partial workspace/resolve-resource base-resource)
+        resolve-resource (partial workspace/resolve-workspace-resource workspace)
         script-properties-info (into []
                                      (keep (fn [entry]
                                              (when-some [property-info (:script-properties entry)]

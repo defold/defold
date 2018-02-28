@@ -34,6 +34,7 @@ instances {
       id: "texture"
       value: "/script/resources/from_props_collection.atlas"
       type: PROPERTY_TYPE_RESOURCE
+      sub_type: 14361042077038175274
     }
   }
   scale3 {
@@ -78,6 +79,7 @@ embedded_instances {
   "    id: \"texture\"\n"
   "    value: \"/script/resources/from_props_collection.atlas\"\n"
   "    type: PROPERTY_TYPE_RESOURCE\n"
+  "    sub_type: 14361042077038175274\n"
   "  }\n"
   "}\n"
   ""

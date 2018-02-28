@@ -51,15 +51,18 @@ components {
     id: "material"
     value: "/script/resources/from_props_game_object.material"
     type: PROPERTY_TYPE_RESOURCE
+    sub_type: 11136307729242940719
   }
   properties {
     id: "texture"
     value: "/script/resources/from_props_game_object.atlas"
     type: PROPERTY_TYPE_RESOURCE
+    sub_type: 14361042077038175274
   }
   properties {
     id: "textureset"
     value: "/script/resources/from_props_game_object.atlas"
     type: PROPERTY_TYPE_RESOURCE
+    sub_type: 8037333530893729637
   }
 }

@@ -261,7 +261,12 @@
   (output _properties g/Properties :cached (g/fnk [_node-id _declared-properties material-samplers textures image]
                                              (texture-unit/properties-with-texture-set _node-id _declared-properties material-samplers textures image))))
 
-(defn load-sprite [project self resource sprite]
+(defn- sanitize-sprite [sprite]
+  (let [image (:image sprite)
+        textures (or (:textures sprite) [])]
+    (assoc sprite :textures (assoc textures 0 image))))
+
+(defn- load-sprite [project self resource sprite]
   (let [image    (workspace/resolve-resource resource (:tile-set sprite))
         material (workspace/resolve-resource resource (:material sprite))
         textures (mapv #(workspace/resolve-resource resource %) (:textures sprite))]
@@ -279,6 +284,7 @@
     :node-type SpriteNode
     :ddf-type Sprite$SpriteDesc
     :load-fn load-sprite
+    :sanitize-fn sanitize-sprite
     :icon sprite-icon
     :view-types [:scene :text]
     :tags #{:component}

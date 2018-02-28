@@ -199,7 +199,7 @@
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [resource (g/node-value self :resource evaluation-context)
-                         lua-info (lua-parser/lua-info resource (data/lines-reader new-value))
+                         lua-info (lua-parser/lua-info (resource/workspace resource) (data/lines-reader new-value))
                          own-module (lua/path->lua-module (resource/proj-path resource))
                          completion-info (assoc lua-info :module own-module)
                          modules (into [] (comp (map second) (remove lua/preinstalled-modules)) (:requires lua-info))

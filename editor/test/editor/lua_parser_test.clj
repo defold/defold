@@ -257,20 +257,19 @@
     "local function\nfunction foo(a,b"
     "local function\nfunction foo(a,b)"))
 
-(defn- src->properties [base-resource src]
-  (:script-properties (lua-info base-resource src)))
+(defn- src->properties [workspace src]
+  (:script-properties (lua-info workspace src)))
 
 (deftest test-properties
   (test-support/with-clean-system
     (let [workspace (test-util/setup-workspace! world)
-          resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)
-          base-resource (resolve-workspace-resource "/script/props.script")]
+          resolve-workspace-resource (partial workspace/resolve-workspace-resource workspace)]
       (is (= [{:name "test"
                :type :property-type-number
                :sub-type 0
                :value 1.1
                :status :ok}]
-             (src->properties base-resource "go.property(\"test\", 1.1)")))
+             (src->properties workspace "go.property(\"test\", 1.1)")))
 
       (is (= [{:type :property-type-boolean :sub-type 0 :value true}
               {:type :property-type-boolean :sub-type 0 :value false}
@@ -312,7 +311,7 @@
               {:type :property-type-resource :sub-type properties/sub-type-textureset :value (resolve-workspace-resource "/absolute/path/to/resource.tilesource")}
               {:type :property-type-resource :sub-type properties/sub-type-textureset :value (resolve-workspace-resource "/script/relative/path/to/resource.tilesource")}]
              (map #(select-keys % [:value :type :sub-type])
-                  (src->properties base-resource
+                  (src->properties workspace
                     (string/join "\n" ["go.property(\"test\", true)"
                                        "go.property(\"test\", false)"
                                        "go.property(\"test\", 1)"
@@ -354,14 +353,14 @@
                                        "go.property(\"test\", textureset('relative/path/to/resource.tilesource'))"])))))
 
       (is (= []
-             (src->properties base-resource "foo.property(\"test\", true)")))
+             (src->properties workspace "foo.property(\"test\", true)")))
       (is (= []
-             (src->properties base-resource "go.property")))
+             (src->properties workspace "go.property")))
       (is (= [{:status :invalid-args}]
-             (src->properties base-resource "go.property()")))
+             (src->properties workspace "go.property()")))
       (is (= [{:status :invalid-args :name "test"}]
-             (src->properties base-resource "go.property(\"test\")")))
+             (src->properties workspace "go.property(\"test\")")))
       (is (= [{:status :invalid-name :name "" :type :property-type-number :sub-type 0 :value 0.0}]
-             (src->properties base-resource "go.property(\"\", 0.0)")))
+             (src->properties workspace "go.property(\"\", 0.0)")))
       (is (= [{:status :invalid-value :name "test"}]
-             (src->properties base-resource "go.property(\"test\", \"foo\")"))))))
+             (src->properties workspace "go.property(\"test\", \"foo\")"))))))

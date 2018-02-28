@@ -10,7 +10,7 @@ collection_instances {
             properties {id: "number" value: "5.0" type: PROPERTY_TYPE_NUMBER}
             properties {id: "hash" value: "hash5" type: PROPERTY_TYPE_HASH}
             properties {id: "url" value: "/url4" type: PROPERTY_TYPE_URL}
-            properties {id: "material" value: "/script/resources/from_sub_sub_props_collection.material" type: PROPERTY_TYPE_RESOURCE}
+            properties {id: "material" value: "/script/resources/from_sub_sub_props_collection.material" type: PROPERTY_TYPE_RESOURCE sub_type: 11136307729242940719}
         }
     }
 }

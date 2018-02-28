@@ -284,6 +284,11 @@
    (long (Math/floor (/ (.y pos) tile-height)))])
 
 
+(defn- sanitize-tile-map [tile-grid]
+  (let [tile-set (:tile-set tile-grid)
+        textures (or (:textures tile-grid) [])]
+    (assoc tile-grid :textures (assoc textures 0 tile-set))))
+
 (defn load-tile-map
   [project self resource tile-grid]
   (let [tile-source (workspace/resolve-resource resource (:tile-set tile-grid))
@@ -1060,6 +1065,7 @@
     :node-type TileMapNode
     :ddf-type Tile$TileGrid
     :load-fn load-tile-map
+    :sanitize-fn sanitize-tile-map
     :icon tile-map-icon
     :view-types [:scene :text]
     :view-opts {:scene {:grid tile-map-grid/TileMapGrid

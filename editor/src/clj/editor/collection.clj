@@ -257,11 +257,11 @@
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
       (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
 
-(defn- load-component-overrides [base-resource component-property-descs]
+(defn- load-component-overrides [workspace component-property-descs]
   (into {}
         (map (fn [{component-id :id component-properties :properties}]
                (assert (string? (not-empty component-id)))
-               [component-id (game-object/load-property-overrides base-resource component-properties)]))
+               [component-id (game-object/load-property-overrides workspace component-properties)]))
         component-property-descs))
 
 (defn- component-overrides [ddf-component-properties]
@@ -534,11 +534,11 @@
     (g/node-instance? basis resource-node/ResourceNode src-id)
     (g/node-instance? basis InstanceNode src-id)))
 
-(defn- load-game-object-overrides [base-resource instance-property-descs]
+(defn- load-game-object-overrides [workspace instance-property-descs]
   (into {}
         (map (fn [{game-object-id :id component-property-descs :properties}]
                (assert (string? (not-empty game-object-id)))
-               [game-object-id (load-component-overrides base-resource component-property-descs)]))
+               [game-object-id (load-component-overrides workspace component-property-descs)]))
         instance-property-descs))
 
 (defn- game-object-overrides [ddf-properties]
@@ -795,13 +795,14 @@
   (concat
     (g/set-property self :name (:name collection))
     (g/set-property self :scale-along-z (not= 0 (:scale-along-z collection)))
-    (let [tx-go-creation (flatten
+    (let [workspace (resource/workspace resource)
+          tx-go-creation (flatten
                            (concat
                              (for [game-object (:instances collection)
                                    :let [source-resource (workspace/resolve-resource resource (:prototype game-object))]]
                                (make-ref-go self project source-resource (:id game-object) (:position game-object)
                                             (:rotation game-object) (:scale3 game-object) nil
-                                            (load-component-overrides resource (:component-properties game-object))))
+                                            (load-component-overrides workspace (:component-properties game-object))))
                              (for [embedded (:embedded-instances collection)]
                                (make-embedded-go self project "go" (:data embedded) (:id embedded)
                                                  (:position embedded)
@@ -825,7 +826,7 @@
           :let [source-resource (workspace/resolve-resource resource (:collection coll-instance))]]
       (add-collection-instance self source-resource (:id coll-instance) (:position coll-instance)
                                (:rotation coll-instance) (:scale3 coll-instance)
-                               (load-game-object-overrides resource (:instance-properties coll-instance))))))
+                               (load-game-object-overrides (resource/workspace resource) (:instance-properties coll-instance))))))
 
 (defn- read-scale3-or-scale
   [{:keys [scale3 scale] :as pb-map}]
@@ -835,16 +836,40 @@
     [scale scale scale]
     scale3))
 
-(defn- uniform->non-uniform-scale [v]
-  (-> v
-    (assoc :scale3 (read-scale3-or-scale v))
-    (dissoc :scale)))
+(defn- uniform->non-uniform-scale [instance]
+  (-> instance
+      (assoc :scale3 (read-scale3-or-scale instance))
+      (dissoc :scale)))
 
-(defn- sanitize-instances [is]
-  (mapv uniform->non-uniform-scale is))
+(defn- sanitize-instance-data [instance workspace go-prop-entries-path]
+  (->> instance
+       uniform->non-uniform-scale
+       (game-object/sanitize-go-prop-entries workspace go-prop-entries-path)))
 
-(defn- sanitize-collection [c]
-  (reduce (fn [c f] (update c f sanitize-instances)) c [:instances :embedded-instances :collection-instances]))
+(defn- sanitize-embedded-go-data [embedded workspace key]
+  (let [{:keys [read-fn write-fn]} (workspace/get-resource-type workspace "go")]
+    (assoc embedded key (with-open [reader (StringReader. (get embedded key))]
+                          (write-fn (read-fn reader))))))
+
+(defn- sanitize-instance [workspace instance]
+  (-> instance
+      (update :children (comp vec sort))
+      (sanitize-instance-data workspace [:component-properties :properties])))
+
+(defn- sanitize-embedded-instance [workspace embedded-instance]
+  (-> embedded-instance
+      (sanitize-instance-data workspace [:component-properties :properties])
+      (sanitize-embedded-go-data workspace :data)))
+
+(defn- sanitize-collection-instance [workspace collection-instance]
+  (-> collection-instance
+      (sanitize-instance-data workspace [:instance-properties :properties :properties])))
+
+(defn- sanitize-collection [workspace collection]
+  (-> collection
+      (update :instances (partial mapv (partial sanitize-instance workspace)))
+      (update :embedded-instances (partial mapv (partial sanitize-embedded-instance workspace)))
+      (update :collection-instances (partial mapv (partial sanitize-collection-instance workspace)))))
 
 (defn- make-dependencies-fn [workspace]
   (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
@@ -870,7 +895,7 @@
                                     :ddf-type GameObject$CollectionDesc
                                     :load-fn load-collection
                                     :dependencies-fn (make-dependencies-fn workspace)
-                                    :sanitize-fn sanitize-collection
+                                    :sanitize-fn (partial sanitize-collection workspace)
                                     :icon collection-icon
                                     :view-types [:scene :text]
                                     :view-opts {:scene {:grid true}}))

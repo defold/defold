@@ -4,13 +4,12 @@
             [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.image :as image]
-            [editor.material :as material]
-            [editor.resource :as resource]
-            [internal.util :as util]
-            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
-            [editor.properties :as properties])
+            [editor.material :as material]
+            [editor.properties :as properties]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [internal.util :as util])
   (:import (com.jogamp.opengl GL)
            (editor.gl.texture TextureLifecycle)))
 
@@ -19,32 +18,27 @@
 
 (defn connect-resources [self old-value new-value connections]
   (let [project (project/get-project self)
-        xform-resource->resource-node (keep #(some->> % (project/get-resource-node project)))
-        old-resource-nodes (into #{} xform-resource->resource-node old-value)
-        new-resource-nodes (into #{} xform-resource->resource-node new-value)
-        to-disconnect (set/difference old-resource-nodes new-resource-nodes)
-        to-connect (set/difference new-resource-nodes old-resource-nodes)]
+        old-resources (into #{} (filter some?) old-value)
+        new-resources (into #{} (filter some?) new-value)
+        to-disconnect (set/difference old-resources new-resources)
+        to-connect (set/difference new-resources old-resources)]
     (concat
-      (for [resource-node to-disconnect
-            [from to] connections]
-        (g/disconnect resource-node from self to))
-      (for [resource-node to-connect
-            [from to] connections]
-        (g/connect resource-node from self to)))))
+      (for [resource to-disconnect]
+        (project/disconnect-resource-node project resource self connections))
+      (for [resource to-connect]
+        (project/connect-resource-node project resource self connections)))))
 
 (defn connect-resources-preserving-index [self old-value new-value connections]
   (let [project (project/get-project self)]
     (concat
       (for [resource old-value]
-        (if-some [resource-node (some->> resource (project/get-resource-node project))]
-          (for [[from to] connections]
-            (g/disconnect resource-node from self to))
+        (if (some? resource)
+          (project/disconnect-resource-node project resource self connections)
           (for [[_ to] connections]
             (g/disconnect project :nil-value self to))))
       (for [resource new-value]
-        (if-some [resource-node (some->> resource (project/get-resource-node project))]
-          (for [[from to] connections]
-            (g/connect resource-node from self to))
+        (if (some? resource)
+          (project/connect-resource-node project resource self connections)
           (for [[_ to] connections]
             (g/connect project :nil-value self to)))))))
 
