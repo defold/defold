@@ -25,6 +25,7 @@ namespace dmGameSystem
         {
             cspr->m_UrlHash = dmHashString64(params.m_Filename);
             params.m_Resource->m_Resource = (void*) cspr;
+            params.m_Resource->m_ResourceSize = sizeof(CollectionProxyResource) + params.m_BufferSize;
         }
         else
         {
@@ -50,6 +51,7 @@ namespace dmGameSystem
             CollectionProxyResource* cspr = (CollectionProxyResource*) params.m_Resource->m_Resource;
             ReleaseResources(params.m_Factory, cspr);
             *cspr = tmp_cspr;
+            params.m_Resource->m_ResourceSize = sizeof(CollectionProxyResource) + params.m_BufferSize;
         }
         else
         {
