@@ -63,6 +63,7 @@ namespace dmInput
         binding->m_Actions.Clear();
         Action action;
         memset(&action, 0, sizeof(Action));
+        binding->m_ResourceSize = sizeof(Binding);
         // add null action for mouse movement
         binding->m_Actions.Put(0, action);
         if (ddf->m_KeyTrigger.m_Count > 0)
@@ -86,6 +87,7 @@ namespace dmInput
                 binding->m_KeyboardBinding->m_Triggers.Push(trigger);
                 binding->m_Actions.Put(trigger.m_ActionId, action);
             }
+            binding->m_ResourceSize += sizeof(KeyboardBinding) + (binding->m_KeyboardBinding->m_Triggers.Capacity()*sizeof(KeyTrigger));
         }
         else if (binding->m_KeyboardBinding != 0x0)
         {
@@ -115,6 +117,7 @@ namespace dmInput
             }
             // Mouse move action
             binding->m_Actions.Put(0, action);
+            binding->m_ResourceSize += sizeof(MouseBinding) + (binding->m_MouseBinding->m_Triggers.Capacity()*sizeof(MouseTrigger));
         }
         else if (binding->m_MouseBinding != 0x0)
         {
@@ -174,9 +177,12 @@ namespace dmInput
                     }
 
                     binding->m_GamepadBindings.Push(gamepad_binding);
+                    binding->m_ResourceSize += gamepad_binding->m_Triggers.Capacity() * sizeof(GamepadTrigger);
+                    binding->m_ResourceSize += gamepad_binding->m_Actions.Capacity() * sizeof(Action);
                 }
             }
 
+            binding->m_ResourceSize += binding->m_GamepadBindings.Size() * sizeof(GamepadBinding);
             // Reset action
             action.m_IsGamepad = 0;
             action.m_GamepadIndex = 0;
@@ -206,6 +212,7 @@ namespace dmInput
             }
             // Mouse move action
             binding->m_Actions.Put(0, action);
+            binding->m_ResourceSize += sizeof(TouchDeviceBinding) + (binding->m_TouchDeviceBinding->m_Triggers.Capacity()*sizeof(TouchTrigger));
         }
         else if (binding->m_TouchDeviceBinding != 0x0)
         {
@@ -236,6 +243,7 @@ namespace dmInput
                 binding->m_Actions.Put(trigger.m_ActionId, action);
             }
             binding->m_Actions.Put(0, action);
+            binding->m_ResourceSize += sizeof(TextBinding) + (binding->m_TextBinding->m_Triggers.Capacity()*sizeof(TextTrigger));
         }
         else if (binding->m_TextBinding != 0x0)
         {
@@ -247,7 +255,10 @@ namespace dmInput
         {
             binding->m_AccelerationBinding = new AccelerationBinding();
             memset(binding->m_AccelerationBinding, 0, sizeof(*binding->m_AccelerationBinding));
+            binding->m_ResourceSize += sizeof(AccelerationBinding);
         }
+        binding->m_ResourceSize += binding->m_GamepadBindings.Capacity() * (sizeof(GamepadBinding*));
+        binding->m_ResourceSize += binding->m_Actions.Capacity() * (sizeof(Action) + sizeof(dmhash_t));
     }
 
     void DeleteBinding(HBinding binding)
@@ -267,6 +278,11 @@ namespace dmInput
         if (binding->m_TextBinding != 0x0)
             delete binding->m_TextBinding;
         delete binding;
+    }
+
+    uint32_t GetBindingResourceSize(HBinding binding)
+    {
+        return binding->m_ResourceSize;
     }
 
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf)

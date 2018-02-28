@@ -426,6 +426,11 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    uint32_t GetSoundResourceSize(HSoundData sound_data)
+    {
+        return sound_data->m_Size + sizeof(SoundData);
+    }
+
     Result DeleteSoundData(HSoundData sound_data)
     {
         if (sound_data->m_Data != 0x0)
