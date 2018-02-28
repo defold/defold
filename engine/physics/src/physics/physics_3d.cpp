@@ -1065,6 +1065,7 @@ namespace dmPhysics
         ghost.setWorldTransform(transform);
 
         world->m_DynamicsWorld->addCollisionObject(&ghost);
+        ghost.getBroadphaseHandle()->m_collisionFilterGroup = btobject->getBroadphaseHandle()->m_collisionFilterGroup;
 
         DMContactResultCallback contact_callback;
         contact_callback.m_Callback = callback;

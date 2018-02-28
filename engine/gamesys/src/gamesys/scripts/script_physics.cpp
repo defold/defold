@@ -361,14 +361,14 @@ namespace dmGameSystem
         dmScript::ResolveURL(L, 1, &receiver, 0);
 
         Point3 pos;
-        if (lua_isnil(L, 2)) {
+        if (!lua_isnil(L, 2)) {
             pos = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 2));
         } else {
             pos = dmGameObject::GetPosition(instance);
         }
 
         Quat rot;
-        if (lua_isnil(L, 3)) {
+        if (!lua_isnil(L, 3)) {
             rot = *dmScript::CheckQuat(L, 3);
         } else {
             rot = dmGameObject::GetRotation(instance);
