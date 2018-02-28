@@ -92,6 +92,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) prototype;
+            params.m_Resource->m_ResourceSize = dmParticle::GetPrototypeResourceSize(prototype);
         }
         else
         {
@@ -118,6 +119,12 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_INVALID_DATA;
         }
-        return AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, prototype, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, prototype, params.m_Filename);
+        if(r != dmResource::RESULT_OK)
+        {
+            return r;
+        }
+        params.m_Resource->m_ResourceSize = dmParticle::GetPrototypeResourceSize(prototype);
+
     }
 }
