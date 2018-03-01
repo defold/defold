@@ -126,10 +126,12 @@
   (when (sequential? samplers)
     (concat
       {:texture0 {:node-id node-id
-                  :type g/Str
-                  :value (resource/resource->proj-path texture-set)
+                  :type resource/Resource
+                  :value texture-set
                   :label (:name (first samplers))
-                  :read-only? true}}
+                  :read-only? true
+                  :edit-type {:type resource/Resource
+                              :ext properties/sub-type-textureset-ext}}}
       (map (partial texture-unit-property node-id :textures)
            (map :name (drop 1 samplers))
            (range 1 8)

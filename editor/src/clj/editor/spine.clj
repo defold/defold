@@ -955,10 +955,12 @@
                                                (texture-unit/augment-properties _declared-properties
                                                                                 (concat
                                                                                   {:texture0 {:node-id _node-id
-                                                                                              :type g/Str
-                                                                                              :value (resource/resource->proj-path texture0-resource)
+                                                                                              :type resource/Resource
+                                                                                              :value texture0-resource
                                                                                               :label (:name (first material-samplers))
-                                                                                              :read-only? true}}
+                                                                                              :read-only? true
+                                                                                              :edit-type {:type resource/Resource
+                                                                                                          :ext properties/sub-type-textureset-ext}}}
                                                                                   (map (fn [prop-label array-index texture-resource]
                                                                                          [(texture-unit/unit-index->texture-prop-kw (inc array-index))
                                                                                           (texture-unit/texture-unit-property-info _node-id :textures1-7 prop-label array-index texture-resource)])
