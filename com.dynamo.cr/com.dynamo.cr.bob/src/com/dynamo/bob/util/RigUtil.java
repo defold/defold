@@ -596,6 +596,10 @@ public class RigUtil {
         if (track.keys.isEmpty()) {
             return;
         }
+        // We add one extra frame at the end (+1) so that we always get a copy of a the last keyframe,
+        // in turn we can safely interpolate at end of the animation in runtime when the cursor is the same as duration.
+        // If the animation has a duration of zero (ie only one keyframe at time 0), we need to make sure
+        // we always have 2 keyframes (ie a duplicate of the last one here as well).
         int sampleCount = Math.max(2, (int)Math.ceil(duration * sampleRate) + 1);
         double halfSample = spf / 2.0;
         int keyIndex = 0;
