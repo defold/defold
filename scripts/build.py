@@ -30,9 +30,9 @@ PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.1 android-support-v4 android-support-multidex android-23 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0".split()
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
-PACKAGES_IOS_SDK="iPhoneOS10.3.sdk"
+PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.12.sdk"
-PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain8.3.3"
+PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -407,8 +407,7 @@ class Configuration(object):
                 url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SDK)
                 dlpath = self._download(url)
                 tmpfolder = join(self.ext, 'SDKs')
-                self._extract_tgz(dlpath, tmpfolder)
-                os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
+                self._extract_tgz(dlpath, tgtfolder)
 
     def _form_ems_path(self):
         path = ''

@@ -11,8 +11,10 @@ class dmHttpCacheTest : public ::testing::Test
 {
     virtual void SetUp()
     {
+#if !defined(DM_NO_SYSTEM)
         int ret = system("python src/test/test_httpcache.py");
         ASSERT_EQ(0, ret);
+#endif
     }
 
 public:
@@ -215,8 +217,10 @@ TEST_F(dmHttpCacheTest, CorruptContent)
 
     ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
 
+#if !defined(DM_NO_SYSTEM)
     int ret = system("python src/test/test_httpcache_corrupt_content.py");
     ASSERT_EQ(0, ret);
+#endif
 
     // Get content, ensure that the checksum is incorrect
     r = Get(cache, "uri", "etag", &buffer, &checksum, &size);
@@ -260,8 +264,10 @@ TEST_F(dmHttpCacheTest, MissingContent)
 
     ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
 
+#if !defined(DM_NO_SYSTEM)
     int ret = system("python src/test/test_httpcache_remove_content.py");
     ASSERT_EQ(0, ret);
+#endif
 
     // Get content, ensure that the checksum is incorrect
     r = Get(cache, "uri", "etag", &buffer, &checksum, &size);

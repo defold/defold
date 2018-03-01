@@ -20,6 +20,9 @@ function terminate_usage() {
     echo "  identity - name of the iPhone developer identity"
     echo "  profile  - absolute filepath to the provisioning profile"
     echo "  source   - absolute filepath to the source ipa to repack"
+    echo " "
+    echo "Available identities:"
+    security find-identity -v -p codesigning
     exit 1
 }
 

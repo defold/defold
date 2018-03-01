@@ -37,7 +37,7 @@ Good tool for iOS deployment / debugging (lldb): [ios-deploy](https://github.com
 
     $ ios-deploy --bundle blossom_blast_saga.ipa
 
-or 
+or
 
 	$ ios-deploy --debug --bundle blossom_blast_saga.app
 
@@ -67,6 +67,12 @@ Both iPhoneOS + macOS SDK's use the same steps to update.
 
 To make sure you know what's been changed, you can check this page: https://developer.apple.com/library/content/releasenotes/General/WhatsNewIniOS/Introduction/Introduction.html#//apple_ref/doc
 
+From XCode 9.+ and onwards, you'll see the added/modified/deprecated items here: https://developer.apple.com/documentation?changes=latest_major
+
+### Download latest stable XCode
+
+    https://developer.apple.com/download/more/
+
 ### Package iPhone SDK
 
 The easiest way is to pack the folder directly.
@@ -74,19 +80,28 @@ However, the extracted folder needs to have the version number, so make sure you
 extract it properly!
 
     $ cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs
-    $ tar -cvzf ~/work/iPhoneOS10.3.sdk.tar.gz iPhoneOS.sdk
+    $ tar -chzvf iPhoneOS11.2.sdk.tar.gz iPhoneOS11.2.sdk
+
+#### How to test locally on the engine build:
+
+    $ tar -xvf iPhoneOS11.2.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
 
 ### Package macOS SDK
 
 	$ cd /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
-	$ tar -cvzf ~/work/MacOSX10.12.sdk.tar.gz MacOSX.sdk
+	$ tar -chvzf ~/work/MacOSX10.12.sdk.tar.gz MacOSX10.12.sdk
 
 
 ### Package toolchain
 
     $ cd /Applications/Xcode.app/Contents/Developer/Toolchains
-    $ tar -cvzf ~/work/XcodeToolchain8.3.3.tar.gz XcodeDefault.xctoolchain
+    $ tar -cvzf ~/work/XcodeToolchain9.2.tar.gz XcodeDefault.xctoolchain
 
+#### How to test locally on the engine build:
+
+    $ tar -xvf iPhoneOS11.2.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
+    $ tar -xvf XcodeToolchain9.2.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
+    $ tar -xvf MacOSX10.12.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
 
 ### Upload SDKs and toolchain
 
@@ -96,25 +111,32 @@ Upload package to S3:
 * Click 'Amazon Web Services'
 * Click S3
 * Click 'defold-packages'
-* Upload package (readable to public)
+* Upload package (default settings)
 
 ### Build.py
 
 Update the sdk version(s).
 In ```install_ext```, update the commands if needed.
 
+### waf_dynamo.py
+
+Update the sdk version(s) at the top of the file
 
 ### Native Extension
 
+#### Dockerfile
+
+Open ```extender/server/docker-base/Dockerfile```
+
 Make sure you unpack the package with the correct version number!
-Here, the package is downloaded and extracted to 'iPhoneOS.sdk',
-then renamed to 'iPhone10.3.sdk'.
+Here, the package is downloaded and extracted to 'iPhoneOSXxx.sdk',
+making sure that the contained library has a version number!
+
+    NOTE: If it doesn't have a version number, it will bug out in subtle ways (E.g. the device orientation events won't fire properly)
 
     RUN \
-      wget -q -O - ${S3_URL}/iPhoneOS10.3.sdk.tar.gz | tar xz -C /opt && \
-      mv /opt/iPhoneOS.sdk /opt/iPhoneOS10.3.sdk && \
-      ln -s /opt/iPhoneOS10.3.sdk /opt/iPhoneOS.sdk
+      wget -q -O - ${S3_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C /opt
 
 ### Defold SDK (build.yml)
 
-Also, you should update the list of ```allowedLibs``` in the ```defold/share/extender/build.yml``` for both iOS and OSX. The easiest way to do that is to use the ``defold/share/extender/find_libs_apple.sh```
+Also, you should update the list of ```allowedLibs``` in the ```defold/share/extender/build.yml``` for both iOS and OSX. The easiest way to do that is to use the ``defold/share/extender/find_libs_apple.sh``` (after running ```./scripts/build.py install_ext``` to download the packages to ```$DYNAMO_HOME```)
