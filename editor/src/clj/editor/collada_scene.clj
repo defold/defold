@@ -3,10 +3,8 @@
             [dynamo.graph :as g]
             [editor.animation-set :as animation-set]
             [editor.collada :as collada]
-            [editor.defold-project :as project]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx1]
             [editor.gl.vertex2 :as vtx]
             [editor.gl.texture :as texture]
             [editor.gl.pass :as pass]
@@ -17,6 +15,7 @@
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.scene-cache :as scene-cache]
+            [editor.texture-unit :as texture-unit]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
@@ -138,9 +137,7 @@
             textures (:textures user-data)]
         (gl/with-gl-bindings gl render-args [shader]
           (when (= pass pass/opaque)
-            (doseq [[name t] textures]
-              (gl/bind gl t render-args)
-              (shader/set-uniform shader gl name (- (:unit t) GL/GL_TEXTURE0)))
+            (texture-unit/bind-gpu-textures! gl textures shader render-args)
             (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA))
           (gl/gl-enable gl GL/GL_CULL_FACE)
           (gl/gl-cull-face gl GL/GL_BACK)
@@ -158,8 +155,7 @@
           (gl/gl-disable gl GL/GL_CULL_FACE)
           (when (= pass pass/opaque)
             (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-            (doseq [[name t] textures]
-              (gl/unbind gl t render-args)))))
+            (texture-unit/unbind-gpu-textures! gl textures shader render-args))))
 
       (= pass pass/outline)
       (let [renderable (first renderables)

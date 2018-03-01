@@ -398,10 +398,12 @@ This must be submitted to the driver for compilation before you can use it. See
 
   ShaderVariables
   (get-attrib-location [this gl name]
+    (assert (string? (not-empty name)))
     (when-let [[program _] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
       (gl/gl-get-attrib-location ^GL2 gl program name)))
 
   (set-uniform [this gl name val]
+    (assert (string? (not-empty name)))
     (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
       (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
         (set-uniform-at-index gl program loc val)))))
