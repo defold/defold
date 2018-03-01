@@ -37,7 +37,7 @@
 
 (defn- load-fn [project self resource]
   (let [lines (read-fn resource)
-        indent-type (data/guess-indent-type (take 10000 lines) 4)]
+        indent-type (data/guess-indent-type (take 500 lines) 4)]
     [(g/set-property self :indent-type indent-type)
      (g/set-property self :lines lines)
      (g/connect self :breakpoints project :breakpoints)]))

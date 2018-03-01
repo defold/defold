@@ -1,0 +1,72 @@
+name: "default"
+instances {
+  id: "referenced_props_go"
+  prototype: "/properties/test.go"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  component_properties {
+    id: "props"
+    properties {
+      id: "texture"
+      value: "/properties/resources/from_test_collection.png"
+      type: PROPERTY_TYPE_RESOURCE
+      sub_type: 14361042077038175274
+    }
+  }
+  scale3 {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+}
+scale_along_z: 0
+embedded_instances {
+  id: "embedded"
+  data: "components {\n"
+  "  id: \"props\"\n"
+  "  component: \"/properties/test.script\"\n"
+  "  position {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "  }\n"
+  "  rotation {\n"
+  "    x: 0.0\n"
+  "    y: 0.0\n"
+  "    z: 0.0\n"
+  "    w: 1.0\n"
+  "  }\n"
+  "  properties {\n"
+  "    id: \"material\"\n"
+  "    value: \"/properties/resources/from_test_collection.material\"\n"
+  "    type: PROPERTY_TYPE_RESOURCE\n"
+  "    sub_type: 11136307729242940719\n"
+  "  }\n"
+  "}\n"
+  ""
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale3 {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+}

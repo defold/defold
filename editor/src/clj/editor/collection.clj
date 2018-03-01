@@ -872,20 +872,24 @@
       (update :collection-instances (partial mapv (partial sanitize-collection-instance workspace)))))
 
 (defn- make-dependencies-fn [workspace]
-  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)]
+  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$CollectionDesc)
+        go-instance-property-dependencies-fn (partial game-object/parse-component-property-desc-dependencies-at-path [:instances :component-properties])
+        coll-instance-property-dependencies-fn (partial game-object/parse-component-property-desc-dependencies-at-path [:collection-instances :instance-properties :properties])]
     (fn [source-value]
       (let [go-resource-type (workspace/get-resource-type workspace "go")
             read-go (:read-fn go-resource-type)
-            go-dependencies-fn (:dependencies-fn go-resource-type)
-            embedded-instances (:embedded-instances source-value)]
-        (into (default-dependencies-fn source-value)
+            go-dependencies-fn (:dependencies-fn go-resource-type)]
+        (into (into (default-dependencies-fn source-value)
+                    (set/union (go-instance-property-dependencies-fn source-value)
+                               (coll-instance-property-dependencies-fn source-value)))
               (mapcat #(try
-                         (go-dependencies-fn (read-go (StringReader. (:data %))))
+                         (into (go-dependencies-fn (read-go (StringReader. (:data %))))
+                               (game-object/parse-component-property-desc-dependencies-at-path [:component-properties] %))
                          (catch Exception e
                            (log/warn :msg (format "Couldn't determine dependencies for embedded instance %s" (:id %))
                                      :exception e)
                            [])))
-              embedded-instances)))))
+              (:embedded-instances source-value))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

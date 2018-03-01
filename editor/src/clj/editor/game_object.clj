@@ -568,12 +568,16 @@
     (assoc property-desc :value (-> (properties/str->go-prop workspace value type)
                                     (properties/go-prop->str type)))))
 
-(defn- sanitize-component-property-desc [workspace component-property-desc]
-  ;; Note: component-property-desc can be either a GameObject$ComponentDesc
+(defn- component-property-desc? [value]
+  ;; NOTE: The value can be either a GameObject$ComponentDesc
   ;; or a GameObject$ComponentPropertyDesc in map form.
-  (assert (map? component-property-desc))
-  (assert (map? (:property-decls component-property-desc)))
-  (assert (vector? (:properties component-property-desc)))
+  (and (map? value)
+       (vector? (:properties value))
+       (or (not (contains? value :property-decls))
+           (map? (:property-decls value)))))
+
+(defn- sanitize-component-property-desc [workspace component-property-desc]
+  (assert (component-property-desc? component-property-desc))
   (-> component-property-desc
       (dissoc :property-decls) ; Only used in built data by the runtime.
       (update :properties (partial mapv (partial sanitize-property-desc workspace)))))
@@ -595,6 +599,23 @@
       (update :components (partial mapv (partial sanitize-component-property-desc workspace)))
       (update :embedded-components (partial mapv (partial sanitize-embedded-component workspace)))))
 
+(defn- parse-component-property-desc-dependencies [component-property-desc]
+  (assert (component-property-desc? component-property-desc))
+  (into #{}
+        (map (fn [{:keys [type value] :as _property-desc}]
+               (when (= :property-type-resource type)
+                 (assert (string? value))
+                 (not-empty value))))
+        (:properties component-property-desc)))
+
+(defn parse-component-property-desc-dependencies-at-path [component-property-desc-path instance]
+  (if-some [path-token (first component-property-desc-path)]
+    (transduce (map (partial parse-component-property-desc-dependencies-at-path (next component-property-desc-path)))
+               set/union
+               #{}
+               (get instance path-token))
+    (parse-component-property-desc-dependencies instance)))
+
 (defn- parse-embedded-dependencies [resource-types {:keys [id type data]}]
   (when-let [resource-type (resource-types type)]
     (let [read-component (:read-fn resource-type)
@@ -606,13 +627,14 @@
           [])))))
 
 (defn- make-dependencies-fn [workspace]
-  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc)]
+  (let [default-dependencies-fn (resource-node/make-ddf-dependencies-fn GameObject$PrototypeDesc)
+        component-property-dependencies-fn (partial parse-component-property-desc-dependencies-at-path [:components])]
     (fn [source-value]
-      (let [embedded-components (:embedded-components source-value)
-            resource-types (workspace/get-resource-type-map workspace)]
-        (into (default-dependencies-fn source-value)
+      (let [resource-types (workspace/get-resource-type-map workspace)]
+        (into (into (default-dependencies-fn source-value)
+                    (component-property-dependencies-fn source-value))
               (mapcat (partial parse-embedded-dependencies resource-types))
-              embedded-components)))))
+              (:embedded-components source-value))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

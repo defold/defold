@@ -2,3 +2,6 @@ tile_set: "/test.atlas"
 default_animation: "particle_blob"
 material: "/test.material"
 blend_mode: BLEND_MODE_ALPHA
+textures: "/test.atlas"
+textures: "/image0.atlas"
+textures: "/image1.atlas"

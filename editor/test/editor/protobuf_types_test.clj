@@ -96,7 +96,7 @@
                 "/test.particlefx"
                 "/test.material"
                 "/test.font"]
-   "/test.gui_script" []
+   "/test.gui_script" ["/test.lua"]
    "/test.input_binding" []
    "/test.json" []
    "/test.label" ["/test.font"
@@ -106,28 +106,45 @@
                      "/test.fp"]
    "/test.model" ["/test.dae"
                   "/test.material"
-                  "/test.animationset"]
+                  "/test.animationset"
+                  "/image0.png"
+                  "/image1.png"]
    "/test.particlefx" ["/test.tilesource"
                        "/test.material"]
    "/test.render" ["/test.render_script"
                    "/test.material"]
-   "/test.render_script" []
-   "/test.script" []
+   "/test.render_script" ["/test.lua"]
+   "/test.script" ["/test.lua"]
    "/test.sound" ["/test.wav"]
    "/test.spinemodel" ["/test.spinescene"
-                       "/test.material"]
+                       "/test.material"
+                       "/image0.atlas"
+                       "/image1.atlas"]
    "/test.spinescene" ["/test.json"
                        "/test.atlas"]
    "/test.sprite" ["/test.atlas"
-                   "/test.material"]
+                   "/test.material"
+                   "/image0.atlas"
+                   "/image1.atlas"]
    "/test.texture_profiles" []
    "/test.tilemap" ["/test.tilesource"
-                    "/test.material"]
+                    "/test.material"
+                    "/image0.atlas"
+                    "/image1.atlas"]
    "/test.tilesource" ["/builtins/graphics/particle_blob.png"]
    "/test.vp" []
    "/test.wav" []
    "/test2.animationset" []
    "/test2.gui" ["/test.material"]
+   "/properties/test.script" ["/properties/resources/from_test_script.material"
+                              "/properties/resources/from_test_script.png"
+                              "/properties/resources/from_test_script.atlas"]
+   "/properties/test.go" ["/properties/test.script"
+                          "/properties/resources/from_test_game_object.material"]
+   "/properties/test.collection" ["/properties/test.script"
+                                  "/properties/test.go"
+                                  "/properties/resources/from_test_collection.material"
+                                  "/properties/resources/from_test_collection.png"]
    })
 
 (defn fallback-dependencies-fn [resource-type]
@@ -140,13 +157,15 @@
           project (test-util/setup-project! workspace)
           resource-nodes (g/node-value project :nodes-by-resource-path)]
       (doseq [[resource-path node-id] resource-nodes
-              :when (.startsWith resource-path "/test")]
+              :when (or (.startsWith resource-path "/test")
+                        (.startsWith resource-path "/properties/test"))]
         (let [resource (g/node-value node-id :resource)
               resource-type (resource/resource-type resource)
               dependencies-fn (or (:dependencies-fn resource-type) (fallback-dependencies-fn resource-type))
               source-value (g/node-value node-id :source-value)]
           (is (some? dependencies-fn) (format "%s has no dependencies-fn" resource-path))
           (is (some? (expected-dependencies resource-path)) resource-path)
+          (is (not (g/error? source-value)))
           (is (= (sort (dependencies-fn source-value))
                  (sort (expected-dependencies resource-path))) resource-path))))))
 

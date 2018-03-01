@@ -1,0 +1,3 @@
+go.property("material", material("/properties/resources/from_test_script.material"))
+go.property("texture", texture("/properties/resources/from_test_script.png"))
+go.property("textureset", textureset("/properties/resources/from_test_script.atlas"))

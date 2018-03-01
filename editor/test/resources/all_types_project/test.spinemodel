@@ -3,3 +3,6 @@ default_animation: "animation"
 skin: ""
 blend_mode: BLEND_MODE_ALPHA
 material: "/test.material"
+textures: ""
+textures: "/image0.atlas"
+textures: "/image1.atlas"

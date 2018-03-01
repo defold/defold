@@ -6,3 +6,6 @@ layers {
 }
 material: "/test.material"
 blend_mode: BLEND_MODE_ALPHA
+textures: "/test.tilesource"
+textures: "/image0.atlas"
+textures: "/image1.atlas"

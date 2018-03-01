@@ -1,0 +1,3 @@
+name: "from_test_script"
+vertex_program: "/test.vp"
+fragment_program: "/test.fp"

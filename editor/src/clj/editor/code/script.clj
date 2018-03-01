@@ -258,7 +258,23 @@
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output user-properties g/Properties :cached produce-user-properties))
 
+(defn- script-dependencies [workspace lines]
+  (let [lua-info (lua-parser/lua-info workspace (data/lines-reader lines))
+        required-script-paths (sequence (comp (map second)
+                                              (remove lua/preinstalled-modules)
+                                              (map lua/lua-module->path))
+                                        (:requires lua-info))
+        referenced-property-paths (sequence (comp (filter #(= :ok (:status %)))
+                                                  (filter #(= :property-type-resource (:type %)))
+                                                  (keep :value)
+                                                  (map resource/proj-path))
+                                            (:script-properties lua-info))]
+    (concat required-script-paths
+            referenced-property-paths)))
+
 (defn register-resource-types [workspace]
   (for [def script-defs
-        :let [args (assoc def :node-type ScriptNode)]]
+        :let [args (assoc def
+                     :node-type ScriptNode
+                     :dependencies-fn (partial script-dependencies workspace))]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
