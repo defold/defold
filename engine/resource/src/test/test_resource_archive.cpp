@@ -392,13 +392,14 @@ TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
     dmResource::Manifest* manifest = new dmResource::Manifest();
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
-    unsigned char resources_public_wrong[RESOURCES_PUBLIC_SIZE];
+    unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
     resources_public_wrong[0] = RESOURCES_PUBLIC[0] + 1;
     char* hex_digest = 0x0;
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmResource::DecryptSignatureHash(manifest, resources_public_wrong, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
 
     free(hex_digest);
+    free(resources_public_wrong);
     dmDDF::FreeMessage(manifest->m_DDFData);
     dmDDF::FreeMessage(manifest->m_DDF);
     delete manifest;
