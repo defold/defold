@@ -540,20 +540,20 @@
 (handler/defhandler ::query-output-directory :bundle-dialog
   (run [bundle! prefs presenter stage]
     (save-prefs! presenter prefs)
-    (let [build-options (get-options presenter)
+    (let [bundle-options (get-options presenter)
           initial-directory (get-file-pref prefs "bundle-output-directory")]
-      (assert (string? (not-empty (:platform build-options))))
+      (assert (string? (not-empty (:platform bundle-options))))
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
         (set-file-pref! prefs "bundle-output-directory" output-directory)
-        (let [platform-bundle-output-directory (io/file output-directory (:platform build-options))
+        (let [platform-bundle-output-directory (io/file output-directory (:platform bundle-options))
               platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
           (when (or (not platform-bundle-output-directory-exists?)
                     (query-overwrite! platform-bundle-output-directory stage))
             (when (not platform-bundle-output-directory-exists?)
               (fs/create-directories! platform-bundle-output-directory))
-            (let [build-options (assoc build-options :output-directory platform-bundle-output-directory)]
+            (let [bundle-options (assoc bundle-options :output-directory platform-bundle-output-directory)]
               (ui/close! stage)
-              (bundle! build-options))))))))
+              (bundle! bundle-options))))))))
 
 (defn show-bundle-dialog! [workspace platform prefs owner-window bundle!]
   (let [stage (doto (ui/make-dialog-stage owner-window)

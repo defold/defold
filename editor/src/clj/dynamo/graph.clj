@@ -50,6 +50,9 @@
   ([] (clone-system @*the-system*))
   ([sys] (is/clone-system sys)))
 
+(defn system= [s1 s2]
+  (is/system= s1 s2))
+
 (defmacro with-system [sys & body]
   `(binding [*the-system* (atom ~sys)]
      ~@body))
@@ -759,6 +762,12 @@
   [evaluation-context]
   (is/update-cache-from-evaluation-context! @*the-system* evaluation-context)
   nil)
+
+(defmacro with-auto-evaluation-context [ec & body]
+  `(let [~ec (make-evaluation-context)
+         result# (do ~@body)]
+     (update-cache-from-evaluation-context! ~ec)
+     result#))
 
 (defn node-value
   "Pull a value from a node's output, identified by `label`.
