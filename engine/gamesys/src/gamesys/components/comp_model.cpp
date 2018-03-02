@@ -571,7 +571,7 @@ namespace dmGameSystem
         dmRender::RenderListEntry* write_ptr = render_list;
 
         const uint32_t max_elements_vertices = world->m_MaxElementsVertices;
-        uint32_t minor_order = 0; // Will translage to vb index.
+        uint32_t minor_order = 0; // Will translate to vb index.
         uint32_t vertex_count_total = 0;
         for (uint32_t i = 0; i < count; ++i)
         {

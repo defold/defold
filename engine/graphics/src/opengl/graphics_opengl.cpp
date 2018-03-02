@@ -618,7 +618,14 @@ static void LogFrameBufferError(GLenum status)
         GLint gl_int_result;
         glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_int_result);
         context->m_MaxTextureSize = gl_int_result;
+        CLEAR_GL_ERROR
 
+#if (defined(__arm__) || defined(__arm64__)) || (defined(ANDROID))
+        // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
+        // The below seems to be the reported sweet spot for modern or semi-modern hardware
+        context->m_MaxElementVertices = 1024*1024;
+        context->m_MaxElementIndices = 1024*1024;
+#else
         // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
         glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_int_result);
         context->m_MaxElementVertices = dmMath::Max(65536, gl_int_result);
@@ -626,6 +633,7 @@ static void LogFrameBufferError(GLenum status)
         glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_int_result);
         context->m_MaxElementIndices = dmMath::Max(65536, gl_int_result);
         CLEAR_GL_ERROR
+#endif
 
         JobQueueInitialize();
         if(JobQueueIsAsync())
