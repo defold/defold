@@ -72,6 +72,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) model_resource;
+            params.m_Resource->m_ResourceSize = sizeof(SpineModelResource) + params.m_BufferSize;
         }
         else
         {
@@ -100,6 +101,12 @@ namespace dmGameSystem
         SpineModelResource* model_resource = (SpineModelResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, model_resource);
         model_resource->m_Model = ddf;
-        return AcquireResources(params.m_Factory, model_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params.m_Factory, model_resource, params.m_Filename);
+        if(r != dmResource::RESULT_OK)
+        {
+            return r;
+        }
+        params.m_Resource->m_ResourceSize = sizeof(SpineModelResource) + params.m_BufferSize;
+        return dmResource::RESULT_OK;
     }
 }

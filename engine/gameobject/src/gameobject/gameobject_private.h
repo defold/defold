@@ -25,6 +25,8 @@ namespace dmGameObject
 
     struct Prototype
     {
+        Prototype() : m_ComponentsUserDataSize(0) {}
+
         struct Component
         {
             Component(void* resource,
@@ -58,6 +60,7 @@ namespace dmGameObject
             PropertySet     m_PropertySet;
         };
 
+        uint32_t m_ComponentsUserDataSize;
         dmArray<Component>     m_Components;
         dmArray<void*>         m_PropertyResources;
     };
@@ -323,6 +326,24 @@ namespace dmGameObject
     void UndoNewInstance(HCollection collection, HInstance instance);
     bool CreateComponents(HCollection collection, HInstance instance);
     void UpdateTransforms(HCollection collection);
+
+    void ProfilerInitialize(const HRegister regist);
+    void ProfilerFinalize(const HRegister regist);
+
+    // Profiler snapshot iteration, for tests
+    struct IterateProfilerSnapshotData
+    {
+        dmhash_t    m_ResourceId;
+        dmhash_t    m_Tag;
+        const char* m_TypeName;
+        const char* m_Id;
+        uint32_t    m_SnapshotIndex;
+        uint32_t    m_ParentIndex;
+        uint32_t    m_Flags;
+    };
+     // Iterate profiler snapshot data items. Set call_back function to 0 to get total items
+    uint32_t IterateProfilerSnapshot(void* context, void (*call_back)(void* context, const IterateProfilerSnapshotData* data));
+
 }
 
 #endif // GAMEOBJECT_COMMON_H

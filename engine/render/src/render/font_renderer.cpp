@@ -59,6 +59,7 @@ namespace dmRender
         , m_CacheWidth(0)
         , m_CacheHeight(0)
         , m_GlyphData(0)
+        , m_GlyphsDataSize(0)
         , m_Cache(0)
         , m_CacheCursor(0)
         , m_CacheColumns(0)
@@ -98,6 +99,7 @@ namespace dmRender
         uint32_t                m_CacheWidth;
         uint32_t                m_CacheHeight;
         void*                   m_GlyphData;
+        uint32_t                m_GlyphsDataSize;
 
         Glyph**                 m_Cache;
         uint32_t                m_CacheCursor;
@@ -110,6 +112,16 @@ namespace dmRender
         uint32_t                m_CacheCellHeight;
         uint8_t                 m_CacheCellPadding;
     };
+
+
+    uint32_t GetFontMapResourceSize(HFontMap font_map)
+    {
+        uint32_t size = sizeof(FontMap);
+        size += font_map->m_Glyphs.Capacity()*(sizeof(Glyph)+sizeof(uint32_t));
+        size += font_map->m_GlyphsDataSize;
+        size += dmGraphics::GetTextureResourceSize(font_map->m_Texture);
+        return size;
+    }
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n);
 
@@ -137,6 +149,7 @@ namespace dmRender
         font_map->m_Glyphs.SetCapacity((3 * glyphs.Size()) / 2, glyphs.Size());
         for (uint32_t i = 0; i < glyphs.Size(); ++i) {
             const Glyph& g = glyphs[i];
+            font_map->m_GlyphsDataSize += g.m_GlyphDataSize;
             font_map->m_Glyphs.Put(g.m_Character, g);
         }
 
@@ -700,7 +713,7 @@ namespace dmRender
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
             int num_indices = CreateFontVertexDataInternal(text_context, font_map, text, te, im_recip, ih_recip, &vertices[text_context.m_VertexIndex], text_context.m_MaxVertexCount - text_context.m_VertexIndex);
-            text_context.m_VertexIndex += num_indices;            
+            text_context.m_VertexIndex += num_indices;
         }
 
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
@@ -766,7 +779,7 @@ namespace dmRender
                 dmRender::RenderListSubmit(render_context, render_list, write_ptr);
             }
         }
-        
+
         // Always update after flushing
         text_context.m_TextEntriesFlushed = text_context.m_TextEntries.Size();
     }

@@ -152,7 +152,9 @@ namespace dmGameObject
 
     HRegister NewRegister()
     {
-        return new Register();
+        HRegister regist = new Register();
+        ProfilerInitialize(regist);
+        return regist;
     }
 
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
@@ -174,6 +176,7 @@ namespace dmGameObject
 
     void DeleteRegister(HRegister regist)
     {
+        ProfilerFinalize(regist);
         uint32_t collection_count = regist->m_Collections.Size();
         for (uint32_t i = 0; i < collection_count; ++i)
         {
@@ -1077,7 +1080,7 @@ namespace dmGameObject
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData);
+                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData, 0);
                                 if (!r)
                                 {
                                     dmLogError("Could not read properties of game object '%s' in collection.", instance_desc.m_Id);

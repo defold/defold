@@ -152,8 +152,6 @@ namespace dmGameSystem
  * ```
  */
 
-
-
 /*# set the text for a label
  *
  * Sets the text of a label component

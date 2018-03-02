@@ -345,6 +345,77 @@ TEST_F(CollectionTest, CollectionComponentFail)
     dmLogSetlevel(DM_LOG_SEVERITY_WARNING);
 }
 
+#define ASSERT_SNAPSHOT_DATA_EQ(data, i, tag, snapshot_index, type, id, parent, resource_id, flags)\
+    ASSERT_EQ(tag, data[i].m_Tag);\
+    ASSERT_EQ(snapshot_index, data[i].m_SnapshotIndex);\
+    ASSERT_EQ(flags, data[i].m_Flags);\
+    ASSERT_STREQ(type, data[i].m_TypeName);\
+    ASSERT_STREQ(id, data[i].m_Id);\
+    ASSERT_STREQ(resource_id, strrchr(dmHashReverseSafe64(data[i].m_ResourceId), '/'));\
+    if(strlen(parent)!=0)\
+    {\
+        uint32_t pi = 0;\
+        for(; pi < data.Size(); ++pi)\
+        {\
+            if(strcmp(parent, data[pi].m_Id)==0)\
+            {\
+                ASSERT_EQ(pi, data[i].m_ParentIndex);\
+                break;\
+            }\
+        }\
+        ASSERT_LT(pi, data.Size());\
+    }
+
+static void IterateProfilerSnapshotCallback(void* context, const dmGameObject::IterateProfilerSnapshotData* data)
+{
+    dmArray<dmGameObject::IterateProfilerSnapshotData>* snapshot_data = (dmArray<dmGameObject::IterateProfilerSnapshotData>*) context;
+    snapshot_data->Push(*data);
+}
+
+TEST_F(CollectionTest, Profiler)
+{
+    dmHashEnableReverseHash(true);
+    dmGameObject::HCollection coll;
+    dmResource::Result r = dmResource::Get(m_Factory, "/root1.collectionc", (void**) &coll);
+    ASSERT_EQ(dmResource::RESULT_OK, r);
+    ASSERT_NE((void*) 0, coll);
+
+    dmhash_t tags[2] = { dmHashString64("s1"), dmHashString64("s2") };
+    for(uint32_t i = 0; i < 2; ++i)
+    {
+        dmGameObject::ProfilerSnapshot(tags[0]);
+        if(i == 1)
+        {
+            dmGameObject::ProfilerSnapshot(tags[1]);
+        }
+        dmArray<dmGameObject::IterateProfilerSnapshotData> data;
+        data.SetCapacity(dmGameObject::IterateProfilerSnapshot(0, 0));
+        dmGameObject::IterateProfilerSnapshot(&data, IterateProfilerSnapshotCallback);
+        for(uint32_t j = 0; j < i; ++j)
+        {
+            ASSERT_SNAPSHOT_DATA_EQ(data, 0,  tags[j], 0, "collectionc", "<unknown>",      "",             0,                    0); // test default collection - reversehasning is not enabled when this is created
+            ASSERT_SNAPSHOT_DATA_EQ(data, 1,  tags[j], 0, "collectionc", "root",           "",             "/root1.collectionc", 0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 2,  tags[j], 0, "goc",         "/go1",          "root",         "/go1.goc",            0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 3,  tags[j], 0, "scriptc",     "script",        "/go1",         "/go1.scriptc",        0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 4,  tags[j], 0, "goc",         "/go2",          "root",         "/go2.goc",            0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 5,  tags[j], 0, "scriptc",     "script",        "/go2",         "/go2.scriptc",        0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 6,  tags[j], 0, "goc",         "/sub2/parent",  "root",         "/parent.goc",         0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 7,  tags[j], 0, "scriptc",     "script",        "/sub2/parent", "/parent.scriptc",     0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 8,  tags[j], 0, "goc",         "/sub2/child",   "/sub2/parent", "/child.goc",          0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 9,  tags[j], 0, "scriptc",     "script",        "/sub2/child",  "/child.scriptc",      0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 10, tags[j], 0, "goc",         "/sub1/parent",  "root",         "/parent.goc",         0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 11, tags[j], 0, "scriptc",     "script",        "/sub1/parent", "/parent.scriptc",     0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 12, tags[j], 0, "goc",         "/sub1/child",   "/sub1/parent", "/child.goc",          0);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 13, tags[j], 0, "scriptc",     "script",        "/sub1/child",  "/child.scriptc",      0);
+        }
+        ASSERT_EQ(14*(i+1), data.Size());
+        dmGameObject::ProfilerReset();
+    }
+
+    dmResource::Release(m_Factory, (void*) coll);
+    dmGameObject::PostUpdate(m_Register);
+}
+
 TEST_F(CollectionTest, CollectionInCollection)
 {
     for (int i = 0; i < 20; ++i)

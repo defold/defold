@@ -131,6 +131,13 @@ namespace dmRender
     void SetFontMap(HFontMap font_map, FontMapParams& params);
 
     /**
+     * Get the resource size for fontmap
+     * @param font_map Font map handle
+     * @return size
+     */
+    uint32_t GetFontMapResourceSize(HFontMap font_map);
+
+    /**
      * Get texture from a font map
      * @param font_map Font map handle
      * @return dmGraphics::HTexture Texture handle

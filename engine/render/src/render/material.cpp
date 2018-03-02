@@ -428,4 +428,14 @@ namespace dmRender
         }
         return mask;
     }
+
+    uint32_t GetMaterialResourceSize(HMaterial material)
+    {
+        uint32_t size = sizeof(Material);
+        size += material->m_NameHashToLocation.Capacity()*(sizeof(int32_t)+sizeof(dmhash_t));
+        size += material->m_Constants.Capacity()*sizeof(MaterialConstant);
+        size += material->m_Samplers.Capacity()*sizeof(Sampler);
+        return size;
+    }
+
 }
