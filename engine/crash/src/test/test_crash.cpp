@@ -12,6 +12,7 @@ extern "C"
 }
 
 #include "../crash.h"
+#include "../crash_private.h"
 
 class dmCrashTest : public ::testing::Test
 {
@@ -65,7 +66,11 @@ TEST_F(dmCrashTest, TestLoad)
     ASSERT_GT(addresses, 4);
     for (uint32_t i=0;i!=addresses;i++)
     {
-        ASSERT_NE((void*)0, dmCrash::GetBacktraceAddr(d, i));
+        // DEF-3128: Skip the last one, since it might be 0 on Win32
+        if (i != addresses-1 )
+        {
+            ASSERT_NE((void*)0, dmCrash::GetBacktraceAddr(d, i));
+        }
     }
 
     char buf[4096];
@@ -95,18 +100,18 @@ TEST_F(dmCrashTest, TestPurgeCustomPath)
     dmCrash::SetFilePath("remove-me");
     dmCrash::Purge();
     dmCrash::WriteDump();
-    ASSERT_NE(dmCrash::LoadPrevious(), 0);
+    ASSERT_NE(0, dmCrash::LoadPrevious());
     dmCrash::Purge();
-    ASSERT_EQ(dmCrash::LoadPrevious(), 0);
+    ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
 
 TEST_F(dmCrashTest, TestPurgeDefaultPath)
 {
     dmCrash::Purge();
     dmCrash::WriteDump();
-    ASSERT_NE(dmCrash::LoadPrevious(), 0);
+    ASSERT_NE(0, dmCrash::LoadPrevious());
     dmCrash::Purge();
-    ASSERT_EQ(dmCrash::LoadPrevious(), 0);
+    ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
 
 

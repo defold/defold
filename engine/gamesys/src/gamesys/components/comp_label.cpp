@@ -423,6 +423,13 @@ namespace dmGameSystem
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
         LabelComponent* component = &world->m_Components.Get(*params.m_UserData);
+
+        if (params.m_Message->m_Descriptor != 0)
+        {
+            dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)params.m_Message->m_Descriptor;
+            dmDDF::ResolvePointers(descriptor, params.m_Message->m_Data);
+        }
+
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 1;
