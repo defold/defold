@@ -9,6 +9,7 @@
             [editor.collection :as collection]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
+            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -352,8 +353,11 @@
 
 (defn- build! [resource-node]
   (let [project (project/get-project resource-node)
-        workspace (project/workspace project)]
-    (project/build project resource-node (g/make-evaluation-context) nil)
+        workspace (project/workspace project)
+        evaluation-context (g/make-evaluation-context)
+        old-artifact-map (workspace/artifact-map workspace)]
+    (project/build project resource-node evaluation-context nil old-artifact-map progress/null-render-progress!)
+    (g/update-cache-from-evaluation-context! evaluation-context)
     (tu/make-directory-deleter (workspace/build-path workspace))))
 
 (defn- edit-property! [node-id prop-kw value]

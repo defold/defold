@@ -27,7 +27,7 @@ ordinary paths."
   (io/as-file (g/node-value workspace :root)))
 
 (defn build-path [workspace]
-  (str (project-path workspace) build-dir))
+  (io/file (project-path workspace) "build/default/"))
 
 (defrecord BuildResource [resource prefix]
   resource/Resource
@@ -41,7 +41,7 @@ ordinary paths."
                  (if-let [path (resource/path resource)]
                    (str (FilenameUtils/removeExtension path) "." ext)
                    (str prefix "_generated_" suffix "." ext))))
-  (abs-path [this] (.getAbsolutePath (File. (str (build-path (resource/workspace this)) (resource/path this)))))
+  (abs-path [this] (.getAbsolutePath (io/file (build-path (resource/workspace this)) (resource/path this))))
   (proj-path [this] (str "/" (resource/path this)))
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
@@ -329,6 +329,25 @@ ordinary paths."
 (defn update-build-settings!
   [workspace prefs]
   (g/set-property! workspace :build-settings (make-build-settings prefs)))
+
+(defn artifact-map [workspace]
+  (g/user-data workspace ::artifact-map))
+
+(defn artifact-map! [workspace artifact-map]
+  (g/user-data! workspace ::artifact-map artifact-map))
+
+(defn etags [workspace]
+  (g/user-data workspace ::etags))
+
+(defn etag [workspace path]
+  (get (etags workspace) path))
+
+(defn etags! [workspace etags]
+  (g/user-data! workspace ::etags etags))
+
+(defn reset-cache! [workspace]
+  (g/user-data! workspace ::artifact-map nil)
+  (g/user-data! workspace ::etags nil))
 
 (defn make-workspace [graph project-path build-settings]
   (g/make-node! graph Workspace
