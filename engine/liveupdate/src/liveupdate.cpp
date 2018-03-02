@@ -6,6 +6,7 @@
 #include <ddf/ddf.h>
 
 #include <dlib/log.h>
+#include <dlib/sys.h>
 
 namespace dmLiveUpdate
 {
@@ -104,11 +105,50 @@ namespace dmLiveUpdate
         return result;
     }
 
-    bool VerifyManifest(dmResource::Manifest* manifest, const uint8_t* manifestData, size_t manifestLen)
+    bool VerifyManifestSupportedEngineVersion(dmResource::Manifest* manifest)
+    {
+        // Calculate running dmengine version SHA1 hash
+        dmSys::EngineInfo engine_info;
+        dmSys::GetEngineInfo(&engine_info);
+        bool engine_version_supported = false;
+        uint32_t engine_digest_len = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1);
+        uint8_t* engine_digest = (uint8_t*) malloc(engine_digest_len * sizeof(uint8_t));
+        uint32_t engine_hex_digest_len = engine_digest_len * 2 + 1;
+        char* engine_hex_digest = (char*) malloc(engine_hex_digest_len * sizeof(char));
+
+        CreateResourceHash(dmLiveUpdateDDF::HASH_SHA1, engine_info.m_Version, strlen(engine_info.m_Version), engine_digest);
+        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, engine_digest, engine_hex_digest, engine_hex_digest_len);
+
+        // Compare manifest supported versions to running dmengine version
+        dmLiveUpdateDDF::HashDigest* versions = manifest->m_DDFData->m_EngineVersions.m_Data;
+        uint32_t version_hex_digest_len = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1) * 2 + 1;
+        char* version_hex_digest = (char*)malloc(version_hex_digest_len);
+        for (int i = 0; i < manifest->m_DDFData->m_EngineVersions.m_Count; ++i)
+        {
+            dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, versions[i].m_Data.m_Data, version_hex_digest, versions[i].m_Data.m_Count * 2 + 1);
+            if (memcmp(engine_hex_digest, version_hex_digest, engine_hex_digest_len) == 0)
+            {
+                engine_version_supported = true;
+                break;
+            }
+        }
+        free(version_hex_digest);
+        free(engine_hex_digest);
+        free(engine_digest);
+
+        if (!engine_version_supported)
+        {
+            dmLogError("Loaded manifest does not support current engine version (%s)", engine_info.m_Version);
+        }
+
+        return engine_version_supported;
+    }
+
+    bool VerifyManifestHash(dmResource::Manifest* manifest)
     {
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
-        uint32_t digestLength = dmResource::HashLength(algorithm);
-        uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
+        uint32_t digest_len = dmResource::HashLength(algorithm);
+        uint8_t* digest = (uint8_t*) malloc(digest_len * sizeof(uint8_t));
         if (digest == 0x0)
         {
             dmLogError("Failed to allocate memory for hash calculation.");
@@ -117,30 +157,34 @@ namespace dmLiveUpdate
 
         dmLiveUpdate::CreateManifestHash(algorithm, manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, digest);
 
-        uint32_t hexDigestLength = digestLength * 2 + 1;
-        char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
-        if (hexDigest == 0x0)
+        uint32_t hex_digest_len = digest_len * 2 + 1;
+        char* hex_digest = (char*) malloc(hex_digest_len * sizeof(char));
+        if (hex_digest == 0x0)
         {
             dmLogError("Failed to allocate memory for hash calculation.");
             free(digest);
             return false;
         }
 
-        dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
-        dmLogInfo("Hashed manifest; %s", hexDigest);
+        dmResource::HashToString(algorithm, digest, hex_digest, hex_digest_len);
+        dmLogInfo("Actual manifest hash; %s", hex_digest);
 
-        return dmResource::VerifyManifest(manifest, (const uint8_t*)hexDigest, hexDigestLength) == dmResource::RESULT_OK;
+        bool result = dmResource::VerifyManifestHash(manifest, (const uint8_t*)hex_digest, hex_digest_len) == dmResource::RESULT_OK;
+
+        free(hex_digest);
+        free(digest);
+
+        return result;
+    }
+
+    bool VerifyManifest(dmResource::Manifest* manifest)
+    {
+        return (VerifyManifestSupportedEngineVersion(manifest) && VerifyManifestHash(manifest));
     }
 
     Result StoreManifest(dmResource::Manifest* manifest)
     {
-        if (manifest == 0x0)
-        {
-            return RESULT_MEM_ERROR;
-        }
-
-        dmResource::Result res_result = dmResource::StoreManifest(manifest);
-        Result res = (res_result == dmResource::RESULT_OK) ? RESULT_OK : RESULT_INVALID_RESOURCE;
+        Result res = (dmResource::StoreManifest(manifest) == dmResource::RESULT_OK) ? RESULT_OK : RESULT_INVALID_RESOURCE;
         return res;
     }
 

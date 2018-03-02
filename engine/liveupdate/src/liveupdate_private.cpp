@@ -114,14 +114,14 @@ namespace dmLiveUpdate
             SHA1_Update(&context, (const uint8_t*) buf, buflen);
             SHA1_Final(digest, &context);
         }
-        if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
         {
             SHA256_CTX context;
             SHA256_Init(&context);
             SHA256_Update(&context, (const uint8_t*) buf, buflen);
             SHA256_Final(digest, &context);
         }
-        if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
         {
             SHA512_CTX context;
             SHA512_Init(&context);
@@ -130,7 +130,7 @@ namespace dmLiveUpdate
         }
         else
         {
-            dmLogError("The algorithm specified for manfiest verification hashing is not supported");
+            dmLogError("The algorithm specified for manfiest verification hashing is not supported (%i)", algorithm);
         }
     }
 

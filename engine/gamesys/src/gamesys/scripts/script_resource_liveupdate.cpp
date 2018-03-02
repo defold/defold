@@ -106,7 +106,6 @@ namespace dmLiveUpdate
 
     int Resource_CreateManifest(lua_State* L)
     {
-        dmLogInfo(" ### Resource_CreateManifest")
         int top = lua_gettop(L);
         size_t manifestLength = 0;
         const char* manifestData = luaL_checklstring(L, 1, &manifestLength);
@@ -130,7 +129,7 @@ namespace dmLiveUpdate
         if (result == dmResource::RESULT_OK)
         {
             // Verify manifest
-            if (!dmLiveUpdate::VerifyManifest(manifest, (const uint8_t*) manifestData, manifestLength))
+            if (!dmLiveUpdate::VerifyManifest(manifest))
             {
                 assert(top == lua_gettop(L));
                 return luaL_error(L, "The manifest could not be verified");
@@ -159,7 +158,6 @@ namespace dmLiveUpdate
 
     int Resource_DestroyManifest(lua_State* L)
     {
-        dmLogInfo(" ### Resource_DestroyManifest")
         int top = lua_gettop(L);
         int manifestIndex = luaL_checkint(L, 1);
 
@@ -175,7 +173,6 @@ namespace dmLiveUpdate
             return luaL_error(L, "The manifest identifier does not exist");
         }
 
-        dmLogInfo("Successfully destroy manifest with index: %i", manifestIndex);
         assert(lua_gettop(L) == top);
         return 0;
     }

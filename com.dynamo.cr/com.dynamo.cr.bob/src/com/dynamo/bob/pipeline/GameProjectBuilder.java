@@ -480,7 +480,7 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
         manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
-        manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
+        manifestBuilder.addSupportedEngineVersion(EngineVersion.version);
         if (supportedEngineVersionsString != null) {
             String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
             for (String supportedEngineVersion : supportedEngineVersions) {

@@ -80,7 +80,7 @@ namespace dmLiveUpdate
 
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource);
 
-    bool VerifyManifest(dmResource::Manifest* manifest, const uint8_t* manifestData, size_t manifestLen);
+    bool VerifyManifest(dmResource::Manifest* manifest);
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(StoreResourceCallbackData*), StoreResourceCallbackData& callback_data);
 

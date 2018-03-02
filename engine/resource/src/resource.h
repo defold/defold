@@ -598,7 +598,7 @@ namespace dmResource
 
     Result StoreManifest(Manifest* manifest);
 
-    Result VerifyManifest(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
+    Result VerifyManifestHash(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
      * Create new archive index with resource.

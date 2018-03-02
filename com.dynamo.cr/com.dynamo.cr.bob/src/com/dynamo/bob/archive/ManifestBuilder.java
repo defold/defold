@@ -357,10 +357,17 @@ public class ManifestBuilder {
         }
     }
 
-    public void addSupportedEngineVersion(String hash) {
-        HashDigest.Builder builder = HashDigest.newBuilder();
-        builder.setData(ByteString.copyFrom(hash.getBytes()));
-        this.supportedEngineVersions.add(builder.build());
+    public void addSupportedEngineVersion(String version) {
+        try {
+            byte[] hashBytes = CryptographicOperations.hash(version.getBytes(), HashAlgorithm.HASH_SHA1);
+            HashDigest.Builder builder = HashDigest.newBuilder();
+            builder.setData(ByteString.copyFrom(hashBytes));
+            this.supportedEngineVersions.add(builder.build());
+        } catch (NoSuchAlgorithmException e) {
+            System.out.println("Algorithm not found when adding supported engine versions to manifest, msg: " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("Failed to add supported engine versions to manifest, msg: " + e.getMessage());
+        }
     }
 
     public void addResourceEntry(String url, byte[] data) throws IOException {

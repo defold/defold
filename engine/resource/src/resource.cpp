@@ -456,44 +456,6 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
 #endif
 }
 
-// -- BEGIN -- WIP DEBUG RSA decypt using public key, functions missing in axTLS lib
-
-void bi_print(const char *label, bigint *x)
-{
-    int i, j;
-
-    if (x == NULL)
-    {
-        printf("%s: (null)\n", label);
-        return;
-    }
-
-    printf("%s: (size %d)\n", label, x->size);
-    for (i = x->size-1; i >= 0; i--)
-    {
-        for (j = COMP_NUM_NIBBLES-1; j >= 0; j--)
-        {
-            comp mask = 0x0f << (j*4);
-            comp num = (x->comps[i] & mask) >> (j*4);
-            putc((num <= 9) ? (num + '0') : (num + 'A' - 10), stdout);
-        }
-    }
-
-    printf("\n");
-}
-void RSA_param_print(const RSA_CTX* rsa_parameters)
-{
-    if (rsa_parameters == NULL)
-        return;
-
-    printf("-----------------   RSA PARAMETERS DEBUG   ----------------\n");
-    printf("Size:\t%d\n", rsa_parameters->num_octets);
-    bi_print("Modulus", rsa_parameters->m);
-    bi_print("Public Key", rsa_parameters->e);
-    printf("-----------------------------------------------------------\n");
-}
-// -- END -- WIP DEBUG RSA decypt using public key, functions missing in axTLS lib
-
 Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len)
 {
     if (expected_len != len)
@@ -519,8 +481,6 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
     uint32_t signature_hash_len = HashLength(signature_hash_algorithm);
     out_digest_len = 0;
-    dmLogInfo("Manifest signature size: %u", manifest->m_DDF->m_Signature.m_Count);
-    dmLogInfo("Manifest signature algo len: %u", signature_hash_len);
 
     RSA_CTX* rsa_parameters = 0x0;
     int ret = asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
@@ -528,9 +488,6 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
         dmLogError("Failed to parse public key during manifest verification.");
         RSA_free(rsa_parameters);
         return RESULT_INVALID_DATA;
-    } else {
-        // DEBUG PRINT
-        RSA_param_print(rsa_parameters);
     }
 
     uint8_t* hash_decrypted = (uint8_t*)malloc(rsa_parameters->num_octets);
@@ -546,7 +503,7 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     out_digest_len = signature_hash_len * 2 + 1;
     out_digest = (char*)malloc(out_digest_len);
     dmResource::HashToString(signature_hash_algorithm, hash, out_digest, out_digest_len);
-    dmLogInfo("Hash printed: %s", out_digest); // DEBUG PRINT
+    dmLogInfo("Decrypted hash: %s", out_digest); // DEBUG PRINT
 
     free(hash);
     free(hash_decrypted);
@@ -555,7 +512,7 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
 
 // Diagram of what need to be done; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
 // Inspect asn1 key; http://lapo.it/asn1js/#
-Result VerifyManifest(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
+Result VerifyManifestHash(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
 {
     Result res = RESULT_OK;
     char public_key_path[DMPATH_MAX_PATH];
