@@ -52,7 +52,7 @@
       (finally
         (.disconnect conn)))))
 
-(defn reboot [target local-url debug?]
+(defn reboot! [target local-url debug?]
   (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
         args (cond-> [(str "--config=resource.uri=" local-url)]
@@ -72,7 +72,7 @@
       (finally
         (.disconnect conn)))))
 
-(defn run-script [target lua-module]
+(defn run-script! [target lua-module]
   (let [uri  (URI. (format "%s/post/@system/run_script" (:url target)))
         conn ^HttpURLConnection (get-connection uri)]
     (try
