@@ -332,6 +332,11 @@ namespace dmGraphics
         return true;
     }
 
+    uint32_t GetMaxElementsVertices(HContext context)
+    {
+        return 65536;
+    }
+
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         IndexBuffer* ib = new IndexBuffer();
@@ -383,6 +388,11 @@ namespace dmGraphics
         delete [] ib->m_Copy;
         ib->m_Copy = 0x0;
         return true;
+    }
+
+    uint32_t GetMaxElementsIndices(HContext context)
+    {
+        return 65536;
     }
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride)
