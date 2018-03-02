@@ -20,10 +20,12 @@ namespace dmScript
      *
      * Functions for mathematical operations on vectors, matrices and quaternions.
      *
-     * - The vector types (`vmath.vector3` and `vmath.vector4`) supports addition, subtraction,
-     * negation and multiplication with numbers.
+     * - The vector types (`vmath.vector3` and `vmath.vector4`) supports addition and subtraction
+     *   with vectors of the same type. Vectors can be negated and multiplied with numbers
+     *   (scaled).
      * - The quaternion type (`vmath.quat`) supports multiplication with other quaternions.
-     * - The matrix type (`vmath.matrix4`) can be multiplied with numbers, other matrices and `vmath.vector4` values.
+     * - The matrix type (`vmath.matrix4`) can be multiplied with numbers, other matrices
+     *   and `vmath.vector4` values.
      * - All types performs equality comparison by each component value.
      *
      * The following components are available for the various types:

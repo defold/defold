@@ -369,7 +369,8 @@ namespace dmGameSystem
     dmResource::Result ResTexturePostCreate(const dmResource::ResourcePostCreateParams& params)
     {
         // Poll state of texture async texture processing and return state. RESULT_PENDING indicates we need to poll again.
-        if(!SynchronizeTexture((dmGraphics::HTexture) params.m_Resource->m_Resource, false))
+        dmGraphics::HTexture texture = (dmGraphics::HTexture) params.m_Resource->m_Resource;
+        if(!SynchronizeTexture(texture, false))
         {
             return dmResource::RESULT_PENDING;
         }
@@ -378,6 +379,7 @@ namespace dmGameSystem
         dmDDF::FreeMessage(image_desc->m_DDFImage);
         DestroyImage(image_desc);
 
+        params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
         return dmResource::RESULT_OK;
     }
 
@@ -429,6 +431,10 @@ namespace dmGameSystem
         if( params.m_Message == 0 )
         {
             dmDDF::FreeMessage(texture_image);
+        }
+        if(r == dmResource::RESULT_OK)
+        {
+            params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
         }
         return r;
     }

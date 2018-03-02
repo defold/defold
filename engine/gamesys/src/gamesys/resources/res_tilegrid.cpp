@@ -93,6 +93,14 @@ namespace dmGameSystem
         }
     }
 
+    static uint32_t GetResourceSize(TileGridResource* res, uint32_t ddf_size)
+    {
+        uint32_t size = sizeof(TileGridResource);
+        size += ddf_size;
+        size += res->m_GridShapes.Capacity() * sizeof(dmPhysics::HCollisionShape2D);    // TODO: Get size of CollisionShape2D
+        return size;
+    }
+
     dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameSystemDDF::TileGrid* tile_grid_ddf;
@@ -118,6 +126,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) tile_grid;
+            params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
         }
         else
         {
@@ -147,6 +156,7 @@ namespace dmGameSystem
 //            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
 //            tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
 //            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
+//            params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
 //        }
 //        else
 //        {

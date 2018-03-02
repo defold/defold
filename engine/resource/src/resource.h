@@ -117,6 +117,10 @@ namespace dmResource
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
 
+        /// Resource size. The payload of m_Resource
+        uint32_t m_ResourceSize;
+
+
         /// For internal use only
         void*    m_ResourceType;        // For internal use.
 
@@ -671,6 +675,18 @@ namespace dmResource
     // Files mapped with this function should be unmapped with UnmapFile(...)
     Result MapFile(const char* filename, void*& map, uint32_t& size);
     Result UnmapFile(void*& map, uint32_t size);
+
+    /**
+     * Creates a snapshot of current state of resources loaded. Contains information about all existing resource and their subresources.
+     * @param tag Unique name hash of snapshot
+     */
+    void ProfilerSnapshot(dmhash_t tag);
+
+    /**
+     * Reset profiler. Clears all existing snapshots
+     */
+    void ProfilerReset();
+
 }
 
 #endif // RESOURCE_H

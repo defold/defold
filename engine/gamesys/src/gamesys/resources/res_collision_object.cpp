@@ -276,6 +276,7 @@ range_error:
         if (AcquireResources(physics_context, params.m_Factory, params.m_Buffer, params.m_BufferSize, collision_object, params.m_Filename))
         {
             params.m_Resource->m_Resource = collision_object;
+            params.m_Resource->m_ResourceSize = sizeof(CollisionObjectResource) + params.m_BufferSize;
             return dmResource::RESULT_OK;
         }
         else
@@ -305,6 +306,7 @@ range_error:
         {
             ReleaseResources(physics_context, params.m_Factory, collision_object);
             *collision_object = tmp_collision_object;
+            params.m_Resource->m_ResourceSize = sizeof(CollisionObjectResource) + params.m_BufferSize;
             return dmResource::RESULT_OK;
         }
         else

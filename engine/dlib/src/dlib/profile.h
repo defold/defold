@@ -13,6 +13,7 @@
 #include <dlib/log.h>
 #include <dlib/atomic.h>
 #include <dlib/dlib.h>
+#include <dlib/http_server.h>
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
@@ -261,6 +262,42 @@ namespace dmProfile
      * @return True if out of sample resources
      */
     bool IsOutOfSamples();
+
+
+    /**
+     * Profile extension result
+     */
+    enum ProfileExtensionResult
+    {
+        PROFILE_EXTENSION_RESULT_OK = 0,
+        PROFILE_EXTENSION_RESULT_MEMORY_ERROR = 1,
+        PROFILE_EXTENSION_RESULT_TRANSMISSION_FAILED = 2,
+        PROFILE_EXTENSION_RESULT_UNKNOWN = 3,
+    };
+
+    /**
+     * Profile extension http request callback
+     * @param context Callback context
+     * @param request HttpServer request based on http response tag when registered
+     * @return ProfileExtensionResult
+     */
+    typedef ProfileExtensionResult(*ProfileExtensionHttpRequestCallback)(void* context, const dmHttpServer::Request* request);
+
+    /**
+     * Register profile extension
+     * @param context Callback context
+     * @param http_response_tag Tag string callback will respond to
+     * @param callback ProfileExtensionHttpRequestCallback function
+     * @return True if registered ok
+     */
+    bool RegisterProfileExtension(void* context, const char* http_response_tag, ProfileExtensionHttpRequestCallback callback);
+
+    /**
+     * Unregister profile extension
+     * Does nothing if context wasn't registered
+     * @param context Callback context
+     */
+    void UnregisterProfileExtension(void* context);
 
     /// Internal, do not use.
     extern uint32_t g_BeginTime;
