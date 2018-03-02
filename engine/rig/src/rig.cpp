@@ -75,10 +75,11 @@ namespace dmRig
         if (instance->m_MeshEntry != 0x0) {
             uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
             instance->m_MeshProperties.SetSize(mesh_count);
+            const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
             for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
                 const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
-                float* color = mesh->m_Color.m_Data;
-                float* skin_color = mesh->m_SkinColor.m_Data;
+                const float* color = mesh->m_Color.m_Count ? mesh->m_Color.m_Data : white;
+                const float* skin_color = mesh->m_SkinColor.m_Count ? mesh->m_SkinColor.m_Data : white;
                 MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
                 properties->m_Color[0] = color[0] * skin_color[0];
                 properties->m_Color[1] = color[1] * skin_color[1];
