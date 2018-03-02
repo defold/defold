@@ -183,3 +183,36 @@
      "|    -- comment"]
     ["function foo()"
      "e|    -- comment"]))
+
+(def strip-go-prop-declarations #'script/strip-go-prop-declarations)
+
+(deftest strip-go-prop-declarations-test
+  (are [code expected]
+    (= expected (strip-go-prop-declarations code))
+
+    ["go.property()"]
+    ["             "]
+
+    ["go.property('name', hash())"]
+    ["                           "]
+
+    ["go.property('name', texture('/image.png'))"]
+    ["                                          "]
+
+    ["go.property('name', 1) -- comment"]
+    ["                       -- comment"]
+
+    ["go.property('name1', 1) --[[comment]] go.property('name2', 2)"]
+    ["                        --[[comment]]                        "]
+
+    ["go.property('name',"
+     "            123456) -- comment"]
+    ["                   "
+     "                    -- comment"]
+
+    ["do"
+     "    go.property('name', 1)"
+     "end"]
+    ["do"
+     "                          "
+     "end"]))

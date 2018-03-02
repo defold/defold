@@ -1,5 +1,6 @@
 (ns editor.code.script
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code-completion :as code-completion]
@@ -124,8 +125,50 @@
               (update :properties into (:properties user-properties))
               (update :display-order into (:display-order user-properties)))))
 
-(g/defnk produce-bytecode
-  [_node-id lines resource]
+(defn- go-prop-declaration-cursor-ranges [lines]
+  (loop [cursor-ranges (transient [])
+         tokens (lua-parser/tokens (data/lines-reader lines))
+         paren-count 0
+         consumed []]
+    (if-some [[text :as token] (first tokens)]
+      (case (count consumed)
+        0 (recur cursor-ranges (next tokens) 0 (case text "go" (conj consumed token) []))
+        1 (recur cursor-ranges (next tokens) 0 (case text "." (conj consumed token) []))
+        2 (recur cursor-ranges (next tokens) 0 (case text "property" (conj consumed token) []))
+        3 (case text
+            "(" (recur cursor-ranges (next tokens) (inc paren-count) consumed)
+            ")" (let [paren-count (dec paren-count)]
+                  (assert (not (neg? paren-count)))
+                  (if (pos? paren-count)
+                    (recur cursor-ranges (next tokens) paren-count consumed)
+                    (let [[_ start-row start-col] (first consumed)
+                          [_ end-row end-col] token
+                          end-col (+ ^long end-col (count text))
+                          start-cursor (data/->Cursor start-row start-col)
+                          end-cursor (data/->Cursor end-row end-col)
+                          cursor-range (data/->CursorRange start-cursor end-cursor)]
+                      (recur (conj! cursor-ranges cursor-range)
+                             (next tokens)
+                             0
+                             []))))
+            (recur cursor-ranges (next tokens) paren-count consumed)))
+      (persistent! cursor-ranges))))
+
+(defn- line->whitespace [line]
+  (string/join (repeat (count line) \space)))
+
+(defn- cursor-range->whitespace-lines [lines cursor-range]
+  (let [{:keys [first-line middle-lines last-line]} (data/cursor-range-subsequence lines cursor-range)]
+    (cond-> (into [(line->whitespace first-line)]
+                  (map line->whitespace)
+                  middle-lines)
+            (some? last-line) (conj (line->whitespace last-line)))))
+
+(defn- strip-go-prop-declarations [lines]
+  (data/splice-lines lines (map (juxt identity (partial cursor-range->whitespace-lines lines))
+                                (go-prop-declaration-cursor-ranges lines))))
+
+(defn- compile-bytecode [_node-id resource lines]
   (try
     (luajit/bytecode (data/lines-reader lines) (resource/proj-path resource))
     (catch Exception e
@@ -143,8 +186,7 @@
      :content (protobuf/map->bytes Lua$LuaModule
                                    {:source {:script (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
                                              :filename (resource/proj-path (:resource resource))
-                                             :bytecode (when-not (g/error? bytecode)
-                                                         (ByteString/copyFrom ^bytes bytecode))}
+                                             :bytecode (ByteString/copyFrom ^bytes bytecode)}
                                     :modules modules
                                     :resources (mapv lua/lua-module->build-path modules)
                                     :properties (properties/go-props->decls go-props)
@@ -152,16 +194,24 @@
                                                               (keep properties/try-get-go-prop-proj-path)
                                                               go-props)})}))
 
-(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules module-build-targets original-resource-property-build-targets]
-  ;; NOTE: This build target should contain the non-overridden property values from the code.
-  ;; Since this build target is shared, overrides belong in the instancing build targets.
-  (let [unresolved-go-props (keep properties/property-entry->go-prop (:properties user-properties))
-        [go-props go-prop-dep-build-targets] (properties/build-target-go-props original-resource-property-build-targets unresolved-go-props)]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-script
-      :user-data {:lines lines :go-props go-props :modules modules :bytecode bytecode}
-      :deps (into go-prop-dep-build-targets module-build-targets)}]))
+(g/defnk produce-build-targets [_node-id resource lines user-properties modules module-build-targets original-resource-property-build-targets]
+  ;; We always compile the full source code in order to find syntax errors.
+  ;; We then strip out go.property() declarations and compile again if needed.
+  (let [bytecode-or-error (compile-bytecode _node-id resource lines)]
+    (if (g/error? bytecode-or-error)
+      bytecode-or-error
+      (let [unresolved-go-props (keep properties/property-entry->go-prop (:properties user-properties))
+            [go-props go-prop-dep-build-targets] (properties/build-target-go-props original-resource-property-build-targets unresolved-go-props)
+            cleaned-lines (strip-go-prop-declarations lines)
+            bytecode (if (identical? lines cleaned-lines)
+                       bytecode-or-error
+                       (compile-bytecode _node-id resource cleaned-lines))]
+        (assert (not (g/error? bytecode)))
+        [{:node-id _node-id
+          :resource (workspace/make-build-resource resource)
+          :build-fn build-script
+          :user-data {:lines cleaned-lines :go-props go-props :modules modules :bytecode bytecode}
+          :deps (into go-prop-dep-build-targets module-build-targets)}]))))
 
 (g/defnk produce-completions [completion-info module-completion-infos]
   (code-completion/combine-completions completion-info module-completion-infos))
@@ -252,7 +302,6 @@
                                                         [[:build-targets :resource-property-build-targets]])))))))
 
   (output _properties g/Properties :cached produce-properties)
-  (output bytecode g/Any :cached produce-bytecode)
   (output build-targets g/Any :cached produce-build-targets)
   (output completions g/Any :cached produce-completions)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
