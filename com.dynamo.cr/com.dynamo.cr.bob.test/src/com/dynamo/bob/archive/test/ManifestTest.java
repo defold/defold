@@ -143,9 +143,15 @@ public class ManifestTest {
         }
 
         public HashDigest supportedEngineVersionHash(int index) {
-            HashDigest.Builder builder = HashDigest.newBuilder();
-            ByteString content = ByteString.copyFrom(this.supportedEngineVersions[index].getBytes());
-            HashDigest result = builder.setData(content).build();
+            HashDigest result = null;
+            try {
+                HashDigest.Builder builder = HashDigest.newBuilder();
+                byte[] hash = ManifestBuilder.CryptographicOperations.hash(this.supportedEngineVersions[index].getBytes(), HashAlgorithm.HASH_SHA1);
+                ByteString content = ByteString.copyFrom(hash);
+                result = builder.setData(content).build();
+            } catch (Exception exception) {
+                System.out.println("TEST ERROR: Unable to create hash for engine version!");
+            }
             return result;
         }
 
