@@ -81,8 +81,7 @@ namespace dmGameObject
 
         uint32_t created_instances = 0;
         uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
-        uint32_t collection_rig_capacity = dmGameObject::GetCollectionDefaultRigCapacity(regist);
-        HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity, collection_rig_capacity);
+        HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity);
         if (collection == 0)
         {
             res = dmResource::RESULT_OUT_OF_RESOURCES;
@@ -209,7 +208,7 @@ namespace dmGameObject
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &set_params.m_PropertySet.m_UserData);
+                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &set_params.m_PropertySet.m_UserData, 0);
                                 if (!r)
                                 {
                                     dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, params.m_Filename);
@@ -242,6 +241,15 @@ namespace dmGameObject
             dmLogError("Sub collections must be merged before loading.");
 
         params.m_Resource->m_Resource = (void*) collection;
+        {
+            uint32_t size = sizeof(Collection);
+            size += collection->m_InstanceIndices.Capacity()*sizeof(uint16_t);
+            size += collection->m_WorldTransforms.Capacity()*sizeof(Matrix4);
+            size += collection->m_IDToInstance.Capacity()*(sizeof(Instance*)+sizeof(dmhash_t));
+            size += collection->m_InputFocusStack.Capacity()*sizeof(Instance*);
+            size += collection->m_Instances.Capacity()*sizeof(Instance*);
+            params.m_Resource->m_ResourceSize = size;
+        }
 bail:
         dmDDF::FreeMessage(collection_desc);
 

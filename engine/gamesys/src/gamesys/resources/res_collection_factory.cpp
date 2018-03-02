@@ -118,6 +118,7 @@ namespace dmGameSystem
         if(res == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) factory_res;
+            params.m_Resource->m_ResourceSize = sizeof(CollectionFactoryResource) + (factory_res->m_CollectionResources.Size()*sizeof(void*)) + params.m_BufferSize;
         }
         else
         {
@@ -159,6 +160,7 @@ namespace dmGameSystem
             ReleaseResources(params.m_Factory, factory_res);
             ReleaseCollectionDesc(params.m_Factory, factory_res);
             *factory_res = tmp_factory_res;
+            params.m_Resource->m_ResourceSize = sizeof(CollectionFactoryResource) + (factory_res->m_CollectionResources.Size()*sizeof(void*)) + params.m_BufferSize;
         }
         else
         {

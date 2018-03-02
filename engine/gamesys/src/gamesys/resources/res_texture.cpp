@@ -311,9 +311,6 @@ namespace dmGameSystem
                 case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP:
                 case dmGraphics::TextureImage::COMPRESSION_TYPE_WEBP_LOSSY:
                 {
-                    dmGraphics::TextureImage::Image* new_image = new dmGraphics::TextureImage::Image();
-                    memcpy(new_image, image, sizeof(dmGraphics::TextureImage::Image));
-
                     uint32_t w = image->m_Width;
                     uint32_t h = image->m_Height;
                     for (int i = 0; i < (int) image->m_MipMapOffset.m_Count; ++i)
@@ -372,7 +369,8 @@ namespace dmGameSystem
     dmResource::Result ResTexturePostCreate(const dmResource::ResourcePostCreateParams& params)
     {
         // Poll state of texture async texture processing and return state. RESULT_PENDING indicates we need to poll again.
-        if(!SynchronizeTexture((dmGraphics::HTexture) params.m_Resource->m_Resource, false))
+        dmGraphics::HTexture texture = (dmGraphics::HTexture) params.m_Resource->m_Resource;
+        if(!SynchronizeTexture(texture, false))
         {
             return dmResource::RESULT_PENDING;
         }
@@ -381,6 +379,7 @@ namespace dmGameSystem
         dmDDF::FreeMessage(image_desc->m_DDFImage);
         DestroyImage(image_desc);
 
+        params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
         return dmResource::RESULT_OK;
     }
 
@@ -432,6 +431,10 @@ namespace dmGameSystem
         if( params.m_Message == 0 )
         {
             dmDDF::FreeMessage(texture_image);
+        }
+        if(r == dmResource::RESULT_OK)
+        {
+            params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
         }
         return r;
     }

@@ -81,6 +81,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) prototype;
+            params.m_Resource->m_ResourceSize = sizeof(RenderScriptPrototype) + (prototype->m_Materials.Capacity() *  sizeof(dmRender::HMaterial));
             dmResource::RegisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, prototype);
         }
         else
@@ -117,6 +118,7 @@ namespace dmGameSystem
             ReleaseResources(params.m_Factory, prototype);
             prototype->m_Script = tmp_prototype.m_Script;
             prototype->m_Materials.Swap(tmp_prototype.m_Materials);
+            params.m_Resource->m_ResourceSize = sizeof(RenderScriptPrototype) + (prototype->m_Materials.Capacity() *  sizeof(dmRender::HMaterial));
         }
         else
         {

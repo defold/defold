@@ -12,6 +12,7 @@ extern "C"
 }
 
 #include "../crash.h"
+#include "../crash_private.h"
 
 class dmCrashTest : public ::testing::Test
 {
@@ -19,14 +20,21 @@ class dmCrashTest : public ::testing::Test
 
         virtual void SetUp()
         {
-            dmCrash::Init("TEST", "0123456789abcdef0123456789abcdef01234567");
+
+            time_t t = time(NULL);
+            struct tm* tm = localtime(&t);
+
+            m_EngineHash[0] = 0;
+            strftime(m_EngineHash, sizeof(m_EngineHash), "%Y-%m-%d %H:%M:%S", tm);
+
+            dmCrash::Init("TEST", m_EngineHash);
         }
 
         virtual void TearDown()
         {
 
         }
-    private:
+        char m_EngineHash[40];
 };
 
 TEST_F(dmCrashTest, Initialize)
@@ -44,8 +52,8 @@ TEST_F(dmCrashTest, TestLoad)
     dmSys::SystemInfo info;
     dmSys::GetSystemInfo(&info);
 
+    ASSERT_STREQ(m_EngineHash, dmCrash::GetSysField(d, dmCrash::SYSFIELD_ENGINE_HASH));
     ASSERT_EQ(0, strcmp("TEST", dmCrash::GetSysField(d, dmCrash::SYSFIELD_ENGINE_VERSION)));
-    ASSERT_EQ(0, strcmp("0123456789abcdef0123456789abcdef01234567", dmCrash::GetSysField(d, dmCrash::SYSFIELD_ENGINE_HASH)));
     ASSERT_EQ(0, strcmp(info.m_DeviceModel, dmCrash::GetSysField(d, dmCrash::SYSFIELD_DEVICE_MODEL)));
     ASSERT_EQ(0, strcmp(info.m_Manufacturer, dmCrash::GetSysField(d, dmCrash::SYSFIELD_MANUFACTURER)));
     ASSERT_EQ(0, strcmp(info.m_SystemName, dmCrash::GetSysField(d, dmCrash::SYSFIELD_SYSTEM_NAME)));
@@ -58,7 +66,11 @@ TEST_F(dmCrashTest, TestLoad)
     ASSERT_GT(addresses, 4);
     for (uint32_t i=0;i!=addresses;i++)
     {
-        ASSERT_NE((void*)0, dmCrash::GetBacktraceAddr(d, i));
+        // DEF-3128: Skip the last one, since it might be 0 on Win32
+        if (i != addresses-1 )
+        {
+            ASSERT_NE((void*)0, dmCrash::GetBacktraceAddr(d, i));
+        }
     }
 
     char buf[4096];
@@ -88,18 +100,18 @@ TEST_F(dmCrashTest, TestPurgeCustomPath)
     dmCrash::SetFilePath("remove-me");
     dmCrash::Purge();
     dmCrash::WriteDump();
-    ASSERT_NE(dmCrash::LoadPrevious(), 0);
+    ASSERT_NE(0, dmCrash::LoadPrevious());
     dmCrash::Purge();
-    ASSERT_EQ(dmCrash::LoadPrevious(), 0);
+    ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
 
 TEST_F(dmCrashTest, TestPurgeDefaultPath)
 {
     dmCrash::Purge();
     dmCrash::WriteDump();
-    ASSERT_NE(dmCrash::LoadPrevious(), 0);
+    ASSERT_NE(0, dmCrash::LoadPrevious());
     dmCrash::Purge();
-    ASSERT_EQ(dmCrash::LoadPrevious(), 0);
+    ASSERT_EQ(0, dmCrash::LoadPrevious());
 }
 
 

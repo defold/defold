@@ -11,6 +11,7 @@
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.engine :as engine]
+            [editor.error-reporting :as error-reporting]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.git :as git]
             [editor.system :as system]
@@ -25,60 +26,14 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- get-ios-engine [project prefs]
-  (let [armv7 ^File (engine/get-engine project prefs "armv7-darwin")
-        arm64 ^File (engine/get-engine project prefs "arm64-darwin")
-        unpack (system/defold-unpack-path)
-        lipo (format "%s/%s/bin/lipo" unpack (.getPair (Platform/getJavaPlatform)))
-        engine (fs/create-temp-file! "dmengine" "")]
-    (shell/sh lipo "-create" (.getAbsolutePath armv7) (.getAbsolutePath arm64) "-output" (.getAbsolutePath engine))
-    engine))
-
-(defn- extract-entitlement [profile]
-  (let [text-profile (fs/create-temp-file! "mobileprovision" ".plist")]
-    (shell/sh "security"  "cms"  "-D"  "-i"  profile "-o"  (.getAbsolutePath text-profile))
-
-    (let [profile-info (XMLPropertyListConfiguration.)
-          entitlements-info (XMLPropertyListConfiguration.)
-          entitlements (fs/create-temp-file! "entitlement" ".xcent")]
-      (with-open [r (io/reader text-profile)]
-        (.load profile-info r))
-      (.append entitlements-info (.configurationAt profile-info "Entitlements"))
-      (.save entitlements-info entitlements)
-      (.getAbsolutePath entitlements))))
-
-(defn- sign-ios-app [ipa exe identity profile props]
-  (let [unpack (system/defold-unpack-path)
-        codesign (format "%s/bin/codesign" unpack)
-        codesign-alloc (format "%s/bin/codesign_allocate" unpack)
-        package-dir (fs/create-temp-directory!)
-        payload-dir (io/file package-dir "Payload")
-        app-dir (io/file payload-dir "Defold.app")
-        info (XMLPropertyListConfiguration.)]
-    (fs/create-directories! app-dir)
-    (with-open [r (io/reader (io/resource "bundle/ios/Info-dev-app.plist"))]
-      (.load info r))
-    (doseq [[k v]  props]
-      (.setProperty info k v))
-    (.save info (io/file app-dir "Info.plist"))
-
-    ;; copy icons
-    (doseq [icon ["ios_icon_57.png", "ios_icon_114.png", "ios_icon_72.png", "ios_icon_144.png"]]
-      (with-open [icon-stream (io/input-stream (io/resource (str "icons/ios/" icon)))]
-        (io/copy icon-stream (io/file app-dir icon))))
-
-    (fs/copy-file! (io/file profile) (io/file app-dir "embedded.mobileprovision"))
-    (fs/copy-file! (io/file exe) (io/file app-dir "dmengine"))
-
-    (let [entitlements (extract-entitlement profile)
-          env {"EMBEDDED_PROFILE_NAME" "embedded.mobileprovision"
-               "CODESIGN_ALLOCATE" codesign-alloc}]
-      (shell/sh "codesign" "-f" "-s" identity "--entitlements" entitlements (.getAbsolutePath app-dir) :env env))
-
-    (fs/delete-file! (io/file ipa))
-
-    (shell/sh "zip" "-qr" ipa "Payload" :dir package-dir)
-    app-dir))
+(defn- sh [& args]
+  (try
+    (let [result (apply shell/sh args)]
+      (if (zero? (:exit result))
+        result
+        (throw (ex-info (format "Shell call failed:\n%s" args) result))))
+    (catch Exception e
+      (throw (ex-info (format "Shell call failed:\n%s" args) {} e)))))
 
 (defn- cr-project-id [workspace]
   (when-let [git (git/open (workspace/project-path workspace))]
@@ -94,65 +49,6 @@
                   nil))))))
       (finally
         (.close git)))))
-
-(handler/defhandler ::sign :dialog
-  (enabled? [controls] (and (ui/selection (:identities controls))
-                            (.exists (io/file (ui/text (:provisioning-profile controls))))
-                            (.isDirectory (io/file (ui/text (:build-dir controls))))))
-  (run [workspace prefs ^Stage stage root controls project build-options]
-    (let [clear-errors! (:clear-errors! build-options)
-          render-error! (:render-error! build-options)
-          ^File engine (try
-                         (clear-errors!)
-                         (get-ios-engine project prefs)
-                         (catch Exception e
-                           (when-not (engine-build-errors/handle-build-error! render-error! project e)
-                             (throw e))
-                           nil))]
-      (if (nil? engine)
-        (do (ui/close! stage)
-            (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again."))
-        (let [ipa-dir (ui/text (:build-dir controls))
-              settings (g/node-value project :settings)
-              w (get settings ["display" "width"] 1)
-              h (get settings ["display" "height"] 1)
-              orient-props (if (> w h)
-                             {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationLandscapeRight"
-                              "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationLandscapeRight"}
-                             {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationPortrait"
-                              "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationPortrait"})
-              name (get settings ["project" "title"] "Unnamed")
-              props {"CFBundleDisplayName" name
-                     "CFBundleExecutable" "dmengine"
-                     "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
-
-              identity (get (ui/selection (:identities controls)) 0)
-              identity-id (get identity 0)
-              profile (ui/text (:provisioning-profile controls))]
-
-          (prefs/set-prefs prefs "last-identity" identity)
-          (prefs/set-prefs prefs "last-provisioning-profile" profile)
-          (prefs/set-prefs prefs "last-ios-build-dir" ipa-dir)
-          (let [ipa (format "%s/%s.ipa" ipa-dir name)
-                cr-project-id (cr-project-id workspace)]
-            (when (or (nil? cr-project-id)
-                      (login/login prefs))
-              (ui/disable! root true)
-              (sign-ios-app ipa (.getAbsolutePath engine) identity-id profile props)
-              (when (some? cr-project-id)
-                (let [client (client/make-client prefs)]
-                  (when-let [user-id (client/user-id client)]
-                    (with-open [in (io/input-stream ipa)]
-                      (try
-                        (client/upload-engine client user-id cr-project-id "ios" in)
-                        (ui/run-later
-                          (dialogs/make-alert-dialog "Successfully uploaded a signed ipa to the project dashboard. Team members can download it to their device from the Settings page."))
-                        (catch ExceptionInfo e
-                          (if (= 403 (:status (ex-data e)))
-                            (ui/run-later
-                              (dialogs/make-alert-dialog "You are not authorized to upload a signed ipa to the project dashboard."))
-                            (throw e))))))))
-              (ui/close! stage))))))))
 
 (handler/defhandler ::select-provisioning-profile :dialog
   (enabled? [] true)
@@ -171,22 +67,204 @@
       (when-let [f (ui/choose-directory "Select Build Directory" f)]
         (ui/text! (:build-dir controls) f)))))
 
-(defn find-identities []
-  (let [re #"\s+\d+\)\s+([0-9A-Z]+)\s+\"(.*?)\""
-        lines (.split ^String (:out (shell/sh "security" "find-identity" "-v" "-p" "codesigning")) "\n" )]
-    (->> lines
-         (map #(first (re-seq re %)))
-         (remove nil?)
-         (map (fn [[_ id name]] [id name])))))
+;; For matching lines like:
+;;   1) 0123456789ABCDEF0123456789ABCDEF01234567 "iPhone Developer: erik.angelin@king.com (0123456789)"
+;;      ^-first group--------------------------^  ^-second group-------------------------------------^
+(def ^:private identity-regexp #"\s+\d+\)\s+([0-9A-Z]+)\s+\"(.*?)\"")
 
-(defn make-sign-dialog [workspace prefs project build-options]
+(defn find-identities []
+  (->> (.split ^String (:out (sh "security" "find-identity" "-v" "-p" "codesigning")) "\n")
+       (map #(first (re-seq identity-regexp %)))
+       (remove nil?)
+       (map (fn [[_ id name]] [id name]))))
+
+(g/defnk get-armv7-engine [project prefs]
+  (try {:armv7 (engine/get-engine project prefs "armv7-darwin")}
+       (catch Exception e
+         {:err e :message "Failed to get armv7 engine."})))
+
+(g/defnk get-arm64-engine [project prefs]
+  (try {:arm64 (engine/get-engine project prefs "arm64-darwin")}
+       (catch Exception e
+         {:err e :message "Failed to get arm64 engine."})))
+
+(g/defnk lipo-ios-engine [^File armv7 ^File arm64]
+  (let [lipo (format "%s/%s/bin/lipo" (system/defold-unpack-path) (.getPair (Platform/getJavaPlatform)))
+        engine (fs/create-temp-file! "dmengine" "")]
+    (try (sh lipo "-create" (.getAbsolutePath armv7) (.getAbsolutePath arm64) "-output" (.getAbsolutePath engine))
+         {:engine engine}
+         (catch Exception e
+           {:err e :message "Failed to lipo engine binary."}))))
+
+(g/defnk assemble-ios-app [^File engine ^File info-plist ^File package-dir ^File app-dir ^File profile]
+  (try
+    ;; copy icons
+    (doseq [icon ["ios_icon_57.png", "ios_icon_114.png", "ios_icon_72.png", "ios_icon_144.png"]]
+      (with-open [icon-stream (io/input-stream (io/resource (str "icons/ios/" icon)))]
+        (io/copy icon-stream (io/file app-dir icon))))
+
+    (fs/copy-file! (io/file profile) (io/file app-dir "embedded.mobileprovision"))
+    (fs/copy-file! engine (io/file app-dir "dmengine"))
+    (fs/set-executable! engine)
+    (fs/copy-file! info-plist (io/file app-dir "Info.plist"))
+    {:assembled true}
+    (catch Exception e
+      {:err e :message "Failed to create ios app."})))
+
+(g/defnk sign-ios-app [^File package-dir ^File app-dir ^File entitlements-plist identity-id assembled]
+  (let [codesign-alloc (format "%s/%s/bin/codesign_allocate" (system/defold-unpack-path) (.getPair (Platform/getJavaPlatform)))
+        codesign-env {"EMBEDDED_PROFILE_NAME" "embedded.mobileprovision"
+                      "CODESIGN_ALLOCATE" codesign-alloc}]
+    (try
+      (sh "codesign" "-f" "-s" identity-id "--entitlements" (.getAbsolutePath entitlements-plist) (.getAbsolutePath app-dir) :env codesign-env)
+      {:signed true}
+      (catch Exception e
+        {:err e :message "Failed to sign ios app."}))))
+
+(g/defnk package-ipa [^File ipa-file ^File package-dir signed]
+  (try
+    (fs/delete-file! ipa-file)
+    (sh "zip" "-qr" (.getAbsolutePath ipa-file) "Payload" :dir package-dir)
+    {:ipa ipa-file}
+    (catch Exception e
+      {:err e :message "Failed to create ipa."})))
+
+(g/defnk make-provisioning-profile-plist [profile]
+  (try
+    (let [profile-plist (fs/create-temp-file! "mobileprovision" ".plist")]
+      (sh "security"  "cms"  "-D"  "-i"  profile "-o"  (.getAbsolutePath profile-plist))
+      {:provisioning-profile-plist profile-plist})
+    (catch Exception e
+      {:err e :message "Failed to convert provisioning profile."})))
+
+(g/defnk extract-entitlements-plist [^File provisioning-profile-plist]
+  (try
+    (let [profile-info (XMLPropertyListConfiguration.)
+          entitlements-info (XMLPropertyListConfiguration.)
+          entitlements-plist (fs/create-temp-file! "entitlement" ".xcent")]
+      (with-open [r (io/reader provisioning-profile-plist)]
+        (.load profile-info r))
+      (.append entitlements-info (.configurationAt profile-info "Entitlements"))
+      (.save entitlements-info entitlements-plist)
+      {:entitlements-plist entitlements-plist})
+    (catch Exception e
+      {:err e :message "Failed to extract entitlements from provisioning profile."})))
+
+(g/defnk make-info-plist [props]
+  (try
+    (let [plist-file (fs/create-temp-file! "Info.plist" "")
+          plist (XMLPropertyListConfiguration.)]
+      (with-open [r (io/reader (io/resource "bundle/ios/Info-dev-app.plist"))]
+        (.load plist r))
+      (doseq [[k v]  props]
+        (.setProperty plist k v))
+      (.save plist plist-file)
+      {:info-plist plist-file})
+    (catch Exception e
+      {:err e :message "Failed to create Info.plist."})))
+
+(g/defnk setup-fs-env []
+  (try
+    (let [package-dir (fs/create-temp-directory!)
+          payload-dir (io/file package-dir "Payload")
+          app-dir (io/file payload-dir "Defold.app")]
+      (fs/create-directories! app-dir)
+      {:package-dir package-dir
+       :payload-dir payload-dir
+       :app-dir app-dir})
+    (catch Exception e
+      {:err e :message "Failed to create directories for bundling."})))
+
+(g/defnk upload-ipa [^File ipa cr-project-id prefs]
+  (try
+    (let [client (client/make-client prefs)]
+      (when-let [user-id (client/user-id client)]
+        (with-open [in (io/input-stream ipa)]
+          (try
+            (client/upload-engine client user-id cr-project-id "ios" in)
+            {:uploaded true}
+            (catch ExceptionInfo e
+              (let [message (if (= 403 (:status (ex-data e)))
+                              "You are not authorized to upload a signed ipa to the project dashboard."
+                              "Failed to upload a signed ipa to the project dashboard.")]
+                {:err e
+                 :message message}))))))
+    (catch Exception e
+      {:err e :message "Failed to upload a signed ipa to the project dashboard."})))
+
+(g/defnk noop [])
+
+(handler/defhandler ::sign :dialog
+  (enabled? [controls] (and (ui/selection (:identities controls))
+                            (.exists (io/file (ui/text (:provisioning-profile controls))))
+                            (.isDirectory (io/file (ui/text (:build-dir controls))))))
+  (run [workspace prefs ^Stage stage root controls project result]
+    (let [ipa-dir (ui/text (:build-dir controls))
+          ipa (format "%s/%s.ipa" ipa-dir name)
+          settings (g/node-value project :settings)
+          w (get settings ["display" "width"] 1)
+          h (get settings ["display" "height"] 1)
+          orient-props (if (> w h)
+                         {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationLandscapeRight"
+                          "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationLandscapeRight"}
+                         {"UISupportedInterfaceOrientations"      "UIInterfaceOrientationPortrait"
+                          "UISupportedInterfaceOrientations~ipad" "UIInterfaceOrientationPortrait"})
+          name (get settings ["project" "title"] "Unnamed")
+          props {"CFBundleDisplayName" name
+                 "CFBundleExecutable" "dmengine"
+                 "CFBundleIdentifier" (get settings ["ios" "bundle_identifier"] "dmengine")}
+          identity (get (ui/selection (:identities controls)) 0)
+          identity-id (get identity 0)
+          profile (ui/text (:provisioning-profile controls))
+          cr-project-id (cr-project-id workspace)]
+      (prefs/set-prefs prefs "last-identity" identity)
+      (prefs/set-prefs prefs "last-provisioning-profile" profile)
+      (prefs/set-prefs prefs "last-ios-build-dir" ipa-dir)
+      ;; if project hosted by us, make sure we're logged in first
+      (when (or (nil? cr-project-id)
+                (login/login prefs))
+        (ui/disable! root true)
+        (let [initial-env {:ipa-file (io/file ipa)
+                           :cr-project-id cr-project-id
+                           :project project
+                           :profile profile
+                           :identity-id identity-id
+                           :prefs prefs
+                           :props props}
+              success "Successfully uploaded a signed ipa to the project dashboard. Team members can download it to their device from the Settings page."
+              sign-steps [setup-fs-env
+                          make-provisioning-profile-plist
+                          extract-entitlements-plist
+                          make-info-plist
+                          get-armv7-engine
+                          get-arm64-engine
+                          lipo-ios-engine
+                          assemble-ios-app
+                          sign-ios-app
+                          package-ipa
+                          ;; only upload if hosted by us
+                          (if cr-project-id upload-ipa noop)
+                          (if cr-project-id (g/fnk [] (dialogs/make-alert-dialog success)) noop)]]
+          (loop [steps sign-steps
+                 env initial-env]
+            (when-let [step (first steps)]
+              (assert (every? env (-> step meta :arguments)))
+              (let [step-result (step env)]
+                (if-let [error (:err step-result)]
+                  (reset! result {:error error :message (:message step-result)})
+                  (recur (next steps)
+                         (merge env step-result))))))
+          (ui/close! stage))))))
+
+(defn make-sign-dialog [workspace prefs project]
   (let [root ^Parent (ui/load-fxml "sign-dialog.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["identities" "sign" "provisioning-profile" "provisioning-profile-button" "build-dir" "build-dir-button"])
-        identities (find-identities)]
+        identities (find-identities)
+        result (atom nil)]
 
-    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project :build-options build-options} nil)
+    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project :result result} nil)
     (ui/cell-factory! (:identities controls) (fn [i] {:text (second i)}))
 
     (ui/text! (:provisioning-profile controls) (prefs/get-prefs prefs "last-provisioning-profile" ""))
@@ -206,5 +284,5 @@
     (ui/title! stage "Sign iOS Application")
     (.initModality stage Modality/NONE)
     (.setScene stage scene)
-    (ui/show! stage)
-    stage))
+    (ui/show-and-wait! stage)
+    @result))

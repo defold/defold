@@ -165,6 +165,8 @@ message Emitter
     optional float                  duration_spread         = 21 [default = 0.0];
 
     optional bool                   stretch_with_velocity  = 22 [default = false];
+
+    optional float                  start_offset           = 23 [default = 0.0];
 }
 
 message ParticleFX

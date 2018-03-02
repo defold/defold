@@ -55,7 +55,11 @@ namespace dmSound
 
         inline bool IsZero()
         {
-            return m_Prev == 0.0f && m_Current == 0.0f && m_Next == 0.0f;
+            // Let's do the check in integer space instead (16 instructions -> 6)
+            const uint32_t* pa = (const uint32_t*)&m_Prev;
+            const uint32_t* pb = (const uint32_t*)&m_Current;
+            const uint32_t* pc = (const uint32_t*)&m_Next;
+            return (*pa | *pb | *pc ) == 0;
         }
 
         /**
@@ -92,10 +96,10 @@ namespace dmSound
             m_TotalSamplesRecip = 1.0f / total_samples;
         }
 
-        inline float GetValue(int i)
+        inline float GetValue(int i) const
         {
             float mix = i * m_TotalSamplesRecip;
-            return (1 - mix) * m_From + mix * m_To;
+            return m_From + mix * (m_To - m_From);
         }
     };
 
@@ -420,6 +424,11 @@ namespace dmSound
         sound_data->m_Size = sound_buffer_size;
         memcpy(sound_data->m_Data, sound_buffer, sound_buffer_size);
         return RESULT_OK;
+    }
+
+    uint32_t GetSoundResourceSize(HSoundData sound_data)
+    {
+        return sound_data->m_Size + sizeof(SoundData);
     }
 
     Result DeleteSoundData(HSoundData sound_data)
@@ -986,7 +995,7 @@ namespace dmSound
         if (r != dmSoundCodec::RESULT_OK) {
             dmhash_t hash = sound->m_SoundData[instance->m_SoundDataIndex].m_NameHash;
             dmLogWarning("Unable to decode file '%s'. Result %d", dmHashReverseSafe64(hash), r);
-            
+
             instance->m_Playing = 0;
             return;
         }
@@ -1002,6 +1011,7 @@ namespace dmSound
     }
 
     static Result MixInstances(const MixContext* mix_context) {
+        DM_PROFILE(Sound, "MixInstances")
         SoundSystem* sound = g_SoundSystem;
 
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
@@ -1055,7 +1065,7 @@ namespace dmSound
         return num_playing > 0 ? RESULT_OK : RESULT_NOTHING_TO_PLAY;
     }
 
-    void Master(const MixContext* mix_context) {
+    static void Master(const MixContext* mix_context) {
         DM_PROFILE(Sound, "Master")
 
         SoundSystem* sound = g_SoundSystem;
@@ -1068,7 +1078,7 @@ namespace dmSound
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
             Ramp ramp = GetRamp(mix_context, &g->m_Gain, n);
-            if (g->m_MixBuffer && g->m_NameHash != MASTER_GROUP_HASH /*&& (fabs(from) + fabs(to)) > 0.0f*/) {
+            if (g->m_MixBuffer && g->m_NameHash != MASTER_GROUP_HASH) {
                 for (uint32_t i = 0; i < n; i++) {
                     float gain = ramp.GetValue(i);
                     gain = dmMath::Clamp(gain, 0.0f, 1.0f);
@@ -1160,18 +1170,21 @@ namespace dmSound
         while (free_slots > 0) {
             MixContext mix_context(current_buffer, total_buffers);
             Result result = MixInstances(&mix_context);
-            if (result == RESULT_OK)
-            {
-                if (sound->m_IsSoundActive == false)
-                {
-                    sound->m_IsSoundActive = true;
-                    (void) PlatformAcquireAudioFocus();
-                }
 
-                Master(&mix_context);
-                sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
+            // DEF-3130 Don't request the audio focus when we know nothing it being played
+            // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
+            if (result == RESULT_OK && sound->m_IsSoundActive == false)
+            {
+                sound->m_IsSoundActive = true;
+                (void) PlatformAcquireAudioFocus();
             }
 
+            Master(&mix_context);
+
+            // DEF-2540: By not feeding the sound device, you'll get more slots free,
+            // thus updating sound (redundantly) every call, resulting in a huge performance hit.
+            // Also, you'll fast forward the sounds.
+            sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;

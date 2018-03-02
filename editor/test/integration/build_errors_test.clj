@@ -4,7 +4,9 @@
             [editor.build-errors-view :as build-errors-view]
             [editor.collection :as collection]
             [editor.defold-project :as project]
+            [editor.workspace :as workspace]
             [editor.game-object :as game-object]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [integration.test-util :as test-util]
             [internal.util :as util]
@@ -69,20 +71,21 @@
 
       (testing "Build error links to source node"
         (are [component-resource-path error-resource-path error-outline-path]
-          (with-open [_ (make-restore-point!)]
-            (let [render-error! (test-util/make-call-logger)]
+            (with-open [_ (make-restore-point!)]
               (add-component-from-file! workspace game-object component-resource-path)
-              (project/build project main-collection (g/make-evaluation-context) {:render-error! render-error!})
-              (let [error-value (build-error render-error!)]
-                (when (is (some? error-value) component-resource-path)
+              (let [old-artifact-map (workspace/artifact-map workspace)
+                    build-results (project/build project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                    error-value (:error build-results)]
+                (if (is (some? error-value) component-resource-path)
                   (let [error-tree (build-errors-view/build-resource-tree error-value)]
                     (is (= (resource error-resource-path)
                            (error-resource error-tree)))
                     (is (= (resource-node error-resource-path)
                            (error-resource-node error-tree)))
                     (is (= (outline-node error-resource-path error-outline-path)
-                           (error-outline-node error-tree)))))))
-            true)
+                           (error-outline-node error-tree))))
+                  (workspace/artifact-map! workspace (:artifact-map build-results))))
+              true)
 
           "/errors/syntax_error.script"
           "/errors/syntax_error.script" []
@@ -107,20 +110,21 @@
 
       (testing "Build error does not link to missing files"
         (are [resource-path error-resource-path error-outline-path add-fn]
-          (with-open [_ (make-restore-point!)]
-            (let [render-error! (test-util/make-call-logger)]
+            (with-open [_ (make-restore-point!)]
               (add-fn resource-path)
-              (project/build project main-collection (g/make-evaluation-context) {:render-error! render-error!})
-              (let [error-value (build-error render-error!)]
-                (when (is (some? error-value) resource-path)
+              (let [old-artifact-map (workspace/artifact-map workspace)
+                    build-results (project/build project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                    error-value (:error build-results)]
+                (if (is (some? error-value) resource-path)
                   (let [error-tree (build-errors-view/build-resource-tree error-value)]
                     (is (= (resource error-resource-path)
                            (error-resource error-tree)))
                     (is (= (resource-node error-resource-path)
                            (error-resource-node error-tree)))
                     (is (= (outline-node error-resource-path error-outline-path)
-                          (error-outline-node error-tree)))))))
-            true)
+                           (error-outline-node error-tree))))
+                  (workspace/artifact-map! workspace (:artifact-map build-results))))
+              true)
 
           "/file_not_found.gui"
           "/main/main.collection" ["go", "file_not_found"]
@@ -132,19 +136,20 @@
 
       (testing "Errors from the same source are not duplicated"
         (with-open [_ (make-restore-point!)]
-          (let [render-error! (test-util/make-call-logger)]
-            (doseq [path ["/errors/button_break_self.gui"
-                          "/errors/panel_break_button.gui"
-                          "/errors/panel_using_button_break_self.gui"
-                          "/errors/panel_using_name_conflict_twice.gui"
-                          "/errors/window_using_panel_break_button.gui"]]
-              (add-component-from-file! workspace game-object path))
-            (project/build project main-collection (g/make-evaluation-context) {:render-error! render-error!})
-            (let [error-value (build-error render-error!)]
-              (when (is (some? error-value))
-                (let [error-tree (build-errors-view/build-resource-tree error-value)]
-                  (is (= ["/errors/button_break_self.gui" "/errors/name_conflict.gui" "/errors/panel_break_button.gui"]
-                         (sort (map #(resource/proj-path (get-in % [:value :resource])) (:children error-tree)))))
-                  (is (= 1 (count (get-in error-tree [:children 0 :children]))))
-                  (is (= 2 (count (get-in error-tree [:children 1 :children]))))
-                  (is (= 1 (count (get-in error-tree [:children 2 :children])))))))))))))
+          (doseq [path ["/errors/button_break_self.gui"
+                        "/errors/panel_break_button.gui"
+                        "/errors/panel_using_button_break_self.gui"
+                        "/errors/panel_using_name_conflict_twice.gui"
+                        "/errors/window_using_panel_break_button.gui"]]
+            (add-component-from-file! workspace game-object path))
+          (let [old-artifact-map (workspace/artifact-map workspace)
+                build-results (project/build project main-collection (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)
+                error-value (:error build-results)]
+            (if (is (some? error-value))
+              (let [error-tree (build-errors-view/build-resource-tree error-value)]
+                (is (= ["/errors/button_break_self.gui" "/errors/name_conflict.gui" "/errors/panel_break_button.gui"]
+                       (sort (map #(resource/proj-path (get-in % [:value :resource])) (:children error-tree)))))
+                (is (= 1 (count (get-in error-tree [:children 0 :children]))))
+                (is (= 2 (count (get-in error-tree [:children 1 :children]))))
+                (is (= 1 (count (get-in error-tree [:children 2 :children])))))
+              (workspace/artifact-map! workspace (:artifact-map build-results)))))))))

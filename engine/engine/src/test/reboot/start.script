@@ -16,8 +16,9 @@ function on_message(self, message_id, message, sender)
             else
                 local arg1 = '--config=bootstrap.main_collection=/reboot/start.collectionc'
                 local arg2 = '--config=test.val=second'
-                local arg3 = 'src/test/build/default/game.projectc'
-                msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2, arg3 = arg3})
+                local arg3 = '--config=dmengine.unload_builtins=0'
+                local arg4 = 'src/test/build/default/game.projectc'
+                msg.post("@system:", "reboot", {arg1 = arg1, arg2 = arg2, arg3 = arg3, arg4 = arg4})
             end
         end
     end

@@ -7,7 +7,7 @@
 
 namespace dmGameObject
 {
-    bool CreatePropertySetUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data)
+    bool CreatePropertySetUserData(const dmPropertiesDDF::PropertyDeclarations* prop_descs, uintptr_t* user_data, uint32_t* userdata_size)
     {
         uint32_t save_size = 0;
         dmDDF::Result result = dmDDF::SaveMessageSize(prop_descs, dmPropertiesDDF::PropertyDeclarations::m_DDFDescriptor, &save_size);
@@ -25,6 +25,10 @@ namespace dmGameObject
             if (result != dmDDF::RESULT_OK)
                 return false;
             *user_data = (uintptr_t)copy;
+        }
+        if(userdata_size)
+        {
+            *userdata_size = save_size;
         }
         return true;
     }

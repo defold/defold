@@ -1,19 +1,48 @@
 body {
-    color: #dddddd;
-    background-color: #292c30;
-    font-family: "Source Sans Pro", Arial, Helvetica, san-serif;
+    margin: 2em;
+    color: #c3cad1;
+    background-color: #212428;
+    font-family: "Source Sans Pro";
+    font-size: 1.1em;
 }
 
-h1 {
+h1, h2 {
+    font-family: "Source Sans Pro Light";
+    color: #cfdae6;
+}
 
+h2 {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
 }
 
 a {
-    color: #0084ff;
+    color: #5bc0ff;
 }
 
-code, pre {
+kbd {
+    font-family: "Source Sans Pro";
+    padding: 0 0.3em;
+    border: 1px solid #515458;
+}
+
+code {
     font-family: "Dejavu Sans Mono";
+    color: #eeeeee;
+    background-color: #27292D;
+    border: 1px solid #515458;
+    font-size: 0.9em;
+}
+
+pre {
     padding: 1em;
-    background-color: #232529;
+    background-color: #27292D;
+}
+
+pre > code {
+    border: none;
+}
+
+img {
+    max-width: 100%;
 }

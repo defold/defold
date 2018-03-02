@@ -102,6 +102,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) sprite_resource;
+            params.m_Resource->m_ResourceSize = sizeof(SpriteResource) + params.m_BufferSize;
         }
         else
         {
@@ -135,6 +136,7 @@ namespace dmGameSystem
             SpriteResource* sprite_resource = (SpriteResource*)params.m_Resource->m_Resource;
             ReleaseResources(params.m_Factory, sprite_resource);
             *sprite_resource = tmp_sprite_resource;
+            params.m_Resource->m_ResourceSize = sizeof(SpriteResource) + params.m_BufferSize;
         }
         else
         {

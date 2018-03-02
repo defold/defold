@@ -90,7 +90,7 @@ namespace dmGameObject
     /*# [type:vector3] game object euler rotation
      *
      * The rotation of the game object expressed in Euler angles.
-     * Euler angles are specified in degrees.
+     * Euler angles are specified in degrees in the interval (-360, 360).
      * The type of the property is vector3.
      *
      * @name euler
@@ -146,6 +146,8 @@ namespace dmGameObject
         "on_input",
         "on_reload"
     };
+
+    HRegister g_Register = 0;
 
     ScriptWorld::ScriptWorld()
     : m_Instances()
@@ -477,6 +479,39 @@ namespace dmGameObject
         }
     }
 
+    HCollection GetCollectionFromURL(const dmMessage::URL& url)
+    {
+        HCollection* collection = g_Register->m_SocketToCollection.Get(url.m_Socket);
+        return collection ? *collection : 0;
+    }
+
+    void* GetComponentFromURL(const dmMessage::URL& url)
+    {
+        HCollection collection = GetCollectionFromURL(url);
+        if (!collection) {
+            return 0;
+        }
+
+        Instance** instance = collection->m_IDToInstance.Get(url.m_Path);
+        if (!instance) {
+            return 0;
+        }
+
+        uintptr_t user_data;
+        uint32_t type_index;
+        // For loop over all components in the instance
+        dmGameObject::GetComponentUserData(*instance, url.m_Fragment, &type_index, &user_data);
+
+        void* world = collection->m_ComponentWorlds[type_index];
+
+        ComponentType* type = &g_Register->m_ComponentTypes[type_index];
+        if (!type->m_GetFunction) {
+            return 0;
+        }
+        ComponentGetParams params = {world, &user_data};
+        return type->m_GetFunction(params);
+    }
+
     HInstance GetInstanceFromLua(lua_State* L) {
         uintptr_t user_data;
         if (dmScript::GetUserData(L, &user_data, SCRIPTINSTANCE)) {
@@ -639,11 +674,15 @@ namespace dmGameObject
             {
                 // The supplied URL parameter don't need to be a string,
                 // we let Lua handle the "conversion" to string using concatenation.
-                lua_pushliteral(L, "");
-                lua_pushvalue(L, 1);
-                lua_concat(L, 2);
-                const char* name = lua_tostring(L, -1);
-                lua_pop(L, 1);
+                const char* name = "nil";
+                if (!lua_isnil(L, 1))
+                {
+                    lua_pushliteral(L, "");
+                    lua_pushvalue(L, 1);
+                    lua_concat(L, 2);
+                    name = lua_tostring(L, -1);
+                    lua_pop(L, 1);
+                }
                 return luaL_error(L, "'%s' does not have any property called '%s'", name, dmHashReverseSafe64(property_id));
             }
         case PROPERTY_RESULT_UNSUPPORTED_TYPE:
@@ -1704,8 +1743,10 @@ namespace dmGameObject
         {0, 0}
     };
 
-    void InitializeScript(dmScript::HContext context)
+    void InitializeScript(HRegister regist, dmScript::HContext context)
     {
+        g_Register = regist;
+
         lua_State* L = dmScript::GetLuaState(context);
 
         int top = lua_gettop(L);

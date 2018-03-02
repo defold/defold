@@ -33,10 +33,18 @@ namespace dmLiveUpdate
 
     void ProcessRequest(AsyncResourceRequest &request)
     {
-        Result res = dmLiveUpdate::NewArchiveIndexWithResource(request.m_Manifest, request.m_ExpectedResourceDigest, request.m_ExpectedResourceDigestLength, &request.m_Resource, m_JobCompleteData.m_NewArchiveIndex);
         m_JobCompleteData.m_CallbackData = request.m_CallbackData;
         m_JobCompleteData.m_Callback = request.m_Callback;
-        m_JobCompleteData.m_ArchiveIndexContainer = request.m_Manifest->m_ArchiveIndex;
+        Result res = dmLiveUpdate::RESULT_OK;
+        if (request.m_Resource.m_Header != 0x0)
+        {
+            res = dmLiveUpdate::NewArchiveIndexWithResource(request.m_Manifest, request.m_ExpectedResourceDigest, request.m_ExpectedResourceDigestLength, &request.m_Resource, m_JobCompleteData.m_NewArchiveIndex);
+            m_JobCompleteData.m_ArchiveIndexContainer = request.m_Manifest->m_ArchiveIndex;
+        }
+        else
+        {
+            res = dmLiveUpdate::RESULT_INVALID_HEADER;
+        }
         m_JobCompleteData.m_CallbackData.m_Status = res == dmLiveUpdate::RESULT_OK ? true : false;
     }
 

@@ -5,6 +5,7 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [pair split-lines]]
             [editor.handler :as handler]
+            [editor.keymap :as keymap]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -60,6 +61,7 @@
 (g/deftype ColorScheme [[(s/one s/Str "pattern") (s/one Paint "paint")]])
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
 (g/deftype GutterMetrics [(s/one s/Num "gutter-width") (s/one s/Num "gutter-margin")])
+(g/deftype HoveredElement {:type s/Keyword s/Keyword s/Any})
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
 (g/deftype UndoGroupingInfo [(s/one (s/->EnumSchema undo-groupings) "undo-grouping") (s/one s/Symbol "opseq")])
 (g/deftype ResizeReference (s/enum :bottom :top))
@@ -126,8 +128,10 @@
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
      ["editor.scroll.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.15)]
+     ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
      ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
+     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]
      ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]]))
 
 (defn make-color-scheme [ordered-paints-by-pattern]
@@ -228,7 +232,7 @@
               (.strokeRoundRect gc (.x r) (.y r) (.w r) (.h r) 5.0 5.0))
       :range (doseq [polyline (cursor-range-outline rects)]
                (let [[xs ys] polyline]
-                 (stroke-opaque-polyline! gc (double-array (drop 2 xs)) (double-array (drop 2 ys)))))
+                 (stroke-opaque-polyline! gc (double-array xs) (double-array ys))))
       :underline (doseq [^Rect r rects]
                    (let [sx (.x r)
                          ex (+ sx (.w r))
@@ -310,7 +314,7 @@
           (when inside-visible-end?
             (recur next-i next-x)))))))
 
-(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info visible-whitespace?]
+(defn- draw-code! [^GraphicsContext gc ^Font font ^LayoutInfo layout color-scheme lines syntax-info indent-type visible-whitespace?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
@@ -347,37 +351,50 @@
               (.setFill gc foreground-color)
               (fill-text! gc layout line 0 (count line) line-x line-y)))
 
-          (when visible-whitespace?
-            (let [line-length (count line)
-                  baseline-offset (Math/ceil (/ line-height 4.0))
-                  visible-start-x (.x canvas-rect)
-                  visible-end-x (+ visible-start-x (.w canvas-rect))
-                  space-color (color-lookup color-scheme "editor.whitespace.space")
-                  tab-color (color-lookup color-scheme "editor.whitespace.tab")]
-              (loop [i 0
-                     x 0.0]
-                (when (< i line-length)
-                  (let [character (.charAt line i)
-                        next-i (inc i)
-                        next-x (double (data/advance-text layout line i next-i x))
-                        draw-start-x (+ x line-x)
-                        draw-end-x (+ next-x line-x)
-                        inside-visible-start? (< visible-start-x draw-end-x)
-                        inside-visible-end? (< draw-start-x visible-end-x)]
-                    (when (and inside-visible-start? inside-visible-end?)
-                      (case character
-                        \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
-                                     sy (- line-y baseline-offset)]
-                                 (.setFill gc space-color)
-                                 (.fillRect gc sx sy 1.0 1.0))
-                        \tab (let [sx (+ line-x x 2.0)
+          (let [line-length (count line)
+                baseline-offset (Math/ceil (/ line-height 4.0))
+                visible-start-x (.x canvas-rect)
+                visible-end-x (+ visible-start-x (.w canvas-rect))
+                rogue-indent-color (color-lookup color-scheme "editor.whitespace.rogue")
+                space-color (color-lookup color-scheme "editor.whitespace.space")
+                tab-color (color-lookup color-scheme "editor.whitespace.tab")]
+            (loop [inside-leading-whitespace? true
+                   i 0
+                   x 0.0]
+              (when (< i line-length)
+                (let [character (.charAt line i)
+                      next-i (inc i)
+                      next-x (double (data/advance-text layout line i next-i x))
+                      draw-start-x (+ x line-x)
+                      draw-end-x (+ next-x line-x)
+                      inside-visible-start? (< visible-start-x draw-end-x)
+                      inside-visible-end? (< draw-start-x visible-end-x)]
+                  (when (and inside-visible-start? inside-visible-end?)
+                    (case character
+                      \space (let [sx (+ line-x (Math/floor (* (+ x next-x) 0.5)))
                                    sy (- line-y baseline-offset)]
-                               (.setFill gc tab-color)
-                               (.fillRect gc sx sy (- next-x x 4.0) 1.0))
-                        nil))
-                    (when inside-visible-end?
-                      (recur next-i next-x)))))))
+                               (cond
+                                 (and inside-leading-whitespace? (= :tabs indent-type))
+                                 (do (.setFill gc rogue-indent-color)
+                                     (.fillRect gc sx sy 1.0 1.0))
 
+                                 visible-whitespace?
+                                 (do (.setFill gc space-color)
+                                     (.fillRect gc sx sy 1.0 1.0))))
+
+                      \tab (let [sx (+ line-x x 2.0)
+                                 sy (- line-y baseline-offset)]
+                             (cond
+                               (and inside-leading-whitespace? (not= :tabs indent-type))
+                               (do (.setFill gc rogue-indent-color)
+                                   (.fillRect gc sx sy (- next-x x 4.0) 1.0))
+
+                               visible-whitespace?
+                               (do (.setFill gc tab-color)
+                                   (.fillRect gc sx sy (- next-x x 4.0) 1.0))))
+                      nil))
+                  (when inside-visible-end?
+                    (recur (and inside-leading-whitespace? (Character/isWhitespace character)) next-i next-x))))))
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
@@ -441,13 +458,15 @@
           (recur (inc drawn-line-index)
                  (inc source-line-index)))))))
 
-(defn- draw! [^GraphicsContext gc ^Font font gutter-view ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
+(defn- draw! [^GraphicsContext gc ^Font font gutter-view hovered-element ^LayoutInfo layout ^LayoutInfo minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?]
   (let [^Rect canvas-rect (.canvas layout)
         source-line-count (count lines)
         dropped-line-count (.dropped-line-count layout)
         drawn-line-count (.drawn-line-count layout)
         ^double line-height (data/line-height (.glyph layout))
-        background-color (color-lookup color-scheme "editor.background")]
+        background-color (color-lookup color-scheme "editor.background")
+        scroll-tab-color (color-lookup color-scheme "editor.scroll.tab")
+        scroll-tab-hovered-color (color-lookup color-scheme "editor.scroll.tab.hovered")]
     (.setFill gc background-color)
     (.fillRect gc 0 0 (.. gc getCanvas getWidth) (.. gc getCanvas getHeight))
     (.setFontSmoothingType gc FontSmoothingType/GRAY) ; FontSmoothingType/LCD is very slow.
@@ -478,7 +497,7 @@
                    (if line-has-text? (conj guide-positions guide-x) guide-positions))))))
 
     ;; Draw syntax-highlighted code.
-    (draw-code! gc font layout color-scheme lines syntax-info visible-whitespace?)
+    (draw-code! gc font layout color-scheme lines syntax-info indent-type visible-whitespace?)
 
     ;; Draw minimap.
     (when visible-minimap?
@@ -503,13 +522,38 @@
 
     ;; Draw horizontal scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-x layout) (data/expand-rect -3.0 -3.0))]
-      (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
+      (.setFill gc (if (= :scroll-tab-x (:ui-element hovered-element)) scroll-tab-hovered-color scroll-tab-color))
       (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.h r) (.h r)))
 
     ;; Draw vertical scroll bar.
     (when-some [^Rect r (some-> (.scroll-tab-y layout) (data/expand-rect -3.0 -3.0))]
-      (.setFill gc (color-lookup color-scheme "editor.scroll.tab"))
-      (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r)))
+      (let [hovered-ui-element (:ui-element hovered-element)
+            color (case hovered-ui-element
+                    (:scroll-bar-y-down :scroll-bar-y-up :scroll-tab-y) scroll-tab-hovered-color
+                    scroll-tab-color)]
+        (.setFill gc color)
+        (.fillRoundRect gc (.x r) (.y r) (.w r) (.h r) (.w r) (.w r))
+
+        ;; Draw dots around the scroll tab when hovering over the continuous scroll areas of the vertical scroll bar.
+        (let [size 4.0
+              dist 7.0
+              offset 9.0
+              half-size (* 0.5 size)
+              half-tab-width (* 0.5 (.w r))]
+          (case hovered-ui-element
+            :scroll-bar-y-down
+            (let [cx (- (+ (.x r) half-tab-width) half-size)
+                  cy (- (+ (.y r) (.h r) offset) half-tab-width half-size)]
+              (doseq [i (range 3)]
+                (.fillOval gc cx (+ cy (* ^double i dist)) size size)))
+
+            :scroll-bar-y-up
+            (let [cx (- (+ (.x r) half-tab-width) half-size)
+                  cy (- (+ (.y r) half-tab-width) half-size offset)]
+              (doseq [i (range 3)]
+                (.fillOval gc cx (- cy (* ^double i dist)) size size)))
+
+            nil))))
 
     ;; Draw gutter.
     (let [^Rect gutter-rect (data/->Rect 0.0 (.y canvas-rect) (.x canvas-rect) (.h canvas-rect))]
@@ -517,6 +561,16 @@
         (draw-gutter! gutter-view gc gutter-rect layout font color-scheme lines regions visible-cursors)))))
 
 ;; -----------------------------------------------------------------------------
+
+(g/defnk produce-indent-type [indent-type]
+  ;; TODO: Produce default from preferences.
+  (or indent-type :tabs))
+
+(g/defnk produce-indent-string [indent-type]
+  (data/indent-type->indent-string indent-type))
+
+(g/defnk produce-tab-spaces [indent-type]
+  (data/indent-type->tab-spaces indent-type))
 
 (g/defnk produce-indent-level-pattern [tab-spaces]
   (data/indent-level-pattern tab-spaces))
@@ -677,9 +731,9 @@
                        (data/execution-marker lines (dec line) type))))
           debugger-execution-locations)))
 
-(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
+(g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
   (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
+    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
   nil)
 
 (defn- make-cursor-rectangle
@@ -741,7 +795,6 @@
                        (g/set-property self :scroll-y new-scroll-y))))))
   (property document-width g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property color-scheme ColorScheme (dynamic visible (g/constantly false)))
-  (property elapsed-time g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property elapsed-time-at-last-action g/Num (default 0.0) (dynamic visible (g/constantly false)))
   (property grammar g/Any (dynamic visible (g/constantly false)))
   (property gutter-view GutterView (dynamic visible (g/constantly false)))
@@ -754,6 +807,7 @@
   (property suggestions-popup PopupControl (dynamic visible (g/constantly false)))
   (property gesture-start GestureInfo (dynamic visible (g/constantly false)))
   (property highlighted-find-term g/Str (default "") (dynamic visible (g/constantly false)))
+  (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
   (property focused? g/Bool (default false) (dynamic visible (g/constantly false)))
@@ -761,19 +815,21 @@
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default (g/constantly default-font-size)))
   (property line-height-factor g/Num (default 1.0))
-  (property indent-string g/Str (default "\t"))
-  (property tab-spaces g/Num (default 4))
   (property visible-indentation-guides? g/Bool (default false))
   (property visible-whitespace? g/Bool (default false))
   (property visible-minimap? g/Bool (default false))
 
   (input completions g/Any)
   (input cursor-ranges r/CursorRanges)
+  (input indent-type r/IndentType)
   (input invalidated-rows r/InvalidatedRows)
   (input lines r/Lines)
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
+  (output indent-type r/IndentType produce-indent-type)
+  (output indent-string g/Str produce-indent-string)
+  (output tab-spaces g/Num produce-tab-spaces)
   (output indent-level-pattern Pattern :cached produce-indent-level-pattern)
   (output font Font :cached produce-font)
   (output glyph-metrics data/GlyphMetrics :cached produce-glyph-metrics)
@@ -822,6 +878,10 @@
           [(g/operation-sequence opseq)
            (g/set-property view-node :undo-grouping-info [undo-grouping opseq])])))))
 
+;; Since the elapsed time updates at 60 fps, we keep it outside the graph to avoid transaction churn.
+;; This is updated from the repaint-view! function elsewhere in this file.
+(defonce ^:private *elapsed-time-by-view-node (atom {}))
+
 (defn- prelude-tx-data [view-node undo-grouping values-by-prop-kw]
   ;; Along with undo grouping info, we also keep track of when an action was
   ;; last performed in the document. We use this to stop the cursor from
@@ -829,7 +889,7 @@
   (into (operation-sequence-tx-data view-node undo-grouping)
         (when (or (contains? values-by-prop-kw :cursor-ranges)
                   (contains? values-by-prop-kw :lines))
-          (g/set-property view-node :elapsed-time-at-last-action (g/node-value view-node :elapsed-time)))))
+          (g/set-property view-node :elapsed-time-at-last-action (get @*elapsed-time-by-view-node view-node 0.0)))))
 
 ;; -----------------------------------------------------------------------------
 
@@ -861,7 +921,7 @@
         (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
-                          (:cursor-ranges :lines :regions)
+                          (:cursor-ranges :indent-type :lines :regions)
                           (g/set-property resource-node prop-kw value)
 
                           ;; Several rows could have been invalidated between repaints.
@@ -929,8 +989,8 @@
   (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
     ;; Snapshot completions when the popup is first opened to prevent
     ;; typed words from showing up in the completions list.
-    (when (nil? (get-property view-node :suggested-completions))
-      (set-properties! view-node :typing {:suggested-completions (suggested-completions view-node)}))
+    (when (nil? (g/node-value view-node :suggested-completions))
+      (g/set-property! view-node :suggested-completions (suggested-completions view-node)))
 
     (let [lines (get-property view-node :lines)
           cursor-ranges (get-property view-node :cursor-ranges)
@@ -939,7 +999,7 @@
       (if-not (some #(Character/isLetter ^char %) query-text)
         (when (.isShowing suggestions-popup)
           (.hide suggestions-popup))
-        (let [completions (get-property view-node :suggested-completions)
+        (let [completions (g/node-value view-node :suggested-completions)
               context-completions (get completions context)
               filtered-completions (some->> context-completions (popup/fuzzy-option-filter-fn :name :display-string query-text))]
           (if (empty? filtered-completions)
@@ -966,7 +1026,7 @@
 
 (defn- hide-suggestions! [view-node]
   (when-some [^PopupControl suggestions-popup (g/node-value view-node :suggestions-popup)]
-    (set-properties! view-node :typing {:suggested-completions nil})
+    (g/set-property! view-node :suggested-completions nil)
     (when (.isShowing suggestions-popup)
       (.hide suggestions-popup))))
 
@@ -1220,13 +1280,13 @@
     :else
     (deindent! view-node)))
 
-(handler/defhandler :tab :new-code-view
+(handler/defhandler :tab :code-view
   (run [view-node] (tab! view-node)))
 
-(handler/defhandler :backwards-tab-trigger :new-code-view
+(handler/defhandler :backwards-tab-trigger :code-view
   (run [view-node] (shift-tab! view-node)))
 
-(handler/defhandler :proposals :new-code-view
+(handler/defhandler :proposals :code-view
   (run [view-node] (show-suggestions! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -1248,59 +1308,66 @@
                   ::unhandled))
       (.consume event))))
 
+(defn- typable-key-event?
+  [^KeyEvent e]
+  (-> e
+      keymap/key-event->map
+      keymap/typable?))
+
 (defn handle-key-typed! [view-node ^KeyEvent event]
   (.consume event)
-  (let [typed (.getCharacter event)
-        undo-grouping (if (= "\r" typed) :newline :typing)
-        selected-suggestion (selected-suggestion view-node)
-        grammar (get-property view-node :grammar)
-        lines (get-property view-node :lines)
-        cursor-ranges (get-property view-node :cursor-ranges)
-        [insert-typed? show-suggestions?] (cond
-                                            (and (= "\r" typed) (some? selected-suggestion))
-                                            (do (accept-suggestion! view-node)
-                                                [false false])
+  (when (typable-key-event? event)
+    (let [typed (.getCharacter event)
+          undo-grouping (if (= "\r" typed) :newline :typing)
+          selected-suggestion (selected-suggestion view-node)
+          grammar (get-property view-node :grammar)
+          lines (get-property view-node :lines)
+          cursor-ranges (get-property view-node :cursor-ranges)
+          [insert-typed? show-suggestions?] (cond
+                                              (and (= "\r" typed) (some? selected-suggestion))
+                                              (do (accept-suggestion! view-node)
+                                                  [false false])
 
-                                            (and (= "(" typed) (= :function (:type selected-suggestion)))
-                                            (do (accept-suggestion! view-node)
-                                                [false false])
+                                              (and (= "(" typed) (= :function (:type selected-suggestion)))
+                                              (do (accept-suggestion! view-node)
+                                                  [false false])
 
-                                            (and (= "." typed) (= :namespace (:type selected-suggestion)))
-                                            (do (accept-suggestion! view-node)
-                                                [true true])
+                                              (and (= "." typed) (= :namespace (:type selected-suggestion)))
+                                              (do (accept-suggestion! view-node)
+                                                  [true true])
 
-                                            (data/typing-deindents-line? grammar lines cursor-ranges typed)
-                                            [true false]
+                                              (data/typing-deindents-line? grammar lines cursor-ranges typed)
+                                              [true false]
 
-                                            :else
-                                            [true true])]
-    (when insert-typed?
-      (when (set-properties! view-node undo-grouping
-                             (data/key-typed (get-property view-node :indent-level-pattern)
-                                             (get-property view-node :indent-string)
-                                             grammar
-                                             lines
-                                             cursor-ranges
-                                             (get-property view-node :regions)
-                                             (get-property view-node :layout)
-                                             typed
-                                             (.isMetaDown event)
-                                             (.isControlDown event)))
-        (if show-suggestions?
-          (show-suggestions! view-node)
-          (hide-suggestions! view-node))))))
+                                              :else
+                                              [true true])]
+      (when insert-typed?
+        (when (set-properties! view-node undo-grouping
+                               (data/key-typed (get-property view-node :indent-level-pattern)
+                                               (get-property view-node :indent-string)
+                                               grammar
+                                               lines
+                                               cursor-ranges
+                                               (get-property view-node :regions)
+                                               (get-property view-node :layout)
+                                               typed))
+          (if show-suggestions?
+            (show-suggestions! view-node)
+            (hide-suggestions! view-node)))))))
 
 (defn- refresh-mouse-cursor! [view-node ^MouseEvent event]
-  (let [gesture-type (:type (get-property view-node :gesture-start))
+  (let [hovered-element (get-property view-node :hovered-element)
+        gesture-type (:type (get-property view-node :gesture-start))
         ^LayoutInfo layout (get-property view-node :layout)
         ^Node node (.getTarget event)
         x (.getX event)
         y (.getY event)
         cursor (cond
-                 (or (= :scroll-tab-x-drag gesture-type)
+                 (or (= :ui-element (:type hovered-element))
+                     (= :scroll-tab-x-drag gesture-type)
                      (= :scroll-tab-y-drag gesture-type)
-                     (some-> (.scroll-tab-x layout) (data/rect-contains? x y))
-                     (some-> (.scroll-tab-y layout) (data/rect-contains? x y)))
+                     (= :scroll-bar-y-hold-up gesture-type)
+                     (= :scroll-bar-y-hold-down gesture-type))
                  javafx.scene.Cursor/DEFAULT
 
                  (data/rect-contains? (.canvas layout) x y)
@@ -1345,6 +1412,7 @@
                                      (get-property view-node :cursor-ranges)
                                      (get-property view-node :layout)
                                      (get-property view-node :gesture-start)
+                                     (get-property view-node :hovered-element)
                                      (.getX event)
                                      (.getY event))))
 
@@ -1352,8 +1420,17 @@
   (.consume event)
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
-                   (data/mouse-released (get-property view-node :gesture-start)
-                                        (mouse-button event))))
+                   (data/mouse-released (get-property view-node :layout)
+                                        (get-property view-node :gesture-start)
+                                        (mouse-button event)
+                                        (.getX event)
+                                        (.getY event))))
+
+(defn handle-mouse-exited! [view-node ^MouseEvent event]
+  (.consume event)
+  (set-properties! view-node :selection
+                   (data/mouse-exited (get-property view-node :gesture-start)
+                                      (get-property view-node :hovered-element))))
 
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
@@ -1408,103 +1485,103 @@
                    (data/split-selection-into-lines (get-property view-node :lines)
                                                     (get-property view-node :cursor-ranges))))
 
-(handler/defhandler :select-up :new-code-view
+(handler/defhandler :select-up :code-view
   (run [view-node] (move! view-node :selection :up)))
 
-(handler/defhandler :select-down :new-code-view
+(handler/defhandler :select-down :code-view
   (run [view-node] (move! view-node :selection :down)))
 
-(handler/defhandler :select-left :new-code-view
+(handler/defhandler :select-left :code-view
   (run [view-node] (move! view-node :selection :left)))
 
-(handler/defhandler :select-right :new-code-view
+(handler/defhandler :select-right :code-view
   (run [view-node] (move! view-node :selection :right)))
 
-(handler/defhandler :prev-word :new-code-view
+(handler/defhandler :prev-word :code-view
   (run [view-node] (move! view-node :navigation :prev-word)))
 
-(handler/defhandler :select-prev-word :new-code-view
+(handler/defhandler :select-prev-word :code-view
   (run [view-node] (move! view-node :selection :prev-word)))
 
-(handler/defhandler :next-word :new-code-view
+(handler/defhandler :next-word :code-view
   (run [view-node] (move! view-node :navigation :next-word)))
 
-(handler/defhandler :select-next-word :new-code-view
+(handler/defhandler :select-next-word :code-view
   (run [view-node] (move! view-node :selection :next-word)))
 
-(handler/defhandler :beginning-of-line :new-code-view
+(handler/defhandler :beginning-of-line :code-view
   (run [view-node] (move! view-node :navigation :line-start)))
 
-(handler/defhandler :select-beginning-of-line :new-code-view
+(handler/defhandler :select-beginning-of-line :code-view
   (run [view-node] (move! view-node :selection :line-start)))
 
-(handler/defhandler :beginning-of-line-text :new-code-view
+(handler/defhandler :beginning-of-line-text :code-view
   (run [view-node] (move! view-node :navigation :home)))
 
-(handler/defhandler :select-beginning-of-line-text :new-code-view
+(handler/defhandler :select-beginning-of-line-text :code-view
   (run [view-node] (move! view-node :selection :home)))
 
-(handler/defhandler :end-of-line :new-code-view
+(handler/defhandler :end-of-line :code-view
   (run [view-node] (move! view-node :navigation :end)))
 
-(handler/defhandler :select-end-of-line :new-code-view
+(handler/defhandler :select-end-of-line :code-view
   (run [view-node] (move! view-node :selection :end)))
 
-(handler/defhandler :page-up :new-code-view
+(handler/defhandler :page-up :code-view
   (run [view-node] (page-up! view-node :navigation)))
 
-(handler/defhandler :select-page-up :new-code-view
+(handler/defhandler :select-page-up :code-view
   (run [view-node] (page-up! view-node :selection)))
 
-(handler/defhandler :page-down :new-code-view
+(handler/defhandler :page-down :code-view
   (run [view-node] (page-down! view-node :navigation)))
 
-(handler/defhandler :select-page-down :new-code-view
+(handler/defhandler :select-page-down :code-view
   (run [view-node] (page-down! view-node :selection)))
 
-(handler/defhandler :beginning-of-file :new-code-view
+(handler/defhandler :beginning-of-file :code-view
   (run [view-node] (move! view-node :navigation :file-start)))
 
-(handler/defhandler :select-beginning-of-file :new-code-view
+(handler/defhandler :select-beginning-of-file :code-view
   (run [view-node] (move! view-node :selection :file-start)))
 
-(handler/defhandler :end-of-file :new-code-view
+(handler/defhandler :end-of-file :code-view
   (run [view-node] (move! view-node :navigation :file-end)))
 
-(handler/defhandler :select-end-of-file :new-code-view
+(handler/defhandler :select-end-of-file :code-view
   (run [view-node] (move! view-node :selection :file-end)))
 
-(handler/defhandler :cut :new-code-view
+(handler/defhandler :cut :code-view
   (enabled? [view-node] (has-selection? view-node))
   (run [view-node clipboard] (cut! view-node clipboard)))
 
-(handler/defhandler :copy :new-code-view
+(handler/defhandler :copy :code-view
   (enabled? [view-node] (has-selection? view-node))
   (run [view-node clipboard] (copy! view-node clipboard)))
 
-(handler/defhandler :paste :new-code-view
+(handler/defhandler :paste :code-view
   (enabled? [view-node clipboard] (can-paste? view-node clipboard))
   (run [view-node clipboard] (paste! view-node clipboard)))
 
-(handler/defhandler :select-all :new-code-view
+(handler/defhandler :select-all :code-view
   (run [view-node] (select-all! view-node)))
 
-(handler/defhandler :delete :new-code-view
+(handler/defhandler :delete :code-view
   (run [view-node] (delete! view-node :delete-after)))
 
-(handler/defhandler :delete-backward :new-code-view
+(handler/defhandler :delete-backward :code-view
   (run [view-node] (delete! view-node :delete-before)))
 
-(handler/defhandler :select-next-occurrence :new-code-view
+(handler/defhandler :select-next-occurrence :code-view
   (run [view-node] (select-next-occurrence! view-node)))
 
-(handler/defhandler :select-next-occurrence :new-console
+(handler/defhandler :select-next-occurrence :code-view-tools
   (run [view-node] (select-next-occurrence! view-node)))
 
-(handler/defhandler :split-selection-into-lines :new-code-view
+(handler/defhandler :split-selection-into-lines :code-view
   (run [view-node] (split-selection-into-lines! view-node)))
 
-(handler/defhandler :toggle-breakpoint :new-code-view
+(handler/defhandler :toggle-breakpoint :code-view
   (run [view-node]
        (let [lines (get-property view-node :lines)
              cursor-ranges (get-property view-node :cursor-ranges)
@@ -1515,7 +1592,7 @@
                                                   regions
                                                   breakpoint-rows)))))
 
-(handler/defhandler :reindent :new-code-view
+(handler/defhandler :reindent :code-view
   (enabled? [view-node] (not-every? data/cursor-range-empty? (get-property view-node :cursor-ranges)))
   (run [view-node]
        (set-properties! view-node nil
@@ -1526,6 +1603,15 @@
                                        (get-property view-node :cursor-ranges)
                                        (get-property view-node :regions)
                                        (get-property view-node :layout)))))
+
+(handler/defhandler :convert-indentation :code-view
+  (run [view-node user-data]
+       (set-properties! view-node nil
+                        (data/convert-indentation (get-property view-node :indent-type)
+                                                  user-data
+                                                  (get-property view-node :lines)
+                                                  (get-property view-node :cursor-ranges)
+                                                  (get-property view-node :regions)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Sort Lines
@@ -1541,11 +1627,11 @@
                                     (get-property view-node :regions)
                                     sort-key-fn)))
 
-(handler/defhandler :sort-lines :new-code-view
+(handler/defhandler :sort-lines :code-view
   (enabled? [view-node] (can-sort-lines? view-node))
   (run [view-node] (sort-lines! view-node string/lower-case)))
 
-(handler/defhandler :sort-lines-case-sensitive :new-code-view
+(handler/defhandler :sort-lines-case-sensitive :code-view
   (enabled? [view-node] (can-sort-lines? view-node))
   (run [view-node] (sort-lines! view-node identity)))
 
@@ -1594,28 +1680,28 @@
 ;; View Settings
 ;; -----------------------------------------------------------------------------
 
-(handler/defhandler :zoom-out :new-console
+(handler/defhandler :zoom-out :code-view-tools
   (enabled? [] (<= 4.0 ^double (.getValue font-size-property)))
   (run [] (when (<= 4.0 ^double (.getValue font-size-property))
             (.setValue font-size-property (dec ^double (.getValue font-size-property))))))
 
-(handler/defhandler :zoom-in :new-console
+(handler/defhandler :zoom-in :code-view-tools
   (enabled? [] (>= 32.0 ^double (.getValue font-size-property)))
   (run [] (when (>= 32.0 ^double (.getValue font-size-property))
             (.setValue font-size-property (inc ^double (.getValue font-size-property))))))
 
-(handler/defhandler :reset-zoom :new-console
+(handler/defhandler :reset-zoom :code-view-tools
   (run [] (.setValue font-size-property default-font-size)))
 
-(handler/defhandler :toggle-indentation-guides :new-console
+(handler/defhandler :toggle-indentation-guides :code-view-tools
   (run [] (.setValue visible-indentation-guides-property (not (.getValue visible-indentation-guides-property))))
   (state [] (.getValue visible-indentation-guides-property)))
 
-(handler/defhandler :toggle-minimap :new-console
+(handler/defhandler :toggle-minimap :code-view-tools
   (run [] (.setValue visible-minimap-property (not (.getValue visible-minimap-property))))
   (state [] (.getValue visible-minimap-property)))
 
-(handler/defhandler :toggle-visible-whitespace :new-console
+(handler/defhandler :toggle-visible-whitespace :code-view-tools
   (run [] (.setValue visible-whitespace-property (not (.getValue visible-whitespace-property))))
   (state [] (.getValue visible-whitespace-property)))
 
@@ -1678,7 +1764,7 @@
 (defn- dispose-goto-line-bar! [^GridPane goto-line-bar]
   (.unbind (.visibleProperty goto-line-bar)))
 
-(handler/defhandler :goto-line :new-console
+(handler/defhandler :goto-line :code-view-tools
   (run [goto-line-bar]
        (set-bar-ui-type! :goto-line)
        (ui/with-controls goto-line-bar [^TextField line-field]
@@ -1708,7 +1794,7 @@
   (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) bar-ui-type-property))
   (.bind (.managedProperty find-bar) (.visibleProperty find-bar))
   (doto find-bar
-    (ui/context! :new-find-bar {:find-bar find-bar :view-node view-node} nil)
+    (ui/context! :code-view-find-bar {:find-bar find-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
@@ -1733,7 +1819,7 @@
   (.bind (.visibleProperty replace-bar) (Bindings/equal (name :replace) bar-ui-type-property))
   (.bind (.managedProperty replace-bar) (.visibleProperty replace-bar))
   (doto replace-bar
-    (ui/context! :new-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
+    (ui/context! :code-view-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
@@ -1816,31 +1902,31 @@
                                      (.getValue find-case-sensitive-property)
                                      (.getValue find-whole-word-property))))
 
-(handler/defhandler :find-text :new-code-view
+(handler/defhandler :find-text :code-view
   (run [find-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-bar-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :replace-text :new-code-view
+(handler/defhandler :replace-text :code-view
   (run [replace-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
        (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :find-text :new-console ;; In practice, from find / replace bars.
+(handler/defhandler :find-text :code-view-tools ;; In practice, from find / replace and go to line bars.
   (run [find-bar]
        (set-bar-ui-type! :find)
        (focus-term-field! find-bar)))
 
-(handler/defhandler :replace-text :new-console
+(handler/defhandler :replace-text :code-view-tools
   (run [replace-bar]
        (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
 
-(handler/defhandler :escape :new-console
+(handler/defhandler :escape :code-view-tools
   (run [find-bar replace-bar view-node]
        (cond
          (in-tab-trigger? view-node)
@@ -1857,31 +1943,31 @@
          (set-properties! view-node :selection
                           (data/escape (get-property view-node :cursor-ranges))))))
 
-(handler/defhandler :find-next :new-find-bar
+(handler/defhandler :find-next :code-view-find-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :new-replace-bar
+(handler/defhandler :find-next :code-view-replace-bar
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-next :new-code-view
+(handler/defhandler :find-next :code-view
   (run [view-node] (find-next! view-node)))
 
-(handler/defhandler :find-prev :new-find-bar
+(handler/defhandler :find-prev :code-view-find-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :new-replace-bar
+(handler/defhandler :find-prev :code-view-replace-bar
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :find-prev :new-code-view
+(handler/defhandler :find-prev :code-view
   (run [view-node] (find-prev! view-node)))
 
-(handler/defhandler :replace-next :new-replace-bar
+(handler/defhandler :replace-next :code-view-replace-bar
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :replace-next :new-code-view
+(handler/defhandler :replace-next :code-view
   (run [view-node] (replace-next! view-node)))
 
-(handler/defhandler :replace-all :new-replace-bar
+(handler/defhandler :replace-all :code-view-replace-bar
   (run [view-node] (replace-all! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -1895,6 +1981,18 @@
                  {:command :replace-next               :label "Replace Next"}
                  {:label :separator}
                  {:command :reindent                   :label "Reindent Lines"}
+
+                 {:label "Convert Indentation"
+                  :children [{:label "To Tabs"
+                              :command :convert-indentation
+                              :user-data :tabs}
+                             {:label "To Two Spaces"
+                              :command :convert-indentation
+                              :user-data :two-spaces}
+                             {:label "To Four Spaces"
+                              :command :convert-indentation
+                              :user-data :four-spaces}]}
+
                  {:command :toggle-comment             :label "Toggle Comment"}
                  {:label :separator}
                  {:command :sort-lines                 :label "Sort Lines"}
@@ -1929,6 +2027,7 @@
         (g/set-property view-node :document-width document-width)
         (g/connect resource-node :completions view-node :completions)
         (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
+        (g/connect resource-node :indent-type view-node :indent-type)
         (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
         (g/connect resource-node :lines view-node :lines)
         (g/connect resource-node :regions view-node :regions)
@@ -1953,22 +2052,28 @@
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
 (defn repaint-view! [view-node elapsed-time]
-  (let [elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action)
-        old-cursor-opacity (g/node-value view-node :cursor-opacity)
+  (swap! *elapsed-time-by-view-node assoc view-node elapsed-time)
+  (let [evaluation-context (g/make-evaluation-context)
+        elapsed-time-at-last-action (g/node-value view-node :elapsed-time-at-last-action evaluation-context)
+        old-cursor-opacity (g/node-value view-node :cursor-opacity evaluation-context)
         new-cursor-opacity (cursor-opacity elapsed-time-at-last-action elapsed-time)]
-    (g/transact
-      (into [(g/set-property view-node :elapsed-time elapsed-time)]
-            (when (not= old-cursor-opacity new-cursor-opacity)
-              (g/set-property view-node :cursor-opacity new-cursor-opacity)))))
-  (g/node-value view-node :repaint-canvas)
-  (g/node-value view-node :repaint-cursors)
-  (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
-    (let [^long repaint-trigger (g/node-value view-node :repaint-trigger)
-          ^Canvas canvas (g/node-value view-node :canvas)]
-      (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
-      (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
-      (when (= 0 (mod repaint-trigger 10))
-        (.resetAverageFPS performance-tracker)))))
+    (set-properties! view-node nil
+                     (cond-> (data/tick (g/node-value view-node :lines evaluation-context)
+                                        (g/node-value view-node :layout evaluation-context)
+                                        (g/node-value view-node :gesture-start evaluation-context))
+                             (not= old-cursor-opacity new-cursor-opacity) (assoc :cursor-opacity new-cursor-opacity)))
+    (g/update-cache-from-evaluation-context! evaluation-context))
+  (let [evaluation-context (g/make-evaluation-context)]
+    (g/node-value view-node :repaint-canvas evaluation-context)
+    (g/node-value view-node :repaint-cursors evaluation-context)
+    (when-some [^PerformanceTracker performance-tracker @*performance-tracker]
+      (let [^long repaint-trigger (g/node-value view-node :repaint-trigger evaluation-context)
+            ^Canvas canvas (g/node-value view-node :canvas evaluation-context)]
+        (g/set-property! view-node :repaint-trigger (unchecked-inc repaint-trigger))
+        (draw-fps-counters! (.getGraphicsContext2D canvas) (.getInstantFPS performance-tracker))
+        (when (= 0 (mod repaint-trigger 10))
+          (.resetAverageFPS performance-tracker))))
+    (g/update-cache-from-evaluation-context! evaluation-context)))
 
 (defn- make-suggestions-list-view
   ^ListView [^Canvas canvas]
@@ -2151,9 +2256,10 @@
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
+      (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (handle-mouse-exited! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
 
-    (ui/context! grid :new-console context-env nil)
+    (ui/context! grid :code-view-tools context-env nil)
 
     (doto (.getColumnConstraints grid)
       (.add (doto (ColumnConstraints.)
@@ -2165,7 +2271,7 @@
     (ui/children! grid [canvas-pane goto-line-bar find-bar replace-bar])
     (ui/children! parent [grid])
     (ui/fill-control grid)
-    (ui/context! canvas :new-code-view context-env nil)
+    (ui/context! canvas :code-view context-env nil)
 
     ;; Steal input focus when our tab becomes selected.
     (ui/observe (.selectedProperty tab)
@@ -2195,6 +2301,8 @@
                            (dispose-goto-line-bar! goto-line-bar)
                            (dispose-find-bar! find-bar)
                            (dispose-replace-bar! replace-bar)
+                           (swap! *elapsed-time-by-view-node dissoc view-node)
+                           (g/set-property! view-node :elapsed-time-at-last-action 0.0)
                            (.removeListener find-case-sensitive-property find-case-sensitive-setter)
                            (.removeListener find-whole-word-property find-whole-word-setter)
                            (.removeListener font-size-property font-size-setter)
@@ -2217,7 +2325,7 @@
 
 (defn register-view-types [workspace]
   (workspace/register-view-type workspace
-                                :id :new-code
+                                :id :code
                                 :label "Code"
                                 :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
                                 :focus-fn (fn [view-node opts] (focus-view! view-node opts))

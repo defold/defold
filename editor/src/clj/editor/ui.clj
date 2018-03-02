@@ -314,6 +314,20 @@
      (invalidated [~'this ~observable]
        ~@body)))
 
+(defn init-stage-shown-hiding-hooks! [^Stage stage]
+  (assert (nil? (.getOnShown stage)))
+  (assert (nil? (.getOnHiding stage)))
+  (user-data! stage :on-shown [])
+  (user-data! stage :on-hiding [])
+  (.setOnShown stage (event-handler event (run! #(%) (user-data stage :on-shown))))
+  (.setOnHiding stage (event-handler event (run! #(%) (user-data stage :on-hiding)))))
+
+(defn add-on-shown! [stage on-shown]
+  (user-data! stage :on-shown (conj (user-data stage :on-shown) on-shown)))
+
+(defn add-on-hiding! [stage on-hiding]
+  (user-data! stage :on-hiding (conj (user-data stage :on-hiding) on-hiding)))
+
 (defn scene [^Node node]
   (.getScene node))
 
@@ -400,6 +414,9 @@
 
 (defn visible! [^Node node v]
   (.setVisible node v))
+
+(defn visible? [^Node node]
+  (.isVisible node))
 
 (defn managed! [^Node node m]
   (.setManaged node m))
@@ -1551,28 +1568,19 @@
   (refresh-menus! scene (or (user-data scene :command->shortcut) {}))
   (refresh-toolbars! scene))
 
-(defn update-progress-controls! [progress ^ProgressBar bar ^Label label]
-  (let [pctg (progress/percentage progress)]
-    (when bar
-      (.setProgress bar (if (nil? pctg) -1.0 (double pctg))))
-    (when label
-      (.setText label (progress/description progress)))))
+(defn render-progress-bar! [progress ^ProgressBar bar]
+  (let [frac (progress/fraction progress)]
+    (.setProgress bar (if (nil? frac) -1.0 (double frac)))))
 
-(defn- update-progress!
-  [progress]
-  (let [root (.. (main-stage) (getScene) (getRoot))
-        label (.lookup root "#progress-status-label")]
-    (update-progress-controls! progress nil label)))
+(defn render-progress-message! [progress ^Label label]
+  (text! label (progress/message progress)))
 
-(defn default-render-progress! [progress]
-  (run-later (update-progress! progress)))
+(defn render-progress-percentage! [progress ^Label label]
+  (text! label (str (progress/percentage progress) "%")))
 
-(defn default-render-progress-now! [progress]
-  (update-progress! progress))
-
-(defn init-progress!
-  []
-  (update-progress! progress/done))
+(defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
+  (when bar (render-progress-bar! progress bar))
+  (when label (render-progress-message! progress label)))
 
 (defmacro with-progress [bindings & body]
   `(let ~bindings
@@ -1590,9 +1598,10 @@
          progress-control ^ProgressBar (.lookup root "#progress")
          message-control  ^Label (.lookup root "#message")
          return           (atom nil)
-         render-progress! (fn [progress]
-                            (run-later
-                             (update-progress-controls! progress progress-control message-control)))]
+         render-progress! (progress/throttle-render-progress
+                            (fn [progress]
+                              (run-later
+                                (render-progress-controls! progress progress-control message-control))))]
       (.setText title-control title)
       (.setProgress progress-control 0)
       (.setScene stage scene)

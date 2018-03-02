@@ -6,14 +6,13 @@
             [editor.asset-browser :as asset-browser]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
-            [editor.code.integration :as code-integration]
-            [editor.code.view :as new-code-view]
-            [editor.code-view :as code-view]
+            [editor.code.view :as code-view]
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
+            [editor.error-reporting :as error-reporting]
             [editor.form-view :as form-view]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -42,7 +41,7 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.stage Stage]
-           [javafx.scene.layout Region VBox]
+           [javafx.scene.layout Region VBox AnchorPane]
            [javafx.scene.control Label MenuBar Tab TabPane TreeView]))
 
 (set! *warn-on-reflection* true)
@@ -70,23 +69,29 @@
       (concat
         (text/register-view-types workspace)
         (code-view/register-view-types workspace)
-        (new-code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (form-view/register-view-types workspace)
         (html-view/register-view-types workspace)))
-    (resource-types/register-resource-types! workspace code-integration/use-new-code-editor?)
+    (resource-types/register-resource-types! workspace)
     (workspace/resource-sync! workspace)
     workspace))
 
 (defn- handle-application-focused! [workspace changes-view]
   (when-not (sync/sync-dialog-open?)
-    (ui/default-render-progress-now! (progress/make "Reloading modified resources..."))
-    (ui/->future 0.01
-                 #(try
-                    (ui/with-progress [render-fn ui/default-render-progress!]
-                      (changes-view/resource-sync-after-git-change! changes-view workspace [] render-fn))
-                    (finally
-                      (ui/default-render-progress-now! progress/done))))))
+    (let [project-path (workspace/project-path workspace)
+          dependencies (workspace/dependencies workspace)
+          snapshot-cache (workspace/snapshot-cache workspace)]
+      (future
+        (error-reporting/catch-all!
+          (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
+            (ui/run-later
+              (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
+              (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))
+                    new-snapshot (:snapshot snapshot-info)
+                    new-map (:map snapshot-info)]
+                (ui/with-progress [render-fn render-fn]
+                  (->> (workspace/resource-sync! workspace [] render-fn new-snapshot new-map)
+                       (changes-view/refresh-after-resource-sync! changes-view)))))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -96,26 +101,39 @@
     (changes-view/refresh! changes-view)))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
-  (let [update-visibility! (fn [] (.setVisible label (let [update (updater/pending-update update-context)]
+  (let [update-visibility! (fn [] (ui/visible! label (let [update (updater/pending-update update-context)]
                                                        (and (some? update) (not= update (system/defold-editor-sha1))))))
         tick-fn (fn [_ _] (update-visibility!))
         timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
     (update-visibility!)
-    (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
-    (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
+    (ui/add-on-shown! stage #(ui/timer-start! timer))
+    (ui/add-on-hiding! stage #(ui/timer-stop! timer))))
 
-(defn- init-pending-update-indicator! [^Stage stage ^VBox root project update-context]
-  (let [label (.lookup root "#update-available-label")]
-    (.setOnMouseClicked label
-                        (ui/event-handler event
-                                          (when (dialogs/make-pending-update-dialog stage)
-                                            (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                                              ;; Save the project and block until complete. Before saving, perform a
-                                              ;; resource sync to ensure we do not overwrite external changes.
-                                              (workspace/resource-sync! (project/workspace project))
-                                              (project/save-all! project)
-                                              (updater/restart!)))))
-    (install-pending-update-check-timer! stage label update-context)))
+(defn- init-pending-update-indicator! [^Stage stage ^Label label project update-context]
+  (.setOnMouseClicked label
+                      (ui/event-handler event
+                                        (when (dialogs/make-pending-update-dialog stage)
+                                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
+                                            ;; Save the project and block until complete. Before saving, perform a
+                                            ;; resource sync to ensure we do not overwrite external changes.
+                                            (workspace/resource-sync! (project/workspace project))
+                                            (project/save-all! project)
+                                            (updater/restart!)))))
+  (install-pending-update-check-timer! stage label update-context))
+
+(defn- update-status-pane-contents! [^AnchorPane status-pane content-prospects]
+  (let [content (first (.getChildren status-pane))
+        new-content (first (filter ui/visible? content-prospects))]
+    (when (not= content new-content)
+      (ui/children! status-pane (when new-content [new-content]))
+      (when new-content
+        (ui/fill-control new-content)))))
+
+(defn- init-status-pane-timer! [^Stage stage ^AnchorPane status-pane content-prospects]
+  (let [timer (ui/->timer 5 "update-status-pane" (fn [_ _] (update-status-pane-contents! status-pane content-prospects)))]
+    (update-status-pane-contents! status-pane content-prospects)
+    (ui/add-on-shown! stage #(ui/timer-start! timer))
+    (ui/add-on-hiding! stage #(ui/timer-stop! timer))))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
@@ -126,17 +144,26 @@
 (defn load-stage [workspace project prefs update-context]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
-        scene      (Scene. root)]
+        scene      (Scene. root)
+        status-pane (.lookup root "#status-pane")
+        update-available-label (doto (Label. "Update Available")
+                                 (ui/visible! false)
+                                 (ui/add-style! "link-label"))]
+
+    (ui/init-stage-shown-hiding-hooks! stage)
 
     (when update-context
-      (init-pending-update-indicator! stage root project update-context))
+      (init-pending-update-indicator! stage update-available-label project update-context))
+
+    (init-status-pane-timer! stage status-pane
+                             [app-view/progress-hbox
+                              update-available-label])
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
 
     (app-view/restore-window-dimensions stage prefs)
-
-    (ui/init-progress!)
+    
     (ui/show! stage)
     (targets/start)
 
