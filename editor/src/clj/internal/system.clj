@@ -378,3 +378,18 @@
      :user-data (ref (deref (:user-data s)))
      :invalidate-counters (ref (deref (:invalidate-counters s)))
      :last-graph (:last-graph s)}))
+
+(defn system= [s1 s2]
+  (dosync
+    (and (= (map (fn [[gid gref]] [gid (deref gref)]) (:graphs s1))
+            (map (fn [[gid gref]] [gid (deref gref)]) (:graphs s2)))
+         (= (map (fn [[gid href]] [gid (deref href)]) (:history s1))
+            (map (fn [[gid href]] [gid (deref href)]) (:history s2)))
+         (= (map (fn [[gid ^AtomicLong gen]] [gid (.longValue gen)]) (:id-generators s1))
+            (map (fn [[gid ^AtomicLong gen]] [gid (.longValue gen)]) (:id-generators s2)))
+         (= (.longValue ^AtomicLong (:override-id-generator s1))
+            (.longValue ^AtomicLong (:override-id-generator s2)))
+         (= (deref (:cache s1)) (deref (:cache s2)))
+         (= (deref (:user-data s1)) (deref (:user-data s2)))
+         (= (deref (:invalidate-counters s1)) (deref (:invalidate-counters s2)))
+         (= (:last-graph s1) (:last-graph s2)))))
