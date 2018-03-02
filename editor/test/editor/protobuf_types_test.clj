@@ -145,6 +145,9 @@
                                   "/properties/test.go"
                                   "/properties/resources/from_test_collection.material"
                                   "/properties/resources/from_test_collection.png"]
+   "/properties/test_sub.collection" ["/properties/test.collection"
+                                      "/properties/resources/from_test_sub_collection.png"
+                                      "/properties/resources/from_test_sub_collection.atlas"]
    })
 
 (defn fallback-dependencies-fn [resource-type]

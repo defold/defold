@@ -1,0 +1,46 @@
+name: "default"
+collection_instances {
+  id: "referenced_collection"
+  collection: "/properties/test.collection"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  instance_properties {
+    id: "referenced_go"
+    properties {
+      id: "referenced_script"
+      properties {
+        id: "textureset"
+        value: "/properties/resources/from_test_sub_collection.atlas"
+        type: PROPERTY_TYPE_RESOURCE
+        sub_type: 8037333530893729637
+      }
+    }
+  }
+  instance_properties {
+    id: "embedded_go"
+    properties {
+      id: "referenced_script"
+      properties {
+        id: "texture"
+        value: "/properties/resources/from_test_sub_collection.png"
+        type: PROPERTY_TYPE_RESOURCE
+        sub_type: 14361042077038175274
+      }
+    }
+  }
+  scale3 {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+}
+scale_along_z: 0

@@ -1,6 +1,6 @@
 name: "default"
 instances {
-  id: "referenced_props_go"
+  id: "referenced_go"
   prototype: "/properties/test.go"
   position {
     x: 0.0
@@ -14,7 +14,7 @@ instances {
     w: 1.0
   }
   component_properties {
-    id: "props"
+    id: "referenced_script"
     properties {
       id: "texture"
       value: "/properties/resources/from_test_collection.png"
@@ -30,9 +30,9 @@ instances {
 }
 scale_along_z: 0
 embedded_instances {
-  id: "embedded"
+  id: "embedded_go"
   data: "components {\n"
-  "  id: \"props\"\n"
+  "  id: \"referenced_script\"\n"
   "  component: \"/properties/test.script\"\n"
   "  position {\n"
   "    x: 0.0\n"

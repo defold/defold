@@ -1,5 +1,5 @@
 components {
-  id: "props"
+  id: "referenced_script"
   component: "/properties/test.script"
   position {
     x: 0.0
