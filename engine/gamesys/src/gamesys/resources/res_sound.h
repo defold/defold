@@ -29,6 +29,8 @@ namespace dmGameSystem
     dmResource::Result ResSoundDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResSoundRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResSoundGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif

@@ -562,7 +562,8 @@ Result RegisterType(HFactory factory,
                            FResourcePostCreate post_create_function,
                            FResourceDestroy destroy_function,
                            FResourceRecreate recreate_function,
-                           FResourceDuplicate duplicate_function)
+                           FResourceDuplicate duplicate_function,
+                           FResourceGetInfo getinfo_function)
 {
     if (factory->m_ResourceTypesCount == MAX_RESOURCE_TYPES)
         return RESULT_OUT_OF_RESOURCES;
@@ -586,6 +587,7 @@ Result RegisterType(HFactory factory,
     resource_type.m_DestroyFunction = destroy_function;
     resource_type.m_RecreateFunction = recreate_function;
     resource_type.m_DuplicateFunction = duplicate_function;
+    resource_type.m_GetInfoFunction = getinfo_function;
 
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 

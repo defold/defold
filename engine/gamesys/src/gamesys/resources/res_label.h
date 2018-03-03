@@ -26,6 +26,8 @@ namespace dmGameSystem
     dmResource::Result ResLabelDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResLabelRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResLabelGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_LABEL_H

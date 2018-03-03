@@ -33,6 +33,8 @@ namespace dmGameSystem
     dmResource::Result ResTileGridDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResTileGridGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_TILEGRID_H

@@ -406,23 +406,23 @@ namespace dmGameObject
     dmResource::Result RegisterResourceTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context, ModuleContext* module_context)
     {
         dmResource::Result ret = dmResource::RESULT_OK;
-        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, 0, 0);
+        ret = dmResource::RegisterType(factory, "goc", (void*)regist, &ResPrototypePreload, &ResPrototypeCreate, 0, &ResPrototypeDestroy, 0, 0, ResPrototypeGetInfo);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate, 0);
+        ret = dmResource::RegisterType(factory, "scriptc", script_context, &ResScriptPreload, &ResScriptCreate, 0, &ResScriptDestroy, &ResScriptRecreate, 0, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate, 0);
+        ret = dmResource::RegisterType(factory, "luac", module_context, 0, &ResLuaCreate, 0, &ResLuaDestroy, &ResLuaRecreate, 0, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, 0, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, 0, 0, ResCollectionGetInfo);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0, 0);
+        ret = dmResource::RegisterType(factory, "animc", 0, 0, &ResAnimCreate, 0, &ResAnimDestroy, 0x0, 0, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -3135,6 +3135,41 @@ namespace dmGameObject
                         next_component_instance_data++;
                     }
                 }
+            }
+        }
+    }
+
+    void GetCollectionResourceReferences(HCollection collection, dmArray<dmhash_t>& references)
+    {
+        uint32_t count = collection->m_InstanceIndices.Size();
+        dmArray<Prototype*> reference_ptrs;
+        reference_ptrs.SetCapacity(count);
+        for (uint32_t level_i = 0; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)
+        {
+            dmArray<uint16_t>& level = collection->m_LevelIndices[level_i];
+            uint32_t ic = level.Size();
+            for (uint32_t i = 0; i < ic; ++i)
+            {
+                Instance* instance = collection->m_Instances[level[i]];
+                if(instance->m_ToBeDeleted || instance->m_Bone)
+                    continue;
+                uint32_t j = 0;
+                uint32_t k = reference_ptrs.Size();
+                for(; j < k; ++j)
+                    if(reference_ptrs[j] == instance->m_Prototype)
+                        break;
+                if(j == k)
+                    reference_ptrs.Push(instance->m_Prototype);
+            }
+        }
+        count = reference_ptrs.Size();
+        references.SetCapacity(count);
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmhash_t res_hash;
+            if(dmResource::GetPath(collection->m_Factory, reference_ptrs[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                references.Push(res_hash);
             }
         }
     }

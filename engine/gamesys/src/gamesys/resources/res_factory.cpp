@@ -90,4 +90,17 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResFactoryGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        FactoryResource* res = (FactoryResource*) params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(1);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_Prototype, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

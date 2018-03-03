@@ -74,4 +74,17 @@ namespace dmGameSystem
         // while a sound is playing?
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResSoundGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        Sound* res = (Sound*) params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(1);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_SoundData, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

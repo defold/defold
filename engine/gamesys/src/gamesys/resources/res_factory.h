@@ -23,6 +23,8 @@ namespace dmGameSystem
     dmResource::Result ResFactoryDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResFactoryRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResFactoryGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_FACTORY_H

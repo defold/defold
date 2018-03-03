@@ -84,4 +84,21 @@ namespace dmGameSystem
         params.m_Resource->m_ResourceSize = sizeof(SpineModelResource) + params.m_BufferSize;
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResSpineModelGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        SpineModelResource* res = (SpineModelResource*)params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(2);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_RigScene, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_Material, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

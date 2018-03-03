@@ -30,7 +30,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "deleteself", this, 0, ResDeleteSelfCreate, 0, ResDeleteSelfDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "deleteself", this, 0, ResDeleteSelfCreate, 0, ResDeleteSelfDestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;

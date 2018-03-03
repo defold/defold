@@ -34,11 +34,11 @@ protected:
 
         // Register dummy physical resource type
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "b", this, 0, BCreate, 0, BDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "b", this, 0, BCreate, 0, BDestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "c", this, 0, CCreate, 0, CDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "c", this, 0, CCreate, 0, CDestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;

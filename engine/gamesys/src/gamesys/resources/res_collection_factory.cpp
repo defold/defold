@@ -169,4 +169,20 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResCollectionFactoryGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        CollectionFactoryResource* res  = (CollectionFactoryResource*) params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(res->m_CollectionResources.Size());
+        for (uint32_t i = 0; i < res->m_CollectionResources.Size(); ++i)
+        {
+            dmhash_t res_hash;
+            if(dmResource::GetPath(params.m_Factory, res->m_CollectionResources[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

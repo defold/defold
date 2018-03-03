@@ -87,19 +87,19 @@ TEST_F(ResourceTest, RegisterType)
     dmResource::Result e;
 
     // Test create/destroy function == 0
-    e = dmResource::RegisterType(factory, "foo", 0, 0, 0, 0, 0, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, 0, 0, 0, 0, 0, 0);
     ASSERT_EQ(dmResource::RESULT_INVAL, e);
 
     // Test dot in extension
-    e = dmResource::RegisterType(factory, ".foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0);
+    e = dmResource::RegisterType(factory, ".foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0, 0);
     ASSERT_EQ(dmResource::RESULT_INVAL, e);
 
     // Test "ok"
-    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     // Test already registred
-    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0, 0);
     ASSERT_EQ(dmResource::RESULT_ALREADY_REGISTERED, e);
 
     // Test get type/extension from type/extension
@@ -119,7 +119,7 @@ TEST_F(ResourceTest, RegisterType)
 TEST_F(ResourceTest, NotFound)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
     void* resource = (void*) 0xdeadbeef;
     e = dmResource::Get(factory, "/DOES_NOT_EXISTS.foo", &resource);
@@ -180,10 +180,10 @@ protected:
         m_ResourceName = "/test.cont";
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &FooResourceCreate, &FooResourcePostCreate, &FooResourceDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &FooResourceCreate, &FooResourcePostCreate, &FooResourceDestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
@@ -839,7 +839,7 @@ TEST(dmResource, Builtins)
     dmResource::HFactory factory = dmResource::NewFactory(&params, ".");
     ASSERT_NE((void*) 0, factory);
 
-    dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, 0, AdResourceDestroy, 0, 0);
+    dmResource::RegisterType(factory, "adc", 0, 0, AdResourceCreate, 0, AdResourceDestroy, 0, 0, 0);
 
     void* resource;
     const char* path_name[]     = { "/archive_data/file4.adc", "/archive_data/file1.adc", "/archive_data/file3.adc", "/archive_data/file2.adc" };
@@ -878,7 +878,7 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
@@ -951,7 +951,7 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
@@ -1052,7 +1052,7 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
@@ -1121,7 +1121,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -1173,7 +1173,7 @@ TEST(OverflowTest, OverflowTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     int* resource;
@@ -1202,9 +1202,9 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
         ASSERT_NE((void*) 0, m_Factory);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         int* resource;
@@ -1314,7 +1314,7 @@ TEST(DynamicResources, GetPath)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;
@@ -1367,7 +1367,7 @@ TEST(DynamicResources, GetPath)
 TEST_F(DynamicResourceTest, Set)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;
@@ -1441,7 +1441,7 @@ TEST_F(DynamicResourceTest, Set)
 TEST_F(DynamicResourceTest, RefCount)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;
@@ -1472,13 +1472,37 @@ dmResource::Result ProfilerResourceDestroy(const dmResource::ResourceDestroyPara
     return dmResource::RESULT_OK;
 }
 
-#define ASSERT_SNAPSHOT_DATA_EQ(data, i, tag, snapshot_index, type, resource_id, size, reference_count)\
+dmResource::Result ProfilerResourceGetInfo(dmResource::ResourceGetInfoParams& params)
+{
+    if(!params.m_Factory)
+    {
+        return dmResource::RESULT_INVALID_DATA;
+    }
+    if(!params.m_Resource)
+    {
+        return dmResource::RESULT_INVALID_DATA;
+    }
+    params.m_SubResourceIds->SetCapacity(1);
+    params.m_SubResourceIds->Push(dmHashString64("subresource"));
+    return dmResource::RESULT_OK;
+}
+
+#define ASSERT_SNAPSHOT_DATA_EQ(data, i, tag, snapshot_index, type, resource_id, size, reference_count, subresource_id)\
     ASSERT_EQ(tag, data[i].m_Tag);\
     ASSERT_STREQ(resource_id, strrchr(dmHashReverseSafe64(data[i].m_ResourceId), '/'));\
     ASSERT_STREQ(type, data[i].m_TypeName);\
     ASSERT_EQ(size, data[i].m_Size);\
     ASSERT_EQ(reference_count, data[i].m_ReferenceCount);\
-    ASSERT_EQ(snapshot_index, data[i].m_SnapshotIndex);
+    ASSERT_EQ(snapshot_index, data[i].m_SnapshotIndex);\
+    if(!data[i].m_SubResourceIds->Empty())\
+    {\
+        ASSERT_EQ(1, data[i].m_SubResourceIds->Size());\
+        ASSERT_EQ(subresource_id, (*data[i].m_SubResourceIds)[0]);\
+    }\
+    else\
+    {\
+        ASSERT_EQ(0, subresource_id);\
+    }
 
 static void IterateProfilerSnapshotCallback(void* context, const dmResource::IterateProfilerSnapshotData* data)
 {
@@ -1490,7 +1514,7 @@ TEST_F(DynamicResourceTest, Profiler)
 {
     dmHashEnableReverseHash(true);
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &ProfilerResourceCreate, 0, &ProfilerResourceDestroy, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &ProfilerResourceCreate, 0, &ProfilerResourceDestroy, 0, 0, ProfilerResourceGetInfo);
     ASSERT_EQ(dmResource::RESULT_OK, e);
     ResourceHolder* resource[3];
     e = dmResource::Get(factory, "/test01.foo", (void**) &resource[0]);
@@ -1500,6 +1524,7 @@ TEST_F(DynamicResourceTest, Profiler)
     e = dmResource::Get(factory, "/test02.foo", (void**) &resource[2]);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
+    dmhash_t subresource_id = dmHashString64("subresource");
     dmhash_t tags[2] = { dmHashString64("s1"), dmHashString64("s2") };
     for(uint32_t i = 0; i < 2; ++i)
     {
@@ -1513,12 +1538,12 @@ TEST_F(DynamicResourceTest, Profiler)
         dmResource::IterateProfilerSnapshot(&data, IterateProfilerSnapshotCallback);
         for(uint32_t j = 0; j < i; ++j)
         {
-            ASSERT_SNAPSHOT_DATA_EQ(data, 0, tags[j], 0, "foo", "/test01.foo", 16, 1);
-            ASSERT_SNAPSHOT_DATA_EQ(data, 1, tags[j], 0, "foo", "/test02.foo", 16, 2);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 0, tags[j], 0, "foo", "/test01.foo", 16, 1, subresource_id);
+            ASSERT_SNAPSHOT_DATA_EQ(data, 1, tags[j], 0, "foo", "/test02.foo", 16, 2, subresource_id);
             if( j == 1)
             {
-                ASSERT_SNAPSHOT_DATA_EQ(data, 1, tags[j], 0, "foo", "/test01.foo", 16, 1);
-                ASSERT_SNAPSHOT_DATA_EQ(data, 1, tags[j], 1, "foo", "/test02.foo", 16, 2);
+                ASSERT_SNAPSHOT_DATA_EQ(data, 1, tags[j], 0, "foo", "/test01.foo", 16, 1, subresource_id);
+                ASSERT_SNAPSHOT_DATA_EQ(data, 1, tags[j], 1, "foo", "/test02.foo", 16, 2, subresource_id);
             }
         }
         ASSERT_EQ(2*(i+1), data.Size());

@@ -105,6 +105,18 @@ namespace dmResource
         data.m_Size = value->m_ResourceSize;
         data.m_ReferenceCount = value->m_ReferenceCount;
         data.m_TypeStringIndex = ((uintptr_t)value->m_ResourceType - (uintptr_t)g_Profiler.m_Factory->m_ResourceTypes)/sizeof(SResourceType);
+        SResourceType *type = (SResourceType*) value->m_ResourceType;
+        if(type->m_GetInfoFunction)
+        {
+            ResourceGetInfoParams info;
+            info.m_Factory = g_Profiler.m_Factory;
+            info.m_Resource = value;
+            info.m_SubResourceIds = &data.m_SubResourceIds;
+            if(type->m_GetInfoFunction(info)!=dmResource::RESULT_OK)
+            {
+                data.m_SubResourceIds.SetCapacity(0);
+            }
+        }
     }
 
     void ProfilerSnapshot(dmhash_t tag)

@@ -32,6 +32,7 @@ namespace dmResource
         FResourceDestroy    m_DestroyFunction;
         FResourceRecreate   m_RecreateFunction;
         FResourceDuplicate  m_DuplicateFunction;
+        FResourceGetInfo    m_GetInfoFunction;
     };
 
     struct ResourceReloadedCallbackPair

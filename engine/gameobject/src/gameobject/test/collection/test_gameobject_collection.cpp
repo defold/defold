@@ -31,7 +31,7 @@ protected:
         m_Collection = dmGameObject::NewCollection("testcollection", m_Factory, m_Register, dmGameObject::GetCollectionDefaultCapacity(m_Register));
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         dmResource::ResourceType resource_type;

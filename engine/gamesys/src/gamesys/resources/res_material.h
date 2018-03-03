@@ -12,6 +12,8 @@ namespace dmGameSystem
     dmResource::Result ResMaterialDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResMaterialRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResMaterialGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif

@@ -176,4 +176,29 @@ namespace dmGameSystem
         params.m_Resource->m_ResourceSize = GetResourceSize(ss_resource, params.m_BufferSize);
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResRigSceneGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        RigSceneResource* res = (RigSceneResource*)params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(4);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_SkeletonRes, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_MeshSetRes, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_AnimationSetRes, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_TextureSet, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

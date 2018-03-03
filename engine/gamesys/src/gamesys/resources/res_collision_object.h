@@ -46,6 +46,8 @@ namespace dmGameSystem
     dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params);
 
     dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResCollisionObjectGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif

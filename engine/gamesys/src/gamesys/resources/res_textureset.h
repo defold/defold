@@ -39,6 +39,8 @@ namespace dmGameSystem
     dmResource::Result ResTextureSetDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResTextureSetRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResTextureSetGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DMGAMESYSTEM_RES_TEXTURESET_H

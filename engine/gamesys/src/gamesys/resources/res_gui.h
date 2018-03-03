@@ -40,6 +40,8 @@ namespace dmGameSystem
 
     dmResource::Result ResRecreateSceneDesc(const dmResource::ResourceRecreateParams& params);
 
+    dmResource::Result ResGetInfoSceneDesc(dmResource::ResourceGetInfoParams& params);
+
     dmResource::Result ResPreloadGuiScript(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResCreateGuiScript(const dmResource::ResourceCreateParams& params);

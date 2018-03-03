@@ -127,4 +127,23 @@ namespace dmGameSystem
         return r;
     }
 
+    dmResource::Result ResRenderPrototypeGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        RenderScriptPrototype* res  = (RenderScriptPrototype*) params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(res->m_Materials.Size() + 1);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_Script, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        for (uint32_t i = 0; i < res->m_Materials.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_Materials[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

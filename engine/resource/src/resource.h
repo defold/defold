@@ -303,6 +303,30 @@ namespace dmResource
      */
     typedef Result (*FResourceDuplicate)(const ResourceDuplicateParams& params);
 
+    /**
+     * Parameters to ResourceGetInfo callback.
+     */
+    struct ResourceGetInfoParams
+    {
+        /// Factory handle
+        HFactory m_Factory;
+        /// Resource descriptor for resource
+        const SResourceDescriptor* m_Resource;
+        /// Array of subresource hash id's the resource is using.
+        dmArray<dmhash_t>* m_SubResourceIds;
+    };
+
+    /**
+     * Resource description get function. Used to get info on a resource, such as size and subresource ids
+     * The responsibility of the get info function is to fill the ResourceGetInfoParams parameters with information about the resource.
+     * The resource system keeps track of reference counting.
+     * The parameter m_SubResourceIds is a pointer to an array to fill with hash id's of subresources used by the resource. The array is initally always of zero capacity and should
+     * be left so if there are no subresources. The system will release the array once done.
+     * @params params Parameters to fill with information
+     * @return CREATE_RESULT_OK on success
+     */
+    typedef Result (*FResourceGetInfo)(ResourceGetInfoParams& params);
+
 
     /**
      * Parameters to ResourceReloaded callback.
@@ -420,6 +444,7 @@ namespace dmResource
      * @param post_create_function Post create function pointer
      * @param destroy_function Destroy function pointer
      * @param recreate_function Recreate function pointer. Optional, 0 if recreate is not supported.
+     * @param getinfo_function GetInfo function pointer. Optional, 0 if getinfo is not supported.
      * @return RESULT_OK on success
      */
     Result RegisterType(HFactory factory,
@@ -430,7 +455,8 @@ namespace dmResource
                                FResourcePostCreate post_create_function,
                                FResourceDestroy destroy_function,
                                FResourceRecreate recreate_function,
-                               FResourceDuplicate duplicate_function);
+                               FResourceDuplicate duplicate_function,
+                               FResourceGetInfo getinfo_function);
 
     /**
      * Get a resource from factory

@@ -131,4 +131,16 @@ namespace dmGameObject
         DestroyPrototype(proto, params.m_Factory);
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResPrototypeGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(proto->m_Components.Size());
+        for (uint32_t i = 0; i < proto->m_Components.Size(); ++i)
+        {
+            params.m_SubResourceIds->Push(proto->m_Components[i].m_ResourceId);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

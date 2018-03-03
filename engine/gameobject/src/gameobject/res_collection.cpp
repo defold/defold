@@ -230,4 +230,13 @@ bail:
         DeleteCollection(collection);
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResCollectionGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        dmArray<dmhash_t> references;
+        dmGameObject::GetCollectionResourceReferences((HCollection) params.m_Resource->m_Resource, references);
+        params.m_SubResourceIds->SetCapacity(references.Size());
+        params.m_SubResourceIds->PushArray(references.Begin(), references.Size());
+        return dmResource::RESULT_OK;
+    }
 }

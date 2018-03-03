@@ -23,6 +23,8 @@ namespace dmGameSystem
     dmResource::Result ResSpineModelDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResSpineModelRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResSpineModelGetInfo(dmResource::ResourceGetInfoParams& params);
 }
 
 #endif // DM_GAMESYS_RES_SPINE_MODEL_H

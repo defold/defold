@@ -14,6 +14,9 @@ namespace dmGameSystem
     dmResource::Result ResRenderPrototypeDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResRenderPrototypeRecreate(const dmResource::ResourceRecreateParams& params);
+
+    dmResource::Result ResRenderPrototypeGetInfo(dmResource::ResourceGetInfoParams& params);
+
 }
 
 #endif // DMGAMESYSTEM_RES_RENDER_PROTOTYPE_H

@@ -231,4 +231,21 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResMaterialGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        dmRender::HMaterial res = (dmRender::HMaterial)params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(2);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, (void*)dmRender::GetMaterialVertexProgram(res), &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, (void*)dmRender::GetMaterialFragmentProgram(res), &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

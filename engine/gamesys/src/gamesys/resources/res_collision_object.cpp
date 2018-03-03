@@ -315,4 +315,17 @@ range_error:
             return dmResource::RESULT_FORMAT_ERROR;
         }
     }
+
+    dmResource::Result ResCollisionObjectGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        CollisionObjectResource* res  = (CollisionObjectResource*) params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(1);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_TileGridResource, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

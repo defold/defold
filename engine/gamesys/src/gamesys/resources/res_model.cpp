@@ -133,4 +133,32 @@ namespace dmGameSystem
         params.m_Resource->m_ResourceSize = sizeof(ModelResource) + params.m_BufferSize;
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResModelGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        ModelResource* res  = (ModelResource*) params.m_Resource->m_Resource;
+        uint32_t texture_count = 0;
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (res->m_TexturePaths[i])
+                ++texture_count;
+        }
+        params.m_SubResourceIds->SetCapacity(2 + texture_count);
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            if (res->m_TexturePaths[i])
+                params.m_SubResourceIds->Push(res->m_TexturePaths[i]);
+        }
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_RigScene, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_Material, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

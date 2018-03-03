@@ -103,4 +103,21 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResLabelGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        LabelResource* res  = (LabelResource*) params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(2);
+        dmhash_t res_hash;
+        if(dmResource::GetPath(params.m_Factory, res->m_FontMap, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        if(dmResource::GetPath(params.m_Factory, res->m_Material, &res_hash)==dmResource::RESULT_OK)
+        {
+            params.m_SubResourceIds->Push(res_hash);
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }

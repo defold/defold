@@ -172,4 +172,14 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResTextureSetGetInfo(dmResource::ResourceGetInfoParams& params)
+    {
+        TextureSetResource* res  = (TextureSetResource*) params.m_Resource->m_Resource;
+        params.m_SubResourceIds->SetCapacity(1);
+        params.m_SubResourceIds->Push(res->m_TexturePath);
+        // TODO: get size of dmPhysics::HullSet2D
+        return dmResource::RESULT_OK;
+    }
+
 }

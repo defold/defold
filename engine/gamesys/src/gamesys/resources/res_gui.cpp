@@ -314,4 +314,42 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResGetInfoSceneDesc(dmResource::ResourceGetInfoParams& params)
+    {
+        GuiSceneResource* res  = (GuiSceneResource*) params.m_Resource->m_Resource;
+        uint32_t subrescount = res->m_FontMaps.Size() + res->m_GuiTextureSets.Size() + res->m_RigScenes.Size() + res->m_ParticlePrototypes.Size();
+        params.m_SubResourceIds->SetCapacity(subrescount);
+        dmhash_t res_hash;
+        for(uint32_t i = 0; i < res->m_FontMaps.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_FontMaps[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        for(uint32_t i = 0; i < res->m_GuiTextureSets.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_GuiTextureSets[i].m_TextureSet ? (void*)res->m_GuiTextureSets[i].m_TextureSet : (void*)res->m_GuiTextureSets[i].m_Texture, &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        for(uint32_t i = 0; i < res->m_RigScenes.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_RigScenes[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        for(uint32_t i = 0; i < res->m_ParticlePrototypes.Size(); ++i)
+        {
+            if(dmResource::GetPath(params.m_Factory, res->m_ParticlePrototypes[i], &res_hash)==dmResource::RESULT_OK)
+            {
+                params.m_SubResourceIds->Push(res_hash);
+            }
+        }
+        return dmResource::RESULT_OK;
+    }
+
 }
