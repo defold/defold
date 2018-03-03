@@ -2,6 +2,7 @@
 
 #include <dlib/log.h>
 #include <dlib/profile.h>
+#include <dlib/memory.h>
 
 namespace dmRig
 {
@@ -23,6 +24,15 @@ namespace dmRig
             return dmRig::RESULT_ERROR;
         }
 
+        context->m_ScratchPositionBuffer = 0;
+        context->m_ScratchPositionBufferSize = 0;
+        context->m_ScratchNormalBuffer = 0;
+        context->m_ScratchNormalBufferSize = 0;
+        context->m_ScratchJointMatrixBuffer = 0;
+        context->m_ScratchJointMatrixBufferSize = 0;
+        context->m_ScratchInfluenceMatrixBuffer = 0;
+        context->m_ScratchInfluenceMatrixBufferSize = 0;
+
         context->m_Instances.SetCapacity(params.m_MaxRigInstanceCount);
         context->m_ScratchPoseTransformBuffer.SetCapacity(0);
         context->m_ScratchPoseMatrixBuffer.SetCapacity(0);
@@ -32,6 +42,23 @@ namespace dmRig
 
     void DeleteContext(HRigContext context)
     {
+        if(context->m_ScratchNormalBuffer)
+        {
+            dmMemory::AlignedFree(context->m_ScratchNormalBuffer);
+        }
+        if(context->m_ScratchJointMatrixBuffer)
+        {
+            dmMemory::AlignedFree(context->m_ScratchJointMatrixBuffer);
+        }
+        if(context->m_ScratchPositionBuffer)
+        {
+            dmMemory::AlignedFree(context->m_ScratchPositionBuffer);
+        }
+        if(context->m_ScratchInfluenceMatrixBuffer)
+        {
+            dmMemory::AlignedFree(context->m_ScratchInfluenceMatrixBuffer);
+        }
+
         if (context) {
             delete context;
         }
@@ -948,7 +975,7 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-	static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh, dmArray<int32_t>& slots_scratch_buffer)
+    static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh, dmArray<int32_t>& slots_scratch_buffer)
     {
         // Make sure output array has zero to begin with
         out_order_to_mesh.SetSize(0);
@@ -1090,131 +1117,149 @@ namespace dmRig
         return vertex_count;
     }
 
-    static float* GenerateNormalData(const dmRigDDF::Mesh* mesh, const Matrix4& normal_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer)
+    static inline void MulMatScalar( JointMat& result, const JointMat& mat, const float s )
     {
-        const float* normals_in = mesh->m_Normals.m_Data;
-        const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Data;
-        uint32_t index_count = mesh->m_Indices.m_Count;
-        Vector4 v;
-
-        if (!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
-        {
-            for (uint32_t ii = 0; ii < index_count; ++ii)
-            {
-                uint32_t ni = normal_indices[ii];
-                Vector3 normal_in(normals_in[ni*3+0], normals_in[ni*3+1], normals_in[ni*3+2]);
-                v = normal_matrix * normal_in;
-                if (lengthSqr(v) > 0.0f) {
-                    normalize(v);
-                }
-                *out_buffer++ = v[0];
-                *out_buffer++ = v[1];
-                *out_buffer++ = v[2];
-            }
-            return out_buffer;
-        }
-
-        const uint32_t* indices = mesh->m_BoneIndices.m_Data;
-        const float* weights = mesh->m_Weights.m_Data;
-        const uint32_t* vertex_indices = mesh->m_Indices.m_Data;
-        for (uint32_t ii = 0; ii < index_count; ++ii)
-        {
-            const uint32_t ni = normal_indices[ii]*3;
-            const Vector3 normal_in(normals_in[ni+0], normals_in[ni+1], normals_in[ni+2]);
-            Vector4 normal_out(0.0f, 0.0f, 0.0f, 0.0f);
-
-            const uint32_t bi_offset = vertex_indices[ii] << 2;
-            const uint32_t* bone_indices = &indices[bi_offset];
-            const float* bone_weights = &weights[bi_offset];
-
-            if (bone_weights[0])
-            {
-                normal_out += (pose_matrices[bone_indices[0]] * normal_in) * bone_weights[0];
-                if (bone_weights[1])
-                {
-                    normal_out += (pose_matrices[bone_indices[1]] * normal_in) * bone_weights[1];
-                    if (bone_weights[2])
-                    {
-                        normal_out += (pose_matrices[bone_indices[2]] * normal_in) * bone_weights[2];
-                        if (bone_weights[3])
-                        {
-                            normal_out += (pose_matrices[bone_indices[3]] * normal_in) * bone_weights[3];
-                        }
-                    }
-                }
-            }
-
-            v = normal_matrix * Vector3(normal_out.getX(), normal_out.getY(), normal_out.getZ());
-            if (lengthSqr(v) > 0.0f) {
-                normalize(v);
-            }
-            *out_buffer++ = v[0];
-            *out_buffer++ = v[1];
-            *out_buffer++ = v[2];
-        }
-
-        return out_buffer;
+        result.m_Mat[0] = s * mat.m_Mat[0]; result.m_Mat[1] = s * mat.m_Mat[1]; result.m_Mat[2] = s * mat.m_Mat[2]; result.m_Mat[3] = s * mat.m_Mat[3];
+        result.m_Mat[4] = s * mat.m_Mat[4]; result.m_Mat[5] = s * mat.m_Mat[5]; result.m_Mat[6] = s * mat.m_Mat[6]; result.m_Mat[7] = s * mat.m_Mat[7];
+        result.m_Mat[8] = s * mat.m_Mat[8]; result.m_Mat[9] = s * mat.m_Mat[9]; result.m_Mat[10]= s * mat.m_Mat[10];result.m_Mat[11]= s * mat.m_Mat[11];
     }
 
-    static float* GeneratePositionData(const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer)
+    static inline void MadMatScalar( JointMat& result, const JointMat& mat, const float s )
     {
-        const float *positions = mesh->m_Positions.m_Data;
-        const size_t vertex_count = mesh->m_Positions.m_Count / 3;
-        Point3 in_p;
-        Vector4 v;
-        if(!mesh->m_BoneIndices.m_Count || pose_matrices.Size() == 0)
+        result.m_Mat[0] += s * mat.m_Mat[0]; result.m_Mat[1] += s * mat.m_Mat[1]; result.m_Mat[2] += s * mat.m_Mat[2]; result.m_Mat[3] += s * mat.m_Mat[3];
+        result.m_Mat[4] += s * mat.m_Mat[4]; result.m_Mat[5] += s * mat.m_Mat[5]; result.m_Mat[6] += s * mat.m_Mat[6]; result.m_Mat[7] += s * mat.m_Mat[7];
+        result.m_Mat[8] += s * mat.m_Mat[8]; result.m_Mat[9] += s * mat.m_Mat[9]; result.m_Mat[10]+= s * mat.m_Mat[10];result.m_Mat[11]+= s * mat.m_Mat[11];
+    }
+
+    static inline void MulMatVec( Vector3& result, const JointMat& m, const Vector4& v )
+    {
+        result[0] = m.m_Mat[0] * v[0] + m.m_Mat[1] * v[1] + m.m_Mat[2] * v[2] + m.m_Mat[3] * v[3];
+        result[1] = m.m_Mat[4] * v[0] + m.m_Mat[5] * v[1] + m.m_Mat[6] * v[2] + m.m_Mat[7] * v[3];
+        result[2] = m.m_Mat[8] * v[0] + m.m_Mat[9] * v[1] + m.m_Mat[10]* v[2] + m.m_Mat[11]* v[3];
+    }
+
+    static inline void MadMatVec( Vector3& result, const JointMat& m, const Vector4& v )
+    {
+        result[0] += m.m_Mat[0] * v[0] + m.m_Mat[1] * v[1] + m.m_Mat[2] * v[2] + m.m_Mat[3] * v[3];
+        result[1] += m.m_Mat[4] * v[0] + m.m_Mat[5] * v[1] + m.m_Mat[6] * v[2] + m.m_Mat[7] * v[3];
+        result[2] += m.m_Mat[8] * v[0] + m.m_Mat[9] * v[1] + m.m_Mat[10]* v[2] + m.m_Mat[11]* v[3];
+    }
+
+    static inline void TransformSkinnedVertices(dmRig::HRigContext context,  const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const Matrix4& normal_matrix)
+    {
+        DM_PROFILE(Rig, "TransformSkinnedVertices");
+
+        const JointWeight* weights = (JointWeight*) mesh->m_JointWeights.m_Data;
+        const JointMat* pose_matrices = context->m_ScratchInfluenceMatrixBuffer;
+        const uint32_t count = mesh->m_Positions.m_Count >> 2;
+
+        // Check if we are to only transform positions. When we support more vertex element types (tangents etc) we will
+        // need to check this through format.
+        if(!mesh->m_Normals.m_Count)
         {
-            for (uint32_t i = 0; i < vertex_count; ++i)
+            // Transform positions (only)
+            const Vector4* p = (Vector4*) mesh->m_Positions.m_Data;
+            Vector4 v;
+            float* v_out = (float*) context->m_ScratchPositionBuffer;
+            Vector4 out_p;
+            out_p.setW(1.0f);
+            for(uint32_t i = 0, j = 0; i < count; ++i, ++j, ++p, v_out += 3)
             {
-                in_p[0] = *positions++;
-                in_p[1] = *positions++;
-                in_p[2] = *positions++;
-                v = model_matrix * in_p;
-                *out_buffer++ = v[0];
-                *out_buffer++ = v[1];
-                *out_buffer++ = v[2];
-            }
-            return out_buffer;
-        }
-
-        const uint32_t* indices = mesh->m_BoneIndices.m_Data;
-        const float* weights = mesh->m_Weights.m_Data;
-        for (uint32_t i = 0; i < vertex_count; ++i)
-        {
-            Vector4 in_v;
-            in_v.setX(*positions++);
-            in_v.setY(*positions++);
-            in_v.setZ(*positions++);
-            in_v.setW(1.0f);
-
-            Vector4 out_p(0.0f, 0.0f, 0.0f, 0.0f);
-            const uint32_t bi_offset = i << 2;
-            const uint32_t* bone_indices = &indices[bi_offset];
-            const float* bone_weights = &weights[bi_offset];
-
-            if(bone_weights[0])
-            {
-                out_p += pose_matrices[bone_indices[0]] * in_v * bone_weights[0];
-                if(bone_weights[1])
+                MulMatVec((Vector3&)out_p, pose_matrices[weights[j].m_BoneIndex], *p);
+                while( weights[j].m_Count )
                 {
-                    out_p += pose_matrices[bone_indices[1]] * in_v * bone_weights[1];
-                    if(bone_weights[2])
-                    {
-                        out_p += pose_matrices[bone_indices[2]] * in_v * bone_weights[2];
-                        if(bone_weights[3])
-                        {
-                            out_p += pose_matrices[bone_indices[3]] * in_v * bone_weights[3];
-                        }
-                    }
+                    ++j;
+                    MadMatVec((Vector3&)out_p, pose_matrices[weights[j].m_BoneIndex], *p);
                 }
+                v = model_matrix * out_p;
+                v_out[0] = v[0];
+                v_out[1] = v[1];
+                v_out[2] = v[2];
             }
-
-            v = model_matrix * Point3(out_p.getX(), out_p.getY(), out_p.getZ());
-            *out_buffer++ = v[0];
-            *out_buffer++ = v[1];
-            *out_buffer++ = v[2];
+            return;
         }
-        return out_buffer;
+
+        // Influence buffer accumulation, used to transform multiple vertex elements
+        JointMat* joint_matrices_write = context->m_ScratchJointMatrixBuffer;
+        for(uint32_t i = 0, j = 0; i < count; ++i, ++j, ++joint_matrices_write)
+        {
+            MulMatScalar(*joint_matrices_write, pose_matrices[weights[j].m_BoneIndex], weights[j].m_Weight);
+            while( weights[j].m_Count )
+            {
+                ++j;
+                MadMatScalar(*joint_matrices_write, pose_matrices[weights[j].m_BoneIndex], weights[j].m_Weight);
+            }
+        }
+
+        // Transform positions
+        const JointMat* joint_matrices = context->m_ScratchJointMatrixBuffer;
+        const Vector4* p = (Vector4*) mesh->m_Positions.m_Data;
+        Vector4 v;
+        Vector4 out_p;
+        out_p.setW(1.0f);
+        float* v_out = (float*) context->m_ScratchPositionBuffer;
+        for (uint32_t i = 0; i < count; ++i, ++p, v_out += 3)
+        {
+            MulMatVec((Vector3&) out_p, joint_matrices[i], *p);
+            v = model_matrix * out_p;
+            v_out[0] = v[0];
+            v_out[1] = v[1];
+            v_out[2] = v[2];
+        }
+
+        // Transform normals
+        if(mesh->m_Normals.m_Count)
+        {
+            const uint32_t count = mesh->m_Normals.m_Count >> 2;
+            const Vector4* n = (Vector4*) mesh->m_Normals.m_Data;
+            const uint32_t* normal_joint_offsets = mesh->m_NormalsJointOffsets.m_Data;
+            v_out = (float*) context->m_ScratchNormalBuffer;
+            Vector3 out_n;
+            for (uint32_t i = 0; i < count; ++i, ++n, v_out += 3)
+            {
+                MulMatVec( out_n, joint_matrices[normal_joint_offsets[i]], *n);
+                v = normal_matrix * out_n;
+                v_out[0] = v[0];
+                v_out[1] = v[1];
+                v_out[2] = v[2];
+            }
+        }
+
+        // TODO: Apply transform on tangents etc when supported.
+
+    }
+
+    static inline void TransformVertices(dmRig::HRigContext context,  const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const Matrix4& normal_matrix)
+    {
+        DM_PROFILE(Rig, "TransformVertices");
+
+        // Transform positions
+        const Vector4* p = (Vector4*) mesh->m_Positions.m_Data;
+        const uint32_t count = mesh->m_Positions.m_Count >> 2;
+        Vector4 v;
+        float* v_out = (float*) context->m_ScratchPositionBuffer;
+        for (uint32_t i = 0; i < count; ++i, ++p, v_out += 3)
+        {
+            v = model_matrix * *p;
+            v_out[0] = v[0];
+            v_out[1] = v[1];
+            v_out[2] = v[2];
+        }
+
+        // Transform normals
+        if(mesh->m_Normals.m_Count)
+        {
+            p = (Vector4*) mesh->m_Normals.m_Data;
+            const uint32_t count = mesh->m_Normals.m_Count >> 2;
+            v_out = (float*) context->m_ScratchNormalBuffer;
+            for (uint32_t i = 0; i < count; ++i, ++p, v_out += 3)
+            {
+                v = normal_matrix * (Vector3&) *p;
+                v_out[0] = v[0];
+                v_out[1] = v[1];
+                v_out[2] = v[2];
+            }
+        }
     }
 
     static void PoseToMatrix(const dmArray<dmTransform::Transform>& pose, dmArray<Matrix4>& out_matrices)
@@ -1276,12 +1321,11 @@ namespace dmRig
         }
     }
 
-    static void PoseToInfluence(const dmArray<uint32_t>& pose_idx_to_influence, const dmArray<Matrix4>& in_pose, dmArray<Matrix4>& out_pose)
+    static void PoseToInfluence(const dmArray<uint32_t>& pose_idx_to_influence, const dmArray<Matrix4>& in_pose, JointMat* out_pose)
     {
         for (int i = 0; i < pose_idx_to_influence.Size(); ++i)
         {
-            uint32_t j = pose_idx_to_influence[i];
-            out_pose[j] = in_pose[i];
+            out_pose[pose_idx_to_influence[i]].Set(in_pose[i]);
         }
     }
 
@@ -1289,25 +1333,25 @@ namespace dmRig
     // This is a temporary fix until we have better support for custom vertex formats.
     static RigModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, RigModelVertex* out_write_ptr)
     {
+        DM_PROFILE(Rig, "WriteVertexData");
         uint32_t indices_count = mesh->m_Indices.m_Count;
         const uint32_t* indices = mesh->m_Indices.m_Data;
         const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
         const float* uv0 = mesh->m_Texcoord0.m_Data;
 
-        if (mesh->m_NormalsIndices.m_Count)
+        if (mesh->m_Normals.m_Count)
         {
+            const uint32_t* normal_indices = mesh->m_NormalsIndices.m_Data;
             for (uint32_t i = 0; i < indices_count; ++i)
             {
-                uint32_t vi = indices[i];
-                uint32_t e = vi * 3;
+                uint32_t e = indices[i] * 3;
                 out_write_ptr->x = positions[e];
                 out_write_ptr->y = positions[++e];
                 out_write_ptr->z = positions[++e];
-                vi = uv0_indices[i];
-                e = vi << 1;
+                e = uv0_indices[i] << 1;
                 out_write_ptr->u = uv0[e+0];
                 out_write_ptr->v = uv0[e+1];
-                e = i * 3;
+                e = normal_indices[i] * 3;
                 out_write_ptr->nx = normals[e];
                 out_write_ptr->ny = normals[++e];
                 out_write_ptr->nz = normals[++e];
@@ -1323,8 +1367,7 @@ namespace dmRig
                 out_write_ptr->x = positions[e];
                 out_write_ptr->y = positions[++e];
                 out_write_ptr->z = positions[++e];
-                vi = uv0_indices[i];
-                e = vi << 1;
+                e = uv0_indices[i] << 1;
                 out_write_ptr->u = uv0[e+0];
                 out_write_ptr->v = uv0[e+1];
                 out_write_ptr->nx = 0.0f;
@@ -1339,6 +1382,7 @@ namespace dmRig
 
     static RigSpineModelVertex* WriteVertexData(const dmRigDDF::Mesh* mesh, const float* positions, uint32_t color, RigSpineModelVertex* out_write_ptr)
     {
+        DM_PROFILE(Rig, "WriteVertexData");
         uint32_t indices_count = mesh->m_Indices.m_Count;
         const uint32_t* indices = mesh->m_Indices.m_Data;
         const uint32_t* uv0_indices = mesh->m_Texcoord0Indices.m_Count ? mesh->m_Texcoord0Indices.m_Data : mesh->m_Indices.m_Data;
@@ -1361,8 +1405,101 @@ namespace dmRig
         return out_write_ptr;
     }
 
+    static inline dmMemory::Result AllocateBuffer(void **memptr, uint32_t size)
+    {
+        if(*memptr)
+        {
+            dmMemory::AlignedFree(*memptr);
+        }
+        *memptr = 0;
+        return dmMemory::AlignedMalloc(memptr, 16, size);
+    }
+
+    static dmMemory::Result AllocateBuffers(dmRig::HRigContext context, dmRig::HRigInstance instance)
+    {
+        dmMemory::Result r;
+
+        const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
+        if (!instance->m_MeshEntry )
+        {
+            return dmMemory::RESULT_OK;
+        }
+        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
+        if (mesh_count == 0)
+        {
+            return dmMemory::RESULT_OK;
+        }
+
+        uint32_t bone_count = GetBoneCount(instance);
+        if (bone_count && instance->m_PoseIdxToInfluence && instance->m_PoseIdxToInfluence->Size() > 0)
+        {
+            dmArray<Matrix4>& pose_matrices = context->m_ScratchPoseMatrixBuffer;
+            if (pose_matrices.Capacity() < bone_count)
+            {
+                pose_matrices.OffsetCapacity(bone_count - pose_matrices.Capacity());
+                pose_matrices.SetSize(bone_count);
+            }
+
+            uint32_t size = instance->m_MaxBoneCount*sizeof(JointMat);
+            if (context->m_ScratchInfluenceMatrixBufferSize < size)
+            {
+                context->m_ScratchInfluenceMatrixBufferSize = size;
+                r = AllocateBuffer((void**)&context->m_ScratchInfluenceMatrixBuffer, size);
+                if(r != dmMemory::RESULT_OK)
+                {
+                    return r;
+                }
+            }
+
+            if (instance->m_Skeleton->m_LocalBoneScaling)
+            {
+                dmArray<dmTransform::Transform>& pose_transforms = context->m_ScratchPoseTransformBuffer;
+                if (pose_transforms.Capacity() < bone_count)
+                {
+                    pose_transforms.OffsetCapacity(bone_count - pose_transforms.Capacity());
+                }
+                pose_transforms.SetSize(bone_count);
+            }
+        }
+
+        for (uint32_t i = 0; i < mesh_entry->m_Meshes.m_Count; ++i)
+        {
+            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[i];
+            uint32_t size = mesh->m_Positions.m_Count*sizeof(float);
+            if (context->m_ScratchPositionBufferSize < size)
+            {
+                context->m_ScratchPositionBufferSize = size;
+                r = AllocateBuffer((void**)&context->m_ScratchPositionBuffer, size);
+                if(r != dmMemory::RESULT_OK)
+                {
+                    return r;
+                }
+                size = (mesh->m_Positions.m_Count >> 2)*sizeof(JointMat);
+                context->m_ScratchJointMatrixBufferSize = size;
+                r = AllocateBuffer((void**)&context->m_ScratchJointMatrixBuffer, size);
+                if(r != dmMemory::RESULT_OK)
+                {
+                    return r;
+                }
+            }
+            size = mesh->m_Normals.m_Count*sizeof(float);
+            if (context->m_ScratchNormalBufferSize < size)
+            {
+                context->m_ScratchNormalBufferSize = size;
+                r = AllocateBuffer((void**)&context->m_ScratchNormalBuffer, size);
+                if(r != dmMemory::RESULT_OK)
+                {
+                    return r;
+                }
+            }
+        }
+
+        return dmMemory::RESULT_OK;
+    }
+
     void* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, const Matrix4& model_matrix, const Matrix4& normal_matrix, const Vector4 color, RigVertexFormat vertex_format, void* vertex_data_out)
     {
+        DM_PROFILE(Rig, "GenerateVertexData");
         const dmRigDDF::MeshEntry* mesh_entry = instance->m_MeshEntry;
         if (!instance->m_MeshEntry || !instance->m_DoRender) {
             return vertex_data_out;
@@ -1375,45 +1512,17 @@ namespace dmRig
             return vertex_data_out;
         }
 
-        dmArray<Matrix4>& pose_matrices      = context->m_ScratchPoseMatrixBuffer;
-        dmArray<Matrix4>& influence_matrices = context->m_ScratchInfluenceMatrixBuffer;
-        dmArray<Vector3>& positions          = context->m_ScratchPositionBuffer;
-        dmArray<Vector3>& normals            = context->m_ScratchNormalBuffer;
-
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
-        influence_matrices.SetSize(0);
+        dmArray<Matrix4>& pose_matrices = context->m_ScratchPoseMatrixBuffer;
         if (bone_count && instance->m_PoseIdxToInfluence->Size() > 0) {
-
-            // Make sure pose scratch buffers have enough space
-            if (pose_matrices.Capacity() < bone_count) {
-                uint32_t size_offset = bone_count - pose_matrices.Capacity();
-                pose_matrices.OffsetCapacity(size_offset);
-            }
             pose_matrices.SetSize(bone_count);
-
-            // Make sure influence scratch buffers have enough space sufficient for max bones to be indexed
-            uint32_t max_bone_count = instance->m_MaxBoneCount;
-            if (influence_matrices.Capacity() < max_bone_count) {
-                uint32_t capacity = influence_matrices.Capacity();
-                uint32_t size_offset = max_bone_count - capacity;
-                influence_matrices.OffsetCapacity(size_offset);
-                influence_matrices.SetSize(max_bone_count);
-                for(uint32_t i = capacity; i < capacity+size_offset; ++i)
-                    influence_matrices[i] = Matrix4::identity();
-            }
-            influence_matrices.SetSize(max_bone_count);
 
             const dmArray<dmTransform::Transform>& pose = instance->m_Pose;
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
             if (skeleton->m_LocalBoneScaling) {
-
                 dmArray<dmTransform::Transform>& pose_transforms = context->m_ScratchPoseTransformBuffer;
-                if (pose_transforms.Capacity() < bone_count) {
-                    pose_transforms.OffsetCapacity(bone_count - pose_transforms.Capacity());
-                }
                 pose_transforms.SetSize(bone_count);
-
                 PoseToModelSpace(skeleton, pose, pose_transforms);
                 PoseToMatrix(pose_transforms, pose_matrices);
             } else {
@@ -1430,8 +1539,8 @@ namespace dmRig
                 pose_matrix = pose_matrix * bind_pose[bi].m_ModelToLocal;
             }
 
-            // Rearrange pose matrices to indices that the mesh vertices understand.
-            PoseToInfluence(*instance->m_PoseIdxToInfluence, pose_matrices, influence_matrices);
+            // Rearrange pose matrices to indices that the mesh vertices understand, transforming Matrix4 to JointMat in the process.
+            PoseToInfluence(*instance->m_PoseIdxToInfluence, pose_matrices, context->m_ScratchInfluenceMatrixBuffer);
         }
 
         dmArray<uint32_t>& draw_order = instance->m_DrawOrderToMesh;
@@ -1449,34 +1558,23 @@ namespace dmRig
             if (!properties->m_Visible) {
                 continue;
             }
+
+            // Transform vertex elements. Perform skinning if applicable.
             const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
-
-            // Bump scratch buffer capacity to handle current vertex count
-            uint32_t index_count = mesh->m_Indices.m_Count;
-            if (positions.Capacity() < index_count) {
-                positions.OffsetCapacity(index_count - positions.Capacity());
+            if(mesh->m_JointWeights.m_Count && instance->m_PoseIdxToInfluence->Size())
+            {
+                TransformSkinnedVertices(context, mesh, model_matrix, normal_matrix);
             }
-            positions.SetSize(index_count);
-
-            if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh->m_NormalsIndices.m_Count) {
-                if (normals.Capacity() < index_count) {
-                    normals.OffsetCapacity(index_count - normals.Capacity());
-                }
-                normals.SetSize(index_count);
+            else
+            {
+                TransformVertices(context, mesh, model_matrix, normal_matrix);
             }
 
-            // Fill scratch buffers for positions, and normals if applicable, using pose matrices.
-            float* positions_buffer = (float*)positions.Begin();
-            float* normals_buffer = (float*)normals.Begin();
-            dmRig::GeneratePositionData(mesh, model_matrix, influence_matrices, positions_buffer);
-            if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh->m_NormalsIndices.m_Count) {
-                dmRig::GenerateNormalData(mesh, normal_matrix, influence_matrices, normals_buffer);
-            }
 
             // NOTE: We expose two different vertex format that GenerateVertexData can output.
             // This is a temporary fix until we have better support for custom vertex formats.
             if (vertex_format == RIG_VERTEX_FORMAT_MODEL) {
-                vertex_data_out = (void*)WriteVertexData(mesh, positions_buffer, normals_buffer, (RigModelVertex*)vertex_data_out);
+                vertex_data_out = (void*)WriteVertexData(mesh, (float*) context->m_ScratchPositionBuffer, (float*) context->m_ScratchNormalBuffer, (RigModelVertex*)vertex_data_out);
             } else {
                 Vector4 mesh_color = Vector4(properties->m_Color[0], properties->m_Color[1], properties->m_Color[2], properties->m_Color[3]);
                 mesh_color = mulPerElem(color, mesh_color);
@@ -1484,7 +1582,7 @@ namespace dmRig
                 uint32_t rgba = (((uint32_t) (mesh_color.getW() * 255.0f)) << 24) | (((uint32_t) (mesh_color.getZ() * 255.0f)) << 16) |
                         (((uint32_t) (mesh_color.getY() * 255.0f)) << 8) | ((uint32_t) (mesh_color.getX() * 255.0f));
 
-                vertex_data_out = (void*)WriteVertexData(mesh, positions_buffer, rgba, (RigSpineModelVertex*)vertex_data_out);
+                vertex_data_out = (void*)WriteVertexData(mesh, (float*) context->m_ScratchPositionBuffer, rgba, (RigSpineModelVertex*)vertex_data_out);
             }
         }
 
@@ -1627,6 +1725,8 @@ namespace dmRig
         }
 
         UpdateMeshProperties(instance);
+
+        AllocateBuffers(context, instance);
 
         return dmRig::RESULT_OK;
     }

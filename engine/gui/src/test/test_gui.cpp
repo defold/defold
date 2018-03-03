@@ -77,23 +77,28 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
 
     // set vertice position so they match bone positions
     dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
-    mesh.m_Positions.m_Data = new float[vert_count*3];
-    mesh.m_Positions.m_Count = vert_count*3;
-    mesh.m_Positions.m_Data[0] = 0.0f;
-    mesh.m_Positions.m_Data[1] = 0.0f;
-    mesh.m_Positions.m_Data[2] = 0.0f;
-    mesh.m_Positions.m_Data[3] = 1.0f;
-    mesh.m_Positions.m_Data[4] = 0.0f;
-    mesh.m_Positions.m_Data[5] = 0.0f;
-    mesh.m_Positions.m_Data[6] = 2.0f;
-    mesh.m_Positions.m_Data[7] = 0.0f;
-    mesh.m_Positions.m_Data[8] = 0.0f;
+    mesh.m_Positions.m_Data = new float[vert_count*4];
+    mesh.m_Positions.m_Count = vert_count*4;
+    mesh.m_Positions.m_Data[0]  = 0.0f;
+    mesh.m_Positions.m_Data[1]  = 0.0f;
+    mesh.m_Positions.m_Data[2]  = 0.0f;
+    mesh.m_Positions.m_Data[3]  = 1.0f;
+
+    mesh.m_Positions.m_Data[4]  = 1.0f;
+    mesh.m_Positions.m_Data[5]  = 0.0f;
+    mesh.m_Positions.m_Data[6]  = 0.0f;
+    mesh.m_Positions.m_Data[7]  = 1.0f;
+
+    mesh.m_Positions.m_Data[8]  = 2.0f;
+    mesh.m_Positions.m_Data[9]  = 0.0f;
+    mesh.m_Positions.m_Data[10] = 0.0f;
+    mesh.m_Positions.m_Data[11] = 1.0f;
 
     // data for each vertex (tex coords and normals not used)
     mesh.m_Texcoord0.m_Data       = new float[vert_count*2];
     mesh.m_Texcoord0.m_Count      = vert_count*2;
-    mesh.m_Normals.m_Data         = new float[vert_count*3];
-    mesh.m_Normals.m_Count        = vert_count*3;
+    mesh.m_Normals.m_Data         = new float[vert_count*4];
+    mesh.m_Normals.m_Count        = vert_count*4;
 
     mesh.m_Color.m_Data           = new float[vert_count*4];
     mesh.m_Color.m_Count          = vert_count*4;
@@ -130,35 +135,18 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Indices.m_Data[0]      = 0;
     mesh.m_Indices.m_Data[1]      = 1;
     mesh.m_Indices.m_Data[2]      = 2;
-    mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
-    mesh.m_BoneIndices.m_Count    = vert_count*4;
-    mesh.m_BoneIndices.m_Data[0]  = 0;
-    mesh.m_BoneIndices.m_Data[1]  = 1;
-    mesh.m_BoneIndices.m_Data[2]  = 0;
-    mesh.m_BoneIndices.m_Data[3]  = 0;
-    mesh.m_BoneIndices.m_Data[4]  = 0;
-    mesh.m_BoneIndices.m_Data[5]  = 1;
-    mesh.m_BoneIndices.m_Data[6]  = 0;
-    mesh.m_BoneIndices.m_Data[7]  = 0;
-    mesh.m_BoneIndices.m_Data[8]  = 0;
-    mesh.m_BoneIndices.m_Data[9]  = 1;
-    mesh.m_BoneIndices.m_Data[10] = 0;
-    mesh.m_BoneIndices.m_Data[11] = 0;
 
-    mesh.m_Weights.m_Data         = new float[vert_count*4];
-    mesh.m_Weights.m_Count        = vert_count*4;
-    mesh.m_Weights.m_Data[0]      = 1.0f;
-    mesh.m_Weights.m_Data[1]      = 0.0f;
-    mesh.m_Weights.m_Data[2]      = 0.0f;
-    mesh.m_Weights.m_Data[3]      = 0.0f;
-    mesh.m_Weights.m_Data[4]      = 0.0f;
-    mesh.m_Weights.m_Data[5]      = 1.0f;
-    mesh.m_Weights.m_Data[6]      = 0.0f;
-    mesh.m_Weights.m_Data[7]      = 0.0f;
-    mesh.m_Weights.m_Data[8]      = 0.0f;
-    mesh.m_Weights.m_Data[9]      = 1.0f;
-    mesh.m_Weights.m_Data[10]     = 0.0f;
-    mesh.m_Weights.m_Data[11]     = 0.0f;
+    mesh.m_JointWeights.m_Data    = (uint8_t*) new dmRig::JointWeight[vert_count];
+    mesh.m_JointWeights.m_Count   = vert_count;
+    dmRig::JointWeight* jw = (dmRig::JointWeight*) mesh.m_JointWeights.m_Data;
+    jw[0].m_Weight = 1.0f;
+    jw[1].m_Weight = 1.0f;
+    jw[2].m_Weight = 1.0f;
+    jw[3].m_Weight = 1.0f;
+    jw[0].m_Count = 0;
+    jw[1].m_Count = 0;
+    jw[2].m_Count = 0;
+    jw[3].m_Count = 0;
 
     mesh.m_Visible = true;
     mesh.m_DrawOrder = 0;
@@ -562,8 +550,7 @@ private:
         for (int i = 0; i < 2; ++i)
         {
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_JointWeights.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
             delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_SkinColor.m_Data;
@@ -4668,8 +4655,7 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
             dmRig::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
             dmRig::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
             delete [] mesh.m_Normals.m_Data;
-            delete [] mesh.m_BoneIndices.m_Data;
-            delete [] mesh.m_Weights.m_Data;
+            delete [] mesh.m_JointWeights.m_Data;
             delete [] mesh.m_Indices.m_Data;
             delete [] mesh.m_Color.m_Data;
             delete [] mesh.m_SkinColor.m_Data;
@@ -5144,17 +5130,17 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
- 
+
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
     ASSERT_EQ(3, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     ASSERT_EQ(4, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
@@ -5176,17 +5162,17 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
- 
+
     float dt = 0.1f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning
     ASSERT_EQ(2, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Still spawning, should not trigger callback
     ASSERT_EQ(2, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
@@ -5210,17 +5196,17 @@ TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(3, data->m_NumStateChanges);
- 
+
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
     ASSERT_EQ(9, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     ASSERT_EQ(12, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 

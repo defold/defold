@@ -112,23 +112,22 @@ message AnimationSetDesc
 
 message Mesh
 {
-    // NOTE: Positions, texcoord0, color and normals might be something
-    // that should be moved to a more generic vertex message in the future
-    // when adding support for mesh/models in dmRig.
-    repeated float positions = 1;
+    option (struct_align) = true;
+
+    repeated float positions = 1 [(field_align)=true];
     repeated float texcoord0 = 2;
     repeated float color     = 3; // single color value for the entire mesh
     repeated uint32 indices  = 4;
-    // w00, w01, w02, w03, w10, … (only specified for skinned meshes)
-    repeated float weights = 5;
-    // i00, i01, i02, i03, i10, … (only specified for skinned meshes)
-    repeated uint32 bone_indices = 6;
+    optional bytes joint_weights = 5 [(field_align)=true]; // Array of JointWeight, declared in rig.h
     optional bool visible = 7 [default = true];
     optional uint32 draw_order = 8;
-    repeated float normals   = 9;
+    repeated float normals   = 9 [(field_align)=true];
     repeated uint32 normals_indices = 10;
-    repeated uint32 texcoord0_indices  = 11;
-    repeated float skin_color = 12;
+
+    repeated uint32 normals_joint_offsets = 11;
+
+    repeated uint32 texcoord0_indices  = 12;
+    repeated float skin_color = 13;
 }
 
 message MeshEntry

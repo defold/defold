@@ -49,6 +49,7 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigAnimation;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSet;
 import com.dynamo.textureset.proto.TextureSetProto.TextureSetAnimation;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
 
 @ProtoParams(messageClass = SpineSceneDesc.class)
@@ -151,6 +152,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             for (int pi = 0; pi < 3; ++pi) {
                 meshBuilder.addPositions(v[vi+pi]);
             }
+            meshBuilder.addPositions(1.0f);
             for (int ti = 3; ti < 5; ++ti) {
                 meshBuilder.addTexcoord0(v[vi+ti]);
             }
@@ -160,12 +162,27 @@ public class SpineSceneBuilder extends Builder<Void> {
             meshBuilder.addSkinColor(mesh.color[ci]);
         }
         if (mesh.boneIndices != null) {
-            for (int boneIndex : mesh.boneIndices) {
-                meshBuilder.addBoneIndices(boneIndexRemap.get(boneIndex));
+            ByteBuffer jointWeights = ByteBuffer.allocateDirect(vertexCount*8*4);
+            jointWeights.order(ByteOrder.LITTLE_ENDIAN);
+            for(int i = 0; i < vertexCount*4; i += 4) {
+                short influences = 1;
+                for(int ci = 1; ci < 4; ++ci, ++influences) {
+                    if(mesh.boneWeights[i+ci] == 0.0f) {
+                        break;
+                    }
+                }
+                jointWeights.putFloat(mesh.boneWeights[i]);
+                jointWeights.putShort(boneIndexRemap.get(mesh.boneIndices[i]).shortValue());
+                jointWeights.putShort(--influences);
+                int count = influences+1;
+                for(int ci = 1; ci < count; ++ci) {
+                    jointWeights.putFloat(mesh.boneWeights[i+ci]);
+                    jointWeights.putShort(boneIndexRemap.get(mesh.boneIndices[i+ci]).shortValue());
+                    jointWeights.putShort(--influences);
+                }
             }
-            for (float boneWeight : mesh.boneWeights) {
-                meshBuilder.addWeights(boneWeight);
-            }
+            jointWeights.flip();
+            meshBuilder.setJointWeights(ByteString.copyFrom(jointWeights));
         }
         for (int index : mesh.triangles) {
             meshBuilder.addIndices(index);

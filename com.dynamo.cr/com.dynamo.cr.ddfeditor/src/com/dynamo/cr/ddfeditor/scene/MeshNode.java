@@ -27,7 +27,7 @@ public class MeshNode extends Node {
         this.positions = newFloatBuffer(mesh.getIndicesCount()*3);
         this.texCoords0 = newFloatBuffer(mesh.getIndicesCount()*2);
         for(int i = 0; i < mesh.getIndicesCount(); i++){
-            int ind = mesh.getIndices(i)*3;
+            int ind = mesh.getIndices(i)*4;
             this.positions.put(mesh.getPositions(ind+0));
             this.positions.put(mesh.getPositions(ind+1));
             this.positions.put(mesh.getPositions(ind+2));

@@ -88,10 +88,10 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
             for (int j = 0; j < mesh_count; ++j)
             {
                 dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[j];
+                if (mesh.m_NormalsJointOffsets.m_Count > 0) { delete [] mesh.m_NormalsJointOffsets.m_Data; }
                 if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
                 if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
-                if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
-                if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
+                if (mesh.m_JointWeights.m_Count > 0)      { delete [] mesh.m_JointWeights.m_Data; }
                 if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
                 if (mesh.m_Color.m_Count > 0)            { delete [] mesh.m_Color.m_Data; }
                 if (mesh.m_SkinColor.m_Count > 0)        { delete [] mesh.m_SkinColor.m_Data; }
@@ -119,11 +119,12 @@ static void CreateDrawOrderMeshes(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id)
     {
         // set vertice position so they match bone positions
         dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[i];
-        mesh.m_Positions.m_Data = new float[3];
-        mesh.m_Positions.m_Count = 3;
+        mesh.m_Positions.m_Data = new float[4];
+        mesh.m_Positions.m_Count = 4;
         mesh.m_Positions.m_Data[0]  = (float)i;
         mesh.m_Positions.m_Data[1]  = (float)i;
         mesh.m_Positions.m_Data[2]  = (float)i;
+        mesh.m_Positions.m_Data[3]  = 1.0f;
 
         // data for each vertex (tex coords not used)
         mesh.m_Texcoord0.m_Data       = new float[2];
@@ -152,8 +153,8 @@ static void CreateDrawOrderMeshes(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id)
 
         mesh.m_Normals.m_Count        = 0;
         mesh.m_NormalsIndices.m_Count = 0;
-        mesh.m_BoneIndices.m_Count    = 0;
-        mesh.m_Weights.m_Count        = 0;
+        mesh.m_NormalsJointOffsets.m_Count = 0;
+        mesh.m_JointWeights.m_Count   = 0;
 
         mesh.m_Visible = visible[i];
         mesh.m_DrawOrder = draw_order[i];
@@ -170,22 +171,28 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
 
     // set vertice position so they match bone positions
     dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
-    mesh.m_Positions.m_Data = new float[vert_count*3];
-    mesh.m_Positions.m_Count = vert_count*3;
+    mesh.m_Positions.m_Data = new float[vert_count*4];
+    mesh.m_Positions.m_Count = vert_count*4;
     mesh.m_Positions.m_Data[0]  = 0.0f;
     mesh.m_Positions.m_Data[1]  = 0.0f;
     mesh.m_Positions.m_Data[2]  = 0.0f;
     mesh.m_Positions.m_Data[3]  = 1.0f;
-    mesh.m_Positions.m_Data[4]  = 0.0f;
+
+    mesh.m_Positions.m_Data[4]  = 1.0f;
     mesh.m_Positions.m_Data[5]  = 0.0f;
-    mesh.m_Positions.m_Data[6]  = 2.0f;
-    mesh.m_Positions.m_Data[7]  = 0.0f;
-    mesh.m_Positions.m_Data[8]  = 0.0f;
+    mesh.m_Positions.m_Data[6]  = 0.0f;
+    mesh.m_Positions.m_Data[7]  = 1.0f;
+
+    mesh.m_Positions.m_Data[8]  = 2.0f;
+    mesh.m_Positions.m_Data[9]  = 0.0f;
+    mesh.m_Positions.m_Data[10] = 0.0f;
+    mesh.m_Positions.m_Data[11] = 1.0f;
 
     // Vert positioned at bone 2 origo
-    mesh.m_Positions.m_Data[9]  = 1.0f;
-    mesh.m_Positions.m_Data[10] = 2.0f;
-    mesh.m_Positions.m_Data[11] = 0.0f;
+    mesh.m_Positions.m_Data[12] = 1.0f;
+    mesh.m_Positions.m_Data[13] = 2.0f;
+    mesh.m_Positions.m_Data[14] = 0.0f;
+    mesh.m_Positions.m_Data[15] = 1.0f;
 
     // data for each vertex
     mesh.m_Texcoord0.m_Data       = new float[vert_count*2];
@@ -200,20 +207,27 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Texcoord0Indices[2]      = 0;
     mesh.m_Texcoord0Indices[3]      = 0;
 
-    mesh.m_Normals.m_Data         = new float[vert_count*3];
-    mesh.m_Normals.m_Count        = vert_count*3;
+    mesh.m_Normals.m_Data         = new float[vert_count*4];
+    mesh.m_Normals.m_Count        = vert_count*4;
     mesh.m_Normals[0]             = 0.0;
     mesh.m_Normals[1]             = 1.0;
     mesh.m_Normals[2]             = 0.0;
     mesh.m_Normals[3]             = 0.0;
-    mesh.m_Normals[4]             = 1.0;
-    mesh.m_Normals[5]             = 0.0;
+
+    mesh.m_Normals[4]             = 0.0;
+    mesh.m_Normals[5]             = 1.0;
     mesh.m_Normals[6]             = 0.0;
-    mesh.m_Normals[7]             = 1.0;
+    mesh.m_Normals[7]             = 0.0;
+
     mesh.m_Normals[8]             = 0.0;
-    mesh.m_Normals[9]             = 0.0;
-    mesh.m_Normals[10]            = 1.0;
+    mesh.m_Normals[9]             = 1.0;
+    mesh.m_Normals[10]            = 0.0;
     mesh.m_Normals[11]            = 0.0;
+
+    mesh.m_Normals[12]            = 0.0;
+    mesh.m_Normals[13]            = 1.0;
+    mesh.m_Normals[14]            = 0.0;
+    mesh.m_Normals[15]            = 0.0;
 
     mesh.m_NormalsIndices.m_Data    = new uint32_t[vert_count];
     mesh.m_NormalsIndices.m_Count   = vert_count;
@@ -221,6 +235,13 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_NormalsIndices.m_Data[1] = 1;
     mesh.m_NormalsIndices.m_Data[2] = 2;
     mesh.m_NormalsIndices.m_Data[3] = 3;
+
+    mesh.m_NormalsJointOffsets.m_Data = new uint32_t[vert_count];
+    mesh.m_NormalsJointOffsets.m_Count   = vert_count;
+    mesh.m_NormalsJointOffsets.m_Data[0] = 0;
+    mesh.m_NormalsJointOffsets.m_Data[1] = 1;
+    mesh.m_NormalsJointOffsets.m_Data[2] = 2;
+    mesh.m_NormalsJointOffsets.m_Data[3] = 3;
 
     mesh.m_Color.m_Data           = new float[vert_count*4];
     mesh.m_Color.m_Count          = vert_count*4;
@@ -246,8 +267,8 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Indices.m_Data[1]      = 1;
     mesh.m_Indices.m_Data[2]      = 2;
     mesh.m_Indices.m_Data[3]      = 3;
-    mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
-    mesh.m_BoneIndices.m_Count    = vert_count*4;
+    mesh.m_JointWeights.m_Data    = (uint8_t*) new dmRig::JointWeight[vert_count];
+    mesh.m_JointWeights.m_Count   = vert_count;
 
     mesh.m_SkinColor.m_Data           = new float[vert_count*4];
     mesh.m_SkinColor.m_Count          = vert_count*4;
@@ -270,47 +291,21 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
 
     // Bone indices are in reverse order here to test bone list in meshset.
     int bone_count = 6;
-    mesh.m_BoneIndices.m_Data[0]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[1]  = bone_count-2;
-    mesh.m_BoneIndices.m_Data[2]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[3]  = bone_count-1;
+    dmRig::JointWeight* jw = (dmRig::JointWeight*) mesh.m_JointWeights.m_Data;
+    jw[0].m_BoneIndex  = bone_count-1;
+    jw[1].m_BoneIndex  = bone_count-2;
+    jw[2].m_BoneIndex  = bone_count-2;
+    jw[3].m_BoneIndex  = bone_count-3;
 
-    mesh.m_BoneIndices.m_Data[4]  = bone_count-2;
-    mesh.m_BoneIndices.m_Data[5]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[6]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[7]  = bone_count-1;
+    jw[0].m_Weight = 1.0f;
+    jw[1].m_Weight = 1.0f;
+    jw[2].m_Weight = 1.0f;
+    jw[3].m_Weight = 1.0f;
 
-    mesh.m_BoneIndices.m_Data[8]  = bone_count-2;
-    mesh.m_BoneIndices.m_Data[9]  = bone_count-1;
-    mesh.m_BoneIndices.m_Data[10] = bone_count-1;
-    mesh.m_BoneIndices.m_Data[11] = bone_count-1;
-
-    mesh.m_BoneIndices.m_Data[12] = bone_count-3;
-    mesh.m_BoneIndices.m_Data[13] = bone_count-1;
-    mesh.m_BoneIndices.m_Data[14] = bone_count-1;
-    mesh.m_BoneIndices.m_Data[15] = bone_count-1;
-
-    mesh.m_Weights.m_Data         = new float[vert_count*4];
-    mesh.m_Weights.m_Count        = vert_count*4;
-    mesh.m_Weights.m_Data[0]      = 1.0f;
-    mesh.m_Weights.m_Data[1]      = 0.0f;
-    mesh.m_Weights.m_Data[2]      = 0.0f;
-    mesh.m_Weights.m_Data[3]      = 0.0f;
-
-    mesh.m_Weights.m_Data[4]      = 1.0f;
-    mesh.m_Weights.m_Data[5]      = 0.0f;
-    mesh.m_Weights.m_Data[6]      = 0.0f;
-    mesh.m_Weights.m_Data[7]      = 0.0f;
-
-    mesh.m_Weights.m_Data[8]      = 1.0f;
-    mesh.m_Weights.m_Data[9]      = 0.0f;
-    mesh.m_Weights.m_Data[10]     = 0.0f;
-    mesh.m_Weights.m_Data[11]     = 0.0f;
-
-    mesh.m_Weights.m_Data[12]     = 1.0f;
-    mesh.m_Weights.m_Data[13]     = 0.0f;
-    mesh.m_Weights.m_Data[14]     = 0.0f;
-    mesh.m_Weights.m_Data[15]     = 0.0f;
+    jw[0].m_Count = 0;
+    jw[1].m_Count = 0;
+    jw[2].m_Count = 0;
+    jw[3].m_Count = 0;
 
     mesh.m_Visible = true;
     mesh.m_DrawOrder = 0;
@@ -1374,13 +1369,8 @@ TEST_F(RigInstanceTest, MaxBoneCount)
 
     // m_ScratchInfluenceMatrixBuffer should be able to contain the instance max bone count, which is the max of the used skeleton and meshset
     // MaxBoneCount is set to BoneCount + 1 for testing.
-    ASSERT_EQ(m_Context->m_ScratchInfluenceMatrixBuffer.Size(), dmRig::GetMaxBoneCount(m_Instance));
-    ASSERT_EQ(m_Context->m_ScratchInfluenceMatrixBuffer.Size(), dmRig::GetBoneCount(m_Instance) + 1);
-
-    // Setting the m_ScratchInfluenceMatrixBuffer to zero ensures it have to be resized to max bone count
-    m_Context->m_ScratchInfluenceMatrixBuffer.SetCapacity(0);
-    // If this isn't done correctly, it'll assert out of bounds
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0/60.0));
+    ASSERT_EQ(m_Context->m_ScratchInfluenceMatrixBufferSize/sizeof(dmRig::JointMat), dmRig::GetMaxBoneCount(m_Instance));
+    ASSERT_EQ(m_Context->m_ScratchInfluenceMatrixBufferSize/sizeof(dmRig::JointMat), dmRig::GetBoneCount(m_Instance) + 1);
 }
 
 
@@ -1624,7 +1614,6 @@ TEST_F(RigInstanceTest, SkinColor)
     dmRig::RigSpineModelVertex data[4];
     dmRig::RigSpineModelVertex* data_end = data + 4;
 
-    
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
@@ -1641,7 +1630,7 @@ TEST_F(RigInstanceTest, SkinColorAndSlotColor)
     dmRig::RigSpineModelVertex data[4];
     dmRig::RigSpineModelVertex* data_end = data + 4;
 
-    
+
     // Trigger update which will recalculate mesh properties
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
 
@@ -1651,7 +1640,7 @@ TEST_F(RigInstanceTest, SkinColorAndSlotColor)
             anim_track0.m_Colors.m_Data[3] = 1.0f;*/
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));    
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     // Slot color is (1.0, 0.5, 0.0, 1.0)
     // Skin color is (0.5, 0.4, 0.3, 0.2)
     ASSERT_VERT_COLOR(Vector4(0.5f, 0.2f, 0.0f, 0.2f), data[0].rgba);

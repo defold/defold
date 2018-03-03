@@ -4,6 +4,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -52,6 +54,7 @@ import org.jagatoo.loaders.models.collada.stax.XMLSource;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualSceneExtra;
+import org.openmali.vecmath2.Vertex3f;
 
 import com.dynamo.bob.util.MathUtil;
 import com.dynamo.bob.util.RigUtil;
@@ -67,6 +70,7 @@ import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.MeshEntry;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
 public class ColladaUtil {
@@ -615,13 +619,14 @@ public class ColladaUtil {
         assetSpaceMtx.mul(assetSpace.rotation, assetScaleMtx);
         bindShapeMatrix.mul(assetSpaceMtx, bindShapeMatrix);
 
-        List<Float> position_list = new ArrayList<Float>(positions.floatArray.count);
+        List<Float> position_list = new ArrayList<Float>(((positions.floatArray.count)/3)<<2);
         for (int i = 0; i < positions.floatArray.count / 3; ++i) {
             Point3f p = new Point3f(positions.floatArray.floats[i*3], positions.floatArray.floats[i*3+1], positions.floatArray.floats[i*3+2]);
             bindShapeMatrix.transform(p);
             position_list.add(p.getX());
             position_list.add(p.getY());
             position_list.add(p.getZ());
+            position_list.add(1.0f);
         }
 
         // Create a normal matrix which is the transposed inverse of
@@ -632,7 +637,7 @@ public class ColladaUtil {
 
         List<Float> normal_list = null;
         if(normals != null) {
-            normal_list = new ArrayList<Float>(normals.floatArray.count);
+            normal_list = new ArrayList<Float>(((normals.floatArray.count)/3)<<2);
             for (int i = 0; i < normals.floatArray.count / 3; ++i) {
                 Vector3f n = new Vector3f(normals.floatArray.floats[i*3], normals.floatArray.floats[i*3+1], normals.floatArray.floats[i*3+2]);
                 normalMatrix.transform(n);
@@ -642,6 +647,7 @@ public class ColladaUtil {
                 normal_list.add(n.getX());
                 normal_list.add(n.getY());
                 normal_list.add(n.getZ());
+                normal_list.add(0.0f);
             }
         }
 
@@ -687,21 +693,62 @@ public class ColladaUtil {
 
         }
 
-        List<Integer> bone_indices_list = new ArrayList<Integer>(position_list.size()*4);
-        List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
-        int max_bone_count = loadVertexWeights(collada, bone_weights_list, bone_indices_list);
+        ByteBuffer joint_weights = ByteBuffer.allocateDirect((position_list.size()>>2)*8*4);
+        joint_weights.order(ByteOrder.LITTLE_ENDIAN);
+        int max_bone_count = loadVertexWeights(collada, joint_weights, 4);
+        joint_weights.flip();
+
+        class MeshNormalVertexIndex {
+            public Integer positionIndex;
+            public Float nX, nY, nZ;
+            public boolean equals(Object o) {
+                MeshNormalVertexIndex m = (MeshNormalVertexIndex) o;
+                return (this.positionIndex.equals(m.positionIndex) && this.nX.equals(m.nX) && this.nY.equals(m.nY) && this.nZ.equals(m.nZ));
+            }
+        }
+        boolean mesh_has_normals = normal_indices_list.size() > 0;
+        List<MeshNormalVertexIndex> shared_vertex_indices = new ArrayList<MeshNormalVertexIndex>(mesh.triangles.count*3);
+        List<Integer> mesh_index_list = new ArrayList<Integer>(mesh.triangles.count*3);
+        List<Integer> normals_joint_offsets = new ArrayList<Integer>(mesh.triangles.count*3);
+        if(mesh_has_normals) {
+            for (int i = 0; i < mesh.triangles.count*3; ++i) {
+                MeshNormalVertexIndex ci = new MeshNormalVertexIndex();
+                ci.positionIndex = position_indices_list.get(i);
+                int ni = normal_indices_list.get(i)*4;
+                ci.nX = normal_list.get(ni+0);
+                ci.nY = normal_list.get(ni+1);
+                ci.nZ = normal_list.get(ni+2);
+                int index = shared_vertex_indices.indexOf(ci);
+                if(index == -1) {
+                    mesh_index_list.add(shared_vertex_indices.size());
+                    shared_vertex_indices.add(ci);
+                } else {
+                    mesh_index_list.add(index);
+                }
+            }
+            normal_list.clear();
+            for( MeshNormalVertexIndex ci : shared_vertex_indices) {
+                normal_list.add(ci.nX);
+                normal_list.add(ci.nY);
+                normal_list.add(ci.nZ);
+                normal_list.add(0.0f);
+                normals_joint_offsets.add(ci.positionIndex);
+            }
+            normal_indices_list.clear();
+            normal_indices_list.addAll(mesh_index_list);
+        }
 
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
         if(normals != null) {
             meshBuilder.addAllNormals(normal_list);
             meshBuilder.addAllNormalsIndices(normal_indices_list);
+            meshBuilder.addAllNormalsJointOffsets(normals_joint_offsets);
         }
         meshBuilder.addAllPositions(position_list);
         meshBuilder.addAllTexcoord0(texcoord_list);
         meshBuilder.addAllIndices(position_indices_list);
         meshBuilder.addAllTexcoord0Indices(texcoord_indices_list);
-        meshBuilder.addAllWeights(bone_weights_list);
-        meshBuilder.addAllBoneIndices(bone_indices_list);
+        meshBuilder.setJointWeights(ByteString.copyFrom(joint_weights));
 
         // We currently only support one mesh per collada file
         MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
@@ -1050,7 +1097,7 @@ public class ColladaUtil {
         return null;
     }
 
-    private static int loadVertexWeights(XMLCOLLADA collada, List<Float> boneWeightsList, List<Integer> boneIndicesList) throws IOException, XMLStreamException, LoaderException {
+    private static int loadVertexWeights(XMLCOLLADA collada, ByteBuffer joint_weights, int max_influences) throws IOException, XMLStreamException, LoaderException {
 
         XMLSkin skin = null;
         if (!collada.libraryControllers.isEmpty()) {
@@ -1089,20 +1136,20 @@ public class ColladaUtil {
 
             vIndex += influenceCount * 2;
 
-            // Skinning in engine expect each vertex to have exactly 4 bone influences.
-            for (; j < 4; j++ ) {
+
+            if(weights.isEmpty()) {
                 weights.add(new Weight(0, 0.0f));
             }
 
             // Sort and take only the 4 influences with highest weight.
             Collections.sort(weights);
-            weights.setSize(Math.min(4, weights.size()));
-            influenceCount = weights.size();
-
+            weights.setSize(Math.min(max_influences, weights.size()));
+            short count = (short) weights.size();
             for (Weight w : weights) {
-                boneIndicesList.add(w.boneIndex);
+                joint_weights.putFloat(w.weight);
+                joint_weights.putShort((short)w.boneIndex);
+                joint_weights.putShort(--count);
                 maxBoneCount = Math.max(maxBoneCount, w.boneIndex + 1);
-                boneWeightsList.add(w.weight);
             }
         }
         return maxBoneCount;

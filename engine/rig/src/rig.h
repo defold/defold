@@ -90,6 +90,24 @@ namespace dmRig
         float m_Length;
     };
 
+    struct JointMat
+    {
+        inline void Set(const Matrix4& m)
+        {
+            m_Mat[0]  = m[0][0]; m_Mat[1]  = m[1][0]; m_Mat[2]  = m[2][0]; m_Mat[3]  = m[3][0];
+            m_Mat[4]  = m[0][1]; m_Mat[5]  = m[1][1]; m_Mat[6]  = m[2][1]; m_Mat[7]  = m[3][1];
+            m_Mat[8]  = m[0][2]; m_Mat[9]  = m[1][2]; m_Mat[10] = m[2][2]; m_Mat[11] = m[3][2];
+        }
+        float m_Mat[12];
+    };
+
+    struct JointWeight
+    {
+        float    m_Weight;
+        uint16_t m_BoneIndex;
+        uint16_t m_Count;       // # of weights remaining. 0 means next weight is next vertex
+    };
+
     struct MeshProperties
     {
         float m_Color[4];
@@ -198,12 +216,20 @@ namespace dmRig
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
-        dmArray<Matrix4>                m_ScratchInfluenceMatrixBuffer;
         dmArray<Matrix4>                m_ScratchPoseMatrixBuffer;
         // Temporary scratch buffers used when transforming the vertex buffer,
         // used to creating primitives from indices.
-        dmArray<Vector3>                m_ScratchPositionBuffer;
-        dmArray<Vector3>                m_ScratchNormalBuffer;
+
+        Vector3* m_ScratchPositionBuffer;
+        uint32_t m_ScratchPositionBufferSize;
+        Vector3* m_ScratchNormalBuffer;
+        uint32_t m_ScratchNormalBufferSize;
+
+        JointMat* m_ScratchJointMatrixBuffer;
+        uint32_t  m_ScratchJointMatrixBufferSize;
+        JointMat* m_ScratchInfluenceMatrixBuffer;
+        uint32_t  m_ScratchInfluenceMatrixBufferSize;
+
     };
 
     struct NewContextParams {

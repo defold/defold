@@ -7,8 +7,11 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
@@ -56,9 +59,9 @@ public class ColladaUtilTest {
     }
 
     private void assertVtx(List<Float> pos, int i, double xe, double ye, double ze) {
-        float x = pos.get(i * 3 + 0);
-        float y = pos.get(i * 3 + 1);
-        float z = pos.get(i * 3 + 2);
+        float x = pos.get(i * 4 + 0);
+        float y = pos.get(i * 4 + 1);
+        float z = pos.get(i * 4 + 2);
 
         assertEquals(xe, x, EPSILON);
         assertEquals(ye, y, EPSILON);
@@ -66,9 +69,9 @@ public class ColladaUtilTest {
     }
 
     private void assertNrm(List<Float> nrm, int i, double xe, double ye, float ze) {
-        float x = nrm.get(i * 3 + 0);
-        float y = nrm.get(i * 3 + 1);
-        float z = nrm.get(i * 3 + 2);
+        float x = nrm.get(i * 4 + 0);
+        float y = nrm.get(i * 4 + 1);
+        float z = nrm.get(i * 4 + 2);
 
         assertEquals(xe, x, EPSILON);
         assertEquals(ye, y, EPSILON);
@@ -103,7 +106,7 @@ public class ColladaUtilTest {
         assertEquals(expected.w, actual.get(3), EPSILON);
     }
 
-    private void assertVertBone(Tuple4i expected, List<Integer> actual) {
+    private void assertVertBone(Tuple4i expected, List<Short> actual) {
         assertEquals(expected.x, actual.get(0), EPSILON);
         assertEquals(expected.y, actual.get(1), EPSILON);
         assertEquals(expected.z, actual.get(2), EPSILON);
@@ -190,11 +193,11 @@ public class ColladaUtilTest {
         Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("maya_quad.dae"), meshSet);
         Rig.Mesh mesh = meshSet.getMeshEntries(0).getMeshes(0);
-        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
-        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
+        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 4);
+        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 4);
         List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
-        assertThat(2 * 3 * 3, is(pos.size()));
-        assertThat(2 * 3 * 3, is(nrm.size()));
+        assertThat(2 * 3 * 4, is(pos.size()));
+        assertThat(2 * 3 * 4, is(nrm.size()));
 
         assertVtx(pos, 0, -0.005, -0.005, 0);
         assertVtx(pos, 1,  0.005, -0.005, 0);
@@ -224,12 +227,12 @@ public class ColladaUtilTest {
         ColladaUtil.loadMesh(load("blender_polylist_quad.dae"), meshSet);
         Rig.Mesh mesh = meshSet.getMeshEntries(0).getMeshes(0);
 
-        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
-        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
+        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 4);
+        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 4);
         List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
 
-        assertThat(2 * 3 * 3, is(pos.size()));
-        assertThat(2 * 3 * 3, is(nrm.size()));
+        assertThat(2 * 3 * 4, is(pos.size()));
+        assertThat(2 * 3 * 4, is(nrm.size()));
         assertThat(2 * 3 * 2, is(uvs.size()));
 
         assertVtx(pos, 0, -1, 0,  1);
@@ -265,8 +268,8 @@ public class ColladaUtilTest {
         ColladaUtil.load(getClass().getResourceAsStream("quad_normals.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
         Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
 
-        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
-        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
+        List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 4);
+        List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 4);
 
         // face 0:
         assertVtx(pos, 0, -1,  0, -1);
@@ -312,13 +315,16 @@ public class ColladaUtilTest {
         ColladaUtil.load(load("bone_influences.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
         Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
 
-        // Should have exactly 4 influences per vertex
-        int vertCount = mesh.getIndicesCount();
-        assertEquals(vertCount*4, mesh.getBoneIndicesCount());
-        assertEquals(vertCount*4, mesh.getWeightsCount());
-
-        List<Integer>boneIndices = mesh.getBoneIndicesList();
-        List<Float>boneWeights = mesh.getWeightsList();
+        // Decompose joint weight array to lists
+        List<Float> boneWeights = new ArrayList<Float>();
+        List<Short> boneIndices = new ArrayList<Short>();
+        List<Short> boneOffsets = new ArrayList<Short>();
+        ByteBuffer bb = mesh.getJointWeights().asReadOnlyByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+        for(int i = 0; i < mesh.getJointWeights().size()/8; ++i) {
+            boneWeights.add(bb.getFloat());
+            boneIndices.add(bb.getShort());
+            boneOffsets.add(bb.getShort());
+        }
 
         // Test the max bone count is correct, should be 4 for this mesh, which is the highest indexed bone + 1 in any of the meshes in the mesh set
         assertEquals(Collections.max(boneIndices).longValue(), meshSetBuilder.getMaxBoneCount()-1);
@@ -344,19 +350,20 @@ public class ColladaUtilTest {
          * |      |     4: 0.5     |
          * -------------------------
          *
-         * Influences for v0 will be expanded into 3 more with zero weights.
+         * Influences for v0 will be a single joint weight
          * Influences for v1 will be reordered, influence of bone 1 (lowest weight) will be skipped.
          * Influences for v2 will be reordered, influence of bone 0 (lowest weight) will be skipped.
          */
+        assertEquals(9, boneWeights.size());
 
-        assertVertBone(new Point4i(0, 0, 0, 0), boneIndices.subList(0, 4));
-        assertVertWeight(new Vector4f(0.25f, 0.0f, 0.0f, 0.0f), boneWeights.subList(0, 4));
+        assertEquals(0.25f, boneWeights.get(0), EPSILON);
+        assertEquals(0, boneIndices.get(0).intValue());
 
-        assertVertBone(new Point4i(0, 4, 3, 2), boneIndices.subList(4, 8));
-        assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(4, 8));
+        assertVertBone(new Point4i(0, 4, 3, 2), boneIndices.subList(1, 5));
+        assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(1, 5));
 
-        assertVertBone(new Point4i(4, 3, 2, 1), boneIndices.subList(8, 12));
-        assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(8, 12));
+        assertVertBone(new Point4i(4, 3, 2, 1), boneIndices.subList(5, 9));
+        assertVertWeight(new Vector4f(0.5f, 0.4f, 0.3f, 0.2f), boneWeights.subList(5, 9));
     }
 
     @Test
@@ -1003,11 +1010,31 @@ public class ColladaUtilTest {
         // Invalid <float_array> values will be replaced with 0.0.
         // (Without the fix in XMLFloatArray.java this would have thrown an exception.)
         int positionsCount = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositionsCount();
-        assertEquals(414, positionsCount);
+        assertEquals(552, positionsCount);
 
         // The test file has the first Z component of the positions array set to "-1.#IND00",
         // make sure it was parsed as 0.0 instead.
         assertEquals(0.0, meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(2), EPSILON);
+    }
+
+    /*
+     * Tests mesh skinned vertex optimization when there are several instances of normals sharing a vertex.
+     */
+    @Test
+    public void testNormalSkinning() throws Exception {
+        // Not sharing vertex normal attributes. should not be able to optimize normal instances
+        Rig.MeshSet.Builder mesh = Rig.MeshSet.newBuilder();
+        ColladaUtil.loadMesh(load("two_bone_two_triangles.dae"), mesh);
+        Rig.Mesh m = mesh.getMeshEntries(0).getMeshes(0);
+        assertEquals(m.getIndicesCount(), m.getPositionsCount()/4);
+        assertEquals(m.getIndicesCount(), m.getNormalsCount()/4);
+
+        // Sharing vertex normal attributes, should be able to optimize normal instances
+        mesh = Rig.MeshSet.newBuilder();
+        ColladaUtil.loadMesh(load("two_bone.dae"), mesh);
+        m = mesh.getMeshEntries(0).getMeshes(0);
+        assertTrue(m.getIndicesCount() > m.getPositionsCount()/4);
+        assertTrue(m.getIndicesCount() > m.getNormalsCount()/4);
     }
 
     /*

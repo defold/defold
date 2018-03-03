@@ -503,7 +503,6 @@ namespace dmGameSystem
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
                 world->m_RenderObjects.SetSize(0);
                 dmArray<dmRig::RigModelVertex>& vertex_buffer = world->m_VertexBufferData;
                 vertex_buffer.SetSize(0);
@@ -516,8 +515,7 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(dmRig::RigModelVertex) * world->m_VertexBufferData.Size(),
-                                                world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(dmRig::RigModelVertex) * world->m_VertexBufferData.Size(), world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
                 DM_COUNTER("ModelVertexBuffer", world->m_VertexBufferData.Size() * sizeof(dmRig::RigModelVertex));
                 break;
             }
