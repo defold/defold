@@ -1868,6 +1868,16 @@ command."
                        first)]
     (.. tab-pane getSelectionModel (select tab))))
 
+(defn inside-hidden-tab? [^Node node]
+  (let [tab-content-area (closest-node-with-style "tab-content-area" node)]
+    (and (some? tab-content-area)
+         (not= tab-content-area
+               (some-> tab-content-area
+                       .getParent
+                       selected-tab
+                       .getContent
+                       .getParent)))))
+
 ;; NOTE: Running Desktop methods on JavaFX application thread locks
 ;; application on Linux, so we do it on a new thread.
 

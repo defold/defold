@@ -40,7 +40,8 @@
             [service.log :as log]
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
@@ -101,6 +102,7 @@
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
+  (input scene-view-refresh-fns g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
@@ -945,6 +947,15 @@ If you do not specifically require different script states, consider changing th
         (profiler/profile "view" (:name @(g/node-type* node))
                           (g/node-value node label))))))
 
+(defn- refresh-scene-views! [app-view]
+  (profiler/begin-frame)
+  (doseq [refresh-fn (g/node-value app-view :scene-view-refresh-fns)]
+    (try
+      (refresh-fn)
+      (catch Throwable error
+        (error-reporting/report-exception! error))))
+  (scene-cache/prune!))
+
 (defn- tab->resource-node [^Tab tab]
   (some-> tab
     (ui/user-data ::view)
@@ -1015,10 +1026,12 @@ If you do not specifically require different script states, consider changing th
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
       (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ _] (refresh-ui! app-view stage project)))
-                            (ui/->timer 13 "refresh-views" (fn [_ _] (refresh-views! app-view)))]]
+                            (ui/->timer 13 "refresh-views" (fn [_ _] (refresh-views! app-view)))
+                            (ui/->timer "refresh-scene-views" (fn [_ _] (refresh-scene-views! app-view)))]]
         (doseq [timer refresh-timers]
           (ui/timer-stop-on-closed! stage timer)
           (ui/timer-start! timer)))
+      (ui/on-closed! stage (fn [_] (scene-cache/drop-all!)))
       app-view)))
 
 (defn- make-tab! [app-view prefs workspace project resource resource-node
