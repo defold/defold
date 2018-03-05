@@ -87,7 +87,7 @@ mkdir -p "${BUILD}"
     "${SECURITY}" cms -D -i "${PROFILE}" > "${PROVISION}"
     "${PLISTBUDDY}" -x -c 'Print :Entitlements' "${PROVISION}" > "${ENTITLEMENT}"
 
-    cp "${ENGINE}" "Payload/${APPLICATION}.app/${APPLICATION}"
+    cp -v "${ENGINE}" "Payload/${APPLICATION}.app/${APPLICATION}"
     chmod +x "Payload/${APPLICATION}.app/${APPLICATION}"
 
     rm -rf "Payload/${APPLICATION}.app/_CodeSignature"

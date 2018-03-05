@@ -29,7 +29,7 @@ IOS_SDK_VERSION="11.2"
 # Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
 MIN_IOS_SDK_VERSION="6.0"
 
-OSX_SDK_VERSION="10.12"
+OSX_SDK_VERSION="10.13"
 MIN_OSX_SDK_VERSION="10.7"
 
 
@@ -200,7 +200,7 @@ def default_flags(self):
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'AVFoundation', '-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 

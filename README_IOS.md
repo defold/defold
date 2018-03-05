@@ -88,8 +88,9 @@ extract it properly!
 
 ### Package macOS SDK
 
-	$ cd /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
-	$ tar -chvzf ~/work/MacOSX10.12.sdk.tar.gz MacOSX10.12.sdk
+    $ cd /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
+    # the -h option didn't work on this package, it got caught in a resolve loop
+    $ tar -cvzf ~/work/MacOSX10.13.sdk.tar.gz MacOSX.sdk
 
 
 ### Package toolchain
