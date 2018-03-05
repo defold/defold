@@ -239,9 +239,20 @@
                     :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
                     value)
             [entry-key values-key] (type->entry-keys type)
-            entry {:key (:id prop)
-                   :id (murmur/hash64 (:id prop))
-                   :index (count (get decl values-key))}]
+            entry (cond-> {:key (:id prop)
+                           :id (murmur/hash64 (:id prop))
+                           :index (count (get decl values-key))}
+
+                          (case type
+                            (:property-type-vector3 :property-type-vector4 :property-type-quat) true
+                            false)
+                          (assoc :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                                                    [".x" ".y" ".z"]))
+
+                          (case type
+                            (:property-type-vector4 :property-type-quat) true
+                            false)
+                          (update :element-ids conj (murmur/hash64 (str (:id prop) ".w"))))]
         (recur (rest properties)
                (-> decl
                  (update entry-key conj! entry)
