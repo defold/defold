@@ -6,7 +6,7 @@
             [editor.math :as math]
             [editor.workspace :as workspace]
             [util.murmur :as murmur])
-  (:import (org.antlr.v4.runtime Token TokenStream)))
+  (:import (org.antlr.v4.runtime BufferedTokenStream Token)))
 
 (def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
 
@@ -467,4 +467,4 @@
 (defn tokens [code]
   (map (fn [^Token token]
          [(.getText token) (dec (.getLine token)) (.getCharPositionInLine token)])
-       (.getTokens ^TokenStream (:tokens (antlr/parse real-lua-parser {:format :raw} code)))))
+       (.getTokens ^BufferedTokenStream (:tokens (antlr/parse real-lua-parser {:format :raw} code)))))
