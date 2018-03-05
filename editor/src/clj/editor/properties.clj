@@ -224,7 +224,7 @@
       (recur (rest vs) (conj! values v))
       values)))
 
-(defn properties->decls [properties]
+(defn properties->decls [properties include-element-ids?]
   (loop [properties properties
          decl (->decl [:number-entries :hash-entries :url-entries :vector3-entries
                        :vector4-entries :quat-entries :bool-entries :float-values
@@ -239,20 +239,21 @@
                     :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
                     value)
             [entry-key values-key] (type->entry-keys type)
-            entry (cond-> {:key (:id prop)
-                           :id (murmur/hash64 (:id prop))
-                           :index (count (get decl values-key))}
+            entry {:key (:id prop)
+                   :id (murmur/hash64 (:id prop))
+                   :index (count (get decl values-key))}
+            entry (cond
+                    (not include-element-ids?)
+                    entry
 
-                          (case type
-                            (:property-type-vector3 :property-type-vector4 :property-type-quat) true
-                            false)
-                          (assoc :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                    (= type :property-type-vector3)
+                    (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
                                                     [".x" ".y" ".z"]))
 
-                          (case type
-                            (:property-type-vector4 :property-type-quat) true
-                            false)
-                          (update :element-ids conj (murmur/hash64 (str (:id prop) ".w"))))]
+                    (or (= type :property-type-vector4)
+                        (= type :property-type-quat))
+                    (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                                                    [".x" ".y" ".z" ".w"])))]
         (recur (rest properties)
                (-> decl
                  (update entry-key conj! entry)
