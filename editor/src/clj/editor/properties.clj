@@ -253,7 +253,8 @@
                     (or (= type :property-type-vector4)
                         (= type :property-type-quat))
                     (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
-                                                    [".x" ".y" ".z" ".w"])))]
+                                                    [".x" ".y" ".z" ".w"]))
+                    :else entry)]
         (recur (rest properties)
                (-> decl
                  (update entry-key conj! entry)
