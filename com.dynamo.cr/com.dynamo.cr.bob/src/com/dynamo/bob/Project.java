@@ -572,6 +572,8 @@ public class Project {
         String[] platformStrings;
         if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin )
         {
+            // iOS is currently the only OS we use that supports fat binaries
+            // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
             platformStrings = platformArchs.getArchitectures();
         }
         else
