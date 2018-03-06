@@ -1,8 +1,8 @@
 
 # use this on while debugging a docker container, to see what libs/frameworks are installed
 
-SDK=${DYNAMO_HOME}/ext/SDKs/iPhoneOS11.2.sdk
-#SDK=${DYNAMO_HOME}/ext/SDKs/MacOSX10.12.sdk
+#SDK=${DYNAMO_HOME}/ext/SDKs/iPhoneOS11.2.sdk
+SDK=${DYNAMO_HOME}/ext/SDKs/MacOSX10.13.sdk
 
 
 echo Searching $SDK

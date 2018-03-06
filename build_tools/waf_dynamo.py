@@ -200,7 +200,7 @@ def default_flags(self):
     if 'osx' == build_util.get_target_os() or 'ios' == build_util.get_target_os():
         self.env.append_value('LINKFLAGS', ['-framework', 'Foundation'])
         if 'ios' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-framework', 'AVFoundation', '-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
+            self.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'AdSupport', '-framework', 'SystemConfiguration', '-framework', 'CoreTelephony'])
         else:
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
@@ -1369,7 +1369,6 @@ def detect(conf):
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'clang'
         os.environ['CXX'] = 'clang++'
-
         conf.env['CC']      = '%s/usr/bin/clang' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['CXX']     = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LINK_CXX']= '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
