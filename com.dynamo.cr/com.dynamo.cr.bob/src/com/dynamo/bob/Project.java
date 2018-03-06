@@ -569,7 +569,16 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        String[] platformStrings = platformArchs.getArchitectures();
+        String[] platformStrings;
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin )
+        {
+            platformStrings = platformArchs.getArchitectures();
+        }
+        else
+        {
+            platformStrings = new String[1];
+            platformStrings[0] = p.getPair();
+        }
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Building engine...", 0);
 
