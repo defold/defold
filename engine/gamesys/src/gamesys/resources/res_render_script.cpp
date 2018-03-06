@@ -22,7 +22,6 @@ namespace dmGameSystem
         }
 
         dmRender::HRenderScript render_script = dmRender::NewRenderScript(render_context, &lua_module->m_Source);
-        params.m_Resource->m_ResourceSize = params.m_BufferSize - lua_module->m_Source.m_Script.m_Count;
         dmDDF::FreeMessage(lua_module);
         if (render_script)
         {
@@ -59,7 +58,6 @@ namespace dmGameSystem
         }
         if (dmRender::ReloadRenderScript(render_context, render_script, &lua_module->m_Source))
         {
-            params.m_Resource->m_ResourceSize = params.m_BufferSize - lua_module->m_Source.m_Script.m_Count;
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
         }

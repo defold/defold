@@ -262,7 +262,6 @@ namespace dmParticle
         Prototype()
         : m_Emitters()
         , m_DDF(0x0)
-        , m_DDFSize(0x0)
         {
         }
 
@@ -270,8 +269,6 @@ namespace dmParticle
         dmArray<EmitterPrototype>   m_Emitters;
         /// DDF structure read from the resource.
         dmParticleDDF::ParticleFX*  m_DDF;
-        /// Bytesize of DFF data
-        uint32_t m_DDFSize;
     };
 
     void UpdateRenderData(HParticleContext context, HInstance instance, uint32_t emitter_index);

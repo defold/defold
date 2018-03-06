@@ -29,7 +29,6 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) profiles;
-            params.m_Resource->m_ResourceSize = dmRender::GetDisplayProfilesResourceSize(profiles);
         }
         else
         {
@@ -48,9 +47,6 @@ namespace dmGameSystem
     {
         dmRender::HDisplayProfiles profiles = (dmRender::HDisplayProfiles) params.m_Resource->m_Resource;
         dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, profiles, params.m_Filename);
-        if(r != dmResource::RESULT_OK)
-            return r;
-        params.m_Resource->m_ResourceSize = dmRender::GetDisplayProfilesResourceSize(profiles);
-        return dmResource::RESULT_OK;
+        return r;
     }
 }

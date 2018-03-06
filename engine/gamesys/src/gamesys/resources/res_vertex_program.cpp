@@ -12,7 +12,6 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
 
         params.m_Resource->m_Resource = (void*) prog;
-        params.m_Resource->m_ResourceSize = params.m_BufferSize;
         return dmResource::RESULT_OK;
     }
 
@@ -28,11 +27,7 @@ namespace dmGameSystem
         if (prog == 0 )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        if(!dmGraphics::ReloadVertexProgram(prog, params.m_Buffer, params.m_BufferSize))
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-        params.m_Resource->m_ResourceSize = params.m_BufferSize;
-        return  dmResource::RESULT_OK;
+        bool success = dmGraphics::ReloadVertexProgram(prog, params.m_Buffer, params.m_BufferSize);
+        return success ? dmResource::RESULT_OK : dmResource::RESULT_FORMAT_ERROR;
     }
 }
