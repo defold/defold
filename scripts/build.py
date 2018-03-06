@@ -407,7 +407,8 @@ class Configuration(object):
                 url = '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_IOS_SDK)
                 dlpath = self._download(url)
                 tmpfolder = join(self.ext, 'SDKs')
-                self._extract_tgz(dlpath, tgtfolder)
+                self._extract_tgz(dlpath, tmpfolder)
+                os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
 
     def _form_ems_path(self):
         path = ''
@@ -694,7 +695,7 @@ class Configuration(object):
         return platforms
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        return 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install -v' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
+        return 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))

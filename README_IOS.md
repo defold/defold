@@ -80,7 +80,7 @@ However, the extracted folder needs to have the version number, so make sure you
 extract it properly!
 
     $ cd /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs
-    $ tar -chzvf iPhoneOS11.2.sdk.tar.gz iPhoneOS11.2.sdk
+    $ tar -czvf ~/work/iPhoneOS11.2.sdk.tar.gz iPhoneOS.sdk
 
 #### How to test locally on the engine build:
 
