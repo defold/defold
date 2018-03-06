@@ -109,7 +109,7 @@ public:
 int g_PythonTestResult;
 void RunPythonThread(void*)
 {
-#if !defined(DM_NO_SYSTEM)
+#if !defined(DM_NO_SYSTEM_FUNCTION)
     g_PythonTestResult = system("python src/test/test_webserver.py");
 #else
     g_PythonTestResult = -1;

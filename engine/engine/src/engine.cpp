@@ -1120,7 +1120,11 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
+        // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
+        uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t time = dmTime::GetTime();
+        uint64_t prev_flip_time = engine->m_FlipTime;
+
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;
         float dt = fixed_dt;
@@ -1319,8 +1323,6 @@ bail:
 #if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
-                    uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
-                    uint64_t prev_flip_time = engine->m_FlipTime;
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
                     int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
                     if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough

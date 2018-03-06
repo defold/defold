@@ -140,4 +140,4 @@ making sure that the contained library has a version number!
 
 ### Defold SDK (build.yml)
 
-Also, you should update the list of ```allowedLibs``` in the ```defold/share/extender/build.yml``` for both iOS and OSX. The easiest way to do that is to use the ``defold/share/extender/find_libs_apple.sh``` (after running ```./scripts/build.py install_ext``` to download the packages to ```$DYNAMO_HOME```)
+Also, you should update the list of `allowedLibs` in the `defold/share/extender/build.yml` for both iOS and OSX. The easiest way to do that is to use the `defold/share/extender/find_libs_apple.sh` (after running `./scripts/build.py install_ext` to download the packages to `$DYNAMO_HOME`)

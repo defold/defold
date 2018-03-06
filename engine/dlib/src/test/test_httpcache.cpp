@@ -11,7 +11,7 @@ class dmHttpCacheTest : public ::testing::Test
 {
     virtual void SetUp()
     {
-#if !defined(DM_NO_SYSTEM)
+#if !defined(DM_NO_SYSTEM_FUNCTION)
         int ret = system("python src/test/test_httpcache.py");
         ASSERT_EQ(0, ret);
 #endif
@@ -217,7 +217,7 @@ TEST_F(dmHttpCacheTest, CorruptContent)
 
     ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
 
-#if !defined(DM_NO_SYSTEM)
+#if !defined(DM_NO_SYSTEM_FUNCTION)
     int ret = system("python src/test/test_httpcache_corrupt_content.py");
     ASSERT_EQ(0, ret);
 #endif
@@ -264,7 +264,7 @@ TEST_F(dmHttpCacheTest, MissingContent)
 
     ASSERT_EQ(1U, dmHttpCache::GetEntryCount(cache));
 
-#if !defined(DM_NO_SYSTEM)
+#if !defined(DM_NO_SYSTEM_FUNCTION)
     int ret = system("python src/test/test_httpcache_remove_content.py");
     ASSERT_EQ(0, ret);
 #endif

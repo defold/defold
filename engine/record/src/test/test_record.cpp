@@ -108,7 +108,7 @@ TEST(dmRecord, Simple)
 
 int main(int argc, char **argv)
 {
-#if !defined(DM_NO_SYSTEM)
+#if !defined(DM_NO_SYSTEM_FUNCTION)
     system("python src/test/test_record.py");
 #endif
     testing::InitGoogleTest(&argc, argv);

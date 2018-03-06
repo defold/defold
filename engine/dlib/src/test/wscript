@@ -46,7 +46,7 @@ def build(bld):
 
     extra_defines = []
     if re.match('arm.*?darwin', bld.env.PLATFORM):
-        extra_defines = ['DM_NO_SYSTEM']
+        extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
