@@ -109,25 +109,25 @@
   (run [selection ^Git git]
        (diff-view/present-diff-data (git/selection-diff-data git selection))))
 
-(defn- upload-project [changes-view workspace project]
+(defn- upload-project! [changes-view workspace project]
   (try
     (let [prefs (g/node-value changes-view :prefs)]
       (when (login/login prefs)
         (let [client (client/make-client prefs)]
           (when-let [user-id (client/user-id client)]
             (try
-              (let [project-title (project/project-title project)]
-                (when-let [repo-url (:repository-url (client/new-project client user-id {:name project-title}))]
-                  (let [proj-path (.getPath (workspace/project-path workspace))
-                        creds (git/credentials prefs)]
-                    (when-let [git (git/init proj-path)]
-                      (doto git
-                        (git/stage-change! (git/make-add-change "."))
-                        (git/commit "Initial commit")
-                        (git/config-remote! repo-url)
-                        (git/push creds))
-                      (do
-                        (g/set-property! changes-view :unconfigured-git git))))))
+              (let [project-title (project/project-title project)
+                    repo-url (:repository-url (client/new-project client user-id {:name project-title}))
+                    proj-path (.getPath (workspace/project-path workspace))
+                    creds (git/credentials prefs)]
+                (when-let [git (git/init proj-path)]
+                  (doto git
+                    (git/stage-change! (git/make-add-change "."))
+                    (git/commit "Initial commit")
+                    (git/config-remote! repo-url)
+                    (git/push creds))
+                  (do
+                    (g/set-property! changes-view :unconfigured-git git))))
               (catch ExceptionInfo e
                 (let [message (if (= 403 (:status (ex-data e)))
                                 "You are not authorized to create a new project on the dashboard."
@@ -140,29 +140,29 @@
 (handler/defhandler :synchronize :global
   (run [changes-view workspace project]
     (if (not (g/node-value changes-view :unconfigured-git))
-      (upload-project changes-view workspace project)
+      (upload-project! changes-view workspace project)
       (let [git   (g/node-value changes-view :git)
-           prefs (g/node-value changes-view :prefs)]
-       ;; Check if there are locked files below the project folder before proceeding.
-       ;; If so, we abort the sync and notify the user, since this could cause problems.
-       (loop []
-         (if-some [locked-files (not-empty (git/locked-files git))]
-           ;; Found locked files below the project. Notify user and offer to retry.
-           (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
-                                              {:title "Not Safe to Sync"
-                                               :ok-label "Retry"
-                                               :cancel-label "Cancel"})
-             (recur))
+            prefs (g/node-value changes-view :prefs)]
+        ;; Check if there are locked files below the project folder before proceeding.
+        ;; If so, we abort the sync and notify the user, since this could cause problems.
+        (loop []
+          (if-some [locked-files (not-empty (git/locked-files git))]
+            ;; Found locked files below the project. Notify user and offer to retry.
+            (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
+                                               {:title "Not Safe to Sync"
+                                                :ok-label "Retry"
+                                                :cancel-label "Cancel"})
+              (recur))
 
-           ;; Found no locked files.
-           ;; Save the project before we initiate the sync process. We need to do this because
-           ;; the unsaved files may also have changed on the server, and we'll need to merge.
-           (do (project/save-all! project)
-               (when (login/login prefs)
-                 (let [creds (git/credentials prefs)
-                       flow (sync/begin-flow! git creds)]
-                   (sync/open-sync-dialog flow)
-                   (resource-sync-after-git-change! changes-view workspace))))))))))
+            ;; Found no locked files.
+            ;; Save the project before we initiate the sync process. We need to do this because
+            ;; the unsaved files may also have changed on the server, and we'll need to merge.
+            (do (project/save-all! project)
+                (when (login/login prefs)
+                  (let [creds (git/credentials prefs)
+                        flow (sync/begin-flow! git creds)]
+                    (sync/open-sync-dialog flow)
+                    (resource-sync-after-git-change! changes-view workspace))))))))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."
