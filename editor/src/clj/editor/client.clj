@@ -4,10 +4,11 @@
             [service.log :as log])
   (:import [com.defold.editor.client DefoldAuthFilter]
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
-           [com.dynamo.cr.protocol.proto Protocol$UserInfo]
+           [com.dynamo.cr.protocol.proto Protocol$UserInfo Protocol$NewProject Protocol$ProjectInfo]
+           [com.google.protobuf Message]
            [com.sun.jersey.api.client Client ClientHandlerException ClientResponse WebResource WebResource$Builder]
            [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
-           [java.io InputStream]
+           [java.io InputStream ByteArrayInputStream]
            [java.net URI]
            [javax.ws.rs.core MediaType]))
 
@@ -81,3 +82,19 @@
         (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp))
                         {:status (.getStatus resp)
                          :uri (.toString (.getURI resource))}))))))
+
+(defn new-project [client user-id new-project-pb-map]
+  (let [{:keys [^Client client prefs]} client
+        new-project-pb ^Message (protobuf/map->pb Protocol$NewProject new-project-pb-map)
+        ^WebResource resource (-> (.resource client (server-url prefs))
+                                (.path "projects")
+                                (.path (str user-id)))
+        input (ByteArrayInputStream. (.toByteArray new-project-pb))
+        ^ClientResponse resp (-> resource
+                               (.type "application/x-protobuf")
+                               (.post ClientResponse input))]
+    (if (> 300 (.getStatus resp))
+      (protobuf/pb->map (.getEntity resp Protocol$ProjectInfo))
+      (throw (ex-info (format "Could not create new project %d: %s" (.getStatus resp) (.toString resp))
+                      {:status (.getStatus resp)
+                       :uri (.toString (.getURI resource))})))))

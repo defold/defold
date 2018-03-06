@@ -1,24 +1,30 @@
 (ns editor.boot
   (:require
+   [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.pprint :as pprint]
    [clojure.stacktrace :as stack]
    [clojure.tools.cli :as cli]
+   [clojure.string :as str]
    [dynamo.graph :as g]
    [editor.code.view :as code-view]
    [editor.dialogs :as dialogs]
    [editor.system :as system]
    [editor.error-reporting :as error-reporting]
+   [editor.fs :as fs]
    [editor.import :as import]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
    [editor.ui :as ui]
    [editor.updater :as updater]
-   [service.log :as log])
+   [service.log :as log]
+   [util.net :as net])
   (:import
    [com.defold.control ListCell]
-   [java.io File]
+   [java.io File FileOutputStream]
    [java.util Arrays]
+   [java.util.zip ZipInputStream ZipEntry]
+   [java.net URL URLConnection]
    [javax.imageio ImageIO]
    [javafx.scene Scene]
    [javafx.scene.control Button Control Label ListView]
@@ -26,7 +32,8 @@
    [javafx.scene.layout VBox]
    [javafx.stage Stage]
    [javafx.animation AnimationTimer]
-   [javafx.util Callback]))
+   [javafx.util Callback]
+   [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -81,11 +88,57 @@
 
 (def ^:const open-project-directory "open-project-directory")
 
+(defn- download-proj-zip! [url]
+  (let [file ^File (fs/create-temp-file! "template-project" ".zip")]
+    (with-open [output (FileOutputStream. file)]
+      (do
+        ;; TODO net/download! accepts a callback for progress reporting, use that.
+        ;; The long timeout suggests we need some progress reporting even before d/l starts.
+        (let [timeout 2000]
+          (net/download! url output :connect-timeout timeout :read-timeout timeout))
+        file))))
+
+(defn- expand-proj-zip! [src dst skip-root?]
+  (with-open [zip (ZipInputStream. (io/input-stream src))]
+    (loop [entry (.getNextEntry zip)]
+      (when entry
+        (let [parts (cond-> (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
+                      skip-root? (next))
+              entry-dst (File. (str/join "/" (cons dst parts)))]
+          (do
+            (if (.isDirectory entry)
+              (.mkdir entry-dst)
+              (with-open [output (FileOutputStream. entry-dst)]
+                (io/copy zip output)))
+            (recur (.getNextEntry zip))))))))
+
+(defn- make-new-project [template dst]
+  (let [dst (io/as-file dst)]
+    (try
+      (when-let [src (download-proj-zip! (:zip-url template))]
+        (expand-proj-zip! src dst (:skip-root? template))
+        dst)
+      (catch Exception e
+        ;; TODO proper error handling
+        nil))))
+
+(defn- on-new-project! [stage prefs settings cont]
+  (when-let [dst ^String (ui/choose-directory "Select Directory" nil)]
+    (when-let [proj-root ^File (make-new-project (first (:templates settings)) dst)]
+      (when (.isDirectory proj-root)
+        (prefs/set-prefs prefs open-project-directory (.getPath proj-root))
+        (ui/close! stage)
+        (cont (.getAbsolutePath (File. proj-root "game.project")))))))
+
 (defn open-welcome [prefs update-context cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
+        welcome-settings (-> (io/resource "welcome.edn")
+                           slurp
+                           edn/read-string)
         stage (ui/make-dialog-stage)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")
+        ^Button new-project (.lookup root "#new-project")
         ^Button open-project (.lookup root "#open-project")
         import-project (.lookup root "#import-project")]
 
@@ -93,6 +146,7 @@
       (install-pending-update-check! stage update-context))
 
     (ui/set-main-stage stage)
+    (ui/on-action! new-project (fn [_] (on-new-project! stage prefs (:new-project welcome-settings) cont)))
     (ui/on-action! open-project (fn [_] (when-let [file (ui/choose-file {:title "Open Project"
                                                                                  :directory (prefs/get-prefs prefs open-project-directory nil)
                                                                                  :filters [{:description "Project Files"

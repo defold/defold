@@ -100,6 +100,24 @@
   (let [config (.. git getRepository getConfig)]
     (not-empty (.getString config "remote" "origin" "url"))))
 
+;; Does the equivalent *config-wise* of:
+;; > git config remote.origin.url url
+;; > git push -u origin
+;; Which is:
+;; > git config remote.origin.url url
+;; > git config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*
+;; > git config branch.master.remote origin
+;; > git config branch.master.merge refs/heads/master
+;; according to https://stackoverflow.com/questions/27823940/jgit-pushing-a-branch-and-add-upstream-u-option
+(defn config-remote! [^Git git url]
+  (let [config (.. git getRepository getConfig)]
+    (doto config
+      (.setString "remote" "origin" "url" url)
+      (.setString "remote" "origin" "fetch" "+refs/heads/*:refs/remotes/origin/*")
+      (.setString "branch" "master" "remote" "origin")
+      (.setString "branch" "master" "merge" "refs/heads/master")
+      (.save))))
+
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
 
