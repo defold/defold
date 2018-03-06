@@ -112,7 +112,7 @@
                 (io/copy zip output)))
             (recur (.getNextEntry zip))))))))
 
-(defn- make-new-project [template dst]
+(defn- make-new-project ^File [template dst]
   (let [dst (io/as-file dst)]
     (try
       (when-let [src (download-proj-zip! (:zip-url template))]
@@ -124,11 +124,10 @@
 
 (defn- on-new-project! [stage prefs settings cont]
   (when-let [dst ^String (ui/choose-directory "Select Directory" nil)]
-    (when-let [proj-root ^File (make-new-project (first (:templates settings)) dst)]
-      (when (.isDirectory proj-root)
-        (prefs/set-prefs prefs open-project-directory (.getPath proj-root))
-        (ui/close! stage)
-        (cont (.getAbsolutePath (File. proj-root "game.project")))))))
+    (when-let [proj-root (make-new-project (first (:templates settings)) dst)]
+      (prefs/set-prefs prefs open-project-directory (.getPath proj-root))
+      (ui/close! stage)
+      (cont (.getAbsolutePath (File. proj-root "game.project"))))))
 
 (defn open-welcome [prefs update-context cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
