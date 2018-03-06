@@ -2,7 +2,6 @@
 
 Repository for engine, editor and server.
 
-
 ## Code Style
 
 Follow current code style and use 4 spaces for tabs. Never commit code
@@ -12,6 +11,7 @@ API documentation is generated from source comments. See README_DOCS.md for help
 conventions.
 
 For Eclipse:
+
 * Install [AnyEditTools](http://andrei.gmxhome.de/eclipse.html) for easy Tabs to Spaces support
 * Import the code formating xml: Eclipse -> Preferences: C/C++ -> CodeStyle -> Formatter .. Import 'defold/share/codestyle.xml' and set ”Dynamo” as active profile
 
@@ -19,12 +19,30 @@ For Eclipse:
 
 ### Required Software
 
-#### [Java 8 JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
+#### [Java 8 JDK](https://drive.google.com/open?id=1bYgm9IVNNskLovbzlqq1_FMlBQ0QxG5q)
 
-NOTE: If a old update of the JDK/JRE is used, the SSL root certificates has
+*NOTE*: Currently the editor does not work with the latest Java SDK, use 1.8.0_144 as it is known to work.
+
+It can be downloaded from our [Google Drive](https://drive.google.com/open?id=1bYgm9IVNNskLovbzlqq1_FMlBQ0QxG5q).
+
+*NOTE*: If a to old update of the JDK/JRE is used, the SSL root certificates has
 expired and you need to replace the file `cacerts` in the JRE with a newer one
 without expired certificates, otherwise SSL communication will fail. This has
 been done in the JRE:s used when bundling the editor (located on S3).
+
+##### MacOS
+
+If you have multiple versions of Java installed you can disable any unwanted versions, open a command prompt and type:
+
+    $>/usr/libexec/java_home -V
+    Matching Java Virtual Machines (2):
+    1.8.0_161, x86_64:	"Java SE 8"	/Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Home
+    1.8.0_144, x86_64:	"Java SE 8"	/Library/Java/JavaVirtualMachines/jdk1.8.0_144.jdk/Contents/Home
+    /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Home
+
+To disable a JDK version so it will not be picked up as the default you can rename the Info.plist file in the Contents folder of the corresponding jdk folder.
+
+    $>sudo mv /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Info.plist /Library/Java/JavaVirtualMachines/jdk1.8.0_161.jdk/Contents/Info.plist.disabled
 
 ##### Linux
 
@@ -37,7 +55,7 @@ Download the **.rpm** package first and then install it using the instructions f
     $> rpm -ivh jdk-8u144-linux-x64.rpm
 
     (can try with "--nodeps" if it complains on not finding a bunch of common tools like "ls" etc)
-    
+
 Set PATH and JAVA_HOME:
 
     $> nano ~/.bashrc
@@ -77,7 +95,7 @@ Verify with:
 <td>Google Plugin</td>
 <td>https://dl.google.com/eclipse/plugin/4.2</td>
 <td>
-`Google Plugin for Eclipse`<br/>
+`<del>Google Plugin for Eclipse</del>`<br/>
 `Google App Engine Java`<br/>
 `Google Web Toolkit SDK`
 </td>
@@ -100,16 +118,21 @@ Verify with:
 Always launch Eclipse from the **command line** with a development environment
 setup. See `build.py` and the `shell` command below.
 
+##### Set up Eclipse
 
+Before importing the Java projects make sure you have globally set the correct Compiler compliance level and JDK in `Eclipse > Preferences`
+
+* Start Eclipse and open the Preferences panel.
+* Navigate to `Java > Compiler` and set the `Compiler Compliance Level` to 1.7
+* Navigate to `Java > Installed JREs` and verify that it points to the correct JRE version
 
 ##### Import Java Projects
 
 * Import Java projects with `File > Import`
 * Select `General > Existing Projects into Workspace`,
 * Set root directory to `defold/com.dynamo.cr`
-* Select everything apart from `com.dynamo.cr.web` and `com.dynamo.cr.webcrawler`.
+* Select everything apart from `com.dynamo.cr.web`, `com.dynamo.cr.web2`, `com.dynamo.cr.webcrawler`, `com.dynamo.cr.webmanage` and `com.dynamo.cr.webrlog`.
 * Ensure that `Copy projects into workspace` is **not** selected
-
 
 ##### Import Engine Project
 
@@ -127,14 +150,15 @@ setup. See `build.py` and the `shell` command below.
 
 ##### Troubleshooting
 
+#### JRE not set up correctly
+
 If eclipse doesn’t get the JDK setup automatically:
+
 * Preferences -> Java -> Installed JRE’s:
 * Click Add
-* JRE Home: /Library/Java/JavaVirtualMachines/jdk1.8.0_60.jdk/Contents/Home
+* JRE Home: /Library/Java/JavaVirtualMachines/jdk1.8.0_144.jdk/Contents/Home
 * JRE Name: 1.8 (Or some other name)
 * Finish
-
-
 
 #### Python
 
@@ -198,10 +222,9 @@ If eclipse doesn’t get the JDK setup automatically:
         If this won't work, you can try cloning using Github Desktop.
 
 #### OSX
+
     - [Homebrew](http://brew.sh/)
         Install with Terminal: `ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"`
-
-
 
 ### Optional Software
 
@@ -222,7 +245,6 @@ Explanations:
     - Add the s4d directory to the path.
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
-
 
 ## Build Engine
 
@@ -296,8 +318,6 @@ specified. A typically workflow when working on a single test is to run
 With the flag `--gtest_filter=` it's possible to a single test in the suite,
 see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/AdvancedGuide#Running_a_Subset_of_the_Tests)
 
-
-
 ## Build and Run Editor
 
 * Ensure that `Java > Compiler > Compiler Compliance Level` is set to ´1.7´.
@@ -325,11 +345,17 @@ Note: When running the editor and building a Defold project you must first go to
         $ sudo apt-get install -f
 
 ### Troubleshooting
+
+#### Compilation errors related to com.amazonaws.* packages
+
+These errors can safely be ignored when building the editor.
+
 #### Risk of stable and beta editor builds overwriting on release
+
 We use git SHA1 hashes as filenames/paths when we upload editor builds on S3, this means if a merge from beta into stable channel/branch result in the same SHA1, they might overwrite each other. To avoid this, make sure you have an unique git commit before pushing any of the channel branches (currently `master`, `beta` and `dev`). As a last resort, to differentiate, you can add/remove an empty row in a file triggering a new git commit.
 
-
 #### If you run the editor and get the following error while launching:
+
 ```
 1) Error injecting constructor, java.net.SocketException: Can't assign requested address
   at com.dynamo.upnp.SSDP.<init>(SSDP.java:62)
@@ -356,17 +382,20 @@ Caused by: java.net.SocketException: Can't assign requested address
 ```
 
 And the editor starts with:
+
 ```
 Plug-in com.dynamo.cr.target was unable to load class com.dynamo.cr.target.TargetContributionFactory.
 An error occurred while automatically activating bundle com.dynamo.cr.target (23).
 ```
 
 Then add the following to the VM args in your Run Configuration:
+
 ```
 -Djava.net.preferIPv4Stack=true
 ```
 
-#### When running `test_cr` on OS X and you get errors like:
+#### When running `test_cr` on OS X and you get errors like
+
 ```
 ...
 com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
@@ -379,7 +408,8 @@ com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/util/MathUtil.java:[27]
 This means that the wrong `vecmath.jar` library is used and you probably have a copy located in `/System/Library/Java/Extensions` or `/System/Library/Java/Extensions`. Move `vecmath.jar` somewhere else while running `test_cr`.
 If you are using El Capitan, the "rootless" feature will not allow you to move that file, as it is under the `/System` directory. To move, you need to reboot into Recovery Mode (hold down Cmd+R while booting), enter a terminal (Utilities > Terminal) and run `csrutil disable`. After this, you can reboot again normally and move the file. After that, you should consider rebooting into Recovery Mode again and run `csrutil enable`.
 
-#### When opening a .collection in the editor you get this ####
+#### When opening a .collection in the editor you get this
+
 ```
 org.osgi.framework.BundleException: Exception in com.dynamo.cr.parted.ParticleEditorPlugin.start() of bundle com.dynamo.cr.parted.
 at org.eclipse.osgi.framework.internal.core.BundleContextImpl.startActivator(BundleContextImpl.java:734)
@@ -391,6 +421,10 @@ at org.eclipse.osgi.framework.util.SecureAction.start(SecureAction.java:440)
 
 If you get this error message, it’s most likely from not having the 64 bit binaries, did you build the engine with 64 bit support? E.g. “--platform=x86_64-darwin”
 To fix, rebuild engine in 64 bit, and in Eclipse, do a clean projects, refresh and rebuild them again
+
+#### If the editor starts but is unresponsive to input
+
+You probably have an incompatible version of the JDK. 1.8_144 works, 1.8_160 does not and makes the editor start but non-responsive to input. There are no error messages at all in this case.
 
 ## Licenses
 
@@ -582,8 +616,8 @@ Some flags that is useful for emscripten projects would be to have:
 -s ERROR_ON_UNDEFINED_SYMBOLS=1
 '-fno-rtti'. Can't be used at the moment as gtest requires it, but it would be nice to have enabled
 
-
 ## Firefox OS
+
 To bundle up a firefox OS app and deploy to a connected firefox OS phone, we need to have a manifest.webapp in the web root directory:
 ```
 {
@@ -630,7 +664,6 @@ of a resource-scheme.
 Assets loaded with dmResource are cached locally. A non-standard batch-oriented cache validation mechanism
 used if available in order to speed up the cache-validation process. See dlib, *dmHttpCache* and *ConsistencyPolicy*, for more information.
 
-
 ## Engine Extensions
 
 Script extensions can be created using a simple exensions mechanism. To add a new extension to the engine the only required step is to link with the
@@ -650,14 +683,11 @@ How to package a new Android Facebook SDK:
   * copy res/* into share/java/res/facebook
 * tar/gzip the new structure
 
-
 ## Energy Consumption
 
-
-**Android**
+### Android
 
       adb shell dumpsys cpuinfo
-
 
 ## Eclipse 4.4 issues
 
@@ -667,10 +697,10 @@ How to package a new Android Facebook SDK:
 * Splash-monitor invoked after startup. See SplashHandler.java.
   Currently protected by if (splashShell == null) ...
 
-
 ## Debugging
 
 ### Emscripten
+
 Emscripten have several useful features for debugging, and it's really good to read their article about debugging in full (https://kripken.github.io/emscripten-site/docs/porting/Debugging.html). For general debugging it's good to read up on JavaScript maps which will be generated by emscripten if you compile with `-g4`. JavaScript maps will allow the browser to translate the minified JavaScript into C/C++ file and line information so you can actually place breakpoints and watch variables from the real source code.
 
 To debug memory and alignment issues the following parameters should be added both to `CCFLAGS`/`CXXFLAGS` and `LINKFLAGS` in `waf_dynamo.py` for the web target. It is important to note that this will decrease runtime performance, and significantly increase compile time, therefore it should only be used when debugging these kinds of issues.
