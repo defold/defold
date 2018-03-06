@@ -694,7 +694,7 @@ class Configuration(object):
         return platforms
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, eclipse):
-        return 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
+        return 'python %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install -v' % (self.dynamo_home, self.dynamo_home, skip_tests, skip_codesign, disable_ccache, eclipse)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
