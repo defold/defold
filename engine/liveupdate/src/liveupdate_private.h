@@ -27,10 +27,6 @@ namespace dmLiveUpdate
 
     struct ResourceRequestCallbackData
     {
-        ResourceRequestCallbackData()
-        {
-            memset(this, 0x0, sizeof(ResourceRequestCallbackData));
-        }
         StoreResourceCallbackData m_CallbackData;
         void (*m_Callback)(StoreResourceCallbackData*);
         dmResourceArchive::HArchiveIndexContainer m_ArchiveIndexContainer;
