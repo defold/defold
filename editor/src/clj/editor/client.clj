@@ -74,14 +74,14 @@
                                     (.path (str user-id))
                                     (.path (str cr-project-id))
                                     (.path "engine")
-                                    (.path platform))
-          ^ClientResponse resp (-> resource
-                                   (.type MediaType/APPLICATION_OCTET_STREAM_TYPE)
-                                   (.post ClientResponse stream))]
-      (when (not= 200 (.getStatus resp))
-        (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp))
-                        {:status (.getStatus resp)
-                         :uri (.toString (.getURI resource))}))))))
+                                    (.path platform))]
+      (with-open [^ClientResponse resp (-> resource
+                                         (.type MediaType/APPLICATION_OCTET_STREAM_TYPE)
+                                         (.post ClientResponse stream))]
+        (when (not= 200 (.getStatus resp))
+          (throw (ex-info (format "Could not upload engine %d: %s" (.getStatus resp) (.toString resp))
+                   {:status (.getStatus resp)
+                    :uri (.toString (.getURI resource))})))))))
 
 (defn new-project [client user-id new-project-pb-map]
   (let [{:keys [^Client client prefs]} client
@@ -89,12 +89,12 @@
         ^WebResource resource (-> (.resource client (server-url prefs))
                                 (.path "projects")
                                 (.path (str user-id)))
-        input (ByteArrayInputStream. (.toByteArray new-project-pb))
-        ^ClientResponse resp (-> resource
-                               (.type "application/x-protobuf")
-                               (.post ClientResponse input))]
-    (if (> 300 (.getStatus resp))
-      (protobuf/pb->map (.getEntity resp Protocol$ProjectInfo))
-      (throw (ex-info (format "Could not create new project %d: %s" (.getStatus resp) (.toString resp))
-                      {:status (.getStatus resp)
-                       :uri (.toString (.getURI resource))})))))
+        input (ByteArrayInputStream. (.toByteArray new-project-pb))]
+    (with-open [^ClientResponse resp (-> resource
+                                       (.type "application/x-protobuf")
+                                       (.post ClientResponse input))]
+      (if (> 300 (.getStatus resp))
+        (protobuf/pb->map (.getEntity resp Protocol$ProjectInfo))
+        (throw (ex-info (format "Could not create new project %d: %s" (.getStatus resp) (.toString resp))
+                 {:status (.getStatus resp)
+                  :uri (.toString (.getURI resource))}))))))
