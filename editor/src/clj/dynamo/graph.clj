@@ -89,7 +89,8 @@
 (defn clear-system-cache!
   "Clears *the-system* cache, useful when debugging"
   []
-  (swap! *the-system* assoc :cache (ref (is/make-cache {}))))
+  (swap! *the-system* assoc :cache (ref (is/make-cache {})))
+  nil)
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
