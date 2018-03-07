@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.layout.*?>
+
+<HBox id="welcome-dialog" maxHeight="700" maxWidth="1000" minHeight="700" minWidth="1000" prefHeight="700" prefWidth="1000" stylesheets="/editor.css" xmlns="http://javafx.com/javafx/8">
+    <VBox id="left-pane">
+        <VBox styleClass="defold-logo">
+            <ImageView fitWidth="115" fitHeight="24">
+                <Image url="@defold-logo.png" />
+            </ImageView>
+        </VBox>
+
+        <!-- NOTE: The "pane-button" style class is used to look these up in code. -->
+        <RadioButton id="home-pane-button" styleClass="pane-button" userData="home-pane.fxml" text="HOME" />
+        <RadioButton id="new-pane-button" styleClass="pane-button" userData="new-project-pane.fxml" text="NEW PROJECT" />
+        <RadioButton id="open-pane-button" styleClass="pane-button" userData="open-project-pane.fxml" text="OPEN PROJECT" />
+    </VBox>
+</HBox>
