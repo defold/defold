@@ -1,0 +1,105 @@
+#welcome-dialog {
+  -fx-background-color: #292A2F;
+
+  #left-pane {
+    -fx-background-color: #1C1E21;
+
+    .defold-logo {
+      -fx-padding: 16px;
+    }
+  }
+
+  .pane-button {
+    -fx-font-family: "Source Sans Pro Semibold";
+    -fx-font-size: 14px;
+    -fx-alignment: center-right;
+    -fx-graphic-text-gap: 0;
+    -fx-label-padding: 0;
+    -fx-max-width: Infinity;
+    -fx-padding: 9px 16px;
+    -fx-border-color: transparent;
+    -fx-border-width: 0px 3px 0px 0px;
+    -fx-text-fill: #CFDAE6;
+    -fx-opacity: 50%;
+
+    &:hover {
+      -fx-opacity: 75%;
+    }
+
+    &:selected {
+      -fx-border-color: $defold-orange;
+      -fx-opacity: 100%;
+    }
+
+    .radio {
+      -fx-padding: 0;
+      visibility: collapse;
+
+      .dot {
+        -fx-padding: 0;
+        visibility: collapse;
+      }
+    }
+
+    .label {
+      -fx-text-alignment: right;
+    }
+  }
+
+  #new-project-pane {
+    -fx-padding: 24px;
+    -fx-spacing: 24px;
+    -fx-max-width: Infinity;
+
+    .template-entry {
+      -fx-max-width: Infinity;
+      -fx-background-color: #35373B;
+      -fx-background-radius: 2px;
+      -fx-padding: 8px;
+
+      .icon {
+        -fx-background-color: #404146;
+        -fx-background-radius: 2px;
+        -fx-min-width: 172px;
+        -fx-min-height: 114px;
+
+        SVGPath {
+          -fx-fill: #6D6F73;
+        }
+      }
+
+      .description {
+        -fx-padding: 6px 16px;
+
+        .header {
+          -fx-font-family: "Source Sans Pro Light";
+          -fx-font-size: 20px;
+        }
+
+        Text {
+          -fx-fill: #A6B2BF;
+          -fx-font-smoothing-type: lcd;
+        }
+
+        TextFlow {
+          -fx-padding: 5px 0px 0px 0px;
+          -fx-line-spacing: 2px;
+        }
+      }
+    }
+
+    .template-entry.selected {
+      -fx-background-radius: 4px;
+      -fx-border-radius: 4px;
+      -fx-border-color: #5BC0FF;
+      -fx-border-width: 1px;
+      -fx-effect: dropshadow(gaussian, #5BC0FF, 10, 0, 0, 0);
+
+      .icon {
+        SVGPath {
+          -fx-fill: #5BC0FF;
+        }
+      }
+    }
+  }
+}
