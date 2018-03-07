@@ -1,5 +1,6 @@
 (ns util.http-server
   (:require [clojure.java.io :as io]
+            [editor.error-reporting :as error-reporting]
             [service.log :as log])
   (:import [java.io InputStream IOException OutputStream ByteArrayInputStream ByteArrayOutputStream BufferedOutputStream]
            [java.net InetSocketAddress URLDecoder]
@@ -48,7 +49,7 @@
                                         (-> (handler (exchange->request! t))
                                           (response->exchange! t))
                                         (catch Throwable t
-                                          (prn (Throwable->map t))))))))
+                                          (error-reporting/report-exception! t)))))))
     (.setExecutor server nil)
     server))
 
