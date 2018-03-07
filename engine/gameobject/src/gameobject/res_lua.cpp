@@ -11,9 +11,7 @@ namespace dmGameObject
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        LuaScript *lua_script = new LuaScript(lua_module);
-        params.m_Resource->m_Resource = lua_script;
-        params.m_Resource->m_ResourceSize = sizeof(LuaScript) + params.m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count;
+        params.m_Resource->m_Resource = (void*) new LuaScript(lua_module);
         return dmResource::RESULT_OK;
     }
 
@@ -39,7 +37,6 @@ namespace dmGameObject
             dmScript::ReloadModule(script_context, &lua_module->m_Source, params.m_Resource->m_NameHash);
         }
         LuaScript* lua_script = (LuaScript*) params.m_Resource->m_Resource;
-        params.m_Resource->m_ResourceSize = sizeof(LuaScript) + params.m_BufferSize - lua_script->m_LuaModule->m_Source.m_Script.m_Count;;
         dmDDF::FreeMessage(lua_script->m_LuaModule);
         lua_script->m_LuaModule = lua_module;
         return dmResource::RESULT_OK;

@@ -38,7 +38,6 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) ss_resource;
-            params.m_Resource->m_ResourceSize = sizeof(AnimationSetResource) + params.m_BufferSize;
         }
         else
         {
@@ -68,7 +67,6 @@ namespace dmGameSystem
         AnimationSetResource* ss_resource = (AnimationSetResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
         ss_resource->m_AnimationSet = spine_scene;
-        params.m_Resource->m_ResourceSize = sizeof(AnimationSetResource) + params.m_BufferSize;
         return AcquireResources(params.m_Factory, ss_resource, params.m_Filename);
     }
 }

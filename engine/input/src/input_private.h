@@ -95,7 +95,6 @@ namespace dmInput
         AccelerationBinding* m_AccelerationBinding;
         TextBinding* m_TextBinding;
         dmHashTable64< Action > m_Actions;
-        uint32_t m_ResourceSize;
     };
 
     struct GamepadInput

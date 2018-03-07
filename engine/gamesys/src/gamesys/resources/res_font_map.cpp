@@ -110,7 +110,6 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*)font_map;
-            params.m_Resource->m_ResourceSize = dmRender::GetFontMapResourceSize(font_map);
         }
         else
         {
@@ -139,11 +138,6 @@ namespace dmGameSystem
         }
 
         dmResource::Result r = AcquireResources(params.m_Factory, (dmRender::HRenderContext) params.m_Context, ddf, font_map, params.m_Filename, &font_map, true);
-        if(r != dmResource::RESULT_OK)
-        {
-            return r;
-        }
-        params.m_Resource->m_ResourceSize = dmRender::GetFontMapResourceSize(font_map);
-        return dmResource::RESULT_OK;
+        return r;
     }
 }

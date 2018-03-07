@@ -44,7 +44,6 @@ namespace dmRender
         dmArray<Profile> m_Profiles;
         dmArray<Qualifier> m_Qualifiers;
         dmhash_t m_NameHash;
-        uint32_t m_ResourceSize;
     };
 
     HDisplayProfiles NewDisplayProfiles()
@@ -63,7 +62,6 @@ namespace dmRender
     uint32_t SetDisplayProfiles(HDisplayProfiles profiles, DisplayProfilesParams& params)
     {
         profiles->m_NameHash = params.m_NameHash;
-        profiles->m_ResourceSize = sizeof(DisplayProfiles);
         if(params.m_DisplayProfilesDDF == 0x0)
         {
             profiles->m_Profiles.SetCapacity(0);
@@ -83,10 +81,8 @@ namespace dmRender
             return 0;
         profiles->m_Profiles.SetCapacity(profile_count);
         profiles->m_Profiles.SetSize(profile_count);
-        profiles->m_ResourceSize += sizeof(DisplayProfiles::Profile)*profile_count;
         profiles->m_Qualifiers.SetCapacity(qualifier_count);
         profiles->m_Qualifiers.SetSize(qualifier_count);
-        profiles->m_ResourceSize += sizeof(DisplayProfiles::Qualifier)*qualifier_count;
 
         DisplayProfiles::Qualifier* qualifier = &profiles->m_Qualifiers[0];
         for(uint32_t i = 0; i < profile_count; ++i)
@@ -182,11 +178,6 @@ namespace dmRender
     dmhash_t GetDisplayProfilesName(HDisplayProfiles profiles)
     {
         return profiles->m_NameHash;
-    }
-
-    dmhash_t GetDisplayProfilesResourceSize(HDisplayProfiles profiles)
-    {
-        return profiles->m_ResourceSize;
     }
 
 }
