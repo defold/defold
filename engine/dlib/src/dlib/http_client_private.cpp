@@ -11,6 +11,9 @@ namespace dmHttpClientPrivate
                             void (*header)(void* user_data, const char* key, const char* value),
                             void (*body)(void* user_data, int offset))
     {
+        // Check for end of header and beginning of body before null-terminating the version portion of the header
+        char* end = strstr(header_str, "\r\n\r\n");
+
         char* version_str = header_str;
         char* end_version = strstr(header_str, "\r\n");
         if (end_version == 0)
@@ -35,12 +38,12 @@ namespace dmHttpClientPrivate
 
         version(user_data, major, minor, status, tok);
 
-        char* end = strstr(header_str, "\r\n\r\n");
         if (end == 0)
         {
-            // The response contains no headers and a zero-length body
+            // The response contains no body as the "\r\n\r\n" was not found
+            // which is in between the headers and the body.
             // Status '204 No Content' is an example of such a response
-            body(user_data, 0);
+            body(user_data, (int) (end_version - header_str));
             return PARSE_RESULT_OK;
         }
 
