@@ -61,7 +61,6 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) resource;
-            params.m_Resource->m_ResourceSize = sizeof(LabelResource) + params.m_BufferSize;
         }
         else
         {
@@ -95,7 +94,6 @@ namespace dmGameSystem
             LabelResource* resource = (LabelResource*)params.m_Resource->m_Resource;
             ReleaseResources(params.m_Factory, resource);
             *resource = tmp_resource;
-            params.m_Resource->m_ResourceSize = sizeof(LabelResource) + params.m_BufferSize;
         }
         else
         {
