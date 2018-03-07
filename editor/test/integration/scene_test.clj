@@ -8,9 +8,10 @@
             [editor.scene :as scene]
             [editor.system :as system]
             [editor.types :as types]
+            [editor.math :as math]
             [integration.test-util :as test-util])
   (:import [editor.types AABB]
-           [javax.vecmath Point3d Matrix4d]))
+           [javax.vecmath Point3d Matrix4d Quat4d Vector3d]))
 
 (defn- make-aabb [min max]
   (reduce geom/aabb-incorporate (geom/null-aabb) (map #(Point3d. (double-array (conj % 0))) [min max])))
@@ -96,11 +97,13 @@
                (is (every? #(test-util/selected? app-view %) go-nodes))))))
 
 (defn- pos [node]
-  (g/node-value node :position-v3))
+  (doto (Vector3d.) (math/clj->vecmath (g/node-value node :position))))
+
 (defn- rot [node]
-  (g/node-value node :rotation-q4))
+  (doto (Quat4d.) (math/clj->vecmath (g/node-value node :rotation))))
+
 (defn- scale [node]
-  (g/node-value node :scale-v3))
+  (doto (Vector3d.) (math/clj->vecmath (g/node-value node :scale))))
 
 (deftest transform-tools
   (testing "Transform tools and manipulator interactions"
