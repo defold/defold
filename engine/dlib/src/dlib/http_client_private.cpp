@@ -11,12 +11,10 @@ namespace dmHttpClientPrivate
                             void (*header)(void* user_data, const char* key, const char* value),
                             void (*body)(void* user_data, int offset))
     {
-        char* end = strstr(header_str, "\r\n\r\n");
-        if (end == 0)
-            return PARSE_RESULT_NEED_MORE_DATA;
-
         char* version_str = header_str;
         char* end_version = strstr(header_str, "\r\n");
+        if (end_version == 0)
+            return PARSE_RESULT_NEED_MORE_DATA;
         *end_version = '\0';
 
         int major, minor, status;
@@ -36,6 +34,15 @@ namespace dmHttpClientPrivate
             return PARSE_RESULT_SYNTAX_ERROR;
 
         version(user_data, major, minor, status, tok);
+
+        char* end = strstr(header_str, "\r\n\r\n");
+        if (end == 0)
+        {
+            // The response contains no headers and a zero-length body
+            // Status '204 No Content' is an example of such a response
+            body(user_data, 0);
+            return PARSE_RESULT_OK;
+        }
 
         // Skip \r\n\r\n
         end += 4;
