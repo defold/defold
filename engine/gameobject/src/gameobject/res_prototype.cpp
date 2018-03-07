@@ -105,9 +105,7 @@ namespace dmGameObject
                                                                               component_desc.m_Position,
                                                                               component_desc.m_Rotation);
                 c.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                uint32_t userdata_size;
-                bool r = CreatePropertySetUserData(&component_desc.m_PropertyDecls, &c.m_PropertySet.m_UserData, &userdata_size);
-                proto->m_ComponentsUserDataSize += userdata_size;
+                bool r = CreatePropertySetUserData(&component_desc.m_PropertyDecls, &c.m_PropertySet.m_UserData);
                 proto->m_Components.Push(c);
                 if (!r)
                 {
@@ -119,7 +117,6 @@ namespace dmGameObject
         }
 
         params.m_Resource->m_Resource = (void*) proto;
-        params.m_Resource->m_ResourceSize = sizeof(Prototype) + proto->m_ComponentsUserDataSize + (proto->m_Components.Capacity()*sizeof(Prototype::Component));
 
         dmDDF::FreeMessage(proto_desc);
         return dmResource::RESULT_OK;

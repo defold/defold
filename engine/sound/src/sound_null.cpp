@@ -11,7 +11,6 @@ namespace dmSound
     struct SoundData
     {
         char* m_Buffer;
-        uint32_t m_BufferSize;
     };
 
     struct SoundInstance
@@ -61,14 +60,8 @@ namespace dmSound
         if (sound_data->m_Buffer != 0x0)
             delete [] sound_data->m_Buffer;
         sound_data->m_Buffer = new char[sound_buffer_size];
-        sound_data->m_BufferSize = sound_buffer_size;
         memcpy(sound_data->m_Buffer, sound_buffer, sound_buffer_size);
         return RESULT_OK;
-    }
-
-    uint32_t GetSoundResourceSize(HSoundData sound_data)
-    {
-        return sizeof(SoundData) + sound_data->m_BufferSize;
     }
 
     Result DeleteSoundData(HSoundData sound_data)
