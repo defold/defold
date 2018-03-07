@@ -496,13 +496,15 @@
                 build-results       (ui/with-progress [_ render-build-progress!]
                                       (project/build-and-write-project project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
             (ui/run-later
-              (g/update-cache-from-evaluation-context! evaluation-context)
-              (when result-fn (result-fn build-results)))
+              (try
+                (g/update-cache-from-evaluation-context! evaluation-context)
+                (when result-fn (result-fn build-results))
+                (finally
+                  (reset! build-in-progress? false))))
             build-results))
-      (catch Throwable t
-        (error-reporting/report-exception! t))
-      (finally
-        (reset! build-in-progress? false))))))
+        (catch Throwable t
+          (reset! build-in-progress? false)
+          (error-reporting/report-exception! t))))))
 
 (defn- handle-build-results! [workspace build-errors-view build-results]
   (let [{:keys [error artifacts artifact-map etags]} build-results]
