@@ -202,7 +202,7 @@
 (defn- handler [project {:keys [url method headers]}]
   (if (= method "GET")
     (let [path (-> url
-                   (subs (count html5-url-prefix))
+                   (subs (inc (count html5-url-prefix))) ; Strip prefix and slash character.
                    (URLDecoder/decode "UTF-8"))
           f (io/file (build-html5-output-path project) (project-title project) path)]
       (if (.exists f)
