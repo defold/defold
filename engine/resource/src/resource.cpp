@@ -456,8 +456,10 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
 
 // Diagram of what need to be done; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
 // Inspect asn1 key; http://lapo.it/asn1js/#
-Result VerifyManifestHash(Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
+Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
 {
+    dmLogInfo("VerifyManifestHash...");
+    dmLogInfo("factory->m_UriParts.m_Path: %s", factory->m_UriParts.m_Path);
     Result res = RESULT_OK;
     char public_key_path[DMPATH_MAX_PATH];
     char game_dir[DMPATH_MAX_PATH];
@@ -466,12 +468,16 @@ Result VerifyManifestHash(Manifest* manifest, const uint8_t* expected_digest, ui
     char* hex_digest = 0x0;
 
     // Load public key
-    dmSys::GetResourcesPath(0, 0, game_dir, DMPATH_MAX_PATH);
+    dmLogInfo("VerifyManifestHash loading pub key from resources using factory path...");
+    dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
+    dmLogInfo("got game_dir: %s", game_dir);
     dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
+    dmLogInfo("pub key path: %s", public_key_path);
     dmSys::ResourceSize(public_key_path, &pub_key_size);
     pub_key_buf = (uint8_t*)malloc(pub_key_size);
     assert(pub_key_buf);
     dmSys::Result sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
+    dmLogInfo("VerifyManifestHash DONE!");
 
     if (sys_res != dmSys::RESULT_OK)
     {
@@ -585,6 +591,9 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     }
     else if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") == 0)
     {
+        dmLogInfo("path: %s", factory->m_UriParts.m_Path)
+        dmLogInfo("location: %s", factory->m_UriParts.m_Location)
+        dmLogInfo("hostname: %s", factory->m_UriParts.m_Hostname)
         factory->m_Manifest = new Manifest();
         factory->m_ArchiveMountInfo = 0x0;
 

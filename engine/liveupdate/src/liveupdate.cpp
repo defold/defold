@@ -23,6 +23,8 @@ namespace dmLiveUpdate
     };
 
     LiveUpdate g_LiveUpdate;
+    /// Resource system factory
+    static dmResource::HFactory m_ResourceFactory = 0x0;
 
     /** ***********************************************************************
      ** LiveUpdate utility functions
@@ -144,7 +146,7 @@ namespace dmLiveUpdate
         return engine_version_supported;
     }
 
-    bool VerifyManifestHash(dmResource::Manifest* manifest)
+    bool VerifyManifestSignature(dmResource::Manifest* manifest)
     {
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
         uint32_t digest_len = dmResource::HashLength(algorithm);
@@ -169,7 +171,7 @@ namespace dmLiveUpdate
         dmResource::HashToString(algorithm, digest, hex_digest, hex_digest_len);
         dmLogInfo("Actual manifest hash; %s", hex_digest);
 
-        bool result = dmResource::VerifyManifestHash(manifest, (const uint8_t*)hex_digest, hex_digest_len) == dmResource::RESULT_OK;
+        bool result = dmResource::VerifyManifestHash(m_ResourceFactory, manifest, (const uint8_t*)hex_digest, hex_digest_len) == dmResource::RESULT_OK;
 
         free(hex_digest);
         free(digest);
@@ -179,7 +181,7 @@ namespace dmLiveUpdate
 
     bool VerifyManifest(dmResource::Manifest* manifest)
     {
-        return (VerifyManifestSupportedEngineVersion(manifest) && VerifyManifestHash(manifest));
+        return (VerifyManifestSupportedEngineVersion(manifest) && VerifyManifestSignature(manifest));
     }
 
     Result StoreManifest(dmResource::Manifest* manifest)
@@ -287,6 +289,7 @@ namespace dmLiveUpdate
 
     void Initialize(const dmResource::HFactory factory)
     {
+        m_ResourceFactory = factory;
         g_LiveUpdate.m_Manifest = dmResource::GetManifest(factory);
         dmLiveUpdate::AsyncInitialize(factory);
     }
