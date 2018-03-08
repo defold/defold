@@ -1,6 +1,10 @@
 #welcome-dialog {
   -fx-background-color: #292A2F;
 
+  .scroll-bar {
+    -fx-background-color: transparent;
+  }
+
   #left-pane {
     -fx-background-color: #1C1E21;
 
@@ -47,59 +51,77 @@
   }
 
   #new-project-pane {
-    -fx-padding: 24px;
-    -fx-spacing: 24px;
     -fx-max-width: Infinity;
 
-    .template-entry {
-      -fx-max-width: Infinity;
-      -fx-background-color: #35373B;
-      -fx-background-radius: 2px;
-      -fx-padding: 8px;
+    #template-list {
+      -fx-background-color: transparent;
 
-      .svg-icon {
-        -fx-background-color: #404146;
-        -fx-background-radius: 2px;
-        -fx-max-width: 171px;
-        -fx-max-height: 114px;
-        -fx-min-width: 171px;
-        -fx-min-height: 114px;
+      .list-cell {
+        -fx-background-color: transparent;
+        -fx-border-width: 0;
+        -fx-pref-width: 0;
+        -fx-padding: 12px 24px;
 
-        SVGPath {
-          -fx-fill: #6D6F73;
-        }
-      }
-
-      .description {
-        -fx-padding: 6px 16px;
-
-        .header {
-          -fx-font-family: "Source Sans Pro Light";
-          -fx-font-size: 20px;
+        .image-view {
+          -fx-effect: none;
         }
 
-        Text {
-          -fx-fill: #A6B2BF;
-          -fx-font-smoothing-type: lcd;
+        .template-entry {
+          -fx-background-color: #35373B;
+          -fx-background-radius: 2px;
+          -fx-border-width: 1px;
+          -fx-border-color: transparent;
+          -fx-padding: 8px;
+
+          .svg-icon {
+            -fx-background-color: #404146;
+            -fx-background-radius: 2px;
+            -fx-max-width: 171px;
+            -fx-max-height: 114px;
+            -fx-min-width: 171px;
+            -fx-min-height: 114px;
+
+            SVGPath {
+              -fx-fill: #6D6F73;
+            }
+          }
+
+          .description {
+            -fx-padding: 6px 16px;
+
+            .header {
+              -fx-font-family: "Source Sans Pro Light";
+              -fx-font-size: 20px;
+            }
+
+            Text {
+              -fx-fill: #A6B2BF;
+              -fx-font-smoothing-type: lcd;
+            }
+
+            TextFlow {
+              -fx-padding: 5px 0px 0px 0px;
+              -fx-line-spacing: 2px;
+            }
+          }
         }
 
-        TextFlow {
-          -fx-padding: 5px 0px 0px 0px;
-          -fx-line-spacing: 2px;
-        }
-      }
-    }
+        &:selected {
+          -fx-border-width: 0;
+          -fx-background-color: transparent;
 
-    .template-entry.selected {
-      -fx-background-radius: 4px;
-      -fx-border-radius: 4px;
-      -fx-border-color: #5BC0FF;
-      -fx-border-width: 1px;
-      -fx-effect: dropshadow(gaussian, #5BC0FF, 10, 0, 0, 0);
+          .template-entry {
+            -fx-background-radius: 4px;
+            -fx-border-radius: 4px;
+            -fx-border-color: #5BC0FF;
+            -fx-effect: dropshadow(gaussian, #5BC0FF, 10, 0, 0, 0);
 
-      .svg-icon {
-        SVGPath {
-          -fx-fill: #5BC0FF;
+            .svg-icon {
+              SVGPath {
+                -fx-fill: #5BC0FF;
+              }
+            }
+          }
         }
       }
     }
