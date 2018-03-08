@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.set :as set]
    [clojure.string :as string]
+   [clojure.xml :as xml]
    [editor.error-reporting :as error-reporting]
    [editor.handler :as handler]
    [editor.jfx :as jfx]
@@ -36,6 +37,7 @@
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
+   [javafx.scene.shape SVGPath]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
    [javafx.util Callback Duration StringConverter]
@@ -516,10 +518,26 @@
   (apply-default-css! root)
   (apply-user-css! root))
 
-(defn ^Parent load-fxml [path]
+(defn load-fxml
+  ^Parent [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))]
     (apply-user-css! root)
     root))
+
+(defn- load-xml [path]
+  (with-open [stream (io/input-stream (io/resource path))]
+    (xml/parse stream)))
+
+(defn load-svg-path
+  "Loads the path data from a simple .svg file. Assumes the scene contains a
+  single path, but is useful for things like monochrome vector icons."
+  ^SVGPath [path]
+  (let [svg (load-xml path)
+        content (:content svg)
+        path (util/first-where #(= :path (:tag %)) content)
+        path-data (get-in path [:attrs :d])]
+    (doto (SVGPath.)
+      (.setContent path-data))))
 
 (extend-type Window
   HasUserData

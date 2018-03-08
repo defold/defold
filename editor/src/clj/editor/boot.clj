@@ -132,7 +132,7 @@
 
 (defn open-welcome [prefs update-context cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
-        welcome-settings (-> (io/resource "welcome.edn")
+        welcome-settings (-> (io/resource "welcome/welcome.edn")
                            slurp
                            edn/read-string)
         stage (ui/make-dialog-stage)
