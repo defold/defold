@@ -2,10 +2,12 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [editor.dialogs :as dialogs]
             [editor.ui :as ui]
             [schema.core :as s])
   (:import (java.net MalformedURLException URL)
            (java.io PushbackReader)
+           (javafx.event Event)
            (javafx.scene Node Scene Parent)
            (javafx.scene.control ToggleGroup RadioButton)
            (javafx.scene.image ImageView Image)
@@ -80,21 +82,43 @@
 (defn- make-template-entry
   ^Node [project-template]
   (doto (HBox.)
-    (ui/user-data! :project-template project-template)
     (ui/add-style! "template-entry")
-    (ui/add-style! "selected")
     (ui/children! [(make-icon-view (:image project-template))
                    (make-description-view (:name project-template)
                                           (:description project-template))])))
 
-(defn- template-entry->project-template
-  ^Parent [template-entry]
-  (ui/user-data template-entry :project-template))
+(defn- on-directory-field-browse-button-click! [dialog-title ^Event event]
+  (let [^Node button (.getSource event)
+        browse-field (.getParent button)
+        text-field (.lookup browse-field "TextField")
+        scene (.getScene button)
+        window (.getWindow scene)
+        initial-directory (some-> text-field ui/text not-empty io/as-file)
+        initial-directory (when (some-> initial-directory (.exists)) initial-directory)]
+    (when-some [directory-path (ui/choose-directory dialog-title initial-directory window)]
+      (ui/text! text-field directory-path))))
+
+(defn- setup-directory-browse-field! [dialog-title ^Parent browse-field]
+  (let [button (.lookup browse-field "Button")]
+    (ui/on-action! button (partial on-directory-field-browse-button-click! dialog-title))))
+
+(defn- browse-field-text
+  ^String [^Node browse-field]
+  (ui/text (.lookup browse-field "TextField")))
 
 (defn- make-new-project-pane
   ^Parent [welcome-settings]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/with-controls [template-list]
+    (ui/with-controls [template-list title-field location-browse-field submit-button]
+      (setup-directory-browse-field! "Select New Project Location" location-browse-field)
+      (ui/on-action! submit-button
+                     (fn [_]
+                       (let [project-title (ui/text title-field)
+                             project-location (browse-field-text location-browse-field)
+                             project-template (first (ui/selection template-list))]
+                         (dialogs/make-alert-dialog (pr-str {:project-title project-title
+                                                             :project-location project-location
+                                                             :project-template project-template})))))
       (doto template-list
         (ui/items! (get-in welcome-settings [:new-project :templates]))
         (ui/cell-factory! (fn [project-template]
