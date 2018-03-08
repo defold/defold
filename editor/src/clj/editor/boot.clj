@@ -17,6 +17,7 @@
    [editor.progress :as progress]
    [editor.ui :as ui]
    [editor.updater :as updater]
+   [editor.welcome :as welcome]
    [service.log :as log]
    [util.net :as net])
   (:import
@@ -145,6 +146,7 @@
       (install-pending-update-check! stage update-context))
 
     (ui/set-main-stage stage)
+    (ui/on-action! (.lookup root "#open-new-welcome") (fn [_] (welcome/open-welcome-dialog!))) ; HACK, REMOVE!
     (ui/on-action! new-project (fn [_] (on-new-project! stage prefs (:new-project welcome-settings) cont)))
     (ui/on-action! open-project (fn [_] (when-let [file (ui/choose-file {:title "Open Project"
                                                                                  :directory (prefs/get-prefs prefs open-project-directory nil)
