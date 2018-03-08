@@ -1,38 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.scene.control.ListView?>
 <?import javafx.scene.layout.*?>
-<?import javafx.scene.shape.SVGPath?>
-<?import javafx.scene.text.Text?>
-<?import javafx.scene.text.TextFlow?>
 
 <VBox id="new-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
-    <HBox styleClass="template-entry">
-        <StackPane styleClass="icon">
-            <SVGPath content="M39.5,22h-6a.5.5,0,0,0,0,1h6a.5.5,0,0,0,0-1Zm1-12A1.5,1.5,0,1,0,42,11.5,1.5,1.5,0,0,0,40.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,40.5,12Zm-4-2A1.5,1.5,0,1,0,38,11.5,1.5,1.5,0,0,0,36.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,36.5,12Zm-4-2A1.5,1.5,0,1,0,34,11.5,1.5,1.5,0,0,0,32.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,32.5,12ZM99,53H95.49a2.53,2.53,0,0,0,.51-1.5v-41A2.5,2.5,0,0,0,93.51,8h-27L64.45,3.58A1,1,0,0,0,63.52,3H61.46a1,1,0,0,0-.9.58L58.5,8h-27A2.5,2.5,0,0,0,29,10.49v41a2.53,2.53,0,0,0,.51,1.5H25a1,1,0,0,0-1,1v2a1,1,0,0,0,1,1H35.64L29.28,70.64A1,1,0,0,0,29.76,72l1.82.85a1.06,1.06,0,0,0,.42.09,1,1,0,0,0,.91-.58L36.32,65H88.67l3.41,7.32a1,1,0,0,0,.91.58,1.06,1.06,0,0,0,.42-.09L95.24,72a1,1,0,0,0,.47-1.33L89.36,57H99a1,1,0,0,0,1-1V54A1,1,0,0,0,99,53ZM61.46,4h2.08L65.4,8H59.6ZM30,10.5A1.5,1.5,0,0,1,31.49,9h62A1.5,1.5,0,0,1,95,10.5V14H30ZM30,15H95V51.52A1.49,1.49,0,0,1,93.51,53h-62A1.49,1.49,0,0,1,30,51.52ZM94.82,71.07,93,71.92,89.58,64.6a1,1,0,0,0-.91-.58H36.32a1,1,0,0,0-.91.58L32,71.92l-1.81-.85,6.55-14H39L37.28,60.6a1,1,0,0,0,.07,1,1,1,0,0,0,.84.46H86.8a1,1,0,0,0,.84-.46,1,1,0,0,0,.07-1L86,57h2.23ZM40.06,57H84.94l1.86,4H38.19ZM99,56H25V54H99ZM40.5,10A1.5,1.5,0,1,0,42,11.5,1.5,1.5,0,0,0,40.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,40.5,12Zm-7,11h6a.5.5,0,0,0,0-1h-6a.5.5,0,0,0,0,1Zm3-13A1.5,1.5,0,1,0,38,11.5,1.5,1.5,0,0,0,36.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,36.5,12Zm-4-2A1.5,1.5,0,1,0,34,11.5,1.5,1.5,0,0,0,32.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,32.5,12Zm4-2A1.5,1.5,0,1,0,38,11.5,1.5,1.5,0,0,0,36.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,36.5,12Zm4-2A1.5,1.5,0,1,0,42,11.5,1.5,1.5,0,0,0,40.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,40.5,12Zm-8-2A1.5,1.5,0,1,0,34,11.5,1.5,1.5,0,0,0,32.5,10Zm0,2a.5.5,0,0,1-.5-.5.5.5,0,0,1,1,0A.5.5,0,0,1,32.5,12Zm7,10h-6a.5.5,0,0,0,0,1h6a.5.5,0,0,0,0-1Z" />
-        </StackPane>
-        <VBox styleClass="description">
-            <Text styleClass="header">Empty project</Text>
-            <TextFlow><Text>Sed ut perspiciatis, unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam eaque ipsa, quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt, explicabo.</Text></TextFlow>
-        </VBox>
-    </HBox>
-
-    <HBox styleClass="template-entry, selected">
-        <StackPane styleClass="icon">
-            <SVGPath content="M117,22.41l-17.5-13a.43.43,0,0,0-.33-.09L58,12a.51.51,0,0,0-.47.49l-.29,26L38.77,6.13h0A.49.49,0,0,0,38.61,6l0,0a.55.55,0,0,0-.17-.05h-.13l-.09,0-.08,0a.5.5,0,0,0-.17.15h0l-30,42.78a.48.48,0,0,0-.06.45.51.51,0,0,0,.32.32L45.36,61.28l.15,0h.07l.07,0,.08,0a.31.31,0,0,0,.11-.08l0,0,0,0h0L57.07,48.57,57,54.46a.49.49,0,0,0,.17.38L73.73,69l.07,0,.06,0a.4.4,0,0,0,.15,0h.08l42.31-3.18a.5.5,0,0,0,.46-.5l.32-42.63A.48.48,0,0,0,117,22.41Zm-1.68,0L74.85,25.16,59.31,12.88,99,10.28ZM38,7.72l6.91,52.37L9.12,48.89Zm7.86,51.93L39.16,8.84l18,31.59L57.09,47Zm12.3-19.27a.65.65,0,0,0,0-.14l.3-26.75L74.18,25.91l-.61,41.64L58,54.24Zm16.39,27.7.62-41.94,41-2.8L115.87,65Z" />
-        </StackPane>
-        <VBox styleClass="description">
-            <Text styleClass="header">Basic 3D</Text>
-            <TextFlow><Text>Nemo enim ipsam voluptatem, quia voluptas sit, aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos, qui ratione voluptatem sequi nesciunt, neque porro quisquam est, qui do.</Text></TextFlow>
-        </VBox>
-    </HBox>
-
-    <HBox styleClass="template-entry">
-        <StackPane styleClass="icon">
-            <SVGPath content="M74,33H19a6,6,0,0,0-6,6V66a6,6,0,0,0,6,6H74a6,6,0,0,0,6-6V39A6,6,0,0,0,74,33Zm5,33a5,5,0,0,1-5,5H19a5,5,0,0,1-5-5V39a5,5,0,0,1,5-5H74a5,5,0,0,1,5,5ZM69,36H23a1,1,0,0,0-1,1V68a1,1,0,0,0,1,1H69a1,1,0,0,0,1-1V37A1,1,0,0,0,69,36Zm0,32H23V37H69Zm5.5-25A1.5,1.5,0,0,0,73,44.5v16a1.5,1.5,0,0,0,3,0v-16A1.5,1.5,0,0,0,74.5,43ZM75,60.5a.5.5,0,0,1-1,0v-16a.5.5,0,0,1,1,0ZM99,11V66a6,6,0,0,1-6,6H84a.5.5,0,0,1,0-1h9a5,5,0,0,0,5-5V11a5,5,0,0,0-5-5H66a5,5,0,0,0-5,5V29a.5.5,0,0,1-1,0V11a6,6,0,0,1,6-6H93A6,6,0,0,1,99,11ZM95,61V15H64V29a.5.5,0,0,1-1,0V15a1,1,0,0,1,1-1H95a1,1,0,0,1,1,1V61a1,1,0,0,1-1,1H84a.5.5,0,0,1,0-1Z" />
-        </StackPane>
-        <VBox styleClass="description">
-            <Text styleClass="header">Mobile input</Text>
-            <TextFlow><Text>Lorem ipsum, quia dolor sit amet consectetur adipiscing velit, sed quia non-numquam do eius modi tempora incididunt, ut labore et dolore magnam aliquam quaerat voluptatem.</Text></TextFlow>
-        </VBox>
-    </HBox>
+    <ListView id="template-list" VBox.vgrow="ALWAYS" />
 </VBox>
