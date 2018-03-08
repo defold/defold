@@ -1,4 +1,6 @@
 #welcome-dialog {
+  $df-bright-blue: #5BC0FF;
+
   -fx-background-color: #292A2F;
 
   .scroll-bar {
@@ -50,11 +52,31 @@
     }
   }
 
+  .form-pane {
+    -fx-background-color: #313238;
+    -fx-padding: 24px;
+    -fx-spacing: 24px;
+
+    .label {
+      -fx-min-height: 30px;
+      -fx-padding: 0px 8px 0px 0px;
+    }
+
+    .text-field {
+      -fx-min-height: 30px;
+    }
+
+    .button {
+      -fx-min-height: 30px;
+    }
+  }
+
   #new-project-pane {
     -fx-max-width: Infinity;
 
     #template-list {
       -fx-background-color: transparent;
+      -fx-padding: 0;
 
       .list-cell {
         -fx-background-color: transparent;
@@ -113,17 +135,37 @@
           .template-entry {
             -fx-background-radius: 4px;
             -fx-border-radius: 4px;
-            -fx-border-color: #5BC0FF;
-            -fx-effect: dropshadow(gaussian, #5BC0FF, 10, 0, 0, 0);
+            -fx-border-color: $df-bright-blue;
+            -fx-effect: dropshadow(gaussian, $df-bright-blue, 10, 0, 0, 0);
 
             .svg-icon {
               SVGPath {
-                -fx-fill: #5BC0FF;
+                -fx-fill: $df-bright-blue;
               }
             }
           }
         }
       }
     }
+  }
+
+  // New-look components
+  .df-browse-field {
+    Button {
+      -fx-border-width: 0px;
+      -fx-background-radius: 0px 2px 2px 0px;
+      -fx-background-color: $input-border;
+      -fx-min-width: 30px;
+      -fx-padding: 0px;
+      -fx-font-size: 11.5px;
+    }
+  }
+
+  .df-button {
+    -fx-background-color: transparent;
+    -fx-border-color: $df-bright-blue;
+    -fx-border-radius: 2px;
+    -fx-text-fill: $df-bright-blue;
+    -fx-padding: 4px 12px;
   }
 }
