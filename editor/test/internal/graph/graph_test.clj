@@ -214,6 +214,21 @@
 
         (g/update-cache-from-evaluation-context! init-ec)
 
+        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss))))))
+
+  (testing "Update cache does not add entries for deleted nodes"
+    (with-clean-system
+      (let [[n n2] (tx-nodes (g/make-nodes world [n (TestNode :val "initial")
+                                                  n2 PassthroughNode]
+                                           (g/connect n :val n2 :str-in)))
+            init-ec (g/make-evaluation-context)]
+        (g/node-value n2 :str-out init-ec)
+        (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))
+
+        (g/transact (g/delete-node n2))
+
+        (g/update-cache-from-evaluation-context! init-ec)
+
         (is (= ::miss (cc/lookup (g/cache) [n2 :str-out] ::miss)))))))
 
 (deftest tracer
