@@ -7,17 +7,21 @@ namespace dmHttpClientPrivate
 {
     ParseResult ParseHeader(char* header_str,
                             void* user_data,
+                            bool force_parsing_of_headers,
                             void (*version)(void* user_data, int major, int minor, int status, const char* status_str),
                             void (*header)(void* user_data, const char* key, const char* value),
                             void (*body)(void* user_data, int offset))
     {
-        // Check for end of header and beginning of body before null-terminating the version portion of the header
-        char* end = strstr(header_str, "\r\n\r\n");
+        // Check if we have a body section by searching for two new-lines, do this before parsing version since we do destructive string termination
+        char* body_start = strstr(header_str, "\r\n\r\n");
 
+        // Always try to parse version and status
         char* version_str = header_str;
         char* end_version = strstr(header_str, "\r\n");
         if (end_version == 0)
             return PARSE_RESULT_NEED_MORE_DATA;
+        
+        char store_end_version = *end_version;
         *end_version = '\0';
 
         int major, minor, status;
@@ -28,29 +32,38 @@ namespace dmHttpClientPrivate
         }
 
         // Find status string, ie "OK" in "HTTP/1.1 200 OK"
-        char* tok;
-        char* last;
-        tok = dmStrTok(version_str, " ", &last);
-        tok = dmStrTok(0, " ", &last);
-        tok = dmStrTok(0, " ", &last);
-        if (tok == 0)
+        char* status_string = strchr(version_str, ' ');
+        status_string = status_string ? strchr(status_string + 1, ' ') : 0;
+        if (status_string == 0)
             return PARSE_RESULT_SYNTAX_ERROR;
 
-        version(user_data, major, minor, status, tok);
+        // Notify the version to caller even if we can't do a complete parse
+        version(user_data, major, minor, status, status_string + 1);
 
-        if (end == 0)
+        if (body_start != 0)
         {
-            // The response contains no body as the "\r\n\r\n" was not found
-            // which is in between the headers and the body.
-            // Status '204 No Content' is an example of such a response
-            body(user_data, (int) (end_version - header_str));
-            return PARSE_RESULT_OK;
+            // Skip \r\n\r\n
+            body_start += 4;
+        }
+        else
+        {
+            if(force_parsing_of_headers)
+            {
+                // Treat entire input as just headers
+                body_start = (end_version + 1) + strlen(end_version + 1);
+            }
+            else
+            {
+                // Restore string termination since we need more data and will likely try again
+                *end_version = store_end_version;
+                return PARSE_RESULT_NEED_MORE_DATA;
+            }
         }
 
-        // Skip \r\n\r\n
-        end += 4;
-        int c = *end;
-        *end = '\0'; // Terminate headers (up to body)
+        char store_body_start = *body_start;
+        *body_start = '\0'; // Terminate headers (up to body)
+        char* tok;
+        char* last;
         tok = dmStrTok(end_version + 2, "\r\n", &last);
         while (tok)
         {
@@ -69,9 +82,9 @@ namespace dmHttpClientPrivate
             *colon = c;
             tok = dmStrTok(0, "\r\n", &last);
         }
-        *end = c;
+        *body_start = store_body_start;
 
-        body(user_data, (int) (end - header_str));
+        body(user_data, (int) (body_start - header_str));
 
         return PARSE_RESULT_OK;
     }
