@@ -405,7 +405,9 @@
           rn-dependencies-evaluation-context (g/make-evaluation-context)
           old-resource-node-dependencies (memoize
                                            (fn [node-id]
-                                             (g/node-value node-id :reload-dependencies rn-dependencies-evaluation-context)))
+                                             (let [deps (g/node-value node-id :reload-dependencies rn-dependencies-evaluation-context)]
+                                               (when-not (g/error? deps)
+                                                 deps))))
           resource->old-node (comp old-nodes-by-path resource/proj-path)
           new-nodes (make-nodes! project (:new plan))
           resource-path->new-node (into {} (map (fn [resource-node]
