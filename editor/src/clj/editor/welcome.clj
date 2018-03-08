@@ -94,9 +94,11 @@
 (defn- make-new-project-pane
   ^Parent [welcome-settings]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/children! (into []
-                        (map make-template-entry)
-                        (get-in welcome-settings [:new-project :templates])))))
+    (ui/with-controls [template-list]
+      (doto template-list
+        (ui/items! (get-in welcome-settings [:new-project :templates]))
+        (ui/cell-factory! (fn [project-template]
+                            {:graphic (make-template-entry project-template)}))))))
 
 (defn- make-open-project-pane
   ^Parent []
