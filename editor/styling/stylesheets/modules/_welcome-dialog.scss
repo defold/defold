@@ -57,10 +57,12 @@
       -fx-background-radius: 2px;
       -fx-padding: 8px;
 
-      .icon {
+      .svg-icon {
         -fx-background-color: #404146;
         -fx-background-radius: 2px;
-        -fx-min-width: 172px;
+        -fx-max-width: 171px;
+        -fx-max-height: 114px;
+        -fx-min-width: 171px;
         -fx-min-height: 114px;
 
         SVGPath {
@@ -95,7 +97,7 @@
       -fx-border-width: 1px;
       -fx-effect: dropshadow(gaussian, #5BC0FF, 10, 0, 0, 0);
 
-      .icon {
+      .svg-icon {
         SVGPath {
           -fx-fill: #5BC0FF;
         }

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.control.*?>
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.image.Image?>
 <?import javafx.scene.layout.*?>
@@ -13,9 +12,6 @@
             </ImageView>
         </VBox>
 
-        <!-- NOTE: The "pane-button" style class is used to look these up in code. -->
-        <RadioButton id="home-pane-button" styleClass="pane-button" userData="home-pane.fxml" text="HOME" />
-        <RadioButton id="new-pane-button" styleClass="pane-button" userData="new-project-pane.fxml" text="NEW PROJECT" />
-        <RadioButton id="open-pane-button" styleClass="pane-button" userData="open-project-pane.fxml" text="OPEN PROJECT" />
+        <!-- Pane buttons will be inserted here. -->
     </VBox>
 </HBox>

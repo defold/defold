@@ -1,9 +1,0 @@
-{:new-project
- {:templates
-  [{:name "Getting started with Defold"
-    :description "In this tutorial we start with an empty project and build the beginning of a top down shooter game. It includes player movement and rocket shooting."
-    :image "img-does-not-exist-yet.png"
-    :duration "Short"
-    :user-level "Beginner"
-    :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
-    :skip-root? true}]}}
