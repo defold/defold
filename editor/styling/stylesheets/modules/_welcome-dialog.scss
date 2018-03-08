@@ -5,6 +5,44 @@
 
   .scroll-bar {
     -fx-background-color: transparent;
+
+    .track {
+      -fx-background-color: rgba(0, 0, 0, 0.2);
+      -fx-background-radius: 4px;
+      -fx-background-insets: 0;
+    }
+
+    .thumb {
+      -fx-background-radius: 4px;
+      -fx-background-color: white;
+      -fx-opacity: 0.15;
+
+      &:hover, &:pressed {
+        -fx-opacity: 0.25;
+      }
+    }
+
+    &:horizontal {
+      -fx-pref-height: 8px;
+      -fx-background-insets: 0;
+      -fx-padding: 0px 24px;
+
+      >.thumb {
+        -fx-background-insets: 0;
+        -fx-padding: 0 !important;
+      }
+    }
+
+    &:vertical {
+      -fx-pref-width: 8px;
+      -fx-background-insets: 0;
+      -fx-padding: 24px 0px;
+
+      >.thumb {
+        -fx-background-insets: 0;
+        -fx-padding: 0 !important;
+      }
+    }
   }
 
   #left-pane {
@@ -72,18 +110,21 @@
   }
 
   #new-project-pane {
-    -fx-max-width: Infinity;
-
     #template-list {
       -fx-background-color: transparent;
-      -fx-padding: 0;
+      -fx-padding: 0px 16px 0px 0px;
 
       .list-cell {
+        -fx-pref-width: 0; // Stretched by ListView. Without this, we get horizontal scrolling.
         -fx-background-color: transparent;
         -fx-border-width: 0;
-        -fx-pref-width: 0;
-        -fx-padding: 12px 24px;
+        -fx-padding: 24px 24px 0px 24px;
 
+        &.last-list-item {
+          -fx-padding: 24px;
+        }
+
+        // Counteract too-broad application of styling from _file-extensions.scss.
         .image-view {
           -fx-effect: none;
         }
