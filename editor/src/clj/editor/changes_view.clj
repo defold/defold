@@ -1,7 +1,6 @@
 (ns editor.changes-view
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [editor.client :as client]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
@@ -17,8 +16,7 @@
             [editor.vcs-status :as vcs-status]
             [editor.workspace :as workspace]
             [service.log :as log])
-  (:import [clojure.lang ExceptionInfo]
-           [javafx.scene Parent]
+  (:import [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
            [org.eclipse.jgit.api Git]
            [java.io File]))
@@ -109,60 +107,43 @@
   (run [selection ^Git git]
        (diff-view/present-diff-data (git/selection-diff-data git selection))))
 
-(defn- upload-project! [changes-view workspace project]
-  (try
-    (let [prefs (g/node-value changes-view :prefs)]
-      (when (login/login prefs)
-        (let [client (client/make-client prefs)]
-          (when-let [user-id (client/user-id client)]
-            (try
-              (let [project-title (project/project-title project)
-                    repo-url (:repository-url (client/new-project client user-id {:name project-title}))
-                    proj-path (.getPath (workspace/project-path workspace))
-                    creds (git/credentials prefs)]
-                (when-let [git (git/init proj-path)]
-                  (doto git
-                    (git/stage-change! (git/make-add-change "."))
-                    (git/commit "Initial commit")
-                    (git/config-remote! repo-url)
-                    (git/push creds))
-                  (do
-                    (g/set-property! changes-view :unconfigured-git git))))
-              (catch ExceptionInfo e
-                (let [message (if (= 403 (:status (ex-data e)))
-                                "You are not authorized to create a new project on the dashboard."
-                                "Failed to create a new project on the dashboard.")]
-                  {:err e
-                   :message message})))))))
-    (catch Exception e
-      {:err e :message "Failed to create a new project on the dashboard."})))
+(defn- first-sync! [changes-view workspace project prefs]
+  (do
+    (project/save-all! project)
+    (let [proj-path (.getPath (workspace/project-path workspace))
+          project-title (project/project-title project)]
+      (-> (sync/begin-first-flow! proj-path project-title prefs
+            (fn [git]
+              (ui/run-later
+                (g/set-property! changes-view :unconfigured-git git))))
+        (sync/open-sync-dialog)))))
 
 (handler/defhandler :synchronize :global
   (run [changes-view workspace project]
-    (if (not (g/node-value changes-view :unconfigured-git))
-      (upload-project! changes-view workspace project)
-      (let [git   (g/node-value changes-view :git)
-            prefs (g/node-value changes-view :prefs)]
-        ;; Check if there are locked files below the project folder before proceeding.
-        ;; If so, we abort the sync and notify the user, since this could cause problems.
-        (loop []
-          (if-some [locked-files (not-empty (git/locked-files git))]
-            ;; Found locked files below the project. Notify user and offer to retry.
-            (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
-                                               {:title "Not Safe to Sync"
-                                                :ok-label "Retry"
-                                                :cancel-label "Cancel"})
-              (recur))
+    (let [prefs (g/node-value changes-view :prefs)]
+      (if (not (g/node-value changes-view :unconfigured-git))
+        (first-sync! changes-view workspace project prefs)
+        (let [git   (g/node-value changes-view :git)]
+          ;; Check if there are locked files below the project folder before proceeding.
+          ;; If so, we abort the sync and notify the user, since this could cause problems.
+          (loop []
+            (if-some [locked-files (not-empty (git/locked-files git))]
+              ;; Found locked files below the project. Notify user and offer to retry.
+              (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
+                                                 {:title "Not Safe to Sync"
+                                                  :ok-label "Retry"
+                                                  :cancel-label "Cancel"})
+                (recur))
 
-            ;; Found no locked files.
-            ;; Save the project before we initiate the sync process. We need to do this because
-            ;; the unsaved files may also have changed on the server, and we'll need to merge.
-            (do (project/save-all! project)
-                (when (login/login prefs)
-                  (let [creds (git/credentials prefs)
-                        flow (sync/begin-flow! git creds)]
-                    (sync/open-sync-dialog flow)
-                    (resource-sync-after-git-change! changes-view workspace))))))))))
+              ;; Found no locked files.
+              ;; Save the project before we initiate the sync process. We need to do this because
+              ;; the unsaved files may also have changed on the server, and we'll need to merge.
+              (do (project/save-all! project)
+                  (when (login/login prefs)
+                    (let [creds (git/credentials prefs)
+                          flow (sync/begin-flow! git creds)]
+                      (sync/open-sync-dialog flow)
+                      (resource-sync-after-git-change! changes-view workspace)))))))))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."

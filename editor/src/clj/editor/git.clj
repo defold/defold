@@ -10,7 +10,7 @@
            [java.io File]
            [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
            [java.util Collection]
-           [org.eclipse.jgit.api Git ResetCommand$ResetType]
+           [org.eclipse.jgit.api Git ResetCommand$ResetType PushCommand]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.errors RepositoryNotFoundException]
@@ -272,10 +272,35 @@
       (.setCredentialsProvider creds)
       (.call)))
 
-(defn push [^Git git ^UsernamePasswordCredentialsProvider creds]
-  (-> (.push git)
-      (.setCredentialsProvider creds)
-      (.call)))
+(defn- make-batching-progress-monitor ^BatchingProgressMonitor [tasks on-progress!]
+  (let [tasks (atom (into {} (map #(vector % 0) tasks)))
+        set-progress (fn [task percent] (swap! tasks assoc task percent))
+        current-progress (fn [] (let [n (count @tasks)]
+                                  (if (zero? n) 0 (/ (reduce + (vals @tasks)) (float n) 100.0))))]
+    (proxy [BatchingProgressMonitor] []
+      (onUpdate
+        ([taskName workCurr])
+        ([taskName workCurr workTotal percentDone]
+          (set-progress taskName percentDone)
+          (on-progress! (current-progress))))
+
+      (onEndTask
+        ([taskName workCurr])
+        ([taskName workCurr workTotal percentDone])))))
+
+(def ^:private ^:const push-tasks
+  ["Finding sources" "Writing objects" "remote: Updating references"])
+
+(defn push [^Git git ^UsernamePasswordCredentialsProvider creds & {:keys [timeout on-progress]}]
+  (let [pc ^PushCommand (.push git)]
+    (do
+      (doto pc
+        ;; setTimeout expects seconds
+        (.setTimeout (/ (or timeout 0) 1000))
+        (.setCredentialsProvider creds))
+      (when on-progress
+        (.setProgressMonitor pc (make-batching-progress-monitor push-tasks on-progress)))
+      (.call pc))))
 
 (defn make-add-change [file-path]
   {:change-type :add :old-path nil :new-path file-path})
@@ -412,25 +437,14 @@
       (when (contains? (:untracked s) f)
         (fs/delete-file! (file git f) {:missing :fail})))))
 
-(defn make-clone-monitor [^ProgressBar progress-bar]
-  (let [tasks (atom {"remote: Finding sources" 0
-                     "remote: Getting sizes" 0
-                     "remote: Compressing objects" 0
-                     "Receiving objects" 0
-                     "Resolving deltas" 0})
-        set-progress (fn [task percent] (swap! tasks assoc task percent))
-        current-progress (fn [] (let [n (count @tasks)]
-                                  (if (zero? n) 0 (/ (reduce + (vals @tasks)) (float n) 100.0))))]
-    (proxy [BatchingProgressMonitor] []
-     (onUpdate
-       ([taskName workCurr])
-       ([taskName workCurr workTotal percentDone]
-         (set-progress taskName percentDone)
-         (ui/run-later (.setProgress progress-bar (current-progress)))))
+(def ^:private ^:const clone-tasks
+  ["remote: Finding sources" "remote: Getting sizes" "remote: Compressing objects"
+   "Receiving objects" "Resolving deltas"])
 
-     (onEndTask
-       ([taskName workCurr])
-       ([taskName workCurr workTotal percentDone])))))
+(defn make-clone-monitor [^ProgressBar progress-bar]
+  (make-batching-progress-monitor clone-tasks
+    (fn [progress]
+      (ui/run-later (.setProgress progress-bar progress)))))
 
 ;; =================================================================================
 
