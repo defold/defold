@@ -41,7 +41,7 @@ namespace dmHttpClientPrivate
             // According to the HTTP spec, all responses should end with double line feed to indicate end of headers
             // Unfortunately some server implementations only end with one linefeed if the response is '204 No Content' so we take special measures
             // to force parsing of headers if we have received no more data and the we get a 204 status
-             if(end_of_receive && status == 204)
+            if(end_of_receive && status == 204)
             {
                 // Treat entire input as just headers
                 body_start = (end_version + 1) + strlen(end_version + 1);
