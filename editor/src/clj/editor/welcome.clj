@@ -5,6 +5,7 @@
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
+            [editor.settings-core :as settings-core]
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.updater :as updater]
@@ -13,18 +14,25 @@
   (:import (org.apache.commons.io FilenameUtils)
            (java.io PushbackReader FileOutputStream File)
            (java.net MalformedURLException URL)
+           (java.time Duration Instant LocalDateTime ZoneId)
+           (java.time.format DateTimeParseException)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
-           (javafx.scene.control ToggleGroup RadioButton)
+           (javafx.scene.control ToggleGroup RadioButton Label)
            (javafx.scene.image ImageView Image)
-           (javafx.scene.layout HBox StackPane VBox)
-           (javafx.scene.text Text TextFlow)
+           (javafx.scene.layout HBox StackPane VBox Priority)
            (javafx.scene.shape Rectangle)
+           (javafx.scene.text Text TextFlow)
            (javafx.stage Stage)))
 
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
 (defonce ^:private open-project-directory-prefs-key "open-project-directory")
+(defonce ^:private legacy-recent-project-paths-prefs-key "recent-projects")
+(defonce ^:private recent-projects-prefs-key "recent-project-entries")
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome config file parsing
@@ -63,6 +71,86 @@
   (s/validate WelcomeSettings (load-edn path)))
 
 ;; -----------------------------------------------------------------------------
+;; Recent projects management
+;; -----------------------------------------------------------------------------
+
+(defn- read-project-settings [^File project-file]
+  (with-open [reader (io/reader project-file)]
+    (settings-core/parse-settings reader)))
+
+(defn- try-load-project-title
+  ^String [^File project-file]
+  (try
+    (or (-> project-file
+            read-project-settings
+            (settings-core/get-setting ["project" "title"])
+            not-empty)
+        "Unnamed")
+    (catch Exception _
+      nil)))
+
+(defn- try-parse-instant
+  ^Instant [^String timestamp]
+  (when (some? timestamp)
+    (try
+      (Instant/parse timestamp)
+      (catch DateTimeParseException _
+        nil))))
+
+(def ^:private xform-recent-projects->timestamps-by-path
+  (map (fn [{:keys [project-file last-opened]}]
+         (assert (instance? Instant last-opened))
+         (let [path (.getAbsolutePath ^File project-file)
+               timestamp (str last-opened)]
+           [path timestamp]))))
+
+(def ^:private xform-timestamps-by-path->recent-projects
+  (keep (fn [[path timestamp]]
+          (let [file (io/as-file path)
+                instant (try-parse-instant timestamp)]
+            (when (and (some? instant)
+                       (fs/existing-file? file))
+              (when-some [title (try-load-project-title file)]
+                {:project-file file
+                 :last-opened instant
+                 :title title}))))))
+
+(def ^:private xform-paths->recent-projects
+  (keep (fn [path]
+          (let [file (io/as-file path)]
+            (when (fs/existing-file? file)
+              (when-some [title (try-load-project-title file)]
+                (let [instant (Instant/ofEpochMilli (.lastModified file))]
+                  {:project-file file
+                   :last-opened instant
+                   :title title})))))))
+
+(defn- descending-order [a b]
+  (compare b a))
+
+(defn- recent-projects
+  "Returns a sequence of recently opened projects. Project files that no longer
+  exist will be filtered out. If the user has an older preference file that does
+  not contain timestamps, we'll fall back on the last modified time of the
+  game.project file itself. The projects are returned in descending order with
+  the most recently opened project first."
+  [prefs]
+  (sort-by :last-opened
+           descending-order
+           (if-some [timestamps-by-path (prefs/get-prefs prefs recent-projects-prefs-key nil)]
+             (into [] xform-timestamps-by-path->recent-projects timestamps-by-path)
+             (if-some [paths (prefs/get-prefs prefs legacy-recent-project-paths-prefs-key nil)]
+               (into [] xform-paths->recent-projects paths)
+               []))))
+
+(defn- set-recent-projects!
+  "Takes a sequence of recently opened projects, and writes it to preferences in
+  a format that can be deserialized using the recent-projects function."
+  [prefs recent-projects]
+  (let [timestamps-by-path (into {} xform-recent-projects->timestamps-by-path recent-projects)]
+    (prefs/set-prefs prefs recent-projects-prefs-key timestamps-by-path)))
+
+;; -----------------------------------------------------------------------------
 ;; New project creation
 ;; -----------------------------------------------------------------------------
 
@@ -82,7 +170,7 @@
       (when entry
         (let [parts (cond-> (string/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
                             skip-root? (next))
-              entry-dst (apply io/file dst parts)]
+              entry-dst ^File (apply io/file dst parts)]
           (do
             (if (.isDirectory entry)
               (.mkdir entry-dst)
@@ -118,10 +206,46 @@
 ;; Home pane
 ;; -----------------------------------------------------------------------------
 
+(defn- vague-time-expression
+  ^String [^Instant instant]
+  (let [now (LocalDateTime/now)
+        then (LocalDateTime/ofInstant instant (ZoneId/systemDefault))
+        elapsed (Duration/between then now)]
+    (condp > (.getSeconds elapsed)
+      45 "just now"
+      89  "a minute ago"
+      149 "a few minutes ago"
+      899 (str (.toMinutes elapsed) " minutes ago")
+      2699 "half an hour ago"
+      5399 "an hour ago"
+      8999 "a few hours ago"
+      64799 (str (.toHours elapsed) " hours ago")
+      129599 "a day ago"
+      129600 "a few days ago"
+      (str (.toLocalDate then)))))
+
+(defn- make-recent-project-entry
+  ^Node [{:keys [^File project-file ^Instant last-opened ^String title] :as _recent-project}]
+  (assert (instance? File project-file))
+  (assert (instance? Instant last-opened))
+  (assert (string? (not-empty title)))
+  (doto (VBox.)
+    (ui/add-style! "recent-project-entry")
+    (ui/children! [(doto (Text. title)
+                     (ui/add-style! "title"))
+                   (doto (HBox.)
+                     (ui/children! [(doto (Label. (.getParent project-file))
+                                      (HBox/setHgrow Priority/ALWAYS))
+                                    (Label. (vague-time-expression last-opened))]))])))
+
 (defn- make-home-pane
-  ^Parent []
-  (let [pane (ui/load-fxml "welcome/home-pane.fxml")]
-    pane))
+  ^Parent [prefs close-dialog-and-open-project!]
+  (doto (ui/load-fxml "welcome/home-pane.fxml")
+    (ui/with-controls [recent-projects-list open-button]
+      (doto recent-projects-list
+        (ui/items! (recent-projects prefs))
+        (ui/cell-factory! (fn [recent-project]
+                            {:graphic (make-recent-project-entry recent-project)}))))))
 
 ;; -----------------------------------------------------------------------------
 ;; New project pane
@@ -244,7 +368,7 @@
                                          nil)
         left-pane ^Parent (.lookup root "#left-pane")
         pane-buttons-toggle-group (ToggleGroup.)
-        pane-buttons [(make-pane-button "HOME" (make-home-pane))
+        pane-buttons [(make-pane-button "HOME" (make-home-pane prefs close-dialog-and-open-project!))
                       (make-pane-button "NEW PROJECT" (make-new-project-pane welcome-settings close-dialog-and-open-project!))
                       (make-pane-button "OPEN PROJECT" (make-open-project-pane))]]
 
@@ -256,7 +380,7 @@
       (install-pending-update-check! stage update-context))
 
     ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
-    (doseq [pane-button pane-buttons]
+    (doseq [^RadioButton pane-button pane-buttons]
       (.setToggleGroup pane-button pane-buttons-toggle-group)
       (ui/add-child! left-pane pane-button))
 
@@ -266,7 +390,7 @@
                     (ui/children! root [left-pane pane]))))
 
     ;; Select the home pane button.
-    (.selectToggle pane-buttons-toggle-group (second pane-buttons))
+    (.selectToggle pane-buttons-toggle-group (first pane-buttons))
 
     ;; ---------- TEMP HACK, REMOVE! ----------
     ;; Press Cmd-R to reload the view.
@@ -275,9 +399,12 @@
                                (when (and (.isShortcutDown key-event)
                                           (= "r" (.getText key-event)))
                                  (ui/close! stage)
-                                 (show-welcome-dialog! prefs update-context open-project-fn)))))
+                                 (doto ^Stage (show-welcome-dialog! prefs update-context open-project-fn)
+                                   (.setX (.getX stage))
+                                   (.setY (.getY stage)))))))
     ;; ---------- TEMP HACK, REMOVE! ----------
 
     ;; Show the dialog.
     (.setScene stage scene)
-    (ui/show! stage)))
+    (ui/run-later (ui/show! stage)) ; TEMP HACK, REMOVE!
+    stage))
