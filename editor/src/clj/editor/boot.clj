@@ -17,6 +17,7 @@
    [editor.progress :as progress]
    [editor.ui :as ui]
    [editor.updater :as updater]
+   [editor.welcome :as welcome]
    [service.log :as log]
    [util.net :as net])
   (:import
@@ -73,85 +74,24 @@
     (.addAll (.getChildren vbox) controls)
     vbox))
 
-(defn- install-pending-update-check! [^Stage stage update-context]
-  (let [tick-fn (fn [^AnimationTimer timer _]
-                  (when-let [pending (updater/pending-update update-context)]
-                    (when (not= pending (system/defold-editor-sha1))
-                      (.stop timer) ; we only ask once on the start screen
-                      (ui/run-later
-                        (when (dialogs/make-pending-update-dialog stage)
-                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                            (updater/restart!)))))))
-        timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
-    (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
-    (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
+(def ^:const open-project-directory-prefs-key "open-project-directory")
 
-(def ^:const open-project-directory "open-project-directory")
-
-(defn- download-proj-zip! [url]
-  (let [file ^File (fs/create-temp-file! "template-project" ".zip")]
-    (with-open [output (FileOutputStream. file)]
-      (do
-        ;; TODO net/download! accepts a callback for progress reporting, use that.
-        ;; The long timeout suggests we need some progress reporting even before d/l starts.
-        (let [timeout 2000]
-          (net/download! url output :connect-timeout timeout :read-timeout timeout))
-        file))))
-
-(defn- expand-proj-zip! [src dst skip-root?]
-  (with-open [zip (ZipInputStream. (io/input-stream src))]
-    (loop [entry (.getNextEntry zip)]
-      (when entry
-        (let [parts (cond-> (str/split (FilenameUtils/separatorsToUnix (.getName entry)) #"/")
-                      skip-root? (next))
-              entry-dst (File. (str/join "/" (cons dst parts)))]
-          (do
-            (if (.isDirectory entry)
-              (.mkdir entry-dst)
-              (with-open [output (FileOutputStream. entry-dst)]
-                (io/copy zip output)))
-            (recur (.getNextEntry zip))))))))
-
-(defn- make-new-project ^File [template dst]
-  (let [dst (io/as-file dst)]
-    (try
-      (when-let [src (download-proj-zip! (:zip-url template))]
-        (expand-proj-zip! src dst (:skip-root? template))
-        dst)
-      (catch Exception e
-        ;; TODO proper error handling
-        nil))))
-
-(defn- on-new-project! [stage prefs settings cont]
-  (when-let [dst ^String (ui/choose-directory "Select Directory" nil)]
-    (when-let [proj-root (make-new-project (first (:templates settings)) dst)]
-      (prefs/set-prefs prefs open-project-directory (.getPath proj-root))
-      (ui/close! stage)
-      (cont (.getAbsolutePath (File. proj-root "game.project"))))))
-
+;; TODO: Remove once fully ported to welcome.clj.
 (defn open-welcome [prefs update-context cont]
   (let [^VBox root (ui/load-fxml "welcome.fxml")
-        welcome-settings (-> (io/resource "welcome.edn")
-                           slurp
-                           edn/read-string)
         stage (ui/make-dialog-stage)
         scene (Scene. root)
         ^ListView recent-projects (.lookup root "#recent-projects")
-        ^Button new-project (.lookup root "#new-project")
         ^Button open-project (.lookup root "#open-project")
         import-project (.lookup root "#import-project")]
 
-    (when update-context
-      (install-pending-update-check! stage update-context))
-
     (ui/set-main-stage stage)
-    (ui/on-action! new-project (fn [_] (on-new-project! stage prefs (:new-project welcome-settings) cont)))
     (ui/on-action! open-project (fn [_] (when-let [file (ui/choose-file {:title "Open Project"
-                                                                                 :directory (prefs/get-prefs prefs open-project-directory nil)
+                                                                                 :directory (prefs/get-prefs prefs open-project-directory-prefs-key nil)
                                                                                  :filters [{:description "Project Files"
                                                                                             :exts ["*.project"]}]})]
                                           (when (.isFile file)
-                                            (prefs/set-prefs prefs open-project-directory (.getParent file)))
+                                            (prefs/set-prefs prefs open-project-directory-prefs-key (.getParent file)))
 
                                           (ui/close! stage)
                                           ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
@@ -215,9 +155,9 @@
 (defn- select-project-from-welcome
   [namespace-loader prefs update-context]
   (ui/run-later
-   (open-welcome prefs update-context
-                 (fn [project]
-                   (open-project-with-progress-dialog namespace-loader prefs project update-context)))))
+    (welcome/show-welcome-dialog! prefs update-context
+                                  (fn [project]
+                                    (open-project-with-progress-dialog namespace-loader prefs project update-context)))))
 
 (defn notify-user
   [ex-map sentry-id-promise]

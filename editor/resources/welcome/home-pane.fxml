@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane id="home-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
+    <Button text="HOME PANE" />
+</AnchorPane>
