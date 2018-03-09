@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextField?>
+
+<VBox id="new-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
+    <ListView id="template-list" VBox.vgrow="ALWAYS" />
+    <HBox styleClass="form-pane">
+        <HBox HBox.hgrow="ALWAYS">
+            <Label text="Title" />
+            <TextField id="title-field" text="My Project" HBox.hgrow="ALWAYS" />
+        </HBox>
+
+        <HBox HBox.hgrow="ALWAYS">
+            <Label text="Location" />
+            <HBox id="location-browse-field" styleClass="df-browse-field" HBox.hgrow="ALWAYS">
+                <TextField text="/Users/watson/defold/projects/GettingStarted" HBox.hgrow="ALWAYS" />
+                <Button text="&#8226; &#8226; &#8226;" />
+            </HBox>
+        </HBox>
+
+        <Button id="submit-button" styleClass="df-button" text="Create New Project" />
+    </HBox>
+</VBox>

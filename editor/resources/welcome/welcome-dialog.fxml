@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.layout.*?>
+
+<HBox id="welcome-dialog" maxHeight="700" maxWidth="1000" minHeight="700" minWidth="1000" prefHeight="700" prefWidth="1000" stylesheets="/editor.css" xmlns="http://javafx.com/javafx/8">
+    <VBox id="left-pane">
+        <VBox styleClass="defold-logo">
+            <ImageView fitWidth="115" fitHeight="24">
+                <Image url="@defold-logo.png" />
+            </ImageView>
+        </VBox>
+
+        <!-- Pane buttons will be inserted here. -->
+    </VBox>
+</HBox>
