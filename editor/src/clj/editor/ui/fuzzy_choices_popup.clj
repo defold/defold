@@ -58,9 +58,10 @@
           (let [text-comparison (compare a-text b-text)]
             (if-not (zero? text-comparison)
               text-comparison
-              (if (and (instance? Comparable a) (instance? Comparable b))
+              (try
                 (compare a b)
-                0))))))))
+                (catch ClassCastException _ ; since value part of option may contain non-Comparable values (f.i. PersistentHashMap)
+                  (compare (System/identityHashCode a) (System/identityHashCode b)))))))))))
 
 (defn fuzzy-option-filter-fn [option->matched-text option->label-text filter-text options]
   (if (empty? filter-text)
