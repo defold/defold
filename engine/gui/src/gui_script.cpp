@@ -4190,6 +4190,34 @@ namespace dmGui
         return 1;
     }
 
+    /*# gets the node inherit alpha state
+     *
+     * @name gui.get_inherit_alpha
+     * @param node [type:node] node from which to get the inherit alpha state
+     */
+    static int LuaGetInheritAlpha(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        lua_pushboolean(L, n->m_Node.m_InheritAlpha);
+        return 1;
+    }
+
+    /*# sets the node inherit alpha state
+     *
+     * @name gui.set_inherit_alpha
+     * @param node [type:node] node from which to set the inherit alpha state
+     * @param inherit_alpha [type:boolean] true or false
+     */
+    static int LuaSetInheritAlpha(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        int inherit_alpha = lua_toboolean(L, 2);
+        n->m_Node.m_InheritAlpha = inherit_alpha;
+        return 0;
+    }
+
 
 #define REGGETSET(name, luaname) \
         {"get_"#luaname, LuaGet##name},\
@@ -4295,6 +4323,8 @@ namespace dmGui
         {"get_particlefx",  LuaGetParticlefx},
         {"play_particlefx", LuaParticlefxPlay},
         {"stop_particlefx", LuaParticlefxStop},
+        {"get_inherit_alpha", LuaGetInheritAlpha},
+        {"set_inherit_alpha", LuaSetInheritAlpha},
 
         REGGETSET(Position, position)
         REGGETSET(Rotation, rotation)
