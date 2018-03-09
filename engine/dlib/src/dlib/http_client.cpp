@@ -503,13 +503,8 @@ namespace dmHttpClient
             // NOTE: We have an extra byte for null-termination so no buffer overrun here.
             client->m_Buffer[response->m_TotalReceived] = '\0';
 
-            // According to the HTTP spec, all responses should end with double line feed to indicate end of headers
-            // Unfortunately some server implementations only end with one linefeed if the response is '204 No Content' so we take special measures
-            // to force parsing of headers if we have received no more data and the last time we tried we ended up with a 204 status
-            bool force_parsing_of_headers = response->m_Status == 204 && recv_bytes == 0;
-
             dmHttpClientPrivate::ParseResult parse_res;
-            parse_res = dmHttpClientPrivate::ParseHeader(client->m_Buffer, response, force_parsing_of_headers, &HandleVersion, &HandleHeader, &HandleContent);
+            parse_res = dmHttpClientPrivate::ParseHeader(client->m_Buffer, response, recv_bytes == 0, &HandleVersion, &HandleHeader, &HandleContent);
             if (parse_res == dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA)
             {
                 if (recv_bytes == 0)

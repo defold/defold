@@ -159,11 +159,11 @@ public:
         self->m_ContentOffset = offset;
     }
 
-    dmHttpClientPrivate::ParseResult Parse(const char* headers, bool force_parse_of_headers)
+    dmHttpClientPrivate::ParseResult Parse(const char* headers, bool end_of_receive)
     {
         char* h = strdup(headers);
         dmHttpClientPrivate::ParseResult r;
-        r = dmHttpClientPrivate::ParseHeader(h, this, force_parse_of_headers,
+        r = dmHttpClientPrivate::ParseHeader(h, this, end_of_receive,
                                              &dmHttpClientParserTest::Version,
                                              &dmHttpClientParserTest::Header,
                                              &dmHttpClientParserTest::Content);
@@ -189,9 +189,7 @@ TEST_F(dmHttpClientParserTest, TestMoreData)
     dmHttpClientPrivate::ParseResult r;
     r = Parse(headers, false);
     ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA, r);
-    ASSERT_EQ(1, m_Major);
-    ASSERT_EQ(1, m_Minor);
-    ASSERT_EQ(200, m_Status);
+    ASSERT_EQ(-1, m_Status);
 }
 
 TEST_F(dmHttpClientParserTest, TestSyntaxError)
@@ -295,7 +293,7 @@ TEST_F(dmHttpClientParserTest, TestContentAndHeaders)
 TEST_F(dmHttpClientParserTest, TestNoContent)
 {
     // Most servers seem to not add the empty line at the end of a 204 response even though the spec says we should. Test this specific case.
-    const char* headers = "HTTP/1.1 204 OK\r\n"
+    const char* headers = "HTTP/1.1 204 No Content\r\n"
 "Server: Jetty(7.0.2.v20100331)\r\n"
 ;
     dmHttpClientPrivate::ParseResult r;
@@ -304,8 +302,9 @@ TEST_F(dmHttpClientParserTest, TestNoContent)
     ASSERT_EQ(1, m_Major);
     ASSERT_EQ(1, m_Minor);
     ASSERT_EQ(204, m_Status);
-    ASSERT_EQ("OK", m_StatusString);
+    ASSERT_EQ("No Content", m_StatusString);
     ASSERT_EQ((size_t) 1, m_Headers.size());
+    ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
 }
 
 #ifndef _WIN32

@@ -12,7 +12,7 @@ namespace dmHttpClientPrivate
 
     ParseResult ParseHeader(char* header_str,
                             void* user_data,
-                            bool force_parsing_of_headers,
+                            bool end_of_receive,
                             void (*version)(void* user_data, int major, int minor, int status, const char* status_str),
                             void (*header)(void* user_data, const char* key, const char* value),
                             void (*body)(void* user_data, int offset));

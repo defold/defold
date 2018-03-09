@@ -775,7 +775,7 @@ bail:
 
         if (response)
         {
-            dmHttpClientPrivate::ParseResult pr = dmHttpClientPrivate::ParseHeader((char*) ssdp->m_Buffer, &state, false, VersionCallback, HeaderCallback, ResponseCallback);
+            dmHttpClientPrivate::ParseResult pr = dmHttpClientPrivate::ParseHeader((char*) ssdp->m_Buffer, &state, true, VersionCallback, HeaderCallback, ResponseCallback);
             ok = pr == dmHttpClientPrivate::PARSE_RESULT_OK;
         }
         else
