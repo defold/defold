@@ -2881,6 +2881,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return SetNodeLayer(scene, node, dmHashString64(layer_id));
     }
 
+    bool GetNodeInheritAlpha(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_InheritAlpha != 0;
+    }
+
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha)
     {
         InternalNode* n = GetNode(scene, node);
