@@ -69,6 +69,18 @@
     (catch SecurityException _
       true)))
 
+(defn empty-directory?
+  "Returns true if the argument refers to an existing empty directory."
+  [^File directory]
+  (try
+    (and (some? directory)
+         (.exists directory)
+         (.isDirectory directory)
+         (with-open [directory-stream (Files/newDirectoryStream (.toPath directory))]
+           (not (.hasNext (.iterator directory-stream)))))
+    (catch Exception _
+      false)))
+
 (defmacro maybe-silently
   "If silently, returns replacement when body throws exception."
   [silently replacement & body]
