@@ -2,18 +2,11 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.scene.text.Text?>
 
 <VBox id="home-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
     <HBox styleClass="header-pane">
         <Label styleClass="header" text="Recent Projects" HBox.hgrow="ALWAYS" />
         <Button id="open-button" styleClass="df-button" text="Open From Disk..." />
     </HBox>
-    <ListView id="recent-projects-list" VBox.vgrow="ALWAYS">
-        <AnchorPane styleClass="project-entry" style="-fx-min-height: 68px; -fx-background-color: lime;">
-            <Text styleClass="title">Getting started with Defold</Text>
-            <Text styleClass="path">/users/axelhammarback/defold/projects/GettingStartedTutorial</Text>
-            <Text styleClass="time">/users/axelhammarback/defold/projects/GettingStartedTutorial</Text>
-        </AnchorPane>
-    </ListView>
+    <ListView id="recent-projects-list" VBox.vgrow="ALWAYS" />
 </VBox>
