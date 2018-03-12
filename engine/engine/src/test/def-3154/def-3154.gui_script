@@ -1,0 +1,23 @@
+function init(self)
+    self.success = false
+
+    local node  = gui.get_node("spine")
+    gui.play_spine_anim(node, "animation", gui.PLAYBACK_ONCE_FORWARD, {}, function() print("callback 1") end)
+    gui.play_spine_anim(node, "animation", gui.PLAYBACK_ONCE_FORWARD, {}, function() print("callback 2") end)
+
+    -- DEF-3154: Error related to callback of spine animation with only one frame
+    -- The below print call would throw a Lua error due to the callbacks above would
+    -- reset the "instance" to nil.
+    print(node)
+
+    self.success = true
+end
+
+function update(self, dt)
+    if self.success then
+        msg.post("@system:", "exit", { code = 0 })
+    else
+        print("Failed to call print(node) in init after spine callbacks were called.")
+        msg.post("@system:", "exit", { code = 1 })
+    end
+end
