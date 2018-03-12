@@ -30,7 +30,7 @@
    <center>
       <AnchorPane id="dialog-area" BorderPane.alignment="CENTER">
          <children>
-            <Label alignment="CENTER" style="-fx-background-color: gray;" text="Dialog Area Here" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+            <Label alignment="CENTER" text="Dialog Area Here" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
                <font>
                   <Font size="18.0" />
                </font>
