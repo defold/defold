@@ -22,6 +22,7 @@
            (javafx.scene Node Scene Parent)
            (javafx.scene.control ToggleGroup RadioButton Label ListView)
            (javafx.scene.image ImageView Image)
+           (javafx.scene.input MouseEvent)
            (javafx.scene.layout HBox StackPane VBox Priority)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
@@ -71,8 +72,18 @@
   (s/validate WelcomeSettings (load-edn path)))
 
 ;; -----------------------------------------------------------------------------
-;; Recent projects management
+;; Preferences management
 ;; -----------------------------------------------------------------------------
+
+(defn- open-project-directory
+  ^File [prefs]
+  (when-some [directory (io/as-file (prefs/get-prefs prefs open-project-directory-prefs-key nil))]
+    (when (fs/existing-directory? directory)
+      directory)))
+
+(defn- set-open-project-directory!
+  ^File [prefs ^File directory]
+  (prefs/set-prefs prefs open-project-directory-prefs-key (.getAbsolutePath directory)))
 
 (defn- read-project-settings [^File project-file]
   (with-open [reader (io/reader project-file)]
@@ -186,7 +197,7 @@
     (when-some [directory-path (ui/choose-directory dialog-title initial-directory window)]
       (ui/text! text-field directory-path))))
 
-(defn- setup-directory-browse-field! [dialog-title ^Parent browse-field]
+(defn- setup-directory-browse-field! [^Parent browse-field dialog-title]
   (let [button (.lookup browse-field "Button")]
     (ui/on-action! button (partial on-directory-field-browse-button-click! dialog-title))))
 
@@ -195,9 +206,25 @@
   (when-some [path (not-empty (ui/text (.lookup browse-field "TextField")))]
     (io/as-file path)))
 
+(defn- set-browse-field-file! [^Node browse-field ^File file]
+  (ui/text! (.lookup browse-field "TextField")
+            (or (some-> file .getAbsolutePath) "")))
+
 ;; -----------------------------------------------------------------------------
 ;; Home pane
 ;; -----------------------------------------------------------------------------
+
+(defn- show-open-from-disk-dialog! [^File open-project-directory close-dialog-and-open-project! ^Event event]
+  (let [^Node button (.getSource event)
+        scene (.getScene button)
+        window (.getWindow scene)
+        opts {:title "Open Project"
+              :owner-window window
+              :directory (some-> open-project-directory .getAbsolutePath)
+              :filters [{:description "Project Files"
+                         :exts ["*.project"]}]}]
+    (when-some [project-file (ui/choose-file opts)]
+      (close-dialog-and-open-project! project-file))))
 
 (defn- make-recent-project-entry
   ^Node [{:keys [^File project-file ^Instant last-opened ^String title] :as _recent-project}]
@@ -214,16 +241,18 @@
                                     (Label. (time/vague-description last-opened))]))])))
 
 (defn- make-home-pane
-  ^Parent [recent-projects close-dialog-and-open-project!]
+  ^Parent [open-project-directory recent-projects close-dialog-and-open-project!]
   (doto (ui/load-fxml "welcome/home-pane.fxml")
-    (ui/with-controls [^ListView recent-projects-list open-button]
+    (ui/with-controls [^ListView recent-projects-list open-from-disk-button]
+      (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
       (doto recent-projects-list
         (ui/items! recent-projects)
         (ui/cell-factory! (fn [recent-project]
                             {:graphic (make-recent-project-entry recent-project)}))
-        (ui/observe-selection (fn [_ selected-items]
-                                (when-some [recent-project (first selected-items)]
-                                  (close-dialog-and-open-project! (:project-file recent-project)))))))))
+        (.setOnMouseClicked (ui/event-handler event
+                              (when (= 2 (.getClickCount ^MouseEvent event))
+                                (when-some [recent-project (first (ui/selection recent-projects-list))]
+                                  (close-dialog-and-open-project! (:project-file recent-project))))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; New project pane
@@ -265,10 +294,12 @@
                                           (:description project-template))])))
 
 (defn- make-new-project-pane
-  ^Parent [welcome-settings close-dialog-and-open-project!]
+  ^Parent [open-project-directory welcome-settings close-dialog-and-open-project!]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
     (ui/with-controls [template-list title-field location-browse-field submit-button]
-      (setup-directory-browse-field! "Select New Project Location" location-browse-field)
+      (doto location-browse-field
+        (setup-directory-browse-field! "Select New Project Location")
+        (set-browse-field-file! open-project-directory))
       (doto template-list
         (ui/items! (get-in welcome-settings [:new-project :templates]))
         (ui/cell-factory! (fn [project-template]
@@ -334,9 +365,10 @@
         stage (ui/make-dialog-stage)
         scene (Scene. root)
         recent-projects (recent-projects prefs)
+        open-project-directory (open-project-directory prefs)
         close-dialog-and-open-project! (fn [^File project-file]
                                          (when (fs/existing-file? project-file)
-                                           (prefs/set-prefs prefs open-project-directory-prefs-key (.getParent project-file))
+                                           (set-open-project-directory! prefs (.getParentFile project-file))
                                            (add-recent-project! prefs recent-projects project-file)
                                            (ui/close! stage)
 
@@ -348,8 +380,8 @@
                                            nil))
         left-pane ^Parent (.lookup root "#left-pane")
         pane-buttons-toggle-group (ToggleGroup.)
-        pane-buttons [(make-pane-button "HOME" (make-home-pane recent-projects close-dialog-and-open-project!))
-                      (make-pane-button "NEW PROJECT" (make-new-project-pane welcome-settings close-dialog-and-open-project!))
+        pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory recent-projects close-dialog-and-open-project!))
+                      (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory welcome-settings close-dialog-and-open-project!))
                       (make-pane-button "OPEN PROJECT" (make-open-project-pane))]]
 
     ;; Make ourselves the main stage.
