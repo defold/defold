@@ -86,19 +86,6 @@
         import-project (.lookup root "#import-project")]
 
     (ui/set-main-stage stage)
-    (ui/on-action! open-project (fn [_] (when-let [file (ui/choose-file {:title "Open Project"
-                                                                                 :directory (prefs/get-prefs prefs open-project-directory-prefs-key nil)
-                                                                                 :filters [{:description "Project Files"
-                                                                                            :exts ["*.project"]}]})]
-                                          (when (.isFile file)
-                                            (prefs/set-prefs prefs open-project-directory-prefs-key (.getParent file)))
-
-                                          (ui/close! stage)
-                                          ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
-                                          ;; In other words, we can't reuse the welcome page and it has to be closed.
-                                          ;; We should potentially changed this when we have uberjar support and hence
-                                          ;; faster loading.
-                                          (cont (.getAbsolutePath file)))))
 
     (ui/on-action! import-project (fn [_] (when-let [file-name (import/open-import-dialog prefs)]
                                             (ui/close! stage)
