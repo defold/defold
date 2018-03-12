@@ -1,11 +1,12 @@
 {:first
  {:manual-url "https://www.defold.com/manuals/workflow/#_synchronizing"
   :dashboard-url "https://www.defold.com/dashboard/projects/%d/team"
-  :push-timeout 2000
+  :push-timeout 5000
   :msgs {:create-remote "Creating remote repository..."
+         :create-remote-unauthorized "You are not authorized to create a new project on the dashboard."
+         :create-remote-fail "Failed to create a new project on the dashboard."
          :create-local "Creating local repository..."
          :initial-commit "Initial commit"
          :push "Pushing local changes to remote..."
-         :done "Done!"
-         :create-remote-unauthorized "You are not authorized to create a new project on the dashboard."
-         :create-remote-fail "Failed to create a new project on the dashboard."}}}
+         :push-fail "Failed to push local changes."
+         :done "Done!"}}}

@@ -3,7 +3,7 @@
   &:hover {
     -fx-underline: true;
   }
-  &:visited, &:pressed, &:armed {
+  &:visited, &:pressed, &:armed, &:focused {
     -fx-border-width: 0;
   }
 }
