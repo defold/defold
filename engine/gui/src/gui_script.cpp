@@ -4197,9 +4197,13 @@ namespace dmGui
      */
     static int LuaGetInheritAlpha(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         lua_pushboolean(L, n->m_Node.m_InheritAlpha);
+
+        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 
@@ -4211,10 +4215,14 @@ namespace dmGui
      */
     static int LuaSetInheritAlpha(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         int inherit_alpha = lua_toboolean(L, 2);
         n->m_Node.m_InheritAlpha = inherit_alpha;
+
+        assert(top == lua_gettop(L));
         return 0;
     }
 
