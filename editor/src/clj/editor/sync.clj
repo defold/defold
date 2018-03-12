@@ -11,13 +11,15 @@
             [editor.login :as login]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
-            [editor.progress :as progress])
+            [editor.progress :as progress]
+            [schema.core :as s])
   (:import [clojure.lang ExceptionInfo]
            [org.eclipse.jgit.api Git PullResult]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.errors MissingObjectException]
            [org.eclipse.jgit.revwalk RevCommit]
-           [java.io File]
+           [java.io File PushbackReader]
+           [java.net URL MalformedURLException]
            [javafx.scene Parent Scene]
            [javafx.scene.control Button SelectionMode ListView TextArea ProgressBar]
            [javafx.scene.input KeyCode KeyEvent]))
@@ -271,32 +273,31 @@
       (when (login/login prefs)
         (let [client (client/make-client prefs)]
           (when-let [user-id (client/user-id client)]
-            (try
-              (render-progress! (:create-remote msgs) -1)
-              (let [project-info (client/new-project client user-id {:name project-title})
-                    creds (git/credentials prefs)]
-                (render-progress! (:create-local msgs) -1)
-                (when-let [git (git/init project-path)]
-                  (doto git
-                    (git/stage-change! (git/make-add-change "."))
-                    (git/commit (:initial-commit msgs))
-                    (git/config-remote! (:repository-url project-info)))
-                  (render-progress! (:push msgs) 0)
+            (render-progress! (:create-remote msgs) -1)
+            (let [project-info (try
+                                 (client/new-project client user-id {:name project-title})
+                                 (catch ExceptionInfo e
+                                   (let [message (if (= 403 (:status (ex-data e)))
+                                                   (:create-remote-unauthorized msgs)
+                                                   (:create-remote-fail msgs))]
+                                     (throw (ex-info message {} e)))))
+                  creds (git/credentials prefs)]
+              (render-progress! (:create-local msgs) -1)
+              (when-let [git (git/init project-path)]
+                (doto git
+                  (git/stage-change! (git/make-add-change "."))
+                  (git/commit (:initial-commit msgs))
+                  (git/config-remote! (:repository-url project-info)))
+                (render-progress! (:push msgs) 0)
+                (try
                   (git/push git creds :timeout (:push-timeout settings) :on-progress (fn [p] (render-progress! "" p)))
-                  (render-progress! (:done msgs) 1)
-                  (on-new-git! git)
-                  {:project-info project-info}))
-              (catch ExceptionInfo e
-                (let [message (if (= 403 (:status (ex-data e)))
-                                (:create-remote-unauthorized msgs)
-                                (:create-remote-fail msgs))]
-                  (prn "error!" {:err e
-                                 :message message})
-                  {:err e
-                   :message message}))))))
-     (catch Exception e
-       (prn "exc" {:err e :message (:create-remote-fail msgs)})
-       {:err e :message (:create-remote-fail msgs)}))))
+                  (catch Throwable t
+                    (throw (ex-info (:push-fail msgs) {} t))))
+                (render-progress! (:done msgs) 1)
+                (on-new-git! git)
+                {:project-info project-info})))))
+     (catch Throwable t
+       {:error {:exception t :message (.getMessage t)}}))))
 
 (defn begin-first-flow! [^File project-path project-title prefs on-new-git!]
   (let [flow {:state :first/start
@@ -390,7 +391,8 @@
   (render-progress progress)
   (condp = state
     :first/start    (assoc flow :state :first/waiting)
-    :first/waiting  (assoc flow :state :first/done)
+    :first/waiting  (assoc flow :state (if (:error flow) :first/error :first/done))
+    :first/error    (assoc flow :state :first/waiting)
     :first/done     flow
     :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
     :pull/pulling   (let [^PullResult pull-res (try (git/pull git creds)
@@ -527,6 +529,52 @@
       (git/unstage-change! (:git @!flow) change))
     (swap! !flow refresh-git-state)))
 
+;; -----------------------------------------------------------------------------
+;; Welcome config file parsing
+;; -----------------------------------------------------------------------------
+
+(def ^:private MessageString
+  (s/constrained s/Str #(not (str/blank? %)) "MessageString"))
+
+(defn- validate-url [url]
+  (try
+    (URL. url)
+    true
+    (catch MalformedURLException _
+      false)))
+
+(def ^:private URLString
+  (s/constrained s/Str validate-url "URLString"))
+
+(defn- validate-project-url [url]
+  (validate-url (format url 0)))
+
+(def ^:private ProjectUrlString
+  (s/constrained s/Str validate-project-url "ProjectUrlString"))
+
+(def ^:private FirstSettings
+  {:manual-url URLString
+   :dashboard-url ProjectUrlString
+   :push-timeout s/Int
+   :msgs {:create-remote MessageString
+          :create-remote-unauthorized MessageString
+          :create-remote-fail MessageString
+          :create-local MessageString
+          :initial-commit MessageString
+          :push MessageString
+          :push-fail MessageString
+          :done MessageString}})
+
+(def ^:private SyncSettings
+  {:first FirstSettings})
+
+(defn- load-edn [path]
+  (with-open [reader (PushbackReader. (io/reader (io/resource path)))]
+    (edn/read reader)))
+
+(defn- load-settings [path]
+  (s/validate SyncSettings (load-edn path)))
+
 ;; =================================================================================
 
 (def ^:private sync-dialog-open-atom (atom false))
@@ -539,13 +587,11 @@
         first-root      ^Parent (ui/load-fxml "sync-first.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
-        sync-settings   (-> (io/resource "sync.edn")
-                          slurp
-                          edn/read-string)
+        sync-settings   (load-settings "sync.edn")
         stage           (ui/make-dialog-stage (ui/main-stage))
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
-        first-controls  (ui/collect-controls first-root ["manual-hyperlink" "status-log" "success-message" "dashboard-hyperlink"])
+        first-controls  (ui/collect-controls first-root ["manual-hyperlink" "status-log" "success-message" "error-message" "dashboard-hyperlink"])
         first-settings  (:first sync-settings)
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
         push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label" "diff" "stage" "unstage"])
@@ -617,7 +663,16 @@
                                               (ui/visible! (:cancel dialog-controls) false)
                                               (doto (:status-log first-controls)
                                                 (ui/visible! true)
-                                                (ui/text! "")))
+                                                (ui/text! ""))
+                                              (ui/visible! (:error-message first-controls) true))
+                             :first/error (do
+                                            (ui/disable! (:ok dialog-controls) false)
+                                            (ui/text! (:ok dialog-controls) "Retry")
+                                            (let [status-log (:status-log first-controls)]
+                                              (ui/text! status-log (str/join "\n" [(ui/text status-log) (get-in flow [:error :message])])))
+                                            (ui/disable! (:cancel dialog-controls) false)
+                                            (ui/visible! (:error-message first-controls) true)
+                                            (ui/visible! (:progress-bar dialog-controls) false))
                              :first/done (do
                                            (ui/disable! (:ok dialog-controls) false)
                                            (ui/text! (:ok dialog-controls) "Done")
@@ -698,7 +753,7 @@
                                                                   :message (ui/text (:message push-controls))})
                                                                render-progress))
 
-                                               (= :first/start state)
+                                               (or (= :first/start state) (= :first/error state))
                                                (do
                                                  (swap! !flow advance-flow render-progress)
                                                  (future
@@ -712,6 +767,7 @@
                                                      (swap! !flow (fn [flow]
                                                                     (-> flow
                                                                       (assoc :project-info (:project-info result))
+                                                                      (assoc :error (:error result))
                                                                       (advance-flow render-progress)))))))
 
                                                :else
