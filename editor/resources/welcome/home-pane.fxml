@@ -6,7 +6,7 @@
 <VBox id="home-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
     <HBox styleClass="header-pane">
         <Label styleClass="header" text="Recent Projects" HBox.hgrow="ALWAYS" />
-        <Button id="open-button" styleClass="df-button" text="Open From Disk..." />
+        <Button id="open-from-disk-button" styleClass="df-button" text="Open From Disk..." />
     </HBox>
     <ListView id="recent-projects-list" VBox.vgrow="ALWAYS" />
 </VBox>

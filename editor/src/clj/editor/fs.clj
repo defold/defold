@@ -79,17 +79,25 @@
       (catch Exception _
         false))))
 
-(defn empty-directory?
-  "Returns true if the argument refers to an existing empty directory."
+(defn existing-directory?
+  "Returns true if the argument refers to an existing directory."
   [^File directory]
   (if-not (instance? File directory)
     false
     (try
-      (and (.isDirectory directory)
-           (with-open [directory-stream (Files/newDirectoryStream (.toPath directory))]
-             (not (.hasNext (.iterator directory-stream)))))
+      (.isDirectory directory)
       (catch Exception _
         false))))
+
+(defn empty-directory?
+  "Returns true if the argument refers to an existing empty directory."
+  [^File directory]
+  (and (existing-directory? directory)
+       (try
+         (with-open [directory-stream (Files/newDirectoryStream (.toPath directory))]
+           (not (.hasNext (.iterator directory-stream))))
+         (catch Exception _
+           false))))
 
 (defmacro maybe-silently
   "If silently, returns replacement when body throws exception."

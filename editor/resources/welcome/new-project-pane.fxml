@@ -17,7 +17,7 @@
         <HBox HBox.hgrow="ALWAYS">
             <Label text="Location" />
             <HBox id="location-browse-field" styleClass="df-browse-field" HBox.hgrow="ALWAYS">
-                <TextField text="/Users/watson/defold/projects/GettingStarted" HBox.hgrow="ALWAYS" />
+                <TextField HBox.hgrow="ALWAYS" />
                 <Button text="&#8226; &#8226; &#8226;" />
             </HBox>
         </HBox>
