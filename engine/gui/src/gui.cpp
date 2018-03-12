@@ -1950,7 +1950,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             node->m_Node.m_LineBreak = 0;
             node->m_Node.m_Enabled = 1;
             node->m_Node.m_DirtyLocal = 1;
-            node->m_Node.m_InheritAlpha = 1;
+            node->m_Node.m_InheritAlpha = 0;
             node->m_Node.m_ClippingMode = CLIPPING_MODE_NONE;
             node->m_Node.m_ClippingVisible = true;
             node->m_Node.m_ClippingInverted = false;
