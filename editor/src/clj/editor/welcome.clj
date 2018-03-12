@@ -10,17 +10,17 @@
             [editor.ui :as ui]
             [editor.updater :as updater]
             [schema.core :as s]
-            [util.net :as net])
+            [util.net :as net]
+            [util.time :as time])
   (:import (org.apache.commons.io FilenameUtils)
            (java.io PushbackReader FileOutputStream File)
            (java.net MalformedURLException URL)
-           (java.time Duration Instant LocalDateTime ZoneId)
-           (java.time.format DateTimeParseException)
+           (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
-           (javafx.scene.control ToggleGroup RadioButton Label)
+           (javafx.scene.control ToggleGroup RadioButton Label ListView)
            (javafx.scene.image ImageView Image)
            (javafx.scene.layout HBox StackPane VBox Priority)
            (javafx.scene.shape Rectangle)
@@ -89,14 +89,6 @@
     (catch Exception _
       nil)))
 
-(defn- try-parse-instant
-  ^Instant [^String timestamp]
-  (when (some? timestamp)
-    (try
-      (Instant/parse timestamp)
-      (catch DateTimeParseException _
-        nil))))
-
 (def ^:private xform-recent-projects->timestamps-by-path
   (map (fn [{:keys [project-file last-opened]}]
          (assert (instance? Instant last-opened))
@@ -107,7 +99,7 @@
 (def ^:private xform-timestamps-by-path->recent-projects
   (keep (fn [[path timestamp]]
           (let [file (io/as-file path)
-                instant (try-parse-instant timestamp)]
+                instant (time/try-parse-instant timestamp)]
             (when (and (some? instant)
                        (fs/existing-file? file))
               (when-some [title (try-load-project-title file)]
@@ -143,11 +135,12 @@
                (into [] xform-paths->recent-projects paths)
                []))))
 
-(defn- set-recent-projects!
-  "Takes a sequence of recently opened projects, and writes it to preferences in
-  a format that can be deserialized using the recent-projects function."
-  [prefs recent-projects]
-  (let [timestamps-by-path (into {} xform-recent-projects->timestamps-by-path recent-projects)]
+(defn- add-recent-project!
+  "Updates the recent projects list in the preferences to include a new entry
+  for the specified project-file. Uses the current time for the timestamp."
+  [prefs recent-projects ^File project-file]
+  (let [timestamps-by-path (assoc (into {} xform-recent-projects->timestamps-by-path recent-projects)
+                             (.getAbsolutePath project-file) (str (Instant/now)))]
     (prefs/set-prefs prefs recent-projects-prefs-key timestamps-by-path)))
 
 ;; -----------------------------------------------------------------------------
@@ -206,24 +199,6 @@
 ;; Home pane
 ;; -----------------------------------------------------------------------------
 
-(defn- vague-time-expression
-  ^String [^Instant instant]
-  (let [now (LocalDateTime/now)
-        then (LocalDateTime/ofInstant instant (ZoneId/systemDefault))
-        elapsed (Duration/between then now)]
-    (condp > (.getSeconds elapsed)
-      45 "just now"
-      89  "a minute ago"
-      149 "a few minutes ago"
-      899 (str (.toMinutes elapsed) " minutes ago")
-      2699 "half an hour ago"
-      5399 "an hour ago"
-      8999 "a few hours ago"
-      64799 (str (.toHours elapsed) " hours ago")
-      129599 "a day ago"
-      129600 "a few days ago"
-      (str (.toLocalDate then)))))
-
 (defn- make-recent-project-entry
   ^Node [{:keys [^File project-file ^Instant last-opened ^String title] :as _recent-project}]
   (assert (instance? File project-file))
@@ -236,16 +211,19 @@
                    (doto (HBox.)
                      (ui/children! [(doto (Label. (.getParent project-file))
                                       (HBox/setHgrow Priority/ALWAYS))
-                                    (Label. (vague-time-expression last-opened))]))])))
+                                    (Label. (time/vague-description last-opened))]))])))
 
 (defn- make-home-pane
-  ^Parent [prefs close-dialog-and-open-project!]
+  ^Parent [recent-projects close-dialog-and-open-project!]
   (doto (ui/load-fxml "welcome/home-pane.fxml")
-    (ui/with-controls [recent-projects-list open-button]
+    (ui/with-controls [^ListView recent-projects-list open-button]
       (doto recent-projects-list
-        (ui/items! (recent-projects prefs))
+        (ui/items! recent-projects)
         (ui/cell-factory! (fn [recent-project]
-                            {:graphic (make-recent-project-entry recent-project)}))))))
+                            {:graphic (make-recent-project-entry recent-project)}))
+        (ui/observe-selection (fn [_ selected-items]
+                                (when-some [recent-project (first selected-items)]
+                                  (close-dialog-and-open-project! (:project-file recent-project)))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; New project pane
@@ -355,20 +333,22 @@
         root (ui/load-fxml "welcome/welcome-dialog.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
-        close-dialog-and-open-project! (fn [^File defold-project-file]
-                                         (ui/close! stage)
-                                         (when (.isFile defold-project-file)
-                                           (prefs/set-prefs prefs open-project-directory-prefs-key (.getParent defold-project-file)))
+        recent-projects (recent-projects prefs)
+        close-dialog-and-open-project! (fn [^File project-file]
+                                         (when (fs/existing-file? project-file)
+                                           (prefs/set-prefs prefs open-project-directory-prefs-key (.getParent project-file))
+                                           (add-recent-project! prefs recent-projects project-file)
+                                           (ui/close! stage)
 
-                                         ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
-                                         ;; In other words, we can't reuse the welcome page and it has to be closed.
-                                         ;; We should potentially changed this when we have uberjar support and hence
-                                         ;; faster loading.
-                                         (open-project-fn (.getAbsolutePath defold-project-file))
-                                         nil)
+                                           ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
+                                           ;; In other words, we can't reuse the welcome page and it has to be closed.
+                                           ;; We should potentially changed this when we have uberjar support and hence
+                                           ;; faster loading.
+                                           (open-project-fn (.getAbsolutePath project-file))
+                                           nil))
         left-pane ^Parent (.lookup root "#left-pane")
         pane-buttons-toggle-group (ToggleGroup.)
-        pane-buttons [(make-pane-button "HOME" (make-home-pane prefs close-dialog-and-open-project!))
+        pane-buttons [(make-pane-button "HOME" (make-home-pane recent-projects close-dialog-and-open-project!))
                       (make-pane-button "NEW PROJECT" (make-new-project-pane welcome-settings close-dialog-and-open-project!))
                       (make-pane-button "OPEN PROJECT" (make-open-project-pane))]]
 

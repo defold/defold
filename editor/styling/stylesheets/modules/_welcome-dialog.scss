@@ -139,10 +139,9 @@
 
   #home-pane {
     #recent-projects-list {
-      -fx-background-color: transparent;
-      -fx-padding: 0;
+      -fx-padding: 0px 16px 0px 0px;
 
-      .list-cell:selected {
+      .list-cell:hover {
         -fx-background-color: rgba(255, 255, 255, 0.05);
       }
     }
