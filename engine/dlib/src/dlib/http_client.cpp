@@ -504,7 +504,7 @@ namespace dmHttpClient
             client->m_Buffer[response->m_TotalReceived] = '\0';
 
             dmHttpClientPrivate::ParseResult parse_res;
-            parse_res = dmHttpClientPrivate::ParseHeader(client->m_Buffer, response, &HandleVersion, &HandleHeader, &HandleContent);
+            parse_res = dmHttpClientPrivate::ParseHeader(client->m_Buffer, response, recv_bytes == 0, &HandleVersion, &HandleHeader, &HandleContent);
             if (parse_res == dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA)
             {
                 if (recv_bytes == 0)
