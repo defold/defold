@@ -5417,7 +5417,7 @@ TEST_F(dmGuiTest, InheritAlpha)
                     "    self.text_no_inherit_alpha = gui.new_text_node(vmath.vector3(0, 0, 0), \"No inherit alpha\")\n"
                     "    gui.set_id(self.text_no_inherit_alpha, \"text_no_inherit_alpha\")\n"
                     "    gui.set_parent(self.text_no_inherit_alpha, self_box_node)\n"
-                    "    gui.set_inherit_alpha(self.text_no_inherit_alpha, false)\n"
+                    "    gui.set_inherit_alpha(self.text_no_inherit_alpha, true)\n"
                     "end\n"
                     "function final(self)\n"
                     "    gui.delete_node(self.text_no_inherit_alpha)\n"
@@ -5436,10 +5436,10 @@ TEST_F(dmGuiTest, InheritAlpha)
     ASSERT_EQ(dmGui::GetNodeInheritAlpha(m_Scene, box_node), false);
 
     dmGui::HNode text_inherit_alpha = dmGui::GetNodeById(m_Scene, "text_inherit_alpha");
-    ASSERT_EQ(dmGui::GetNodeInheritAlpha(m_Scene, text_inherit_alpha), true);
+    ASSERT_EQ(dmGui::GetNodeInheritAlpha(m_Scene, text_inherit_alpha), false);
 
     dmGui::HNode text_no_inherit_alpha = dmGui::GetNodeById(m_Scene, "text_no_inherit_alpha");
-    ASSERT_EQ(dmGui::GetNodeInheritAlpha(m_Scene, text_no_inherit_alpha), false);
+    ASSERT_EQ(dmGui::GetNodeInheritAlpha(m_Scene, text_no_inherit_alpha), true);
 
     r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
     ASSERT_EQ(dmGui::RESULT_OK, r);
