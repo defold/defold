@@ -441,10 +441,10 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setProjectIdentifier(projectIdentifier);
 
 
-        // If keys cannot be found with absolute path, try to resolve project relative path
+        // If manifest signing keys are specified, use them instead of generating them.
         if (privateKeyFilepath != null && publicKeyFilepath != null ) {
             if (!Files.exists(Paths.get(privateKeyFilepath))) {
-                privateKeyFilepath = project.getResource(privateKeyFilepath).getPath();
+                privateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
                 if (!Files.exists(Paths.get(privateKeyFilepath))) {
                     System.out.println("Warning: Failed to load private key for manifest signing, generating keys instead.");
                     privateKeyFilepath = null;
@@ -452,7 +452,7 @@ public class GameProjectBuilder extends Builder<Void> {
             }
 
             if (!Files.exists(Paths.get(publicKeyFilepath))) {
-                publicKeyFilepath = project.getResource(publicKeyFilepath).getPath();
+                publicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
                 if (!Files.exists(Paths.get(publicKeyFilepath))) {
                     System.out.println("Warning: Failed to load public key for manifest signing, generating keys instead.");
                     publicKeyFilepath = null;
