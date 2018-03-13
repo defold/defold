@@ -184,15 +184,15 @@ EXP_FUNC int STDCALL DM_get_random(int num_rand_bytes, uint8_t *rand_data)
     ep[1] ^= ENTROPY_COUNTER2;
 
     /* use a digested version of the entropy pool as a key */
-    MD5_Init(&rng_digest_ctx);
-    MD5_Update(&rng_digest_ctx, entropy_pool, ENTROPY_POOL_SIZE);
-    MD5_Final(digest, &rng_digest_ctx);
+    DM_MD5_Init(&rng_digest_ctx);
+    DM_MD5_Update(&rng_digest_ctx, entropy_pool, ENTROPY_POOL_SIZE);
+    DM_MD5_Final(digest, &rng_digest_ctx);
 
     /* come up with the random sequence */
-    AES_set_key(&rng_ctx, digest, (const uint8_t *)ep, AES_MODE_128); /* use as a key */
+    DM_AES_set_key(&rng_ctx, digest, (const uint8_t *)ep, AES_MODE_128); /* use as a key */
     memcpy(rand_data, entropy_pool, num_rand_bytes < ENTROPY_POOL_SIZE ?
 				num_rand_bytes : ENTROPY_POOL_SIZE);
-    AES_cbc_encrypt(&rng_ctx, rand_data, rand_data, num_rand_bytes);
+    DM_AES_cbc_encrypt(&rng_ctx, rand_data, rand_data, num_rand_bytes);
 
     /* move things along */
     for (i = ENTROPY_POOL_SIZE-1; i >= MD5_SIZE ; i--)
