@@ -8,6 +8,7 @@
    [editor.handler :as handler]
    [editor.jfx :as jfx]
    [editor.progress :as progress]
+   [editor.math :as math]
    [editor.menu :as menu]
    [editor.ui.tree-view-hack :as tree-view-hack]
    [editor.util :as eutil]
@@ -1914,7 +1915,9 @@ command."
                (map (fn [outline]
                       (str "M" (string/join " L"
                                             (map (fn [x y]
-                                                   (str (* x col) "," (* y row)))
+                                                   (str (math/round-with-precision (* x col) 0.1)
+                                                        ","
+                                                        (math/round-with-precision (* y row) 0.1)))
                                                  (take-nth 2 outline)
                                                  (take-nth 2 (drop 1 outline)))) " Z"))
                     outlines)))

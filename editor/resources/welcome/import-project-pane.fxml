@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.Group?>
+<?import javafx.scene.text.Text?>
+
+<VBox id="import-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
+    <HBox styleClass="header-pane">
+        <Label styleClass="header" text="Dashboard Projects" HBox.hgrow="ALWAYS" />
+        <Button id="open-from-disk-button" styleClass="df-button" text="Open From Disk..." />
+    </HBox>
+    <StackPane VBox.vgrow="ALWAYS">
+        <ListView id="dashboard-projects-list" />
+        <VBox id="not-signed-in-list-overlay" styleClass="empty-list-overlay" translateY="216">
+            <Group styleClass="defold-logo-container, gray" style="-defold-logo-size: 110px 105px;" translateY="-24"/>
+            <Text wrappingWidth="340"></Text>
+        </VBox>
+        <VBox id="empty-dashboard-projects-list-overlay" styleClass="empty-list-overlay" translateY="216">
+            <Group styleClass="defold-logo-container, gray" style="-defold-logo-size: 110px 105px;" translateY="-24"/>
+            <Text wrappingWidth="240">Projects you have synced to the Defold cloud will appear here.</Text>
+        </VBox>
+    </StackPane>
+</VBox>

@@ -21,13 +21,14 @@
            (javafx.beans.binding Bindings)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
-           (javafx.scene.control ToggleGroup RadioButton Label ListView)
+           (javafx.scene.control Button Label ListView RadioButton ToggleGroup)
            (javafx.scene.image ImageView Image)
            (javafx.scene.input MouseEvent)
            (javafx.scene.layout HBox StackPane VBox Priority)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
-           (javafx.stage Stage)))
+           (javafx.stage Stage)
+           (javafx.beans.value ObservableNumberValue)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -58,9 +59,14 @@
    (s/optional-key :user-level) VisibleString
    (s/optional-key :skip-root?) s/Bool})
 
-(def ^:private NewProjectSettings
-  {:templates [(s/one TemplateProject "TemplateProject")
+(def ^:private TemplateProjectCategory
+  {:label VisibleString
+   :templates [(s/one TemplateProject "TemplateProject")
                TemplateProject]})
+
+(def ^:private NewProjectSettings
+  {:categories [(s/one TemplateProjectCategory "TemplateProjectCategory")
+                TemplateProjectCategory]})
 
 (def ^:private WelcomeSettings
   {:new-project NewProjectSettings})
@@ -212,6 +218,21 @@
             (or (some-> file .getAbsolutePath) "")))
 
 ;; -----------------------------------------------------------------------------
+;; Defold logo
+;; -----------------------------------------------------------------------------
+
+(def ^:private defold-logo-size-pattern #"-defold-logo-size:\s*(\d+)px\s+(\d+)px")
+
+(defn- try-parse-defold-logo-size [^String style]
+  (when-some [width-and-height (not-empty (mapv #(Double/parseDouble %) (drop 1 (re-find defold-logo-size-pattern style))))]
+    width-and-height))
+
+(defn- add-defold-logo-svg-paths! [^Node node]
+  (doseq [^Parent logo-container (.lookupAll node "Group.defold-logo-container")]
+    (when-some [[width height] (try-parse-defold-logo-size (.getStyle logo-container))]
+      (ui/children! logo-container (ui/make-defold-logo-paths width height)))))
+
+;; -----------------------------------------------------------------------------
 ;; Home pane
 ;; -----------------------------------------------------------------------------
 
@@ -244,11 +265,10 @@
 (defn- make-home-pane
   ^Parent [open-project-directory recent-projects close-dialog-and-open-project!]
   (doto (ui/load-fxml "welcome/home-pane.fxml")
-    (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay defold-logo-grey open-from-disk-button]
+    (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay open-from-disk-button]
       (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
       (.bind (.visibleProperty empty-recent-projects-list-overlay) (Bindings/isEmpty (.getItems recent-projects-list)))
       (.bind (.managedProperty empty-recent-projects-list-overlay) (.visibleProperty empty-recent-projects-list-overlay))
-      (ui/children! defold-logo-grey (ui/make-defold-logo-paths 110.0 105.0))
       (doto recent-projects-list
         (ui/items! recent-projects)
         (ui/cell-factory! (fn [recent-project]
@@ -297,17 +317,48 @@
                    (make-description-view (:name project-template)
                                           (:description project-template))])))
 
+(defn- make-category-button
+  ^RadioButton [{:keys [label templates] :as template-project-category}]
+  (s/validate TemplateProjectCategory template-project-category)
+  (doto (RadioButton.)
+    (ui/user-data! :templates templates)
+    (ui/text! label)))
+
+(defn- category-button->templates [category-button]
+  (ui/user-data category-button :templates))
+
 (defn- make-new-project-pane
   ^Parent [open-project-directory welcome-settings close-dialog-and-open-project!]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/with-controls [template-list title-field location-browse-field submit-button]
+    (ui/with-controls [template-categories ^ListView template-list title-field location-browse-field ^Button submit-button]
       (doto location-browse-field
         (setup-directory-browse-field! "Select New Project Location")
         (set-browse-field-file! open-project-directory))
       (doto template-list
-        (ui/items! (get-in welcome-settings [:new-project :templates]))
         (ui/cell-factory! (fn [project-template]
                             {:graphic (make-template-entry project-template)})))
+
+      ;; Configure template category toggle buttons.
+      (let [category-buttons-toggle-group (ToggleGroup.)
+            category-buttons (mapv make-category-button (get-in welcome-settings [:new-project :categories]))]
+
+        ;; Add the category buttons to top bar and configure them to toggle between the templates.
+        (doseq [^RadioButton category-button category-buttons]
+          (.setToggleGroup category-button category-buttons-toggle-group)
+          (ui/add-child! template-categories category-button))
+
+        (ui/observe (.selectedToggleProperty category-buttons-toggle-group)
+                    (fn [_ _ selected-category-button]
+                      (let [templates (category-button->templates selected-category-button)]
+                        (ui/items! template-list templates))))
+
+        ;; Select the first category button.
+        (.selectToggle category-buttons-toggle-group (first category-buttons)))
+
+      ;; Disable submit-button when no template is selected.
+      (.bind (.disableProperty submit-button)
+             (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel template-list))))
+
       (ui/on-action! submit-button
                      (fn [_]
                        (when-some [project-template (first (ui/selection template-list))]
@@ -331,10 +382,11 @@
 ;; Import project pane
 ;; -----------------------------------------------------------------------------
 
-(defn- make-open-project-pane
-  ^Parent []
-  (let [pane (ui/load-fxml "welcome/open-project-pane.fxml")]
-    pane))
+(defn- make-import-project-pane
+  ^Parent [open-project-directory close-dialog-and-open-project!]
+  (doto (ui/load-fxml "welcome/import-project-pane.fxml")
+    (ui/with-controls [^ListView dashboard-projects-list ^Node not-signed-in-list-overlay ^Node empty-dashboard-projects-list-overlay open-from-disk-button]
+      (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
@@ -386,7 +438,11 @@
         pane-buttons-toggle-group (ToggleGroup.)
         pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory recent-projects close-dialog-and-open-project!))
                       (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory welcome-settings close-dialog-and-open-project!))
-                      (make-pane-button "OPEN PROJECT" (make-open-project-pane))]]
+                      (make-pane-button "IMPORT PROJECT" (make-import-project-pane open-project-directory close-dialog-and-open-project!))]]
+
+    ;; Add Defold logo SVG paths.
+    (doseq [pane (map pane-button->pane pane-buttons)]
+      (add-defold-logo-svg-paths! pane))
 
     ;; Make ourselves the main stage.
     (ui/set-main-stage stage)

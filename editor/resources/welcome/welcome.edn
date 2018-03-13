@@ -1,41 +1,42 @@
 {:new-project
- {:templates
-  [{:name "Getting started with Defold"
-    :description "In this tutorial we start with an empty project and build the beginning of a top down shooter game. It includes player movement and rocket shooting."
-    :image "empty.svg"
-    :duration "Short"
-    :user-level "Beginner"
-    :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
-    :skip-root? true}
+ {:categories [{:label "From Template"
+                :templates [{:name "Platformer"
+                             :description "In this article, we go through the implementation of a basic tile-based 2D platformer in Defold. The mechanics we will learn are moving left/right, jumping and falling."
+                             :image "platformer.svg"
+                             :duration "Short"
+                             :user-level "Beginner"
+                             :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
+                             :skip-root? true}
 
-   {:name "Platformer"
-    :description "In this article, we go through the implementation of a basic tile-based 2D platformer in Defold. The mechanics we will learn are moving left/right, jumping and falling."
-    :image "platformer.svg"
-    :duration "Short"
-    :user-level "Beginner"
-    :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
-    :skip-root? true}
+                            {:name "Color grading"
+                             :description "In this tutorial we are going to create a color grading full screen post effect. The basic rendering method used is widely applicable for various types of post effects like blur, trails, glow, color adjustments and so on."
+                             :image "example.png"
+                             :duration "Medium"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
+                             :skip-root? true}
 
-   {:name "Color grading"
-    :description "In this tutorial we are going to create a color grading full screen post effect. The basic rendering method used is widely applicable for various types of post effects like blur, trails, glow, color adjustments and so on."
-    :image "example.png"
-    :duration "Medium"
-    :user-level "Advanced"
-    :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
-    :skip-root? true}
+                            {:name "Magic link"
+                             :description "In this tutorial we will build a complete little puzzle game with a start screen, the mechanics of the game and simple level progression in the form of increasing difficulty."
+                             :image "linker.svg"
+                             :duration "Long"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
+                             :skip-root? true}]}
 
-   {:name "Magic link"
-    :description "In this tutorial we will build a complete little puzzle game with a start screen, the mechanics of the game and simple level progression in the form of increasing difficulty."
-    :image "linker.svg"
-    :duration "Long"
-    :user-level "Intermediate"
-    :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
-    :skip-root? true}
+               {:label "From Tutorial"
+                :templates [{:name "Getting started with Defold"
+                             :description "In this tutorial we start with an empty project and build the beginning of a top down shooter game. It includes player movement and rocket shooting."
+                             :image "empty.svg"
+                             :duration "Short"
+                             :user-level "Beginner"
+                             :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
+                             :skip-root? true}
 
-   {:name "War battles"
-    :description "In this tutorial we start with an empty project and build the beginning of a top down shooter game. It includes player movement and rocket shooting."
-    :image "isometric.svg"
-    :duration "Medium"
-    :user-level "Beginner"
-    :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
-    :skip-root? true}]}}
+                            {:name "War battles"
+                             :description "In this tutorial we start with an empty project and build the beginning of a top down shooter game. It includes player movement and rocket shooting."
+                             :image "isometric.svg"
+                             :duration "Medium"
+                             :user-level "Beginner"
+                             :zip-url "https://github.com/britzl/defold-bunnymark/archive/master.zip"
+                             :skip-root? true}]}]}}

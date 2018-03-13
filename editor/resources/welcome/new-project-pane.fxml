@@ -7,10 +7,11 @@
 <?import javafx.scene.control.TextField?>
 
 <VBox id="new-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
+    <HBox id="template-categories" styleClass="tab-header-pane" />
     <ListView id="template-list" VBox.vgrow="ALWAYS" />
     <HBox styleClass="form-pane">
-        <HBox HBox.hgrow="ALWAYS">
-            <Label text="Title" />
+        <HBox HBox.hgrow="ALWAYS" maxWidth="180">
+            <Label text="Title" minWidth="-Infinity"/>
             <TextField id="title-field" text="My Project" HBox.hgrow="ALWAYS" />
         </HBox>
 
