@@ -43,11 +43,11 @@
 
 #ifdef CONFIG_SSL_CERT_VERIFICATION
 static int x509_v3_subject_alt_name(const uint8_t *cert, int offset,
-        X509_CTX *x509_ctx);
+        DM_X509_CTX *x509_ctx);
 static int x509_v3_basic_constraints(const uint8_t *cert, int offset,
-        X509_CTX *x509_ctx);
+        DM_X509_CTX *x509_ctx);
 static int x509_v3_key_usage(const uint8_t *cert, int offset,
-        X509_CTX *x509_ctx);
+        DM_X509_CTX *x509_ctx);
 
 /**
  * Retrieve the signature from a certificate.
@@ -76,17 +76,17 @@ end_get_sig:
  * Construct a new x509 object.
  * @return 0 if ok. < 0 if there was a problem.
  */
-int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx)
+int x509_new(const uint8_t *cert, int *len, DM_X509_CTX **ctx)
 {
     int begin_tbs, end_tbs;
     int ret = X509_NOT_OK, offset = 0, cert_size = 0;
     int version = 0;
-    X509_CTX *x509_ctx;
+    DM_X509_CTX *x509_ctx;
 #ifdef CONFIG_SSL_CERT_VERIFICATION /* only care if doing verification */
-    BI_CTX *bi_ctx;
+    DM_BI_CTX *bi_ctx;
 #endif
 
-    *ctx = (X509_CTX *)calloc(1, sizeof(X509_CTX));
+    *ctx = (DM_X509_CTX *)calloc(1, sizeof(DM_X509_CTX));
     x509_ctx = *ctx;
 
     /* get the certificate size */
@@ -134,56 +134,56 @@ int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx)
     {
         case SIG_TYPE_MD5:
         {
-            MD5_CTX md5_ctx;
+            DM_MD5_CTX md5_ctx;
             uint8_t md5_dgst[MD5_SIZE];
-            MD5_Init(&md5_ctx);
-            MD5_Update(&md5_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
-            MD5_Final(md5_dgst, &md5_ctx);
-            x509_ctx->digest = bi_import(bi_ctx, md5_dgst, MD5_SIZE);
+            DM_MD5_Init(&md5_ctx);
+            DM_MD5_Update(&md5_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
+            DM_MD5_Final(md5_dgst, &md5_ctx);
+            x509_ctx->digest = DM_bi_import(bi_ctx, md5_dgst, MD5_SIZE);
         }
             break;
 
         case SIG_TYPE_SHA1:
         {
-            SHA1_CTX sha_ctx;
+            DM_SHA1_CTX sha_ctx;
             uint8_t sha_dgst[SHA1_SIZE];
-            SHA1_Init(&sha_ctx);
-            SHA1_Update(&sha_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
-            SHA1_Final(sha_dgst, &sha_ctx);
-            x509_ctx->digest = bi_import(bi_ctx, sha_dgst, SHA1_SIZE);
+            DM_SHA1_Init(&sha_ctx);
+            DM_SHA1_Update(&sha_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
+            DM_SHA1_Final(sha_dgst, &sha_ctx);
+            x509_ctx->digest = DM_bi_import(bi_ctx, sha_dgst, SHA1_SIZE);
         }
             break;
 
         case SIG_TYPE_SHA256:
         {
-            SHA256_CTX sha256_ctx;
+            DM_SHA256_CTX sha256_ctx;
             uint8_t sha256_dgst[SHA256_SIZE];
-            SHA256_Init(&sha256_ctx);
-            SHA256_Update(&sha256_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
-            SHA256_Final(sha256_dgst, &sha256_ctx);
-            x509_ctx->digest = bi_import(bi_ctx, sha256_dgst, SHA256_SIZE);
+            DM_SHA256_Init(&sha256_ctx);
+            DM_SHA256_Update(&sha256_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
+            DM_SHA256_Final(sha256_dgst, &sha256_ctx);
+            x509_ctx->digest = DM_bi_import(bi_ctx, sha256_dgst, SHA256_SIZE);
         }
             break;
 
         case SIG_TYPE_SHA384:
         {
-            SHA384_CTX sha384_ctx;
+            DM_SHA384_CTX sha384_ctx;
             uint8_t sha384_dgst[SHA384_SIZE];
-            SHA384_Init(&sha384_ctx);
-            SHA384_Update(&sha384_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
-            SHA384_Final(sha384_dgst, &sha384_ctx);
-            x509_ctx->digest = bi_import(bi_ctx, sha384_dgst, SHA384_SIZE);
+            DM_SHA384_Init(&sha384_ctx);
+            DM_SHA384_Update(&sha384_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
+            DM_SHA384_Final(sha384_dgst, &sha384_ctx);
+            x509_ctx->digest = DM_bi_import(bi_ctx, sha384_dgst, SHA384_SIZE);
         }
             break;
 
         case SIG_TYPE_SHA512:
         {
-            SHA512_CTX sha512_ctx;
+            DM_SHA512_CTX sha512_ctx;
             uint8_t sha512_dgst[SHA512_SIZE];
-            SHA512_Init(&sha512_ctx);
-            SHA512_Update(&sha512_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
-            SHA512_Final(sha512_dgst, &sha512_ctx);
-            x509_ctx->digest = bi_import(bi_ctx, sha512_dgst, SHA512_SIZE);
+            DM_SHA512_Init(&sha512_ctx);
+            DM_SHA512_Update(&sha512_ctx, &cert[begin_tbs], end_tbs-begin_tbs);
+            DM_SHA512_Final(sha512_dgst, &sha512_ctx);
+            x509_ctx->digest = DM_bi_import(bi_ctx, sha512_dgst, SHA512_SIZE);
         }
             break;
     }
@@ -222,7 +222,7 @@ end_cert:
 
 #ifdef CONFIG_SSL_CERT_VERIFICATION /* only care if doing verification */
 static int x509_v3_subject_alt_name(const uint8_t *cert, int offset,
-        X509_CTX *x509_ctx)
+        DM_X509_CTX *x509_ctx)
 {
     if ((offset = asn1_is_subject_alt_name(cert, offset)) > 0)
     {
@@ -271,7 +271,7 @@ static int x509_v3_subject_alt_name(const uint8_t *cert, int offset,
  * Basic constraints - see https://tools.ietf.org/html/rfc5280#page-39
  */
 static int x509_v3_basic_constraints(const uint8_t *cert, int offset,
-        X509_CTX *x509_ctx)
+        DM_X509_CTX *x509_ctx)
 {
     int ret = X509_OK;
     int lenSeq, l= 0;
@@ -320,7 +320,7 @@ end_contraints:
  * Key usage - see https://tools.ietf.org/html/rfc5280#section-4.2.1.3
  */
 static int x509_v3_key_usage(const uint8_t *cert, int offset,
-        X509_CTX *x509_ctx)
+        DM_X509_CTX *x509_ctx)
 {
     int ret = X509_OK;
 
@@ -344,9 +344,9 @@ end_key_usage:
 /**
  * Free an X.509 object's resources.
  */
-void x509_free(X509_CTX *x509_ctx)
+void x509_free(DM_X509_CTX *x509_ctx)
 {
-    X509_CTX *next;
+    DM_X509_CTX *next;
     int i;
 
     if (x509_ctx == NULL)       /* if already null, then don't bother */
@@ -363,7 +363,7 @@ void x509_free(X509_CTX *x509_ctx)
 #ifdef CONFIG_SSL_CERT_VERIFICATION
     if (x509_ctx->digest)
     {
-        bi_free(x509_ctx->rsa_ctx->bi_ctx, x509_ctx->digest);
+        DM_bi_free(x509_ctx->rsa_ctx->bi_ctx, x509_ctx->digest);
     }
 
     if (x509_ctx->subject_alt_dnsnames)
@@ -375,7 +375,7 @@ void x509_free(X509_CTX *x509_ctx)
     }
 #endif
 
-    RSA_free(x509_ctx->rsa_ctx);
+    DM_RSA_free(x509_ctx->rsa_ctx);
     next = x509_ctx->next;
     free(x509_ctx);
     x509_free(next);        /* clear the chain */
@@ -385,7 +385,7 @@ void x509_free(X509_CTX *x509_ctx)
 /**
  * Take a signature and decrypt it.
  */
-static bigint *sig_verify(BI_CTX *ctx, const uint8_t *sig, int sig_len,
+static bigint *sig_verify(DM_BI_CTX *ctx, const uint8_t *sig, int sig_len,
         bigint *modulus, bigint *pub_exp)
 {
     int i, size;
@@ -394,13 +394,13 @@ static bigint *sig_verify(BI_CTX *ctx, const uint8_t *sig, int sig_len,
     uint8_t *block = (uint8_t *)alloca(sig_len);
 
     /* decrypt */
-    dat_bi = bi_import(ctx, sig, sig_len);
+    dat_bi = DM_bi_import(ctx, sig, sig_len);
     ctx->mod_offset = BIGINT_M_OFFSET;
 
     /* convert to a normal block */
-    decrypted_bi = bi_mod_power2(ctx, dat_bi, modulus, pub_exp);
+    decrypted_bi = DM_bi_mod_power2(ctx, dat_bi, modulus, pub_exp);
 
-    bi_export(ctx, decrypted_bi, block, sig_len);
+    DM_bi_export(ctx, decrypted_bi, block, sig_len);
     ctx->mod_offset = BIGINT_M_OFFSET;
 
     i = 10; /* start at the first possible non-padded byte */
@@ -415,12 +415,12 @@ static bigint *sig_verify(BI_CTX *ctx, const uint8_t *sig, int sig_len,
 
         if (sig_ptr)
         {
-            bir = bi_import(ctx, sig_ptr, len);
+            bir = DM_bi_import(ctx, sig_ptr, len);
         }
     }
 
     /* save a few bytes of memory */
-    bi_clear_cache(ctx);
+    DM_bi_clear_cache(ctx);
     return bir;
 }
 
@@ -436,13 +436,13 @@ static bigint *sig_verify(BI_CTX *ctx, const uint8_t *sig, int sig_len,
  * - The signature of the certificate is valid.
  * - Basic constraints
  */
-int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert,
+int x509_verify(const DM_CA_CERT_CTX *ca_cert_ctx, const DM_X509_CTX *cert,
         int *pathLenConstraint)
 {
     int ret = X509_OK, i = 0;
     bigint *cert_sig;
-    X509_CTX *next_cert = NULL;
-    BI_CTX *ctx = NULL;
+    DM_X509_CTX *next_cert = NULL;
+    DM_BI_CTX *ctx = NULL;
     bigint *mod = NULL, *expn = NULL;
     int match_ca_cert = 0;
     struct timeval tv;
@@ -571,15 +571,15 @@ int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert,
 
     /* check the signature */
     cert_sig = sig_verify(ctx, cert->signature, cert->sig_len,
-                        bi_clone(ctx, mod), bi_clone(ctx, expn));
+                        DM_bi_clone(ctx, mod), DM_bi_clone(ctx, expn));
 
     if (cert_sig && cert->digest)
     {
-        if (bi_compare(cert_sig, cert->digest) != 0)
+        if (DM_bi_compare(cert_sig, cert->digest) != 0)
             ret = X509_VFY_ERROR_BAD_SIGNATURE;
 
 
-        bi_free(ctx, cert_sig);
+        DM_bi_free(ctx, cert_sig);
     }
     else
     {
@@ -606,7 +606,7 @@ end_verify:
  * Used for diagnostics.
  */
 static const char *not_part_of_cert = "<Not Part Of Certificate>";
-void x509_print(const X509_CTX *cert, CA_CERT_CTX *ca_cert_ctx)
+void x509_print(const DM_X509_CTX *cert, DM_CA_CERT_CTX *ca_cert_ctx)
 {
     if (cert == NULL)
         return;

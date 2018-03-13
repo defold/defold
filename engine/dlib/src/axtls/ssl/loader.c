@@ -69,7 +69,7 @@ EXP_FUNC int STDCALL ssl_obj_load(SSL_CTX *ssl_ctx, int obj_type,
     }
 
     ssl_obj = (SSLObjLoader *)calloc(1, sizeof(SSLObjLoader));
-    ssl_obj->len = get_file(filename, &ssl_obj->buf);
+    ssl_obj->len = DM_get_file(filename, &ssl_obj->buf);
     if (ssl_obj->len <= 0)
     {
         ret = SSL_ERROR_INVALID_KEY;
@@ -222,8 +222,8 @@ static int pem_decrypt(const char *where, const char *end,
     char *start = NULL;
     uint8_t iv[IV_SIZE];
     int i, pem_size;
-    MD5_CTX md5_ctx;
-    AES_CTX aes_ctx;
+    DM_MD5_CTX md5_ctx;
+    DM_AES_CTX aes_ctx;
     uint8_t key[32];        /* AES256 size */
 
     if (password == NULL || strlen(password) == 0)
@@ -265,28 +265,28 @@ static int pem_decrypt(const char *where, const char *end,
 
     /* turn base64 into binary */
     pem_size = (int)(end-start);
-    if (base64_decode(start, pem_size, ssl_obj->buf, &ssl_obj->len) != 0)
+    if (DM_base64_decode(start, pem_size, ssl_obj->buf, &ssl_obj->len) != 0)
         goto error;
 
     /* work out the key */
-    MD5_Init(&md5_ctx);
-    MD5_Update(&md5_ctx, (const uint8_t *)password, strlen(password));
-    MD5_Update(&md5_ctx, iv, SALT_SIZE);
-    MD5_Final(key, &md5_ctx);
+    DM_MD5_Init(&md5_ctx);
+    DM_MD5_Update(&md5_ctx, (const uint8_t *)password, strlen(password));
+    DM_MD5_Update(&md5_ctx, iv, SALT_SIZE);
+    DM_MD5_Final(key, &md5_ctx);
 
     if (is_aes_256)
     {
-        MD5_Init(&md5_ctx);
-        MD5_Update(&md5_ctx, key, MD5_SIZE);
-        MD5_Update(&md5_ctx, (const uint8_t *)password, strlen(password));
-        MD5_Update(&md5_ctx, iv, SALT_SIZE);
-        MD5_Final(&key[MD5_SIZE], &md5_ctx);
+        DM_MD5_Init(&md5_ctx);
+        DM_MD5_Update(&md5_ctx, key, MD5_SIZE);
+        DM_MD5_Update(&md5_ctx, (const uint8_t *)password, strlen(password));
+        DM_MD5_Update(&md5_ctx, iv, SALT_SIZE);
+        DM_MD5_Final(&key[MD5_SIZE], &md5_ctx);
     }
 
     /* decrypt using the key/iv */
-    AES_set_key(&aes_ctx, key, iv, is_aes_256 ? AES_MODE_256 : AES_MODE_128);
-    AES_convert_key(&aes_ctx);
-    AES_cbc_decrypt(&aes_ctx, ssl_obj->buf, ssl_obj->buf, ssl_obj->len);
+    DM_AES_set_key(&aes_ctx, key, iv, is_aes_256 ? AES_MODE_256 : AES_MODE_128);
+    DM_AES_convert_key(&aes_ctx);
+    DM_AES_cbc_decrypt(&aes_ctx, ssl_obj->buf, ssl_obj->buf, ssl_obj->len);
     ret = 0;
 
 error:
@@ -336,7 +336,7 @@ static int new_pem_obj(SSL_CTX *ssl_ctx, int is_cacert, char *where,
                 else
                 {
                     ssl_obj->len = pem_size;
-                    if (base64_decode(start, pem_size,
+                    if (DM_base64_decode(start, pem_size,
                                 ssl_obj->buf, &ssl_obj->len) != 0)
                     {
                         ret = SSL_ERROR_BAD_CERTIFICATE;

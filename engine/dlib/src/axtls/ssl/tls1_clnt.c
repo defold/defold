@@ -207,7 +207,7 @@ static int send_client_hello(SSL *ssl)
     *tm_ptr++ = (uint8_t)(((long)tm & 0x00ff0000) >> 16);
     *tm_ptr++ = (uint8_t)(((long)tm & 0x0000ff00) >> 8);
     *tm_ptr++ = (uint8_t)(((long)tm & 0x000000ff));
-    if (get_random(SSL_RANDOM_SIZE-4, &buf[10]) < 0)
+    if (DM_get_random(SSL_RANDOM_SIZE-4, &buf[10]) < 0)
         return SSL_NOT_OK;
 
     memcpy(ssl->dc->client_random, &buf[6], SSL_RANDOM_SIZE);
@@ -396,14 +396,14 @@ static int send_client_key_xchg(SSL *ssl)
     // and this is our current version
     premaster_secret[0] = 0x03;
     premaster_secret[1] = SSL_PROTOCOL_VERSION_MAX & 0x0f;
-    if (get_random(SSL_SECRET_SIZE-2, &premaster_secret[2]) < 0)
+    if (DM_get_random(SSL_SECRET_SIZE-2, &premaster_secret[2]) < 0)
         return SSL_NOT_OK;
 
     DISPLAY_RSA(ssl, ssl->x509_ctx->rsa_ctx);
 
     /* rsa_ctx->bi_ctx is not thread-safe */
     SSL_CTX_LOCK(ssl->ssl_ctx->mutex);
-    enc_secret_size = RSA_encrypt(ssl->x509_ctx->rsa_ctx, premaster_secret,
+    enc_secret_size = DM_RSA_encrypt(ssl->x509_ctx->rsa_ctx, premaster_secret,
             SSL_SECRET_SIZE, &buf[6], 0);
     SSL_CTX_UNLOCK(ssl->ssl_ctx->mutex);
 
@@ -475,7 +475,7 @@ static int send_cert_verify(SSL *ssl)
 {
     uint8_t *buf = ssl->bm_data;
     uint8_t dgst[SHA1_SIZE+MD5_SIZE+15];
-    RSA_CTX *rsa_ctx = ssl->ssl_ctx->rsa_ctx;
+    DM_RSA_CTX *rsa_ctx = ssl->ssl_ctx->rsa_ctx;
     int n = 0, ret;
     int offset = 0;
     int dgst_len;
@@ -507,7 +507,7 @@ static int send_cert_verify(SSL *ssl)
     if (rsa_ctx)
     {
         SSL_CTX_LOCK(ssl->ssl_ctx->mutex);
-        n = RSA_encrypt(rsa_ctx, dgst, dgst_len, &buf[offset + 2], 1);
+        n = DM_RSA_encrypt(rsa_ctx, dgst, dgst_len, &buf[offset + 2], 1);
         SSL_CTX_UNLOCK(ssl->ssl_ctx->mutex);
 
         if (n == 0)

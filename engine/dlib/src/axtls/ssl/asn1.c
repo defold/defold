@@ -257,7 +257,7 @@ end_bit_string_as_int:
 /**
  * Get all the RSA private key specifics from an ASN.1 encoded file
  */
-int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
+int asn1_get_private_key(const uint8_t *buf, int len, DM_RSA_CTX **rsa_ctx)
 {
     int offset = 7;
     uint8_t *modulus = NULL, *priv_exp = NULL, *pub_exp = NULL;
@@ -277,7 +277,7 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     }
 
     /* Use the private key to mix up the RNG if possible. */
-    RNG_custom_init(buf, len);
+    DM_RNG_custom_init(buf, len);
 
     mod_len = asn1_get_big_int(buf, &offset, &modulus);
     pub_len = asn1_get_big_int(buf, &offset, &pub_exp);
@@ -296,7 +296,7 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     if (p_len <= 0 || q_len <= 0 || dP_len <= 0 || dQ_len <= 0 || qInv_len <= 0)
         return X509_INVALID_PRIV_KEY;
 
-    RSA_priv_key_new(rsa_ctx,
+    DM_RSA_priv_key_new(rsa_ctx,
             modulus, mod_len, pub_exp, pub_len, priv_exp, priv_len,
             p, p_len, q, p_len, dP, dP_len, dQ, dQ_len, qInv, qInv_len);
 
@@ -306,7 +306,7 @@ int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx)
     free(dQ);
     free(qInv);
 #else
-    RSA_priv_key_new(rsa_ctx,
+    DM_RSA_priv_key_new(rsa_ctx,
             modulus, mod_len, pub_exp, pub_len, priv_exp, priv_len);
 #endif
 
@@ -398,7 +398,7 @@ int asn1_version(const uint8_t *cert, int *offset, int *val)
 /**
  * Retrieve the notbefore and notafter certificate times.
  */
-int asn1_validity(const uint8_t *cert, int *offset, X509_CTX *x509_ctx)
+int asn1_validity(const uint8_t *cert, int *offset, DM_X509_CTX *x509_ctx)
 {
     return (asn1_next_obj(cert, offset, ASN1_SEQUENCE) < 0 ||
               asn1_get_utc_time(cert, offset, &x509_ctx->not_before) ||
@@ -527,7 +527,7 @@ end_name:
 /**
  * Read the modulus and public exponent of a certificate.
  */
-int asn1_public_key(const uint8_t *cert, int *offset, X509_CTX *x509_ctx)
+int asn1_public_key(const uint8_t *cert, int *offset, DM_X509_CTX *x509_ctx)
 {
     int ret = X509_NOT_OK, mod_len, pub_len;
     uint8_t *modulus = NULL, *pub_exp = NULL;
@@ -545,7 +545,7 @@ int asn1_public_key(const uint8_t *cert, int *offset, X509_CTX *x509_ctx)
     mod_len = asn1_get_big_int(cert, offset, &modulus);
     pub_len = asn1_get_big_int(cert, offset, &pub_exp);
 
-    RSA_pub_key_new(&x509_ctx->rsa_ctx, modulus, mod_len, pub_exp, pub_len);
+    DM_RSA_pub_key_new(&x509_ctx->rsa_ctx, modulus, mod_len, pub_exp, pub_len);
 
     free(modulus);
     free(pub_exp);
@@ -559,7 +559,7 @@ end_pub_key:
 /**
  * Read the signature of the certificate.
  */
-int asn1_signature(const uint8_t *cert, int *offset, X509_CTX *x509_ctx)
+int asn1_signature(const uint8_t *cert, int *offset, DM_X509_CTX *x509_ctx)
 {
     int ret = X509_NOT_OK;
 
@@ -596,7 +596,7 @@ static int asn1_compare_dn_comp(const char *dn1, const char *dn2)
 /**
  * Clean up all of the CA certificates.
  */
-void remove_ca_certs(CA_CERT_CTX *ca_cert_ctx)
+void remove_ca_certs(DM_CA_CERT_CTX *ca_cert_ctx)
 {
     int i = 0;
 
@@ -714,7 +714,7 @@ bool asn1_is_critical_ext(const uint8_t *buf, int *offset)
  * RSA-SHA1 signature types.
  */
 int asn1_signature_type(const uint8_t *cert,
-                                int *offset, X509_CTX *x509_ctx)
+                                int *offset, DM_X509_CTX *x509_ctx)
 {
     int ret = X509_NOT_OK, len;
 

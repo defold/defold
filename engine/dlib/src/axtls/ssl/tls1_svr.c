@@ -307,7 +307,7 @@ static int send_server_hello(SSL *ssl)
     buf[5] = ssl->version & 0x0f;
 
     /* server random value */
-    if (get_random(SSL_RANDOM_SIZE, &buf[6]) < 0)
+    if (DM_get_random(SSL_RANDOM_SIZE, &buf[6]) < 0)
         return SSL_NOT_OK;
 
     memcpy(ssl->dc->server_random, &buf[6], SSL_RANDOM_SIZE);
@@ -328,7 +328,7 @@ static int send_server_hello(SSL *ssl)
     {
 #ifndef CONFIG_SSL_SKELETON_MODE
         buf[offset++] = SSL_SESSION_ID_SIZE;
-        get_random(SSL_SESSION_ID_SIZE, &buf[offset]);
+        DM_get_random(SSL_SESSION_ID_SIZE, &buf[offset]);
         memcpy(ssl->session_id, &buf[offset], SSL_SESSION_ID_SIZE);
         ssl->sess_id_size = SSL_SESSION_ID_SIZE;
 
@@ -372,7 +372,7 @@ static int process_client_key_xchg(SSL *ssl)
     int pkt_size = ssl->bm_index;
     int premaster_size, secret_length = (buf[2] << 8) + buf[3];
     uint8_t premaster_secret[MAX_KEY_BYTE_SIZE];
-    RSA_CTX *rsa_ctx = ssl->ssl_ctx->rsa_ctx;
+    DM_RSA_CTX *rsa_ctx = ssl->ssl_ctx->rsa_ctx;
     int offset = 4;
     int ret = SSL_OK;
 
@@ -390,7 +390,7 @@ static int process_client_key_xchg(SSL *ssl)
 
     /* rsa_ctx->bi_ctx is not thread-safe */
     SSL_CTX_LOCK(ssl->ssl_ctx->mutex);
-    premaster_size = RSA_decrypt(rsa_ctx, &buf[offset], premaster_secret,
+    premaster_size = DM_RSA_decrypt(rsa_ctx, &buf[offset], premaster_secret,
             sizeof(premaster_secret), 1);
     SSL_CTX_UNLOCK(ssl->ssl_ctx->mutex);
 
@@ -400,7 +400,7 @@ static int process_client_key_xchg(SSL *ssl)
                 premaster_secret[1] != (ssl->client_version & 0x0f))
     {
         /* guard against a Bleichenbacher attack */
-        if (get_random(SSL_SECRET_SIZE, premaster_secret) < 0)
+        if (DM_get_random(SSL_SECRET_SIZE, premaster_secret) < 0)
             return SSL_NOT_OK;
 
         /* and continue - will die eventually when checking the mac */
@@ -461,7 +461,7 @@ static int process_cert_verify(SSL *ssl)
     int pkt_size = ssl->bm_index;
     uint8_t dgst_buf[MAX_KEY_BYTE_SIZE];
     uint8_t dgst[MD5_SIZE + SHA1_SIZE];
-    X509_CTX *x509_ctx = ssl->x509_ctx;
+    DM_X509_CTX *x509_ctx = ssl->x509_ctx;
     int ret = SSL_OK;
     int offset = 6;
     int rsa_len;
@@ -487,7 +487,7 @@ static int process_cert_verify(SSL *ssl)
 
     /* rsa_ctx->bi_ctx is not thread-safe */
     SSL_CTX_LOCK(ssl->ssl_ctx->mutex);
-    n = RSA_decrypt(x509_ctx->rsa_ctx, &buf[offset], dgst_buf,
+    n = DM_RSA_decrypt(x509_ctx->rsa_ctx, &buf[offset], dgst_buf,
                     sizeof(dgst_buf), 0);
     SSL_CTX_UNLOCK(ssl->ssl_ctx->mutex);
 
