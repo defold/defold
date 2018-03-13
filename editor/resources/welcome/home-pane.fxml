@@ -2,11 +2,19 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.Group?>
+<?import javafx.scene.text.Text?>
 
 <VBox id="home-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
     <HBox styleClass="header-pane">
         <Label styleClass="header" text="Recent Projects" HBox.hgrow="ALWAYS" />
         <Button id="open-from-disk-button" styleClass="df-button" text="Open From Disk..." />
     </HBox>
-    <ListView id="recent-projects-list" VBox.vgrow="ALWAYS" />
+    <StackPane VBox.vgrow="ALWAYS">
+        <ListView id="recent-projects-list" />
+        <VBox id="empty-recent-projects-list-overlay" styleClass="empty-list-overlay">
+            <Group id="defold-logo-grey" translateY="-24"/>
+            <Text wrappingWidth="340">Welcome! As soon as you start working with Defold, all your recent projects will appear here.</Text>
+        </VBox>
+    </StackPane>
 </VBox>
