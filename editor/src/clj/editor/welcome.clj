@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.dialogs :as dialogs]
+            [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.settings-core :as settings-core]
@@ -11,24 +12,26 @@
             [editor.updater :as updater]
             [schema.core :as s]
             [util.net :as net]
-            [util.time :as time])
-  (:import (org.apache.commons.io FilenameUtils)
+            [util.time :as time]
+            [clojure.pprint :as pprint])
+  (:import (clojure.lang ExceptionInfo)
            (java.io PushbackReader FileOutputStream File)
            (java.net MalformedURLException URL)
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
            (javafx.beans.binding Bindings)
+           (javafx.beans.value ObservableNumberValue)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
-           (javafx.scene.control Button Label ListView RadioButton ToggleGroup)
+           (javafx.scene.control Button Label ListView RadioButton TextArea ToggleGroup)
            (javafx.scene.image ImageView Image)
-           (javafx.scene.input MouseEvent)
+           (javafx.scene.input KeyEvent MouseEvent)
            (javafx.scene.layout HBox StackPane VBox Priority)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
            (javafx.stage Stage)
-           (javafx.beans.value ObservableNumberValue)))
+           (org.apache.commons.io FilenameUtils)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -415,68 +418,111 @@
     (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
     (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
 
-(defn show-welcome-dialog! [prefs update-context open-project-fn]
-  (let [welcome-settings (load-welcome-settings "welcome/welcome.edn")
-        root (ui/load-fxml "welcome/welcome-dialog.fxml")
-        stage (ui/make-dialog-stage)
-        scene (Scene. root)
-        recent-projects (recent-projects prefs)
-        open-project-directory (open-project-directory prefs)
-        close-dialog-and-open-project! (fn [^File project-file]
-                                         (when (fs/existing-file? project-file)
-                                           (set-open-project-directory! prefs (.getParentFile project-file))
-                                           (add-recent-project! prefs recent-projects project-file)
-                                           (ui/close! stage)
+(defn show-welcome-dialog!
+  ([prefs update-context open-project-fn]
+   (show-welcome-dialog! prefs update-context open-project-fn nil))
+  ([prefs update-context open-project-fn opts]
+   (let [[welcome-settings
+          welcome-settings-load-error] (try
+                                         [(load-welcome-settings "welcome/welcome.edn") nil]
+                                         (catch Exception error
+                                           [nil error]))
+         root (ui/load-fxml "welcome/welcome-dialog.fxml")
+         stage (ui/make-dialog-stage)
+         scene (Scene. root)
+         recent-projects (recent-projects prefs)
+         open-project-directory (open-project-directory prefs)
+         close-dialog-and-open-project! (fn [^File project-file]
+                                          (when (fs/existing-file? project-file)
+                                            (set-open-project-directory! prefs (.getParentFile project-file))
+                                            (add-recent-project! prefs recent-projects project-file)
+                                            (ui/close! stage)
 
-                                           ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
-                                           ;; In other words, we can't reuse the welcome page and it has to be closed.
-                                           ;; We should potentially changed this when we have uberjar support and hence
-                                           ;; faster loading.
-                                           (open-project-fn (.getAbsolutePath project-file))
-                                           nil))
-        left-pane ^Parent (.lookup root "#left-pane")
-        pane-buttons-toggle-group (ToggleGroup.)
-        pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory recent-projects close-dialog-and-open-project!))
-                      (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory welcome-settings close-dialog-and-open-project!))
-                      (make-pane-button "IMPORT PROJECT" (make-import-project-pane open-project-directory close-dialog-and-open-project!))]]
+                                            ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
+                                            ;; In other words, we can't reuse the welcome page and it has to be closed.
+                                            ;; We should potentially changed this when we have uberjar support and hence
+                                            ;; faster loading.
+                                            (open-project-fn (.getAbsolutePath project-file))
+                                            nil))
+         left-pane ^Parent (.lookup root "#left-pane")
+         pane-buttons-toggle-group (ToggleGroup.)
+         pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory recent-projects close-dialog-and-open-project!))
+                       (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory welcome-settings close-dialog-and-open-project!))
+                       (make-pane-button "IMPORT PROJECT" (make-import-project-pane open-project-directory close-dialog-and-open-project!))]]
 
-    ;; Add Defold logo SVG paths.
-    (doseq [pane (map pane-button->pane pane-buttons)]
-      (add-defold-logo-svg-paths! pane))
+     ;; Add Defold logo SVG paths.
+     (doseq [pane (map pane-button->pane pane-buttons)]
+       (add-defold-logo-svg-paths! pane))
 
-    ;; Make ourselves the main stage.
-    (ui/set-main-stage stage)
+     ;; Make ourselves the main stage.
+     (ui/set-main-stage stage)
 
-    ;; Install pending update check.
-    (when update-context
-      (install-pending-update-check! stage update-context))
+     ;; Install pending update check.
+     (when update-context
+       (install-pending-update-check! stage update-context))
 
-    ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
-    (doseq [^RadioButton pane-button pane-buttons]
-      (.setToggleGroup pane-button pane-buttons-toggle-group)
-      (ui/add-child! left-pane pane-button))
+     ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
+     (doseq [^RadioButton pane-button pane-buttons]
+       (.setToggleGroup pane-button pane-buttons-toggle-group)
+       (ui/add-child! left-pane pane-button))
 
-    (ui/observe (.selectedToggleProperty pane-buttons-toggle-group)
-                (fn [_ _ selected-pane-button]
-                  (let [pane (pane-button->pane selected-pane-button)]
-                    (ui/children! root [left-pane pane]))))
+     (ui/observe (.selectedToggleProperty pane-buttons-toggle-group)
+                 (fn [_ _ selected-pane-button]
+                   (let [pane (pane-button->pane selected-pane-button)]
+                     (ui/children! root [left-pane pane]))))
 
-    ;; Select the home pane button.
-    (.selectToggle pane-buttons-toggle-group (first pane-buttons))
+     ;; Select the home pane button.
+     (.selectToggle pane-buttons-toggle-group (first pane-buttons))
 
-    ;; ---------- TEMP HACK, REMOVE! ----------
-    ;; Press Cmd-R to reload the view.
-    (.setOnKeyPressed root (ui/event-handler event
-                             (let [key-event ^javafx.scene.input.KeyEvent event]
-                               (when (and (.isShortcutDown key-event)
-                                          (= "r" (.getText key-event)))
-                                 (ui/close! stage)
-                                 (doto ^Stage (show-welcome-dialog! prefs update-context open-project-fn)
-                                   (.setX (.getX stage))
-                                   (.setY (.getY stage)))))))
-    ;; ---------- TEMP HACK, REMOVE! ----------
+     ;; Apply opts if supplied.
+     (when-some [{:keys [x y pane-index]} opts]
+       (.setX stage x)
+       (.setY stage y)
+       (.selectToggle pane-buttons-toggle-group (nth pane-buttons pane-index)))
 
-    ;; Show the dialog.
-    (.setScene stage scene)
-    (ui/run-later (ui/show! stage)) ; TEMP HACK, REMOVE!
-    stage))
+     ;; Press Cmd-R to reload the view in dev mode.
+     (when (system/defold-dev?)
+       (.setOnKeyPressed root (ui/event-handler event
+                                (let [key-event ^KeyEvent event
+                                      selected-pane-button (.getSelectedToggle pane-buttons-toggle-group)]
+                                  (when (and (.isShortcutDown key-event)
+                                             (= "r" (.getText key-event)))
+                                    (ui/close! stage)
+                                    (show-welcome-dialog! prefs update-context open-project-fn
+                                                          {:x (.getX stage)
+                                                           :y (.getY stage)
+                                                           :pane-index (first (keep-indexed (fn [pane-index pane-button]
+                                                                                              (when (= selected-pane-button pane-button)
+                                                                                                pane-index))
+                                                                                            pane-buttons))}))))))
+
+     ;; Report invalid welcome settings.
+     (when (some? welcome-settings-load-error)
+       (error-reporting/report-exception! welcome-settings-load-error)
+
+       ;; If this happens in dev mode, it is likely due to an invalid welcome.edn file.
+       ;; Display the error message on the new project pane, so we can fix and reload.
+       (when (system/defold-dev?)
+         (let [new-project-pane-button (second pane-buttons)
+               new-project-pane (pane-button->pane new-project-pane-button)]
+           (.selectToggle pane-buttons-toggle-group new-project-pane-button)
+           (ui/children! new-project-pane [(doto (TextArea.)
+                                             (.setPrefHeight 10000.0)
+                                             (.setEditable false)
+                                             (.setStyle "-fx-font-family: 'Dejavu Sans Mono'; -fx-font-size: 12px;")
+                                             (ui/text! (if (and (instance? ExceptionInfo welcome-settings-load-error)
+                                                                (= :schema.core/error (:type (ex-data welcome-settings-load-error))))
+                                                         (let [ex-data (ex-data welcome-settings-load-error)]
+                                                           (str "Schema Validation failed when loading `welcome.edn`.\n\n"
+                                                                "Use Command+R to reload once you've fixed the error.\n\n"
+                                                                "Errors were found here:\n"
+                                                                (with-out-str (pprint/pprint (:error ex-data)))
+                                                                "\n"
+                                                                "When matched against this schema:\n"
+                                                                (with-out-str (pprint/pprint (:schema ex-data)))))
+                                                         (with-out-str (pprint/pprint welcome-settings-load-error))))
+                                             (.positionCaret 0))]))))
+
+     ;; Show the dialog.
+     (.setScene stage scene)
+     (ui/show! stage))))
