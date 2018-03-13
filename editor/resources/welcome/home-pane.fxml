@@ -12,8 +12,8 @@
     </HBox>
     <StackPane VBox.vgrow="ALWAYS">
         <ListView id="recent-projects-list" />
-        <VBox id="empty-recent-projects-list-overlay" styleClass="empty-list-overlay">
-            <Group id="defold-logo-grey" translateY="-24"/>
+        <VBox id="empty-recent-projects-list-overlay" styleClass="empty-list-overlay" translateY="216">
+            <Group styleClass="defold-logo-container, gray" style="-defold-logo-size: 110px 105px;"  translateY="-24"/>
             <Text wrappingWidth="340">Welcome! As soon as you start working with Defold, all your recent projects will appear here.</Text>
         </VBox>
     </StackPane>

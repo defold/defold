@@ -111,11 +111,57 @@
     }
   }
 
+  .tab-header-pane {
+    -fx-background-color: #25292E;
+    -fx-border-color: rgba(255, 255, 255, 0.07);
+    -fx-border-width: 0px 0px 1px 0px;
+    // -fx-border-insets: 0px 24px 0px 24px;
+    -fx-padding: 0px 24px 0px 24px;
+    -fx-min-height: 53px;
+    -fx-alignment: bottom-left;
+    -fx-spacing: 24px;
+
+    RadioButton {
+      -fx-graphic-text-gap: 0;
+      -fx-label-padding: 0;
+      -fx-padding: 4px 4px;
+      -fx-border-color: transparent;
+      -fx-border-width: 0px 0px 2px 0px;
+      -fx-text-fill: #CFDAE6;
+      -fx-opacity: 50%;
+
+      &:hover {
+        -fx-opacity: 75%;
+      }
+
+      &:selected {
+        -fx-border-color: $defold-orange;
+        -fx-opacity: 100%;
+      }
+
+      .radio {
+        -fx-padding: 0;
+        visibility: collapse;
+
+        .dot {
+          -fx-padding: 0;
+          visibility: collapse;
+        }
+      }
+    }
+  }
+
   .header-pane {
     -fx-background-color: #25292E;
-    -fx-padding: 24px 24px 8px 16px;
+    -fx-padding: 0px 24px 8px 16px;
     -fx-border-width: 0px 0px 1px 0px;
     -fx-border-color: rgba(255, 255, 255, 0.07);
+    -fx-min-height: 53px;
+    -fx-alignment: bottom-left;
+
+    Label {
+      -fx-translate-y: 4px;
+    }
   }
 
   .form-pane {
@@ -139,7 +185,6 @@
 
   .empty-list-overlay {
     -fx-alignment: top-center;
-    -fx-padding: 216px 0px 0px 0px;
 
     Text {
       -fx-font-size: 16px;
@@ -150,7 +195,7 @@
     }
   }
 
-  #defold-logo-grey {
+  .defold-logo-container.gray {
     .left {
       -fx-fill: #3E3E43;
     }
