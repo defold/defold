@@ -137,6 +137,33 @@
     }
   }
 
+  .empty-list-overlay {
+    -fx-alignment: top-center;
+    -fx-padding: 216px 0px 0px 0px;
+
+    Text {
+      -fx-font-size: 16px;
+      -fx-fill: #CFDAE6;
+      -fx-opacity: 0.75;
+      -fx-line-spacing: 4px;
+      -fx-text-alignment: center;
+    }
+  }
+
+  #defold-logo-grey {
+    .left {
+      -fx-fill: #3E3E43;
+    }
+
+    .right {
+      -fx-fill: #37383D;
+    }
+
+    .bottom {
+      -fx-fill: #2D2E32;
+    }
+  }
+
   #home-pane {
     #recent-projects-list {
       -fx-padding: 0px 16px 0px 0px;

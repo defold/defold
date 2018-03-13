@@ -18,6 +18,7 @@
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
+           (javafx.beans.binding Bindings)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
            (javafx.scene.control ToggleGroup RadioButton Label ListView)
@@ -243,8 +244,11 @@
 (defn- make-home-pane
   ^Parent [open-project-directory recent-projects close-dialog-and-open-project!]
   (doto (ui/load-fxml "welcome/home-pane.fxml")
-    (ui/with-controls [^ListView recent-projects-list open-from-disk-button]
+    (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay defold-logo-grey open-from-disk-button]
       (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
+      (.bind (.visibleProperty empty-recent-projects-list-overlay) (Bindings/isEmpty (.getItems recent-projects-list)))
+      (.bind (.managedProperty empty-recent-projects-list-overlay) (.visibleProperty empty-recent-projects-list-overlay))
+      (ui/children! defold-logo-grey (ui/make-defold-logo-paths 110.0 105.0))
       (doto recent-projects-list
         (ui/items! recent-projects)
         (ui/cell-factory! (fn [recent-project]

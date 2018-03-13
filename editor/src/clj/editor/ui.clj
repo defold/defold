@@ -1907,3 +1907,27 @@ command."
                                  (throw e)))))))
         true)
       false)))
+
+(defn- make-path-data
+  ^String [^double col ^double row outlines]
+  (string/join " "
+               (map (fn [outline]
+                      (str "M" (string/join " L"
+                                            (map (fn [x y]
+                                                   (str (* x col) "," (* y row)))
+                                                 (take-nth 2 outline)
+                                                 (take-nth 2 (drop 1 outline)))) " Z"))
+                    outlines)))
+
+(defn make-defold-logo-paths [^double width ^double height]
+  (let [col (/ width 6.0)
+        row (/ height 10.0)]
+    [(doto (SVGPath.)
+       (add-style! "left")
+       (.setContent (make-path-data col row [[0,4 1,3 1,1 2,0 2,2 4,0 4,2 3,1 3,3 2,4 2,6 1,7 2,8 1,9 1,5 0,6] [3,5 4,4 4,6 3,7]])))
+     (doto (SVGPath.)
+       (add-style! "right")
+       (.setContent (make-path-data col row [[3,1 2,2 2,0 3,1 4,2 4,0 5,1 5,3 6,4 6,6 5,5 5,9 4,8 5,7 4,6 4,4 3,3] [3,5 3,7 2,6 2,4]])))
+     (doto (SVGPath.)
+       (add-style! "bottom")
+       (.setContent (make-path-data col row [[0,6 1,5 1,7 2,6 3,7 4,6 5,7 5,5 6,6 5,7 4,8 5,9 4,10 3,9 2,10 1,9 2,8] [3,5 2,4 3,3 4,4]])))]))
