@@ -38,7 +38,7 @@
 (defn- sort-projects [project-info-list]
   (sort (fn [p1 p2] (.compareToIgnoreCase ^String (:name p1) ^String (:name p2))) (:projects project-info-list)))
 
-(defn- fetch-projects [prefs]
+(defn fetch-projects [prefs]
   (let [client (client/make-client prefs)]
     (let [project-info-list (client/rget client "/projects/-1" Protocol$ProjectInfoList)]
       (sort-projects project-info-list))))
