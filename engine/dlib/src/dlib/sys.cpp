@@ -44,6 +44,7 @@
 #include <android_native_app_glue.h>
 #include <sys/types.h>
 #include <android/asset_manager.h>
+#include "cpu-features.h"
 // By convention we have a global variable called g_AndroidApp
 // This is currently created in glfw..
 // Application life-cycle should perhaps be part of dlib instead
@@ -629,6 +630,7 @@ namespace dmSys
 #endif
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
         info->m_DeviceModel[0] = '\0';
+        dmStrlCpy(info->m_CpuArchitecture, "unknown", sizeof(info->m_CpuArchitecture));
 
         const char* default_lang = "en_US";
 #if defined(__EMSCRIPTEN__)
@@ -686,6 +688,9 @@ namespace dmSys
         jclass build_class = env->FindClass("android/os/Build");
         jstring manufacturerObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MANUFACTURER", "Ljava/lang/String;"));
         jstring modelObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "MODEL", "Ljava/lang/String;"));
+        jstring buildIdObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "ID", "Ljava/lang/String;"));
+        jstring bootloaderObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "BOOTLOADER", "Ljava/lang/String;"));
+        jstring fingerprintObj = (jstring) env->GetStaticObjectField(build_class, env->GetStaticFieldID(build_class, "FINGERPRINT", "Ljava/lang/String;"));
 
         jclass build_version_class = env->FindClass("android/os/Build$VERSION");
         jstring releaseObj = (jstring) env->GetStaticObjectField(build_version_class, env->GetStaticFieldID(build_version_class, "RELEASE", "Ljava/lang/String;"));
@@ -703,11 +708,38 @@ namespace dmSys
             dmStrlCpy(info->m_DeviceModel, model, sizeof(info->m_DeviceModel));
             env->ReleaseStringUTFChars(modelObj, model);
         }
+        if (buildIdObj) {
+            const char* buildId = env->GetStringUTFChars(buildIdObj, NULL);
+            dmStrlCpy(info->m_BuildId, buildId, sizeof(info->m_BuildId));
+            env->ReleaseStringUTFChars(buildIdObj, buildId);
+        }
+        if (bootloaderObj) {
+            const char* bootloader = env->GetStringUTFChars(bootloaderObj, NULL);
+            dmStrlCpy(info->m_BootloaderVersion, bootloader, sizeof(info->m_BootloaderVersion));
+            env->ReleaseStringUTFChars(bootloaderObj, bootloader);
+        }
+        if (fingerprintObj) {
+            // Huawei/H60-L04/hwH60:4.4.2/HDH60-L04/CHNC00B310:user/ota-rel-keys,release-keys
+            const char* fingerprint = env->GetStringUTFChars(fingerprintObj, NULL);
+            dmStrlCpy(info->m_BuildFingerprint, fingerprint, sizeof(info->m_BuildFingerprint));
+            env->ReleaseStringUTFChars(fingerprintObj, fingerprint);
+        }
         if (releaseObj) {
             const char* release = env->GetStringUTFChars(releaseObj, NULL);
             dmStrlCpy(info->m_SystemVersion, release, sizeof(info->m_SystemVersion));
             env->ReleaseStringUTFChars(releaseObj, release);
         }
+
+        const char* cpuArchitecture;
+        AndroidCpuFamily family = android_getCpuFamily();
+        switch (family) {
+            case ANDROID_CPU_FAMILY_ARM64: cpuArchitecture = "arm64"; break;
+            case ANDROID_CPU_FAMILY_ARM: cpuArchitecture = "arm"; break;
+            case ANDROID_CPU_FAMILY_X86_64: cpuArchitecture = "x86_64"; break;
+            case ANDROID_CPU_FAMILY_X86: cpuArchitecture = "x86"; break;
+            default: cpuArchitecture = "unknown"; break;
+        }
+        dmStrlCpy(info->m_CpuArchitecture, cpuArchitecture, sizeof(info->m_CpuArchitecture));
 
         jclass activity_class = env->FindClass("android/app/NativeActivity");
         jmethodID get_content_resolver_method = env->GetMethodID(activity_class, "getContentResolver", "()Landroid/content/ContentResolver;");
@@ -756,6 +788,19 @@ namespace dmSys
         OSVERSIONINFOA version_info;
         version_info.dwOSVersionInfoSize = sizeof(version_info);
         GetVersionEx(&version_info);
+
+        SYSTEM_INFO sysinfo;
+        GetSystemInfo(&sysinfo);
+        const char* cpuArchitecture;
+        switch (sysinfo.wProcessorArchitecture)
+        {
+            case PROCESSOR_ARCHITECTURE_AMD64: cpuArchitecture = "x86_64"; break;
+            case PROCESSOR_ARCHITECTURE_INTEL: cpuArchitecture = "x86"; break;
+            case PROCESSOR_ARCHITECTURE_ARM64: cpuArchitecture = "arm64"; break;
+            case PROCESSOR_ARCHITECTURE_ARM: cpuArchitecture = "arm"; break;
+            default: cpuArchitecture = "unknown"; break;
+        }
+        dmStrlCpy(info->m_CpuArchitecture, cpuArchitecture, sizeof(info->m_CpuArchitecture));
 
         const int max_len = 256;
         char lang[max_len];

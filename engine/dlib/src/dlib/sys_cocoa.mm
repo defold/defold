@@ -1,7 +1,9 @@
 #include <assert.h>
 #include <stdint.h>
 #include <sys/utsname.h>
+#include <sys/sysctl.h>
 #import <Foundation/NSFileManager.h>
+#include <mach/machine.h>
 #include "log.h"
 #include "sys.h"
 #include "sys_private.h"
@@ -26,6 +28,39 @@ namespace dmSys
         if(dmStrCaseCmp(system_name, "iOS")==0)
         {
             dmStrlCpy(system_name, "iPhone OS", buffer_size);
+        }
+    }
+
+    // https://stackoverflow.com/a/5462277/1266551
+    static const char* GetOsBuildVersion()
+    {
+        int mib[2] = {CTL_KERN, KERN_OSVERSION};
+        u_int namelen = sizeof(mib) / sizeof(mib[0]);
+        size_t bufferSize = 0;
+        sysctl(mib, namelen, NULL, &bufferSize, NULL, 0);
+
+        u_char buildBuffer[bufferSize];
+        int result = sysctl(mib, namelen, buildBuffer, &bufferSize, NULL, 0);
+        if (result >= 0)
+        {
+            NSString *osBuildVersion = [[[NSString alloc] initWithBytes:buildBuffer length:bufferSize encoding:NSUTF8StringEncoding] autorelease];
+            return [osBuildVersion UTF8String];
+        }
+        return "";
+    }
+
+    static const char* GetCpuArchitecture() {
+        size_t size;
+        cpu_type_t type;
+        size = sizeof(type);
+        sysctlbyname("hw.cputype", &type, &size, NULL, 0);
+        switch(type)
+        {
+            case CPU_TYPE_X86_64: return "x86_64";
+            case CPU_TYPE_X86: return "x86";
+            case CPU_TYPE_ARM64: return "arm64";
+            case CPU_TYPE_ARM: return "arm";
+            default: return "unkown";
         }
     }
 
@@ -165,6 +200,8 @@ namespace dmSys
         PatchSystemName(info->m_SystemName, sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, [d.systemVersion UTF8String], sizeof(info->m_SystemVersion));
         dmStrlCpy(info->m_ApiVersion, [d.systemVersion UTF8String], sizeof(info->m_ApiVersion));
+        dmStrlCpy(info->m_BuildId, GetOsBuildVersion(), sizeof(info->m_BuildId));
+        dmStrlCpy(info->m_CpuArchitecture, GetCpuArchitecture(), sizeof(info->m_CpuArchitecture));
 
         NSLocale* locale = [NSLocale currentLocale];
         const char* lang = [locale.localeIdentifier UTF8String];
@@ -215,6 +252,8 @@ namespace dmSys
         dmStrlCpy(info->m_SystemName, uts.sysname, sizeof(info->m_SystemName));
         PatchSystemName(info->m_SystemName, sizeof(info->m_SystemName));
         dmStrlCpy(info->m_SystemVersion, uts.release, sizeof(info->m_SystemVersion));
+        dmStrlCpy(info->m_BuildId, GetOsBuildVersion(), sizeof(info->m_BuildId));
+        dmStrlCpy(info->m_CpuArchitecture, GetCpuArchitecture(), sizeof(info->m_CpuArchitecture));
         info->m_DeviceModel[0] = '\0';
 
         const char* default_lang = "en_US";
