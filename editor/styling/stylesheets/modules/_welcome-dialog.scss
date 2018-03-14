@@ -186,12 +186,15 @@
   .empty-list-overlay {
     -fx-alignment: top-center;
 
-    Text {
-      -fx-font-size: 16px;
+    > Text, > Label {
       -fx-fill: #CFDAE6;
+      -fx-text-fill: #CFDAE6;
       -fx-opacity: 0.75;
+      -fx-font-smoothing-type: lcd;
+      -fx-font-size: 16px;
       -fx-line-spacing: 4px;
       -fx-text-alignment: center;
+      -fx-wrap-text: true;
     }
   }
 
@@ -299,7 +302,17 @@
     }
   }
 
+  #you-need-to-sign-in-text {
+    -fx-padding: 8px 0px 32px 0px;
+    -fx-max-width: 330px;
+  }
+
   // General styling
+  Hyperlink {
+    -fx-font-size: 14px;
+    -fx-text-fill: $df-bright-blue;
+  }
+
   Text.header {
     -fx-fill: #A6B2BF;
     -fx-font-family: "Source Sans Pro Light";
@@ -328,10 +341,12 @@
   }
 
   .df-button {
+    -fx-min-width: 0;
     -fx-background-color: transparent;
     -fx-border-color: $df-bright-blue;
     -fx-border-radius: 2px;
     -fx-text-fill: $df-bright-blue;
+    -fx-font-size: 14px;
     -fx-padding: 4px 12px;
   }
 }

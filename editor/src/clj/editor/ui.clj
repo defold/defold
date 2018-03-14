@@ -1223,6 +1223,14 @@
                                                    [binding {}])]
                          (run-command node command user-data true (fn [] (.consume event)))))))))
 
+(defn bind-presence!
+  "Make the nodes presence in the scene dependent on an ObservableValue.
+  If the ObservableValue evaluates to false, the node is both hidden and
+  collapsed so it won't take up any space in the layout pass."
+  [^Node node ^ObservableValue value]
+  (.bind (.visibleProperty node) value)
+  (.bind (.managedProperty node) (.visibleProperty node)))
+
 (defn- ^KeyboardShortcutsHandler keyboard-shortcuts-handler
   [^Node node]
   (let [scene (.getScene node)
