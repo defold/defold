@@ -93,6 +93,8 @@
                      :+inf Double/POSITIVE_INFINITY)))
    'lua/table (fn [{:keys [tostring data]}]
                 (with-meta data {:tostring tostring}))
+   'lua/tableref (fn [{:keys [tostring data]}]
+                    tostring)
    'lua/ref   (fn [{:keys [tostring]}]
                 (format "Circular reference to: %s" tostring))})
 

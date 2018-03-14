@@ -203,8 +203,12 @@ namespace dmSys
         dmStrlCpy(info->m_BuildId, GetOsBuildVersion(), sizeof(info->m_BuildId));
         dmStrlCpy(info->m_CpuArchitecture, GetCpuArchitecture(), sizeof(info->m_CpuArchitecture));
 
+        // DEF-1952
+        // Language and region settings with a non-gregorian calendar will be returned as en_SE@calendar=Hebrew
+        // We need to get rid of @calendar=Hebrew before passing on language for parsing
         NSLocale* locale = [NSLocale currentLocale];
-        const char* lang = [locale.localeIdentifier UTF8String];
+        const char* lang = [[[locale.localeIdentifier componentsSeparatedByString:@"@"] objectAtIndex:0] UTF8String];
+
         FillLanguageTerritory(lang, info);
         FillTimeZone(info);
         dmStrlCpy(info->m_DeviceIdentifier, [[d.identifierForVendor UUIDString] UTF8String], sizeof(info->m_DeviceIdentifier));
@@ -262,7 +266,10 @@ namespace dmSys
         NSLocale* locale = [NSLocale currentLocale];
 
         if (0x0 != locale) {
-            NSString* preferredLang = [locale localeIdentifier];
+            // DEF-1952
+            // Language and region settings with a non-gregorian calendar will be returned as en_SE@calendar=Hebrew
+            // We need to get rid of @calendar=Hebrew before passing on language for parsing
+            NSString* preferredLang = [[[locale localeIdentifier] componentsSeparatedByString:@"@"] objectAtIndex:0];
             lang = [preferredLang UTF8String];
         }
 
