@@ -77,19 +77,19 @@ namespace dmLiveUpdate
     {
         if (algorithm == dmLiveUpdateDDF::HASH_MD5)
         {
-            MD5_CTX context;
+            dmAxTls::MD5_CTX context;
 
-            MD5_Init(&context);
-            MD5_Update(&context, (const uint8_t*) buf, buflen);
-            MD5_Final(digest, &context);
+            dmAxTls::MD5_Init(&context);
+            dmAxTls::MD5_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::MD5_Final(digest, &context);
         }
         else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
         {
-            SHA1_CTX context;
+            dmAxTls::SHA1_CTX context;
 
-            SHA1_Init(&context);
-            SHA1_Update(&context, (const uint8_t*) buf, buflen);
-            SHA1_Final(digest, &context);
+            dmAxTls::SHA1_Init(&context);
+            dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::SHA1_Final(digest, &context);
         }
         else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
         {

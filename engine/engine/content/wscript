@@ -31,6 +31,7 @@ def build(bld):
     builtins_release = bld.new_task_gen(features='barchive',
                                 source_root='default/content',
                                 resource_name='builtins_release',
+                                after='builtins',
                                 use_compression=True)
 
     builtins_release.find_sources_in_dirs('builtins/fonts')

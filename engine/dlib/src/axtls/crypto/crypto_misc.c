@@ -42,6 +42,8 @@
 #include "wincrypt.h"
 #endif
 
+namespace dmAxTls {
+
 #ifndef WIN32
 static int rng_fd = -1;
 #elif defined(CONFIG_WIN32_USE_CRYPTO_LIB)
@@ -371,3 +373,5 @@ error:
 
 }
 #endif
+
+} // namespace
