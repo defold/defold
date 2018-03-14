@@ -1,10 +1,14 @@
 (ns editor.welcome
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.pprint :as pprint]
             [clojure.string :as string]
+            [editor.client :as client]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.import :as import]
+            [editor.login :as login]
             [editor.prefs :as prefs]
             [editor.settings-core :as settings-core]
             [editor.system :as system]
@@ -13,21 +17,23 @@
             [schema.core :as s]
             [util.net :as net]
             [util.time :as time]
-            [clojure.pprint :as pprint])
+            [editor.jfx :as jfx])
   (:import (clojure.lang ExceptionInfo)
-           (java.io PushbackReader FileOutputStream File)
-           (java.net MalformedURLException URL)
+           (java.io File FileOutputStream PushbackReader)
+           (java.net MalformedURLException URL URLEncoder)
+           (java.security MessageDigest)
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
            (javafx.beans.binding Bindings)
+           (javafx.beans.property SimpleBooleanProperty)
            (javafx.beans.value ObservableNumberValue)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
-           (javafx.scene.control Button Label ListView RadioButton TextArea ToggleGroup)
+           (javafx.scene.control ButtonBase Label ListView RadioButton TextArea ToggleGroup)
            (javafx.scene.image ImageView Image)
            (javafx.scene.input KeyEvent MouseEvent)
-           (javafx.scene.layout HBox StackPane VBox Priority)
+           (javafx.scene.layout HBox Priority StackPane VBox)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
            (javafx.stage Stage)
@@ -193,6 +199,64 @@
             (recur (.getNextEntry zip))))))))
 
 ;; -----------------------------------------------------------------------------
+;; Dashboard client
+;; -----------------------------------------------------------------------------
+
+(defn- make-dashboard-client [prefs]
+  (let [client (client/make-client prefs)
+        logged-in-property (SimpleBooleanProperty. (login/logged-in? prefs client))]
+    {:logged-in-property logged-in-property
+     :prefs prefs}))
+
+(defn- login!
+  "Log in to access Defold dashboard. If the user is already logged in, returns
+  true. Else display a login prompt and block until the user has either logged
+  in or cancelled, then return true if the login completed successfully."
+  [{:keys [^SimpleBooleanProperty logged-in-property prefs] :as _dashboard-client}]
+  (let [logged-in? (login/login prefs)]
+    (.set logged-in-property logged-in?)
+    logged-in?))
+
+(defn- logout!
+  "Log out the active user from the Defold dashboard."
+  [{:keys [^SimpleBooleanProperty logged-in-property prefs] :as _dashboard-client}]
+  (login/logout prefs)
+  (.set logged-in-property false))
+
+(defn- fetch-dashboard-projects [{:keys [prefs] :as _dashboard-client}]
+  (import/fetch-projects prefs))
+
+;; -----------------------------------------------------------------------------
+;; Gravatar images
+;; -----------------------------------------------------------------------------
+
+(defn- md5-hash
+  ^String [^String string]
+  (.toString (BigInteger. 1 (.digest (MessageDigest/getInstance "MD5") (.getBytes string "UTF-8"))) 16))
+
+(def ^:private gravatar-id (comp md5-hash string/lower-case string/trim))
+
+(defn- gravatar-image-url
+  ^String [^long pixel-size ^String email-address]
+  (assert (<= 1 pixel-size 2048))
+  (format "https://secure.gravatar.com/avatar/%s.jpg?s=%d&d=mm"
+          (gravatar-id email-address)
+          pixel-size))
+
+(def ^:private gravatar-image
+  (memoize
+    (fn gravatar-image [^double point-size ^String email-address]
+      (Image. (gravatar-image-url (long (* 2 point-size)) email-address) true))))
+
+(defn- gravatar-image-view
+  ^ImageView [^double point-size ^String email-address]
+  (doto (ImageView.)
+    (ui/add-style! "gravatar")
+    (.setImage (gravatar-image point-size email-address))
+    (.setFitWidth point-size)
+    (.setFitHeight point-size)))
+
+;; -----------------------------------------------------------------------------
 ;; Browse field control
 ;; -----------------------------------------------------------------------------
 
@@ -246,7 +310,7 @@
         opts {:title "Open Project"
               :owner-window window
               :directory (some-> open-project-directory .getAbsolutePath)
-              :filters [{:description "Project Files"
+              :filters [{:description "Defold Project Files"
                          :exts ["*.project"]}]}]
     (when-some [project-file (ui/choose-file opts)]
       (close-dialog-and-open-project! project-file))))
@@ -266,12 +330,11 @@
                                     (Label. (time/vague-description last-opened))]))])))
 
 (defn- make-home-pane
-  ^Parent [open-project-directory recent-projects close-dialog-and-open-project!]
+  ^Parent [open-project-directory close-dialog-and-open-project! recent-projects]
   (doto (ui/load-fxml "welcome/home-pane.fxml")
     (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay open-from-disk-button]
       (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
-      (.bind (.visibleProperty empty-recent-projects-list-overlay) (Bindings/isEmpty (.getItems recent-projects-list)))
-      (.bind (.managedProperty empty-recent-projects-list-overlay) (.visibleProperty empty-recent-projects-list-overlay))
+      (ui/bind-presence! empty-recent-projects-list-overlay (Bindings/isEmpty (.getItems recent-projects-list)))
       (doto recent-projects-list
         (ui/items! recent-projects)
         (ui/cell-factory! (fn [recent-project]
@@ -331,9 +394,9 @@
   (ui/user-data category-button :templates))
 
 (defn- make-new-project-pane
-  ^Parent [open-project-directory welcome-settings close-dialog-and-open-project!]
+  ^Parent [open-project-directory close-dialog-and-open-project! welcome-settings]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/with-controls [template-categories ^ListView template-list location-browse-field ^Button submit-button]
+    (ui/with-controls [template-categories ^ListView template-list location-browse-field ^ButtonBase submit-button]
       (doto location-browse-field
         (setup-directory-browse-field! "Select New Project Location")
         (set-browse-field-file! open-project-directory))
@@ -377,11 +440,63 @@
 ;; Import project pane
 ;; -----------------------------------------------------------------------------
 
+(defn- refresh-dashboard-projects-list! [^ListView dashboard-projects-list dashboard-client]
+  (ui/items! dashboard-projects-list (fetch-dashboard-projects dashboard-client)))
+
+#_{:description "Project Description",
+   :last-updated 1396602464192,
+   :tracking-id "EBEBEBEBEBEBEBEB",
+   :repository-url "http://cr.defold.se:9998/prjs/8888",
+   :name "Project Name",
+   :created 1476041761199,
+   :id 88888,
+   :members [{:id 88888,
+              :email "first.last@domain.com",
+              :first-name "First",
+              :last-name "Last"}],
+   :i-os-executable-url "https://cr.defold.se/projects/88888/8888/engine_manifest/ios/<>",
+   :owner {:id 88888,
+           :email "first.last@domain.com",
+           :first-name "First",
+           :last-name "Last"}}
+
+(defn- make-dashboard-project-entry
+  ^Node [dashboard-project]
+  (let [name (or (not-empty (:name dashboard-project)) "Unnamed")
+        description (or (not-empty (:description dashboard-project)) "No description")
+        last-updated (Instant/ofEpochMilli (:last-updated dashboard-project))]
+    (doto (VBox.)
+      (ui/add-style! "dashboard-project-entry")
+      (ui/children! [(doto (HBox.)
+                       (ui/children! (into []
+                                           (comp (map :email)
+                                                 (map (partial gravatar-image-view 32.0)))
+                                           (:members dashboard-project))))
+                     (doto (Text. name)
+                       (ui/add-style! "title"))
+                     (doto (HBox.)
+                       (ui/children! [(doto (Label. description)
+                                        (HBox/setHgrow Priority/ALWAYS))
+                                      (Label. (time/vague-description last-updated))]))]))))
+
 (defn- make-import-project-pane
-  ^Parent [open-project-directory close-dialog-and-open-project!]
-  (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-    (ui/with-controls [^ListView dashboard-projects-list ^Node not-signed-in-list-overlay ^Node empty-dashboard-projects-list-overlay open-from-disk-button]
-      (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!)))))
+  ^Parent [open-project-directory close-dialog-and-open-project! dashboard-client]
+  (let [^SimpleBooleanProperty logged-in-property (:logged-in-property dashboard-client)]
+    (doto (ui/load-fxml "welcome/import-project-pane.fxml")
+      (ui/with-controls [^ButtonBase create-account-button ^ListView dashboard-projects-list ^Node empty-dashboard-projects-list-overlay open-from-disk-button ^ButtonBase sign-in-button ^Node state-signed-in ^Node state-not-signed-in]
+        (ui/bind-presence! state-signed-in logged-in-property)
+        (ui/bind-presence! state-not-signed-in (Bindings/not logged-in-property))
+        (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems dashboard-projects-list)))
+        (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
+        (ui/on-action! sign-in-button (fn [_] (login! dashboard-client)))
+        (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))
+        (ui/cell-factory! dashboard-projects-list (fn [dashboard-project]
+                                                    {:graphic (make-dashboard-project-entry dashboard-project)}))
+        (ui/observe logged-in-property (fn [_ _ became-logged-in?]
+                                         (when became-logged-in?
+                                           (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))
+        (when (.get logged-in-property)
+          (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
@@ -436,11 +551,12 @@
                                             ;; faster loading.
                                             (open-project-fn (.getAbsolutePath project-file))
                                             nil))
+         dashboard-client (make-dashboard-client prefs)
          left-pane ^Parent (.lookup root "#left-pane")
          pane-buttons-toggle-group (ToggleGroup.)
-         pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory recent-projects close-dialog-and-open-project!))
-                       (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory welcome-settings close-dialog-and-open-project!))
-                       (make-pane-button "IMPORT PROJECT" (make-import-project-pane open-project-directory close-dialog-and-open-project!))]]
+         pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory close-dialog-and-open-project! recent-projects))
+                       (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory close-dialog-and-open-project! welcome-settings))
+                       (make-pane-button "IMPORT PROJECT" (make-import-project-pane open-project-directory close-dialog-and-open-project! dashboard-client))]]
 
      ;; Add Defold logo SVG paths.
      (doseq [pane (map pane-button->pane pane-buttons)]

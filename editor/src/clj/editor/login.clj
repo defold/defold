@@ -13,7 +13,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- logged-in? [prefs client]
+(defn logged-in? [prefs client]
   (if-let [email (prefs/get-prefs prefs "email" nil)]
     (try
       (client/rget client (format "/users/%s" email) Protocol$UserInfo)
