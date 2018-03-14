@@ -237,12 +237,9 @@ public class BundleHelper {
     private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(error|warning|note).*?:\\s*(.+)"); // CL.exe
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
-    private static Pattern resourceIssueLinkerGCCRe = Pattern.compile("^(?:upload|build)\\/([^:]+):([0-9]+):\\s(\\w+):\\s*(.+)");
 
     // Some errors/warning have an extra line before or after the the reported error, which is also very good to have
     private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
-    private static Pattern resourceIssueLinkerLINKBeforeRe = Pattern.compile("^(.+?\\.lib)\\(.+?\\.obj\\)\\s:");
-    private static Pattern resourceIssueLinkerLINKAfterRe = Pattern.compile("^(.+?\\.lib)\\(.+?\\.obj\\)\\s:(.*)");
 
     private static Pattern resourceIssueLinkerLINKLibError = Pattern.compile("^(.+\\.lib)(\\(.+\\.obj\\)\\s:\\s.+)");
     private static Pattern resourceIssueLinkerLINKFatalError = Pattern.compile("^(fatal error\\s.+)");
