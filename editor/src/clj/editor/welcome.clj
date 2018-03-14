@@ -333,7 +333,7 @@
 (defn- make-new-project-pane
   ^Parent [open-project-directory welcome-settings close-dialog-and-open-project!]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/with-controls [template-categories ^ListView template-list title-field location-browse-field ^Button submit-button]
+    (ui/with-controls [template-categories ^ListView template-list location-browse-field ^Button submit-button]
       (doto location-browse-field
         (setup-directory-browse-field! "Select New Project Location")
         (set-browse-field-file! open-project-directory))
@@ -365,21 +365,13 @@
       (ui/on-action! submit-button
                      (fn [_]
                        (when-some [project-template (first (ui/selection template-list))]
-                         (let [project-title (ui/text title-field)
-                               project-location (browse-field-file location-browse-field)]
-                           (cond
-                             (string/blank? project-title)
-                             (dialogs/make-message-box "Invalid Project Title"
-                                                       "Please enter a title for the new project.")
-
-                             (not (fs/empty-directory? project-location))
-                             (dialogs/make-message-box "Invalid Project Location"
-                                                       "Please select an empty directory for the new project.")
-
-                             :else
+                         (let [project-location (browse-field-file location-browse-field)]
+                           (if (fs/empty-directory? project-location)
                              (when-some [template-zip-file (download-proj-zip! (:zip-url project-template))]
                                (expand-proj-zip! template-zip-file project-location (:skip-root? project-template))
-                               (close-dialog-and-open-project! (io/file project-location "game.project")))))))))))
+                               (close-dialog-and-open-project! (io/file project-location "game.project")))
+                             (dialogs/make-message-box "Invalid Project Location"
+                                                       "Please select an empty directory for the new project.")))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Import project pane
