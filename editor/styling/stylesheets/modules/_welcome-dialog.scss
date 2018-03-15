@@ -13,10 +13,6 @@
       -fx-border-width: 0;
       -fx-padding: 0;
 
-      &:selected {
-        -fx-border-width: 0;
-      }
-
       // Counteract too-broad application of styling from _file-extensions.scss.
       .image-view {
         -fx-effect: none;
@@ -112,10 +108,8 @@
   }
 
   .tab-header-pane {
-    -fx-background-color: #25292E;
     -fx-border-color: rgba(255, 255, 255, 0.07);
     -fx-border-width: 0px 0px 1px 0px;
-    // -fx-border-insets: 0px 24px 0px 24px;
     -fx-padding: 0px 24px 0px 24px;
     -fx-min-height: 53px;
     -fx-alignment: bottom-left;
@@ -152,7 +146,6 @@
   }
 
   .header-pane {
-    -fx-background-color: #25292E;
     -fx-padding: 0px 24px 8px 16px;
     -fx-border-width: 0px 0px 1px 0px;
     -fx-border-color: rgba(255, 255, 255, 0.07);
@@ -167,7 +160,7 @@
   .form-pane {
     -fx-background-color: #313238;
     -fx-padding: 24px;
-    -fx-spacing: 24px;
+    -fx-spacing: 16px;
 
     .label {
       -fx-min-height: 30px;
@@ -192,7 +185,7 @@
       -fx-opacity: 0.75;
       -fx-font-smoothing-type: lcd;
       -fx-font-size: 16px;
-      -fx-line-spacing: 4px;
+      -fx-line-spacing: 3px;
       -fx-text-alignment: center;
       -fx-wrap-text: true;
     }
@@ -212,33 +205,34 @@
     }
   }
 
-  #home-pane {
-    #recent-projects-list {
-      -fx-padding: 0px 16px 0px 0px;
+  .project-list-view {
+    -fx-padding: 0px 16px 0px 0px;
 
-      .list-cell:hover {
+    .list-cell {
+      -fx-border-width: 0px 0px 0px 3px;
+      -fx-border-color: transparent;
+
+      &:selected {
         -fx-background-color: rgba(255, 255, 255, 0.05);
+        -fx-border-color: $df-bright-blue;
       }
     }
   }
 
-  #new-project-pane {
-    #template-list {
-      -fx-padding: 0px 16px 0px 0px;
+  .template-list-view {
+    -fx-padding: 0px 16px 0px 0px;
 
-      .list-cell {
-        -fx-padding: 24px 24px 0px 24px;
+    .list-cell {
+      -fx-padding: 24px 24px 0px 24px;
 
-        &.last-list-item {
-          -fx-padding: 24px;
-        }
+      &.last-list-item {
+        -fx-padding: 24px;
       }
     }
   }
 
-  // Specific styling
   .recent-project-entry {
-    -fx-padding: 16px 24px 16px 24px;
+    -fx-padding: 16px 24px 16px 21px;
 
     .title {
       -fx-fill: #A6B2BF;
@@ -303,7 +297,7 @@
   }
 
   #you-need-to-sign-in-text {
-    -fx-padding: 8px 0px 32px 0px;
+    -fx-padding: 0px 0px 32px 0px;
     -fx-max-width: 330px;
   }
 
@@ -348,5 +342,11 @@
     -fx-text-fill: $df-bright-blue;
     -fx-font-size: 14px;
     -fx-padding: 4px 12px;
+  }
+
+  .df-button.dim {
+    -fx-border-color: #CFDAE6;
+    -fx-text-fill: #CFDAE6;
+    -fx-opacity: 50%;
   }
 }

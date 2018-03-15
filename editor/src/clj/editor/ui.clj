@@ -27,14 +27,15 @@
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans InvalidationListener]
+   [javafx.beans.binding Bindings]
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
-   [javafx.event ActionEvent Event EventDispatchChain EventDispatcher EventHandler EventTarget WeakEventHandler]
+   [javafx.event ActionEvent Event EventDispatchChain EventDispatcher EventHandler EventTarget]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group ImageCursor]
-   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
+   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeTableView TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TableView TabPane Tab TextField Tooltip SelectionMode SelectionModel]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
@@ -875,32 +876,35 @@
     (when-not (= -1 row)
       (.scrollTo tree-view row))))
 
-(defmacro observe-selection
-  "Helper macro that lets you observe selection changes in a generic fashion.
-  Takes a Node that has a getSelectionModel method and a function that takes
-  the reporting Node and a vector with the selected items as its arguments.
+(defprotocol HasSelectionModel
+  (^SelectionModel selection-model [this]))
 
-  This is a macro because JavaFX does not have a common interface for classes
-  that feature a getSelectionModel method. To avoid reflection warnings, tag
-  the node argument with type metadata.
+(extend-protocol HasSelectionModel
+  ChoiceBox     (selection-model [this] (.getSelectionModel this))
+  ComboBox      (selection-model [this] (.getSelectionModel this))
+  ListView      (selection-model [this] (.getSelectionModel this))
+  TableView     (selection-model [this] (.getSelectionModel this))
+  TabPane       (selection-model [this] (.getSelectionModel this))
+  TreeTableView (selection-model [this] (.getSelectionModel this))
+  TreeView      (selection-model [this] (.getSelectionModel this)))
+
+(defn observe-selection
+  "Helper function that lets you observe selection changes in a generic fashion.
+  Takes a Node that satisfies HasSelectionModel and a function that takes the
+  reporting Node and a vector with the selected items as its arguments.
 
   Supports both single and multi-selection. In both cases the selected items
   will be provided in a vector."
   [node listen-fn]
-  `(let [selection-owner# ~node
-         selection-listener# ~listen-fn
-         selection-model# (.getSelectionModel selection-owner#)]
-     (condp instance? selection-model#
-       MultipleSelectionModel
-       (observe-list selection-owner#
-                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
-                     (fn [_# _#]
-                       (selection-listener# selection-owner# (selection selection-owner#))))
-
-       SelectionModel
-       (observe (.selectedItemProperty ^SelectionModel selection-model#)
-                (fn [_# _# _#]
-                  (selection-listener# selection-owner# (selection selection-owner#)))))))
+  (let [selection-model (selection-model node)]
+    (if (instance? MultipleSelectionModel selection-model)
+      (observe-list node
+                    (.getSelectedItems ^MultipleSelectionModel selection-model)
+                    (fn [_ _]
+                      (listen-fn node (selection node))))
+      (observe (.selectedItemProperty selection-model)
+               (fn [_ _ _]
+                 (listen-fn node (selection node)))))))
 
 ;; context handling
 
@@ -1230,6 +1234,12 @@
   [^Node node ^ObservableValue value]
   (.bind (.visibleProperty node) value)
   (.bind (.managedProperty node) (.visibleProperty node)))
+
+(defn bind-enabled-to-selection!
+  "Disables the node unless an item is selected in selection-owner."
+  [^Node node selection-owner]
+  (.bind (.disableProperty node)
+         (Bindings/isNull (.selectedItemProperty (selection-model selection-owner)))))
 
 (defn- ^KeyboardShortcutsHandler keyboard-shortcuts-handler
   [^Node node]
