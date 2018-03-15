@@ -16,18 +16,16 @@
             [editor.updater :as updater]
             [schema.core :as s]
             [util.net :as net]
-            [util.time :as time]
-            [editor.jfx :as jfx])
+            [util.time :as time])
   (:import (clojure.lang ExceptionInfo)
            (java.io File FileOutputStream PushbackReader)
-           (java.net MalformedURLException URL URLEncoder)
+           (java.net MalformedURLException URL)
            (java.security MessageDigest)
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleBooleanProperty)
-           (javafx.beans.value ObservableNumberValue)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
            (javafx.scene.control ButtonBase Label ListView RadioButton TextArea ToggleGroup)
@@ -239,7 +237,7 @@
 (defn- gravatar-image-url
   ^String [^long pixel-size ^String email-address]
   (assert (<= 1 pixel-size 2048))
-  (format "https://secure.gravatar.com/avatar/%s.jpg?s=%d&d=mm"
+  (format "https://secure.gravatar.com/avatar/%s.jpg?s=%d&d=404"
           (gravatar-id email-address)
           pixel-size))
 
@@ -250,11 +248,14 @@
 
 (defn- gravatar-image-view
   ^ImageView [^double point-size ^String email-address]
-  (doto (ImageView.)
-    (ui/add-style! "gravatar")
-    (.setImage (gravatar-image point-size email-address))
-    (.setFitWidth point-size)
-    (.setFitHeight point-size)))
+  (let [^Image image (gravatar-image point-size email-address)]
+    (doto (ImageView.)
+      (ui/add-style! "gravatar")
+      (.setImage image)
+      (.setFitWidth point-size)
+      (.setFitHeight point-size)
+      (ui/bind-presence! (Bindings/and (Bindings/not (.errorProperty image))
+                                       (Bindings/equal (.progressProperty image) (Double. 1.0) (Double. 0.0)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Browse field control
@@ -332,17 +333,21 @@
 (defn- make-home-pane
   ^Parent [open-project-directory close-dialog-and-open-project! recent-projects]
   (doto (ui/load-fxml "welcome/home-pane.fxml")
-    (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay open-from-disk-button]
-      (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
-      (ui/bind-presence! empty-recent-projects-list-overlay (Bindings/isEmpty (.getItems recent-projects-list)))
-      (doto recent-projects-list
-        (ui/items! recent-projects)
-        (ui/cell-factory! (fn [recent-project]
-                            {:graphic (make-recent-project-entry recent-project)}))
-        (.setOnMouseClicked (ui/event-handler event
-                              (when (= 2 (.getClickCount ^MouseEvent event))
-                                (when-some [recent-project (first (ui/selection recent-projects-list))]
-                                  (close-dialog-and-open-project! (:project-file recent-project))))))))))
+    (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay ^ButtonBase open-from-disk-button ^ButtonBase open-selected-project-button]
+      (let [open-selected-project! (fn []
+                                     (when-some [recent-project (first (ui/selection recent-projects-list))]
+                                       (close-dialog-and-open-project! (:project-file recent-project))))]
+        (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
+        (ui/on-action! open-selected-project-button (fn [_] (open-selected-project!)))
+        (ui/bind-presence! empty-recent-projects-list-overlay (Bindings/isEmpty (.getItems recent-projects-list)))
+        (ui/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
+        (doto recent-projects-list
+          (ui/items! recent-projects)
+          (ui/cell-factory! (fn [recent-project]
+                              {:graphic (make-recent-project-entry recent-project)}))
+          (.setOnMouseClicked (ui/event-handler event
+                                (when (= 2 (.getClickCount ^MouseEvent event))
+                                  (open-selected-project!)))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; New project pane
@@ -396,8 +401,8 @@
 (defn- make-new-project-pane
   ^Parent [open-project-directory close-dialog-and-open-project! welcome-settings]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/with-controls [template-categories ^ListView template-list location-browse-field ^ButtonBase submit-button]
-      (doto location-browse-field
+    (ui/with-controls [template-categories ^ListView template-list new-project-location-browse-field ^ButtonBase create-new-project-button]
+      (doto new-project-location-browse-field
         (setup-directory-browse-field! "Select New Project Location")
         (set-browse-field-file! open-project-directory))
       (doto template-list
@@ -421,14 +426,12 @@
         ;; Select the first category button.
         (.selectToggle category-buttons-toggle-group (first category-buttons)))
 
-      ;; Disable submit-button when no template is selected.
-      (.bind (.disableProperty submit-button)
-             (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel template-list))))
-
-      (ui/on-action! submit-button
+      ;; Configure create-new-project-button.
+      (ui/bind-enabled-to-selection! create-new-project-button template-list)
+      (ui/on-action! create-new-project-button
                      (fn [_]
                        (when-some [project-template (first (ui/selection template-list))]
-                         (let [project-location (browse-field-file location-browse-field)]
+                         (let [project-location (browse-field-file new-project-location-browse-field)]
                            (if (fs/empty-directory? project-location)
                              (when-some [template-zip-file (download-proj-zip! (:zip-url project-template))]
                                (expand-proj-zip! template-zip-file project-location (:skip-root? project-template))
@@ -468,9 +471,12 @@
     (doto (VBox.)
       (ui/add-style! "dashboard-project-entry")
       (ui/children! [(doto (HBox.)
+                       (ui/add-style! "member-images")
                        (ui/children! (into []
                                            (comp (map :email)
-                                                 (map (partial gravatar-image-view 32.0)))
+                                                 (map (partial gravatar-image-view 32.0))
+                                                 (remove #(.isError (.getImage ^ImageView %)))
+                                                 (take 9))
                                            (:members dashboard-project))))
                      (doto (Text. name)
                        (ui/add-style! "title"))
@@ -483,11 +489,11 @@
   ^Parent [open-project-directory close-dialog-and-open-project! dashboard-client]
   (let [^SimpleBooleanProperty logged-in-property (:logged-in-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-      (ui/with-controls [^ButtonBase create-account-button ^ListView dashboard-projects-list ^Node empty-dashboard-projects-list-overlay open-from-disk-button ^ButtonBase sign-in-button ^Node state-signed-in ^Node state-not-signed-in]
+      (ui/with-controls [create-account-button dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button sign-in-button state-signed-in state-not-signed-in]
         (ui/bind-presence! state-signed-in logged-in-property)
         (ui/bind-presence! state-not-signed-in (Bindings/not logged-in-property))
-        (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems dashboard-projects-list)))
-        (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
+        (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems ^ListView dashboard-projects-list)))
+        (ui/bind-enabled-to-selection! import-project-button dashboard-projects-list)
         (ui/on-action! sign-in-button (fn [_] (login! dashboard-client)))
         (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))
         (ui/cell-factory! dashboard-projects-list (fn [dashboard-project]
@@ -553,6 +559,8 @@
                                             nil))
          dashboard-client (make-dashboard-client prefs)
          left-pane ^Parent (.lookup root "#left-pane")
+         pane-buttons-container ^Parent (.lookup left-pane "#pane-buttons-container")
+         sign-out-button ^ButtonBase (.lookup left-pane "#sign-out-button")
          pane-buttons-toggle-group (ToggleGroup.)
          pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory close-dialog-and-open-project! recent-projects))
                        (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory close-dialog-and-open-project! welcome-settings))
@@ -572,7 +580,7 @@
      ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
      (doseq [^RadioButton pane-button pane-buttons]
        (.setToggleGroup pane-button pane-buttons-toggle-group)
-       (ui/add-child! left-pane pane-button))
+       (ui/add-child! pane-buttons-container pane-button))
 
      (ui/observe (.selectedToggleProperty pane-buttons-toggle-group)
                  (fn [_ _ selected-pane-button]
@@ -581,6 +589,11 @@
 
      ;; Select the home pane button.
      (.selectToggle pane-buttons-toggle-group (first pane-buttons))
+
+     ;; Configure the sign-out button.
+     (doto sign-out-button
+       (ui/bind-presence! (:logged-in-property dashboard-client))
+       (ui/on-action! (fn [_] (logout! dashboard-client))))
 
      ;; Apply opts if supplied.
      (when-some [{:keys [x y pane-index]} opts]
