@@ -283,6 +283,43 @@
     }
   }
 
+  .dashboard-project-entry {
+    -fx-padding: 0px 24px 0px 24px;
+    -fx-alignment: center-right;
+
+    .title-and-description {
+      -fx-alignment: center-left;
+
+      .title {
+        -fx-fill: #B2BCC8;
+        -fx-font-size: 16px;
+        -fx-font-smoothing-type: lcd;
+        -fx-opacity: 0.87;
+      }
+
+      .description {
+        -fx-text-fill: #B2BCC8;
+        -fx-opacity: 0.6;
+      }
+    }
+
+    .member-images {
+      -fx-alignment: center-right;
+      -fx-spacing: 8px;
+
+      ImageView {
+
+      }
+    }
+
+    .last-updated {
+      -fx-alignment: center-right;
+      -fx-text-fill: rgba(162, 176, 190, 0.70);
+      -fx-min-width: 120px;
+      -fx-text-alignment: right;
+    }
+  }
+
   .list-cell:selected .template-entry {
     -fx-background-radius: 4px;
     -fx-border-radius: 4px;
