@@ -1,31 +1,36 @@
 --
 -- projection that centers content with maintained aspect ratio and optional zoom
 --
-local function fixed_projection(near, far, zoom)
-    local projected_width = render.get_window_width() / (zoom or 1)
-    local projected_height = render.get_window_height() / (zoom or 1)
-    local xoffset = -(projected_width - render.get_width()) / 2
-    local yoffset = -(projected_height - render.get_height()) / 2
-    return vmath.matrix4_orthographic(xoffset, xoffset + projected_width, yoffset, yoffset + projected_height, near or -1, far or 1)
+local function fixed_projection_func(near, far, zoom)
+    return function()
+        local projected_width = render.get_window_width() / (zoom or 1)
+        local projected_height = render.get_window_height() / (zoom or 1)
+        local xoffset = -(projected_width - render.get_width()) / 2
+        local yoffset = -(projected_height - render.get_height()) / 2
+        return vmath.matrix4_orthographic(xoffset, xoffset + projected_width, yoffset, yoffset + projected_height, near or -1, far or 1)
+    end
 end
-
 --
 -- projection that centers and fits content with maintained aspect ratio
 --
-local function fixed_fit_projection(near, far)
-    local width = render.get_width()
-    local height = render.get_height()
-    local window_width = render.get_window_width()
-    local window_height = render.get_window_height()
-    local zoom = math.min(window_width / width, window_height / height)
-    return fixed_projection(near or -1, far or 1, zoom)
+local function fixed_fit_projection_func(near, far)
+    return function()
+        local width = render.get_width()
+        local height = render.get_height()
+        local window_width = render.get_window_width()
+        local window_height = render.get_window_height()
+        local zoom = math.min(window_width / width, window_height / height)
+        local fixed_func = fixed_projection_func(near or -1, far or 1, zoom)
+        return fixed_func()
+    end
 end
-
 --
 -- projection that stretches content
 --
-local function stretch_projection(near, far)
-    return vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), near or -1, far or 1)
+local function stretch_projection_func(near, far)
+    return function()
+        return vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), near or -1, far or 1)
+    end
 end
 
 function init(self)
@@ -41,7 +46,7 @@ function init(self)
     self.clear_color.w = sys.get_config("render.clear_color_alpha", 0)
 
     self.view = vmath.matrix4()
-    self.projection = stretch_projection()
+    self.projection_func = stretch_projection_func()
 end
 
 function update(self)
@@ -59,7 +64,7 @@ function update(self)
     render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
     render.disable_state(render.STATE_CULL_FACE)
 
-    render.set_projection(self.projection)
+    render.set_projection(self.projection_func())
 
     render.draw(self.tile_pred)
     render.draw(self.particle_pred)
@@ -86,10 +91,10 @@ function on_message(self, message_id, message)
     elseif message_id == hash("set_view_projection") then
         self.view = message.view
     elseif message_id == hash("set_stretch_projection") then
-        self.projection = stretch_projection(message.near, message.far)
+        self.projection_func = stretch_projection_func(message.near, message.far)
     elseif message_id == hash("set_fixed_projection") then
-        self.projection = fixed_projection(message.near, message.far, message.zoom)
+        self.projection_func = fixed_projection_func(message.near, message.far, message.zoom)
     elseif message_id == hash("set_fixed_fit_projection") then
-        self.projection = fixed_fit_projection(message.near, message.far)
+        self.projection_func = fixed_fit_projection_func(message.near, message.far)
     end
 end
