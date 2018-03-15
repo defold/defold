@@ -10,15 +10,15 @@
         then (LocalDateTime/ofInstant instant (ZoneId/systemDefault))
         elapsed (Duration/between then now)]
     (condp > (.getSeconds elapsed)
-      45 "just now"
-      89  "a minute ago"
-      149 "a few minutes ago"
+      45 "Just now"
+      89  "A minute ago"
+      149 "A few minutes ago"
       899 (str (.toMinutes elapsed) " minutes ago")
-      2699 "half an hour ago"
-      5399 "an hour ago"
-      8999 "a few hours ago"
+      2699 "Half an hour ago"
+      5399 "An hour ago"
+      8999 "A few hours ago"
       64799 (str (.toHours elapsed) " hours ago")
-      129599 "a day ago"
+      129599 "A day ago"
       (str (.toLocalDate then)))))
 
 (defn try-parse-instant

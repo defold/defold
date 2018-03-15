@@ -3,33 +3,41 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.Group?>
-<?import javafx.scene.shape.SVGPath?>
 <?import javafx.scene.text.Text?>
 
-<VBox id="import-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
+<VBox id="import-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
     <HBox styleClass="header-pane">
         <Label styleClass="header" text="Dashboard Projects" HBox.hgrow="ALWAYS" />
-        <Button id="open-from-disk-button" styleClass="df-button" text="Open From Disk..." />
     </HBox>
-    <StackPane VBox.vgrow="ALWAYS">
-        <StackPane id="state-not-signed-in">
-            <VBox styleClass="empty-list-overlay" translateY="186" spacing="8">
 
-                <!-- TODO: This is a placeholder image. -->
-                <SVGPath style="-fx-fill: #A6B2BF;"
-                         content="M62.5,6A31.5,31.5,0,1,0,94,37.5,31.53,31.53,0,0,0,62.5,6ZM63,22a59.21,59.21,0,0,0,13.18-1.53A50,50,0,0,1,79,37H63Zm0-1V7c5.26.29,9.91,5.15,12.82,12.5A58.43,58.43,0,0,1,63,21Zm-1,0a58.43,58.43,0,0,1-12.82-1.47C52.09,12.17,56.74,7.31,62,7Zm0,1V37H46a50,50,0,0,1,2.81-16.54A59.21,59.21,0,0,0,62,22ZM45,37H32a30.38,30.38,0,0,1,7.72-19.76,39.93,39.93,0,0,0,8.15,3A50.43,50.43,0,0,0,45,37Zm0,1a50.43,50.43,0,0,0,2.87,16.77,39.93,39.93,0,0,0-8.15,3A30.38,30.38,0,0,1,32,38Zm1,0H62V53a59.21,59.21,0,0,0-13.18,1.53A50,50,0,0,1,46,38ZM62,54V68c-5.26-.29-9.91-5.15-12.82-12.5A58.43,58.43,0,0,1,62,54Zm1,0a58.43,58.43,0,0,1,12.82,1.47C72.91,62.83,68.26,67.69,63,68Zm0-1V38H79a50,50,0,0,1-2.81,16.54A59.21,59.21,0,0,0,63,53ZM80,38H93a30.38,30.38,0,0,1-7.72,19.76,39.93,39.93,0,0,0-8.15-3A50.43,50.43,0,0,0,80,38Zm0-1a50.43,50.43,0,0,0-2.87-16.77,39.93,39.93,0,0,0,8.15-3A30.38,30.38,0,0,1,93,37Zm4.57-20.53a38.68,38.68,0,0,1-7.79,2.82c-2.19-5.52-5.33-9.73-9-11.82A30.4,30.4,0,0,1,84.56,16.47Zm-27.34-9c-3.66,2.09-6.8,6.3-9,11.82a38.68,38.68,0,0,1-7.79-2.82A30.4,30.4,0,0,1,57.22,7.47ZM40.44,58.53a38.68,38.68,0,0,1,7.79-2.82c2.19,5.52,5.33,9.73,9,11.82A30.4,30.4,0,0,1,40.44,58.53Zm27.34,9c3.66-2.09,6.8-6.3,9-11.82a38.68,38.68,0,0,1,7.79,2.82A30.4,30.4,0,0,1,67.78,67.53Z" />
+    <!-- Not signed-in state -->
+    <StackPane id="state-not-signed-in" VBox.vgrow="ALWAYS">
+        <VBox styleClass="empty-list-overlay" translateY="186" spacing="8">
+            <fx:include source="globe-icon.fxml" />
+            <Label id="you-need-to-sign-in-text" text="You need to sign in to your Defold account in order to view your projects in the Defold cloud." />
+            <Button id="sign-in-button" styleClass="df-button" text="Sign In" />
+            <Hyperlink id="create-account-button" text="Create Account" />
+        </VBox>
+    </StackPane>
 
-                <Label id="you-need-to-sign-in-text" text="You need to sign in to your Defold account in order to view your projects in the Defold cloud." />
-                <Button id="sign-in-button" styleClass="df-button" text="Sign In" />
-                <Hyperlink id="create-account-button" text="Create Account" />
-            </VBox>
-        </StackPane>
-        <StackPane id="state-signed-in">
-            <ListView id="dashboard-projects-list" />
+    <!-- Signed-in state -->
+    <VBox id="state-signed-in" VBox.vgrow="ALWAYS">
+        <StackPane VBox.vgrow="ALWAYS">
+            <ListView id="dashboard-projects-list" styleClass="project-list-view" />
             <VBox id="empty-dashboard-projects-list-overlay" styleClass="empty-list-overlay" translateY="216">
                 <Group styleClass="defold-logo-container, gray" style="-defold-logo-size: 110px 105px;" translateY="-24" />
                 <Text wrappingWidth="240">Projects you have synced to the Defold cloud will appear here.</Text>
             </VBox>
         </StackPane>
-    </StackPane>
+        <HBox styleClass="form-pane">
+            <HBox HBox.hgrow="ALWAYS">
+                <Label text="Location" />
+                <HBox id="import-project-location-browse-field" styleClass="df-browse-field" HBox.hgrow="ALWAYS">
+                    <TextField HBox.hgrow="ALWAYS" />
+                    <Button text="&#8226; &#8226; &#8226;" />
+                </HBox>
+            </HBox>
+            <Button id="import-project-button" styleClass="df-button" text="Import Project" />
+        </HBox>
+    </VBox>
 </VBox>
