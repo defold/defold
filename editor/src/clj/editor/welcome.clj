@@ -466,36 +466,43 @@
 (defn- make-dashboard-project-entry
   ^Node [dashboard-project]
   (let [name (or (not-empty (:name dashboard-project)) "Unnamed")
-        description (or (not-empty (:description dashboard-project)) "No description")
-        last-updated (Instant/ofEpochMilli (:last-updated dashboard-project))]
-    (doto (VBox.)
+        description (some-> (:description dashboard-project) string/trim not-empty)
+        last-updated (some-> (:last-updated dashboard-project) Instant/ofEpochMilli)]
+    (doto (HBox.)
       (ui/add-style! "dashboard-project-entry")
-      (ui/children! [(doto (HBox.)
+      (ui/children! [(doto (VBox.)
+                       (HBox/setHgrow Priority/ALWAYS)
+                       (ui/add-style! "title-and-description")
+                       (ui/children! (if (nil? description)
+                                       [(doto (Text. name) (ui/add-style! "title"))]
+                                       [(doto (Text. name) (ui/add-style! "title"))
+                                        (doto (Label. description) (ui/add-style! "description"))])))
+                     (doto (HBox.)
                        (ui/add-style! "member-images")
                        (ui/children! (into []
-                                           (comp (map :email)
+                                           (comp (keep :email)
                                                  (map (partial gravatar-image-view 32.0))
                                                  (remove #(.isError (.getImage ^ImageView %)))
                                                  (take 9))
                                            (:members dashboard-project))))
-                     (doto (Text. name)
-                       (ui/add-style! "title"))
-                     (doto (HBox.)
-                       (ui/children! [(doto (Label. description)
-                                        (HBox/setHgrow Priority/ALWAYS))
-                                      (Label. (time/vague-description last-updated))]))]))))
+                     (doto (Label.)
+                       (ui/add-style! "last-updated")
+                       (ui/text! (if (some? last-updated)
+                                   (time/vague-description last-updated)
+                                   "Unknown")))]))))
 
 (defn- make-import-project-pane
   ^Parent [open-project-directory close-dialog-and-open-project! dashboard-client]
   (let [^SimpleBooleanProperty logged-in-property (:logged-in-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-      (ui/with-controls [create-account-button dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button sign-in-button state-signed-in state-not-signed-in]
+      (ui/with-controls [create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button sign-in-button state-signed-in state-not-signed-in]
         (ui/bind-presence! state-signed-in logged-in-property)
         (ui/bind-presence! state-not-signed-in (Bindings/not logged-in-property))
         (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems ^ListView dashboard-projects-list)))
         (ui/bind-enabled-to-selection! import-project-button dashboard-projects-list)
         (ui/on-action! sign-in-button (fn [_] (login! dashboard-client)))
         (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))
+        (.setFixedCellSize dashboard-projects-list 62.0)
         (ui/cell-factory! dashboard-projects-list (fn [dashboard-project]
                                                     {:graphic (make-dashboard-project-entry dashboard-project)}))
         (ui/observe logged-in-property (fn [_ _ became-logged-in?]
