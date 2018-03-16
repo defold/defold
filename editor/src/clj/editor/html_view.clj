@@ -36,15 +36,22 @@
 
 (defn- resource-handler [project request]
   (if-let [node (project/get-resource-node project (:url request))]
-    (let [resource (g/node-value node :resource)
+    (let [resource      (g/node-value node :resource)
           resource-type (resource/resource-type resource)
-          resource-ext (resource/ext resource)
-          view-types (map :id (:view-types resource-type))]
+          resource-ext  (resource/ext resource)
+          view-types    (map :id (:view-types resource-type))]
       (cond
         (some #{:html} view-types)
-        {:code    200
-         :headers {"Content-Type" "text/html; charset: utf-8"}
-         :body    (g/node-value node :html)}
+        (let [body (g/node-value node :html)]
+          (if-let [error (g/error? body)]
+            {:code    500
+             :headers {"Content-Type" "text/html; charset: utf-8"}
+             :body    (format "Couldn't render %s: %s\n"
+                              (resource/resource->proj-path resource)
+                              (or (:message error) "Unknown reason"))}
+            {:code    200
+             :headers {"Content-Type" "text/html; charset: utf-8"}
+             :body    body}))
 
         (contains? known-content-types resource-ext)
         {:code    200
@@ -57,10 +64,11 @@
     (do (log/warn :message (format "Cannot find resource for %s" (:url request)))
         {:code 404})))
 
-(defn- init-http-server! [project]
+(defn- get-http-server!
+  [project]
   (when-not @http-server
     (let [http-handlers {"/", (partial resource-handler project)}
-          server (http-server/->server 0 http-handlers)]
+          server (http-server/->server "127.0.0.1" 0 http-handlers)]
       (http-server/start! server)
       (reset! http-server server)))
   @http-server)
@@ -144,7 +152,7 @@
   (when-some [url (anchor-url (.getTarget ev))]
     (dispatch-url! project url)))
 
-(defn- hijack-defold-links
+(defn- hijack-defold-links!
   [^Document doc project]
   (let [handler (reify EventListener
                   (handleEvent [_this ev]
@@ -156,7 +164,7 @@
                 (.addEventListener ^EventTarget anchor-element "click" handler true))))
           (.getElementsByTagName doc "a"))))
 
-(defn- open-external-ahrefs-in-browser
+(defn- open-external-ahrefs-in-browser!
   [^Document doc]
   (let [handler (reify EventListener
                   (handleEvent [_this ev]
@@ -166,15 +174,15 @@
             (when-some [url (anchor-url anchor-element)]
               (when (and (not= "defold" (.getScheme url))
                          (some? (.getHost url)))
-                (.addEventListener ^EventTarget anchor-element "click"  handler true))))
+                (.addEventListener ^EventTarget anchor-element "click" handler true))))
           (.getElementsByTagName doc "a"))))
 
 (defn- on-load-succeeded
   [^WebEngine web-engine project]
   (when-some [doc (.getDocument web-engine)]
     (doto doc
-      (hijack-defold-links project)
-      (open-external-ahrefs-in-browser))))
+      (hijack-defold-links! project)
+      (open-external-ahrefs-in-browser!))))
 
 (defn- on-load-failed
   [^WebEngine web-engine]
@@ -188,8 +196,8 @@
   (inherits view/WorkbenchView)
   (property web-view WebView))
 
-(defn- ^WebView make-web-view
-  [project]
+(defn- make-web-view
+   ^WebView [project]
   (let [web-view (WebView.)
         web-engine (.getEngine web-view)
         load-worker (.getLoadWorker web-engine)]
@@ -203,25 +211,32 @@
 
 (defn- resource-url [http-server resource]
   (when resource
-    (str (http-server/local-url http-server)
+    (str (http-server/url http-server)
          (resource/proj-path resource))))
 
-(defn- load-resource! [web-engine resource]
-  (let [url         (resource-url @http-server resource)
+(defn- load-resource! [^WebEngine web-engine project resource]
+  (let [url         (resource-url (get-http-server! project) resource)
         current-url (.getLocation web-engine)]
     (when (not= url current-url)
       (.load web-engine url))))
 
-(defn- update-web-view! [view-id]
+(defn- update-web-view!
+  "Loads the url corresponding to the current resource.
+
+  This will open the resource at the new location if we've moved it.
+
+  If we somehow manage to browse away from the project to an external
+  page, this will somewhat annoyingly bring us back."
+  [view-id project]
   (let [web-view ^WebView (g/node-value view-id :web-view)
         web-engine (.getEngine web-view)]
     (when-let [resource-node (g/node-value view-id :resource-node)]
-      (load-resource! web-engine (g/node-value resource-node :resource)))))
+      (load-resource! web-engine project (g/node-value resource-node :resource)))))
 
 (defn- handle-location-change! [project view-id new-location]
   (if-let [new-resource-node
-           (if (string/starts-with? new-location (http-server/local-url @http-server))
-             (let [resource-path (subs new-location (count (http-server/local-url @http-server)))]
+           (if (string/starts-with? new-location (http-server/url (get-http-server! project)))
+             (let [resource-path (subs new-location (count (http-server/url (get-http-server! project))))]
                (project/get-resource-node project resource-path))
              nil)]
     (g/transact (view/connect-resource-node view-id new-resource-node))
@@ -230,11 +245,10 @@
 (defn make-view
   [graph ^Parent parent html-node opts]
   (let [project       (or (:project opts) (project/get-project html-node))
-        _             (init-http-server! project)
         web-view      (make-web-view project)
         web-engine    (.getEngine web-view)
         view-id       (g/make-node! graph WebViewNode :web-view web-view)
-        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _] (update-web-view! view-id)))]
+        repainter     (ui/->timer 1 "update-web-view!" (fn [_ _] (update-web-view! view-id project)))]
 
     (.addListener (.locationProperty web-engine)
                   (ui/change-listener _ _ new-location (handle-location-change! project view-id new-location)))
@@ -247,7 +261,7 @@
     (doto web-engine
       (.setOnAlert (ui/event-handler ev (dialogs/make-alert-dialog (.getData ^WebEvent ev))))
       (.setUserStyleSheetLocation (str (io/resource "markdown.css")))
-      (load-resource! (g/node-value html-node :resource)))
+      (load-resource! project (g/node-value html-node :resource)))
 
     (ui/timer-start! repainter)
     (when-some [^Tab tab (:tab opts)]
