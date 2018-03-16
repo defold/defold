@@ -12,10 +12,7 @@
     <HBox styleClass="form-pane">
         <HBox HBox.hgrow="ALWAYS">
             <Label text="Location" />
-            <HBox id="new-project-location-browse-field" styleClass="df-browse-field" HBox.hgrow="ALWAYS">
-                <TextField HBox.hgrow="ALWAYS" />
-                <Button text="&#8226; &#8226; &#8226;" />
-            </HBox>
+            <HBox id="new-project-location-browse-field" HBox.hgrow="ALWAYS" />
         </HBox>
         <Button id="create-new-project-button" styleClass="df-button" text="Create New Project" />
     </HBox>
