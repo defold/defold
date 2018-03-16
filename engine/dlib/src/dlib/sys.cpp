@@ -44,7 +44,7 @@
 #include <android_native_app_glue.h>
 #include <sys/types.h>
 #include <android/asset_manager.h>
-#include "cpu-features.h"
+#include <cpu-features.h>
 // By convention we have a global variable called g_AndroidApp
 // This is currently created in glfw..
 // Application life-cycle should perhaps be part of dlib instead
