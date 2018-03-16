@@ -674,10 +674,7 @@
     (if (workspace/dependencies-reachable? dependencies login-fn)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
            (workspace/install-validated-libraries! workspace-id dependencies))
-      (->> (library/current-library-state (workspace/project-path workspace-id) dependencies)
-        (filter #(and (:file %) (.exists ^File (:file %))))
-        (mapv :uri)
-        (workspace/set-project-dependencies! workspace-id)))
+      (workspace/set-project-dependencies! workspace-id dependencies))
 
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
