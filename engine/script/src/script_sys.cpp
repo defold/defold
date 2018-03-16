@@ -404,7 +404,7 @@ union SaveLoadBuffer
      * : [type:string] The system OS version.
      *
      * `system_build`
-     * : [type:string] Identifier for the system build version, e.g. "NRD90M" on an HTC One M9 running Android 7.1 (from BUILD.ID) or "17D102" on a Mac running High Sierra 10.13.3 (from KERN_OSVERSION). Available on iOS, OSX and Android.
+     * : [type:string] [icon:android][icon:ios][icon:osx] Identifier for the system build version, e.g. "NRD90M" on an HTC One M9 running Android 7.1 (from BUILD.ID) or "17D102" on a Mac running High Sierra 10.13.3 (from KERN_OSVERSION).
      *
      * `api_version`
      * : [type:string] The API version on the system.
@@ -440,7 +440,7 @@ union SaveLoadBuffer
      * : [type:string] [icon:android] The system bootloader version number (from BUILD.BOOTLOADER)
      *
      * `cpu_architecture`
-     * : [type:string] The system bootloader version number (from BUILD.BOOTLOADER)
+     * : [type:string] [icon:android][icon:ios][icon:windows][icon:osx] The CPU architecture of the system ("arm", "arm64", "x86", "x86_64" or "unknown")
      *
      * @examples
      *
