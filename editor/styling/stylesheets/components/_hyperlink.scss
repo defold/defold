@@ -1,9 +1,13 @@
 .hyperlink {
   -fx-text-fill: $defold-blue;
+  -fx-underline: false;
+
   &:hover {
     -fx-underline: true;
   }
+
   &:visited, &:pressed, &:armed {
-    -fx-border-width: 0;
+    -fx-border-color: transparent;
   }
+
 }

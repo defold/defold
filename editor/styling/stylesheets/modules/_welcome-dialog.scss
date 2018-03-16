@@ -3,6 +3,10 @@
 
   -fx-background-color: #292A2F;
 
+  HBox, VBox {
+    -fx-spacing: 0; // Fight crazy non-zero default.
+  }
+
   .list-view {
     -fx-background-color: transparent;
     -fx-padding: 0;
@@ -179,15 +183,21 @@
   .empty-list-overlay {
     -fx-alignment: top-center;
 
-    > Text, > Label {
+    .hero-text {
+      -fx-padding: 10px 0px 0px 0px;
+      -fx-font-size: 16px;
+      -fx-line-spacing: 3px;
+    }
+
+    Label {
       -fx-fill: #CFDAE6;
       -fx-text-fill: #CFDAE6;
       -fx-opacity: 0.75;
+      -fx-font-size: 14px;
       -fx-font-smoothing-type: lcd;
-      -fx-font-size: 16px;
-      -fx-line-spacing: 3px;
       -fx-text-alignment: center;
       -fx-wrap-text: true;
+      -fx-padding: 0;
     }
   }
 
@@ -306,10 +316,6 @@
     .member-images {
       -fx-alignment: center-right;
       -fx-spacing: 8px;
-
-      ImageView {
-
-      }
     }
 
     .last-updated {
@@ -333,15 +339,11 @@
     }
   }
 
-  #you-need-to-sign-in-text {
-    -fx-padding: 0px 0px 32px 0px;
-    -fx-max-width: 330px;
-  }
-
   // General styling
   Hyperlink {
     -fx-font-size: 14px;
     -fx-text-fill: $df-bright-blue;
+    -fx-padding: 0;
   }
 
   Text.header {

@@ -37,7 +37,7 @@
       (throw (Exception. "This account is not associated with defold.com yet. Please go to defold.com to signup"))
       exchange-info)))
 
-(defn- make-server
+(defn make-server
   ^NanoHTTPD [client {:keys [on-success on-error]}]
   (doto (proxy [NanoHTTPD] [0]
           (serve [^NanoHTTPD$IHTTPSession session]
@@ -54,32 +54,43 @@
               (NanoHTTPD$Response. (NanoHTTPD$Response$Status/NOT_FOUND) NanoHTTPD/MIME_PLAINTEXT "Not found"))))
     (.start)))
 
+(defn set-prefs-from-successful-login! [prefs exchange-info]
+  (prefs/set-prefs prefs "email" (:email exchange-info))
+  (prefs/set-prefs prefs "first-name" (:first-name exchange-info))
+  (prefs/set-prefs prefs "last-name" (:last-name exchange-info))
+  (prefs/set-prefs prefs "token" (:auth-token exchange-info)))
+
+(defn login-page-url
+  ^String [^NanoHTTPD server]
+  (format "https://cr.defold.com/login/oauth/google?redirect_to=%s" (URLEncoder/encode (make-redirect-to-url server))))
+
+(defn stop-server-now! [^NanoHTTPD server]
+  (.stop server))
+
+(defn stop-server-soon! [^NanoHTTPD server]
+  ;; delay the shutdown here to give the server some time to
+  ;; flush the response to the client before it is stopped.
+  (ui/->future 0.5 #(.stop server)))
+
 (defn- open-login-dialog [prefs client]
   (let [root ^Parent (ui/load-fxml "login.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
         return (atom false)
-        close-stage! (fn [] (ui/run-later
-                              ;; delay the closing here to give the server some time to
-                              ;; flush the response to the client before it is stopped.
-                              (ui/->future 0.5 #(ui/close! stage))))
+        close-stage! (fn [] (ui/run-later (ui/close! stage)))
         server (make-server client {:on-success (fn [exchange-info]
-                                                  (prefs/set-prefs prefs "email" (:email exchange-info))
-                                                  (prefs/set-prefs prefs "first-name" (:first-name exchange-info))
-                                                  (prefs/set-prefs prefs "last-name" (:last-name exchange-info))
-                                                  (prefs/set-prefs prefs "token" (:auth-token exchange-info))
+                                                  (set-prefs-from-successful-login! prefs exchange-info)
                                                   (reset! return true)
                                                   (close-stage!))
                                     :on-error   (fn [exception]
                                                   (reset! return exception)
                                                   (close-stage!))})
-        redirect-to-url (make-redirect-to-url server)
-        url (format "https://cr.defold.com/login/oauth/google?redirect_to=%s" (URLEncoder/encode redirect-to-url))]
+        url (login-page-url server)]
     (ui/with-controls root [^Button cancel ^TextArea link]
       (ui/text! link url)
       (ui/on-action! cancel (fn [_] (.close stage))))
     (.setTitle stage "Login")
-    (.setOnHidden stage (ui/event-handler event (.stop server)))
+    (ui/on-closed! stage (fn [_] (stop-server-soon! server)))
     (ui/open-url url)
     (.setScene stage scene)
     (.showAndWait stage)
