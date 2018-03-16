@@ -57,10 +57,7 @@
         <HBox styleClass="form-pane">
             <HBox HBox.hgrow="ALWAYS">
                 <Label text="Location" />
-                <HBox id="import-project-location-browse-field" styleClass="df-browse-field" HBox.hgrow="ALWAYS">
-                    <TextField HBox.hgrow="ALWAYS" />
-                    <Button text="&#8226; &#8226; &#8226;" />
-                </HBox>
+                <HBox id="import-project-location-browse-field" HBox.hgrow="ALWAYS" />
             </HBox>
             <Button id="import-project-button" styleClass="df-button" text="Import Project" />
         </HBox>

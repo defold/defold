@@ -29,7 +29,7 @@
            (javafx.beans.property SimpleObjectProperty)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
-           (javafx.scene.control ButtonBase Label ListView RadioButton TextArea ToggleGroup)
+           (javafx.scene.control Button ButtonBase Label ListView RadioButton TextArea TextField ToggleGroup)
            (javafx.scene.image ImageView Image)
            (javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent)
            (javafx.scene.layout HBox Priority StackPane VBox)
@@ -328,9 +328,13 @@
     (when-some [directory-path (ui/choose-directory dialog-title initial-directory window)]
       (ui/text! text-field directory-path))))
 
-(defn- setup-directory-browse-field! [^Parent browse-field dialog-title]
-  (let [button (.lookup browse-field "Button")]
-    (ui/on-action! button (partial on-directory-field-browse-button-click! dialog-title))))
+(defn- setup-directory-browse-field! [^HBox browse-field dialog-title]
+  (doto browse-field
+    (ui/add-style! "df-browse-field")
+    (ui/children! [(doto (TextField.)
+                     (HBox/setHgrow Priority/ALWAYS))
+                   (doto (Button. "\u2022 \u2022 \u2022") ; "* * *" (BULLET)
+                     (ui/on-action! (partial on-directory-field-browse-button-click! dialog-title)))])))
 
 (defn- browse-field-file
   ^File [^Node browse-field]
@@ -551,7 +555,10 @@
   ^Parent [open-project-directory close-dialog-and-open-project! dashboard-client]
   (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-      (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
+      (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-browse-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
+        (doto import-project-location-browse-field
+          (setup-directory-browse-field! "Select Import Location")
+          (set-browse-field-file! open-project-directory))
         (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
         (ui/bind-presence! state-sign-in-browser-open (Bindings/equal :browser-open sign-in-state-property))
         (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
