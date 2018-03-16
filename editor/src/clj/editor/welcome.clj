@@ -16,6 +16,7 @@
             [editor.updater :as updater]
             [schema.core :as s]
             [util.net :as net]
+            [util.thread-util :refer [preset!]]
             [util.time :as time])
   (:import (clojure.lang ExceptionInfo)
            (java.io File FileOutputStream PushbackReader)
@@ -25,12 +26,12 @@
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
            (javafx.beans.binding Bindings)
-           (javafx.beans.property SimpleBooleanProperty)
+           (javafx.beans.property SimpleObjectProperty)
            (javafx.event Event)
            (javafx.scene Node Scene Parent)
            (javafx.scene.control ButtonBase Label ListView RadioButton TextArea ToggleGroup)
            (javafx.scene.image ImageView Image)
-           (javafx.scene.input KeyEvent MouseEvent)
+           (javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent)
            (javafx.scene.layout HBox Priority StackPane VBox)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
@@ -200,26 +201,81 @@
 ;; Dashboard client
 ;; -----------------------------------------------------------------------------
 
+(defn- sign-in-state [^SimpleObjectProperty sign-in-state-property]
+  (.get sign-in-state-property))
+
+(defn- set-sign-in-state! [^SimpleObjectProperty sign-in-state-property sign-in-state]
+  (assert (case sign-in-state (:not-signed-in :browser-open :signed-in) true false))
+  (.set sign-in-state-property sign-in-state))
+
 (defn- make-dashboard-client [prefs]
   (let [client (client/make-client prefs)
-        logged-in-property (SimpleBooleanProperty. (login/logged-in? prefs client))]
-    {:logged-in-property logged-in-property
+        sign-in-response-server-atom (atom nil)
+        sign-in-state-property (doto (SimpleObjectProperty.)
+                                 (set-sign-in-state! (if (login/logged-in? prefs client)
+                                                       :signed-in
+                                                       :not-signed-in)))]
+    {:sign-in-response-server-atom sign-in-response-server-atom
+     :sign-in-state-property sign-in-state-property
      :prefs prefs}))
 
-(defn- login!
-  "Log in to access Defold dashboard. If the user is already logged in, returns
-  true. Else display a login prompt and block until the user has either logged
-  in or cancelled, then return true if the login completed successfully."
-  [{:keys [^SimpleBooleanProperty logged-in-property prefs] :as _dashboard-client}]
-  (let [logged-in? (login/login prefs)]
-    (.set logged-in-property logged-in?)
-    logged-in?))
+(defn- shutdown-dashboard-client! [{:keys [sign-in-response-server-atom] :as _dashboard-client}]
+  (when-some [sign-in-response-server (preset! sign-in-response-server-atom nil)]
+    (login/stop-server-now! sign-in-response-server)))
 
-(defn- logout!
-  "Log out the active user from the Defold dashboard."
-  [{:keys [^SimpleBooleanProperty logged-in-property prefs] :as _dashboard-client}]
+(defn- restart-server! [old-sign-in-response-server client server-opts]
+  (when (some? old-sign-in-response-server)
+    (login/stop-server-now! old-sign-in-response-server))
+  (login/make-server client server-opts))
+
+(defn- begin-sign-in!
+  "If the user is already signed in, does nothing. Otherwise, open a sign-in
+  page in the system-configured web browser. Start a server that awaits the
+  oauth response redirect from the browser."
+  [{:keys [prefs sign-in-response-server-atom sign-in-state-property] :as _dashboard-client}]
+  (assert (= :not-signed-in (sign-in-state sign-in-state-property)))
+  (let [client (client/make-client prefs)]
+    (if (login/logged-in? prefs client)
+      (set-sign-in-state! sign-in-state-property :signed-in)
+      (let [server-opts {:on-success (fn [exchange-info]
+                                       (ui/run-later
+                                         (login/stop-server-soon! (preset! sign-in-response-server-atom nil))
+                                         (login/set-prefs-from-successful-login! prefs exchange-info)
+                                         (set-sign-in-state! sign-in-state-property :signed-in)))
+                         :on-error (fn [exception]
+                                     (ui/run-later
+                                       (login/stop-server-soon! (preset! sign-in-response-server-atom nil))
+                                       (set-sign-in-state! sign-in-state-property :not-signed-in)
+                                       (error-reporting/report-exception! exception)))}
+            sign-in-response-server (swap! sign-in-response-server-atom restart-server! client server-opts)
+            sign-in-page-url (login/login-page-url sign-in-response-server)]
+        (set-sign-in-state! sign-in-state-property :browser-open)
+        (ui/open-url sign-in-page-url)))))
+
+(defn- cancel-sign-in!
+  "Cancel the sign-in process and return to the :not-signed-in screen."
+  [{:keys [sign-in-response-server-atom sign-in-state-property] :as _dashboard-client}]
+  (assert (= :browser-open (sign-in-state sign-in-state-property)))
+  (login/stop-server-now! (preset! sign-in-response-server-atom nil))
+  (set-sign-in-state! sign-in-state-property :not-signed-in))
+
+(defn- copy-sign-in-url!
+  "Copy the sign-in url from the sign-in response server to the clipboard.
+  If the sign-in response server is not running, does nothing."
+  [{:keys [sign-in-response-server-atom sign-in-state-property] :as _dashboard-client} ^Clipboard clipboard]
+  (assert (= :browser-open (sign-in-state sign-in-state-property)))
+  (when-some [sign-in-response-server @sign-in-response-server-atom]
+    (let [sign-in-page-url (login/login-page-url sign-in-response-server)]
+      (.setContent clipboard (doto (ClipboardContent.)
+                               (.putString sign-in-page-url)
+                               (.putUrl sign-in-page-url))))))
+
+(defn- sign-out!
+  "Sign out the active user from the Defold dashboard."
+  [{:keys [prefs sign-in-state-property] :as _dashboard-client}]
+  (assert (= :signed-in (sign-in-state sign-in-state-property)))
   (login/logout prefs)
-  (.set logged-in-property false))
+  (set-sign-in-state! sign-in-state-property :not-signed-in))
 
 (defn- fetch-dashboard-projects [{:keys [prefs] :as _dashboard-client}]
   (import/fetch-projects prefs))
@@ -493,22 +549,25 @@
 
 (defn- make-import-project-pane
   ^Parent [open-project-directory close-dialog-and-open-project! dashboard-client]
-  (let [^SimpleBooleanProperty logged-in-property (:logged-in-property dashboard-client)]
+  (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-      (ui/with-controls [create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button sign-in-button state-signed-in state-not-signed-in]
-        (ui/bind-presence! state-signed-in logged-in-property)
-        (ui/bind-presence! state-not-signed-in (Bindings/not logged-in-property))
+      (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
+        (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
+        (ui/bind-presence! state-sign-in-browser-open (Bindings/equal :browser-open sign-in-state-property))
+        (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
         (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems ^ListView dashboard-projects-list)))
         (ui/bind-enabled-to-selection! import-project-button dashboard-projects-list)
-        (ui/on-action! sign-in-button (fn [_] (login! dashboard-client)))
+        (ui/on-action! sign-in-button (fn [_] (begin-sign-in! dashboard-client)))
         (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))
+        (ui/on-action! cancel-sign-in-button (fn [_] (cancel-sign-in! dashboard-client)))
+        (ui/on-action! copy-sign-in-url-button (fn [_] (copy-sign-in-url! dashboard-client (Clipboard/getSystemClipboard))))
         (.setFixedCellSize dashboard-projects-list 62.0)
         (ui/cell-factory! dashboard-projects-list (fn [dashboard-project]
                                                     {:graphic (make-dashboard-project-entry dashboard-project)}))
-        (ui/observe logged-in-property (fn [_ _ became-logged-in?]
-                                         (when became-logged-in?
+        (ui/observe sign-in-state-property (fn [_ _ sign-in-state]
+                                         (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
                                            (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))
-        (when (.get logged-in-property)
+        (when (= :signed-in (sign-in-state sign-in-state-property))
           (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))))
 
 ;; -----------------------------------------------------------------------------
@@ -565,6 +624,7 @@
                                             (open-project-fn (.getAbsolutePath project-file))
                                             nil))
          dashboard-client (make-dashboard-client prefs)
+         sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
          left-pane ^Parent (.lookup root "#left-pane")
          pane-buttons-container ^Parent (.lookup left-pane "#pane-buttons-container")
          sign-out-button ^ButtonBase (.lookup left-pane "#sign-out-button")
@@ -579,6 +639,9 @@
 
      ;; Make ourselves the main stage.
      (ui/set-main-stage stage)
+
+     ;; Ensure any server started by the dashboard client is shut down when the stage is closed.
+     (ui/on-closed! stage (fn [_] (shutdown-dashboard-client! dashboard-client)))
 
      ;; Install pending update check.
      (when update-context
@@ -599,8 +662,8 @@
 
      ;; Configure the sign-out button.
      (doto sign-out-button
-       (ui/bind-presence! (:logged-in-property dashboard-client))
-       (ui/on-action! (fn [_] (logout! dashboard-client))))
+       (ui/bind-presence! (Bindings/equal :signed-in sign-in-state-property))
+       (ui/on-action! (fn [_] (sign-out! dashboard-client))))
 
      ;; Apply opts if supplied.
      (when-some [{:keys [x y pane-index]} opts]
