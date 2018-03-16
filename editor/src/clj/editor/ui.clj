@@ -1867,7 +1867,7 @@ command."
 (defonce ^Desktop desktop (when (Desktop/isDesktopSupported) (Desktop/getDesktop)))
 
 (defn as-url
-  [url]
+  ^URI [url]
   (if (instance? URI url) url (URI. url)))
 
 (defn open-url
