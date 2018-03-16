@@ -1866,11 +1866,15 @@ command."
 
 (defonce ^Desktop desktop (when (Desktop/isDesktopSupported) (Desktop/getDesktop)))
 
+(defn as-url
+  ^URI [url]
+  (if (instance? URI url) url (URI. url)))
+
 (defn open-url
   [url]
   (if (some-> desktop (.isSupported Desktop$Action/BROWSE))
     (do
-      (.start (Thread. #(.browse desktop (URI. url))))
+      (.start (Thread. #(.browse desktop (as-url url))))
       true)
     false))
 

@@ -11,3 +11,9 @@
                                         {:resource-node node-id
                                          :resource resource})]))
   (output view-dirty? g/Any (g/fnk [_node-id dirty?] [_node-id dirty?])))
+
+(defn connect-resource-node [view resource-node]
+  (concat
+    (g/connect resource-node :_node-id view :resource-node)
+    (g/connect resource-node :node-id+resource view :node-id+resource)
+    (g/connect resource-node :dirty? view :dirty?)))
