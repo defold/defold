@@ -37,6 +37,9 @@
       (throw (Exception. "This account is not associated with defold.com yet. Please go to defold.com to signup"))
       exchange-info)))
 
+(def ^:private login-successful-html
+  (slurp (io/resource "login-successful.html")))
+
 (defn make-server
   ^NanoHTTPD [client {:keys [on-success on-error]}]
   (doto (proxy [NanoHTTPD] [0]
@@ -45,7 +48,7 @@
               (try
                 (let [exchange-info (get-exchange-info client token)]
                   (on-success exchange-info)
-                  (NanoHTTPD$Response. "<p>Login successful. You can now close this browser tab and return to the defold editor.</p>"))
+                  (NanoHTTPD$Response. login-successful-html))
                 (catch Exception e
                   (log/error :exception e)
                   (on-error e)
