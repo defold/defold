@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.string :as string]
+            [clojure.xml :as xml]
             [editor.client :as client]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
@@ -15,11 +16,12 @@
             [editor.ui :as ui]
             [editor.updater :as updater]
             [schema.core :as s]
+            [util.http-client :as http-client]
             [util.net :as net]
             [util.thread-util :refer [preset!]]
             [util.time :as time])
   (:import (clojure.lang ExceptionInfo)
-           (java.io File FileOutputStream PushbackReader)
+           (java.io ByteArrayInputStream File FileOutputStream PushbackReader)
            (java.net MalformedURLException URL)
            (java.security MessageDigest)
            (java.time Instant)
@@ -289,6 +291,71 @@
   (.toString (BigInteger. 1 (.digest (MessageDigest/getInstance "MD5") (.getBytes string "UTF-8"))) 16))
 
 (def ^:private gravatar-id (comp md5-hash string/lower-case string/trim))
+
+(defn- emit-element [element]
+  (if (instance? String element)
+    (print element)
+    (let [tag (name (first element))
+          content (next element)]
+      (print (str "<" tag))
+      (if (nil? content)
+        (print "/>")
+        (do
+          (print ">")
+          (doseq [c content]
+            (emit-element c))
+          (print (str "</" tag ">")))))))
+
+(defn- xml-string
+  ^String [element]
+  (with-out-str
+    (println "<?xml version='1.0' encoding='UTF-8'?>")
+    (emit-element element)))
+
+(defn- existing-gravatar-ids-by-email-address [client-gravatar-id client-password email-addresses]
+  (assert (string? (not-empty client-gravatar-id)))
+  (assert (string? (not-empty client-password)))
+  (let [gravatar-ids-by-email-address (into {} (map (juxt identity gravatar-id) email-addresses))
+        request {:request-method :post
+                 :scheme         "https"
+                 :server-name    "secure.gravatar.com"
+                 :uri            (str "/xmlrpc?user=" client-gravatar-id)
+                 :content-type   "text/xml"
+                 :headers        {"Accept" "text/xml"}
+                 :body           (xml-string [:methodCall
+                                              [:methodName "grav.exists"]
+                                              [:params
+                                               [:param
+                                                [:value
+                                                 [:struct
+                                                  [:member
+                                                   [:name "password"]
+                                                   [:value client-password]]
+                                                  [:member
+                                                   [:name "hashes"]
+                                                   [:value
+                                                    [:array
+                                                     (into [:data]
+                                                           (map (fn [gravatar-id]
+                                                                  [:value
+                                                                   [:string gravatar-id]]))
+                                                           (sort (vals gravatar-ids-by-email-address)))]]]]]]]])}
+        response (http-client/request request)
+        response-data (when (= 200 (:status response))
+                        (xml/parse (ByteArrayInputStream. (:body response))))
+        struct-members (get-in response-data [:content 0 :content 0 :content 0 :content 0 :content])
+        existing-gravatar-ids (into #{}
+                                    (comp (map :content)
+                                          (keep (fn [tags]
+                                                  (let [name-tag (some #(when (= :name (:tag %)) %) tags)
+                                                        value-tag (some #(when (= :value (:tag %)) %) tags)]
+                                                    (when (and name-tag value-tag (= "1" (get-in value-tag [:content 0 :content 0])))
+                                                      (get-in name-tag [:content 0]))))))
+                                    struct-members)]
+    (into {}
+          (filter (fn [[_ gravatar-id]]
+                    (contains? existing-gravatar-ids gravatar-id)))
+          gravatar-ids-by-email-address)))
 
 (defn- gravatar-image-url
   ^String [^long pixel-size ^String email-address]
