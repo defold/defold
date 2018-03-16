@@ -13,7 +13,7 @@
         <ListView id="recent-projects-list" styleClass="project-list-view" />
         <VBox id="empty-recent-projects-list-overlay" styleClass="empty-list-overlay" translateY="216">
             <Group styleClass="defold-logo-container, gray" style="-defold-logo-size: 110px 105px;"  translateY="-24"/>
-            <Text wrappingWidth="340">Welcome! As soon as you start working with Defold, all your recent projects will appear here.</Text>
+            <Label styleClass="hero-text" text="Welcome! As soon as you start working with Defold, all your recent projects will appear here." maxWidth="340" />
         </VBox>
     </StackPane>
     <AnchorPane styleClass="form-pane">
