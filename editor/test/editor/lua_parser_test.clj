@@ -241,7 +241,7 @@
 
 (deftest test-broken-table-def
   ;; "=" missing after MY_LIST creates an antlr error node wrapping the namelist
-  (let [code "local MY_LIST { 1] = \"hello\", [2] = \"world\" }"
+  (let [code "local MY_LIST { [1] = \"hello\", [2] = \"world\" }"
         result (lua-info code)]
     (is (= #{} (:local-vars result)))))
 
