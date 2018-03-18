@@ -225,6 +225,7 @@ namespace dmGameObject
             m_InstanceIdPool.SetCapacity(max_instances);
             m_InUpdate = 0;
             m_ToBeDeleted = 0;
+            m_Initialized = 0;
             m_ScaleAlongZ = 0;
             m_DirtyTransforms = 1;
 
@@ -310,6 +311,7 @@ namespace dmGameObject
         // If the game object dynamically created in this collection should have the Z component of the position affected by scale
         uint32_t                 m_ScaleAlongZ : 1;
         uint32_t                 m_DirtyTransforms : 1;
+        uint32_t                 m_Initialized : 1;
     };
 
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);

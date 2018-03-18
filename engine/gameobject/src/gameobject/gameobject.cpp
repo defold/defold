@@ -415,7 +415,7 @@ namespace dmGameObject
         if (ret != dmResource::RESULT_OK)
             return ret;
 
-        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, 0, 0);
+        ret = dmResource::RegisterType(factory, "collectionc", regist, &ResCollectionPreload, &ResCollectionCreate, 0, &ResCollectionDestroy, &ResCollectionRecreate, 0);
         if (ret != dmResource::RESULT_OK)
             return ret;
 
@@ -1363,6 +1363,9 @@ namespace dmGameObject
         if (!DispatchMessages(collection, sockets, 2))
             result = false;
 
+        if (result) {
+            collection->m_Initialized = true;
+        }
         return result;
     }
 
@@ -1428,7 +1431,7 @@ namespace dmGameObject
                 result = false;
             }
         }
-
+        collection->m_Initialized = false;
         return result;
     }
 
