@@ -30,13 +30,15 @@
            (javafx.animation AnimationTimer)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleObjectProperty)
+           (javafx.beans.value ChangeListener)
            (javafx.event Event)
-           (javafx.scene Node Scene Parent)
+           (javafx.scene Group Node Parent Scene)
            (javafx.scene.control Button ButtonBase Label ListView RadioButton TextArea TextField ToggleGroup)
            (javafx.scene.image ImageView Image)
            (javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent)
            (javafx.scene.layout HBox Priority StackPane VBox)
-           (javafx.scene.shape Rectangle)
+           (javafx.scene.paint Color ImagePattern)
+           (javafx.scene.shape Ellipse Rectangle)
            (javafx.scene.text Text TextFlow)
            (javafx.stage Stage)
            (org.apache.commons.io FilenameUtils)))
@@ -318,6 +320,7 @@
     (emit-element element)))
 
 (defn- gravatar-ids-by-email-address-raw [client-gravatar-id client-password email-addresses]
+  (println "gravatar-ids-by-email-address-raw" client-gravatar-id client-password)
   (assert (string? (not-empty client-gravatar-id)))
   (assert (string? (not-empty client-password)))
   (let [gravatar-ids-by-email-address (into {} (map (juxt identity gravatar-id) email-addresses))
@@ -612,14 +615,24 @@
 (defn- make-portrait-view
   ^Node [^double point-size portrait]
   (let [^Image image (:image portrait)
-        image-view (doto (ImageView.)
-                     (.setImage image)
-                     (.setFitWidth point-size)
-                     (.setFitHeight point-size))]
-    (.bind (.visibleProperty image-view)
-           (Bindings/and (Bindings/not (.errorProperty image))
-                         (Bindings/equal (.progressProperty image) (Double. 1.0) (Double. 0.0))))
-    image-view))
+        radius (* point-size 0.5)
+        background (doto (Ellipse. radius radius)
+                     (.setFill (Color/rgb 255 255 255 0.15)))
+        portrait-view (Ellipse. radius radius)]
+    (if (= 1.0 (.getProgress image))
+      (when-not (.isError image)
+        (.setFill portrait-view (ImagePattern. image)))
+      (do
+        (.setFill portrait-view Color/TRANSPARENT)
+        (.addListener (.progressProperty image)
+                      (reify ChangeListener
+                        (changed [this progress-property _ progress]
+                          (when (= 1.0 progress)
+                            (.removeListener progress-property this)
+                            (when-not (.isError image)
+                              (.setFill portrait-view (ImagePattern. image)))))))))
+    (doto (Group.)
+      (ui/children! [background portrait-view]))))
 
 (defn- make-additional-members-view
   ^Node [^double point-size ^long num-additional-members]
