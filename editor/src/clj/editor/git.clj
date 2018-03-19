@@ -14,7 +14,7 @@
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.errors RepositoryNotFoundException]
-           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId Repository]
+           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId ProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
@@ -272,11 +272,22 @@
       (.setCredentialsProvider creds)
       (.call)))
 
-(defn- make-batching-progress-monitor ^BatchingProgressMonitor [tasks on-progress!]
-  (let [tasks (atom (into {} (map #(vector % 0) tasks)))
-        set-progress (fn [task percent] (swap! tasks assoc task percent))
-        current-progress (fn [] (let [n (count @tasks)]
-                                  (if (zero? n) 0 (/ (reduce + (vals @tasks)) (float n) 100.0))))]
+(defn- make-batching-progress-monitor
+  ^BatchingProgressMonitor [weights-by-task cancelled-atom on-progress!]
+  (let [^double sum-weight (reduce + 0.0 (vals weights-by-task))
+        normalized-weights-by-task (into {}
+                                         (map (fn [[task ^double weight]]
+                                                [task (/ weight sum-weight)]))
+                                         weights-by-task)
+        progress-by-task (atom (into {} (map #(vector % 0)) (keys weights-by-task)))
+        set-progress (fn [task percent] (swap! progress-by-task assoc task percent))
+        current-progress (fn []
+                           (reduce +
+                                   0.0
+                                   (keep (fn [[task ^long percent]]
+                                           (when-some [^double weight (normalized-weights-by-task task)]
+                                             (* percent weight 0.01)))
+                                         @progress-by-task)))]
     (proxy [BatchingProgressMonitor] []
       (onUpdate
         ([taskName workCurr])
@@ -286,10 +297,16 @@
 
       (onEndTask
         ([taskName workCurr])
-        ([taskName workCurr workTotal percentDone])))))
+        ([taskName workCurr workTotal percentDone]))
+
+      (isCancelled []
+        (some-> cancelled-atom deref)))))
 
 (def ^:private ^:const push-tasks
-  ["Finding sources" "Writing objects" "remote: Updating references"])
+  ;; TODO: Tweak these weights.
+  {"Finding sources" 1
+   "Writing objects" 1
+   "remote: Updating references" 1})
 
 (defn push [^Git git ^UsernamePasswordCredentialsProvider creds & {:keys [timeout on-progress]}]
   (let [pc ^PushCommand (.push git)]
@@ -299,7 +316,7 @@
         (.setTimeout (/ (or timeout 0) 1000))
         (.setCredentialsProvider creds))
       (when on-progress
-        (.setProgressMonitor pc (make-batching-progress-monitor push-tasks on-progress)))
+        (.setProgressMonitor pc (make-batching-progress-monitor push-tasks nil on-progress)))
       (.call pc))))
 
 (defn make-add-change [file-path]
@@ -438,11 +455,14 @@
         (fs/delete-file! (file git f) {:missing :fail})))))
 
 (def ^:private ^:const clone-tasks
-  ["remote: Finding sources" "remote: Getting sizes" "remote: Compressing objects"
-   "Receiving objects" "Resolving deltas"])
+  {"remote: Finding sources" 1
+   "Receiving objects" 88
+   "Resolving deltas" 10
+   "Updating references" 1})
 
-(defn make-clone-monitor [^ProgressBar progress-bar]
-  (make-batching-progress-monitor clone-tasks
+(defn make-clone-monitor
+  ^ProgressMonitor [^ProgressBar progress-bar cancelled-atom]
+  (make-batching-progress-monitor clone-tasks cancelled-atom
     (fn [progress]
       (ui/run-later (.setProgress progress-bar progress)))))
 

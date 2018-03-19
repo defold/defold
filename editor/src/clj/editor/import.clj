@@ -12,21 +12,29 @@
            [javafx.scene Node Parent Scene]
            [javafx.scene.layout Pane GridPane]
            [java.util.function UnaryOperator]
-           [org.eclipse.jgit.api Git]))
+           [org.eclipse.jgit.api Git]
+           (org.eclipse.jgit.lib ProgressMonitor)))
 
 (set! *warn-on-reflection* true)
 
-(defn- clone-repo [prefs url directory progress-monitor]
-  (doto (Git/cloneRepository)
-      (.setCredentialsProvider (git/credentials prefs))
-      (.setProgressMonitor progress-monitor)
-      (.setURI url)
-      (.setDirectory (io/file directory))
-      (.call)))
+(defn clone-repo! [prefs url directory ^ProgressMonitor progress-monitor]
+  (try
+    (with-open [_ (.call (doto (Git/cloneRepository)
+                           (.setCredentialsProvider (git/credentials prefs))
+                           (.setProgressMonitor progress-monitor)
+                           (.setURI url)
+                           (.setDirectory directory)))]
+      nil)
+    (catch Exception e
+      ;; The .call method throws an exception if the operation was cancelled.
+      ;; Sadly it appears there is not a specific exception type for that, so
+      ;; we silence any exceptions if the operation was cancelled.
+      (when-not (.isCancelled progress-monitor)
+        (throw e)))))
 
 (defn- clone-project [prefs dialog project location]
   (let [directory (format "%s/%s" location (:name project))]
-    (clone-repo prefs (:repository-url project) directory (git/make-clone-monitor (dialogs/progress-bar dialog)))
+    (clone-repo! prefs (:repository-url project) (io/file directory) (git/make-clone-monitor (dialogs/progress-bar dialog) nil))
     (dialogs/return! dialog (format "%s/game.project" directory))
     (ui/run-later (dialogs/close! dialog))))
 
