@@ -7,6 +7,7 @@
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
+            [editor.git :as git]
             [editor.import :as import]
             [editor.login :as login]
             [editor.prefs :as prefs]
@@ -26,9 +27,9 @@
            (javafx.animation AnimationTimer)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleObjectProperty)
-           (javafx.event Event)
+           (javafx.event Event EventHandler)
            (javafx.scene Node Parent Scene)
-           (javafx.scene.control Button ButtonBase Label ListView RadioButton TextArea TextField ToggleGroup)
+           (javafx.scene.control Button ButtonBase Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup)
            (javafx.scene.image ImageView Image)
            (javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent)
            (javafx.scene.layout HBox Priority StackPane VBox)
@@ -377,7 +378,7 @@
         (ui/bind-presence! empty-recent-projects-list-overlay (Bindings/isEmpty (.getItems recent-projects-list)))
         (ui/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
         (doto recent-projects-list
-          (.setFixedCellSize 62.0)
+          (.setFixedCellSize 56.0)
           (ui/items! recent-projects)
           (ui/cell-factory! (fn [recent-project]
                               {:graphic (make-recent-project-entry recent-project)}))
@@ -508,7 +509,7 @@
     (make-project-entry name description last-updated)))
 
 (defn- make-import-project-pane
-  ^Parent [open-project-directory close-dialog-and-open-project! dashboard-client]
+  ^Parent [open-project-directory clone-project! dashboard-client]
   (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
       (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-browse-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
@@ -524,7 +525,12 @@
         (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))
         (ui/on-action! cancel-sign-in-button (fn [_] (cancel-sign-in! dashboard-client)))
         (ui/on-action! copy-sign-in-url-button (fn [_] (copy-sign-in-url! dashboard-client (Clipboard/getSystemClipboard))))
-        (.setFixedCellSize dashboard-projects-list 62.0)
+        (ui/on-action! import-project-button (fn [_]
+                                               (let [dashboard-project (first (ui/selection dashboard-projects-list))
+                                                     project-title (:name dashboard-project)
+                                                     base-directory (browse-field-file import-project-location-browse-field)]
+                                                 (clone-project! project-title (:repository-url dashboard-project) (io/file base-directory project-title)))))
+        (.setFixedCellSize dashboard-projects-list 56.0)
         (ui/cell-factory! dashboard-projects-list (fn [dashboard-project]
                                                     {:graphic (make-dashboard-project-entry dashboard-project)}))
         (ui/observe sign-in-state-property (fn [_ _ sign-in-state]
@@ -560,6 +566,25 @@
     (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
     (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
 
+(defn- show-progress!
+  ^ProgressBar [^Parent root ^String header-text ^String cancel-button-text cancel!]
+  (ui/with-controls root [^ProgressBar progress-bar ^ButtonBase progress-cancel-button progress-header ^Parent progress-overlay]
+    (ui/text! progress-header header-text)
+    (ui/text! progress-cancel-button cancel-button-text)
+    (.setProgress progress-bar 0.0)
+    (.setManaged progress-overlay true)
+    (.setVisible progress-overlay true)
+    (.setOnMouseClicked progress-cancel-button
+                        (ui/event-handler event
+                          (.setOnMouseClicked progress-cancel-button nil)
+                          (cancel!)))
+    progress-bar))
+
+(defn- hide-progress! [^Parent root]
+  (ui/with-controls root [^Parent progress-overlay]
+    (.setManaged progress-overlay false)
+    (.setVisible progress-overlay false)))
+
 (defn show-welcome-dialog!
   ([prefs update-context open-project-fn]
    (show-welcome-dialog! prefs update-context open-project-fn nil))
@@ -586,6 +611,23 @@
                                             ;; faster loading.
                                             (open-project-fn (.getAbsolutePath project-file))
                                             nil))
+         clone-project! (fn [project-title repository-url clone-directory]
+                          (let [cancelled-atom (atom false)
+                                progress-bar (show-progress! root (str "Downloading " project-title) "Cancel Download" #(reset! cancelled-atom true))
+                                progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)]
+                            (future
+                              (try
+                                (import/clone-repo! prefs repository-url clone-directory progress-monitor)
+                                (ui/run-later
+                                  (if @cancelled-atom
+                                    (do
+                                      (hide-progress! root)
+                                      (fs/delete-directory! clone-directory {:fail :silently}))
+                                    (close-dialog-and-open-project! (io/file clone-directory "game.project"))))
+                                (catch Throwable error
+                                  (ui/run-later
+                                    (hide-progress! root)
+                                    (error-reporting/report-exception! error)))))))
          dashboard-client (make-dashboard-client prefs)
          sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
          left-pane ^Parent (.lookup root "#left-pane")
@@ -594,7 +636,7 @@
          pane-buttons-toggle-group (ToggleGroup.)
          pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory close-dialog-and-open-project! recent-projects))
                        (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory close-dialog-and-open-project! welcome-settings))
-                       (make-pane-button "IMPORT PROJECT" (make-import-project-pane open-project-directory close-dialog-and-open-project! dashboard-client))]]
+                       (make-pane-button "IMPORT PROJECT" (make-import-project-pane open-project-directory clone-project! dashboard-client))]]
 
      ;; Add Defold logo SVG paths.
      (doseq [pane (map pane-button->pane pane-buttons)]
@@ -618,7 +660,8 @@
      (ui/observe (.selectedToggleProperty pane-buttons-toggle-group)
                  (fn [_ _ selected-pane-button]
                    (let [pane (pane-button->pane selected-pane-button)]
-                     (ui/children! root [left-pane pane]))))
+                     (ui/with-controls root [dialog-contents]
+                       (ui/children! dialog-contents [left-pane pane])))))
 
      ;; Select the home pane button.
      (.selectToggle pane-buttons-toggle-group (first pane-buttons))
