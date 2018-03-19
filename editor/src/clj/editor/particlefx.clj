@@ -299,7 +299,7 @@
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
-  (output pb-msg g/Any :cached produce-modifier-pb)
+  (output pb-msg g/Any produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id type]
       (let [mod-type (mod-types type)]
@@ -568,7 +568,7 @@
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
-  (output pb-msg g/Any :cached produce-emitter-pb)
+  (output pb-msg g/Any produce-emitter-pb)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id child-outlines]
                                                      {:node-id _node-id
                                                       :label id
@@ -711,8 +711,8 @@
 
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (output save-value g/Any (gu/passthrough pb-data))
-  (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
-                                       {:emitters emitter-msgs :modifiers modifier-msgs}))
+  (output pb-data g/Any (g/fnk [emitter-msgs modifier-msgs]
+                               {:emitters emitter-msgs :modifiers modifier-msgs}))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
   (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
   (output build-targets g/Any :cached produce-build-targets)
