@@ -45,12 +45,12 @@
         (let [body (g/node-value node :html)]
           (if-let [error (g/error? body)]
             {:code    500
-             :headers {"Content-Type" "text/html; charset: utf-8"}
+             :headers {"Content-Type" "text/html; charset=utf-8"}
              :body    (format "Couldn't render %s: %s\n"
                               (resource/resource->proj-path resource)
                               (or (:message error) "Unknown reason"))}
             {:code    200
-             :headers {"Content-Type" "text/html; charset: utf-8"}
+             :headers {"Content-Type" "text/html; charset=utf-8"}
              :body    body}))
 
         (contains? known-content-types resource-ext)
