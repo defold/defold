@@ -15,11 +15,10 @@
         </VBox>
 
         <VBox id="pane-buttons-container" VBox.vgrow="ALWAYS" />
-        <StackPane>
-            <padding>
-                <Insets bottom="24.0" left="8.0" right="8.0" top="8.0" />
-            </padding>
-            <Button id="sign-out-button" text="Sign Out" styleClass="df-button, dim" maxWidth="1000" minHeight="30"/>
-        </StackPane>
+        <Button id="sign-out-button" text="Sign Out" styleClass="df-button, dim" maxWidth="1000" minHeight="30">
+            <VBox.margin>
+                <Insets bottom="24.0" left="19.0" right="19.0" />
+            </VBox.margin>
+        </Button>
     </VBox>
 </HBox>
