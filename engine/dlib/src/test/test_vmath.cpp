@@ -20,6 +20,12 @@ TEST(dmMath, TestQuatToEuler)
     const float epsilon = 0.015f;
     Vector3 euler;
 
+    // Identity rotation
+    euler = dmVMath::QuatToEuler(0.0f, 0.0f, 0.0f, 1.0f);
+    ASSERT_EQ(0.0f, euler.getX());
+    ASSERT_EQ(0.0f, euler.getY());
+    ASSERT_EQ(0.0f, euler.getZ());
+
     // different degrees around different single axis
     const float half_rad_factor = (float) (M_PI / 360.0);
     for (uint32_t i = 0; i < 3; ++i)
@@ -63,6 +69,14 @@ TEST(dmMath, TestQuatToEuler)
 TEST(dmMath, TestEulerToQuat)
 {
     const float epsilon = 0.015f;
+
+    // Identity rotation
+    Vector3 zero(0.0f, 0.0f, 0.0f);
+    Quat id = dmVMath::EulerToQuat(zero);
+    ASSERT_EQ(0.0f, id.getX());
+    ASSERT_EQ(0.0f, id.getY());
+    ASSERT_EQ(0.0f, id.getZ());
+    ASSERT_EQ(1.0f, id.getW());
 
     // different degrees around different single axis
     const float half_rad_factor = (float) (M_PI / 360.0);
