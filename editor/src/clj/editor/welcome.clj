@@ -342,19 +342,28 @@
     (when-some [project-file (ui/choose-file opts)]
       (close-dialog-and-open-project! project-file))))
 
+(defn- make-project-entry
+  ^Node [^String title ^String description ^Instant timestamp]
+  (assert (string? (not-empty title)))
+  (assert (or (nil? description) (string? (not-empty description))))
+  (doto (HBox.)
+    (ui/add-style! "project-entry")
+    (ui/children! [(doto (VBox.)
+                     (HBox/setHgrow Priority/ALWAYS)
+                     (ui/add-style! "title-and-description")
+                     (ui/children! (if (nil? description)
+                                     [(doto (Text. title) (ui/add-style! "title"))]
+                                     [(doto (Text. title) (ui/add-style! "title"))
+                                      (doto (Label. description) (ui/add-style! "description"))])))
+                   (doto (Label.)
+                     (ui/add-style! "timestamp")
+                     (ui/text! (if (some? timestamp)
+                                 (time/vague-description timestamp)
+                                 "Unknown")))])))
+
 (defn- make-recent-project-entry
   ^Node [{:keys [^File project-file ^Instant last-opened ^String title] :as _recent-project}]
-  (assert (instance? File project-file))
-  (assert (instance? Instant last-opened))
-  (assert (string? (not-empty title)))
-  (doto (VBox.)
-    (ui/add-style! "recent-project-entry")
-    (ui/children! [(doto (Text. title)
-                     (ui/add-style! "title"))
-                   (doto (HBox.)
-                     (ui/children! [(doto (Label. (.getParent project-file))
-                                      (HBox/setHgrow Priority/ALWAYS))
-                                    (Label. (time/vague-description last-opened))]))])))
+  (make-project-entry title (.getParent project-file) last-opened))
 
 (defn- make-home-pane
   ^Parent [open-project-directory close-dialog-and-open-project! recent-projects]
@@ -368,6 +377,7 @@
         (ui/bind-presence! empty-recent-projects-list-overlay (Bindings/isEmpty (.getItems recent-projects-list)))
         (ui/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
         (doto recent-projects-list
+          (.setFixedCellSize 62.0)
           (ui/items! recent-projects)
           (ui/cell-factory! (fn [recent-project]
                               {:graphic (make-recent-project-entry recent-project)}))
@@ -495,20 +505,7 @@
   (let [name (or (not-empty (:name dashboard-project)) "Unnamed")
         description (some-> (:description dashboard-project) string/trim not-empty)
         last-updated (some-> (:last-updated dashboard-project) Instant/ofEpochMilli)]
-    (doto (HBox.)
-      (ui/add-style! "dashboard-project-entry")
-      (ui/children! [(doto (VBox.)
-                       (HBox/setHgrow Priority/ALWAYS)
-                       (ui/add-style! "title-and-description")
-                       (ui/children! (if (nil? description)
-                                       [(doto (Text. name) (ui/add-style! "title"))]
-                                       [(doto (Text. name) (ui/add-style! "title"))
-                                        (doto (Label. description) (ui/add-style! "description"))])))
-                     (doto (Label.)
-                       (ui/add-style! "last-updated")
-                       (ui/text! (if (some? last-updated)
-                                   (time/vague-description last-updated)
-                                   "Unknown")))]))))
+    (make-project-entry name description last-updated)))
 
 (defn- make-import-project-pane
   ^Parent [open-project-directory close-dialog-and-open-project! dashboard-client]
