@@ -250,7 +250,7 @@
 
       .title {
         -fx-fill: #A6B2BF;
-        -fx-font-family: "Source Sans Pro Light";
+        -fx-opacity: 87%;
         -fx-font-size: 16px;
         -fx-font-smoothing-type: lcd;
       }
@@ -316,6 +316,41 @@
     .svg-icon {
       SVGPath {
         -fx-fill: $df-bright-blue;
+      }
+    }
+  }
+
+  #progress-overlay {
+    .background-cover {
+      -fx-background-color: #292A2F;
+      -fx-opacity: 80%;
+    }
+
+    #progress-header {
+      -fx-text-fill: #A6B2BF;
+      -fx-font-family: "Source Sans Pro Light";
+      -fx-font-size: 20px;
+      -fx-font-smoothing-type: lcd;
+      -fx-padding: 0px 24px 0px 24px;
+    }
+
+    #progress-bar {
+      -fx-background-radius: 0;
+      -fx-padding: 17px 0px 24px 0px;
+
+      .bar {
+        -fx-background-color: $df-bright-blue;
+        -fx-background-insets: 0;
+        -fx-background-radius: 4px;
+        -fx-min-height: 5px;
+        -fx-padding: 0;
+      }
+
+      .track {
+        -fx-background-color: $mid-grey;
+        -fx-background-insets: 0;
+        -fx-border-width: 0;
+        -fx-background-radius: 4px;
       }
     }
   }
