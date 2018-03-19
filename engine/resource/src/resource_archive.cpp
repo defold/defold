@@ -372,6 +372,8 @@ namespace dmResourceArchive
         aic->m_ArchiveIndex = ai;
         *archive = aic;
 
+        fclose(f_index);
+
         return r;
     }
 
@@ -612,7 +614,7 @@ namespace dmResourceArchive
         // If liveupdate.arci does not exists, create it and liveupdate.arcd
         if (!resource_exists)
         {
-            fopen(lu_index_path, "wb");
+            FILE* f_lu_index = fopen(lu_index_path, "wb");
 
             // Data file has same path and filename as index file, but extension .arcd instead of .arci.
             char lu_data_path[DMPATH_MAX_PATH];
@@ -630,6 +632,7 @@ namespace dmResourceArchive
             archive_container->m_LiveUpdateResourceSize = 0;
             archive_container->m_LiveUpdateFileResourceData = f_lu_data;
             archive_container->m_LiveUpdateResourcesMemMapped = false;
+            fclose(f_lu_index);
         }
     }
 

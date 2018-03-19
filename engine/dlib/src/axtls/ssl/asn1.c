@@ -527,9 +527,6 @@ end_name:
 /**
  * Get the public key specifics from an ASN.1 encoded file
  * A function lacking in the axTLS API
- *
- * This is a really weird hack that only works with RSA public key
- * files
  */
 int asn1_get_public_key(const uint8_t *buf, int len, RSA_CTX **rsa_parameters)
 {
@@ -559,7 +556,6 @@ int asn1_get_public_key(const uint8_t *buf, int len, RSA_CTX **rsa_parameters)
     if (mod_len <= 0 || pub_len <= 0 )
         return -1;
     
-    // RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
     RSA_pub_key_raw_new(rsa_parameters, modulus, mod_len, pub_exp, pub_len);
 
     free(modulus);

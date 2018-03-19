@@ -235,7 +235,7 @@ Result StoreManifest(Manifest* manifest)
         return RESULT_DDF_ERROR;
     }
     dmSys::Result sys_result = dmSys::WriteWithMove(manifest_file_path, manifest_tmp_file_path);
-    if (sys_result !=dmSys::RESULT_OK)
+    if (sys_result != dmSys::RESULT_OK)
     {
         return RESULT_IO_ERROR;
     }
@@ -288,7 +288,7 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
             if (moveResult != dmSys::RESULT_OK)
             {
                 // The recently added resources will not be available if we proceed after this point
-                dmLogError("Fail to load liveupdate index data.")
+                dmLogError("Fail to load liveupdate index data (%i).", moveResult);
                 return RESULT_IO_ERROR;
             }
             dmSys::Unlink(temp_archive_index_path);
@@ -611,9 +611,9 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         struct stat file_stat;
         bool luManifestExists = stat(manifest_file_path, &file_stat) == 0;
         if (luManifestExists)
-        // if (false)
         {
-            // TODO unload loaded bundled manifest?
+            // Unload bundled manifest data
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
             manifest_path = manifest_file_path;
             dmLogInfo("LiveUpdate manifest file exists! path: %s", manifest_path);
             r = LoadExternalManifest(manifest_path, factory);
