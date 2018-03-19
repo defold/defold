@@ -749,6 +749,9 @@
                (swap! stack #(conj (rest %) (update parent :dependencies conj step)))
                (reset! result-atom step)))))))))
 
+(defn tree-trace-seq [result]
+  (tree-seq :dependencies :dependencies result))
+
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
