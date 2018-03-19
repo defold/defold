@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.geometry.Insets?>
+<?import javafx.scene.Group?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
-<?import javafx.scene.Group?>
+<?import javafx.scene.text.TextFlow?>
 
 <VBox id="import-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
     <HBox styleClass="header-pane">
@@ -15,7 +16,7 @@
         <VBox styleClass="empty-list-overlay" translateY="186" spacing="8">
             <fx:include source="globe-icon.fxml" />
             <Label styleClass="hero-text" text="You need to sign in to view your projects in the Defold cloud." maxWidth="220" />
-            <Button id="sign-in-button" styleClass="df-button" text="Sign In With Google">
+            <Button id="sign-in-button" styleClass="df-button" text="Sign in with Google">
                 <VBox.margin>
                     <Insets>
                         <top>40</top>
@@ -32,7 +33,7 @@
         <VBox styleClass="empty-list-overlay" translateY="186" spacing="8">
             <fx:include source="globe-icon.fxml" />
             <Label styleClass="hero-text" text="We've opened a web browser window. Use your Google account to sign in." maxWidth="280" />
-            <Button id="cancel-sign-in-button" styleClass="df-button" text="Cancel">
+            <Button id="cancel-sign-in-button" styleClass="df-button" text="Cancel and Go Back">
                 <VBox.margin>
                     <Insets>
                         <top>40</top>
@@ -41,7 +42,10 @@
                 </VBox.margin>
             </Button>
             <Label text="Don't see a browser window?" />
-            <Hyperlink id="copy-sign-in-url-button" text="Copy URL to Clipboard" />
+            <TextFlow maxWidth="-Infinity">
+                <Hyperlink id="copy-sign-in-url-button" text="Copy URL" />
+                <Label text=" and paste it into your browser."/>
+            </TextFlow>
         </VBox>
     </StackPane>
 
