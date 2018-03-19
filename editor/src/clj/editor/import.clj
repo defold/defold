@@ -53,29 +53,29 @@
   (.replaceAll (.getChildren parent) (->un-op (fn [child] (if (= child replaced) replacement child)))))
 
 (defn open-import-dialog [prefs]
-  (login/login prefs)
-  (let [client (client/make-client prefs)
-        projects (fetch-projects prefs)
-        project-options (map (juxt identity :name) projects)
-        fuzzy-project-combo (doto (fuzzy-combo-box/make project-options)
-                              (GridPane/setConstraints 1 0))
-        dialog (dialogs/make-task-dialog "import.fxml"
-                                         {:title "Import Project"
-                                          :ok-label "Import"})
-        ^Parent root (dialogs/dialog-root dialog)
-        controls (ui/collect-controls root ["projects" "location" "location-picker"])
-        placeholder-project-combo (:projects controls)
-        default-location (prefs/get-prefs prefs "import-location" (System/getProperty "user.home"))]
-    (ui/text! (:location controls) default-location)
-    (replace-child! ^GridPane (.getParent ^Node placeholder-project-combo) placeholder-project-combo fuzzy-project-combo)
-    (fuzzy-combo-box/observe! fuzzy-project-combo (fn [_ _] (dialogs/refresh! dialog)))
-    (ui/on-action! (:location-picker controls) (fn [_] (pick-location prefs root controls)))
-    (dialogs/task! dialog (fn []))
-    (dialogs/show! dialog {:on-ok (fn []
-                                    (dialogs/task! dialog (fn [] (clone-project prefs
-                                                                                dialog
-                                                                                (fuzzy-combo-box/value fuzzy-project-combo)
-                                                                                (ui/text (:location controls))))))
-                           :ready? (fn []
-                                     (and (fuzzy-combo-box/value fuzzy-project-combo)
-                                          (pos? (count (ui/text (:location controls))))))})))
+  (when (login/login prefs)
+    (let [client (client/make-client prefs)
+          projects (fetch-projects prefs)
+          project-options (map (juxt identity :name) projects)
+          fuzzy-project-combo (doto (fuzzy-combo-box/make project-options)
+                                (GridPane/setConstraints 1 0))
+          dialog (dialogs/make-task-dialog "import.fxml"
+                   {:title "Import Project"
+                    :ok-label "Import"})
+          ^Parent root (dialogs/dialog-root dialog)
+          controls (ui/collect-controls root ["projects" "location" "location-picker"])
+          placeholder-project-combo (:projects controls)
+          default-location (prefs/get-prefs prefs "import-location" (System/getProperty "user.home"))]
+      (ui/text! (:location controls) default-location)
+      (replace-child! ^GridPane (.getParent ^Node placeholder-project-combo) placeholder-project-combo fuzzy-project-combo)
+      (fuzzy-combo-box/observe! fuzzy-project-combo (fn [_ _] (dialogs/refresh! dialog)))
+      (ui/on-action! (:location-picker controls) (fn [_] (pick-location prefs root controls)))
+      (dialogs/task! dialog (fn []))
+      (dialogs/show! dialog {:on-ok (fn []
+                                      (dialogs/task! dialog (fn [] (clone-project prefs
+                                                                     dialog
+                                                                                  (fuzzy-combo-box/value fuzzy-project-combo)
+                                                                                  (ui/text (:location controls))))))
+                             :ready? (fn []
+                                       (and (fuzzy-combo-box/value fuzzy-project-combo)
+                                         (pos? (count (ui/text (:location controls))))))}))))
