@@ -3,7 +3,6 @@
             [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.string :as string]
-            [clojure.xml :as xml]
             [editor.client :as client]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
@@ -15,40 +14,31 @@
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.updater :as updater]
-            [internal.util :as util]
             [schema.core :as s]
-            [util.http-client :as http-client]
             [util.net :as net]
             [util.thread-util :refer [preset!]]
             [util.time :as time])
   (:import (clojure.lang ExceptionInfo)
-           (java.io ByteArrayInputStream File FileOutputStream PushbackReader)
+           (java.io File FileOutputStream PushbackReader)
            (java.net MalformedURLException URL)
-           (java.security MessageDigest)
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
            (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleObjectProperty)
-           (javafx.beans.value ChangeListener)
            (javafx.event Event)
-           (javafx.scene Group Node Parent Scene)
+           (javafx.scene Node Parent Scene)
            (javafx.scene.control Button ButtonBase Label ListView RadioButton TextArea TextField ToggleGroup)
            (javafx.scene.image ImageView Image)
            (javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent)
            (javafx.scene.layout HBox Priority StackPane VBox)
-           (javafx.scene.paint Color ImagePattern)
-           (javafx.scene.shape Ellipse Rectangle)
+           (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
            (javafx.stage Stage)
            (org.apache.commons.io FilenameUtils)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
-
-;; TODO!
-(def ^:private client-gravatar-id "00000000000000000000000000000000")
-(def ^:private client-password "password")
 
 (defonce ^:private open-project-directory-prefs-key "open-project-directory")
 (defonce ^:private legacy-recent-project-paths-prefs-key "recent-projects")
@@ -290,92 +280,6 @@
   (import/fetch-projects prefs))
 
 ;; -----------------------------------------------------------------------------
-;; Gravatar images
-;; -----------------------------------------------------------------------------
-
-(defn- md5-hash
-  ^String [^String string]
-  (.toString (BigInteger. 1 (.digest (MessageDigest/getInstance "MD5") (.getBytes string "UTF-8"))) 16))
-
-(def ^:private gravatar-id (comp md5-hash string/lower-case string/trim))
-
-(defn- emit-element [element]
-  (if (instance? String element)
-    (print element)
-    (let [tag (name (first element))
-          content (next element)]
-      (print (str "<" tag))
-      (if (nil? content)
-        (print "/>")
-        (do
-          (print ">")
-          (doseq [c content]
-            (emit-element c))
-          (print (str "</" tag ">")))))))
-
-(defn- xml-string
-  ^String [element]
-  (with-out-str
-    (println "<?xml version='1.0' encoding='UTF-8'?>")
-    (emit-element element)))
-
-(defn- gravatar-ids-by-email-address-raw [client-gravatar-id client-password email-addresses]
-  (println "gravatar-ids-by-email-address-raw" client-gravatar-id client-password)
-  (assert (string? (not-empty client-gravatar-id)))
-  (assert (string? (not-empty client-password)))
-  (let [gravatar-ids-by-email-address (into {} (map (juxt identity gravatar-id) email-addresses))
-        request {:request-method :post
-                 :scheme         "https"
-                 :server-name    "secure.gravatar.com"
-                 :uri            (str "/xmlrpc?user=" client-gravatar-id)
-                 :content-type   "text/xml"
-                 :headers        {"Accept" "text/xml"}
-                 :body           (xml-string [:methodCall
-                                              [:methodName "grav.exists"]
-                                              [:params
-                                               [:param
-                                                [:value
-                                                 [:struct
-                                                  [:member
-                                                   [:name "password"]
-                                                   [:value client-password]]
-                                                  [:member
-                                                   [:name "hashes"]
-                                                   [:value
-                                                    [:array
-                                                     (into [:data]
-                                                           (map (fn [gravatar-id]
-                                                                  [:value
-                                                                   [:string gravatar-id]]))
-                                                           (sort (vals gravatar-ids-by-email-address)))]]]]]]]])}
-        response (http-client/request request)
-        response-data (when (= 200 (:status response))
-                        (xml/parse (ByteArrayInputStream. (:body response))))
-        struct-members (get-in response-data [:content 0 :content 0 :content 0 :content 0 :content])
-        existing-gravatar-ids (into #{}
-                                    (comp (map :content)
-                                          (keep (fn [tags]
-                                                  (let [name-tag (some #(when (= :name (:tag %)) %) tags)
-                                                        value-tag (some #(when (= :value (:tag %)) %) tags)]
-                                                    (when (and name-tag value-tag (= "1" (get-in value-tag [:content 0 :content 0])))
-                                                      (get-in name-tag [:content 0]))))))
-                                    struct-members)]
-    (into {}
-          (filter (fn [[_ gravatar-id]]
-                    (contains? existing-gravatar-ids gravatar-id)))
-          gravatar-ids-by-email-address)))
-
-(def gravatar-ids-by-email-address (memoize gravatar-ids-by-email-address-raw)) ; TODO! Remove.
-
-(defn- gravatar-image-url
-  ^String [^long pixel-size ^String gravatar-id missing-result]
-  (assert (<= 1 pixel-size 2048))
-  (format "https://secure.gravatar.com/avatar/%s.jpg?s=%d&d=%s" gravatar-id pixel-size
-          (case missing-result
-            :error-404 "404"
-            :mystery-man "mm")))
-
-;; -----------------------------------------------------------------------------
 ;; Browse field control
 ;; -----------------------------------------------------------------------------
 
@@ -565,35 +469,9 @@
 ;; Import project pane
 ;; -----------------------------------------------------------------------------
 
-(def ^:private xform-dashboard-projects->email-addresses
-  (mapcat (fn [dashboard-project]
-            (cons (:email (:owner dashboard-project))
-                  (map :email (:members dashboard-project))))))
-
-(defn- assoc-portrait-info [portrait-count gravatar-ids-by-email-address make-gravatar-image {:keys [owner members] :as dashboard-project}]
-  (let [owner-gravatar-id (gravatar-ids-by-email-address (:email owner))
-        owner-image (make-gravatar-image owner-gravatar-id)
-        owner-with-portrait (assoc owner
-                              :gravatar-id owner-gravatar-id
-                              :image owner-image)]
-    (assoc dashboard-project
-      :portraits (into [owner-with-portrait]
-                       (comp (remove #(= (:email owner) (:email %)))
-                             (keep (fn [member]
-                                     (when-some [gravatar-id (gravatar-ids-by-email-address (:email member))]
-                                       (assoc member
-                                         :gravatar-id gravatar-id
-                                         :image (make-gravatar-image gravatar-id)))))
-                             (util/distinct-by :gravatar-id)
-                             (take (dec ^long portrait-count)))
-                       (sort-by :email members)))))
-
-(defn- refresh-dashboard-projects-list! [^ListView dashboard-projects-list dashboard-client make-gravatar-image]
-  (let [dashboard-projects (fetch-dashboard-projects dashboard-client)
-        email-addresses (into #{} xform-dashboard-projects->email-addresses dashboard-projects)
-        gravatar-ids-by-email-address (gravatar-ids-by-email-address client-gravatar-id client-password email-addresses)
-        dashboard-projects-with-portraits (map (partial assoc-portrait-info 4 gravatar-ids-by-email-address make-gravatar-image) dashboard-projects)]
-    (ui/items! dashboard-projects-list dashboard-projects-with-portraits)))
+(defn- refresh-dashboard-projects-list! [^ListView dashboard-projects-list dashboard-client]
+  (let [dashboard-projects (fetch-dashboard-projects dashboard-client)]
+    (ui/items! dashboard-projects-list dashboard-projects)))
 
 #_{:description "Project Description",
    :last-updated 1396602464192,
@@ -612,43 +490,11 @@
            :first-name "First",
            :last-name "Last"}}
 
-(defn- make-portrait-view
-  ^Node [^double point-size portrait]
-  (let [^Image image (:image portrait)
-        radius (* point-size 0.5)
-        background (doto (Ellipse. radius radius)
-                     (.setFill (Color/rgb 255 255 255 0.15)))
-        portrait-view (Ellipse. radius radius)]
-    (if (= 1.0 (.getProgress image))
-      (when-not (.isError image)
-        (.setFill portrait-view (ImagePattern. image)))
-      (do
-        (.setFill portrait-view Color/TRANSPARENT)
-        (.addListener (.progressProperty image)
-                      (reify ChangeListener
-                        (changed [this progress-property _ progress]
-                          (when (= 1.0 progress)
-                            (.removeListener progress-property this)
-                            (when-not (.isError image)
-                              (.setFill portrait-view (ImagePattern. image)))))))))
-    (doto (Group.)
-      (ui/children! [background portrait-view]))))
-
-(defn- make-additional-members-view
-  ^Node [^double point-size ^long num-additional-members]
-  (doto (Label. (str "+" num-additional-members))
-    (.setStyle (format "-fx-alignment: center; -fx-background-color: rgba(255, 255, 255, 0.15); -fx-background-radius: %dpx" (long (/ point-size 2))))
-    (.setMaxSize point-size point-size)
-    (.setMinSize point-size point-size)
-    (.setPrefSize point-size point-size)))
-
 (defn- make-dashboard-project-entry
   ^Node [dashboard-project]
   (let [name (or (not-empty (:name dashboard-project)) "Unnamed")
         description (some-> (:description dashboard-project) string/trim not-empty)
-        last-updated (some-> (:last-updated dashboard-project) Instant/ofEpochMilli)
-        portraits (:portraits dashboard-project)
-        num-members-without-portraits (- (count (:members dashboard-project)) (count portraits))]
+        last-updated (some-> (:last-updated dashboard-project) Instant/ofEpochMilli)]
     (doto (HBox.)
       (ui/add-style! "dashboard-project-entry")
       (ui/children! [(doto (VBox.)
@@ -658,30 +504,15 @@
                                        [(doto (Text. name) (ui/add-style! "title"))]
                                        [(doto (Text. name) (ui/add-style! "title"))
                                         (doto (Label. description) (ui/add-style! "description"))])))
-                     (doto (HBox.)
-                       (ui/add-style! "portraits")
-                       (ui/children! (conj (into [] (map (partial make-portrait-view 32.0)) portraits)
-                                           (make-additional-members-view 32.0 num-members-without-portraits))))
                      (doto (Label.)
                        (ui/add-style! "last-updated")
                        (ui/text! (if (some? last-updated)
                                    (time/vague-description last-updated)
                                    "Unknown")))]))))
 
-(defn- make-gravatar-image-raw
-  ^Image [^long pixel-size gravatar-id]
-  (let [image-url (if (some? gravatar-id)
-                    (gravatar-image-url pixel-size gravatar-id :error-404)
-                    (gravatar-image-url pixel-size "00000000000000000000000000000000" :mystery-man))]
-    (println "make-gravatar-image-raw" pixel-size gravatar-id)
-    (Image. image-url true)))
-
-(def make-gravatar-image (memoize make-gravatar-image-raw)) ; TODO! Remove
-
 (defn- make-import-project-pane
   ^Parent [open-project-directory close-dialog-and-open-project! dashboard-client]
-  (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
-        make-gravatar-image (memoize (partial make-gravatar-image 64))]
+  (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
       (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-browse-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
         (doto import-project-location-browse-field
@@ -701,9 +532,9 @@
                                                     {:graphic (make-dashboard-project-entry dashboard-project)}))
         (ui/observe sign-in-state-property (fn [_ _ sign-in-state]
                                          (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
-                                           (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client make-gravatar-image))))
+                                           (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))
         (when (= :signed-in (sign-in-state sign-in-state-property))
-          (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client make-gravatar-image))))))
+          (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog
