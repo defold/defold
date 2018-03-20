@@ -1719,14 +1719,15 @@ command."
                                    (let [elapsed (- now start)
                                          delta (- now @last)]
                                      (when (or (nil? interval) (> delta interval))
-                                       (try
-                                         (run-later (tick-fn this (* elapsed 1e-9)))
-                                         (reset! last (- now (if interval
-                                                               (- delta interval)
-                                                               0)))
-                                         (catch Throwable t
-                                           (.stop ^AnimationTimer this)
-                                           (error-reporting/report-exception! t))))))))})))
+                                       (run-later
+                                         (try
+                                           (tick-fn this (* elapsed 1e-9))
+                                           (reset! last (- now (if interval
+                                                                 (- delta interval)
+                                                                 0)))
+                                           (catch Throwable t
+                                             (.stop ^AnimationTimer this)
+                                             (error-reporting/report-exception! t)))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
