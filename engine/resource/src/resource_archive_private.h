@@ -47,17 +47,17 @@ namespace dmResourceArchive
         bool m_ResourcesMemMapped;
         bool m_LiveUpdateResourcesMemMapped;
 
-        /// Used if the archive is loaded from file
+        /// Used if the archive is loaded from file (bundled archive)
         uint8_t* m_Hashes;
         EntryData* m_Entries;
         uint8_t* m_ResourceData;
-        FILE* m_FileResourceData;
+        FILE* m_FileResourceData; // game.arcd file handle
 
         /// Resources acquired with LiveUpdate
         char m_LiveUpdateResourcePath[DMPATH_MAX_PATH];
-        uint8_t* m_LiveUpdateResourceData;
+        uint8_t* m_LiveUpdateResourceData; // mem-mapped liveupdate.arcd
         uint32_t m_LiveUpdateResourceSize;
-        FILE* m_LiveUpdateFileResourceData;
+        FILE* m_LiveUpdateFileResourceData; // liveupdate.arcd file handle
     };
 
 	struct LiveUpdateEntries {

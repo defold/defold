@@ -332,6 +332,7 @@ Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manife
         dmLogError("Manifest format mismatch (expected '%x', actual '%x')",
             MANIFEST_MAGIC_NUMBER, manifest->m_DDFData->m_Header.m_MagicNumber);
         dmDDF::FreeMessage(manifest->m_DDF);
+        manifest->m_DDF = 0x0;
         return RESULT_FORMAT_ERROR;
     }
 
@@ -340,6 +341,7 @@ Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manife
         dmLogError("Manifest version mismatch (expected '%i', actual '%i')",
             dmResourceArchive::VERSION, manifest->m_DDFData->m_Header.m_Version);
         dmDDF::FreeMessage(manifest->m_DDF);
+        manifest->m_DDF = 0x0;
         return RESULT_FORMAT_ERROR;
     }
 
@@ -365,8 +367,11 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
     }
 
     Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest);
-    if (result == RESULT_OK)
-        dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+    // if (result == RESULT_OK)
+    // {
+    //     dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+    //     factory->m_Manifest->m_DDF = 0x0;
+    // }
     dmMemory::AlignedFree(manifestBuffer);
 
     return result;
@@ -393,7 +398,10 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
 
     Result result = ParseManifestDDF(manifest_buf, manifest_len, factory->m_Manifest);
     if (result == RESULT_OK)
+    {
         dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+        factory->m_Manifest->m_DDF = 0x0;
+    }
     UnmountManifest((void*&)manifest_buf, manifest_len);
 
     return result;
@@ -458,8 +466,12 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
 // Inspect asn1 key; http://lapo.it/asn1js/#
 Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
 {
-    dmLogInfo("VerifyManifestHash...");
-    dmLogInfo("factory->m_UriParts.m_Path: %s", factory->m_UriParts.m_Path);
+    if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") != 0)
+    {
+        dmLogWarning("Skipping manifest verification, resources are loaded with scheme: %s", factory->m_UriParts.m_Scheme);
+        return RESULT_FORMAT_ERROR;
+    }
+
     Result res = RESULT_OK;
     char public_key_path[DMPATH_MAX_PATH];
     char game_dir[DMPATH_MAX_PATH];
@@ -468,20 +480,17 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
     char* hex_digest = 0x0;
 
     // Load public key
-    dmLogInfo("VerifyManifestHash loading pub key from resources using factory path...");
     dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
-    dmLogInfo("got game_dir: %s", game_dir);
     dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
-    dmLogInfo("pub key path: %s", public_key_path);
+    dmLogInfo("public_key_path: %s", public_key_path);
     dmSys::ResourceSize(public_key_path, &pub_key_size);
     pub_key_buf = (uint8_t*)malloc(pub_key_size);
     assert(pub_key_buf);
     dmSys::Result sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
-    dmLogInfo("VerifyManifestHash DONE!");
 
     if (sys_res != dmSys::RESULT_OK)
     {
-        dmLogError("Failed to load public key for manifest verification (%i)", sys_res);
+        dmLogError("Failed to load public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
         free(pub_key_buf);
         return RESULT_IO_ERROR;
     }
@@ -614,6 +623,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {
             // Unload bundled manifest data
             dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
+            factory->m_Manifest->m_DDFData = 0x0;
             manifest_path = manifest_file_path;
             dmLogInfo("LiveUpdate manifest file exists! path: %s", manifest_path);
             r = LoadExternalManifest(manifest_path, factory);
@@ -626,11 +636,17 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             r = LoadArchiveIndex(manifest_path, factory->m_UriParts.m_Path, factory);
         }
 
-        if (r != RESULT_OK)
+        if (r == RESULT_OK)
+        {
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+            factory->m_Manifest->m_DDF = 0x0;
+        }
+        else
         {
             dmLogError("Unable to load manifest: %s with result = %i", factory->m_UriParts.m_Path, r);
             dmMessage::DeleteSocket(socket);
             dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+            factory->m_Manifest->m_DDF = 0x0;
             delete factory->m_Manifest;
             delete factory;
             return 0;
@@ -711,9 +727,16 @@ void DeleteFactory(HFactory factory)
     }
     if (factory->m_Manifest)
     {
+        if (factory->m_Manifest->m_DDF)
+        {
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+            factory->m_Manifest->m_DDF = 0x0;
+        }
+
         if (factory->m_Manifest->m_DDFData)
         {
             dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
+            factory->m_Manifest->m_DDFData = 0x0;
         }
 
         if (factory->m_Manifest->m_ArchiveIndex)

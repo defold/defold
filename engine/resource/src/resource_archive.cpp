@@ -365,9 +365,9 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
 
-        aic->m_FileResourceData = f_data;
-        aic->m_LiveUpdateFileResourceData = f_lu_data;
-        aic->m_LiveUpdateResourceData = 0x0;
+        aic->m_FileResourceData = f_data; // game.arcd file handle
+        aic->m_LiveUpdateFileResourceData = f_lu_data; // liveupdate.arcd file
+        aic->m_LiveUpdateResourceData = 0x0; // mem-mapped liveupdate.arcd
         aic->m_LiveUpdateResourcesMemMapped = false;
         aic->m_ArchiveIndex = ai;
         *archive = aic;
@@ -615,6 +615,7 @@ namespace dmResourceArchive
         if (!resource_exists)
         {
             FILE* f_lu_index = fopen(lu_index_path, "wb");
+            fclose(f_lu_index);
 
             // Data file has same path and filename as index file, but extension .arcd instead of .arci.
             char lu_data_path[DMPATH_MAX_PATH];
@@ -632,7 +633,6 @@ namespace dmResourceArchive
             archive_container->m_LiveUpdateResourceSize = 0;
             archive_container->m_LiveUpdateFileResourceData = f_lu_data;
             archive_container->m_LiveUpdateResourcesMemMapped = false;
-            fclose(f_lu_index);
         }
     }
 
@@ -650,6 +650,7 @@ namespace dmResourceArchive
 
         char app_support_path[DMPATH_MAX_PATH];
         char lu_index_path[DMPATH_MAX_PATH];
+        char lu_index_tmp_path[DMPATH_MAX_PATH];
 
         dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
         dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);
@@ -670,8 +671,9 @@ namespace dmResourceArchive
         }
 
         // Write to temporary index file, filename liveupdate.arci.tmp
-        dmStrlCat(lu_index_path, ".tmp", DMPATH_MAX_PATH);
-        FILE* f_lu_index = fopen(lu_index_path, "wb");
+        dmStrlCpy(lu_index_tmp_path, lu_index_path, DMPATH_MAX_PATH);
+        dmStrlCat(lu_index_tmp_path, ".tmp", DMPATH_MAX_PATH);
+        FILE* f_lu_index = fopen(lu_index_tmp_path, "wb");
         if (!f_lu_index)
         {
             dmLogError("Failed to create liveupdate index file");
@@ -685,9 +687,11 @@ namespace dmResourceArchive
             dmLogError("Failed to write liveupdate index file");
             return RESULT_IO_ERROR;
         }
+        fflush(f_lu_index);
         fclose(f_lu_index);
 
         // set result
+        // TODO resource load lock here? Since we lock for SetNewArchiveIndex should we lock here as well?
         out_new_index = ai_temp;
         return RESULT_OK;
     }

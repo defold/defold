@@ -57,7 +57,7 @@ namespace dmResource
 
         // Guard for anything that touches anything that could be shared
         // with GetRaw (used for async threaded loading). Liveupdate, HttpClient, m_Buffer
-        // m_BuiltinsArchive and m_Archive
+        // m_BuiltinsManifest, m_Manifest
         dmMutex::Mutex                               m_LoadMutex;
 
         // dmResource::Get recursion depth
