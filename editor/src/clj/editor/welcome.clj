@@ -26,13 +26,13 @@
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
            (javafx.beans.binding Bindings)
-           (javafx.beans.property SimpleObjectProperty)
-           (javafx.event Event EventHandler)
+           (javafx.beans.property SimpleObjectProperty StringProperty)
+           (javafx.event Event)
            (javafx.scene Node Parent Scene)
            (javafx.scene.control Button ButtonBase Label ListView ProgressBar RadioButton TextArea TextField ToggleGroup)
            (javafx.scene.image ImageView Image)
            (javafx.scene.input Clipboard ClipboardContent KeyEvent MouseEvent)
-           (javafx.scene.layout HBox Priority StackPane VBox)
+           (javafx.scene.layout HBox Priority Region StackPane VBox)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
            (javafx.stage Stage)
@@ -281,36 +281,55 @@
   (import/fetch-projects prefs))
 
 ;; -----------------------------------------------------------------------------
-;; Browse field control
+;; Location field control
 ;; -----------------------------------------------------------------------------
 
-(defn- on-directory-field-browse-button-click! [dialog-title ^Event event]
+(defn- location-field-location
+  ^File [^Node location-field]
+  (ui/with-controls location-field [directory-text title-text]
+    (let [directory-path (ui/text directory-text)
+          title (ui/text title-text)]
+      (when (and (not-empty directory-path)
+                 (not-empty title))
+        (io/as-file (str directory-path File/separator title))))))
+
+(defn- location-field-title-property
+  ^StringProperty [^Node location-field]
+  (ui/with-controls location-field [^Label title-text]
+    (.textProperty title-text)))
+
+(defn- on-location-field-browse-button-click! [dialog-title ^Event event]
   (let [^Node button (.getSource event)
-        browse-field (.getParent button)
-        text-field (.lookup browse-field "TextField")
-        scene (.getScene button)
-        window (.getWindow scene)
-        initial-directory (some-> text-field ui/text not-empty io/as-file)
-        initial-directory (when (some-> initial-directory (.exists)) initial-directory)]
-    (when-some [directory-path (ui/choose-directory dialog-title initial-directory window)]
-      (ui/text! text-field directory-path))))
+        location-field (.getParent button)]
+    (ui/with-controls location-field [directory-text]
+      (let [scene (.getScene button)
+            window (.getWindow scene)
+            initial-directory (some-> directory-text ui/text not-empty io/as-file)
+            initial-directory (when (some-> initial-directory (.exists)) initial-directory)]
+        (when-some [directory-path (ui/choose-directory dialog-title initial-directory window)]
+          (ui/text! directory-text directory-path))))))
 
-(defn- setup-directory-browse-field! [^HBox browse-field dialog-title]
-  (doto browse-field
-    (ui/add-style! "df-browse-field")
-    (ui/children! [(doto (TextField.)
-                     (HBox/setHgrow Priority/ALWAYS))
+(defn- setup-location-field! [^HBox location-field dialog-title ^File directory]
+  (doto location-field
+    (ui/add-style! "location-field")
+    (ui/children! [(doto (HBox.)
+                     (HBox/setHgrow Priority/ALWAYS)
+                     (ui/add-style! "path-field")
+                     (ui/children! [(doto (Label.)
+                                      (HBox/setHgrow Priority/NEVER)
+                                      (.setId "directory-text")
+                                      (ui/add-styles! ["path-element" "explicit"])
+                                      (ui/text! (or (some-> directory .getAbsolutePath) "")))
+                                    (doto (Label. File/separator)
+                                      (HBox/setHgrow Priority/NEVER)
+                                      (ui/add-styles! ["path-element" "implicit"]))
+                                    (doto (Label.)
+                                      (HBox/setHgrow Priority/NEVER)
+                                      (.setMinWidth Region/USE_PREF_SIZE)
+                                      (.setId "title-text")
+                                      (ui/add-styles! ["path-element" "implicit"]))]))
                    (doto (Button. "\u2022 \u2022 \u2022") ; "* * *" (BULLET)
-                     (ui/on-action! (partial on-directory-field-browse-button-click! dialog-title)))])))
-
-(defn- browse-field-file
-  ^File [^Node browse-field]
-  (when-some [path (not-empty (ui/text (.lookup browse-field "TextField")))]
-    (io/as-file path)))
-
-(defn- set-browse-field-file! [^Node browse-field ^File file]
-  (ui/text! (.lookup browse-field "TextField")
-            (or (some-> file .getAbsolutePath) "")))
+                     (ui/on-action! (partial on-location-field-browse-button-click! dialog-title)))])))
 
 ;; -----------------------------------------------------------------------------
 ;; Defold logo
@@ -436,12 +455,11 @@
   (ui/user-data category-button :templates))
 
 (defn- make-new-project-pane
-  ^Parent [open-project-directory close-dialog-and-open-project! welcome-settings]
+  ^Parent [^File open-project-directory close-dialog-and-open-project! welcome-settings]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
-    (ui/with-controls [template-categories ^ListView template-list new-project-location-browse-field ^ButtonBase create-new-project-button]
-      (doto new-project-location-browse-field
-        (setup-directory-browse-field! "Select New Project Location")
-        (set-browse-field-file! open-project-directory))
+    (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
+      (setup-location-field! new-project-location-field "Select New Project Location" (some-> open-project-directory .getParentFile))
+      (.bind (location-field-title-property new-project-location-field) (.textProperty new-project-title-field))
       (doto template-list
         (ui/cell-factory! (fn [project-template]
                             {:graphic (make-template-entry project-template)})))
@@ -463,18 +481,25 @@
         ;; Select the first category button.
         (.selectToggle category-buttons-toggle-group (first category-buttons)))
 
+      ;; Update the Title field whenever a template is selected.
+      (ui/observe-selection template-list
+                            (fn [_ selection]
+                              (when-some [selected-project-title (:name (first selection))]
+                                (ui/text! new-project-title-field selected-project-title))))
+
       ;; Configure create-new-project-button.
       (ui/bind-enabled-to-selection! create-new-project-button template-list)
       (ui/on-action! create-new-project-button
                      (fn [_]
                        (when-some [project-template (first (ui/selection template-list))]
-                         (let [project-location (browse-field-file new-project-location-browse-field)]
-                           (if (fs/empty-directory? project-location)
+                         (let [project-location (location-field-location new-project-location-field)]
+                           (if (and (.exists project-location)
+                                    (not (fs/empty-directory? project-location)))
+                             (dialogs/make-message-box "Invalid Project Location"
+                                                       "A non-empty directory already exists at the chosen location.")
                              (when-some [template-zip-file (download-proj-zip! (:zip-url project-template))]
                                (expand-proj-zip! template-zip-file project-location (:skip-root? project-template))
-                               (close-dialog-and-open-project! (io/file project-location "game.project")))
-                             (dialogs/make-message-box "Invalid Project Location"
-                                                       "Please select an empty directory for the new project.")))))))))
+                               (close-dialog-and-open-project! (io/file project-location "game.project")))))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Import project pane
@@ -509,13 +534,12 @@
     (make-project-entry name description last-updated)))
 
 (defn- make-import-project-pane
-  ^Parent [open-project-directory clone-project! dashboard-client]
+  ^Parent [^File open-project-directory clone-project! dashboard-client]
   (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-      (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-browse-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
-        (doto import-project-location-browse-field
-          (setup-directory-browse-field! "Select Import Location")
-          (set-browse-field-file! open-project-directory))
+      (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-field ^TextField import-project-title-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
+        (setup-location-field! import-project-location-field "Select Import Location" (some-> open-project-directory .getParentFile))
+        (.bind (location-field-title-property import-project-location-field) (.textProperty import-project-title-field))
         (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
         (ui/bind-presence! state-sign-in-browser-open (Bindings/equal :browser-open sign-in-state-property))
         (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
@@ -528,11 +552,22 @@
         (ui/on-action! import-project-button (fn [_]
                                                (let [dashboard-project (first (ui/selection dashboard-projects-list))
                                                      project-title (:name dashboard-project)
-                                                     base-directory (browse-field-file import-project-location-browse-field)]
-                                                 (clone-project! project-title (:repository-url dashboard-project) (io/file base-directory project-title)))))
+                                                     clone-directory (location-field-location import-project-location-field)]
+                                                 (if (and (.exists clone-directory)
+                                                          (not (fs/empty-directory? clone-directory)))
+                                                   (dialogs/make-message-box "Invalid Import Location"
+                                                                             "A non-empty directory already exists at the chosen location.")
+                                                   (clone-project! project-title (:repository-url dashboard-project) clone-directory)))))
         (.setFixedCellSize dashboard-projects-list 56.0)
         (ui/cell-factory! dashboard-projects-list (fn [dashboard-project]
                                                     {:graphic (make-dashboard-project-entry dashboard-project)}))
+
+        ;; Update the Title field whenever a project is selected.
+        (ui/observe-selection dashboard-projects-list
+                              (fn [_ selection]
+                                (when-some [selected-project-title (:name (first selection))]
+                                  (ui/text! import-project-title-field selected-project-title))))
+
         (ui/observe sign-in-state-property (fn [_ _ sign-in-state]
                                          (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
                                            (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))

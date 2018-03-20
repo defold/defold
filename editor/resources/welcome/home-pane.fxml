@@ -3,7 +3,6 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.Group?>
-<?import javafx.scene.text.Text?>
 
 <VBox id="home-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
     <HBox styleClass="header-pane">
