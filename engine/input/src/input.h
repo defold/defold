@@ -62,7 +62,6 @@ namespace dmInput
     HBinding NewBinding(HContext context);
     void SetBinding(HBinding binding, dmInputDDF::InputBinding* ddf);
     void DeleteBinding(HBinding binding);
-    uint32_t GetBindingResourceSize(HBinding binding);
 
     void RegisterGamepads(HContext context, const dmInputDDF::GamepadMaps* ddf);
 

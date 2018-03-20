@@ -79,13 +79,6 @@ namespace dmRender
      */
     dmhash_t GetDisplayProfilesName(HDisplayProfiles profiles);
 
-    /**
-     * Get display profiles resource size
-     * @param profiles Display profiles handle
-     * @return size
-     */
-    dmhash_t GetDisplayProfilesResourceSize(HDisplayProfiles profiles);
-
 }
 
 #endif // DISPLAY_PROFILES_H

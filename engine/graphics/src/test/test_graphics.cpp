@@ -4,7 +4,6 @@
 #include <dlib/log.h>
 
 #include "graphics.h"
-#include "graphics_private.h"
 #include "null/graphics_null.h"
 
 #define APP_TITLE "GraphicsTest"
@@ -567,14 +566,6 @@ TEST_F(dmGraphicsTest, TestTextureSupport)
 {
     ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_LUMINANCE));
     ASSERT_FALSE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA_DXT1));
-}
-
-TEST_F(dmGraphicsTest, TestTextureFormatBPP)
-{
-    for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
-    {
-        ASSERT_NE(0, dmGraphics::GetTextureFormatBPP((dmGraphics::TextureFormat) i));
-    }
 }
 
 int main(int argc, char **argv)

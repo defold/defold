@@ -19,7 +19,6 @@ namespace dmGameSystem
         dmInput::HBinding binding = dmInput::NewBinding((dmInput::HContext) params.m_Context);
         dmInput::SetBinding(binding, ddf);
         params.m_Resource->m_Resource = (void*)binding;
-        params.m_Resource->m_ResourceSize = dmInput::GetBindingResourceSize(binding);
         dmDDF::FreeMessage((void*)ddf);
 
         return dmResource::RESULT_OK;
@@ -41,7 +40,6 @@ namespace dmGameSystem
         }
         dmInput::HBinding binding = (dmInput::HBinding)params.m_Resource->m_Resource;
         dmInput::SetBinding(binding, ddf);
-        params.m_Resource->m_ResourceSize = dmInput::GetBindingResourceSize(binding);
         dmDDF::FreeMessage((void*)ddf);
         return dmResource::RESULT_OK;
     }
