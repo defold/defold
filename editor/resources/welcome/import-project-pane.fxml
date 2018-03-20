@@ -59,11 +59,15 @@
             </VBox>
         </StackPane>
         <HBox styleClass="form-pane">
-            <HBox HBox.hgrow="ALWAYS">
-                <Label text="Location" />
-                <HBox id="import-project-location-browse-field" HBox.hgrow="ALWAYS" />
+            <HBox minWidth="180" maxWidth="180" HBox.hgrow="NEVER">
+                <Label text="Folder" styleClass="field-label" minWidth="-Infinity" HBox.hgrow="NEVER" />
+                <TextField id="import-project-title-field" text="My Project" HBox.hgrow="ALWAYS" />
             </HBox>
-            <Button id="import-project-button" styleClass="df-button" text="Import Project" />
+            <HBox HBox.hgrow="ALWAYS">
+                <Label text="Location" styleClass="field-label" minWidth="-Infinity" HBox.hgrow="NEVER" />
+                <HBox id="import-project-location-field" HBox.hgrow="ALWAYS" />
+            </HBox>
+            <Button id="import-project-button" styleClass="df-button, submit-button" text="Import Project" HBox.hgrow="NEVER" />
         </HBox>
     </VBox>
 </VBox>
