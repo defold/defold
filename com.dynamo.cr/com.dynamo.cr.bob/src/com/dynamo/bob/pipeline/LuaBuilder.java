@@ -221,6 +221,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                         break;
                     case PROPERTY_TYPE_VECTOR3:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
                         Vector3d v3 = (Vector3d)property.value;
                         builder.addFloatValues((float)v3.getX());
                         builder.addFloatValues((float)v3.getY());
@@ -229,6 +232,10 @@ public abstract class LuaBuilder extends Builder<Void> {
                         break;
                     case PROPERTY_TYPE_VECTOR4:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".w"));
                         Vector4d v4 = (Vector4d)property.value;
                         builder.addFloatValues((float)v4.getX());
                         builder.addFloatValues((float)v4.getY());
@@ -238,6 +245,10 @@ public abstract class LuaBuilder extends Builder<Void> {
                         break;
                     case PROPERTY_TYPE_QUAT:
                         entryBuilder.setIndex(builder.getFloatValuesCount());
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".x"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".y"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".z"));
+                        entryBuilder.addElementIds(MurmurHash.hash64(property.name + ".w"));
                         Quat4d q = (Quat4d)property.value;
                         builder.addFloatValues((float)q.getX());
                         builder.addFloatValues((float)q.getY());

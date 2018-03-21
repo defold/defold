@@ -119,8 +119,15 @@ namespace dmLiveUpdate
         int hex_digest_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
         lua_pushvalue(L, 4);
         int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        dmLiveUpdate::Result res;
 
         dmResourceArchive::LiveUpdateResource resource((const uint8_t*) buf, buf_len);
+        if (buf_len < sizeof(dmResourceArchive::LiveUpdateResourceHeader))
+        {
+            resource.m_Header = 0x0;
+            dmLogError("The liveupdate resource could not be verified, header information is missing for resource: %s", hex_digest);
+            // fall through here to run callback with status failed as well
+        }
         dmLiveUpdate::StoreResourceCallbackData cb;
         cb.m_L = dmScript::GetMainThread(L);
         dmScript::GetInstance(L);
@@ -129,7 +136,7 @@ namespace dmLiveUpdate
         cb.m_HexDigestRef = hex_digest_ref;
         cb.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
         cb.m_HexDigest = hex_digest;
-        dmLiveUpdate::Result res = dmLiveUpdate::StoreResourceAsync(manifest, hex_digest, hex_digest_length, &resource, Callback_StoreResource, cb);
+        res = dmLiveUpdate::StoreResourceAsync(manifest, hex_digest, hex_digest_length, &resource, Callback_StoreResource, cb);
 
         switch(res)
         {

@@ -81,8 +81,7 @@ namespace dmGameObject
 
         uint32_t created_instances = 0;
         uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
-        uint32_t collection_rig_capacity = dmGameObject::GetCollectionDefaultRigCapacity(regist);
-        HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity, collection_rig_capacity);
+        HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity);
         if (collection == 0)
         {
             res = dmResource::RESULT_OUT_OF_RESOURCES;

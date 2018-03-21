@@ -4808,20 +4808,20 @@ TEST_F(dmGuiTest, SpineNodeCompleteCallback)
     // duration is 3.0 seconds
     // play animation with cb
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, &SpineAnimationComplete, (void*)m_Scene, 0));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
     ASSERT_EQ(SpineAnimationCompleteCount, 1);
 
     // play animation without cb
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0, 0, 0));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
     ASSERT_EQ(SpineAnimationCompleteCount, 1);
 
     // play animation with cb once more
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, &SpineAnimationComplete, (void*)m_Scene, 0));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
-    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
     ASSERT_EQ(SpineAnimationCompleteCount, 2);
 }
 
@@ -4839,6 +4839,7 @@ TEST_F(dmGuiTest, SpineNodeSetCursor)
     rig_scene_desc.m_Skeleton = m_Skeleton;
     rig_scene_desc.m_MeshSet = m_MeshSet;
     rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
@@ -4868,6 +4869,7 @@ TEST_F(dmGuiTest, SpineNodeGetCursor)
     rig_scene_desc.m_Skeleton = m_Skeleton;
     rig_scene_desc.m_MeshSet = m_MeshSet;
     rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
@@ -4896,6 +4898,7 @@ TEST_F(dmGuiTest, SpineNodeSetPlaybackRate)
     rig_scene_desc.m_Skeleton = m_Skeleton;
     rig_scene_desc.m_MeshSet = m_MeshSet;
     rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
@@ -4925,6 +4928,7 @@ TEST_F(dmGuiTest, SpineNodeGetPlaybackRate)
     rig_scene_desc.m_Skeleton = m_Skeleton;
     rig_scene_desc.m_MeshSet = m_MeshSet;
     rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
 
@@ -5396,6 +5400,52 @@ TEST_F(dmGuiTest, DeleteBoneNode)
     ASSERT_EQ(0, dmGui::GetNodeCount(m_Scene));
 
     DeleteSpineDummyData(dummy_data);
+}
+
+TEST_F(dmGuiTest, InheritAlpha)
+{
+    const char* s = "function init(self)\n"
+                    "    self.box_node = gui.new_box_node(vmath.vector3(90, 90 ,0), vmath.vector3(180, 60, 0))\n"
+                    "    gui.set_id(self.box_node, \"box\")\n"
+                    "    gui.set_color(self.box_node, vmath.vector4(0,0,0,0.5))\n"
+                    "    gui.set_inherit_alpha(self.box_node, false)\n"
+
+                    "    self.text_inherit_alpha = gui.new_text_node(vmath.vector3(0, 0, 0), \"Inherit alpha\")\n"
+                    "    gui.set_id(self.text_inherit_alpha, \"text_inherit_alpha\")\n"
+                    "    gui.set_parent(self.text_inherit_alpha, self_box_node)\n"
+
+                    "    self.text_no_inherit_alpha = gui.new_text_node(vmath.vector3(0, 0, 0), \"No inherit alpha\")\n"
+                    "    gui.set_id(self.text_no_inherit_alpha, \"text_no_inherit_alpha\")\n"
+                    "    gui.set_parent(self.text_no_inherit_alpha, self_box_node)\n"
+                    "    gui.set_inherit_alpha(self.text_no_inherit_alpha, true)\n"
+                    "end\n"
+                    "function final(self)\n"
+                    "    gui.delete_node(self.text_no_inherit_alpha)\n"
+                    "    gui.delete_node(self.text_inherit_alpha)\n"
+                    "    gui.delete_node(self.box_node)\n"
+                    "end\n";
+
+    dmGui::Result r;
+    r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::InitScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    dmGui::HNode box_node = dmGui::GetNodeById(m_Scene, "box");
+    ASSERT_EQ(dmGui::GetNodeInheritAlpha(m_Scene, box_node), false);
+
+    dmGui::HNode text_inherit_alpha = dmGui::GetNodeById(m_Scene, "text_inherit_alpha");
+    ASSERT_EQ(dmGui::GetNodeInheritAlpha(m_Scene, text_inherit_alpha), false);
+
+    dmGui::HNode text_no_inherit_alpha = dmGui::GetNodeById(m_Scene, "text_no_inherit_alpha");
+    ASSERT_EQ(dmGui::GetNodeInheritAlpha(m_Scene, text_no_inherit_alpha), true);
+
+    r = dmGui::UpdateScene(m_Scene, 1.0f / 60.0f);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
+
+    r = dmGui::FinalScene(m_Scene);
+    ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
 int main(int argc, char **argv)

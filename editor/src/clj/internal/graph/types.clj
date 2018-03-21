@@ -54,6 +54,9 @@
      Takes and returns a map of the form {node-id #{label ...} ...}")
   (original-node    [this node-id]))
 
+(defn basis? [value]
+  (satisfies? IBasis value))
+
 ;; ---------------------------------------------------------------------------
 ;; ID helpers
 ;; ---------------------------------------------------------------------------

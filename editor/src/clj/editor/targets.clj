@@ -22,6 +22,9 @@
 
 (defonce ^:private launched-targets (atom []))
 (defonce ^:private ssdp-targets (atom []))
+;; We cache the selected target in an atom to avoid garbage from parsing prefs.
+;; Must clear when launched-targets or ssdp-targets change.
+(defonce ^:private selected-target-atom (atom ::undefined))
 (defonce ^:private manual-device (atom nil))
 (defonce ^:private last-search (atom 0))
 (defonce ^:private running (atom false))
@@ -36,6 +39,9 @@
 (def ^:const timeout 200)
 (def ^:const max-log-entries 512)
 
+(defn- clear-selected-target-hint! []
+  (reset! selected-target-atom ::undefined))
+
 (defn kill-launched-target! [target]
   (let [^Process process (:process target)]
     (when (.isAlive process)
@@ -44,7 +50,8 @@
 (defn kill-launched-targets! []
   (doseq [launched-target @launched-targets]
     (kill-launched-target! launched-target))
-  (reset! launched-targets []))
+  (reset! launched-targets [])
+  (clear-selected-target-hint!))
 
 (def ^:private kill-lingering-launched-targets-hook
   (Thread. (fn [] (kill-launched-targets!))))
@@ -65,10 +72,12 @@
                                :id (str (UUID/randomUUID)))]
     (kill-launched-targets!)
     (swap! launched-targets conj launched-target)
+    (clear-selected-target-hint!)
     (invalidate-target-menu!)
     (process/watchdog! (:process launched-target)
                        (fn []
                          (swap! launched-targets (partial remove #(= (:id %) (:id launched-target))))
+                         (clear-selected-target-hint!)
                          (invalidate-target-menu!)))
     launched-target))
 
@@ -81,6 +90,7 @@
                      launched-target))
                  old))
     (when (not= old @launched-targets)
+      (clear-selected-target-hint!)
       (invalidate-target-menu!))))
 
 (defn launched-targets? []
@@ -185,6 +195,7 @@
       (log-fn error))
     (reset! targets-atom targets)
     (when (not= targets old-targets)
+      (clear-selected-target-hint!)
       (on-targets-changed-fn))))
 
 (defn- search-interval [^SSDP ssdp]
@@ -293,13 +304,18 @@
     (ui/show! stage)))
 
 (defn selected-target [prefs]
-  (let [target-address (prefs/get-prefs prefs "selected-target-id" nil)]
-    (first (filter #(= (:id %) target-address) (all-targets)))))
+  (swap! selected-target-atom
+         (fn [selected-target]
+           (if (not= ::undefined selected-target)
+             selected-target
+             (let [target-address (prefs/get-prefs prefs "selected-target-id" nil)]
+               (first (filter #(= (:id %) target-address) (all-targets))))))))
 
 (defn controllable-target? [target]
   (when (:url target) target))
 
 (defn select-target! [prefs target]
+  (reset! selected-target-atom target)
   (prefs/set-prefs prefs "selected-target-id" (:id target))
   target)
 
@@ -314,11 +330,16 @@
     (catch Exception _
       "invalid host")))
 
-(defn target-label [target]
+(defn target-menu-label [target]
   (format "%s - %s" (str (if (local-target? target) "Local " "") (:name target)) (url-string (:url target))))
 
+(defn target-message-label [target]
+  (let [url (:url target)]
+    (str (when (local-target? target) "Local ") (:name target)
+         (when (some? url) (str " - " (url-string url))))))
+
 (defn- target-option [target]
-  {:label     (target-label target)
+  {:label     (target-menu-label target)
    :command   :target
    :check     true
    :user-data target})
@@ -334,7 +355,7 @@
            (or (= user-data selected-target)
                (and (nil? selected-target)
                     (= user-data :new-local-engine)))))
-  (options [user-data prefs]
+  (options [user-data]
            (when-not user-data
              (let [launched-options (mapv target-option @launched-targets)
                    ssdp-options (mapv target-option @ssdp-targets)]

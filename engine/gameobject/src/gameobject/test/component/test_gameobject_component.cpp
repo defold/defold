@@ -26,11 +26,11 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/component");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         // Register dummy physical resource type
         dmResource::Result e;
@@ -486,7 +486,7 @@ TEST_F(ComponentTest, TestComponentType)
 // The test is to verify that the final callback is called for a cascading deletion of objects.
 TEST_F(ComponentTest, FinalCallsFinal)
 {
-    dmGameObject::HCollection collection = dmGameObject::NewCollection("test_final_collection", m_Factory, m_Register, 11, 0);
+    dmGameObject::HCollection collection = dmGameObject::NewCollection("test_final_collection", m_Factory, m_Register, 11);
 
     dmGameObject::HInstance go_a = dmGameObject::New(collection, "/test_final_final.goc");
     dmGameObject::SetIdentifier(collection, go_a, "first");

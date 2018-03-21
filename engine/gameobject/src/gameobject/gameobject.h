@@ -9,7 +9,6 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
-#include <rig/rig.h>
 
 #include <ddf/ddf.h>
 
@@ -422,6 +421,23 @@ namespace dmGameObject
     typedef CreateResult (*ComponentAddToUpdate)(const ComponentAddToUpdateParams& params);
 
     /**
+     * Parameters to ComponentGet callback.
+     */
+    struct ComponentGetParams
+    {
+        /// Component world
+        void* m_World;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
+
+    /**
+     * A simple way to get the component instance from the user_data (which was set during creation)
+     */
+    typedef void* (*ComponentGet)(const ComponentGetParams& params);
+
+
+    /**
      * Parameters to ComponentsUpdate callback.
      */
     struct ComponentsUpdateParams
@@ -642,6 +658,7 @@ namespace dmGameObject
         ComponentInit           m_InitFunction;
         ComponentFinal          m_FinalFunction;
         ComponentAddToUpdate    m_AddToUpdateFunction;
+        ComponentGet            m_GetFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsRender        m_RenderFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
@@ -661,7 +678,7 @@ namespace dmGameObject
      * Initialize system
      * @param context Script context
      */
-    void Initialize(dmScript::HContext context);
+    void Initialize(HRegister regist, dmScript::HContext context);
 
     /**
      * Create a new component type register
@@ -679,26 +696,11 @@ namespace dmGameObject
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
 
     /**
-     * Set default rig instance capacity of collections in this register. This does not affect existing collections.
-     * @param regist Register
-     * @param capacity Default capacity of rig instances for collections in this register (0-32766).
-     * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
-     */
-    Result SetCollectionDefaultRigCapacity(HRegister regist, uint32_t capacity);
-
-    /**
      * Get default capacity of collections in this register.
      * @param regist Register
      * @return Default capacity
      */
     uint32_t GetCollectionDefaultCapacity(HRegister regist);
-
-    /**
-     * Get default rig instance capacity of collections in this register.
-     * @param regist Register
-     * @return Default rig instance capacity
-     */
-    uint32_t GetCollectionDefaultRigCapacity(HRegister regist);
 
     /**
      * Delete a component type register
@@ -714,7 +716,7 @@ namespace dmGameObject
      * @param max_instances Max instances in this collection
      * @return HCollection
      */
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, uint32_t max_riginstances);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
 
     /**
      * Deletes a gameobject collection
@@ -919,6 +921,20 @@ namespace dmGameObject
     void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
 
     /**
+     * Gets a collection given an URL
+     * @param url the url to the object (uses the socket to find the collection)
+     * @return the collection matching the url. returns null if no match was found
+     */
+    HCollection GetCollectionFromURL(const dmMessage::URL& url);
+
+    /**
+     * Gets a component given an URL
+     * @param url the url to the object
+     * @return the component matching the url. returns null if no match was found
+     */
+    void* GetComponentFromURL(const dmMessage::URL& url);
+
+    /**
      * Get current game object instance from the lua state, if any.
      * The lua state has an instance while the script callbacks are being run on the state.
      * @param L lua-state
@@ -958,7 +974,7 @@ namespace dmGameObject
      */
     void SetInheritScale(HInstance instance, bool inherit_scale);
 
-    /** 
+    /**
      * Tells the collection that a transform was updated
      */
     void SetDirtyTransforms(HCollection collection);
@@ -1084,13 +1100,6 @@ namespace dmGameObject
      */
     dmMessage::HSocket GetFrameMessageSocket(HCollection collection);
 
-    /**
-     * Retrieve the rig context for the specified collection.
-     * @param collection Collection handle
-     * @return The rig context of the specified collection
-     */
-    dmRig::HRigContext GetRigContext(HCollection collection);
- 
     /**
      * Returns whether the scale of the instances in a collection should be applied along Z or not.
      * @param collection Collection

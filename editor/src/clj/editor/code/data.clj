@@ -407,22 +407,16 @@
 
 (defn- scroll-width-ratio
   ^double [^LayoutInfo layout]
-  (let [glyph-metrics (.glyph layout)
-        document-width (.document-width layout)
-        canvas-width (.w ^Rect (.canvas layout))
-        scroll-per-pixel (scroll-per-pixel document-width canvas-width)
-        ^double space-width (char-width glyph-metrics \space)
-        max-scroll-per-pixel (* space-width (Math/floor (/ canvas-width space-width)))]
-    (min scroll-per-pixel max-scroll-per-pixel)))
+  (let [document-width (.document-width layout)
+        canvas-width (.w ^Rect (.canvas layout))]
+    (scroll-per-pixel document-width canvas-width)))
 
 (defn- scroll-height-ratio
   ^double [^LayoutInfo layout ^long line-count]
   (let [^double line-height (line-height (.glyph layout))
         document-height (* line-count line-height)
-        canvas-height (.h ^Rect (.canvas layout))
-        scroll-per-pixel (scroll-per-pixel document-height canvas-height)
-        max-scroll-per-pixel (* line-height (Math/floor (/ canvas-height line-height)))]
-    (min scroll-per-pixel max-scroll-per-pixel)))
+        canvas-height (.h ^Rect (.canvas layout))]
+    (scroll-per-pixel document-height canvas-height)))
 
 (defn- scroll-tab-x-rect
   ^Rect [^Rect canvas-rect ^double document-width ^double scroll-x]
@@ -798,29 +792,32 @@
 
 (defn- word-cursor-range-at-cursor
   ^CursorRange [lines ^Cursor cursor]
-  (let [line (lines (.row cursor))
-        line-length (count line)
-        on-whitespace? (and (whitespace-character-at-index? line (.col cursor))
-                            (or (zero? (.col cursor))
-                                (whitespace-character-at-index? line (dec (.col cursor)))))
-        same-word? (if on-whitespace?
-                     (partial whitespace-character-at-index? line)
-                     (partial identifier-character-at-index? line))
-        col (if (or (= line-length (.col cursor))
-                    (not (same-word? (.col cursor))))
-              (max 0 (dec (.col cursor)))
-              (.col cursor))
-        start-col (inc (or (long (first (drop-while same-word? (iterate dec col)))) -1))
-        end-col (or (first (drop-while same-word? (iterate inc col))) line-length)]
-    (->CursorRange (->Cursor (.row cursor) start-col)
-                   (->Cursor (.row cursor) end-col))))
+  (let [row (.row cursor)
+        line (lines row)
+        line-length (count line)]
+    (if (zero? line-length)
+      (Cursor->CursorRange (->Cursor row 0))
+      (let [on-whitespace? (and (whitespace-character-at-index? line (.col cursor))
+                                (or (zero? (.col cursor))
+                                    (whitespace-character-at-index? line (dec (.col cursor)))))
+            same-word? (if on-whitespace?
+                         (partial whitespace-character-at-index? line)
+                         (partial identifier-character-at-index? line))
+            col (if (or (= line-length (.col cursor))
+                        (not (same-word? (.col cursor))))
+                  (max 0 (dec (.col cursor)))
+                  (.col cursor))
+            start-col (inc (or (long (first (drop-while same-word? (iterate dec col)))) -1))
+            end-col (or (first (drop-while same-word? (iterate inc col))) line-length)]
+        (->CursorRange (->Cursor row start-col)
+                       (->Cursor row end-col))))))
 
 (defn word-cursor-range? [lines ^CursorRange adjusted-cursor-range]
   (let [cursor (cursor-range-start adjusted-cursor-range)
         word-cursor-range (word-cursor-range-at-cursor lines cursor)]
-    (when (and (cursor-range-equals? word-cursor-range adjusted-cursor-range)
-               (not (Character/isWhitespace (.charAt ^String (lines (.row cursor)) (.col cursor)))))
-      adjusted-cursor-range)))
+    (and (not (cursor-range-empty? word-cursor-range))
+         (cursor-range-equals? word-cursor-range adjusted-cursor-range)
+         (not (Character/isWhitespace (.charAt ^String (lines (.row cursor)) (.col cursor)))))))
 
 (defn selected-word-cursor-range
   ^CursorRange [lines cursor-ranges]
@@ -1539,6 +1536,108 @@
       (and (not (ends-indentation? grammar line))
            (ends-indentation? grammar (str (subs line 0 (.col cursor)) typed (subs line (.col cursor))))))))
 
+(defn guess-indent-type [lines ^long tab-spaces]
+  (when-not (empty? lines)
+    (loop [prev-line-visual-width 0
+           sum-visual-width-from-spaces 0
+           sum-visual-width-from-tabs 0
+           sum-two-space-occurrences 0
+           sum-four-space-occurrences 0
+           lines lines]
+      (if-some [^String line (first lines)]
+        (let [line-length (count line)]
+          (if-some [[visual-width from-spaces from-tabs] (loop [index 0
+                                                                visual-width 0
+                                                                from-spaces 0
+                                                                from-tabs 0]
+                                                           (when (< index line-length)
+                                                             (let [character (.charAt line index)]
+                                                               (case character
+                                                                 \space (recur (inc index) (inc visual-width) (inc from-spaces) from-tabs)
+                                                                 \tab (let [visual-width-increase (- tab-spaces ^long (mod visual-width tab-spaces))]
+                                                                        (recur (inc index) (+ visual-width visual-width-increase) from-spaces (+ from-tabs visual-width-increase)))
+                                                                 [visual-width from-spaces from-tabs]))))]
+            ;; Indented line.
+            (let [visual-width (long visual-width)
+                  indent-width (- visual-width prev-line-visual-width)]
+              (recur (long visual-width)
+                     (+ sum-visual-width-from-spaces ^long from-spaces)
+                     (+ sum-visual-width-from-tabs ^long from-tabs)
+                     (case indent-width 2 (inc sum-two-space-occurrences) sum-two-space-occurrences)
+                     (case indent-width 4 (inc sum-four-space-occurrences) sum-four-space-occurrences)
+                     (next lines)))
+
+            ;; Empty line or nothing but whitespace. Ignore.
+            (recur prev-line-visual-width
+                   sum-visual-width-from-spaces
+                   sum-visual-width-from-tabs
+                   sum-two-space-occurrences
+                   sum-four-space-occurrences
+                   (next lines))))
+        (let [uses-spaces? (pos? sum-visual-width-from-spaces)
+              uses-tabs? (pos? sum-visual-width-from-tabs)]
+          (cond
+            (and (not uses-spaces?) (not uses-tabs?))
+            nil
+
+            (not uses-spaces?)
+            :tabs
+
+            :else
+            (let [^double tab-certainty (/ sum-visual-width-from-tabs sum-visual-width-from-spaces)]
+              (cond
+                ;; Too close to call?
+                (< 1.0 tab-certainty 1.1)
+                nil
+
+                ;; More indentation from tabs?
+                (< 1.0 tab-certainty)
+                :tabs
+
+                ;; More indentation from two spaces?
+                (< sum-four-space-occurrences sum-two-space-occurrences)
+                :two-spaces
+
+                :else
+                :four-spaces))))))))
+
+(declare ^:private transform-indentation)
+
+(defn indent-type->indent-string
+  ^String [indent-type]
+  (case indent-type
+    :tabs "\t"
+    :two-spaces "  "
+    :four-spaces "    "))
+
+(defn indent-type->tab-spaces
+  ^long [indent-type]
+  (case indent-type
+    :two-spaces 2
+    (:tabs :four-spaces) 4))
+
+(defn convert-indentation [from-indent-type to-indent-type lines cursor-ranges regions]
+  (let [rows (range (count lines))
+        from-tab-spaces (indent-type->tab-spaces from-indent-type)
+        to-indent-string (indent-type->indent-string to-indent-type)]
+    (assoc (transform-indentation rows lines cursor-ranges regions
+                                  (fn [^String line]
+                                    (let [line-length (count line)
+                                          [indent-width text] (loop [index 0
+                                                                     visual-width 0]
+                                                                (if (<= line-length index)
+                                                                  [visual-width nil]
+                                                                  (case (.charAt line index)
+                                                                    \space (recur (inc index) (inc visual-width))
+                                                                    \tab (recur (inc index) (+ visual-width (- from-tab-spaces ^long (mod visual-width from-tab-spaces))))
+                                                                    [visual-width (subs line index)])))
+                                          indent-level (unchecked-divide-int indent-width from-tab-spaces)
+                                          indent-rest (- ^long indent-width (* indent-level from-tab-spaces))]
+                                      (str (string/join (repeat indent-level to-indent-string))
+                                           (string/join (repeat indent-rest \space))
+                                           text))))
+      :indent-type to-indent-type)))
+
 (defn indent-level-pattern
   ^Pattern [^long tab-spaces]
   (re-pattern (str "(?:^|\\G)(?:\\t|" (string/join (repeat tab-spaces \space)) ")")))
@@ -1879,14 +1978,13 @@
             (not= scroll-x new-scroll-x) (assoc :scroll-x new-scroll-x)
             (not= scroll-y new-scroll-y) (assoc :scroll-y new-scroll-y))))
 
-(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed meta-key? control-key?]
-  (when-not (or meta-key? control-key?)
-    (case typed
-      "\r" ; Enter or Return.
-      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
+(defn key-typed [indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed]
+  (case typed
+    "\r" ; Enter or Return.
+    (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout "\n")
 
-      (when (not-any? #(Character/isISOControl ^char %) typed)
-        (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed)))))
+    (when (not-any? #(Character/isISOControl ^char %) typed)
+      (insert-text indent-level-pattern indent-string grammar lines cursor-ranges regions layout typed))))
 
 (defn execution-marker? [region]
   (= :execution-marker (:type region)))
@@ -1926,6 +2024,31 @@
                                         (map (partial breakpoint lines) added-rows))))]
         {:regions regions'}))))
 
+(defn- scroll-y-once [direction ^LayoutInfo layout source-line-count]
+  (let [line-height (line-height (.glyph layout))
+        ^double scroll-delta (case direction :up (- ^double line-height) :down line-height)
+        old-scroll-y (.scroll-y layout)
+        scroll-y (limit-scroll-y layout source-line-count (- old-scroll-y scroll-delta))]
+    (when (not= scroll-y old-scroll-y)
+      {:scroll-y scroll-y})))
+
+(defn tick [lines ^LayoutInfo layout ^GestureInfo gesture-start]
+  (when (= :primary (some-> gesture-start :button))
+    (case (.type gesture-start)
+      ;; Pressing the continuous scroll up area of the vertical scroll bar.
+      :scroll-bar-y-hold-up
+      (when-some [^Rect r (.scroll-tab-y layout)]
+        (when (< (.y gesture-start) (+ (.y r) (* 0.5 (.h r))))
+          (scroll-y-once :up layout (count lines))))
+
+      ;; Pressing the continuous scroll down area of the vertical scroll bar.
+      :scroll-bar-y-hold-down
+      (when-some [^Rect r (.scroll-tab-y layout)]
+        (when (> (.y gesture-start) (+ (.y r) (* 0.5 (.h r))))
+          (scroll-y-once :down layout (count lines))))
+
+      nil)))
+
 (defn mouse-pressed [lines cursor-ranges regions ^LayoutInfo layout button click-count x y alt-key? shift-key? shortcut-key?]
   (when (= :primary button)
     (cond
@@ -1943,6 +2066,22 @@
       ;; Prepare to drag the vertical scroll tab.
       (and (not alt-key?) (not shift-key?) (not shortcut-key?) (= 1 click-count) (some-> (.scroll-tab-y layout) (rect-contains? x y)))
       {:gesture-start (gesture-info :scroll-tab-y-drag button click-count x y :scroll-y (.scroll-y layout))}
+
+      ;; Initiate continuous scroll up.
+      (and (not alt-key?) (not shift-key?) (not shortcut-key?)
+           (when-some [^Rect r (.scroll-tab-y layout)]
+             (and (<= (.x r) x (+ (.x r) (.w r)))
+                  (< ^double y (+ (.y r) (* 0.5 (.h r)))))))
+      (assoc (scroll-y-once :up layout (count lines))
+        :gesture-start (gesture-info :scroll-bar-y-hold-up button click-count x y))
+
+      ;; Initiate continuous scroll down.
+      (and (not alt-key?) (not shift-key?) (not shortcut-key?)
+           (when-some [^Rect r (.scroll-tab-y layout)]
+             (and (<= (.x r) x (+ (.x r) (.w r)))
+                  (> ^double y (+ (.y r) (* 0.5 (.h r)))))))
+      (assoc (scroll-y-once :down layout (count lines))
+        :gesture-start (gesture-info :scroll-bar-y-hold-down button click-count x y))
 
       ;; Ignore minimap clicks.
       (rect-contains? (.minimap layout) x y)
@@ -1975,8 +2114,8 @@
          :gesture-start (gesture-info :cursor-range-selection button click-count x y
                                       :reference-cursor-range cursor-range)}))))
 
-(defn mouse-moved [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start x y]
-  (when (= :primary (some-> gesture-start :button))
+(defn- mouse-gesture [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start x y]
+  (when (= :primary (:button gesture-start))
     (case (.type gesture-start)
       ;; Dragging the horizontal scroll tab.
       :scroll-tab-x-drag
@@ -1998,6 +2137,10 @@
             scroll-y (limit-scroll-y layout line-count (- start-scroll scroll-delta))]
         (when (not= scroll-y (.scroll-y layout))
           {:scroll-y scroll-y}))
+
+      ;; Continuous scroll up / down.
+      (:scroll-bar-y-hold-up :scroll-bar-y-hold-down)
+      {:gesture-start (assoc gesture-start :x x :y y)}
 
       ;; Box selection.
       :box-selection
@@ -2047,7 +2190,9 @@
                                (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
                                  (assoc reference-cursor-range
                                    :from (cursor-range-end reference-cursor-range)
-                                   :to (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range)))
+                                   :to (if (= (.col mouse-cursor) (count (lines (.row mouse-cursor))))
+                                         mouse-cursor
+                                         (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range))))
                                  (assoc reference-cursor-range
                                    :from (cursor-range-start reference-cursor-range)
                                    :to (max-cursor (cursor-range-end word-cursor-range) (cursor-range-end reference-cursor-range)))))
@@ -2064,9 +2209,46 @@
                  (scroll-to-any-cursor layout lines new-cursor-ranges))))
       nil)))
 
-(defn mouse-released [^GestureInfo gesture-start button]
+(defn- element-at-position [^LayoutInfo layout x y]
+  (cond
+    ;; Horizontal scroll tab.
+    (some-> (.scroll-tab-x layout) (rect-contains? x y))
+    {:type :ui-element :ui-element :scroll-tab-x}
+
+    ;; Vertical scroll tab.
+    (some-> (.scroll-tab-y layout) (rect-contains? x y))
+    {:type :ui-element :ui-element :scroll-tab-y}
+
+    ;; The continuous scroll up area of the vertical scroll bar.
+    (when-some [^Rect r (.scroll-tab-y layout)]
+      (and (<= (.x r) x (+ (.x r) (.w r)))
+           (< ^double y (+ (.y r) (* 0.5 (.h r))))))
+    {:type :ui-element :ui-element :scroll-bar-y-up}
+
+    ;; The continuous scroll down area of the vertical scroll bar.
+    (when-some [^Rect r (.scroll-tab-y layout)]
+      (and (<= (.x r) x (+ (.x r) (.w r)))
+           (> ^double y (+ (.y r) (* 0.5 (.h r))))))
+    {:type :ui-element :ui-element :scroll-bar-y-down}))
+
+(defn- mouse-hover [^LayoutInfo layout hovered-element x y]
+  (let [new-hovered-element (element-at-position layout x y)]
+    (when (not= hovered-element new-hovered-element)
+      {:hovered-element new-hovered-element})))
+
+(defn mouse-moved [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start hovered-element x y]
+  (if (some? gesture-start)
+    (mouse-gesture lines cursor-ranges layout gesture-start x y)
+    (mouse-hover layout hovered-element x y)))
+
+(defn mouse-released [^LayoutInfo layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
-    {:gesture-start nil}))
+    (assoc (mouse-hover layout ::force-evaluation x y)
+      :gesture-start nil)))
+
+(defn mouse-exited [^GestureInfo gesture-start hovered-element]
+  (when (and (nil? gesture-start) (some? hovered-element))
+    {:hovered-element nil}))
 
 (defn cut! [lines cursor-ranges regions ^LayoutInfo layout clipboard]
   (when (put-selection-on-clipboard! lines cursor-ranges clipboard)

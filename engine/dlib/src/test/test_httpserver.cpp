@@ -140,7 +140,7 @@ public:
         m_ServerStarted = false;
         m_ClientData = "";
         dmHttpServer::NewParams params;
-        params.m_ConnectionTimeout = 20;
+        params.m_ConnectionTimeout = 30;
         params.m_Userdata = this;
         params.m_HttpHeader = dmHttpServerTest::HttpHeader;
         params.m_HttpResponse = dmHttpServerTest::HttpResponse;
@@ -252,7 +252,11 @@ TEST_F(dmHttpServerParserTest, TestHeaders)
 int g_PythonTestResult;
 void RunPythonThread(void*)
 {
+#if !defined(DM_NO_SYSTEM_FUNCTION)
     g_PythonTestResult = system("python src/test/test_httpserver.py");
+#else
+    g_PythonTestResult = -1;
+#endif
 }
 
 TEST_F(dmHttpServerTest, TestServer)

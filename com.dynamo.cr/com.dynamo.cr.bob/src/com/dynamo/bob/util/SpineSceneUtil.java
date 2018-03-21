@@ -203,6 +203,9 @@ public class SpineSceneUtil {
     }
 
     private void loadMesh(JsonNode attNode, Mesh mesh, Bone bone, boolean skinned) throws LoadException {
+        String hex = JsonUtil.get(attNode, "color", "ffffffff");
+        JsonUtil.hexToRGBA(hex, mesh.color);
+
         Iterator<JsonNode> vertexIt = attNode.get("vertices").getElements();
         Iterator<JsonNode> uvIt = attNode.get("uvs").getElements();
         int vertexCount = 0;
@@ -293,12 +296,7 @@ public class SpineSceneUtil {
             case ROTATION:
                 // See the comment above why this is done for rotations
                 float angles = JsonUtil.get(keyNode, "angle", 0.0f);
-                if (prevAngles != null) {
-                    float diff = angles - prevAngles;
-                    if (Math.abs(diff) > 180.0f) {
-                        angles += 360.0f * -Math.signum(diff);
-                    }
-                }
+                angles = angles % 360.0f;
                 prevAngles = angles;
                 key.value = new float[] {angles};
                 break;

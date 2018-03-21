@@ -31,5 +31,4 @@ public class ResourceNode {
     public ResourceNode getParent() {
         return this.parent;
     }
-
 }

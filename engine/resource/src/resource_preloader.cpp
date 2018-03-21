@@ -90,6 +90,7 @@ namespace dmResource
         ResourcePostCreateParams m_Params;
         SResourceDescriptor m_ResourceDesc;
         bool m_Removed;
+        bool m_Destroy;
     };
 
     // The preloader will function even down to a value of 1 here (the root object)
@@ -311,6 +312,7 @@ namespace dmResource
                     preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()+1);
                     ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
                     ip.m_Removed = false;
+                    ip.m_Destroy = false;
                     ip.m_Params.m_Factory = preloader->m_Factory;
                     ip.m_Params.m_Context = resource_type->m_Context;
                     ip.m_Params.m_PreloadData = req->m_PreloadData;
@@ -373,23 +375,36 @@ namespace dmResource
             assert(tmp_resource.m_Resource != 0);
             assert(resource_type != 0);
 
-
+            bool found = false;
             // Remove from the post create callbacks if necessary
             for( uint32_t i = 0; i < preloader->m_PostCreateCallbacks.Size(); ++i )
             {
                 ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[i];
                 if (ip.m_ResourceDesc.m_Resource == tmp_resource.m_Resource)
                 {
-                    ip.m_Removed = true;
+                    // Mark resource that is should be destroyed once postcreate has run.
+                    ip.m_Destroy = true;
+                    found = true;
+
+                    // NOTE: Loading multiple collection proxies with shared resources at the same
+                    // time can result in these resources being loading more than once.
+                    // We should fix so that this cannot happen since this is wasteful of both performance
+                    // and memory usage. There is an issue filed for this: DEF-3088
+                    // Once that has been implemented, the delayed destroy (m_Destroy) can be removed,
+                    // it would no longer be needed since each resource would only be created/loaded once.
+
                     break;
                 }
             }
 
-            ResourceDestroyParams params;
-            params.m_Factory = preloader->m_Factory;
-            params.m_Context = resource_type->m_Context;
-            params.m_Resource = &tmp_resource;
-            resource_type->m_DestroyFunction(params);
+            // Is the resource wasn't found in the PostCreate callbacks, we can destroy it right away.
+            if (!found) {
+                ResourceDestroyParams params;
+                params.m_Factory = preloader->m_Factory;
+                params.m_Context = resource_type->m_Context;
+                params.m_Resource = &tmp_resource;
+                resource_type->m_DestroyFunction(params);
+            }
         }
 
         req->m_ResourceType = 0;
@@ -633,6 +648,18 @@ namespace dmResource
         ++preloader->m_PostCreateCallbackIndex;
         if (ret == RESULT_OK)
         {
+            // Resource has been marked for delayed destroy after PostCreate function has been run.
+            if (ip.m_Destroy)
+            {
+                ResourceDestroyParams params;
+                params.m_Factory = preloader->m_Factory;
+                params.m_Context = resource_type->m_Context;
+                params.m_Resource = &ip.m_ResourceDesc;
+                resource_type->m_DestroyFunction(params);
+                ip.m_Removed = true;
+                ip.m_Destroy = false;
+            }
+
             if(preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
             {
                 return RESULT_PENDING;

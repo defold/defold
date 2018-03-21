@@ -2,20 +2,22 @@
 
 import Task, TaskGen
 from TaskGen import extension, declare_extension
-import os, sys, glob
+import os, sys, glob, re
 import waf_gamesys
 
 def build(bld):
+
+    defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
+    if re.match('arm.*?darwin', bld.env.PLATFORM):
+        defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
+
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram test',
         uselib = 'RECORD VPX GTEST PROFILEREXT GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING SOUND_NULL DLIB DMGLFW LIVEUPDATE',
         exported_symbols = ['ProfilerExt'],
         uselib_local = 'engine',
-        includes = '../build ../proto .',
-        #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-        defines = '_XBOX',
-        proto_gen_py = True,
-        protoc_includes = '../proto',
+        includes = '../../proto .',
+        defines = defines,
         source = 'test_engine.cpp',
         target = 'test_engine')
 

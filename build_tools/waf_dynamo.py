@@ -8,6 +8,10 @@ import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 
+if not 'DYNAMO_HOME' in os.environ:
+    print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
+    sys.exit(1)
+
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
 ANDROID_ROOT=os.path.join(HOME, 'android')
 ANDROID_BUILD_TOOLS_VERSION = '23.0.2'
@@ -17,6 +21,17 @@ ANDROID_TARGET_API_LEVEL='23'
 ANDROID_MIN_API_LEVEL='9'
 ANDROID_GCC_VERSION='4.8'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
+
+DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
+IOS_SDK_VERSION="11.2"
+# NOTE: Minimum iOS-version is also specified in Info.plist-files
+# (MinimumOSVersion and perhaps DTPlatformVersion)
+# Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
+MIN_IOS_SDK_VERSION="6.0"
+
+OSX_SDK_VERSION="10.13"
+MIN_OSX_SDK_VERSION="10.7"
+
 
 # TODO: HACK
 FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
@@ -158,20 +173,6 @@ def dmsdk_add_files(bld, target, source):
             bld.install_files(os.path.join(target, sdk_dir), f)
     apidoc_extract_task(bld, doc_files)
 
-
-if not 'DYNAMO_HOME' in os.environ:
-    print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
-    sys.exit(1)
-
-DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
-IOS_SDK_VERSION="10.3"
-# NOTE: Minimum iOS-version is also specified in Info.plist-files
-# (MinimumOSVersion and perhaps DTPlatformVersion)
-# Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
-MIN_IOS_SDK_VERSION="6.0"
-
-OSX_SDK_VERSION="10.12"
-MIN_OSX_SDK_VERSION="10.7"
 
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
@@ -1368,7 +1369,6 @@ def detect(conf):
         # We got strange bugs with http cache with gcc-llvm...
         os.environ['CC'] = 'clang'
         os.environ['CXX'] = 'clang++'
-        
         conf.env['CC']      = '%s/usr/bin/clang' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['CXX']     = '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)
         conf.env['LINK_CXX']= '%s/usr/bin/clang++' % (DARWIN_TOOLCHAIN_ROOT)

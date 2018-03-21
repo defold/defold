@@ -16,7 +16,7 @@
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream]
-    [java.net URLDecoder]))
+    [java.net URI URLDecoder]))
 
 (set! *warn-on-reflection* true)
 
@@ -24,7 +24,7 @@
 (def html5-url-prefix "/html5")
 
 ;; TODO - this should be fixed with proper progress at some point
-(defn ->progress []
+(defn- ->progress []
   (reify IProgress
     (subProgress [this work]
       (->progress))
@@ -37,7 +37,7 @@
     (isCanceled [this]
       false)))
 
-(defn ->graph-resource-scanner [ws]
+(defn- ->graph-resource-scanner [ws]
   (let [res-map (->> (g/node-value ws :resource-map)
                   (map (fn [[key val]] [(subs key 1) val]))
                   (into {}))]
@@ -64,35 +64,28 @@
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defn- run-commands! [project ^Project bob-project {:keys [render-error!] :as _build-options} commands]
+(defn- run-commands! [project ^Project bob-project commands]
   (try
     (let [progress (->progress)
           result (.build bob-project progress (into-array String commands))
           failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
       (if (empty? failed-tasks)
-        true
-        (do (render-error! {:causes (engine-build-errors/failed-tasks-error-causes project failed-tasks)})
-            false)))
+        nil
+        {:error {:causes (engine-build-errors/failed-tasks-error-causes project failed-tasks)}}))
     (catch Exception e
-      (when-not (engine-build-errors/handle-build-error! render-error! project e)
-        (throw e))
-      false)))
+      {:exception e})))
 
-(defn- bob-build! [project bob-commands bob-args {:keys [clear-errors! render-error!] :as build-options}]
+(defn- bob-build! [project bob-commands bob-args]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
   (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
-  (assert (fn? clear-errors!))
-  (assert (fn? render-error!))
   (future
     (error-reporting/catch-all!
-      (clear-errors!)
       (if (and (some #(= "build" %) bob-commands)
                (native-extensions/has-extensions? project)
                (not (native-extensions/supported-platform? (get bob-args "platform"))))
-        (do (render-error! {:causes (engine-build-errors/unsupported-platform-error-causes project)})
-            false)
+        {:error {:causes (engine-build-errors/unsupported-platform-error-causes project)}}
         (let [ws (project/workspace project)
               proj-path (str (workspace/project-path ws))
               bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
@@ -104,11 +97,11 @@
               (.scan bob-project scanner pkg)))
           (let [deps (workspace/dependencies ws)]
             (when (seq deps)
-              (.setLibUrls bob-project deps)
+              (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
               (.resolveLibUrls bob-project (->progress))))
           (.mount bob-project (->graph-resource-scanner ws))
           (.findSources bob-project proj-path skip-dirs)
-          (run-commands! project bob-project build-options bob-commands))))))
+          (run-commands! project bob-project bob-commands))))))
 
 (defn- boolean? [value]
   (or (false? value) (true? value)))
@@ -118,7 +111,7 @@
 ;; -----------------------------------------------------------------------------
 
 
-(defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _build-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
@@ -150,33 +143,33 @@
             generate-build-report? (assoc "build-report-html" build-report-path)
             publish-live-update-content? (assoc "liveupdate" "true"))))
 
-(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _build-options}]
+(defn- android-bundle-bob-args [{:keys [^File certificate ^File private-key] :as _bundle-options}]
   (assert (or (nil? certificate) (.isFile certificate)))
   (assert (or (nil? private-key) (.isFile private-key)))
   (cond-> {}
           certificate (assoc "certificate" (.getAbsolutePath certificate))
           private-key (assoc "private-key" (.getAbsolutePath private-key))))
 
-(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile] :as _build-options}]
+(defn- ios-bundle-bob-args [{:keys [code-signing-identity ^File provisioning-profile] :as _bundle-options}]
   (assert (string? (not-empty code-signing-identity)))
   (assert (some-> provisioning-profile .isFile))
   (let [provisioning-profile-path (.getAbsolutePath provisioning-profile)]
     {"mobileprovisioning" provisioning-profile-path
      "identity" code-signing-identity}))
 
-(defmulti bundle-bob-args (fn [_prefs platform _build-options] platform))
-(defmethod bundle-bob-args :default [_prefs platform _build-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
-(defmethod bundle-bob-args :android [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (android-bundle-bob-args build-options)))
-(defmethod bundle-bob-args :html5   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
-(defmethod bundle-bob-args :ios     [prefs _platform build-options] (merge (generic-bundle-bob-args prefs build-options) (ios-bundle-bob-args build-options)))
-(defmethod bundle-bob-args :linux   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
-(defmethod bundle-bob-args :macos   [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
-(defmethod bundle-bob-args :windows [prefs _platform build-options] (generic-bundle-bob-args prefs build-options))
+(defmulti bundle-bob-args (fn [_prefs platform _bundle-options] platform))
+(defmethod bundle-bob-args :default [_prefs platform _bundle-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
+(defmethod bundle-bob-args :android [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (android-bundle-bob-args bundle-options)))
+(defmethod bundle-bob-args :html5   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :ios     [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (ios-bundle-bob-args bundle-options)))
+(defmethod bundle-bob-args :linux   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
+(defmethod bundle-bob-args :windows [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 
-(defn bundle! [project prefs platform build-options]
+(defn bundle! [project prefs platform bundle-options]
   (let [bob-commands ["distclean" "build" "bundle"]
-        bob-args (bundle-bob-args prefs platform build-options)]
-    (bob-build! project bob-commands bob-args build-options)))
+        bob-args (bundle-bob-args prefs platform bundle-options)]
+    (bob-build! project bob-commands bob-args)))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5
@@ -185,9 +178,9 @@
 (defn- build-html5-output-path [project]
   (let [ws (project/workspace project)
         build-path (workspace/build-path ws)]
-    (str build-path "__htmlLaunchDir")))
+    (io/file build-path "__htmlLaunchDir")))
 
-(defn build-html5! [project prefs build-options]
+(defn build-html5! [project prefs]
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs)
@@ -197,22 +190,21 @@
         bob-commands ["distclean" "build" "bundle"]
         bob-args (cond-> {"platform" "js-web"
                           "archive" "true"
-                          "bundle-output" output-path
+                          "bundle-output" (str output-path)
                           "build-server" build-server-url
                           "defoldsdk" defold-sdk-sha1
                           "local-launch" "true"}
                          email (assoc "email" email)
                          auth (assoc "auth" auth)
                          compress-archive? (assoc "compress" "true"))]
-    (bob-build! project bob-commands bob-args build-options)))
+    (bob-build! project bob-commands bob-args)))
 
 (defn- handler [project {:keys [url method headers]}]
   (if (= method "GET")
     (let [path (-> url
-                 (subs (count html5-url-prefix))
-                 (URLDecoder/decode "UTF-8"))
-          path (format "%s/%s%s" (build-html5-output-path project) (project-title project) path)
-          f (io/file path)]
+                   (subs (inc (count html5-url-prefix))) ; Strip prefix and slash character.
+                   (URLDecoder/decode "UTF-8"))
+          f (io/file (build-html5-output-path project) (project-title project) path)]
       (if (.exists f)
         (let [length (.length f)
               response {:code 200

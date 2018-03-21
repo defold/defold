@@ -569,7 +569,18 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        String[] platformStrings = platformArchs.getArchitectures();
+        String[] platformStrings;
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin )
+        {
+            // iOS is currently the only OS we use that supports fat binaries
+            // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
+            platformStrings = platformArchs.getArchitectures();
+        }
+        else
+        {
+            platformStrings = new String[1];
+            platformStrings[0] = p.getPair();
+        }
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Building engine...", 0);
 
@@ -687,9 +698,18 @@ public class Project {
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
             if (platform.equals(Platform.Armv7Android)) {
-                File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
-                if (classesDexFile.exists()) {
-                    classesDexFile.delete();
+                int nameindex = 1;
+                while(true)
+                {
+                    String name = nameindex == 1 ? "classes.dex" : String.format("classes%d.dex", nameindex);
+                    ++nameindex;
+
+                    File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
+                    if (classesDexFile.exists()) {
+                        classesDexFile.delete();
+                    } else {
+                        break;
+                    }
                 }
             }
 

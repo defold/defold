@@ -20,6 +20,9 @@ function terminate_usage() {
     echo "  identity - name of the iPhone developer identity"
     echo "  profile  - absolute filepath to the provisioning profile"
     echo "  source   - absolute filepath to the source ipa to repack"
+    echo " "
+    echo "Available identities:"
+    security find-identity -v -p codesigning
     exit 1
 }
 
@@ -84,7 +87,7 @@ mkdir -p "${BUILD}"
     "${SECURITY}" cms -D -i "${PROFILE}" > "${PROVISION}"
     "${PLISTBUDDY}" -x -c 'Print :Entitlements' "${PROVISION}" > "${ENTITLEMENT}"
 
-    cp "${ENGINE}" "Payload/${APPLICATION}.app/${APPLICATION}"
+    cp -v "${ENGINE}" "Payload/${APPLICATION}.app/${APPLICATION}"
     chmod +x "Payload/${APPLICATION}.app/${APPLICATION}"
 
     rm -rf "Payload/${APPLICATION}.app/_CodeSignature"
