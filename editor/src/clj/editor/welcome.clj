@@ -87,6 +87,33 @@
   (s/validate WelcomeSettings (load-edn path)))
 
 ;; -----------------------------------------------------------------------------
+;; Game project settings
+;; -----------------------------------------------------------------------------
+
+(defn- read-project-settings [^File project-file]
+  (with-open [reader (io/reader project-file)]
+    (settings-core/parse-settings reader)))
+
+(defn- try-read-project-title
+  ^String [^File project-file]
+  (try
+    (or (-> project-file
+            read-project-settings
+            (settings-core/get-setting ["project" "title"])
+            not-empty)
+        "Unnamed")
+    (catch Exception _
+      nil)))
+
+(defn- write-project-title! [^File project-file ^String title]
+  (assert (string? (not-empty title)))
+  (spit project-file
+        (-> project-file
+            read-project-settings
+            (settings-core/set-setting ["project" "title"] title)
+            settings-core/settings->str)))
+
+;; -----------------------------------------------------------------------------
 ;; Preferences management
 ;; -----------------------------------------------------------------------------
 
@@ -99,21 +126,6 @@
 (defn- set-open-project-directory!
   ^File [prefs ^File directory]
   (prefs/set-prefs prefs open-project-directory-prefs-key (.getAbsolutePath directory)))
-
-(defn- read-project-settings [^File project-file]
-  (with-open [reader (io/reader project-file)]
-    (settings-core/parse-settings reader)))
-
-(defn- try-load-project-title
-  ^String [^File project-file]
-  (try
-    (or (-> project-file
-            read-project-settings
-            (settings-core/get-setting ["project" "title"])
-            not-empty)
-        "Unnamed")
-    (catch Exception _
-      nil)))
 
 (def ^:private xform-recent-projects->timestamps-by-path
   (map (fn [{:keys [project-file last-opened]}]
@@ -128,7 +140,7 @@
                 instant (time/try-parse-instant timestamp)]
             (when (and (some? instant)
                        (fs/existing-file? file))
-              (when-some [title (try-load-project-title file)]
+              (when-some [title (try-read-project-title file)]
                 {:project-file file
                  :last-opened instant
                  :title title}))))))
@@ -137,7 +149,7 @@
   (keep (fn [path]
           (let [file (io/as-file path)]
             (when (fs/existing-file? file)
-              (when-some [title (try-load-project-title file)]
+              (when-some [title (try-read-project-title file)]
                 (let [instant (Instant/ofEpochMilli (.lastModified file))]
                   {:project-file file
                    :last-opened instant
@@ -491,15 +503,29 @@
       (ui/bind-enabled-to-selection! create-new-project-button template-list)
       (ui/on-action! create-new-project-button
                      (fn [_]
-                       (when-some [project-template (first (ui/selection template-list))]
-                         (let [project-location (location-field-location new-project-location-field)]
-                           (if (and (.exists project-location)
-                                    (not (fs/empty-directory? project-location)))
-                             (dialogs/make-message-box "Invalid Project Location"
-                                                       "A non-empty directory already exists at the chosen location.")
-                             (when-some [template-zip-file (download-proj-zip! (:zip-url project-template))]
-                               (expand-proj-zip! template-zip-file project-location (:skip-root? project-template))
-                               (close-dialog-and-open-project! (io/file project-location "game.project")))))))))))
+                       (let [project-template (first (ui/selection template-list))
+                             project-title (ui/text new-project-title-field)
+                             project-location (location-field-location new-project-location-field)]
+                         (cond
+                           (string/blank? project-title)
+                           (dialogs/make-message-box "No Project Title"
+                                                     "You must specify a title for the project.")
+
+                           (not= project-title (string/trim project-title))
+                           (dialogs/make-message-box "Invalid Project Title"
+                                                     "Whitespace is not allowed around the project title.")
+
+                           (and (.exists project-location)
+                                (not (fs/empty-directory? project-location)))
+                           (dialogs/make-message-box "Conflicting Project Location"
+                                                     "A non-empty folder already exists at the chosen location.")
+
+                           :else
+                           (let [template-zip-file (download-proj-zip! (:zip-url project-template))]
+                             (expand-proj-zip! template-zip-file project-location (:skip-root? project-template))
+                             (let [project-file (io/file project-location "game.project")]
+                               (write-project-title! project-file project-title)
+                               (close-dialog-and-open-project! project-file))))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Import project pane
@@ -508,23 +534,6 @@
 (defn- refresh-dashboard-projects-list! [^ListView dashboard-projects-list dashboard-client]
   (let [dashboard-projects (fetch-dashboard-projects dashboard-client)]
     (ui/items! dashboard-projects-list dashboard-projects)))
-
-#_{:description "Project Description",
-   :last-updated 1396602464192,
-   :tracking-id "EBEBEBEBEBEBEBEB",
-   :repository-url "http://cr.defold.se:9998/prjs/8888",
-   :name "Project Name",
-   :created 1476041761199,
-   :id 88888,
-   :members [{:id 88888,
-              :email "first.last@domain.com",
-              :first-name "First",
-              :last-name "Last"}],
-   :i-os-executable-url "https://cr.defold.se/projects/88888/8888/engine_manifest/ios/<>",
-   :owner {:id 88888,
-           :email "first.last@domain.com",
-           :first-name "First",
-           :last-name "Last"}}
 
 (defn- make-dashboard-project-entry
   ^Node [dashboard-project]
@@ -537,9 +546,9 @@
   ^Parent [^File open-project-directory clone-project! dashboard-client]
   (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-      (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-field ^TextField import-project-title-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
+      (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-field ^TextField import-project-folder-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
         (setup-location-field! import-project-location-field "Select Import Location" (some-> open-project-directory .getParentFile))
-        (.bind (location-field-title-property import-project-location-field) (.textProperty import-project-title-field))
+        (.bind (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
         (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
         (ui/bind-presence! state-sign-in-browser-open (Bindings/equal :browser-open sign-in-state-property))
         (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
@@ -552,11 +561,23 @@
         (ui/on-action! import-project-button (fn [_]
                                                (let [dashboard-project (first (ui/selection dashboard-projects-list))
                                                      project-title (:name dashboard-project)
+                                                     project-folder (ui/text import-project-folder-field)
                                                      clone-directory (location-field-location import-project-location-field)]
-                                                 (if (and (.exists clone-directory)
-                                                          (not (fs/empty-directory? clone-directory)))
-                                                   (dialogs/make-message-box "Invalid Import Location"
-                                                                             "A non-empty directory already exists at the chosen location.")
+                                                 (cond
+                                                   (string/blank? project-folder)
+                                                   (dialogs/make-message-box "No Destination Folder"
+                                                                             "You must specify a destination folder for the project.")
+
+                                                   (not= project-folder (string/trim project-folder))
+                                                   (dialogs/make-message-box "Invalid Destination Folder"
+                                                                             "Whitespace is not allowed around the folder name.")
+
+                                                   (and (.exists clone-directory)
+                                                        (not (fs/empty-directory? clone-directory)))
+                                                   (dialogs/make-message-box "Conflicting Import Location"
+                                                                             "A non-empty folder already exists at the chosen location.")
+
+                                                   :else
                                                    (clone-project! project-title (:repository-url dashboard-project) clone-directory)))))
         (.setFixedCellSize dashboard-projects-list 56.0)
         (ui/cell-factory! dashboard-projects-list (fn [dashboard-project]
@@ -566,7 +587,7 @@
         (ui/observe-selection dashboard-projects-list
                               (fn [_ selection]
                                 (when-some [selected-project-title (:name (first selection))]
-                                  (ui/text! import-project-title-field selected-project-title))))
+                                  (ui/text! import-project-folder-field selected-project-title))))
 
         (ui/observe sign-in-state-property (fn [_ _ sign-in-state]
                                          (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
