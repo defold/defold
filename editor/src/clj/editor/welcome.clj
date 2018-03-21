@@ -8,7 +8,6 @@
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.git :as git]
-            [editor.import :as import]
             [editor.login :as login]
             [editor.prefs :as prefs]
             [editor.settings-core :as settings-core]
@@ -20,6 +19,7 @@
             [util.thread-util :refer [preset!]]
             [util.time :as time])
   (:import (clojure.lang ExceptionInfo)
+           (com.dynamo.cr.protocol.proto Protocol$ProjectInfoList)
            (java.io File FileOutputStream PushbackReader)
            (java.net MalformedURLException URL)
            (java.time Instant)
@@ -299,8 +299,13 @@
   (login/logout prefs)
   (set-sign-in-state! sign-in-state-property :not-signed-in))
 
+(defn- compare-project-names [p1 p2]
+  (.compareToIgnoreCase ^String (:name p1) ^String (:name p2)))
+
 (defn- fetch-dashboard-projects [{:keys [prefs] :as _dashboard-client}]
-  (import/fetch-projects prefs))
+  (let [client (client/make-client prefs)]
+    (let [project-info-list (client/rget client "/projects/-1" Protocol$ProjectInfoList)]
+      (sort compare-project-names (:projects project-info-list)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Location field control
@@ -681,10 +686,11 @@
          clone-project! (fn [project-title repository-url clone-directory]
                           (let [cancelled-atom (atom false)
                                 progress-bar (show-progress! root (str "Downloading " project-title) "Cancel Download" #(reset! cancelled-atom true))
-                                progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)]
+                                progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)
+                                credentials (git/credentials prefs)]
                             (future
                               (try
-                                (import/clone-repo! prefs repository-url clone-directory progress-monitor)
+                                (git/clone! credentials repository-url clone-directory progress-monitor)
                                 (ui/run-later
                                   (if @cancelled-atom
                                     (do
