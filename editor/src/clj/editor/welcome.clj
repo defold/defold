@@ -13,6 +13,7 @@
             [editor.settings-core :as settings-core]
             [editor.system :as system]
             [editor.ui :as ui]
+            [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.updater :as updater]
             [schema.core :as s]
             [util.net :as net]
@@ -394,7 +395,7 @@
       (close-dialog-and-open-project! project-file))))
 
 (defn- make-project-entry
-  ^Node [^String title ^String description ^Instant timestamp]
+  ^Node [^String title ^String description ^Instant timestamp matching-indices]
   (assert (string? (not-empty title)))
   (assert (or (nil? description) (string? (not-empty description))))
   (doto (HBox.)
@@ -403,8 +404,8 @@
                      (HBox/setHgrow Priority/ALWAYS)
                      (ui/add-style! "title-and-description")
                      (ui/children! (if (nil? description)
-                                     [(doto (Text. title) (ui/add-style! "title"))]
-                                     [(doto (Text. title) (ui/add-style! "title"))
+                                     [(doto (fuzzy-choices/make-matched-text-flow title matching-indices) (ui/add-style! "title"))]
+                                     [(doto (fuzzy-choices/make-matched-text-flow title matching-indices) (ui/add-style! "title"))
                                       (doto (Label. description) (ui/add-style! "description"))])))
                    (doto (Label.)
                      (ui/add-style! "timestamp")
@@ -414,7 +415,7 @@
 
 (defn- make-recent-project-entry
   ^Node [{:keys [^File project-file ^Instant last-opened ^String title] :as _recent-project}]
-  (make-project-entry title (.getParent project-file) last-opened))
+  (make-project-entry title (.getParent project-file) last-opened nil))
 
 (defn- make-home-pane
   ^Parent [last-opened-project-directory close-dialog-and-open-project! recent-projects]
@@ -546,57 +547,82 @@
 ;; Import project pane
 ;; -----------------------------------------------------------------------------
 
-(defn- refresh-dashboard-projects-list! [^ListView dashboard-projects-list dashboard-client]
-  (let [dashboard-projects (fetch-dashboard-projects dashboard-client)]
-    (ui/items! dashboard-projects-list dashboard-projects)))
+(defn- dashboard-project-name
+  ^String [dashboard-project]
+  (or (not-empty (:name dashboard-project))
+      "Unnamed"))
+
+(def ^:private filter-dashboard-projects (partial fuzzy-choices/filter-options dashboard-project-name dashboard-project-name))
 
 (defn- make-dashboard-project-entry
   ^Node [dashboard-project]
-  (let [name (or (not-empty (:name dashboard-project)) "Unnamed")
+  (let [name (dashboard-project-name dashboard-project)
         description (some-> (:description dashboard-project) string/trim not-empty)
-        last-updated (some-> (:last-updated dashboard-project) Instant/ofEpochMilli)]
-    (make-project-entry name description last-updated)))
+        last-updated (some-> (:last-updated dashboard-project) Instant/ofEpochMilli)
+        matching-indices (fuzzy-choices/matching-indices dashboard-project)]
+    (make-project-entry name description last-updated matching-indices)))
 
 (defn- make-import-project-pane
   ^Parent [new-project-location-directory clone-project! dashboard-client]
-  (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)]
-    (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-      (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-field ^TextField import-project-folder-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
-        (setup-location-field! import-project-location-field "Select Import Location" new-project-location-directory)
-        (.bind (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
+  (doto (ui/load-fxml "welcome/import-project-pane.fxml")
+    (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay ^TextField filter-field import-project-button import-project-location-field ^TextField import-project-folder-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
+      (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
+            dashboard-projects-atom (atom nil)
+            reload-dashboard-projects! (fn []
+                                         (future
+                                           (error-reporting/catch-all!
+                                             (reset! dashboard-projects-atom (fetch-dashboard-projects dashboard-client)))))
+            refresh-dashboard-projects-list! (fn [filter-text dashboard-projects]
+                                               (ui/items! dashboard-projects-list
+                                                          (filter-dashboard-projects filter-text dashboard-projects)))]
+
+        ;; Show / hide various elements based on state.
         (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
         (ui/bind-presence! state-sign-in-browser-open (Bindings/equal :browser-open sign-in-state-property))
         (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
-        (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems ^ListView dashboard-projects-list)))
-        (ui/bind-enabled-to-selection! import-project-button dashboard-projects-list)
+        (ui/bind-presence! filter-field (Bindings/equal :signed-in sign-in-state-property))
+        (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems dashboard-projects-list)))
+
+        ;; Configure location field.
+        (setup-location-field! import-project-location-field "Select Import Location" new-project-location-directory)
+        (.bind (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
+
+        ;; Configure simple button actions.
         (ui/on-action! sign-in-button (fn [_] (begin-sign-in! dashboard-client)))
         (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))
         (ui/on-action! cancel-sign-in-button (fn [_] (cancel-sign-in! dashboard-client)))
         (ui/on-action! copy-sign-in-url-button (fn [_] (copy-sign-in-url! dashboard-client (Clipboard/getSystemClipboard))))
-        (ui/on-action! import-project-button (fn [_]
-                                               (let [dashboard-project (first (ui/selection dashboard-projects-list))
-                                                     project-title (:name dashboard-project)
-                                                     project-folder (ui/text import-project-folder-field)
-                                                     clone-directory (location-field-location import-project-location-field)]
-                                                 (cond
-                                                   (string/blank? project-folder)
-                                                   (dialogs/make-message-box "No Destination Folder"
-                                                                             "You must specify a destination folder for the project.")
 
-                                                   (not= project-folder (string/trim project-folder))
-                                                   (dialogs/make-message-box "Invalid Destination Folder"
-                                                                             "Whitespace is not allowed around the folder name.")
+        ;; Configure Import Project button.
+        (doto import-project-button
+          (ui/bind-enabled-to-selection! dashboard-projects-list)
+          (ui/on-action! (fn [_]
+                           (let [dashboard-project (first (ui/selection dashboard-projects-list))
+                                 project-title (:name dashboard-project)
+                                 project-folder (ui/text import-project-folder-field)
+                                 clone-directory (location-field-location import-project-location-field)]
+                             (cond
+                               (string/blank? project-folder)
+                               (dialogs/make-message-box "No Destination Folder"
+                                                         "You must specify a destination folder for the project.")
 
-                                                   (and (.exists clone-directory)
-                                                        (not (fs/empty-directory? clone-directory)))
-                                                   (dialogs/make-message-box "Conflicting Import Location"
-                                                                             "A non-empty folder already exists at the chosen location.")
+                               (not= project-folder (string/trim project-folder))
+                               (dialogs/make-message-box "Invalid Destination Folder"
+                                                         "Whitespace is not allowed around the folder name.")
 
-                                                   :else
-                                                   (clone-project! project-title (:repository-url dashboard-project) clone-directory)))))
-        (.setFixedCellSize dashboard-projects-list 56.0)
-        (ui/cell-factory! dashboard-projects-list (fn [dashboard-project]
-                                                    {:graphic (make-dashboard-project-entry dashboard-project)}))
+                               (and (.exists clone-directory)
+                                    (not (fs/empty-directory? clone-directory)))
+                               (dialogs/make-message-box "Conflicting Import Location"
+                                                         "A non-empty folder already exists at the chosen location.")
+
+                               :else
+                               (clone-project! project-title (:repository-url dashboard-project) clone-directory))))))
+
+        ;; Configure the projects list.
+        (doto dashboard-projects-list
+          (.setFixedCellSize 56.0)
+          (ui/cell-factory! (fn [dashboard-project]
+                              {:graphic (make-dashboard-project-entry dashboard-project)})))
 
         ;; Update the Title field whenever a project is selected.
         (ui/observe-selection dashboard-projects-list
@@ -604,11 +630,24 @@
                                 (when-some [selected-project-title (:name (first selection))]
                                   (ui/text! import-project-folder-field selected-project-title))))
 
+        ;; Refresh the projects list when the list of dashboard projects or the filter field changes.
+        (add-watch dashboard-projects-atom
+                   ::dashboard-projects-watch
+                   (fn [_ _ _ dashboard-projects]
+                     (ui/run-later
+                       (refresh-dashboard-projects-list! (ui/text filter-field) dashboard-projects))))
+
+        (ui/observe (.textProperty filter-field)
+                    (fn [_ _ filter-text]
+                      (refresh-dashboard-projects-list! filter-text @dashboard-projects-atom)))
+
+        ;; Refresh the projects list whenever we sign-in.
         (ui/observe sign-in-state-property (fn [_ _ sign-in-state]
                                          (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
-                                           (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))
+                                           (reload-dashboard-projects!))))
+
         (when (= :signed-in (sign-in-state sign-in-state-property))
-          (refresh-dashboard-projects-list! dashboard-projects-list dashboard-client))))))
+          (reload-dashboard-projects!))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Welcome dialog

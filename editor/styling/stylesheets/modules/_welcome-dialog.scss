@@ -253,10 +253,17 @@
       -fx-alignment: center-left;
 
       .title {
-        -fx-fill: #A6B2BF;
-        -fx-opacity: 87%;
-        -fx-font-size: 16px;
-        -fx-font-smoothing-type: lcd;
+        Text {
+          -fx-fill: #A6B2BF;
+          -fx-opacity: 87%;
+          -fx-font-size: 16px;
+          -fx-font-smoothing-type: lcd;
+
+          &.matched {
+            -fx-fill: $df-bright-blue;
+            -fx-opacity: 100%;
+          }
+        }
       }
 
       .description {
@@ -357,6 +364,11 @@
         -fx-background-radius: 4px;
       }
     }
+  }
+
+  .filter-field {
+    -fx-min-width: 140px;
+    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // $defold-white with opacity.
   }
 
   .location-field {
