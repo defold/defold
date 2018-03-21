@@ -21,7 +21,7 @@
   (:import (clojure.lang ExceptionInfo)
            (com.dynamo.cr.protocol.proto Protocol$ProjectInfoList)
            (java.io File FileOutputStream PushbackReader)
-           (java.net MalformedURLException URL)
+           (java.net MalformedURLException SocketException URL UnknownHostException)
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
@@ -536,7 +536,16 @@
                                                      "A non-empty folder already exists at the chosen location.")
 
                            :else
-                           (let [template-zip-file (download-proj-zip! (:zip-url project-template))]
+                           (when-some [template-zip-file (try
+                                                           (download-proj-zip! (:zip-url project-template))
+                                                           (catch UnknownHostException _
+                                                             (dialogs/make-message-box "No Internet Connection"
+                                                                                       "You must be connected to the internet to download project content.")
+                                                             nil)
+                                                           (catch SocketException _
+                                                             (dialogs/make-message-box "Host Unreachable"
+                                                                                       "A firewall might be blocking network connections.")
+                                                             nil))]
                              (expand-proj-zip! template-zip-file project-location (:skip-root? project-template))
                              (let [project-file (io/file project-location "game.project")]
                                (write-project-title! project-file project-title)
