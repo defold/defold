@@ -93,7 +93,9 @@ void HttpPostThread(void* params)
     HttpTestContext* http_ctx = (HttpTestContext*) params;
     char cmd[256];
     DM_SNPRINTF(cmd, sizeof(cmd), "python src/test/%s %d", http_ctx->m_Script, http_ctx->m_Port);
+#if !defined(DM_NO_SYSTEM_FUNCTION)
     g_PostExitResult = system(cmd);
+#endif
 }
 
 static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
@@ -163,6 +165,12 @@ TEST_F(EngineTest, DEF_3086)
 {
     // DEF-3086: Loading two collectionproxies asnyc with same texture might leak memory.
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3086/main.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+}
+
+TEST_F(EngineTest, DEF_3154)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3154/def-3154.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 

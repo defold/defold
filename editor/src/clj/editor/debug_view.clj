@@ -194,7 +194,7 @@
   [[k v]]
   (if (map? k)
     (-> k meta :tostring)
-    k))
+    (str k)))
 
 (defn- lua-str
   [v]
@@ -204,7 +204,7 @@
 
 (defn- make-variable-tree-item
   [[name value]]
-  (let [variable {:name name
+  (let [variable {:name (lua-str name)
                   :display-name (lua-str name)
                   :value value
                   :display-value (lua-str value)}

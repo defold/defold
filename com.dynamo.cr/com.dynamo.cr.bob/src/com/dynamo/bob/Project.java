@@ -569,7 +569,18 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        String[] platformStrings = platformArchs.getArchitectures();
+        String[] platformStrings;
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin )
+        {
+            // iOS is currently the only OS we use that supports fat binaries
+            // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
+            platformStrings = platformArchs.getArchitectures();
+        }
+        else
+        {
+            platformStrings = new String[1];
+            platformStrings[0] = p.getPair();
+        }
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Building engine...", 0);
 
