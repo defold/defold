@@ -637,7 +637,7 @@ If you do not specifically require different script states, consider changing th
                              (build-errors-view/clear-build-errors build-errors-view)
                              (engine/reload-resource (targets/selected-target prefs) resource)
                              (catch Exception e
-                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s'" (targets/target-message-label (targets/selected-target prefs))))))))))))))
+                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))

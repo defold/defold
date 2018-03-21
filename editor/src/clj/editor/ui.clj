@@ -1698,7 +1698,7 @@ command."
   (restart [this] (.playFromStart this)))
 
 (defn ->future [delay run-fn]
-  (let [^EventHandler handler (event-handler e (run-fn))
+  (let [^EventHandler handler (event-handler e (run-later (run-fn)))
         ^"[Ljavafx.animation.KeyValue;" values (into-array KeyValue [])]
     ; TODO - fix reflection ctor warning
     (doto (Timeline. 60 (into-array KeyFrame [(KeyFrame. ^Duration (Duration/seconds delay) handler values)]))
@@ -1719,14 +1719,15 @@ command."
                                    (let [elapsed (- now start)
                                          delta (- now @last)]
                                      (when (or (nil? interval) (> delta interval))
-                                       (try
-                                         (tick-fn this (* elapsed 1e-9))
-                                         (reset! last (- now (if interval
-                                                               (- delta interval)
-                                                               0)))
-                                         (catch Throwable t
-                                           (.stop ^AnimationTimer this)
-                                           (error-reporting/report-exception! t))))))))})))
+                                       (run-later
+                                         (try
+                                           (tick-fn this (* elapsed 1e-9))
+                                           (reset! last (- now (if interval
+                                                                 (- delta interval)
+                                                                 0)))
+                                           (catch Throwable t
+                                             (.stop ^AnimationTimer this)
+                                             (error-reporting/report-exception! t)))))))))})))
 
 (defn timer-start! [timer]
   (.start ^AnimationTimer (:timer timer)))
@@ -1740,19 +1741,20 @@ command."
         end        (+ start (long duration))]
     (doto (proxy [AnimationTimer] []
             (handle [now]
-              (if (< now end)
-                (let [t (/ (double (- now start)) duration)]
+              (run-later
+                (if (< now end)
+                  (let [t (/ (double (- now start)) duration)]
+                    (try
+                      (anim-fn t)
+                      (catch Throwable t
+                        (.stop ^AnimationTimer this)
+                        (error-reporting/report-exception! t))))
                   (try
-                    (anim-fn t)
+                    (end-fn)
                     (catch Throwable t
-                      (.stop ^AnimationTimer this)
-                      (error-reporting/report-exception! t))))
-                (try
-                  (end-fn)
-                  (catch Throwable t
-                    (error-reporting/report-exception! t))
-                  (finally
-                    (.stop ^AnimationTimer this))))))
+                      (error-reporting/report-exception! t))
+                    (finally
+                      (.stop ^AnimationTimer this)))))))
       (.start))))
 
 (defn anim-stop! [^AnimationTimer anim]
