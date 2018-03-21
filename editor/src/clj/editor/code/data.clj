@@ -665,8 +665,7 @@
 
 (defn- prev-occurrence-search-cursor
   ^Cursor [cursor-ranges]
-  (or (::prev-occurrence-search-cursor (meta cursor-ranges))
-      (cursor-range-start (first cursor-ranges))))
+  (::prev-occurrence-search-cursor (meta cursor-ranges)))
 
 (defn- with-prev-occurrence-search-cursor [cursor-ranges cursor]
   (assert (instance? Cursor cursor))
@@ -674,8 +673,7 @@
 
 (defn- next-occurrence-search-cursor
   ^Cursor [cursor-ranges]
-  (or (::next-occurrence-search-cursor (meta cursor-ranges))
-      (cursor-range-end (peek cursor-ranges))))
+  (::next-occurrence-search-cursor (meta cursor-ranges)))
 
 (defn- with-next-occurrence-search-cursor [cursor-ranges cursor]
   (assert (instance? Cursor cursor))
@@ -743,14 +741,12 @@
                             (->Cursor row col))
                           cursor)]
             (recur cursor' needles' matched-range')))
-        (when (or (not whole-word?)
-                  (word-boundary-after-index? (haystack-lines (.row from-cursor)) (.col from-cursor)))
-          matched-range)))))
+        matched-range))))
 
 (defn find-next-occurrence
-  ^CursorRange [haystack-lines needle-lines ^Cursor from-cursor case-sensitive? whole-word?]
+  ^CursorRange [haystack-lines needle-lines ^Cursor adjusted-from-cursor case-sensitive? whole-word?]
   (let [needle-patterns (needle-patterns needle-lines case-sensitive? whole-word?)]
-    (loop [cursor from-cursor
+    (loop [cursor adjusted-from-cursor
            needles needle-patterns
            ^CursorRange matched-range nil]
       (if-some [needle (first needles)]
@@ -769,9 +765,7 @@
                           (->Cursor (inc (.row cursor)) 0)
                           cursor)]
             (recur cursor' needles' matched-range')))
-        (when (or (not whole-word?)
-                  (word-boundary-before-index? (haystack-lines (.row from-cursor)) (.col from-cursor)))
-          matched-range)))))
+        matched-range))))
 
 (defn find-sequential-words-in-scope [haystack-lines needle-words ^CursorRange scope]
   (let [scope-end (cursor-range-end scope)]
@@ -791,22 +785,22 @@
         (persistent! matching-cursor-ranges)))))
 
 (defn- word-cursor-range-at-cursor
-  ^CursorRange [lines ^Cursor cursor]
-  (let [row (.row cursor)
+  ^CursorRange [lines ^Cursor adjusted-cursor]
+  (let [row (.row adjusted-cursor)
         line (lines row)
         line-length (count line)]
     (if (zero? line-length)
       (Cursor->CursorRange (->Cursor row 0))
-      (let [on-whitespace? (and (whitespace-character-at-index? line (.col cursor))
-                                (or (zero? (.col cursor))
-                                    (whitespace-character-at-index? line (dec (.col cursor)))))
+      (let [on-whitespace? (and (whitespace-character-at-index? line (.col adjusted-cursor))
+                                (or (zero? (.col adjusted-cursor))
+                                    (whitespace-character-at-index? line (dec (.col adjusted-cursor)))))
             same-word? (if on-whitespace?
                          (partial whitespace-character-at-index? line)
                          (partial identifier-character-at-index? line))
-            col (if (or (= line-length (.col cursor))
-                        (not (same-word? (.col cursor))))
-                  (max 0 (dec (.col cursor)))
-                  (.col cursor))
+            col (if (or (= line-length (.col adjusted-cursor))
+                        (not (same-word? (.col adjusted-cursor))))
+                  (max 0 (dec (.col adjusted-cursor)))
+                  (.col adjusted-cursor))
             start-col (inc (or (long (first (drop-while same-word? (iterate dec col)))) -1))
             end-col (or (first (drop-while same-word? (iterate inc col))) line-length)]
         (->CursorRange (->Cursor row start-col)
@@ -2335,7 +2329,10 @@
   (if-some [replaced-cursor-ranges-by-index (not-empty (into []
                                                              (keep-indexed (fn [index cursor-range]
                                                                              (when (cursor-range-empty? cursor-range)
-                                                                               (let [cursor-range' (word-cursor-range-at-cursor lines (CursorRange->Cursor cursor-range))]
+                                                                               (let [cursor-range' (word-cursor-range-at-cursor lines
+                                                                                                                                (->> cursor-range
+                                                                                                                                     (adjust-cursor-range lines)
+                                                                                                                                     CursorRange->Cursor))]
                                                                                  [index cursor-range']))))
                                                              cursor-ranges))]
     ;; There are one or more non-range cursors. Select the words under the cursors.
@@ -2351,7 +2348,8 @@
     ;; Add next occurrence of the bottom selected range to selection.
     (when-some [^CursorRange needle-cursor-range (peek cursor-ranges)]
       (let [needle-lines (subsequence->lines (cursor-range-subsequence lines needle-cursor-range))
-            from-cursor (next-occurrence-search-cursor cursor-ranges)]
+            from-cursor (or (next-occurrence-search-cursor cursor-ranges)
+                            (cursor-range-end (adjust-cursor-range lines (peek cursor-ranges))))]
         (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor false false)]
           (let [added-cursor-range (if (pos? (compare-cursor-position (.from needle-cursor-range) (.to needle-cursor-range)))
                                      (->CursorRange (.to matching-cursor-range) (.from matching-cursor-range))
@@ -2434,14 +2432,16 @@
       {:cursor-ranges [cursor-range]})))
 
 (defn find-next [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
-  (let [from-cursor (next-occurrence-search-cursor cursor-ranges)]
+  (let [from-cursor (or (next-occurrence-search-cursor cursor-ranges)
+                        (cursor-range-end (adjust-cursor-range lines (peek cursor-ranges))))]
     (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
       (select-and-frame lines layout matching-cursor-range)
       (when (and wrap? (not= from-cursor document-start-cursor))
         (recur lines (with-next-occurrence-search-cursor cursor-ranges document-start-cursor) layout needle-lines case-sensitive? whole-word? wrap?)))))
 
 (defn find-prev [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
-  (let [from-cursor (prev-occurrence-search-cursor cursor-ranges)]
+  (let [from-cursor (or (prev-occurrence-search-cursor cursor-ranges)
+                        (cursor-range-start (peek cursor-ranges)))]
     (if-some [matching-cursor-range (find-prev-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
       (select-and-frame lines layout matching-cursor-range)
       (when wrap?
