@@ -173,11 +173,12 @@
                (into [] xform-paths->recent-projects paths)
                []))))
 
-(defn- add-recent-project!
+(defn add-recent-project!
   "Updates the recent projects list in the preferences to include a new entry
   for the specified project-file. Uses the current time for the timestamp."
-  [prefs recent-projects ^File project-file]
-  (let [timestamps-by-path (assoc (into {} xform-recent-projects->timestamps-by-path recent-projects)
+  [prefs ^File project-file]
+  (let [recent-projects (recent-projects prefs)
+        timestamps-by-path (assoc (into {} xform-recent-projects->timestamps-by-path recent-projects)
                              (.getAbsolutePath project-file) (str (Instant/now)))]
     (prefs/set-prefs prefs recent-projects-prefs-key timestamps-by-path)))
 
@@ -658,10 +659,10 @@
          close-dialog-and-open-project! (fn [^File project-file]
                                           (when (fs/existing-file? project-file)
                                             (set-open-project-directory! prefs (.getParentFile project-file))
-                                            (add-recent-project! prefs recent-projects project-file)
                                             (ui/close! stage)
 
-                                            ;; NOTE (TODO): We load the project in the same class-loader as welcome is loaded from.
+                                            ;; NOTE: Old comment copied from old open-welcome function in boot.clj
+                                            ;; We load the project in the same class-loader as welcome is loaded from.
                                             ;; In other words, we can't reuse the welcome page and it has to be closed.
                                             ;; We should potentially changed this when we have uberjar support and hence
                                             ;; faster loading.

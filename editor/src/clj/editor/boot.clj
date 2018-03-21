@@ -135,7 +135,7 @@
        @namespace-loader
        (code-view/initialize! prefs)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
-       (add-to-recent-projects prefs project)
+       (welcome/add-recent-project! prefs project-file)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! update-context])
        (reset! namespace-progress-reporter nil)))))
 
