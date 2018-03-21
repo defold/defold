@@ -147,6 +147,7 @@
           (let [file (io/as-file path)
                 instant (time/try-parse-instant timestamp)]
             (when (and (some? instant)
+                       (<= (.toDays (time/since instant)) 30)
                        (fs/existing-file? file))
               (when-some [title (try-read-project-title file)]
                 {:project-file file

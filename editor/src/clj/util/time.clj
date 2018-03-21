@@ -2,6 +2,21 @@
   (:import (java.time Duration Instant LocalDateTime ZoneId)
            (java.time.format DateTimeParseException)))
 
+(defn now
+  "Returns this instant."
+  ^Instant []
+  (Instant/now))
+
+(defn between
+  "Returns the duration of time passed between then and now."
+  ^Duration [^Instant then ^Instant now]
+  (Duration/between then now))
+
+(defn since
+  "Returns the duration of time passed since then."
+  ^Duration [^Instant then]
+  (between then (now)))
+
 (defn vague-description
   "Returns a relaxed description of how an Instant relates to the current time.
   Typically used when formatting timestamps for UI purposes."
