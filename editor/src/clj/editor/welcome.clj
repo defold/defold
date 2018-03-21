@@ -41,7 +41,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defonce ^:private open-project-directory-prefs-key "open-project-directory")
+(defonce ^:private last-opened-project-directory-prefs-key "open-project-directory")
 (defonce ^:private legacy-recent-project-paths-prefs-key "recent-projects")
 (defonce ^:private recent-projects-prefs-key "recent-project-entries")
 
@@ -117,15 +117,23 @@
 ;; Preferences management
 ;; -----------------------------------------------------------------------------
 
-(defn- open-project-directory
+(defn- last-opened-project-directory
   ^File [prefs]
-  (when-some [directory (io/as-file (prefs/get-prefs prefs open-project-directory-prefs-key nil))]
-    (when (fs/existing-directory? directory)
-      directory)))
+  (when-some [directory (io/as-file (prefs/get-prefs prefs last-opened-project-directory-prefs-key nil))]
+    directory))
 
-(defn- set-open-project-directory!
+(defn- set-last-opened-project-directory!
   ^File [prefs ^File directory]
-  (prefs/set-prefs prefs open-project-directory-prefs-key (.getAbsolutePath directory)))
+  (prefs/set-prefs prefs last-opened-project-directory-prefs-key (.getAbsolutePath directory)))
+
+(defn- new-project-location-directory
+  ^File [^File last-opened-project-directory]
+  (or (when-some [^File last-opened-project-parent-directory (some-> last-opened-project-directory .getParentFile)]
+        (when (.exists last-opened-project-parent-directory)
+          last-opened-project-parent-directory))
+      (when-some [^File home-directory (some-> (System/getProperty "user.home") not-empty io/as-file)]
+        (when (.exists home-directory)
+          home-directory))))
 
 (def ^:private xform-recent-projects->timestamps-by-path
   (map (fn [{:keys [project-file last-opened]}]
@@ -363,13 +371,13 @@
 ;; Home pane
 ;; -----------------------------------------------------------------------------
 
-(defn- show-open-from-disk-dialog! [^File open-project-directory close-dialog-and-open-project! ^Event event]
+(defn- show-open-from-disk-dialog! [^File last-opened-project-directory close-dialog-and-open-project! ^Event event]
   (let [^Node button (.getSource event)
         scene (.getScene button)
         window (.getWindow scene)
         opts {:title "Open Project"
               :owner-window window
-              :directory (some-> open-project-directory .getAbsolutePath)
+              :directory (some-> last-opened-project-directory .getAbsolutePath)
               :filters [{:description "Defold Project Files"
                          :exts ["*.project"]}]}]
     (when-some [project-file (ui/choose-file opts)]
@@ -399,13 +407,13 @@
   (make-project-entry title (.getParent project-file) last-opened))
 
 (defn- make-home-pane
-  ^Parent [open-project-directory close-dialog-and-open-project! recent-projects]
+  ^Parent [last-opened-project-directory close-dialog-and-open-project! recent-projects]
   (doto (ui/load-fxml "welcome/home-pane.fxml")
     (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay ^ButtonBase open-from-disk-button ^ButtonBase open-selected-project-button]
       (let [open-selected-project! (fn []
                                      (when-some [recent-project (first (ui/selection recent-projects-list))]
                                        (close-dialog-and-open-project! (:project-file recent-project))))]
-        (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! open-project-directory close-dialog-and-open-project!))
+        (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! last-opened-project-directory close-dialog-and-open-project!))
         (ui/on-action! open-selected-project-button (fn [_] (open-selected-project!)))
         (ui/bind-presence! empty-recent-projects-list-overlay (Bindings/isEmpty (.getItems recent-projects-list)))
         (ui/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
@@ -468,10 +476,10 @@
   (ui/user-data category-button :templates))
 
 (defn- make-new-project-pane
-  ^Parent [^File open-project-directory close-dialog-and-open-project! welcome-settings]
+  ^Parent [new-project-location-directory close-dialog-and-open-project! welcome-settings]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
     (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
-      (setup-location-field! new-project-location-field "Select New Project Location" (some-> open-project-directory .getParentFile))
+      (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
       (.bind (location-field-title-property new-project-location-field) (.textProperty new-project-title-field))
       (doto template-list
         (ui/cell-factory! (fn [project-template]
@@ -544,11 +552,11 @@
     (make-project-entry name description last-updated)))
 
 (defn- make-import-project-pane
-  ^Parent [^File open-project-directory clone-project! dashboard-client]
+  ^Parent [new-project-location-directory clone-project! dashboard-client]
   (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)]
     (doto (ui/load-fxml "welcome/import-project-pane.fxml")
       (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay import-project-button import-project-location-field ^TextField import-project-folder-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
-        (setup-location-field! import-project-location-field "Select Import Location" (some-> open-project-directory .getParentFile))
+        (setup-location-field! import-project-location-field "Select Import Location" new-project-location-directory)
         (.bind (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
         (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
         (ui/bind-presence! state-sign-in-browser-open (Bindings/equal :browser-open sign-in-state-property))
@@ -655,10 +663,11 @@
          stage (ui/make-dialog-stage)
          scene (Scene. root)
          recent-projects (recent-projects prefs)
-         open-project-directory (open-project-directory prefs)
+         last-opened-project-directory (last-opened-project-directory prefs)
+         new-project-location-directory (new-project-location-directory last-opened-project-directory)
          close-dialog-and-open-project! (fn [^File project-file]
                                           (when (fs/existing-file? project-file)
-                                            (set-open-project-directory! prefs (.getParentFile project-file))
+                                            (set-last-opened-project-directory! prefs (.getParentFile project-file))
                                             (ui/close! stage)
 
                                             ;; NOTE: Old comment copied from old open-welcome function in boot.clj
@@ -691,9 +700,9 @@
          pane-buttons-container ^Parent (.lookup left-pane "#pane-buttons-container")
          sign-out-button ^ButtonBase (.lookup left-pane "#sign-out-button")
          pane-buttons-toggle-group (ToggleGroup.)
-         pane-buttons [(make-pane-button "HOME" (make-home-pane open-project-directory close-dialog-and-open-project! recent-projects))
-                       (make-pane-button "NEW PROJECT" (make-new-project-pane open-project-directory close-dialog-and-open-project! welcome-settings))
-                       (make-pane-button "IMPORT PROJECT" (make-import-project-pane open-project-directory clone-project! dashboard-client))]]
+         pane-buttons [(make-pane-button "HOME" (make-home-pane last-opened-project-directory close-dialog-and-open-project! recent-projects))
+                       (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory close-dialog-and-open-project! welcome-settings))
+                       (make-pane-button "IMPORT PROJECT" (make-import-project-pane new-project-location-directory clone-project! dashboard-client))]]
 
      ;; Add Defold logo SVG paths.
      (doseq [pane (map pane-button->pane pane-buttons)]
