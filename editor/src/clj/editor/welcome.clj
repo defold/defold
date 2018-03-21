@@ -21,7 +21,7 @@
   (:import (clojure.lang ExceptionInfo)
            (com.dynamo.cr.protocol.proto Protocol$ProjectInfoList)
            (java.io File FileOutputStream PushbackReader)
-           (java.net MalformedURLException SocketException URL UnknownHostException)
+           (java.net MalformedURLException SocketException SocketTimeoutException URL UnknownHostException)
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
@@ -195,15 +195,19 @@
 ;; New project creation
 ;; -----------------------------------------------------------------------------
 
-(defn- download-proj-zip! [url]
+(defn- download-proj-zip!
+  "Downloads a template project zip file. Returns the file or nil if cancelled."
+  ^File [url progress-callback cancelled-atom]
   (let [file ^File (fs/create-temp-file! "template-project" ".zip")]
     (with-open [output (FileOutputStream. file)]
+      ;; The long timeout suggests we need some progress reporting even before d/l starts.
+      (let [timeout 2000]
+        (net/download! url output :connect-timeout timeout :read-timeout timeout :chunk-size 1024 :progress-callback progress-callback :cancelled-atom cancelled-atom)))
+    (if @cancelled-atom
       (do
-        ;; TODO net/download! accepts a callback for progress reporting, use that.
-        ;; The long timeout suggests we need some progress reporting even before d/l starts.
-        (let [timeout 2000]
-          (net/download! url output :connect-timeout timeout :read-timeout timeout))
-        file))))
+        (fs/delete-file! file)
+        nil)
+      file)))
 
 (defn- expand-proj-zip! [src dst skip-root?]
   (with-open [zip (ZipInputStream. (io/input-stream src))]
@@ -482,7 +486,7 @@
   (ui/user-data category-button :templates))
 
 (defn- make-new-project-pane
-  ^Parent [new-project-location-directory close-dialog-and-open-project! welcome-settings]
+  ^Parent [new-project-location-directory download-template! welcome-settings]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
     (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
       (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
@@ -536,20 +540,7 @@
                                                      "A non-empty folder already exists at the chosen location.")
 
                            :else
-                           (when-some [template-zip-file (try
-                                                           (download-proj-zip! (:zip-url project-template))
-                                                           (catch UnknownHostException _
-                                                             (dialogs/make-message-box "No Internet Connection"
-                                                                                       "You must be connected to the internet to download project content.")
-                                                             nil)
-                                                           (catch SocketException _
-                                                             (dialogs/make-message-box "Host Unreachable"
-                                                                                       "A firewall might be blocking network connections.")
-                                                             nil))]
-                             (expand-proj-zip! template-zip-file project-location (:skip-root? project-template))
-                             (let [project-file (io/file project-location "game.project")]
-                               (write-project-title! project-file project-title)
-                               (close-dialog-and-open-project! project-file))))))))))
+                           (download-template! (:name project-template) (:zip-url project-template) (:skip-root? project-template) project-location project-title))))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Import project pane
@@ -651,12 +642,14 @@
   (ui/with-controls root [^ProgressBar progress-bar ^ButtonBase progress-cancel-button progress-header ^Parent progress-overlay]
     (ui/text! progress-header header-text)
     (ui/text! progress-cancel-button cancel-button-text)
-    (.setProgress progress-bar 0.0)
+    (ui/enable! progress-cancel-button true)
+    (.setProgress progress-bar ProgressBar/INDETERMINATE_PROGRESS)
     (.setManaged progress-overlay true)
     (.setVisible progress-overlay true)
     (.setOnMouseClicked progress-cancel-button
                         (ui/event-handler event
                           (.setOnMouseClicked progress-cancel-button nil)
+                          (ui/enable! progress-cancel-button false)
                           (cancel!)))
     progress-bar))
 
@@ -692,24 +685,63 @@
                                             ;; faster loading.
                                             (open-project-fn (.getAbsolutePath project-file))
                                             nil))
-         clone-project! (fn [project-title repository-url clone-directory]
+         clone-project! (fn [project-title repository-url dest-directory]
                           (let [cancelled-atom (atom false)
                                 progress-bar (show-progress! root (str "Downloading " project-title) "Cancel Download" #(reset! cancelled-atom true))
                                 progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)
                                 credentials (git/credentials prefs)]
                             (future
                               (try
-                                (git/clone! credentials repository-url clone-directory progress-monitor)
+                                (git/clone! credentials repository-url dest-directory progress-monitor)
                                 (ui/run-later
                                   (if @cancelled-atom
                                     (do
                                       (hide-progress! root)
-                                      (fs/delete-directory! clone-directory {:fail :silently}))
-                                    (close-dialog-and-open-project! (io/file clone-directory "game.project"))))
+                                      (fs/delete-directory! dest-directory {:fail :silently}))
+                                    (close-dialog-and-open-project! (io/file dest-directory "game.project"))))
                                 (catch Throwable error
                                   (ui/run-later
                                     (hide-progress! root)
                                     (error-reporting/report-exception! error)))))))
+         download-template! (fn [template-title zip-url skip-root? dest-directory project-title]
+                              (let [cancelled-atom (atom false)
+                                    progress-bar (show-progress! root (str "Downloading " template-title) "Cancel Download" #(reset! cancelled-atom true))
+                                    progress-callback (fn [^long done ^long total]
+                                                        (when (pos? total)
+                                                          (let [progress (/ (double done) (double total))]
+                                                            (ui/run-later
+                                                              (.setProgress progress-bar progress)))))]
+                                (future
+                                  (try
+                                    (if-some [template-zip-file (download-proj-zip! zip-url progress-callback cancelled-atom)]
+                                      (let [project-file (io/file dest-directory "game.project")]
+                                        (expand-proj-zip! template-zip-file dest-directory skip-root?)
+                                        (write-project-title! project-file project-title)
+                                        (ui/run-later
+                                          (if @cancelled-atom
+                                            (do
+                                              (hide-progress! root)
+                                              (fs/delete-directory! dest-directory {:fail :silently}))
+                                            (close-dialog-and-open-project! project-file))))
+                                      (ui/run-later
+                                        (hide-progress! root)))
+                                    (catch Throwable error
+                                      (ui/run-later
+                                        (hide-progress! root)
+                                        (cond
+                                          (instance? UnknownHostException error)
+                                          (dialogs/make-message-box "No Internet Connection"
+                                                                    "You must be connected to the internet to download project content.")
+
+                                          (instance? SocketException error)
+                                          (dialogs/make-message-box "Host Unreachable"
+                                                                    "A firewall might be blocking network connections.")
+
+                                          (instance? SocketTimeoutException error)
+                                          (dialogs/make-message-box "Host Not Responding"
+                                                                    "The connection timed out.")
+                                          :else
+                                          (error-reporting/report-exception! error))))))))
          dashboard-client (make-dashboard-client prefs)
          sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
          left-pane ^Parent (.lookup root "#left-pane")
@@ -717,7 +749,7 @@
          sign-out-button ^ButtonBase (.lookup left-pane "#sign-out-button")
          pane-buttons-toggle-group (ToggleGroup.)
          pane-buttons [(make-pane-button "HOME" (make-home-pane last-opened-project-directory close-dialog-and-open-project! recent-projects))
-                       (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory close-dialog-and-open-project! welcome-settings))
+                       (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings))
                        (make-pane-button "IMPORT PROJECT" (make-import-project-pane new-project-location-directory clone-project! dashboard-client))]]
 
      ;; Add Defold logo SVG paths.
