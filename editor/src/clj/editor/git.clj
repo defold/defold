@@ -267,6 +267,23 @@
             (.setFilter tw (PathFilterGroup/createFromStrings path-prefixes))
             (.next tw)))))))
 
+(defn clone!
+  "Clone a repository into the specified directory."
+  [^UsernamePasswordCredentialsProvider creds ^String remote-url ^File directory ^ProgressMonitor progress-monitor]
+  (try
+    (with-open [_ (.call (doto (Git/cloneRepository)
+                           (.setCredentialsProvider creds)
+                           (.setProgressMonitor progress-monitor)
+                           (.setURI remote-url)
+                           (.setDirectory directory)))]
+      nil)
+    (catch Exception e
+      ;; The .call method throws an exception if the operation was cancelled.
+      ;; Sadly it appears there is not a specific exception type for that, so
+      ;; we silence any exceptions if the operation was cancelled.
+      (when-not (.isCancelled progress-monitor)
+        (throw e)))))
+
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)
       (.setCredentialsProvider creds)
