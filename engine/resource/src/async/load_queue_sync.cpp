@@ -64,7 +64,7 @@ namespace dmLoadQueue
         }
 
         char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(queue->m_Factory, request->m_Name, canonical_path);
+        GetCanonicalPath(request->m_Name, canonical_path);
 
         //
         load_result->m_LoadResult = dmResource::LoadResource(queue->m_Factory, canonical_path, request->m_Name, buf, size);
