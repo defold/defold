@@ -81,7 +81,7 @@
               {:match #"\+|-|%|#|\*|\/|\^|==?|~=|<=?|>=?|(?<!\.)\.{2}(?!\.)"
                :name "keyword.operator.lua"}]})
 
-(def ^:private lua-code-opts {:new-code {:grammar lua-grammar}})
+(def ^:private lua-code-opts {:code {:grammar lua-grammar}})
 (def go-prop-type->property-types
   {:property-type-number  g/Num
    :property-type-hash    g/Str
@@ -94,26 +94,26 @@
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:component :debuggable :non-embeddable :overridable-properties}
                    :tag-opts {:component {:transform-properties #{}}}}
                   {:ext "render_script"
                    :label "Render Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "gui_script"
                    :label "Gui Script"
                    :icon "icons/32/Icons_12-Script-type.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}
                   {:ext "lua"
                    :label "Lua Module"
                    :icon "icons/32/Icons_11-Script-general.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts lua-code-opts
                    :tags #{:debuggable}}])
 
@@ -140,7 +140,7 @@
     (luajit/bytecode (data/lines-reader lines) (resource/proj-path resource))
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error _node-id :code :fatal e (.getMessage e)
+        (g/->error _node-id :lines :fatal e (.getMessage e)
                    {:filename filename
                     :line     line
                     :message  message})))))
@@ -161,7 +161,7 @@
                                                                             (ByteString/copyFrom ^bytes bytecode))}
                                                        :modules modules
                                                        :resources (mapv lua/lua-module->build-path modules)
-                                                       :properties (properties/properties->decls properties)})}))
+                                                       :properties (properties/properties->decls properties true)})}))
 
 (g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules dep-build-targets]
   [{:node-id _node-id

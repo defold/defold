@@ -4,7 +4,6 @@
             [dynamo.graph :as g]
             [editor.ui :as ui]
             [editor.handler :as handler]
-            [editor.code :as code]
             [editor.core :as core]
             [editor.fuzzy-text :as fuzzy-text]
             [editor.jfx :as jfx]
@@ -16,21 +15,21 @@
             [service.log :as log])
   (:import [java.io File]
            [java.nio.file Path Paths]
-           [java.util.regex Pattern]
-           [javafx.event Event ActionEvent]
-           [javafx.geometry Point2D Pos]
+           [javafx.event ActionEvent]
+           [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button Label ListView ProgressBar TextArea TextField TreeItem TreeView]
+           [javafx.scene.control Button Label ListView ProgressBar TextArea TextField]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout HBox Region]
            [javafx.scene.text Text TextFlow]
-           [javafx.stage Stage StageStyle Modality DirectoryChooser]))
+           [javafx.stage Stage DirectoryChooser]))
 
 (set! *warn-on-reflection* true)
 
 (defprotocol Dialog
   (show! [this functions])
+  (refresh! [this])
   (close! [this])
   (return! [this r])
   (dialog-root [this])
@@ -45,6 +44,8 @@
     ((:refresh this))
     (ui/show-and-wait! (:stage this))
     @(:return this))
+  (refresh! [this]
+    ((:refresh  this)))
   (close! [this] (ui/close! (:stage this)))
   (return! [this r] (reset! (:return this) r))
   (dialog-root [this] (:dialog-root this))
@@ -76,7 +77,7 @@
     (.show stage)
     {:stage              stage
      :render-progress-fn (fn [progress]
-                           (ui/update-progress-controls! progress (:progress controls) (:message controls)))}))
+                           (ui/render-progress-controls! progress (:progress controls) (:message controls)))}))
 
 (defn ^:dynamic make-alert-dialog [text]
   (let [root ^Parent (ui/load-fxml "alert.fxml")
@@ -635,79 +636,6 @@
     (.setScene stage scene)
     (ui/show! stage)
     stage))
-
-(defn make-proposal-popup [result screen-point proposals target text-area]
-  (let [root ^Parent (ui/load-fxml "text-proposals.fxml")
-        stage (ui/make-stage)
-        scene (Scene. root)
-        controls (ui/collect-controls root ["proposals" "proposals-box"])
-        close (fn [v] (do (deliver result v) (.close stage)))
-        ^ListView list-view  (:proposals controls)
-        filter-text (atom target)
-        filter-fn (fn [i] (str/starts-with? (:name i) @filter-text))
-        update-items (fn [] (try (let [new-items (filter filter-fn proposals)]
-                                  (if (empty? new-items)
-                                    (close nil)
-                                    (do
-                                      (ui/items! list-view new-items)
-                                      (.select (.getSelectionModel list-view) 0))))
-                                (catch Exception e
-                                  (do
-                                    (println "Proposal filter bad filter pattern " @filter-text)
-                                    (swap! filter-text #(apply str (drop-last %)))))))]
-    (.setFill scene nil)
-    (.initStyle stage StageStyle/UNDECORATED)
-    (.initStyle stage StageStyle/TRANSPARENT)
-    (.setX stage (.getX ^Point2D screen-point))
-    (.setY stage (.getY ^Point2D screen-point))
-    (ui/items! list-view proposals)
-    (.select (.getSelectionModel list-view) 0)
-    (ui/cell-factory! list-view (fn [proposal] {:text (:display-string proposal)}))
-    (ui/on-focus! list-view (fn [got-focus] (when-not got-focus (close nil))))
-    (.setOnMouseClicked list-view (ui/event-handler e (close (ui/selection list-view))))
-    (.addEventFilter scene KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                                       (let [code (.getCode ^KeyEvent event)]
-                                         (cond
-                                           (= code (KeyCode/UP)) (ui/request-focus! list-view)
-                                           (= code (KeyCode/DOWN)) (ui/request-focus! list-view)
-                                           (= code (KeyCode/ENTER)) (close (ui/selection list-view))
-                                           (= code (KeyCode/TAB)) (close (ui/selection list-view))
-                                           (= code (KeyCode/ESCAPE)) (close nil)
-
-                                           (or (= code (KeyCode/LEFT)) (= code (KeyCode/RIGHT)))
-                                           (do
-                                             (Event/fireEvent text-area (.copyFor event (.getSource event) text-area))
-                                             (close nil))
-
-                                           (or (= code (KeyCode/BACK_SPACE)) (= code (KeyCode/DELETE)))
-                                           (if (empty? @filter-text)
-                                             (close nil)
-                                             (do
-                                               (swap! filter-text #(apply str (drop-last %)))
-                                               (update-items)
-                                               (Event/fireEvent text-area (.copyFor event (.getSource event) text-area))))
-
-                                           :default true))))
-    (.addEventFilter scene KeyEvent/KEY_TYPED
-                     (ui/event-handler event
-                                      (let [key-typed (.getCharacter ^KeyEvent event)]
-                                        (cond
-
-                                          (and (not-empty key-typed) (not (code/control-char-or-delete key-typed)))
-                                          (do
-                                            (swap! filter-text str key-typed)
-                                            (update-items)
-                                            (Event/fireEvent text-area (.copyFor event (.getSource event) text-area)))
-
-                                          :default true))))
-
-    (.initOwner stage (ui/main-stage))
-    (.initModality stage Modality/NONE)
-    (.setScene stage scene)
-    (ui/show! stage)
-    stage))
-
 
 (handler/defhandler ::rename-conflicting-files :dialog
   (run [^Stage stage]

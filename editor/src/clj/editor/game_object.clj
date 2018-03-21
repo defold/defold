@@ -12,7 +12,7 @@
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
             [editor.sound :as sound]
-            [editor.script :as script]
+            [editor.code.script :as script]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
@@ -170,7 +170,7 @@
           (cond->
             (resource/openable-resource? source-resource) (assoc :link source-resource :outline-reference? true)
             source-id (assoc :alt-outline source-outline))))))
-  (output ddf-message g/Any :cached (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
+  (output ddf-message g/Any (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id transform scene]
                                 (let [transform (if-let [local-transform (:transform scene)]
@@ -304,7 +304,7 @@
                              {:id (properties/key->user-name key)
                               :type (:go-prop-type p)
                               :value (properties/go-prop->str (:value p) (:go-prop-type p))}))))))
-  (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties)))
+  (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties false)))
   (output rt-ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
                                               (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
 
@@ -404,7 +404,7 @@
                              props
                              (conj props (-> m
                                            (select-keys [:id :properties])
-                                           (assoc :property-decls (properties/properties->decls (:properties m)))))))
+                                           (assoc :property-decls (properties/properties->decls (:properties m) false))))))
                          [] ref-ddf)))
   (output id-counts g/Any :cached (g/fnk [component-id-pairs]
                                          (reduce (fn [res id]

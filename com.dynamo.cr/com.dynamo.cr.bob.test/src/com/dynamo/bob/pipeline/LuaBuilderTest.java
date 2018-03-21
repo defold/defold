@@ -10,8 +10,22 @@ import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 
 public class LuaBuilderTest extends AbstractProtoBuilderTest {
+
+    private static void assertSubElementsV3(PropertyDeclarationEntry entry) {
+        assertEquals(MurmurHash.hash64(entry.getKey() + ".x"), entry.getElementIds(0));
+        assertEquals(MurmurHash.hash64(entry.getKey() + ".y"), entry.getElementIds(1));
+        assertEquals(MurmurHash.hash64(entry.getKey() + ".z"), entry.getElementIds(2));
+    }
+
+    private static void assertSubElementsV4(PropertyDeclarationEntry entry) {
+        assertEquals(MurmurHash.hash64(entry.getKey() + ".x"), entry.getElementIds(0));
+        assertEquals(MurmurHash.hash64(entry.getKey() + ".y"), entry.getElementIds(1));
+        assertEquals(MurmurHash.hash64(entry.getKey() + ".z"), entry.getElementIds(2));
+        assertEquals(MurmurHash.hash64(entry.getKey() + ".w"), entry.getElementIds(3));
+    }
 
     @Test
     public void testProps() throws Exception {
@@ -46,6 +60,11 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertResource(properties, "", 0);
         PropertiesTestUtil.assertResource(properties, "", 1);
         PropertiesTestUtil.assertResource(properties, "", 2);
+
+        // Verify that .x, .y, .z and .w exists as sub element ids for Vec3, Vec4 and Quat.
+        assertSubElementsV3(properties.getVector3Entries(0));
+        assertSubElementsV4(properties.getVector4Entries(0));
+        assertSubElementsV4(properties.getQuatEntries(0));
     }
 
     @Test

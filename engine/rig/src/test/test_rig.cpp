@@ -1316,7 +1316,7 @@ TEST_F(RigContextTest, InvalidInstanceCreation)
     ASSERT_NE((dmRig::HRigInstance)0x0, instance1);
 
     create_params.m_Instance = &instance2;
-    ASSERT_EQ(dmRig::RESULT_ERROR, dmRig::InstanceCreate(create_params));
+    ASSERT_EQ(dmRig::RESULT_ERROR_BUFFER_FULL, dmRig::InstanceCreate(create_params));
     ASSERT_EQ((dmRig::HRigInstance)0x0, instance2);
 
     delete create_params.m_Skeleton;
@@ -2227,6 +2227,78 @@ TEST_F(RigInstanceTest, BoneTranslationRotation)
 
     ASSERT_VEC3(Vector3(10.0f, 0.0f, 0.0f), pose[0].GetTranslation());
     ASSERT_VEC4(Quat::rotationZ((float)M_PI / 2.0f), pose[0].GetRotation());
+}
+
+// DEF-3121 - Starting new animation from inside a "animation completed callback" would previously
+// use the wrong animation for one frame.
+// In the test we register a "completion callback", play one animation forward once, then play another
+// animation once the callback is triggered. We test that the root bone is on the expected position
+// after each animation.
+static void DEF3121_EventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
+{
+    ASSERT_EQ(dmRig::RIG_EVENT_TYPE_COMPLETED, event_type);
+    dmRig::HRigInstance instance = *(dmRig::HRigInstance*)user_data1;
+    ASSERT_NE((dmRig::HRigInstance)0x0, instance);
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(instance, dmHashString64("trans_rot"), dmRig::PLAYBACK_ONCE_FORWARD, 0.0f, 0.0f, 1.0f));
+}
+
+TEST_F(RigContextTest, DEF_3121)
+{
+    dmRig::HRigInstance instance = 0x0;
+
+    // Setup test data
+    dmRigDDF::Skeleton*     skeleton      = new dmRigDDF::Skeleton();
+    dmRigDDF::MeshSet*      mesh_set      = new dmRigDDF::MeshSet();
+    dmRigDDF::AnimationSet* animation_set = new dmRigDDF::AnimationSet();
+    dmArray<dmRig::RigBone> bind_pose;
+    dmArray<uint32_t>       pose_to_influence;
+    dmArray<uint32_t>       track_idx_to_pose;
+    SetUpSimpleRig(bind_pose, skeleton, mesh_set, animation_set, pose_to_influence, track_idx_to_pose);
+
+    // Create rig instance
+    dmRig::InstanceCreateParams create_params = {0};
+    create_params.m_Context          = m_Context;
+    create_params.m_Instance         = &instance;
+    create_params.m_BindPose         = &bind_pose;
+    create_params.m_Skeleton         = skeleton;
+    create_params.m_MeshSet          = mesh_set;
+    create_params.m_TrackIdxToPose   = &track_idx_to_pose;
+    create_params.m_MeshId           = dmHashString64((const char*)"test");
+    create_params.m_DefaultAnimation = dmHashString64((const char*)"");
+    create_params.m_EventCallback    = DEF3121_EventCallback;
+    create_params.m_EventCBUserData1 = &instance;
+    create_params.m_AnimationSet       = animation_set;
+    create_params.m_PoseIdxToInfluence = &pose_to_influence;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceCreate(create_params));
+
+    // Play initial animation
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(instance, dmHashString64("valid"), dmRig::PLAYBACK_ONCE_FORWARD, 0.0f, 0.0f, 1.0f));
+
+    // "valid" animation should start with root at origo
+    dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(instance);
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+
+    // Update rig instance, make sure we finish the animation which should trigger
+    // the complete callback, which also will trigger a new animation, "trans_rot".
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 10.0f));
+
+    // Verify that the position of the root bone is the same as previous frame.
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+
+    // One more update, this time the new animation should start playing.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
+    // Verify that the position of the root bone is from the new animation.
+    ASSERT_VEC3(Vector3(10.0f, 0.0f, 0.0f), pose[0].GetTranslation());
+
+    // Cleanup
+    dmRig::InstanceDestroyParams destroy_params = {0};
+    destroy_params.m_Context = m_Context;
+    destroy_params.m_Instance = instance;
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::InstanceDestroy(destroy_params));
+    DeleteRigData(mesh_set, skeleton, animation_set);
 }
 
 // Test for DEF-3054 - Playing a spine backwards 3 times does not work as expected

@@ -151,6 +151,12 @@ namespace dmEngine
         RecordData                                  m_RecordData;
     };
 
+
+    HEngine New(dmEngineService::HEngineService engine_service);
+    void Delete(HEngine engine);
+    bool Init(HEngine engine, int argc, char *argv[]);
+    void Step(HEngine engine);
+
     void ReloadResources(HEngine engine, const char* extension);
     bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config);
     void UnloadBootstrapContent(HEngine engine);

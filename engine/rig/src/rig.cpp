@@ -12,8 +12,8 @@ namespace dmRig
     static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
     static const int SIGNAL_SLOT_UNUSED = -1; // Used to indicate if a draw order slot is unused
 
-    /// Config key to use for tweaking the total maximum number of rig instances in a context.
-    const char* RIG_MAX_INSTANCES_KEY = "rig.max_instance_count";
+    static void DoAnimate(RigInstance* instance, float dt);
+    static bool DoPostUpdate(RigInstance* instance);
 
     Result NewContext(const NewContextParams& params)
     {
@@ -75,10 +75,11 @@ namespace dmRig
         if (instance->m_MeshEntry != 0x0) {
             uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
             instance->m_MeshProperties.SetSize(mesh_count);
+            const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
             for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
                 const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
-                float* color = mesh->m_Color.m_Data;
-                float* skin_color = mesh->m_SkinColor.m_Data;
+                const float* color = mesh->m_Color.m_Count ? mesh->m_Color.m_Data : white;
+                const float* skin_color = mesh->m_SkinColor.m_Count ? mesh->m_SkinColor.m_Data : white;
                 MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
                 properties->m_Color[0] = color[0] * skin_color[0];
                 properties->m_Color[1] = color[1] * skin_color[1];
@@ -119,6 +120,7 @@ namespace dmRig
         }
 
         RigPlayer* player = SwitchPlayer(instance);
+        player->m_Initial = 1;
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
         player->m_Playing = 1;
@@ -133,8 +135,6 @@ namespace dmRig
 
         SetCursor(instance, offset, true);
         SetPlaybackRate(instance, playback_rate);
-
-        UpdateMeshProperties(instance);
 
         return dmRig::RESULT_OK;
     }
@@ -346,6 +346,7 @@ namespace dmRig
                 instance->m_EventCallback(RIG_EVENT_TYPE_COMPLETED, (void*)&event_data, instance->m_EventCBUserData1, instance->m_EventCBUserData2);
             }
         }
+
     }
 
     static Vector3 SampleVec3(uint32_t sample, float frac, float* data)
@@ -365,7 +366,7 @@ namespace dmRig
     static Quat SampleQuat(uint32_t sample, float frac, float* data)
     {
         uint32_t i = sample*4;
-        return lerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
+        return slerp(frac, Quat(data[i+0], data[i+1], data[i+2], data[i+3]), Quat(data[i+0+4], data[i+1+4], data[i+2+4], data[i+3+4]));
     }
 
     static float CursorToTime(float cursor, float duration, bool backwards, bool once_pingpong)
@@ -474,7 +475,7 @@ namespace dmRig
             }
             if (track->m_Rotations.m_Count > 0)
             {
-                transform.SetRotation(lerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
+                transform.SetRotation(slerp(blend_weight, transform.GetRotation(), SampleQuat(sample, fraction, track->m_Rotations.m_Data)));
             }
             if (track->m_Scale.m_Count > 0)
             {
@@ -545,9 +546,15 @@ namespace dmRig
         for (uint32_t i = 0; i < n; ++i)
         {
             RigInstance* instance = instances[i];
+            DoAnimate(instance, dt);
+        }
+    }
+
+    static void DoAnimate(RigInstance* instance, float dt)
+    {
             // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
             if (instance->m_Pose.Empty() || !instance->m_Enabled)
-                continue;
+                return;
 
             const dmRigDDF::Skeleton* skeleton = instance->m_Skeleton;
             const dmArray<RigBone>& bind_pose = *instance->m_BindPose;
@@ -585,6 +592,13 @@ namespace dmRig
 
             bool updated_draw_order = false;
             RigPlayer* player = GetPlayer(instance);
+
+            // If the animation has just started, we reset mesh properties (color, draw order etc)
+            if (player->m_Initial) {
+                UpdateMeshProperties(instance);
+                player->m_Initial = 0;
+            }
+
             if (instance->m_Blending)
             {
                 float fade_rate = instance->m_BlendTimer / instance->m_BlendDuration;
@@ -724,30 +738,38 @@ namespace dmRig
                         ApplyTwoBoneIKConstraint(ik, bind_pose, pose, target_position, parent_position, ik_animation[i].m_Positive, ik_animation[i].m_Mix);
                 }
             }
-
-        }
     }
 
     static Result PostUpdate(HRigContext context)
     {
         const dmArray<RigInstance*>& instances = context->m_Instances.m_Objects;
         uint32_t count = instances.Size();
+        bool updated_pose = false;
         for (uint32_t i = 0; i < count; ++i)
         {
             RigInstance* instance = instances[i];
+            if (DoPostUpdate(instance)) {
+                updated_pose = true;
+            }
+        }
+
+        return updated_pose ? dmRig::RESULT_UPDATED_POSE : dmRig::RESULT_OK;
+    }
+
+    static bool DoPostUpdate(RigInstance* instance)
+    {
+            // If pose is empty, there are no bones to update
             dmArray<dmTransform::Transform>& pose = instance->m_Pose;
             if (pose.Empty())
-                continue;
+                return false;
 
             // Notify any listener that the pose has been recalculated
             if (instance->m_PoseCallback) {
                 instance->m_PoseCallback(instance->m_PoseCBUserData1, instance->m_PoseCBUserData2);
+                return true;
             }
 
-
-        }
-
-        return dmRig::RESULT_OK;
+        return false;
     }
 
     Result Update(HRigContext context, float dt)
@@ -1559,8 +1581,8 @@ namespace dmRig
 
         if (context->m_Instances.Full())
         {
-            dmLogError("Rig Instance could not be created since the buffer is full (%d), consider increasing %s.", context->m_Instances.Capacity(), RIG_MAX_INSTANCES_KEY);
-            return dmRig::RESULT_ERROR;
+            dmLogError("Rig instance could not be created since the buffer is full (%d).", context->m_Instances.Capacity());
+            return dmRig::RESULT_ERROR_BUFFER_FULL;
         }
 
         *params.m_Instance = new RigInstance;

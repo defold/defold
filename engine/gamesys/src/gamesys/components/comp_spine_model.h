@@ -45,6 +45,7 @@ namespace dmGameSystem
         dmArray<dmRig::RigSpineModelVertex> m_VertexBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance>    m_ScratchInstances;
+        dmRig::HRigContext                  m_RigContext;
     };
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);

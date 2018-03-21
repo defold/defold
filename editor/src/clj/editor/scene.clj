@@ -174,17 +174,28 @@
         (gl/gl-load-matrix-4d gl (c/camera-view-matrix camera)))
       (pass/prepare-gl pass gl glu))))
 
+
+(def ^:private last-make-current-failure (atom 0))
+
+(defn- time-to-log? []
+  (let [now (System/currentTimeMillis)]
+    (when (> (- now @last-make-current-failure) (* 1000 60))
+      (reset! last-make-current-failure now)
+      true)))
+
 (defn make-current ^GLContext [^GLAutoDrawable drawable]
   (when-let [^GLContext context (.getContext drawable)]
     (try
       (let [result (.makeCurrent context)]
         (if (= result GLContext/CONTEXT_NOT_CURRENT)
           (do
-            (log/warn :message "Failed to set gl context as current.")
+            (when (time-to-log?)
+              (log/warn :message "Failed to set gl context as current."))
             nil)
           context))
       (catch Exception e
-        (log/error :exception e)
+        (when (time-to-log?)
+          (log/error :exception e))
         nil))))
 
 (defmacro with-drawable-as-current [^GLAutoDrawable drawable & forms]
@@ -1081,8 +1092,11 @@
                                 :make-preview-fn make-preview
                                 :focus-fn focus-view))
 
-(g/defnk produce-transform [^Vector3d position-v3 ^Quat4d rotation-q4 ^Vector3d scale-v3]
-  (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3))
+(g/defnk produce-transform [position rotation scale]
+  (let [position-v3 (doto (Vector3d.) (math/clj->vecmath position))
+        rotation-q4 (doto (Quat4d.) (math/clj->vecmath rotation))
+        scale-v3 (Vector3d. (double-array scale))]
+    (math/->mat4-non-uniform position-v3 rotation-q4 scale-v3)))
 
 (def produce-no-transform-properties (g/constantly #{}))
 (def produce-scalable-transform-properties (g/constantly #{:position :rotation :scale}))
@@ -1098,9 +1112,6 @@
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale))))
 
   (output transform-properties g/Any :abstract)
-  (output position-v3 Vector3d :cached (g/fnk [^types/Vec3 position] (doto (Vector3d.) (math/clj->vecmath position))))
-  (output rotation-q4 Quat4d :cached (g/fnk [^types/Vec4 rotation] (doto (Quat4d.) (math/clj->vecmath rotation))))
-  (output scale-v3 Vector3d :cached (g/fnk [^types/Vec3 scale] (Vector3d. (double-array scale))))
   (output transform Matrix4d :cached produce-transform)
   (output scene g/Any :cached (g/fnk [^g/NodeID _node-id ^Matrix4d transform] {:node-id _node-id :transform transform}))
   (output aabb AABB :cached (g/constantly (geom/null-aabb))))

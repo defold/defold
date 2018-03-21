@@ -165,11 +165,6 @@ namespace dmGameSystem
         return result;
     }
 
-    static Vector3 GetSize(const SpriteComponent* sprite)
-    {
-        return sprite->m_Size;
-    }
-
     static bool PlayAnimation(SpriteComponent* component, dmhash_t animation)
     {
         TextureSetResource* texture_set = component->m_Resource->m_TextureSet;
@@ -411,7 +406,7 @@ namespace dmGameSystem
         dmRender::AddToRender(render_context, &ro);
     }
 
-    void UpdateTransforms(SpriteWorld* sprite_world, bool sub_pixels)
+    static void UpdateTransforms(SpriteWorld* sprite_world, bool sub_pixels)
     {
         DM_PROFILE(Sprite, "UpdateTransforms");
 
@@ -432,7 +427,6 @@ namespace dmGameSystem
                 SpriteComponent* c = &components[i];
                 Matrix4 local = dmTransform::ToMatrix4(dmTransform::Transform(c->m_Position, c->m_Rotation, 1.0f));
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
-                Matrix4 w = world * local;
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
                 c->m_World = appendScale(world * local, size);
             }
@@ -445,7 +439,7 @@ namespace dmGameSystem
                 Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
                 Matrix4 w = dmTransform::MulNoScaleZ(world, local);
                 Vector3 size( c->m_Size.getX() * c->m_Scale.getX(), c->m_Size.getY() * c->m_Scale.getY(), 1);
-                c->m_World = appendScale(world * local, size);
+                c->m_World = appendScale(w, size);
             }
         }
 

@@ -1,6 +1,7 @@
 (ns editor.util
   (:require [clojure.string :as string])
-  (:import [java.util Locale]))
+  (:import [java.util Locale]
+           [com.defold.editor Platform]))
 
 (set! *warn-on-reflection* true)
 
@@ -88,8 +89,15 @@
 
 (def natural-order-key alphanum-chunks)
 
+(defn os-raw
+  "Returns :win32, :darwin or :linux"
+  []
+  (keyword (.. Platform getHostPlatform getOs)))
+
+(def os (memoize os-raw))
+
 (defn is-mac-os? []
-  (= "Mac OS X" (System/getProperty "os.name")))
+  (= (os) :darwin))
 
 (defn positions [pred coll]
   (keep-indexed (fn [idx x]

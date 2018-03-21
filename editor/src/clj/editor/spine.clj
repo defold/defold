@@ -30,7 +30,7 @@
             [editor.rig :as rig]
             [service.log :as log])
   (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
-           [com.defold.editor.pipeline BezierUtil SpineScene$Transform TextureSetGenerator$UVTransform]
+           [com.defold.editor.pipeline BezierUtil RigUtil$Transform TextureSetGenerator$UVTransform]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.jogamp.opengl GL GL2]
            [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
@@ -339,7 +339,7 @@
                     time))))
 
 (defn- bone->transform [bone]
-  (let [t (SpineScene$Transform.)]
+  (let [t (RigUtil$Transform.)]
     (math/clj->vecmath (.position t) (:position bone))
     (math/clj->vecmath (.rotation t) (:rotation bone))
     (math/clj->vecmath (.scale t) (:scale bone))
@@ -356,16 +356,16 @@
 (defn- attachment->mesh [attachment att-name slot-data anim-data bones-remap bone-index->world]
   (when anim-data
     (let [type (get attachment "type" "region")
-          world ^SpineScene$Transform (:bone-world slot-data)
+          world ^RigUtil$Transform (:bone-world slot-data)
           anim-id (get attachment "name" att-name)
           uv-trans (or ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms])) uv-identity)
           mesh (case type
                  "region"
-                 (let [local (doto (SpineScene$Transform.)
+                 (let [local (doto (RigUtil$Transform.)
                                (-> (.position) (.set (get attachment "x" 0) (get attachment "y" 0) 0))
                                (-> (.rotation) (.set ^Quat4d (angle->quat (get attachment "rotation" 0))))
                                (-> (.scale) (.set (get attachment "scaleX" 1) (get attachment "scaleY" 1) 1)))
-                       world (doto (SpineScene$Transform. world)
+                       world (doto (RigUtil$Transform. world)
                                (.mul local))
                        width (get attachment "width" 0)
                        height (get attachment "height" 0)
@@ -407,7 +407,7 @@
                                                                                   (partition 4 (rest vertices))))
                                                     p ^Point3d (reduce (fn [^Point3d p w]
                                                                          (let [wp (Point3d. (:x w) (:y w) 0)
-                                                                               world ^SpineScene$Transform (bone-index->world (:bone-index w))]
+                                                                               world ^RigUtil$Transform (bone-index->world (:bone-index w))]
                                                                            (.apply world wp)
                                                                            (.scaleAdd wp ^double (:weight w) p)
                                                                            (.set p wp)
@@ -553,9 +553,9 @@
   (loop [bones bones
          wt []]
     (if-let [bone (first bones)]
-      (let [local-t ^SpineScene$Transform (bone->transform bone)
+      (let [local-t ^RigUtil$Transform (bone->transform bone)
             world-t (if (not= 0xffff (:parent bone))
-                      (let [world-t (doto (SpineScene$Transform. (get wt (:parent bone)))
+                      (let [world-t (doto (RigUtil$Transform. (get wt (:parent bone)))
                                       (.mul local-t))]
                         ;; Reset scale when not inheriting
                         (when (not (:inherit-scale bone))
@@ -594,11 +594,12 @@
         sort-meshes (partial sort-by mesh-sort-fn)
         skins (get spine-scene "skins" {})
         generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-index->world-transform)
-        new-skins {"default" (sort-meshes generic-meshes)}
+        new-skins {"" (sort-meshes generic-meshes)} ; "default" skin is called "" (hashed to 0) in build data
         new-skins (reduce (fn [m [skin slots]]
                             (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-index->world-transform)]
                               (assoc m skin (sort-meshes (merge generic-meshes specific-meshes)))))
-                          new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
+                          new-skins
+                          (filter (fn [[skin _]] (not= "default" skin)) skins))
         slot->track-data (reduce-kv (fn [m skin meshes]
                                       (let [skin-id (murmur/hash64 skin)]
                                         (reduce-kv (fn [m i [[slot att]]]
@@ -625,7 +626,8 @@
               :mesh-set {:slot-count slot-count
                          :mesh-entries (mapv (fn [[skin meshes]]
                                                {:id (murmur/hash64 skin)
-                                                :meshes (mapv second meshes)}) new-skins)}}
+                                                :meshes (mapv second meshes)})
+                                             new-skins)}}
              (catch Exception e
                (log/error :exception e)
                (g/->error _node-id :spine-json :fatal spine-json (str "Incompatible data found in spine json " (resource/resource->proj-path spine-json)))))]
@@ -651,8 +653,11 @@
          (sort-by :draw-order)
          (map (partial transform-positions (:world-transform renderable)))
          (map (fn [mesh]
-                (let [color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])]
-                  (update mesh :color (fn [src tint] (mapv * src tint)) color)))))))
+                (let [tint-color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])
+                      slot-color (:color mesh)
+                      skin-color (:skin-color mesh)
+                      final-color (mapv * slot-color tint-color skin-color)]
+                  (assoc mesh :color final-color)))))))
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
@@ -857,10 +862,7 @@
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
           dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
-          model-pb (update model-pb :skin (fn [skin] (or (not-empty skin)
-                                                         (when (some (partial = "default") (:skins scene-structure))
-                                                           "default")
-                                                         (first (:skins scene-structure)))))]
+          model-pb (update model-pb :skin (fn [skin] (or skin "")))]
       [{:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-spine-model

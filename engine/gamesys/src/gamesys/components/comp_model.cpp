@@ -43,8 +43,17 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = new ModelWorld();
 
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &world->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = context->m_MaxModelCount;
+        dmRig::Result rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::RESULT_OK)
+        {
+            dmLogFatal("Unable to create model rig context: %d", rr);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         world->m_Components.SetCapacity(context->m_MaxModelCount);
-        // world->m_RigContext = context->m_RigContext;
         world->m_RenderObjects.SetCapacity(context->m_MaxModelCount);
 
         dmGraphics::VertexElement ve[] =
@@ -70,6 +79,8 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
 
         dmResource::UnregisterResourceReloadedCallback(((ModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
+
+        dmRig::DeleteContext(world->m_RigContext);
 
         delete world;
 
@@ -266,9 +277,18 @@ namespace dmGameSystem
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
 
+        // Create GO<->bone representation
+        // We need to make sure that bone GOs are created before we start the default animation.
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
+            DestroyComponent(world, index);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompModelPoseCallback;
@@ -291,6 +311,10 @@ namespace dmGameSystem
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the model.max_count value in game.project");
+            }
+            DestroyComponent(world, index);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
@@ -305,9 +329,6 @@ namespace dmGameSystem
 
         ReHash(component);
 
-        // Create GO<->bone representation
-        CreateGOBones(world, component);
-
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -320,7 +341,7 @@ namespace dmGameSystem
         component->m_NodeInstances.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params = {0};
-        params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        params.m_Context = world->m_RigContext;
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
@@ -369,7 +390,7 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(c->m_Instance));
+            dmRig::HRigContext rig_context = world->m_RigContext;
             Matrix4 normal_matrix = inverse(c->m_World);
             normal_matrix = transpose(normal_matrix);
             vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, normal_matrix, Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
@@ -445,6 +466,8 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
 
+        dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
+
         dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
         const uint32_t count = components.Size();
 
@@ -477,6 +500,7 @@ namespace dmGameSystem
             component.m_DoRender = 1;
         }
 
+        update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -625,15 +649,25 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component)
+    static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component, int index)
     {
-        dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        dmRig::HRigContext rig_context = world->m_RigContext;
 
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = rig_context;
         destroy_params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(destroy_params);
+
+        // Delete old bones, recreate with new data.
+        // Make sure that bone GOs are created before we start the default animation.
+        dmGameObject::DeleteBones(component->m_Instance);
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
+            DestroyComponent(world, index);
+            return false;
+        }
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
@@ -660,13 +694,14 @@ namespace dmGameSystem
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the model.max_count value in game.project");
+            }
+            DestroyComponent(world, index);
             return false;
         }
 
         ReHash(component);
-
-        // Create GO<->bone representation
-        CreateGOBones(world, component);
         return true;
     }
 
@@ -674,9 +709,10 @@ namespace dmGameSystem
     void CompModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
-        ModelComponent* component = world->m_Components.Get(*params.m_UserData);
+        int index = *params.m_UserData;
+        ModelComponent* component = world->m_Components.Get(index);
         component->m_Resource = (ModelResource*)params.m_Resource;
-        (void)OnResourceReloaded(world, component);
+        (void)OnResourceReloaded(world, component, index);
     }
 
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -783,14 +819,14 @@ namespace dmGameSystem
                 if(component->m_Resource == params.m_Resource->m_Resource)
                 {
                     // Model resource reload
-                    OnResourceReloaded(world, component);
+                    OnResourceReloaded(world, component, i);
                     continue;
                 }
                 RigSceneResource *rig_scene_res = component->m_Resource->m_RigScene;
                 if((rig_scene_res) && (rig_scene_res->m_AnimationSetRes == params.m_Resource->m_Resource))
                 {
                     // Model resource reload because animset used in rig was reloaded
-                    OnResourceReloaded(world, component);
+                    OnResourceReloaded(world, component, i);
                 }
             }
         }
