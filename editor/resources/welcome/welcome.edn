@@ -31,13 +31,29 @@
                              :duration "Short"
                              :user-level "Beginner"
                              :zip-url "https://github.com/defold/tutorial-side-scroller/archive/master.zip"
+                             :skip-root? true}
+
+                             {:name "War battles tutorial"
+                             :description "In this tutorial you build the foundation for a top down shooter game based on the \"War Battles\" RTS asset pack."
+                             :image "war-battles.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/tutorial-war-battles/archive/master.zip"
                              :skip-root? true}]}
 
                {:label "From Sample"
-                :templates [{:name "Linker sample game"
+                :templates [{:name "Linker game sample"
                              :description "This is a complete sample game where you click and drag to link fish of the same color to remove them from the board. Long chains of fish yields boosters."
                              :image "linker.png"
                              :duration "Medium"
                              :user-level "Beginner"
                              :zip-url "https://github.com/defold/sample-linker/archive/master.zip"
+                             :skip-root? true}
+
+                             {:name "Shadertoy sample"
+                             :description "This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold."
+                             :image "shadertoy.png"
+                             :duration "Short"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/sample-shadertoy/archive/master.zip"
                              :skip-root? true}]}]}}
