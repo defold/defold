@@ -496,13 +496,15 @@
                 build-results       (ui/with-progress [_ render-build-progress!]
                                       (project/build-and-write-project project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
             (ui/run-later
-              (g/update-cache-from-evaluation-context! evaluation-context)
-              (when result-fn (result-fn build-results)))
+              (try
+                (g/update-cache-from-evaluation-context! evaluation-context)
+                (when result-fn (result-fn build-results))
+                (finally
+                  (reset! build-in-progress? false))))
             build-results))
-      (catch Throwable t
-        (error-reporting/report-exception! t))
-      (finally
-        (reset! build-in-progress? false))))))
+        (catch Throwable t
+          (reset! build-in-progress? false)
+          (error-reporting/report-exception! t))))))
 
 (defn- handle-build-results! [workspace build-errors-view build-results]
   (let [{:keys [error artifacts artifact-map etags]} build-results]
@@ -635,7 +637,7 @@ If you do not specifically require different script states, consider changing th
                              (build-errors-view/clear-build-errors build-errors-view)
                              (engine/reload-resource (targets/selected-target prefs) resource)
                              (catch Exception e
-                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s'" (targets/target-message-label (targets/selected-target prefs))))))))))))))
+                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -952,9 +954,7 @@ If you do not specifically require different script states, consider changing th
     (assert (g/node-instance? view/WorkbenchView view))
     (g/transact
       (concat
-        (g/connect resource-node :_node-id view :resource-node)
-        (g/connect resource-node :node-id+resource view :node-id+resource)
-        (g/connect resource-node :dirty? view :dirty?)
+        (view/connect-resource-node view resource-node)
         (g/connect view :view-data app-view :open-views)
         (g/connect view :view-dirty? app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)

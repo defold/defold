@@ -1,17 +1,20 @@
 #! /usr/bin/env python
-import os
+import os, re
 
 def create_test(bld, name, extra_libs = None, extra_features = None, embed_source = None,
-                extra_includes = None):
+                extra_includes = None, extra_defines = None):
     req_libs = ['GTEST', 'UUID']
     req_features = ['cxx', 'cprogram', 'test']
     req_includes = ['../../src']
     req_embed = None
+    req_defines = []
 
     if extra_features != None:
         req_features.extend(extra_features)
     if extra_libs != None:
         req_libs.extend(extra_libs)
+    if extra_defines != None:
+        req_defines.extend(extra_defines)
 
     if embed_source != None:
         req_embed = embed_source
@@ -24,6 +27,7 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
         'uselib': ' '.join(req_libs),
         'uselib_local': 'dlib',
         'includes': req_includes,
+        'defines': req_defines,
         'target': name
     }
     if req_embed != None:
@@ -39,6 +43,10 @@ def build(bld):
                      source_root='http_server')
 
     bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'.split()
+
+    extra_defines = []
+    if re.match('arm.*?darwin', bld.env.PLATFORM):
+        extra_defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     create_test(bld, 'test_memory')
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
@@ -59,10 +67,10 @@ def build(bld):
     create_test(bld, 'test_message', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_configfile', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
-    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
-    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'])
+    create_test(bld, 'test_httpclient', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_httpcache', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_httpserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
+    create_test(bld, 'test_webserver', extra_libs = ['PLATFORM_SOCKET', 'THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
@@ -75,7 +83,7 @@ def build(bld):
                 embed_source = ['data/test.embed', 'generated.embed'])
     create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
     create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
-    create_test(bld, 'test_sys', extra_libs = ['THREAD'])
+    create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_uuid', extra_libs = ['THREAD'])
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'])

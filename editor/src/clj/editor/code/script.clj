@@ -161,7 +161,7 @@
                                                                             (ByteString/copyFrom ^bytes bytecode))}
                                                        :modules modules
                                                        :resources (mapv lua/lua-module->build-path modules)
-                                                       :properties (properties/properties->decls properties)})}))
+                                                       :properties (properties/properties->decls properties true)})}))
 
 (g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules dep-build-targets]
   [{:node-id _node-id
