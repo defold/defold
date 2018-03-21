@@ -9,6 +9,7 @@
 <VBox id="import-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
     <HBox styleClass="header-pane">
         <Label styleClass="header" text="Defold Cloud Projects" HBox.hgrow="ALWAYS" />
+        <TextField id="filter-field" styleClass="filter-field" promptText="Type to filter" />
     </HBox>
 
     <!-- Not signed-in state -->
