@@ -334,7 +334,7 @@
   #progress-overlay {
     .background-cover {
       -fx-background-color: #292A2F;
-      -fx-opacity: 80%;
+      -fx-opacity: 85%;
     }
 
     #progress-header {
@@ -379,11 +379,15 @@
       -fx-min-width: 30px;
       -fx-padding: 0px;
       -fx-font-size: 11.5px;
+
+      &:hover {
+        -fx-background-color: lighten($input-border, 3%);
+      }
     }
 
     .path-field {
       -fx-alignment: center-left;
-      -fx-background-color: $input-background;
+      -fx-background-color: transparent;
       -fx-border-color: $input-border;
       -fx-border-width: 1px 0px 1px 1px;
       -fx-padding: 4px 8px;
@@ -401,10 +405,16 @@
   }
 
   // General styling
-  Hyperlink {
+  .hyperlink {
     -fx-font-size: 14px;
     -fx-text-fill: $df-bright-blue;
     -fx-padding: 0;
+    -fx-underline: false;
+    -fx-cursor: default;
+
+    &:hover {
+      -fx-text-fill: lighten($df-bright-blue, 9%);
+    }
   }
 
   Text.header {
@@ -431,11 +441,20 @@
     -fx-text-fill: $df-bright-blue;
     -fx-font-size: 14px;
     -fx-padding: 4px 12px;
+
+    &:hover {
+      -fx-border-color: lighten($df-bright-blue, 9%);
+      -fx-text-fill: lighten($df-bright-blue, 9%);
+    }
   }
 
   .df-button.dim {
-    -fx-border-color: #CFDAE6;
-    -fx-text-fill: #CFDAE6;
-    -fx-opacity: 50%;
+    -fx-border-color: #A6B2BF;
+    -fx-text-fill: #A6B2BF;
+
+    &:hover {
+      -fx-border-color: lighten(#A6B2BF, 9%);
+      -fx-text-fill: lighten(#A6B2BF, 9%);
+    }
   }
 }

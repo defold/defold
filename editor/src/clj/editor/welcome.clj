@@ -392,7 +392,7 @@
               :filters [{:description "Defold Project Files"
                          :exts ["*.project"]}]}]
     (when-some [project-file (ui/choose-file opts)]
-      (close-dialog-and-open-project! project-file))))
+      (close-dialog-and-open-project! project-file false))))
 
 (defn- make-project-entry
   ^Node [^String title ^String description ^Instant timestamp matching-indices]
@@ -423,7 +423,7 @@
     (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay ^ButtonBase open-from-disk-button ^ButtonBase open-selected-project-button]
       (let [open-selected-project! (fn []
                                      (when-some [recent-project (first (ui/selection recent-projects-list))]
-                                       (close-dialog-and-open-project! (:project-file recent-project))))]
+                                       (close-dialog-and-open-project! (:project-file recent-project) false)))]
         (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! last-opened-project-directory close-dialog-and-open-project!))
         (ui/on-action! open-selected-project-button (fn [_] (open-selected-project!)))
         (ui/bind-presence! empty-recent-projects-list-overlay (Bindings/isEmpty (.getItems recent-projects-list)))
@@ -508,7 +508,9 @@
         (ui/observe (.selectedToggleProperty category-buttons-toggle-group)
                     (fn [_ _ selected-category-button]
                       (let [templates (category-button->templates selected-category-button)]
-                        (ui/items! template-list templates))))
+                        (ui/items! template-list templates)
+                        (when (seq templates)
+                          (ui/select-index! template-list 0)))))
 
         ;; Select the first category button.
         (.selectToggle category-buttons-toggle-group (first category-buttons)))
@@ -712,7 +714,7 @@
          recent-projects (recent-projects prefs)
          last-opened-project-directory (last-opened-project-directory prefs)
          new-project-location-directory (new-project-location-directory last-opened-project-directory)
-         close-dialog-and-open-project! (fn [^File project-file]
+         close-dialog-and-open-project! (fn [^File project-file newly-created?]
                                           (when (fs/existing-file? project-file)
                                             (set-last-opened-project-directory! prefs (.getParentFile project-file))
                                             (ui/close! stage)
@@ -722,7 +724,7 @@
                                             ;; In other words, we can't reuse the welcome page and it has to be closed.
                                             ;; We should potentially changed this when we have uberjar support and hence
                                             ;; faster loading.
-                                            (open-project-fn (.getAbsolutePath project-file))
+                                            (open-project-fn (.getAbsolutePath project-file) newly-created?)
                                             nil))
          clone-project! (fn [project-title repository-url dest-directory]
                           (let [cancelled-atom (atom false)
@@ -737,7 +739,7 @@
                                     (do
                                       (hide-progress! root)
                                       (fs/delete-directory! dest-directory {:fail :silently}))
-                                    (close-dialog-and-open-project! (io/file dest-directory "game.project"))))
+                                    (close-dialog-and-open-project! (io/file dest-directory "game.project") false)))
                                 (catch Throwable error
                                   (ui/run-later
                                     (hide-progress! root)
@@ -761,7 +763,7 @@
                                             (do
                                               (hide-progress! root)
                                               (fs/delete-directory! dest-directory {:fail :silently}))
-                                            (close-dialog-and-open-project! project-file))))
+                                            (close-dialog-and-open-project! project-file true))))
                                       (ui/run-later
                                         (hide-progress! root)))
                                     (catch Throwable error
