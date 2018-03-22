@@ -42,7 +42,7 @@
     (require 'editor.boot-open-project)))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader prefs project update-context]
+  [namespace-loader prefs project update-context newly-created?]
   (ui/modal-progress
    "Loading project" 100
    (fn [render-progress!]
@@ -56,15 +56,15 @@
        (code-view/initialize! prefs)
        (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project)) [])
        (welcome/add-recent-project! prefs project-file)
-       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! update-context])
+       (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project)) [project-file prefs render-project-progress! update-context newly-created?])
        (reset! namespace-progress-reporter nil)))))
 
 (defn- select-project-from-welcome
   [namespace-loader prefs update-context]
   (ui/run-later
     (welcome/show-welcome-dialog! prefs update-context
-                                  (fn [project]
-                                    (open-project-with-progress-dialog namespace-loader prefs project update-context)))))
+                                  (fn [project newly-created?]
+                                    (open-project-with-progress-dialog namespace-loader prefs project update-context newly-created?)))))
 
 (defn notify-user
   [ex-map sentry-id-promise]
@@ -96,7 +96,7 @@
         update-context (:update-context (updater/start!))]
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
-        (open-project-with-progress-dialog namespace-loader prefs game-project-path update-context)
+        (open-project-with-progress-dialog namespace-loader prefs game-project-path update-context false)
         (select-project-from-welcome namespace-loader prefs update-context))
       (catch Throwable t
         (log/error :exception t)
