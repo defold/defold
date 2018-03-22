@@ -129,11 +129,11 @@
 
 (defn- new-project-location-directory
   ^File [^File last-opened-project-directory]
-  (or (when-some [^File last-opened-project-parent-directory (some-> last-opened-project-directory .getParentFile)]
-        (when (.exists last-opened-project-parent-directory)
+  (or (when-some [last-opened-project-parent-directory (some-> last-opened-project-directory .getParentFile)]
+        (when (fs/existing-directory? last-opened-project-parent-directory)
           last-opened-project-parent-directory))
-      (when-some [^File home-directory (some-> (System/getProperty "user.home") not-empty io/as-file)]
-        (when (.exists home-directory)
+      (when-some [home-directory (some-> (system/user-home) not-empty io/as-file)]
+        (when (fs/existing-directory? home-directory)
           home-directory))))
 
 (def ^:private xform-recent-projects->timestamps-by-path
