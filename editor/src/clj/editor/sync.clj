@@ -664,12 +664,13 @@
                                               (doto (:status-log first-controls)
                                                 (ui/visible! true)
                                                 (ui/text! ""))
-                                              (ui/visible! (:error-message first-controls) true))
+                                              (ui/visible! (:error-message first-controls) false))
                              :first/error (do
                                             (ui/disable! (:ok dialog-controls) false)
                                             (ui/text! (:ok dialog-controls) "Retry")
                                             (let [status-log (:status-log first-controls)]
                                               (ui/text! status-log (str/join "\n" [(ui/text status-log) (get-in flow [:error :message])])))
+                                            (ui/visible! (:cancel dialog-controls) true)
                                             (ui/disable! (:cancel dialog-controls) false)
                                             (ui/visible! (:error-message first-controls) true)
                                             (ui/visible! (:progress-bar dialog-controls) false))
