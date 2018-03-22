@@ -652,6 +652,36 @@
           (reload-dashboard-projects!))))))
 
 ;; -----------------------------------------------------------------------------
+;; Automatic updates
+;; -----------------------------------------------------------------------------
+
+(defn- install-pending-update-check-timer! [stage update-link update-context]
+  (let [update-visibility! (fn []
+                             (let [update (updater/pending-update update-context)
+                                   update-exists? (and (some? update)
+                                                       (not= update (system/defold-editor-sha1)))]
+                               (ui/visible! update-link update-exists?)
+                               update-exists?))]
+    ;; Start checking for updates. On the Welcome screen we stop polling once we
+    ;; found an update. If we find an update immediately, we don't even need to
+    ;; install the polling timer.
+    (when-not (update-visibility!)
+      (let [tick-fn (fn [^AnimationTimer timer _]
+                      (when (update-visibility!)
+                        (.stop timer)))
+            timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
+        (ui/add-on-shown! stage #(ui/timer-start! timer))
+        (ui/add-on-hiding! stage #(ui/timer-stop! timer))))))
+
+(defn- init-pending-update-indicator! [stage update-link update-context]
+  (install-pending-update-check-timer! stage update-link update-context)
+  (ui/on-action! update-link
+                 (fn [_]
+                   (when (dialogs/make-pending-update-dialog stage)
+                     (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
+                       (updater/restart!))))))
+
+;; -----------------------------------------------------------------------------
 ;; Welcome dialog
 ;; -----------------------------------------------------------------------------
 
@@ -664,19 +694,6 @@
 (defn- pane-button->pane
   ^Parent [pane-button]
   (ui/user-data pane-button :pane))
-
-(defn- install-pending-update-check! [^Stage stage update-context]
-  (let [tick-fn (fn [^AnimationTimer timer _]
-                  (when-let [pending (updater/pending-update update-context)]
-                    (when (not= pending (system/defold-editor-sha1))
-                      (.stop timer) ; we only ask once on the start screen
-                      (ui/run-later
-                        (when (dialogs/make-pending-update-dialog stage)
-                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                            (updater/restart!)))))))
-        timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
-    (.setOnShown stage (ui/event-handler event (ui/timer-start! timer)))
-    (.setOnHiding stage (ui/event-handler event (ui/timer-stop! timer)))))
 
 (defn- show-progress!
   ^ProgressBar [^Parent root ^String header-text ^String cancel-button-text cancel!]
@@ -785,9 +802,10 @@
                                           (error-reporting/report-exception! error))))))))
          dashboard-client (make-dashboard-client prefs)
          sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
-         left-pane ^Parent (.lookup root "#left-pane")
-         pane-buttons-container ^Parent (.lookup left-pane "#pane-buttons-container")
-         sign-out-button ^ButtonBase (.lookup left-pane "#sign-out-button")
+         left-pane (.lookup root "#left-pane")
+         pane-buttons-container (.lookup left-pane "#pane-buttons-container")
+         sign-out-button (.lookup left-pane "#sign-out-button")
+         update-link (.lookup left-pane "#update-link")
          pane-buttons-toggle-group (ToggleGroup.)
          pane-buttons [(make-pane-button "HOME" (make-home-pane last-opened-project-directory close-dialog-and-open-project! recent-projects))
                        (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings))
@@ -804,8 +822,8 @@
      (ui/on-closed! stage (fn [_] (shutdown-dashboard-client! dashboard-client)))
 
      ;; Install pending update check.
-     (when update-context
-       (install-pending-update-check! stage update-context))
+     (when (some? update-context)
+       (init-pending-update-indicator! stage update-link update-context))
 
      ;; Add the pane buttons to the left panel and configure them to toggle between the panes.
      (doseq [^RadioButton pane-button pane-buttons]
