@@ -208,8 +208,7 @@
 (defn cancel-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
   (let [flow @!flow
-        state (:state flow)
-        ns (namespace state)]
+        state (:state flow)]
     (case (namespace state)
       "first"
       {:type :success}
@@ -530,7 +529,7 @@
     (swap! !flow refresh-git-state)))
 
 ;; -----------------------------------------------------------------------------
-;; Welcome config file parsing
+;; Sync config file parsing
 ;; -----------------------------------------------------------------------------
 
 (def ^:private MessageString
