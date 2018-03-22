@@ -3,6 +3,10 @@
 
   -fx-background-color: #292A2F;
 
+  HBox, VBox {
+    -fx-spacing: 0; // Fight crazy non-zero default.
+  }
+
   .list-view {
     -fx-background-color: transparent;
     -fx-padding: 0;
@@ -12,10 +16,6 @@
       -fx-background-color: transparent;
       -fx-border-width: 0;
       -fx-padding: 0;
-
-      &:selected {
-        -fx-border-width: 0;
-      }
 
       // Counteract too-broad application of styling from _file-extensions.scss.
       .image-view {
@@ -111,19 +111,62 @@
     }
   }
 
+  .tab-header-pane {
+    -fx-border-color: rgba(255, 255, 255, 0.07);
+    -fx-border-width: 0px 0px 1px 0px;
+    -fx-padding: 0px 24px 0px 24px;
+    -fx-min-height: 53px;
+    -fx-alignment: bottom-left;
+    -fx-spacing: 24px;
+
+    RadioButton {
+      -fx-graphic-text-gap: 0;
+      -fx-label-padding: 0;
+      -fx-padding: 4px 4px;
+      -fx-border-color: transparent;
+      -fx-border-width: 0px 0px 2px 0px;
+      -fx-text-fill: #CFDAE6;
+      -fx-opacity: 50%;
+
+      &:hover {
+        -fx-opacity: 75%;
+      }
+
+      &:selected {
+        -fx-border-color: $defold-orange;
+        -fx-opacity: 100%;
+      }
+
+      .radio {
+        -fx-padding: 0;
+        visibility: collapse;
+
+        .dot {
+          -fx-padding: 0;
+          visibility: collapse;
+        }
+      }
+    }
+  }
+
   .header-pane {
-    -fx-background-color: #25292E;
-    -fx-padding: 24px 24px 8px 16px;
+    -fx-padding: 0px 24px 8px 16px;
     -fx-border-width: 0px 0px 1px 0px;
     -fx-border-color: rgba(255, 255, 255, 0.07);
+    -fx-min-height: 53px;
+    -fx-alignment: bottom-left;
+
+    Label {
+      -fx-translate-y: 4px;
+    }
   }
 
   .form-pane {
     -fx-background-color: #313238;
     -fx-padding: 24px;
-    -fx-spacing: 24px;
+    -fx-spacing: 16px;
 
-    .label {
+    .field-label {
       -fx-min-height: 30px;
       -fx-padding: 0px 8px 0px 0px;
     }
@@ -135,47 +178,107 @@
     .button {
       -fx-min-height: 30px;
     }
-  }
 
-  #home-pane {
-    #recent-projects-list {
-      -fx-background-color: transparent;
-      -fx-padding: 0;
-
-      .list-cell:selected {
-        -fx-background-color: rgba(255, 255, 255, 0.05);
-      }
+    .submit-button {
+      -fx-min-width: 140px;
     }
   }
 
-  #new-project-pane {
-    #template-list {
-      -fx-padding: 0px 16px 0px 0px;
+  .empty-list-overlay {
+    -fx-alignment: top-center;
 
-      .list-cell {
-        -fx-padding: 24px 24px 0px 24px;
-
-        &.last-list-item {
-          -fx-padding: 24px;
-        }
-      }
-    }
-  }
-
-  // Specific styling
-  .recent-project-entry {
-    -fx-padding: 16px 24px 16px 24px;
-
-    .title {
-      -fx-fill: #A6B2BF;
-      -fx-font-family: "Source Sans Pro Light";
+    .hero-text {
+      -fx-padding: 10px 0px 0px 0px;
       -fx-font-size: 16px;
-      -fx-font-smoothing-type: lcd;
+      -fx-line-spacing: 3px;
     }
 
     Label {
+      -fx-fill: #CFDAE6;
       -fx-text-fill: #CFDAE6;
-      -fx-max-width: Infinity;
+      -fx-opacity: 0.75;
+      -fx-font-size: 14px;
+      -fx-font-smoothing-type: lcd;
+      -fx-text-alignment: center;
+      -fx-wrap-text: true;
+      -fx-padding: 0;
+    }
+  }
+
+  .defold-logo-container.gray {
+    .left {
+      -fx-fill: #3E3E43;
+    }
+
+    .right {
+      -fx-fill: #37383D;
+    }
+
+    .bottom {
+      -fx-fill: #2D2E32;
+    }
+  }
+
+  .project-list-view {
+    -fx-padding: 0px 16px 0px 0px;
+
+    .list-cell {
+      -fx-border-width: 0px 0px 0px 3px;
+      -fx-border-color: transparent;
+
+      &:selected {
+        -fx-background-color: rgba(255, 255, 255, 0.05);
+        -fx-border-color: $df-bright-blue;
+      }
+    }
+  }
+
+  .template-list-view {
+    -fx-padding: 0px 16px 0px 0px;
+
+    .list-cell {
+      -fx-padding: 24px 24px 0px 24px;
+
+      &.last-list-item {
+        -fx-padding: 24px;
+      }
+    }
+  }
+
+  .project-entry {
+    -fx-padding: 0px 24px 0px 24px;
+    -fx-alignment: center-right;
+
+    .title-and-description {
+      -fx-alignment: center-left;
+
+      .title {
+        Text {
+          -fx-fill: #A6B2BF;
+          -fx-opacity: 87%;
+          -fx-font-size: 16px;
+          -fx-font-smoothing-type: lcd;
+
+          &.matched {
+            -fx-fill: $df-bright-blue;
+            -fx-opacity: 100%;
+          }
+        }
+      }
+
+      .description {
+        -fx-font-smoothing-type: lcd;
+        -fx-text-fill: #A6B2BF;
+        -fx-opacity: 0.4;
+      }
+    }
+
+    .timestamp {
+      -fx-min-width: 120px;
+      -fx-text-alignment: right;
+      -fx-alignment: center-right;
+      -fx-font-smoothing-type: lcd;
+      -fx-text-fill: #A6B2BF;
       -fx-opacity: 0.4;
     }
   }
@@ -228,7 +331,82 @@
     }
   }
 
+  #progress-overlay {
+    .background-cover {
+      -fx-background-color: #292A2F;
+      -fx-opacity: 80%;
+    }
+
+    #progress-header {
+      -fx-text-fill: #A6B2BF;
+      -fx-font-family: "Source Sans Pro Light";
+      -fx-font-size: 20px;
+      -fx-font-smoothing-type: lcd;
+      -fx-padding: 0px 24px 0px 24px;
+    }
+
+    #progress-bar {
+      -fx-background-radius: 0;
+      -fx-padding: 17px 0px 24px 0px;
+
+      .bar {
+        -fx-background-color: $df-bright-blue;
+        -fx-background-insets: 0;
+        -fx-background-radius: 4px;
+        -fx-min-height: 5px;
+        -fx-padding: 0;
+      }
+
+      .track {
+        -fx-background-color: $mid-grey;
+        -fx-background-insets: 0;
+        -fx-border-width: 0;
+        -fx-background-radius: 4px;
+      }
+    }
+  }
+
+  .filter-field {
+    -fx-min-width: 140px;
+    -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // $defold-white with opacity.
+  }
+
+  .location-field {
+    Button {
+      -fx-border-width: 0px;
+      -fx-background-radius: 0px 2px 2px 0px;
+      -fx-background-color: $input-border;
+      -fx-min-width: 30px;
+      -fx-padding: 0px;
+      -fx-font-size: 11.5px;
+    }
+
+    .path-field {
+      -fx-alignment: center-left;
+      -fx-background-color: $input-background;
+      -fx-border-color: $input-border;
+      -fx-border-width: 1px 0px 1px 1px;
+      -fx-padding: 4px 8px;
+    }
+
+    .path-element {
+      -fx-padding: 0;
+      -fx-text-fill: $defold-white;
+      -fx-font-smoothing-type: lcd;
+
+      &.implicit {
+        -fx-opacity: 0.4;
+      }
+    }
+  }
+
   // General styling
+  Hyperlink {
+    -fx-font-size: 14px;
+    -fx-text-fill: $df-bright-blue;
+    -fx-padding: 0;
+  }
+
   Text.header {
     -fx-fill: #A6B2BF;
     -fx-font-family: "Source Sans Pro Light";
@@ -245,22 +423,19 @@
   }
 
   // New-look components
-  .df-browse-field {
-    Button {
-      -fx-border-width: 0px;
-      -fx-background-radius: 0px 2px 2px 0px;
-      -fx-background-color: $input-border;
-      -fx-min-width: 30px;
-      -fx-padding: 0px;
-      -fx-font-size: 11.5px;
-    }
-  }
-
   .df-button {
+    -fx-min-width: 0;
     -fx-background-color: transparent;
     -fx-border-color: $df-bright-blue;
     -fx-border-radius: 2px;
     -fx-text-fill: $df-bright-blue;
+    -fx-font-size: 14px;
     -fx-padding: 4px 12px;
+  }
+
+  .df-button.dim {
+    -fx-border-color: #CFDAE6;
+    -fx-text-fill: #CFDAE6;
+    -fx-opacity: 50%;
   }
 }
