@@ -317,7 +317,7 @@
         ([taskName workCurr workTotal percentDone]))
 
       (isCancelled []
-        (some-> cancelled-atom deref)))))
+        (boolean (some-> cancelled-atom deref))))))
 
 (def ^:private ^:const push-tasks
   ;; TODO: Tweak these weights.
