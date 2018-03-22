@@ -7,21 +7,19 @@
 <?import javafx.scene.control.TextField?>
 
 <VBox id="new-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
-    <ListView id="template-list" VBox.vgrow="ALWAYS" />
+    <HBox id="template-categories" styleClass="tab-header-pane" />
+    <ListView id="template-list" styleClass="template-list-view" VBox.vgrow="ALWAYS" />
     <HBox styleClass="form-pane">
-        <HBox HBox.hgrow="ALWAYS">
-            <Label text="Title" />
-            <TextField id="title-field" text="My Project" HBox.hgrow="ALWAYS" />
+        <HBox minWidth="180" maxWidth="180" HBox.hgrow="NEVER">
+            <Label text="Title" styleClass="field-label" minWidth="-Infinity" HBox.hgrow="NEVER"/>
+            <TextField id="new-project-title-field" text="My Project" HBox.hgrow="ALWAYS" />
         </HBox>
-
         <HBox HBox.hgrow="ALWAYS">
-            <Label text="Location" />
-            <HBox id="location-browse-field" styleClass="df-browse-field" HBox.hgrow="ALWAYS">
-                <TextField text="/Users/watson/defold/projects/GettingStarted" HBox.hgrow="ALWAYS" />
-                <Button text="&#8226; &#8226; &#8226;" />
-            </HBox>
+            <Label text="Location" styleClass="field-label" minWidth="-Infinity" HBox.hgrow="NEVER" />
+            <HBox id="new-project-location-field" HBox.hgrow="ALWAYS" />
         </HBox>
-
-        <Button id="submit-button" styleClass="df-button" text="Create New Project" />
+        <HBox HBox.hgrow="NEVER">
+            <Button id="create-new-project-button" styleClass="df-button, submit-button" text="Create New Project" HBox.hgrow="NEVER" />
+        </HBox>
     </HBox>
 </VBox>

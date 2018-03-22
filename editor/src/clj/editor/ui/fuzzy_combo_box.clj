@@ -2,10 +2,9 @@
   (:require [editor.ui :as ui]
             [editor.ui.fuzzy-choices-popup :as popup]
             [internal.util :as util])
-  (:import (com.sun.javafx.event DirectEvent)
-           (com.sun.javafx.util Utils)
+  (:import (com.sun.javafx.util Utils)
            (javafx.beans.value ChangeListener ObservableValue)
-           (javafx.event Event EventTarget)
+           (javafx.event Event)
            (javafx.geometry HPos Point2D VPos)
            (javafx.scene Parent)
            (javafx.scene.control Button TextField)
