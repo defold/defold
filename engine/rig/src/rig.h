@@ -58,7 +58,7 @@ namespace dmRig
                       m_Playback(dmRig::PLAYBACK_ONCE_FORWARD),
                       m_Playing(0x0),
                       m_Backwards(0x0),
-                      m_Completed(0x0) {};
+                      m_Initial(0x1) {};
         /// Currently playing animation
         const dmRigDDF::RigAnimation* m_Animation;
         dmhash_t                      m_AnimationId;
@@ -72,8 +72,8 @@ namespace dmRig
         uint16_t                      m_Playing : 1;
         /// Whether the animation is playing backwards (e.g. ping pong)
         uint16_t                      m_Backwards : 1;
-        /// Flag if player is completed and should call complete callback.
-        uint16_t                      m_Completed : 1;
+        /// Flag used to handle initial setup, resetting pose with UpdateMeshProperties in DoAnimate
+        uint16_t                      m_Initial : 1;
     };
 
     struct RigBone

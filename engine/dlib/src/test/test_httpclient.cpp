@@ -99,7 +99,11 @@ public:
         dmURI::Result parse_r = dmURI::Parse(url, &m_URI);
         ASSERT_EQ(dmURI::RESULT_OK, parse_r);
 
+#if !defined(DM_NO_SYSTEM_FUNCTION)
         int ret = system("python src/test/test_httpclient.py");
+#else
+        int ret = -1;
+#endif
         ASSERT_EQ(0, ret);
 
         dmHttpClient::NewParams params;
