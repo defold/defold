@@ -3,10 +3,12 @@
    [clojure.java.io :as io]
    [clojure.set :as set]
    [clojure.string :as string]
+   [clojure.xml :as xml]
    [editor.error-reporting :as error-reporting]
    [editor.handler :as handler]
    [editor.jfx :as jfx]
    [editor.progress :as progress]
+   [editor.math :as math]
    [editor.menu :as menu]
    [editor.ui.tree-view-hack :as tree-view-hack]
    [editor.util :as eutil]
@@ -25,17 +27,19 @@
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans InvalidationListener]
+   [javafx.beans.binding Bindings]
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
-   [javafx.event ActionEvent Event EventDispatchChain EventDispatcher EventHandler EventTarget WeakEventHandler]
+   [javafx.event ActionEvent Event EventDispatchChain EventDispatcher EventHandler EventTarget]
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group ImageCursor]
-   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TabPane Tab TextField Tooltip SelectionMode SelectionModel]
+   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeTableView TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TableView TabPane Tab TextField Tooltip SelectionMode SelectionModel]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
+   [javafx.scene.shape SVGPath]
    [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
    [javafx.stage Stage Modality Window PopupWindow StageStyle]
    [javafx.util Callback Duration StringConverter]
@@ -166,7 +170,7 @@
            (.initOwner stage owner)))
      stage)))
 
-(defn ^File choose-file [{:keys [^String title ^String directory filters] :or {title "Choose File"}}]
+(defn ^File choose-file [{:keys [^String title ^String directory filters ^Window owner-window] :or {title "Choose File"}}]
   (let [chooser (doto (FileChooser.)
                   (.setTitle title))]
     (when-let [initial-directory (some-> directory (File.))]
@@ -175,7 +179,7 @@
     (doseq [{:keys [^String description exts]} filters]
       (let [ext-array (into-array exts)]
         (.add (.getExtensionFilters chooser) (FileChooser$ExtensionFilter. description ^"[Ljava.lang.String;" ext-array))))
-    (.showOpenDialog chooser nil)))
+    (.showOpenDialog chooser owner-window)))
 
 (defn choose-directory
   ([title ^File initial-dir] (choose-directory title initial-dir @*main-stage*))
@@ -516,10 +520,26 @@
   (apply-default-css! root)
   (apply-user-css! root))
 
-(defn ^Parent load-fxml [path]
+(defn load-fxml
+  ^Parent [path]
   (let [root ^Parent (FXMLLoader/load (io/resource path))]
     (apply-user-css! root)
     root))
+
+(defn- load-xml [path]
+  (with-open [stream (io/input-stream (io/resource path))]
+    (xml/parse stream)))
+
+(defn load-svg-path
+  "Loads the path data from a simple .svg file. Assumes the scene contains a
+  single path, but is useful for things like monochrome vector icons."
+  ^SVGPath [path]
+  (let [svg (load-xml path)
+        content (:content svg)
+        path (util/first-where #(= :path (:tag %)) content)
+        path-data (get-in path [:attrs :d])]
+    (doto (SVGPath.)
+      (.setContent path-data))))
 
 (extend-type Window
   HasUserData
@@ -856,32 +876,35 @@
     (when-not (= -1 row)
       (.scrollTo tree-view row))))
 
-(defmacro observe-selection
-  "Helper macro that lets you observe selection changes in a generic fashion.
-  Takes a Node that has a getSelectionModel method and a function that takes
-  the reporting Node and a vector with the selected items as its arguments.
+(defprotocol HasSelectionModel
+  (^SelectionModel selection-model [this]))
 
-  This is a macro because JavaFX does not have a common interface for classes
-  that feature a getSelectionModel method. To avoid reflection warnings, tag
-  the node argument with type metadata.
+(extend-protocol HasSelectionModel
+  ChoiceBox     (selection-model [this] (.getSelectionModel this))
+  ComboBox      (selection-model [this] (.getSelectionModel this))
+  ListView      (selection-model [this] (.getSelectionModel this))
+  TableView     (selection-model [this] (.getSelectionModel this))
+  TabPane       (selection-model [this] (.getSelectionModel this))
+  TreeTableView (selection-model [this] (.getSelectionModel this))
+  TreeView      (selection-model [this] (.getSelectionModel this)))
+
+(defn observe-selection
+  "Helper function that lets you observe selection changes in a generic fashion.
+  Takes a Node that satisfies HasSelectionModel and a function that takes the
+  reporting Node and a vector with the selected items as its arguments.
 
   Supports both single and multi-selection. In both cases the selected items
   will be provided in a vector."
   [node listen-fn]
-  `(let [selection-owner# ~node
-         selection-listener# ~listen-fn
-         selection-model# (.getSelectionModel selection-owner#)]
-     (condp instance? selection-model#
-       MultipleSelectionModel
-       (observe-list selection-owner#
-                     (.getSelectedItems ^MultipleSelectionModel selection-model#)
-                     (fn [_# _#]
-                       (selection-listener# selection-owner# (selection selection-owner#))))
-
-       SelectionModel
-       (observe (.selectedItemProperty ^SelectionModel selection-model#)
-                (fn [_# _# _#]
-                  (selection-listener# selection-owner# (selection selection-owner#)))))))
+  (let [selection-model (selection-model node)]
+    (if (instance? MultipleSelectionModel selection-model)
+      (observe-list node
+                    (.getSelectedItems ^MultipleSelectionModel selection-model)
+                    (fn [_ _]
+                      (listen-fn node (selection node))))
+      (observe (.selectedItemProperty selection-model)
+               (fn [_ _ _]
+                 (listen-fn node (selection node)))))))
 
 ;; context handling
 
@@ -1203,6 +1226,20 @@
                                                    binding
                                                    [binding {}])]
                          (run-command node command user-data true (fn [] (.consume event)))))))))
+
+(defn bind-presence!
+  "Make the nodes presence in the scene dependent on an ObservableValue.
+  If the ObservableValue evaluates to false, the node is both hidden and
+  collapsed so it won't take up any space in the layout pass."
+  [^Node node ^ObservableValue value]
+  (.bind (.visibleProperty node) value)
+  (.bind (.managedProperty node) (.visibleProperty node)))
+
+(defn bind-enabled-to-selection!
+  "Disables the node unless an item is selected in selection-owner."
+  [^Node node selection-owner]
+  (.bind (.disableProperty node)
+         (Bindings/isNull (.selectedItemProperty (selection-model selection-owner)))))
 
 (defn- ^KeyboardShortcutsHandler keyboard-shortcuts-handler
   [^Node node]
@@ -1895,3 +1932,29 @@ command."
                                  (throw e)))))))
         true)
       false)))
+
+(defn- make-path-data
+  ^String [^double col ^double row outlines]
+  (string/join " "
+               (map (fn [outline]
+                      (str "M" (string/join " L"
+                                            (map (fn [x y]
+                                                   (str (math/round-with-precision (* x col) 0.1)
+                                                        ","
+                                                        (math/round-with-precision (* y row) 0.1)))
+                                                 (take-nth 2 outline)
+                                                 (take-nth 2 (drop 1 outline)))) " Z"))
+                    outlines)))
+
+(defn make-defold-logo-paths [^double width ^double height]
+  (let [col (/ width 6.0)
+        row (/ height 10.0)]
+    [(doto (SVGPath.)
+       (add-style! "left")
+       (.setContent (make-path-data col row [[0,4 1,3 1,1 2,0 2,2 4,0 4,2 3,1 3,3 2,4 2,6 1,7 2,8 1,9 1,5 0,6] [3,5 4,4 4,6 3,7]])))
+     (doto (SVGPath.)
+       (add-style! "right")
+       (.setContent (make-path-data col row [[3,1 2,2 2,0 3,1 4,2 4,0 5,1 5,3 6,4 6,6 5,5 5,9 4,8 5,7 4,6 4,4 3,3] [3,5 3,7 2,6 2,4]])))
+     (doto (SVGPath.)
+       (add-style! "bottom")
+       (.setContent (make-path-data col row [[0,6 1,5 1,7 2,6 3,7 4,6 5,7 5,5 6,6 5,7 4,8 5,9 4,10 3,9 2,10 1,9 2,8] [3,5 2,4 3,3 4,4]])))]))
