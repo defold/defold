@@ -30,6 +30,11 @@
   (inherits resource-node/ResourceNode)
   (property content g/Any)
   (input structure g/Any)
+
+  ;; we never modify JsonNode, save-data and source-value can be trivial and not cached
+  (output save-data g/Any (g/constantly nil))
+  (output source-value g/Any (g/constantly nil))
+
   (output structure g/Any (g/fnk [structure] structure)))
 
 (defn load-json [project self resource]
