@@ -4,8 +4,8 @@
   (:import
     (java.net URLConnection)))
 
-(def ^:const ^:private default-read-timeout 200)
-(def ^:const ^:private default-connect-timeout 200)
+(def ^:const ^:private default-read-timeout 2000)
+(def ^:const ^:private default-connect-timeout 2000)
 
 (defn download! [url output & {:keys [read-timeout connect-timeout chunk-size progress-callback cancelled-atom]
                                :or {read-timeout default-read-timeout
