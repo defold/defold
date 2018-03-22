@@ -38,10 +38,10 @@ namespace dmGameObject
         AnimationStopped    m_AnimationStopped;
         void*               m_Userdata1;
         void*               m_Userdata2;
-        uint16_t            m_PreviousListener;
-        uint16_t            m_NextListener;
-        uint16_t            m_Index;
-        uint16_t            m_Next;
+        uint16_t            m_PreviousListener; // Index into m_AnimMap, next animation instance that belongs to same ScriptInstance
+        uint16_t            m_NextListener;     // Index into m_AnimMap, prev animation instance that belongs to same ScriptInstance
+        uint16_t            m_Index;            // This instance index into m_AnimMap
+        uint16_t            m_Next;             // Index into m_AnimMap, next animation instance that belongs to the same game object
         uint16_t            m_Playing : 1;
         uint16_t            m_Finished : 1;
         uint16_t            m_Composite : 1;
@@ -51,11 +51,12 @@ namespace dmGameObject
 
     struct AnimWorld
     {
-        dmArray<Animation>                  m_Animations;
-        dmArray<uint16_t>                   m_AnimMap;
-        dmIndexPool<uint16_t>               m_AnimMapIndexPool;
-        dmHashTable<uintptr_t, uint16_t>    m_InstanceToIndex;
-        dmHashTable<uintptr_t, uint16_t>    m_ListenerInstanceToIndex;
+        dmArray<Animation>                  m_Animations;               // Adding animations are always done at end of this array, removal is done with swap-erase so there are never any holes
+        dmArray<uint16_t>                   m_AnimMap;                  // Each entry points to entry in m_Animations, this array may contain holes, use m_AnimMapIndexPool to do bookeeping
+                                                                        // AnimMap is used so we don't have to update m_PreviousListener, m_NextListener and m_Next when we swap-erase in m_Animations
+        dmIndexPool<uint16_t>               m_AnimMapIndexPool;         // Keep track of "free" index in m_AnimMap
+        dmHashTable<uintptr_t, uint16_t>    m_InstanceToIndex;          // From game object instance -> index in m_AnimMap
+        dmHashTable<uintptr_t, uint16_t>    m_ListenerInstanceToIndex;  // From script instance -> index in m_AnimMap
         uint32_t                            m_InUpdate : 1;
     };
 
