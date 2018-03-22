@@ -267,7 +267,7 @@
             (recur))
           (dialogs/make-alert-dialog (cancel-result-message result)))))))
 
-(defn- upload-project! [^File project-path project-title prefs on-new-git! settings render-progress!]
+(defn- upload-project! [project-path project-title prefs on-new-git! settings render-progress!]
   (let [msgs (:msgs settings)]
     (try
       (when (login/login prefs)
@@ -299,7 +299,7 @@
      (catch Throwable t
        {:error {:exception t :message (.getMessage t)}}))))
 
-(defn begin-first-flow! [^File project-path project-title prefs on-new-git!]
+(defn begin-first-flow! [project-path project-title prefs on-new-git!]
   (let [flow {:state :first/start
               :f     (partial upload-project! project-path project-title prefs on-new-git!)}
         !flow (atom flow)]
