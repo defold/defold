@@ -30,7 +30,6 @@ namespace dmGameSystem
     using namespace dmGameSystemDDF;
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
-    static const uint32_t VERTEX_BUFFER_SWAP_CHAIN_SIZE = 3;  // 1 will still give a great performance boost, but 3 ensures non-blocking glBuffer calls to the extent possible
 
     static const dmhash_t PROP_SKIN = dmHashString64("skin");
     static const dmhash_t PROP_ANIMATION = dmHashString64("animation");
@@ -38,11 +37,6 @@ namespace dmGameSystem
     static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
     static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
         dmHashString64("texture0"), dmHashString64("texture1"), dmHashString64("texture2"), dmHashString64("texture3"), dmHashString64("texture4"), dmHashString64("texture5"), dmHashString64("texture6"), dmHashString64("texture7"), dmHashString64("texture8"), dmHashString64("texture9"), dmHashString64("texture10"), dmHashString64("texture11"), dmHashString64("texture12"), dmHashString64("texture13"), dmHashString64("texture14"), dmHashString64("texture15"), dmHashString64("texture16"), dmHashString64("texture17"), dmHashString64("texture18"), dmHashString64("texture19"), dmHashString64("texture20"), dmHashString64("texture21"), dmHashString64("texture22"), dmHashString64("texture23"), dmHashString64("texture24"), dmHashString64("texture25"), dmHashString64("texture26"), dmHashString64("texture27"), dmHashString64("texture28"), dmHashString64("texture29"), dmHashString64("texture30"), dmHashString64("texture31")
-    };
-
-    struct ModelVertexBuffer
-    {
-        dmGraphics::HVertexBuffer m_VertexBuffer[VERTEX_BUFFER_SWAP_CHAIN_SIZE];
     };
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
@@ -76,15 +70,11 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
         world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
-        world->m_VertexBufferSwapChainIndex = 0;
-        world->m_VertexBuffers.SetCapacity(VERTEX_BUFFER_MAX_BATCHES);
-        world->m_VertexBuffers.SetSize(VERTEX_BUFFER_MAX_BATCHES);
+        world->m_VertexBuffers = new dmGraphics::HVertexBuffer[VERTEX_BUFFER_MAX_BATCHES];
+        world->m_VertexBufferData = new dmArray<dmRig::RigModelVertex>[VERTEX_BUFFER_MAX_BATCHES];
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
-            for(uint32_t j = 0; j < VERTEX_BUFFER_SWAP_CHAIN_SIZE; ++j)
-            {
-                world->m_VertexBuffers[i].m_VertexBuffer[j] = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-            }
+            world->m_VertexBuffers[i] = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         }
 
         *params.m_World = world;
@@ -98,17 +88,17 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-        for(uint32_t i = 0; i < world->m_VertexBuffers.Size(); ++i)
+        for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
-            for(uint32_t j = 0; j < VERTEX_BUFFER_SWAP_CHAIN_SIZE; ++j)
-            {
-                dmGraphics::DeleteVertexBuffer(world->m_VertexBuffers[i].m_VertexBuffer[j]);
-            }
+            dmGraphics::DeleteVertexBuffer(world->m_VertexBuffers[i]);
         }
 
         dmResource::UnregisterResourceReloadedCallback(((ModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
 
         dmRig::DeleteContext(world->m_RigContext);
+
+        delete [] world->m_VertexBufferData;
+        delete [] world->m_VertexBuffers;
 
         delete world;
 
@@ -385,9 +375,11 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, const dmGraphics::HVertexBuffer gfx_vertex_buffer)
+    static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE(Model, "RenderBatch");
+
+        uint32_t batchIndex = buf[*begin].m_MinorOrder;
 
         const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
         uint32_t vertex_count = 0;
@@ -405,9 +397,11 @@ namespace dmGameSystem
             return;
         }
 
-        dmArray<dmRig::RigModelVertex> &vertex_buffer = world->m_VertexBufferData;
+        dmArray<dmRig::RigModelVertex>& vertex_buffer = world->m_VertexBufferData[batchIndex];
         if (vertex_buffer.Remaining() < vertex_count)
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
+
+        dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
 
         // Fill in vertex buffer
         dmRig::RigModelVertex *vb_begin = vertex_buffer.End();
@@ -528,24 +522,34 @@ namespace dmGameSystem
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
-                world->m_VertexBufferSwapChainIndex = (world->m_VertexBufferSwapChainIndex + 1) % VERTEX_BUFFER_SWAP_CHAIN_SIZE;
                 world->m_RenderObjects.SetSize(0);
+                for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
+                {
+                    world->m_VertexBufferData[batch_index].SetSize(0);
+                }
                 break;
             }
             case dmRender::RENDER_LIST_OPERATION_BATCH:
             {
-                dmArray<dmRig::RigModelVertex>& vertex_buffer_data = world->m_VertexBufferData;
-                vertex_buffer_data.SetSize(0);
-                ModelVertexBuffer& model_vertex_buffer = world->m_VertexBuffers[params.m_Buf[*params.m_Begin].m_MinorOrder];
-                RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End, model_vertex_buffer.m_VertexBuffer[world->m_VertexBufferSwapChainIndex]);
-
-                uint32_t vb_size = sizeof(dmRig::RigModelVertex) * vertex_buffer_data.Size();
-                dmGraphics::SetVertexBufferData(model_vertex_buffer.m_VertexBuffer[world->m_VertexBufferSwapChainIndex], vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
-                DM_COUNTER("ModelVertexBuffer", vertex_buffer_data.Size() * sizeof(dmRig::RigModelVertex));
+                RenderBatch(world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
                 break;
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
+                uint32_t total_size = 0;
+                for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
+                {
+                    dmArray<dmRig::RigModelVertex>& vertex_buffer_data = world->m_VertexBufferData[batch_index];
+                    if (vertex_buffer_data.Empty())
+                    {
+                        continue;
+                    }
+                    uint32_t vb_size = sizeof(dmRig::RigModelVertex) * vertex_buffer_data.Size();
+                    dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
+                    dmGraphics::SetVertexBufferData(gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                    total_size += vb_size;
+                }
+                DM_COUNTER("ModelVertexBuffer", total_size);
                 break;
             }
             default:

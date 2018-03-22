@@ -39,8 +39,8 @@ namespace dmGameSystem
         dmObjectPool<ModelComponent*>   m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        dmArray<struct ModelVertexBuffer> m_VertexBuffers;
-        dmArray<dmRig::RigModelVertex>  m_VertexBufferData;
+        dmGraphics::HVertexBuffer*      m_VertexBuffers;
+        dmArray<dmRig::RigModelVertex>* m_VertexBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmRig::HRigContext              m_RigContext;
