@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Hyperlink?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ProgressBar?>
 <?import javafx.scene.image.ImageView?>
@@ -16,11 +17,15 @@
                     <Image url="@defold-logo.png" />
                 </ImageView>
             </VBox>
-
             <VBox id="pane-buttons-container" VBox.vgrow="ALWAYS" />
+            <Hyperlink id="update-link" text="Update Available" maxWidth="1000" alignment="CENTER" visible="false">
+                <VBox.margin>
+                    <Insets bottom="28" />
+                </VBox.margin>
+            </Hyperlink>
             <Button id="sign-out-button" text="Sign Out" styleClass="df-button, dim" maxWidth="1000" minHeight="30">
                 <VBox.margin>
-                    <Insets bottom="24.0" left="19.0" right="19.0" />
+                    <Insets bottom="24" left="19" right="19" />
                 </VBox.margin>
             </Button>
         </VBox>
