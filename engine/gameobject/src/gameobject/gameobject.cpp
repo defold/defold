@@ -1756,7 +1756,7 @@ namespace dmGameObject
     uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count)
     {
         HCollection collection = instance->m_Collection;
-        return DoSetBoneTransforms(collection, component_transform, instance->m_Index, transforms, transform_count);
+        return DoSetBoneTransforms(collection, &component_transform, instance->m_Index, transforms, transform_count);
     }
 
     static void DoDeleteBones(HCollection collection, uint16_t first_index) {
