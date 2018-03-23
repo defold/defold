@@ -256,9 +256,9 @@ namespace dmScript
      */
     lua_State* GetMainThread(lua_State* L);
 
-    /*# Lua wrapper for a [ref:dmBuffer::HBuffer]
+    /*# Lua wrapper for a dmBuffer::HBuffer
      * 
-     * Holds info about the buffer and who owns it
+     * Holds info about the buffer and who owns it.
      *
      * @struct
      * @name dmExtension::AppParams
