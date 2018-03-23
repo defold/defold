@@ -207,11 +207,10 @@ namespace dmRender
      * @param render_context Context to use when rendering
      * @param font_map Font map handle
      * @param material Material handle (0 to use font_map internal material)
-     * @param material_tag_mask Rendering material tag mask (0 to use materials tag mask)
      * @param batch_key Rendering order bath key
      * @param params Parameters to use when rendering
      */
-    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint32_t material_tag_mask, uint64_t batch_key, const DrawTextParams& params);
+    void DrawText(HRenderContext render_context, HFontMap font_map, HMaterial material, uint64_t batch_key, const DrawTextParams& params);
 
     /**
      * Produces render list entries for all the previously DrawText:ed texts.
