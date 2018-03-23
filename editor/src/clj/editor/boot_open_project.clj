@@ -40,7 +40,7 @@
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
-           [javafx.stage Stage]
+           [javafx.stage Stage WindowEvent]
            [javafx.scene.layout Region VBox AnchorPane]
            [javafx.scene.control Label MenuBar Tab TabPane TreeView]))
 
@@ -106,8 +106,8 @@
         tick-fn (fn [_ _] (update-visibility!))
         timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
     (update-visibility!)
-    (ui/add-on-shown! stage #(ui/timer-start! timer))
-    (ui/add-on-hiding! stage #(ui/timer-stop! timer))))
+    (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
+    (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
 
 (defn- init-pending-update-indicator! [^Stage stage ^Label label project update-context]
   (.setOnMouseClicked label
@@ -132,8 +132,8 @@
 (defn- init-status-pane-timer! [^Stage stage ^AnchorPane status-pane content-prospects]
   (let [timer (ui/->timer 5 "update-status-pane" (fn [_ _] (update-status-pane-contents! status-pane content-prospects)))]
     (update-status-pane-contents! status-pane content-prospects)
-    (ui/add-on-shown! stage #(ui/timer-start! timer))
-    (ui/add-on-hiding! stage #(ui/timer-stop! timer))))
+    (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
+    (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
@@ -149,8 +149,6 @@
         update-available-label (doto (Label. "Update Available")
                                  (ui/visible! false)
                                  (ui/add-style! "link-label"))]
-
-    (ui/init-stage-shown-hiding-hooks! stage)
 
     (when update-context
       (init-pending-update-indicator! stage update-available-label project update-context))

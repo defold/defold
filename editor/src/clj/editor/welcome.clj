@@ -36,7 +36,7 @@
            (javafx.scene.layout HBox Priority Region StackPane VBox)
            (javafx.scene.shape Rectangle)
            (javafx.scene.text Text TextFlow)
-           (javafx.stage Stage)
+           (javafx.stage Stage WindowEvent)
            (org.apache.commons.io FilenameUtils)))
 
 (set! *warn-on-reflection* true)
@@ -655,7 +655,7 @@
 ;; Automatic updates
 ;; -----------------------------------------------------------------------------
 
-(defn- install-pending-update-check-timer! [stage update-link update-context]
+(defn- install-pending-update-check-timer! [^Stage stage update-link update-context]
   (let [update-visibility! (fn []
                              (let [update (updater/pending-update update-context)
                                    update-exists? (and (some? update)
@@ -670,8 +670,8 @@
                       (when (update-visibility!)
                         (.stop timer)))
             timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
-        (ui/add-on-shown! stage #(ui/timer-start! timer))
-        (ui/add-on-hiding! stage #(ui/timer-stop! timer))))))
+        (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
+        (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))))
 
 (defn- init-pending-update-indicator! [stage update-link update-context]
   (install-pending-update-check-timer! stage update-link update-context)

@@ -318,20 +318,6 @@
      (invalidated [~'this ~observable]
        ~@body)))
 
-(defn init-stage-shown-hiding-hooks! [^Stage stage]
-  (assert (nil? (.getOnShown stage)))
-  (assert (nil? (.getOnHiding stage)))
-  (user-data! stage :on-shown [])
-  (user-data! stage :on-hiding [])
-  (.setOnShown stage (event-handler event (run! #(%) (user-data stage :on-shown))))
-  (.setOnHiding stage (event-handler event (run! #(%) (user-data stage :on-hiding)))))
-
-(defn add-on-shown! [stage on-shown]
-  (user-data! stage :on-shown (conj (user-data stage :on-shown) on-shown)))
-
-(defn add-on-hiding! [stage on-hiding]
-  (user-data! stage :on-hiding (conj (user-data stage :on-hiding) on-hiding)))
-
 (defn scene [^Node node]
   (.getScene node))
 
