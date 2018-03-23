@@ -567,14 +567,21 @@
 (defn- make-import-project-pane
   ^Parent [new-project-location-directory clone-project! dashboard-client]
   (doto (ui/load-fxml "welcome/import-project-pane.fxml")
-    (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-overlay ^TextField filter-field import-project-button import-project-location-field ^TextField import-project-folder-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
+    (ui/with-controls [cancel-sign-in-button copy-sign-in-url-button create-account-button ^ListView dashboard-projects-list empty-dashboard-projects-list-text empty-dashboard-projects-list-overlay ^TextField filter-field filter-field-pane import-project-button import-project-location-field ^TextField import-project-folder-field sign-in-button state-not-signed-in state-sign-in-browser-open state-signed-in]
       (let [sign-in-state-property ^SimpleObjectProperty (:sign-in-state-property dashboard-client)
             dashboard-projects-atom (atom nil)
             reload-dashboard-projects! (fn []
+                                         (ui/items! dashboard-projects-list [])
+                                         (ui/text! empty-dashboard-projects-list-text "Fetching projects...")
+                                         (ui/text! filter-field "")
                                          (future
                                            (error-reporting/catch-all!
                                              (reset! dashboard-projects-atom (fetch-dashboard-projects dashboard-client)))))
             refresh-dashboard-projects-list! (fn [filter-text dashboard-projects]
+                                               (ui/text! empty-dashboard-projects-list-text
+                                                         (if (empty? dashboard-projects)
+                                                           "Projects you have synced to the\nDefold cloud will appear here."
+                                                           "No matching projects."))
                                                (ui/items! dashboard-projects-list
                                                           (filter-dashboard-projects filter-text dashboard-projects)))]
 
@@ -582,7 +589,7 @@
         (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
         (ui/bind-presence! state-sign-in-browser-open (Bindings/equal :browser-open sign-in-state-property))
         (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
-        (ui/bind-presence! filter-field (Bindings/equal :signed-in sign-in-state-property))
+        (ui/bind-presence! filter-field-pane (Bindings/equal :signed-in sign-in-state-property))
         (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems dashboard-projects-list)))
 
         ;; Configure location field.
