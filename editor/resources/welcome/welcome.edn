@@ -42,12 +42,20 @@
                              :skip-root? true}]}
 
                {:label "From Sample"
-                :templates [{:name "Linker game sample"
+                :templates [{:name "Linker sample game"
                              :description "This is a complete sample game where you click and drag to link fish of the same color to remove them from the board. Long chains of fish yields boosters."
                              :image "linker.png"
                              :duration "Medium"
-                             :user-level "Beginner"
+                             :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-linker/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Roids sample game"
+                             :description "This is a complete sample game where you steer a space ship and fire your way through a storm of meteors."
+                             :image "roids.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-roids/archive/master.zip"
                              :skip-root? true}
 
                              {:name "Shadertoy sample"
