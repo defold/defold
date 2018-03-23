@@ -4,12 +4,16 @@
 <?import javafx.scene.Group?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.shape.SVGPath?>
 <?import javafx.scene.text.TextFlow?>
 
 <VBox id="import-project-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
     <HBox styleClass="header-pane">
         <Label styleClass="header" text="Defold Cloud Projects" HBox.hgrow="ALWAYS" />
-        <TextField id="filter-field" styleClass="filter-field" promptText="Type to filter" />
+        <AnchorPane>
+            <TextField id="filter-field" styleClass="filter-field" promptText="Type to filter" AnchorPane.bottomAnchor="0" AnchorPane.leftAnchor="0" />
+            <SVGPath styleClass="filter-field-icon" mouseTransparent="true" AnchorPane.bottomAnchor="6" AnchorPane.rightAnchor="6" content="M1,5.5 C1,3.019 3.019,1 5.5,1 C7.981,1 10,3.019 10,5.5 C10,7.981 7.981,10 5.5,10 C3.019,10 1,7.981 1,5.5 M13.854,13.146 L9.724,9.017 C10.52,8.063 11,6.837 11,5.5 C11,2.468 8.533,0 5.5,0 C2.467,0 0,2.468 0,5.5 C0,8.532 2.467,11 5.5,11 C6.837,11 8.062,10.52 9.017,9.724 L13.146,13.854 C13.244,13.951 13.372,14 13.5,14 C13.628,14 13.756,13.951 13.854,13.854 C14.049,13.658 14.049,13.342 13.854,13.146" />
+        </AnchorPane>
     </HBox>
 
     <!-- Not signed-in state -->

@@ -150,7 +150,7 @@
   }
 
   .header-pane {
-    -fx-padding: 0px 24px 8px 16px;
+    -fx-padding: 0px 16px 8px 16px;
     -fx-border-width: 0px 0px 1px 0px;
     -fx-border-color: rgba(255, 255, 255, 0.07);
     -fx-min-height: 53px;
@@ -367,8 +367,25 @@
   }
 
   .filter-field {
-    -fx-min-width: 140px;
+    -fx-pref-width: 106px;
+    -fx-padding: 4px 24px 4px 2px;
     -fx-prompt-text-fill: rgba(221, 221, 221, 0.4); // $defold-white with opacity.
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+
+    &:hover {
+      -fx-border-color: transparent transparent $input-border transparent;
+    }
+
+    &:focused {
+      -fx-padding: 4px 24px 4px 2px;
+      -fx-border-width: 1px;
+      -fx-border-color: transparent transparent $defold-orange transparent;
+    }
+  }
+
+  .filter-field-icon {
+    -fx-fill: rgba(221, 221, 221, 0.4); // $defold-white with opacity.
   }
 
   .location-field {
