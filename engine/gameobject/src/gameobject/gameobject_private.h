@@ -266,8 +266,6 @@ namespace dmGameObject
         // Array of property resources referenced by the collection instances
         dmArray<void*>         m_PropertyResources;
 
-        dmRig::HRigContext       m_RigContext;
-
         // Array of dynamically allocated index arrays, one for each level
         // Used for calculating transforms in scene-graph
         // Two dimensional table of indices with stride "max_instances"

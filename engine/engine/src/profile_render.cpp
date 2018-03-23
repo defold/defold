@@ -159,15 +159,15 @@ namespace dmProfileRender
 
         DM_SNPRINTF(buf, sizeof(buf), "%s", scope->m_Name);
         params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
-        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, 0, params);
+        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000);
         params.m_WorldTransform.setElem(3, 0, g_Scope_Time_x0);
-        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, 0, params);
+        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%d", scope_data->m_Count);
         params.m_WorldTransform.setElem(3, 0, g_Scope_Count_x0);
-        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, 0, params);
+        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, params);
 
         c->m_Index++;
     }
@@ -195,11 +195,11 @@ namespace dmProfileRender
 
         DM_SNPRINTF(buf, sizeof(buf), "%s", counter_data->m_Counter->m_Name);
         params.m_WorldTransform.setElem(3, 0, g_Counter_x0);
-        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, 0, params);
+        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%u", counter_data->m_Value);
         params.m_WorldTransform.setElem(3, 0, g_Counter_Amount_x0);
-        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, 0, params);
+        dmRender::DrawText(c->m_RenderContext, c->m_FontMap, 0, 0, params);
 
         c->m_Index++;
     }
@@ -224,15 +224,15 @@ namespace dmProfileRender
 
         DM_SNPRINTF(buf, sizeof(buf), "%s.%s", stats->m_LastSample->m_Scope->m_Name, stats->m_LastSample->m_Name);
         params.m_WorldTransform.setElem(3, 0, g_Sample_x0);
-        dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, 0, params);
+        dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%.1f", e * 1000.0f);
         params.m_WorldTransform.setElem(3, 0, g_Sample_Time_x0);
-        dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, 0, params);
+        dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, params);
 
         DM_SNPRINTF(buf, sizeof(buf), "%d", stats->m_Count);
         params.m_WorldTransform.setElem(3, 0, g_Sample_Count_x0);
-        dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, 0, params);
+        dmRender::DrawText(context->m_RenderContext, context->m_FontMap, 0, 0, params);
 
         context->m_Index++;
     }
@@ -261,7 +261,7 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
             params.m_WorldTransform.setElem(3, 1, y0);
             params.m_Text = "Out of scopes!";
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
             y0 -= g_Spacing;
         }
         if (dmProfile::IsOutOfSamples())
@@ -270,13 +270,13 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
             params.m_WorldTransform.setElem(3, 1, y0);
             params.m_Text = "Out of samples!";
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
         }
         if (profile_valid)
         {
             DM_SNPRINTF(buffer, 256, "Frame: %.3f Max: %.3f", dmProfile::GetFrameTime(), dmProfile::GetMaxFrameTime());
             params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
 
             y0 -= g_Spacing;
             dmRender::Square2d(render_context, g_Frame_x0, y0, display_width, display_height, Vector4(0.1f, 0.1f, 0.15f, 0.4f));
@@ -285,25 +285,25 @@ namespace dmProfileRender
 
             params.m_Text = "Scopes:";
             params.m_WorldTransform.setElem(3, 0, g_Scope_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
             params.m_Text = "ms";
             params.m_WorldTransform.setElem(3, 0, g_Scope_Time_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
             params.m_Text = "#";
             params.m_WorldTransform.setElem(3, 0, g_Scope_Count_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
             params.m_Text = "Samples:";
             params.m_WorldTransform.setElem(3, 0, g_Sample_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
             params.m_Text = "ms";
             params.m_WorldTransform.setElem(3, 0, g_Sample_Time_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
             params.m_Text = "#";
             params.m_WorldTransform.setElem(3, 0, g_Sample_Count_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
             params.m_Text = "Frame:";
             params.m_WorldTransform.setElem(3, 0, g_Frame_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
 
             Context ctx;
             ctx.m_Y = y0 - g_Spacing;
@@ -336,10 +336,10 @@ namespace dmProfileRender
 
             params.m_Text = "Counters:";
             params.m_WorldTransform.setElem(3, 0, g_Counter_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
             params.m_Text = "#";
             params.m_WorldTransform.setElem(3, 0, g_Counter_Amount_x0);
-            dmRender::DrawText(render_context, font_map, 0, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, 0, params);
 
             Context ctx;
             ctx.m_Y = y0 - g_Spacing;

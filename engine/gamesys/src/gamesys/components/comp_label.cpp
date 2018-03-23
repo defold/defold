@@ -411,7 +411,7 @@ namespace dmGameSystem
             assert( component->m_RenderConstants.m_ConstantCount <= dmRender::MAX_FONT_RENDER_CONSTANTS );
             params.m_NumRenderConstants = component->m_RenderConstants.m_ConstantCount;
             memcpy( params.m_RenderConstants, component->m_RenderConstants.m_Constants, params.m_NumRenderConstants * sizeof(dmRender::Constant));
-            dmRender::DrawText(render_context, component->m_Resource->m_FontMap, component->m_RenderMaterial.m_Material, dmRender::GetMaterialTagMask(component->m_RenderMaterial.m_Material), component->m_MixedHash, params);
+            dmRender::DrawText(render_context, component->m_Resource->m_FontMap, component->m_RenderMaterial.m_Material, component->m_MixedHash, params);
         }
 
         dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_WORLD, 0, false);
