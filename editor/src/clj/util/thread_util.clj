@@ -15,3 +15,13 @@
   [value]
   (throw-if-interrupted!)
   value)
+
+(defn preset!
+  "Sets the value of atom to newval without regard for the current value.
+  Returns the previous value that was in atom before newval was swapped in."
+  [atom newval]
+  (let [*prev (volatile! nil)]
+    (swap! atom (fn [prev]
+                  (vreset! *prev prev)
+                  newval))
+    (deref *prev)))
