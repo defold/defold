@@ -611,7 +611,7 @@
                     (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
-  (output node-msg g/Any :cached produce-node-msg)
+  (output node-msg g/Any produce-node-msg)
   (input node-msgs g/Any :array)
   (output node-msgs g/Any :cached (g/fnk [node-msgs node-msg] (into [node-msg] node-msgs)))
   (input node-rt-msgs g/Any :array)
@@ -741,9 +741,9 @@
   (output gpu-texture TextureLifecycle (g/fnk [texture-gpu-textures texture]
                                          (or (texture-gpu-textures texture)
                                              (texture-gpu-textures ""))))
-  (output texture-size g/Any :cached (g/fnk [anim-data]
-                                       (when (some? anim-data)
-                                         [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
+  (output texture-size g/Any (g/fnk [anim-data]
+                                    (when (some? anim-data)
+                                      [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
   (output build-errors-shape-node g/Any :cached (g/fnk [build-errors-visual-node _node-id texture texture-names]
                                                   (g/package-errors _node-id
                                                                     build-errors-visual-node

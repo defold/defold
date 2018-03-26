@@ -1,20 +1,27 @@
 (ns editor.sync
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.string :as str]
+            [editor.client :as client]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
             [editor.fs :as fs]
             [editor.git :as git]
             [editor.handler :as handler]
+            [editor.login :as login]
             [editor.ui :as ui]
             [editor.vcs-status :as vcs-status]
-            [editor.progress :as progress])
-  (:import [org.eclipse.jgit.api Git PullResult]
+            [editor.progress :as progress]
+            [schema.core :as s])
+  (:import [clojure.lang ExceptionInfo]
+           [org.eclipse.jgit.api Git PullResult]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.errors MissingObjectException]
            [org.eclipse.jgit.revwalk RevCommit]
+           [java.io File PushbackReader]
+           [java.net URL MalformedURLException]
            [javafx.scene Parent Scene]
-           [javafx.scene.control Button SelectionMode ListView TextArea]
+           [javafx.scene.control Button SelectionMode ListView TextArea ProgressBar]
            [javafx.scene.input KeyCode KeyEvent]))
 
 (set! *warn-on-reflection* true)
@@ -77,14 +84,15 @@
    :modified   #{}})
 
 (defn- should-update-journal? [old-flow new-flow]
-  (let [simple-keys [:state :start-ref :stash-info :conflicts :resolved :staged :modified]]
-    (or (not= (select-keys old-flow simple-keys)
-              (select-keys new-flow simple-keys))
-        (let [old-progress (:progress old-flow)
-              new-progress (:progress new-flow)]
-          (or (not= (:message old-progress) (:message new-progress))
-              (and (= (:pos new-progress) (:size new-progress))
-                   (not= (:pos old-progress) (:size old-progress))))))))
+  (when (or (:git old-flow) (:git new-flow))
+    (let [simple-keys [:state :start-ref :stash-info :conflicts :resolved :staged :modified]]
+      (or (not= (select-keys old-flow simple-keys)
+                (select-keys new-flow simple-keys))
+          (let [old-progress (:progress old-flow)
+                new-progress (:progress new-flow)]
+            (or (not= (:message old-progress) (:message new-progress))
+                (and (= (:pos new-progress) (:size new-progress))
+                     (not= (:pos old-progress) (:size old-progress)))))))))
 
 (defn flow-journal-file ^java.io.File [^Git git]
   (some-> git .getRepository .getWorkTree (io/file ".internal/.sync-in-progress")))
@@ -199,24 +207,31 @@
 
 (defn cancel-flow! [!flow]
   (remove-watch !flow ::on-flow-changed)
-  (let [{:keys [git start-ref stash-info] :as flow} @!flow
-        file (flow-journal-file git)
-        file-existed? (.exists file)]
-    ;; Always delete the flow journal file, since the revert could potentially
-    ;; delete it if it is not .gitignored. In case something goes wrong we will
-    ;; re-write it unless we think it is invalid.
-    (when file-existed?
-      (fs/delete-file! file {:fail :silently}))
+  (let [flow @!flow
+        state (:state flow)]
+    (case (namespace state)
+      "first"
+      {:type :success}
 
-    ;; Proceed with reverting to the pre-sync state. In case something goes
-    ;; wrong, we restore the flow journal file so we can retry the operation.
-    (let [revert-result (try-revert-to-stashed! git start-ref stash-info)]
-      (when (and file-existed?
-                 (not= :success (:type revert-result))
-                 (:can-retry? revert-result))
-        ;; Something went wrong. Re-write the journal file so we can retry.
-        (write-flow-journal! flow))
-      revert-result)))
+      ("pull" "push")
+      (let [{:keys [git start-ref stash-info]} flow
+            file (flow-journal-file git)
+            file-existed? (.exists file)]
+        ;; Always delete the flow journal file, since the revert could potentially
+        ;; delete it if it is not .gitignored. In case something goes wrong we will
+        ;; re-write it unless we think it is invalid.
+        (when file-existed?
+          (fs/delete-file! file {:fail :silently}))
+
+        ;; Proceed with reverting to the pre-sync state. In case something goes
+        ;; wrong, we restore the flow journal file so we can retry the operation.
+        (let [revert-result (try-revert-to-stashed! git start-ref stash-info)]
+          (when (and file-existed?
+                  (not= :success (:type revert-result))
+                  (:can-retry? revert-result))
+            ;; Something went wrong. Re-write the journal file so we can retry.
+            (write-flow-journal! flow))
+          revert-result)))))
 
 (defn- cancel-result-message [cancel-result]
   (if (= :success (:type cancel-result))
@@ -250,6 +265,49 @@
                                               :cancel-label "Lose Changes"})
             (recur))
           (dialogs/make-alert-dialog (cancel-result-message result)))))))
+
+(defn- upload-project! [project-path project-title prefs on-new-git! settings render-progress!]
+  (let [msgs (:msgs settings)]
+    (try
+      (when (login/login prefs)
+        (let [client (client/make-client prefs)]
+          (when-let [user-id (client/user-id client)]
+            (render-progress! (:create-remote msgs) -1)
+            (let [project-info (try
+                                 (client/new-project client user-id {:name project-title})
+                                 (catch ExceptionInfo e
+                                   (let [message (if (= 403 (:status (ex-data e)))
+                                                   (:create-remote-unauthorized msgs)
+                                                   (:create-remote-fail msgs))]
+                                     (throw (ex-info message {} e)))))
+                  creds (git/credentials prefs)]
+              (render-progress! (:create-local msgs) -1)
+              (when-let [git (git/init project-path)]
+                (doto git
+                  (git/stage-change! (git/make-add-change "."))
+                  (git/commit (:initial-commit msgs))
+                  (git/config-remote! (:repository-url project-info)))
+                (render-progress! (:push msgs) 0)
+                (try
+                  (git/push git creds :timeout (:push-timeout settings) :on-progress (fn [p] (render-progress! "" p)))
+                  (catch Throwable t
+                    (throw (ex-info (:push-fail msgs) {} t))))
+                (render-progress! (:done msgs) 1)
+                (on-new-git! git)
+                {:project-info project-info})))))
+     (catch Throwable t
+       {:error {:exception t :message (.getMessage t)}}))))
+
+(defn begin-first-flow! [project-path project-title prefs on-new-git!]
+  (let [flow {:state :first/start
+              :f     (partial upload-project! project-path project-title prefs on-new-git!)}
+        !flow (atom flow)]
+    (try
+      (add-watch !flow ::on-flow-changed on-flow-changed)
+      !flow
+      (catch Exception e
+        (cancel-flow! !flow)
+        (throw e)))))
 
 (defn begin-flow! [^Git git creds]
   (let [start-ref (git/get-current-commit-ref git)
@@ -331,6 +389,10 @@
 (defn advance-flow [{:keys [git state progress creds conflicts stash-info message] :as flow} render-progress]
   (render-progress progress)
   (condp = state
+    :first/start    (assoc flow :state :first/waiting)
+    :first/waiting  (assoc flow :state (if (:error flow) :first/error :first/done))
+    :first/error    (assoc flow :state :first/waiting)
+    :first/done     flow
     :pull/start     (advance-flow (tick flow :pull/pulling) render-progress)
     :pull/pulling   (let [^PullResult pull-res (try (git/pull git creds)
                                                     (catch Exception e
@@ -466,6 +528,52 @@
       (git/unstage-change! (:git @!flow) change))
     (swap! !flow refresh-git-state)))
 
+;; -----------------------------------------------------------------------------
+;; Sync config file parsing
+;; -----------------------------------------------------------------------------
+
+(def ^:private MessageString
+  (s/constrained s/Str #(not (str/blank? %)) "MessageString"))
+
+(defn- validate-url [url]
+  (try
+    (URL. url)
+    true
+    (catch MalformedURLException _
+      false)))
+
+(def ^:private URLString
+  (s/constrained s/Str validate-url "URLString"))
+
+(defn- validate-project-url [url]
+  (validate-url (format url 0)))
+
+(def ^:private ProjectUrlString
+  (s/constrained s/Str validate-project-url "ProjectUrlString"))
+
+(def ^:private FirstSettings
+  {:manual-url URLString
+   :dashboard-url ProjectUrlString
+   :push-timeout s/Int
+   :msgs {:create-remote MessageString
+          :create-remote-unauthorized MessageString
+          :create-remote-fail MessageString
+          :create-local MessageString
+          :initial-commit MessageString
+          :push MessageString
+          :push-fail MessageString
+          :done MessageString}})
+
+(def ^:private SyncSettings
+  {:first FirstSettings})
+
+(defn- load-edn [path]
+  (with-open [reader (PushbackReader. (io/reader (io/resource path)))]
+    (edn/read reader)))
+
+(defn- load-settings [path]
+  (s/validate SyncSettings (load-edn path)))
+
 ;; =================================================================================
 
 (def ^:private sync-dialog-open-atom (atom false))
@@ -475,16 +583,21 @@
 
 (defn open-sync-dialog [!flow]
   (let [root            ^Parent (ui/load-fxml "sync-dialog.fxml")
+        first-root      ^Parent (ui/load-fxml "sync-first.fxml")
         pull-root       ^Parent (ui/load-fxml "sync-pull.fxml")
         push-root       ^Parent (ui/load-fxml "sync-push.fxml")
+        sync-settings   (load-settings "sync.edn")
         stage           (ui/make-dialog-stage (ui/main-stage))
         scene           (Scene. root)
         dialog-controls (ui/collect-controls root ["ok" "push" "cancel" "dialog-area" "progress-bar"])
+        first-controls  (ui/collect-controls first-root ["manual-hyperlink" "status-log" "success-message" "error-message" "dashboard-hyperlink"])
+        first-settings  (:first sync-settings)
         pull-controls   (ui/collect-controls pull-root ["conflicting" "resolved" "conflict-box" "main-label"])
         push-controls   (ui/collect-controls push-root ["changed" "staged" "message" "content-box" "main-label" "diff" "stage" "unstage"])
         render-progress (fn [progress]
-                          (ui/run-later
-                            (ui/render-progress-controls! progress (:progress-bar dialog-controls) nil)))
+                          (when progress
+                            (ui/run-later
+                              (ui/render-progress-controls! progress (:progress-bar dialog-controls) nil))))
         update-push-buttons! (fn []
                                ;; The stage, unstage and diff buttons are enabled
                                ;; if the changed or staged views have input focus
@@ -520,21 +633,54 @@
                                      (ui/context! (:diff push-controls) :sync {:!flow !flow} (ui/->selection-provider focused-list-view))))))
         update-controls (fn [{:keys [state conflicts resolved modified staged] :as flow}]
                           (ui/run-later
-                           (if (= "pull" (namespace state))
-                             (do
-                               (ui/title! stage "Get Remote Changes")
-                               (ui/text! (:ok dialog-controls) "Pull")
-                               (ui/children! (:dialog-area dialog-controls) [pull-root])
-                               (ui/fill-control pull-root)
-                               (.sizeToScene (.getWindow scene)))
-                             (do
-                               (ui/title! stage "Push Local Changes")
-                               (ui/visible! (:push dialog-controls) false)
-                               (ui/text! (:ok dialog-controls) "Push")
-                               (ui/children! (:dialog-area dialog-controls) [push-root])
-                               (ui/fill-control push-root)
-                               (.sizeToScene (.getWindow scene))))
+                            (case (namespace state)
+                              "first" (do
+                                        (ui/title! stage "Synchronize")
+                                        (ui/text! (:ok dialog-controls) "Start")
+                                        (ui/children! (:dialog-area dialog-controls) [first-root])
+                                        (ui/fill-control first-root)
+                                        (.sizeToScene (.getWindow scene)))
+                              "pull" (do
+                                       (ui/title! stage "Get Remote Changes")
+                                       (ui/text! (:ok dialog-controls) "Pull")
+                                       (ui/children! (:dialog-area dialog-controls) [pull-root])
+                                       (ui/fill-control pull-root)
+                                       (.sizeToScene (.getWindow scene)))
+                              "push" (do
+                                       (ui/title! stage "Push Local Changes")
+                                       (ui/visible! (:push dialog-controls) false)
+                                       (ui/text! (:ok dialog-controls) "Push")
+                                       (ui/children! (:dialog-area dialog-controls) [push-root])
+                                       (ui/fill-control push-root)
+                                       (.sizeToScene (.getWindow scene))))
                            (condp = state
+                             :first/waiting (do
+                                              (ui/visible! (:progress-bar dialog-controls) true)
+                                              (ui/disable! (:ok dialog-controls) true)
+                                              (ui/text! (:ok dialog-controls) "Waiting")
+                                              (ui/disable! (:cancel dialog-controls) true)
+                                              (ui/visible! (:cancel dialog-controls) false)
+                                              (doto (:status-log first-controls)
+                                                (ui/visible! true)
+                                                (ui/text! ""))
+                                              (ui/visible! (:error-message first-controls) false))
+                             :first/error (do
+                                            (ui/disable! (:ok dialog-controls) false)
+                                            (ui/text! (:ok dialog-controls) "Retry")
+                                            (let [status-log (:status-log first-controls)]
+                                              (ui/text! status-log (str/join "\n" [(ui/text status-log) (get-in flow [:error :message])])))
+                                            (ui/visible! (:cancel dialog-controls) true)
+                                            (ui/disable! (:cancel dialog-controls) false)
+                                            (ui/visible! (:error-message first-controls) true)
+                                            (ui/visible! (:progress-bar dialog-controls) false))
+                             :first/done (do
+                                           (ui/disable! (:ok dialog-controls) false)
+                                           (ui/text! (:ok dialog-controls) "Done")
+                                           (ui/disable! (:cancel dialog-controls) true)
+                                           (ui/visible! (:success-message first-controls) true)
+                                           (let [project-info (:project-info flow)
+                                                 url (format (:dashboard-url first-settings) (:id project-info))]
+                                             (ui/on-action! (:dashboard-hyperlink first-controls) (fn [_] (ui/open-url url)))))
                              :pull/conflicts (do
                                                (ui/text! (:main-label pull-controls) "Resolve Conflicts")
                                                (ui/visible! (:conflict-box pull-controls) true)
@@ -592,26 +738,46 @@
                                                (interactive-cancel! (partial cancel-flow! !flow))
                                                (.close stage)))
     (ui/on-action! (:ok dialog-controls) (fn [_]
-                                           (cond
-                                             (= "done" (name (:state @!flow)))
-                                             (do
-                                               (finish-flow! !flow)
-                                               (.close stage))
+                                           (let [flow @!flow
+                                                 state (:state flow)]
+                                             (cond
+                                               (= "done" (name state))
+                                               (do
+                                                 (finish-flow! !flow)
+                                                 (.close stage))
 
-                                             (= :push/staging (:state @!flow))
-                                             (swap! !flow #(advance-flow
-                                                            (merge %
-                                                                   {:state   :push/committing
-                                                                    :message (ui/text (:message push-controls))})
-                                                            render-progress))
+                                               (= :push/staging state)
+                                               (swap! !flow #(advance-flow
+                                                               (merge %
+                                                                 {:state   :push/committing
+                                                                  :message (ui/text (:message push-controls))})
+                                                               render-progress))
 
-                                             :else
-                                             (swap! !flow advance-flow render-progress))))
+                                               (or (= :first/start state) (= :first/error state))
+                                               (do
+                                                 (swap! !flow advance-flow render-progress)
+                                                 (future
+                                                   (let [result ((:f @!flow) first-settings (fn [message progress]
+                                                                                               (ui/run-later
+                                                                                                 (.setProgress ^ProgressBar (:progress-bar dialog-controls) progress)
+                                                                                                 (when (seq message)
+                                                                                                   (let [log (:status-log first-controls)]
+                                                                                                     (ui/text! log
+                                                                                                       (str/join "\n" [(ui/text log) message])))))))]
+                                                     (swap! !flow (fn [flow]
+                                                                    (-> flow
+                                                                      (assoc :project-info (:project-info result))
+                                                                      (assoc :error (:error result))
+                                                                      (advance-flow render-progress)))))))
+
+                                               :else
+                                               (swap! !flow advance-flow render-progress)))))
     (ui/on-action! (:push dialog-controls) (fn [_]
                                              (swap! !flow #(merge %
                                                                   {:state    :push/start
                                                                    :progress (progress/make "push" 4)}))
                                              (swap! !flow advance-flow render-progress)))
+    (ui/on-action! (:manual-hyperlink first-controls) (fn [_] (ui/open-url (:manual-url first-settings))))
 
     (ui/bind-action! (:diff push-controls) :show-change-diff)
 
