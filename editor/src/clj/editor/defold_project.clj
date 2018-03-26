@@ -594,6 +594,11 @@
 (defn shared-script-state? [project]
   (some-> (settings project) (get ["script" "shared_state"])))
 
+(defn project-title [project]
+  (some-> project
+    (settings)
+    (get ["project" "title"])))
+
 (defn- disconnect-from-inputs [src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* src)))
         inputs (set (g/input-labels (g/node-type* tgt)))]
