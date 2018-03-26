@@ -1102,6 +1102,12 @@
 (def produce-scalable-transform-properties (g/constantly #{:position :rotation :scale}))
 (def produce-unscalable-transform-properties (g/constantly #{:position :rotation}))
 
+;; Arbitrarily small value to avoid 0-determinants
+(def ^:private ^:const scale-min 0.000001)
+
+(defn- non-zeroify-scale [^double v]
+  (if (< (Math/abs v) scale-min) (Math/copySign scale-min v) v))
+
 (g/defnode SceneNode
   (property position types/Vec3 (default [0.0 0.0 0.0])
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :position))))
@@ -1109,7 +1115,9 @@
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :rotation)))
             (dynamic edit-type (g/constantly (properties/quat->euler))))
   (property scale types/Vec3 (default [1.0 1.0 1.0])
-            (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale))))
+            (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (g/set-property self :scale (mapv non-zeroify-scale new-value)))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
