@@ -594,6 +594,11 @@
 (defn shared-script-state? [project]
   (some-> (settings project) (get ["script" "shared_state"])))
 
+(defn project-title [project]
+  (some-> project
+    (settings)
+    (get ["project" "title"])))
+
 (defn- disconnect-from-inputs [src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* src)))
         inputs (set (g/input-labels (g/node-type* tgt)))]
@@ -670,10 +675,12 @@
         progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
 
-    (when (workspace/dependencies-reachable? dependencies login-fn)
+    ;; Fetch+install libs if we have network, otherwise fallback to disk state
+    (if (workspace/dependencies-reachable? dependencies login-fn)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
-           (workspace/install-validated-libraries! workspace-id dependencies)))
-    
+           (workspace/install-validated-libraries! workspace-id dependencies))
+      (workspace/set-project-dependencies! workspace-id dependencies))
+
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project"))

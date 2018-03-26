@@ -39,7 +39,7 @@
          <children>
             <AnchorPane>
                <children>
-                  <ProgressBar id="progress-bar" minHeight="6.0" prefHeight="6.0" progress="0.0" styleClass="small-progress-bar" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                  <ProgressBar id="progress-bar" minHeight="6.0" prefHeight="6.0" progress="0.0" styleClass="small-progress-bar" visible="false" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                </children>
             </AnchorPane>
             <AnchorPane id="error-group">

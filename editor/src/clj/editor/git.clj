@@ -10,11 +10,11 @@
            [java.io File]
            [java.nio.file Files FileVisitResult Path SimpleFileVisitor]
            [java.util Collection]
-           [org.eclipse.jgit.api Git ResetCommand$ResetType]
+           [org.eclipse.jgit.api Git ResetCommand$ResetType PushCommand]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
            [org.eclipse.jgit.errors RepositoryNotFoundException]
-           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId Repository]
+           [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId ProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
            [org.eclipse.jgit.treewalk FileTreeIterator TreeWalk]
@@ -99,6 +99,24 @@
 (defn remote-origin-url [^Git git]
   (let [config (.. git getRepository getConfig)]
     (not-empty (.getString config "remote" "origin" "url"))))
+
+;; Does the equivalent *config-wise* of:
+;; > git config remote.origin.url url
+;; > git push -u origin
+;; Which is:
+;; > git config remote.origin.url url
+;; > git config remote.origin.fetch +refs/heads/*:refs/remotes/origin/*
+;; > git config branch.master.remote origin
+;; > git config branch.master.merge refs/heads/master
+;; according to https://stackoverflow.com/questions/27823940/jgit-pushing-a-branch-and-add-upstream-u-option
+(defn config-remote! [^Git git url]
+  (let [config (.. git getRepository getConfig)]
+    (doto config
+      (.setString "remote" "origin" "url" url)
+      (.setString "remote" "origin" "fetch" "+refs/heads/*:refs/remotes/origin/*")
+      (.setString "branch" "master" "remote" "origin")
+      (.setString "branch" "master" "merge" "refs/heads/master")
+      (.save))))
 
 (defn worktree [^Git git]
   (.getWorkTree (.getRepository git)))
@@ -249,15 +267,74 @@
             (.setFilter tw (PathFilterGroup/createFromStrings path-prefixes))
             (.next tw)))))))
 
+(defn clone!
+  "Clone a repository into the specified directory."
+  [^UsernamePasswordCredentialsProvider creds ^String remote-url ^File directory ^ProgressMonitor progress-monitor]
+  (try
+    (with-open [_ (.call (doto (Git/cloneRepository)
+                           (.setCredentialsProvider creds)
+                           (.setProgressMonitor progress-monitor)
+                           (.setURI remote-url)
+                           (.setDirectory directory)))]
+      nil)
+    (catch Exception e
+      ;; The .call method throws an exception if the operation was cancelled.
+      ;; Sadly it appears there is not a specific exception type for that, so
+      ;; we silence any exceptions if the operation was cancelled.
+      (when-not (.isCancelled progress-monitor)
+        (throw e)))))
+
 (defn pull [^Git git ^UsernamePasswordCredentialsProvider creds]
   (-> (.pull git)
       (.setCredentialsProvider creds)
       (.call)))
 
-(defn push [^Git git ^UsernamePasswordCredentialsProvider creds]
-  (-> (.push git)
-      (.setCredentialsProvider creds)
-      (.call)))
+(defn- make-batching-progress-monitor
+  ^BatchingProgressMonitor [weights-by-task cancelled-atom on-progress!]
+  (let [^double sum-weight (reduce + 0.0 (vals weights-by-task))
+        normalized-weights-by-task (into {}
+                                         (map (fn [[task ^double weight]]
+                                                [task (/ weight sum-weight)]))
+                                         weights-by-task)
+        progress-by-task (atom (into {} (map #(vector % 0)) (keys weights-by-task)))
+        set-progress (fn [task percent] (swap! progress-by-task assoc task percent))
+        current-progress (fn []
+                           (reduce +
+                                   0.0
+                                   (keep (fn [[task ^long percent]]
+                                           (when-some [^double weight (normalized-weights-by-task task)]
+                                             (* percent weight 0.01)))
+                                         @progress-by-task)))]
+    (proxy [BatchingProgressMonitor] []
+      (onUpdate
+        ([taskName workCurr])
+        ([taskName workCurr workTotal percentDone]
+          (set-progress taskName percentDone)
+          (on-progress! (current-progress))))
+
+      (onEndTask
+        ([taskName workCurr])
+        ([taskName workCurr workTotal percentDone]))
+
+      (isCancelled []
+        (boolean (some-> cancelled-atom deref))))))
+
+(def ^:private ^:const push-tasks
+  ;; TODO: Tweak these weights.
+  {"Finding sources" 1
+   "Writing objects" 1
+   "remote: Updating references" 1})
+
+(defn push [^Git git ^UsernamePasswordCredentialsProvider creds & {:keys [timeout on-progress]}]
+  (let [pc ^PushCommand (.push git)]
+    (do
+      (doto pc
+        ;; setTimeout expects seconds
+        (.setTimeout (/ (or timeout 0) 1000))
+        (.setCredentialsProvider creds))
+      (when on-progress
+        (.setProgressMonitor pc (make-batching-progress-monitor push-tasks nil on-progress)))
+      (.call pc))))
 
 (defn make-add-change [file-path]
   {:change-type :add :old-path nil :new-path file-path})
@@ -394,25 +471,17 @@
       (when (contains? (:untracked s) f)
         (fs/delete-file! (file git f) {:missing :fail})))))
 
-(defn make-clone-monitor [^ProgressBar progress-bar]
-  (let [tasks (atom {"remote: Finding sources" 0
-                     "remote: Getting sizes" 0
-                     "remote: Compressing objects" 0
-                     "Receiving objects" 0
-                     "Resolving deltas" 0})
-        set-progress (fn [task percent] (swap! tasks assoc task percent))
-        current-progress (fn [] (let [n (count @tasks)]
-                                  (if (zero? n) 0 (/ (reduce + (vals @tasks)) (float n) 100.0))))]
-    (proxy [BatchingProgressMonitor] []
-     (onUpdate
-       ([taskName workCurr])
-       ([taskName workCurr workTotal percentDone]
-         (set-progress taskName percentDone)
-         (ui/run-later (.setProgress progress-bar (current-progress)))))
+(def ^:private ^:const clone-tasks
+  {"remote: Finding sources" 1
+   "Receiving objects" 88
+   "Resolving deltas" 10
+   "Updating references" 1})
 
-     (onEndTask
-       ([taskName workCurr])
-       ([taskName workCurr workTotal percentDone])))))
+(defn make-clone-monitor
+  ^ProgressMonitor [^ProgressBar progress-bar cancelled-atom]
+  (make-batching-progress-monitor clone-tasks cancelled-atom
+    (fn [progress]
+      (ui/run-later (.setProgress progress-bar progress)))))
 
 ;; =================================================================================
 
