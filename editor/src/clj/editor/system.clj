@@ -3,6 +3,24 @@
 
 (set! *warn-on-reflection* true)
 
+(def ^:private MB 1048576)
+
+(defn rt-mem []
+  (let [rt    (Runtime/getRuntime)
+        total (.totalMemory rt)
+        max   (.maxMemory rt)
+        free  (.freeMemory rt)]
+    {:total (int (/ total MB))
+     :max   (int (/ max MB))
+     :free  (int (/ free MB))
+     :used  (int (/ (- total free) MB))}))
+
+(defn mem-diff [before after]
+  {:total (- (:total after) (:total before))
+   :max   (- (:max after) (:max before))
+   :free  (- (:free after) (:free before))
+   :used  (- (:used after) (:used before))})
+
 (defn os-name
   ^String []
   (System/getProperty "os.name"))

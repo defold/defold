@@ -67,7 +67,12 @@
 
   (output completions g/Any :cached (g/constantly {}))
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
-  (output breakpoints project/Breakpoints :cached produce-breakpoints)
+
+  ;; Breakpoints output only consumed by project (array input of all code files)
+  ;; and already cached there. Changing breakpoints and pulling project breakpoints
+  ;; does imply a pass over all C.E.R.N's of the project to produce new breakpoints,
+  ;; but does not seem to be much of a perf issue.
+  (output breakpoints project/Breakpoints produce-breakpoints)
   (output save-value Lines (gu/passthrough lines)))
 
 (defn register-code-resource-type [workspace & {:keys [ext node-type icon view-types view-opts tags tag-opts label] :as args}]

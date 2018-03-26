@@ -166,7 +166,7 @@
                                                                    :order order
                                                                    :icon image-icon}
                                                                   (resource/openable-resource? image-resource) (assoc :link image-resource :outline-reference? false))))
-  (output ddf-message g/Any :cached (g/fnk [path order] {:image path :order order}))
+  (output ddf-message g/Any (g/fnk [path order] {:image path :order order}))
   (output scene g/Any :cached produce-image-scene))
 
 (defn- sort-by-and-strip-order [images]

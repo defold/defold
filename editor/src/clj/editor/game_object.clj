@@ -20,7 +20,8 @@
             [editor.validation :as validation]
             [editor.outline :as outline]
             [service.log :as log])
-  (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
+  (:import [clojure.lang MapEntry]
+           [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
            [com.dynamo.sound.proto Sound$SoundDesc]
            [java.io StringReader]
            [javax.vecmath Matrix4d Vector3d]))
@@ -200,8 +201,8 @@
 
   (input embedded-resource-id g/NodeID)
   (input save-data g/Any :cascade-delete)
-  (output rt-ddf-message g/Any :cached (g/fnk [id position rotation save-data]
-                                              (gen-embed-ddf id position rotation save-data)))
+  (output rt-ddf-message g/Any (g/fnk [id position rotation save-data]
+                                      (gen-embed-ddf id position rotation save-data)))
   (output build-resource resource/Resource (g/fnk [source-resource save-data]
                                                   (some-> source-resource
                                                      (assoc :data (:content save-data))
@@ -285,7 +286,6 @@
                          (project/resource-setter self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
-                                                  [:user-properties :user-properties]
                                                   [:scene :scene]
                                                   [:build-targets :source-build-targets]))))))
             (dynamic error (g/fnk [_node-id source-resource]
@@ -293,20 +293,24 @@
                                       (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")))))
 
   (input source-id g/NodeID :cascade-delete)
-  (output ddf-properties g/Any :cached
+  (output ddf-properties+decls MapEntry :cached
           (g/fnk [source-properties]
-                 (let [prop-order (into {} (map-indexed (fn [i k] [k i]) (:display-order source-properties)))]
-                   (->> source-properties
-                     :properties
-                     (filter (fn [[key p]] (contains? p :original-value)))
-                     (sort-by (comp prop-order first))
-                     (mapv (fn [[key p]]
-                             {:id (properties/key->user-name key)
-                              :type (:go-prop-type p)
-                              :value (properties/go-prop->str (:value p) (:go-prop-type p))}))))))
-  (output ddf-property-decls g/Any :cached (g/fnk [ddf-properties] (properties/properties->decls ddf-properties false)))
-  (output rt-ddf-message g/Any :cached (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
-                                              (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
+                 (let [prop-order (into {} (map-indexed (fn [i k] [k i]) (:display-order source-properties)))
+                       ddf-properties (->> source-properties
+                                           :properties
+                                           (filter (fn [[key p]] (contains? p :original-value)))
+                                           (sort-by (comp prop-order first))
+                                           (mapv (fn [[key p]]
+                                                   {:id (properties/key->user-name key)
+                                                    :type (:go-prop-type p)
+                                                    :value (properties/go-prop->str (:value p) (:go-prop-type p))})))
+                       property-decls (properties/properties->decls ddf-properties false)]
+                   (MapEntry. ddf-properties property-decls))))
+  (output ddf-properties g/Any (g/fnk [^MapEntry ddf-properties+decls] (.key ddf-properties+decls)))
+  (output ddf-property-decls g/Any (g/fnk [^MapEntry ddf-properties+decls] (.val ddf-properties+decls)))
+
+  (output rt-ddf-message g/Any (g/fnk [id position rotation source-resource ddf-properties ddf-property-decls]
+                                      (gen-ref-ddf id position rotation source-resource ddf-properties ddf-property-decls))))
 
 (g/defnk produce-proto-msg [ref-ddf embed-ddf]
   {:components ref-ddf
@@ -392,7 +396,7 @@
 
   (output base-url g/Str (gu/passthrough base-url))
   (output node-outline outline/OutlineData :cached produce-go-outline)
-  (output proto-msg g/Any :cached produce-proto-msg)
+  (output proto-msg g/Any produce-proto-msg)
   (output save-value g/Any (gu/passthrough proto-msg))
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)

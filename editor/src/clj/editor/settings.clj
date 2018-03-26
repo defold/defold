@@ -28,7 +28,8 @@
                          (apply project/resource-setter target-node old-value new-value
                            connections)))))))
   (input resource resource/Resource)
-  (output resource-setting-reference g/Any :cached (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
+  ;; resource-setting-reference only consumed by SettingsNode and already cached there.
+  (output resource-setting-reference g/Any (g/fnk [_node-id path value] {:path path :node-id _node-id :value value})))
 
 (g/defnk produce-settings-map [meta-info raw-settings resource-settings]
   (let [meta-settings (:settings meta-info)
