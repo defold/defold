@@ -27,7 +27,9 @@
       </VBox>
       <VBox spacing="4" id="welcome-right-pane">
         <children>
+          <Button id="open-new-welcome" mnemonicParsing="false" text="New Welcome" prefWidth="130" />
           <Label id="open-project-label" text="Open project"></Label>
+          <Button id="new-project" mnemonicParsing="false" text="New" prefWidth="130" />
           <Button id="import-project" mnemonicParsing="false" text="From Dashboard" prefWidth="130" />
           <Button id="open-project" mnemonicParsing="false" text="From Disk" prefWidth="130" />
         </children>
