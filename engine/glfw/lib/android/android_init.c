@@ -467,7 +467,12 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             return 0;
         }
 
-        if (glfw_action == GLFW_PRESS) {
+        // virtual keyboard enter and backspace needs to generate both a press
+        // and release but we cannot create them both here in the same frame
+        // There's an ugly hack in android_window.c that counts down the
+        // g_SpecialKeyActive and when it reaches zero it generates a release
+        // event for the keys checked below
+        if (g_KeyboardActive && (glfw_action == GLFW_PRESS)) {
             switch (code) {
             case AKEYCODE_DEL:
                 g_SpecialKeyActive = 10;
@@ -480,6 +485,7 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             }
         }
 
+        // check for key events that should generate a key trigger
         switch (code) {
         case AKEYCODE_MENU:
             _glfwInputKey( GLFW_KEY_MENU, glfw_action );
@@ -491,8 +497,99 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             } else {
                 _glfwInputKey( GLFW_KEY_BACK, glfw_action );
             }
-
             return 1;
+        case AKEYCODE_ESCAPE: _glfwInputKey( GLFW_KEY_ESC, glfw_action ); return 1;
+        case AKEYCODE_F1: _glfwInputKey( GLFW_KEY_F1, glfw_action ); return 1;
+        case AKEYCODE_F2: _glfwInputKey( GLFW_KEY_F2, glfw_action ); return 1;
+        case AKEYCODE_F3: _glfwInputKey( GLFW_KEY_F3, glfw_action ); return 1;
+        case AKEYCODE_F4: _glfwInputKey( GLFW_KEY_F4, glfw_action ); return 1;
+        case AKEYCODE_F5: _glfwInputKey( GLFW_KEY_F5, glfw_action ); return 1;
+        case AKEYCODE_F6: _glfwInputKey( GLFW_KEY_F6, glfw_action ); return 1;
+        case AKEYCODE_F7: _glfwInputKey( GLFW_KEY_F7, glfw_action ); return 1;
+        case AKEYCODE_F8: _glfwInputKey( GLFW_KEY_F8, glfw_action ); return 1;
+        case AKEYCODE_F9: _glfwInputKey( GLFW_KEY_F9, glfw_action ); return 1;
+        case AKEYCODE_F10: _glfwInputKey( GLFW_KEY_F10, glfw_action ); return 1;
+        case AKEYCODE_F11: _glfwInputKey( GLFW_KEY_F11, glfw_action ); return 1;
+        case AKEYCODE_F12: _glfwInputKey( GLFW_KEY_F12, glfw_action ); return 1;
+        case AKEYCODE_DPAD_UP: _glfwInputKey( GLFW_KEY_UP, glfw_action ); return 1;
+        case AKEYCODE_DPAD_DOWN: _glfwInputKey( GLFW_KEY_DOWN, glfw_action ); return 1;
+        case AKEYCODE_DPAD_LEFT: _glfwInputKey( GLFW_KEY_LEFT, glfw_action ); return 1;
+        case AKEYCODE_DPAD_RIGHT: _glfwInputKey( GLFW_KEY_RIGHT, glfw_action ); return 1;
+        case AKEYCODE_SHIFT_LEFT: _glfwInputKey( GLFW_KEY_LSHIFT, glfw_action ); return 1;
+        case AKEYCODE_SHIFT_RIGHT: _glfwInputKey( GLFW_KEY_RSHIFT, glfw_action ); return 1;
+        case AKEYCODE_CTRL_LEFT: _glfwInputKey( GLFW_KEY_LCTRL, glfw_action ); return 1;
+        case AKEYCODE_CTRL_RIGHT: _glfwInputKey( GLFW_KEY_RCTRL, glfw_action ); return 1;
+        // This key is not {@link AKEYCODE_NUM_LOCK}; it is more like {@link AKEYCODE_ALT_LEFT}.
+        // https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h
+        case AKEYCODE_NUM: _glfwInputKey( GLFW_KEY_LALT, glfw_action ); return 1;
+        case AKEYCODE_ALT_LEFT: _glfwInputKey( GLFW_KEY_LALT, glfw_action ); return 1;
+        case AKEYCODE_ALT_RIGHT: _glfwInputKey( GLFW_KEY_RALT, glfw_action ); return 1;
+        case AKEYCODE_TAB: _glfwInputKey( GLFW_KEY_TAB, glfw_action ); return 1;
+        case AKEYCODE_INSERT: _glfwInputKey( GLFW_KEY_INSERT, glfw_action ); return 1;
+        case AKEYCODE_DEL: _glfwInputKey( GLFW_KEY_DEL, glfw_action ); return 1;
+        case AKEYCODE_ENTER: _glfwInputKey( GLFW_KEY_ENTER, glfw_action ); return 1;
+        case AKEYCODE_PAGE_UP: _glfwInputKey( GLFW_KEY_PAGEUP, glfw_action ); return 1;
+        case AKEYCODE_PAGE_DOWN: _glfwInputKey( GLFW_KEY_PAGEDOWN, glfw_action ); return 1;
+        case AKEYCODE_MOVE_HOME: _glfwInputKey( GLFW_KEY_HOME, glfw_action ); return 1;
+        case AKEYCODE_MOVE_END: _glfwInputKey( GLFW_KEY_END, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_0: _glfwInputKey( GLFW_KEY_KP_0, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_1: _glfwInputKey( GLFW_KEY_KP_1, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_2: _glfwInputKey( GLFW_KEY_KP_2, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_3: _glfwInputKey( GLFW_KEY_KP_3, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_4: _glfwInputKey( GLFW_KEY_KP_4, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_5: _glfwInputKey( GLFW_KEY_KP_5, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_6: _glfwInputKey( GLFW_KEY_KP_6, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_7: _glfwInputKey( GLFW_KEY_KP_7, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_8: _glfwInputKey( GLFW_KEY_KP_8, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_9: _glfwInputKey( GLFW_KEY_KP_9, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_DIVIDE: _glfwInputKey( GLFW_KEY_KP_DIVIDE, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_MULTIPLY: _glfwInputKey( GLFW_KEY_KP_MULTIPLY, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_SUBTRACT: _glfwInputKey( GLFW_KEY_KP_SUBTRACT, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_ADD: _glfwInputKey( GLFW_KEY_KP_ADD, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_DOT: _glfwInputKey( GLFW_KEY_KP_DECIMAL, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_EQUALS: _glfwInputKey( GLFW_KEY_KP_EQUAL, glfw_action ); return 1;
+        case AKEYCODE_NUMPAD_ENTER: _glfwInputKey( GLFW_KEY_KP_ENTER, glfw_action ); return 1;
+        case AKEYCODE_NUM_LOCK: _glfwInputKey( GLFW_KEY_KP_NUM_LOCK, glfw_action ); return 1;
+        case AKEYCODE_CAPS_LOCK: _glfwInputKey( GLFW_KEY_CAPS_LOCK, glfw_action ); return 1;
+        case AKEYCODE_SCROLL_LOCK: _glfwInputKey( GLFW_KEY_SCROLL_LOCK, glfw_action ); return 1;
+        case AKEYCODE_META_LEFT: _glfwInputKey( GLFW_KEY_LSUPER, glfw_action ); return 1;
+        case AKEYCODE_META_RIGHT: _glfwInputKey( GLFW_KEY_RSUPER, glfw_action ); return 1;
+        // Break / Pause key
+        // https://developer.android.com/ndk/reference/group___input.html
+        case AKEYCODE_BREAK: _glfwInputKey( GLFW_KEY_PAUSE, glfw_action ); return 1;
+
+        // the key events below have no direct GLFW_KEY_* mapping - do a reasonable translation
+        case AKEYCODE_DPAD_CENTER: _glfwInputKey( GLFW_KEY_ENTER, glfw_action ); return 1;
+        }
+
+        // check for key events that should generate both a text and key trigger
+        switch (code) {
+            case AKEYCODE_STAR: _glfwInputKey( '*', glfw_action ); break;
+            case AKEYCODE_POUND: _glfwInputKey( '#', glfw_action ); break;
+            case AKEYCODE_COMMA: _glfwInputKey( ',', glfw_action ); break;
+            case AKEYCODE_PERIOD: _glfwInputKey( '.', glfw_action ); break;
+            case AKEYCODE_SPACE: _glfwInputKey( GLFW_KEY_SPACE, glfw_action ); break;
+            case AKEYCODE_GRAVE: _glfwInputKey( '`', glfw_action ); break;
+            case AKEYCODE_MINUS: _glfwInputKey( '-', glfw_action ); break;
+            case AKEYCODE_EQUALS: _glfwInputKey( "=", glfw_action ); break;
+            case AKEYCODE_LEFT_BRACKET: _glfwInputKey( '[', glfw_action ); break;
+            case AKEYCODE_RIGHT_BRACKET: _glfwInputKey( ']', glfw_action ); break;
+            case AKEYCODE_BACKSLASH: _glfwInputKey( '\\', glfw_action ); break;
+            case AKEYCODE_SEMICOLON: _glfwInputKey( ';', glfw_action ); break;
+            case AKEYCODE_APOSTROPHE: _glfwInputKey( '\'', glfw_action ); break;
+            case AKEYCODE_SLASH: _glfwInputKey( '/', glfw_action ); break;
+            case AKEYCODE_AT: _glfwInputKey( '@', glfw_action ); break;
+            case AKEYCODE_PLUS: _glfwInputKey( '+', glfw_action ); break;
+            default:
+                if ((code >= AKEYCODE_A) && (code <= AKEYCODE_Z)) {
+                    const int key = 'A' + (code - AKEYCODE_A);
+                    _glfwInputKey( key, glfw_action );
+                }
+                else if ((code >= AKEYCODE_0) && (code <= AKEYCODE_9)) {
+                    const int key = '0' + (code - AKEYCODE_0);
+                    _glfwInputKey( key, glfw_action );
+                }
+                break;
         }
 
         JNIEnv* env = g_AndroidApp->activity->env;
