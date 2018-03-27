@@ -99,6 +99,10 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "missing type specifier - int assumed. Note: C++ does not support default-int"));
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "syntax error: missing ';' before identifier 'g_foo'"));
             assertEquals(true, checkIssue(issues, "main.cpp_0.o", 1, "error", "unresolved external symbol \"void __cdecl Foobar(void)\" (?Foobar@@YAXXZ) referenced in function \"enum dmExtension::Result __cdecl AppInitializeExtension(struct dmExtension::AppParams * __ptr64)\" (?AppInitializeExtension@@YA?AW4Result@dmExtension@@PEAUAppParams@2@@Z)"));
+
+            assertEquals(true, checkIssue(issues, "MathFuncsLib.lib", 1, "error", "MathFuncsLib.lib(MathFuncsLib.obj) : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "LINK : fatal error LNK1257: code generation failed"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogOSX.txt");
