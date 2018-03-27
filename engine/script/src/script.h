@@ -536,7 +536,7 @@ namespace dmScript
 
     typedef struct TimerContext* HTimerContext;
     typedef void (*TimerTrigger)(uint32_t timer_id, void* userdata1, void* userdata2);
-    HTimerContext NewTimerContext(uint16_t max_timer_count);
+    HTimerContext NewTimerContext(uint16_t max_instance_count);
     void DeleteTimerContext(HTimerContext timer_context);
     void UpdateTimerContext(HTimerContext timer_context, float dt);
  

@@ -962,7 +962,14 @@ namespace dmScript
 
         uint16_t id_index = GetIdIndex(id);
         timer_context->m_IdToIndexMap[id_index] = triggerCount;
-        timer_context->m_Userdata1ToFirstId.Put(userdata1, id);
+        if (id_ptr == 0x0)
+        {
+            timer_context->m_Userdata1ToFirstId.Put(userdata1, id);
+        }
+        else
+        {
+            *id_ptr = id;
+        }
         return &timer;
     }
 
@@ -995,7 +1002,9 @@ namespace dmScript
             }
             else
             {
-                timer_context->m_Userdata1ToFirstId.Put(timer.m_Userdata1, nextId);
+                uint32_t* id_ptr = timer_context->m_Userdata1ToFirstId.Get(timer.m_Userdata1);
+                assert(id_ptr != 0x0);
+                *id_ptr = nextId;
             }
         }
 
@@ -1015,17 +1024,15 @@ namespace dmScript
         }
     }
 
-    HTimerContext NewTimerContext(uint16_t max_timer_count)
+    HTimerContext NewTimerContext(uint16_t max_instance_count)
     {
         TimerContext* timer_context = new TimerContext();
-        const uint32_t timer_count = 256;
-        timer_context->m_Timers.SetCapacity(timer_count);
+        timer_context->m_Timers.SetCapacity(max_instance_count);    // Trigger count and instance count is not 1:1, but good enough initial size
         timer_context->m_IdToIndexMap.SetCapacity(MAX_TIMER_CAPACITY);
         timer_context->m_IdToIndexMap.SetSize(MAX_TIMER_CAPACITY);
         timer_context->m_IndexPool.SetCapacity(MAX_TIMER_CAPACITY);
-        const int32_t instance_count = max_timer_count;
-        const uint32_t table_count = dmMath::Max(1, instance_count/3);
-        timer_context->m_Userdata1ToFirstId.SetCapacity(table_count, instance_count);
+        const uint32_t table_count = dmMath::Max(1, max_instance_count/3);
+        timer_context->m_Userdata1ToFirstId.SetCapacity(table_count, max_instance_count);
         timer_context->m_Generation = 0;
         timer_context->m_InUpdate = 0;
         return timer_context;
@@ -1157,7 +1164,7 @@ namespace dmScript
                 }
                 else
                 {
-                    timer_context->m_Userdata1ToFirstId.Put(timer.m_Userdata1, timer.m_NextIdWithSameUserdata1);
+                    *id_ptr = timer.m_NextIdWithSameUserdata1;
                 }
             }
         }
