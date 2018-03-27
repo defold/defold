@@ -163,11 +163,11 @@ public:
         self->m_ContentOffset = offset;
     }
 
-    dmHttpClientPrivate::ParseResult Parse(const char* headers)
+    dmHttpClientPrivate::ParseResult Parse(const char* headers, bool end_of_receive)
     {
         char* h = strdup(headers);
         dmHttpClientPrivate::ParseResult r;
-        r = dmHttpClientPrivate::ParseHeader(h, this,
+        r = dmHttpClientPrivate::ParseHeader(h, this, end_of_receive,
                                              &dmHttpClientParserTest::Version,
                                              &dmHttpClientParserTest::Header,
                                              &dmHttpClientParserTest::Content);
@@ -191,10 +191,8 @@ TEST_F(dmHttpClientParserTest, TestMoreData)
     const char* headers = "HTTP/1.1 200 OK\r\n";
 
     dmHttpClientPrivate::ParseResult r;
-    r = Parse(headers);
+    r = Parse(headers, false);
     ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_NEED_MORE_DATA, r);
-    ASSERT_EQ(-1, m_Major);
-    ASSERT_EQ(-1, m_Minor);
     ASSERT_EQ(-1, m_Status);
 }
 
@@ -203,7 +201,7 @@ TEST_F(dmHttpClientParserTest, TestSyntaxError)
     const char* headers = "HTTP/x.y 200 OK\r\n\r\n";
 
     dmHttpClientPrivate::ParseResult r;
-    r = Parse(headers);
+    r = Parse(headers, false);
     ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR, r);
 }
 
@@ -212,7 +210,7 @@ TEST_F(dmHttpClientParserTest, TestMissingStatusString)
     const char* headers = "HTTP/1.0 200\r\n\r\n";
 
     dmHttpClientPrivate::ParseResult r;
-    r = Parse(headers);
+    r = Parse(headers, false);
     ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_SYNTAX_ERROR, r);
 }
 
@@ -225,7 +223,7 @@ TEST_F(dmHttpClientParserTest, TestHeaders)
 "\r\n";
 
     dmHttpClientPrivate::ParseResult r;
-    r = Parse(headers);
+    r = Parse(headers, false);
     ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
 
     ASSERT_EQ(1, m_Major);
@@ -248,7 +246,7 @@ TEST_F(dmHttpClientParserTest, TestWhitespaceHeaders)
 "\r\n";
 
     dmHttpClientPrivate::ParseResult r;
-    r = Parse(headers);
+    r = Parse(headers, false);
     ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
 
     ASSERT_EQ(1, m_Major);
@@ -270,10 +268,47 @@ TEST_F(dmHttpClientParserTest, TestContent)
 ;
 
     dmHttpClientPrivate::ParseResult r;
-    r = Parse(headers);
+    r = Parse(headers, false);
     ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
 
     ASSERT_STREQ("foo\r\n\r\nbar", headers + m_ContentOffset);
+}
+
+TEST_F(dmHttpClientParserTest, TestContentAndHeaders)
+{
+    const char* headers = "HTTP/1.1 200 OK\r\n"
+"Content-Type: text/html;charset=UTF-8\r\n"
+"Content-Length: 2\r\n"
+"Server: Jetty(7.0.2.v20100331)\r\n"
+"\r\n"
+"30"
+;
+
+    dmHttpClientPrivate::ParseResult r;
+    r = Parse(headers, false);
+    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ("text/html;charset=UTF-8", m_Headers["Content-Type"]);
+    ASSERT_EQ("2", m_Headers["Content-Length"]);
+    ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
+
+    ASSERT_STREQ("30", headers + m_ContentOffset);
+}
+
+TEST_F(dmHttpClientParserTest, TestNoContent)
+{
+    // Most servers seem to not add the empty line at the end of a 204 response even though the spec says we should. Test this specific case.
+    const char* headers = "HTTP/1.1 204 No Content\r\n"
+"Server: Jetty(7.0.2.v20100331)\r\n"
+;
+    dmHttpClientPrivate::ParseResult r;
+    r = Parse(headers, true);
+    ASSERT_EQ(dmHttpClientPrivate::PARSE_RESULT_OK, r);
+    ASSERT_EQ(1, m_Major);
+    ASSERT_EQ(1, m_Minor);
+    ASSERT_EQ(204, m_Status);
+    ASSERT_EQ("No Content", m_StatusString);
+    ASSERT_EQ((size_t) 1, m_Headers.size());
+    ASSERT_EQ("Jetty(7.0.2.v20100331)", m_Headers["Server"]);
 }
 
 #ifndef _WIN32

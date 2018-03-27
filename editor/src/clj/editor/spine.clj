@@ -653,8 +653,11 @@
          (sort-by :draw-order)
          (map (partial transform-positions (:world-transform renderable)))
          (map (fn [mesh]
-                (let [color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])]
-                  (update mesh :color (fn [src tint] (mapv * src tint)) color)))))))
+                (let [tint-color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])
+                      slot-color (:color mesh)
+                      skin-color (:skin-color mesh)
+                      final-color (mapv * slot-color tint-color skin-color)]
+                  (assoc mesh :color final-color)))))))
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
