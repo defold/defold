@@ -157,7 +157,6 @@ static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dm
 
     // Make sure these are set to zero, so we can check against them during tear down.
     mesh.m_NormalsIndices.m_Count = 0;
-    mesh.m_Normals.m_Count        = 0;
     mesh.m_Texcoord0Indices.m_Count = 0;
 }
 
