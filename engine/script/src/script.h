@@ -533,6 +533,22 @@ namespace dmScript
      * @return String value at key, or the default value if not found or invalid value type.
      */
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
+
+    typedef struct TimerContext* HTimerContext;
+    typedef void (*TimerTrigger)(uint32_t timer_id, void* userdata1, void* userdata2);
+    HTimerContext NewTimerContext(uint16_t max_timer_count);
+    void DeleteTimerContext(HTimerContext timer_context);
+    void UpdateTimerContext(HTimerContext timer_context, float dt);
+ 
+    #define INVALID_TIMER_ID            0u
+    uint32_t AddTimer(HTimerContext timer_context,
+                            float delay,
+                            TimerTrigger timer_trigger,
+                            void* userdata1,
+                            void* userdata2,
+                            bool repeat);
+    bool CancelTimer(HTimerContext timer_context, uint32_t id);
+    uint32_t CancelTimers(HTimerContext timer_context, void* userdata1);
 }
 
 

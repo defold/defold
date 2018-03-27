@@ -1,6 +1,8 @@
 #include "script.h"
 
 #include <dlib/dstrings.h>
+#include <dlib/index_pool.h>
+#include <dlib/hashtable.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/pprint.h>
@@ -842,4 +844,371 @@ namespace dmScript
         return r;
     }
 
+    struct Timer
+    {
+        // How much time remaining until the timer fires, reduced with dt at each update
+        // If the result of removing dt from remaining is <= 0.f then fire the event, if repeat then add intervall to remaining
+        // If <= 0.0f then the timer is dead
+        float           m_Remaining;
+
+        TimerTrigger    m_Trigger;
+        uintptr_t       m_Userdata1;
+        uintptr_t       m_Userdata2;
+
+        // We chain together timers associated with the same userdata1 so we can quickly remove all of them without scanning all timers
+        uint32_t        m_PrevIdWithSameUserdata1;
+        uint32_t        m_NextIdWithSameUserdata1;
+
+        uint32_t        m_Id;
+
+        // The timer intervall, we need to keep this for repeating timers, not really for one-shots
+        float           m_Intervall;
+
+        // Flag if the timer should repeat
+        uint32_t        m_Repeat : 1;
+    };
+
+    #define MAX_TIMER_CAPACITY          65000u
+    #define MIN_TIMER_CAPACITY_GROWTH   2048u
+
+    struct TimerContext
+    {
+        dmArray<Timer>                      m_Timers;
+        dmArray<uint16_t>                   m_IdToIndexMap;
+
+        dmIndexPool<uint16_t>               m_IndexPool;
+        dmHashTable<uintptr_t, uint32_t>    m_Userdata1ToFirstId;
+        uint32_t                            m_Generation;
+        uint32_t                            m_InUpdate : 1;
+    };
+
+
+    static uint16_t GetIdIndex(uint32_t id)
+    {
+        return (uint16_t)(id & 0xffff) - 1u;
+    }
+
+    static uint32_t MakeId(uint16_t generation, uint16_t id_index)
+    {
+        return (((uint32_t)generation) << 16) | (id_index + 1u);
+    }
+
+    static void ResetTimer(Timer* timer)
+    {
+        timer->m_Remaining = 0.f;
+        timer->m_Trigger = 0x0;
+        timer->m_Userdata1 = 0x0;
+        timer->m_Userdata2 = 0x0;
+        timer->m_PrevIdWithSameUserdata1 = 0x0;
+        timer->m_NextIdWithSameUserdata1 = 0x0;
+
+        timer->m_Id = INVALID_TIMER_ID;
+
+        // The timer intervall, we need to keep this for repeating timers, not really for one-shots
+        timer->m_Intervall = 0.f;
+
+        // Flag if the timer should repeat
+        timer->m_Repeat = 0;
+    }
+
+    static Timer* AllocateTimer(HTimerContext timer_context, uintptr_t userdata1)
+    {
+        assert(timer_context != 0x0);
+        uint32_t triggerCount = timer_context->m_Timers.Size();
+        if (triggerCount == MAX_TIMER_CAPACITY)
+        {
+            dmLogError("Timer could not be stored since the buffer is full (%d).", MAX_TIMER_CAPACITY);
+            return 0x0;
+        }
+
+        uint32_t* id_ptr = timer_context->m_Userdata1ToFirstId.Get(userdata1);
+        if (id_ptr == 0x0)
+        {
+            if (timer_context->m_Userdata1ToFirstId.Full())
+            {
+                dmLogError("Timer could not be stored since the instance lookup buffer is full (%d).", timer_context->m_Userdata1ToFirstId.Size());
+                return 0x0;
+            }
+        }
+
+        uint32_t id = MakeId(timer_context->m_Generation, timer_context->m_IndexPool.Pop());
+
+        if (timer_context->m_Timers.Full())
+        {
+            // Growth heuristic is to grow with the mean of MIN_TIMER_CAPACITY_GROWTH and half current capacity, and at least MIN_TIMER_CAPACITY_GROWTH
+            uint32_t capacity = timer_context->m_Timers.Capacity();
+            uint32_t growth = dmMath::Min(MIN_TIMER_CAPACITY_GROWTH, (MIN_TIMER_CAPACITY_GROWTH + capacity / 2) / 2);
+            capacity = dmMath::Min(capacity + growth, MAX_TIMER_CAPACITY);
+            timer_context->m_Timers.SetCapacity(capacity);
+        }
+
+        timer_context->m_Timers.SetSize(triggerCount + 1);
+        Timer& timer = timer_context->m_Timers[triggerCount];
+        timer.m_Id = id;
+        timer.m_Userdata1 = userdata1;
+
+        timer.m_PrevIdWithSameUserdata1 = INVALID_TIMER_ID;
+        if (id_ptr != 0x0)
+        {
+            uint16_t next_id_index = GetIdIndex(*id_ptr);
+            Timer& nextTimer = timer_context->m_Timers[timer_context->m_IdToIndexMap[next_id_index]];
+            nextTimer.m_PrevIdWithSameUserdata1 = id;
+            timer.m_NextIdWithSameUserdata1 = nextTimer.m_Id;
+        }
+        else
+        {
+            timer.m_NextIdWithSameUserdata1 = INVALID_TIMER_ID;
+        }
+
+        uint16_t id_index = GetIdIndex(id);
+        timer_context->m_IdToIndexMap[id_index] = triggerCount;
+        timer_context->m_Userdata1ToFirstId.Put(userdata1, id);
+        return &timer;
+    }
+
+    static void FreeTimer(HTimerContext timer_context, Timer& timer)
+    {
+        assert(timer_context != 0x0);
+
+        uint16_t id_index = GetIdIndex(timer.m_Id);
+        uint32_t timer_index = timer_context->m_IdToIndexMap[id_index];
+        timer_context->m_IndexPool.Push(id_index);
+
+        uint32_t previousId = timer.m_PrevIdWithSameUserdata1;
+        uint32_t nextId = timer.m_NextIdWithSameUserdata1;
+        if (INVALID_TIMER_ID != nextId)
+        {
+            uint16_t next_id_index = GetIdIndex(nextId);
+            timer_context->m_Timers[timer_context->m_IdToIndexMap[next_id_index]].m_PrevIdWithSameUserdata1 = previousId;
+        }
+
+        if (INVALID_TIMER_ID != previousId)
+        {
+            uint16_t prev_id_index = GetIdIndex(previousId);
+            timer_context->m_Timers[timer_context->m_IdToIndexMap[prev_id_index]].m_NextIdWithSameUserdata1 = nextId;
+        }
+        else
+        {
+            if (INVALID_TIMER_ID == nextId)
+            {
+                timer_context->m_Userdata1ToFirstId.Erase(timer.m_Userdata1);
+            }
+            else
+            {
+                timer_context->m_Userdata1ToFirstId.Put(timer.m_Userdata1, nextId);
+            }
+        }
+
+    //    timer_context->m_IdToIndexMap.Erase(timer->m_Id);
+    //    timer->m_Id = INVALID_TIMER_ID;
+    //    timer->m_NextIdWithSameUserdata1 = INVALID_TIMER_ID;
+    //    timer->m_PrevIdWithSameUserdata1 = INVALID_TIMER_ID;
+    //    timer->m_Userdata1 = 0x0;
+
+        ResetTimer(&timer);
+        Timer& movedTimer = timer_context->m_Timers.EraseSwap(timer_index);
+
+        if (timer_index < timer_context->m_Timers.Size())
+        {
+            uint16_t moved_id_index = GetIdIndex(movedTimer.m_Id);
+            timer_context->m_IdToIndexMap[moved_id_index] = timer_index;
+        }
+    }
+
+    HTimerContext NewTimerContext(uint16_t max_timer_count)
+    {
+        TimerContext* timer_context = new TimerContext();
+        const uint32_t timer_count = 256;
+        timer_context->m_Timers.SetCapacity(timer_count);
+        timer_context->m_IdToIndexMap.SetCapacity(MAX_TIMER_CAPACITY);
+        timer_context->m_IdToIndexMap.SetSize(MAX_TIMER_CAPACITY);
+        timer_context->m_IndexPool.SetCapacity(MAX_TIMER_CAPACITY);
+        const int32_t instance_count = max_timer_count;
+        const uint32_t table_count = dmMath::Max(1, instance_count/3);
+        timer_context->m_Userdata1ToFirstId.SetCapacity(table_count, instance_count);
+        timer_context->m_Generation = 0;
+        timer_context->m_InUpdate = 0;
+        return timer_context;
+    }
+
+    void DeleteTimerContext(HTimerContext timer_context)
+    {
+        // Do we need to clean up any callback references?
+        delete timer_context;
+    }
+    
+    void UpdateTimerContext(HTimerContext timer_context, float dt)
+    {
+        assert(timer_context != 0x0);
+//        DM_PROFILE(Timer, "Update");
+
+        timer_context->m_InUpdate = 1;
+        uint32_t size = timer_context->m_Timers.Size();
+//        DM_COUNTER("timerc", size);
+        uint32_t i = 0;
+        while (i < size)
+        {
+            Timer& timer = timer_context->m_Timers[i];
+            if (timer.m_Remaining > 0.0f)
+            {
+                timer.m_Remaining -= dt;
+                if (timer.m_Remaining <= 0.0f)
+                {
+                    assert(timer.m_Trigger != 0x0);
+                    timer.m_Trigger(timer.m_Id, (void*)timer.m_Userdata1, (void*)timer.m_Userdata2);
+
+                    // New timers may be added during the trigger
+                    size = timer_context->m_Timers.Size();
+                }
+            }
+            ++i;
+        }
+
+        size = timer_context->m_Timers.Size();
+        i = 0;
+        uint32_t old_size = size;
+        while (i < size)
+        {
+            Timer& timer = timer_context->m_Timers[i];
+            if (timer.m_Remaining <= 0.0f)
+            {
+                if (timer.m_Repeat)
+                {
+                    timer.m_Remaining += timer.m_Intervall;
+                    ++i;
+                }
+                else
+                {
+                    FreeTimer(timer_context, timer);
+                    --size;
+                }
+            }
+            else
+            {
+                ++i;
+            }
+        }
+
+        if (old_size != size)
+        {
+            ++timer_context->m_Generation;
+        }
+
+        timer_context->m_InUpdate = 0;
+    }
+
+    uint32_t AddTimer(HTimerContext timer_context,
+                        float delay,
+                        TimerTrigger timer_trigger,
+                        void* userdata1,
+                        void* userdata2,
+                        bool repeat)
+    {
+        assert(timer_context != 0x0);
+        assert(delay >= 0.f);
+        Timer* timer = AllocateTimer(timer_context, (uintptr_t)userdata1);
+        if (timer == 0x0)
+        {
+            return INVALID_TIMER_ID;
+        }
+
+        timer->m_Userdata2 = (uintptr_t)userdata2;
+        timer->m_Intervall = delay;
+        timer->m_Remaining = delay;
+        timer->m_Repeat = repeat;
+
+        return timer->m_Id;
+    }
+
+    bool CancelTimer(HTimerContext timer_context, uint32_t id)
+    {
+        assert(timer_context != 0x0);
+        uint16_t id_index = GetIdIndex(id);
+        if (id_index >= timer_context->m_IdToIndexMap.Size())
+        {
+            // Dead timer
+            return false;
+        }
+        uint16_t timer_index = timer_context->m_IdToIndexMap[id_index];
+        if (timer_index >= timer_context->m_Timers.Size())
+        {
+            // Dead timer
+            return false;
+        }
+        Timer& timer = timer_context->m_Timers[timer_index];
+        if (timer.m_Id != id)
+        {
+            // Dead timer
+            return false;
+        }
+
+        if (timer_context->m_InUpdate)
+        {
+            timer.m_Remaining = 0.0f;
+            timer.m_Repeat = 0;
+
+            uint32_t* id_ptr = timer_context->m_Userdata1ToFirstId.Get(timer.m_Userdata1);
+            assert(id_ptr != 0x0);
+            if (*id_ptr == id)
+            {
+                if (timer.m_NextIdWithSameUserdata1 == INVALID_TIMER_ID)
+                {
+                    timer_context->m_Userdata1ToFirstId.Erase(timer.m_Userdata1);
+                }
+                else
+                {
+                    timer_context->m_Userdata1ToFirstId.Put(timer.m_Userdata1, timer.m_NextIdWithSameUserdata1);
+                }
+            }
+        }
+        else
+        {
+            FreeTimer(timer_context, timer);
+            ++timer_context->m_Generation;
+        }
+        return true;
+    }
+
+    uint32_t CancelTimers(HTimerContext timer_context, void* userdata1)
+    {
+        assert(timer_context != 0x0);
+        uint32_t* id_ptr = timer_context->m_Userdata1ToFirstId.Get((uintptr_t)userdata1);
+        if (id_ptr == 0x0)
+            return 0u;
+
+        uint32_t cancelled_count = 0u;
+        uint32_t id = *id_ptr;
+        do
+        {
+            uint16_t id_index = GetIdIndex(id);
+            uint16_t timer_index = timer_context->m_IdToIndexMap[id_index];
+            Timer& timer = timer_context->m_Timers[timer_index];
+
+            timer_context->m_IndexPool.Push(id_index);
+
+            id = timer.m_NextIdWithSameUserdata1;
+
+            if (timer_context->m_InUpdate)
+            {
+                timer.m_Remaining = 0.0f;
+                timer.m_Repeat = 0;
+            }
+            else
+            {
+                ResetTimer(&timer);
+                Timer& movedTimer = timer_context->m_Timers.EraseSwap(timer_index);
+
+                if (timer_index < timer_context->m_Timers.Size())
+                {
+                    uint16_t moved_id_index = GetIdIndex(movedTimer.m_Id);
+                    timer_context->m_IdToIndexMap[moved_id_index] = timer_index;
+                }
+            }
+            ++cancelled_count;
+        } while (id != INVALID_TIMER_ID);
+
+        timer_context->m_Userdata1ToFirstId.Erase((uintptr_t)userdata1);
+        ++timer_context->m_Generation;
+        return cancelled_count;
+    }
 }
