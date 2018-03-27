@@ -1,6 +1,6 @@
 (ns editor.code.syntax
   (:require [clojure.string :as string]
-            [editor.code.util :as util])
+            [editor.code.util :as util :refer [pair]])
   (:import (java.util.regex MatchResult Pattern)))
 
 (set! *warn-on-reflection* true)
@@ -46,51 +46,64 @@
                 (->Match :end (pop contexts) (.toMatchResult end-matcher) (.parent-pattern context))))
             (some-> context .parent-pattern :patterns))))
 
-(defn- append-run! [transient-runs index scope]
+(defn- append-run! [transient-runs [index :as run]]
   (let [last-coll-index (dec (count transient-runs))
-        prev-run-index (first (get transient-runs last-coll-index))
-        run (util/pair index scope)]
+        prev-run-index (first (get transient-runs last-coll-index))]
     (if (= index prev-run-index)
       (assoc! transient-runs last-coll-index run)
       (conj! transient-runs run))))
 
-(defn- append-captures! [transient-runs parent-scope ^MatchResult match-result captures]
-  (reduce (fn [runs group]
-            (or (when-some [capture (captures group)]
-                  (when (not= -1 (.start match-result group))
-                    (when-some [scope (:name capture)]
-                      (-> runs
-                          (append-run! (.start match-result group) scope)
-                          (append-run! (.end match-result group) parent-scope)))))
-                runs))
-          transient-runs
-          (range 0 (inc (.groupCount match-result)))))
+(defn- append-match-result! [transient-runs ^MatchResult match-result scope captures]
+  (let [parent-scope (second (get transient-runs (dec (count transient-runs))))
+        sorted-scope-changes (->> (range 0 (inc (.groupCount match-result)))
+                                  (mapcat (fn [^long group]
+                                            (let [start (.start match-result group)
+                                                  end (.end match-result group)
+                                                  scope (or (:name (get captures group))
+                                                            (when (zero? group)
+                                                              scope))]
+                                              (when (and (some? scope)
+                                                         (not= -1 start))
+                                                (pair (pair start scope)
+                                                      (pair end :end))))))
+                                  (sort-by first))]
+    (loop [parent-scopes (list parent-scope)
+           scope-changes sorted-scope-changes
+           transient-runs transient-runs]
+      (if-some [scope-change (first scope-changes)]
+        (let [[index scope-or-end] scope-change
+              parent-scopes (if (= :end scope-or-end)
+                              (pop parent-scopes)
+                              (conj parent-scopes scope-or-end))
+              run (if (= :end scope-or-end)
+                    (pair index (peek parent-scopes))
+                    scope-change)]
+          (recur parent-scopes
+                 (next scope-changes)
+                 (if (some? run)
+                   (append-run! transient-runs run)
+                   transient-runs)))
+        transient-runs))))
 
-(defn- append-match! [transient-runs parent-scope ^MatchResult match-result pattern]
+(defn- append-match! [transient-runs ^MatchResult match-result pattern]
   (let [scope (:name pattern)
         captures (:captures pattern)]
-    (cond-> transient-runs
-            scope (append-run! (.start match-result) scope)
-            captures (append-captures! (or scope parent-scope) match-result captures)
-            scope (append-run! (.end match-result) parent-scope))))
+    (append-match-result! transient-runs match-result scope captures)))
 
-(defn- append-begin! [transient-runs parent-scope ^MatchResult match-result pattern]
+(defn- append-begin! [transient-runs ^MatchResult match-result pattern]
   (let [scope (:name pattern)
         content-scope (:content-name pattern)
         captures (or (:begin-captures pattern) (:captures pattern))]
-    (cond-> transient-runs
-            scope (append-run! (.start match-result) scope)
-            captures (append-captures! (or scope parent-scope) match-result captures)
-            content-scope (append-run! (.end match-result) content-scope))))
+    (cond-> (append-match-result! transient-runs match-result scope captures)
+            content-scope (append-run! (pair (.start match-result) content-scope)))))
 
-(defn- append-end! [transient-runs parent-scope ^MatchResult match-result pattern]
+(defn- append-end! [transient-runs ^MatchResult match-result pattern]
   (let [scope (:name pattern)
         content-scope (:content-name pattern)
         captures (or (:end-captures pattern) (:captures pattern))]
     (cond-> transient-runs
-            content-scope (append-run! (.start match-result) content-scope)
-            captures (append-captures! (or scope parent-scope) match-result captures)
-            scope (append-run! (.end match-result) parent-scope))))
+            content-scope (append-run! (pair (.start match-result) content-scope))
+            true (append-match-result! match-result scope captures))))
 
 (defn- find-parent-scope [^AnalysisContext context]
   (when-some [parent-pattern (.parent-pattern context)]
@@ -104,14 +117,13 @@
   (let [root-scope (some find-parent-scope contexts)]
     (loop [start 0
            contexts contexts
-           runs (transient [(util/pair 0 root-scope)])]
+           runs (transient [(pair 0 root-scope)])]
       (if-some [match (first-match contexts line start)]
-        (let [parent-scope (some find-parent-scope (.contexts match))
-              match-result ^MatchResult (.match-result match)]
+        (let [match-result ^MatchResult (.match-result match)]
           (recur (.end match-result)
                  (.contexts match)
                  (case (.type match)
-                   :match (append-match! runs parent-scope match-result (.pattern match))
-                   :begin (append-begin! runs parent-scope match-result (.pattern match))
-                   :end (append-end! runs parent-scope match-result (.pattern match)))))
-        (util/pair contexts (persistent! runs))))))
+                   :match (append-match! runs match-result (.pattern match))
+                   :begin (append-begin! runs match-result (.pattern match))
+                   :end (append-end! runs match-result (.pattern match)))))
+        (pair contexts (persistent! runs))))))
