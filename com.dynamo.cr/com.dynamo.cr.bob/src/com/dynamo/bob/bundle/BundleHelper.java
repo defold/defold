@@ -242,8 +242,7 @@ public class BundleHelper {
     private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
 
     private static Pattern resourceIssueLinkerLINKLibError = Pattern.compile("^(.+\\.lib)(\\(.+\\.obj\\)\\s:\\s.+)");
-    private static Pattern resourceIssueLinkerLINKFatalError = Pattern.compile("^(fatal error\\s.+)");
-    private static Pattern resourceIssueLinkerLINKCatchAll = Pattern.compile("^LINK.+(error).+(LNK[0-9]+):.+");
+    private static Pattern resourceIssueLinkerLINKCatchAll = Pattern.compile("^(.+error\\s.+)");
 
     // Matches ext.manifest and also _app/app.manifest
     private static Pattern manifestIssueRe = Pattern.compile("^.+'(.+\\.manifest)'.+");
@@ -339,16 +338,10 @@ public class BundleHelper {
                 issues.add(new BundleHelper.ResourceInfo("error", m.group(1), "", line));
             }
 
-            m = resourceIssueLinkerLINKFatalError.matcher(line);
+            m = resourceIssueLinkerLINKCatchAll.matcher(line);
             if (m.matches()) {
                 // Groups: message
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", line));
-            }
-
-            m = resourceIssueLinkerLINKCatchAll.matcher(line);
-            if (m.matches()) {
-                // Groups: severity, message, link error number
-                issues.add(new BundleHelper.ResourceInfo(m.group(1), null, "", line));
             }
         }
     }
