@@ -802,7 +802,13 @@ namespace dmSocket
         struct addrinfo* res;
 
         memset(&hints, 0x0, sizeof(hints));
-        hints.ai_family = AF_UNSPEC;
+        if (ipv4 == ipv6)
+            hints.ai_family = AF_UNSPEC;
+        else if (ipv4)
+            hints.ai_family = AF_INET;
+        else if (ipv6)
+            hints.ai_family = AF_INET6;
+            
         hints.ai_socktype = SOCK_STREAM;
 
         // getaddrinfo_a is an asynchronous alternative, but it is specific to glibc.
