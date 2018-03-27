@@ -90,17 +90,10 @@ namespace dmRig
         float m_Length;
     };
 
-    struct MeshProperties
+    struct MeshSlotPose
     {
-        float m_Color[4];
-        uint32_t m_Order;
-        int32_t m_OrderOffset;
-        int32_t m_Slot;
-        int32_t m_MeshId;
-        bool m_Visible : 1;
-        bool m_ColorFromTrack : 1;
-        bool m_VisibleFromTrack : 1;
-        bool m_OffsetFromTrack : 1;
+       float m_Color[4];
+       int32_t m_ActiveAttachment;
     };
 
     struct IKAnimation
@@ -194,7 +187,6 @@ namespace dmRig
     struct RigContext
     {
         dmObjectPool<HRigInstance>      m_Instances;
-        dmArray<int32_t>                m_ScratchSlotsBuffer;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
@@ -228,7 +220,7 @@ namespace dmRig
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
         void*                         m_PoseCBUserData2;
-        dmArray<uint32_t>             m_DrawOrderToMesh;
+        dmArray<int32_t>              m_DrawOrder;
         /// Event handling
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData1;
@@ -240,7 +232,7 @@ namespace dmRig
         /// User IK constraint targets
         dmArray<IKTarget>             m_IKTargets;
         /// Animated mesh properties
-        dmArray<MeshProperties>       m_MeshProperties;
+        dmArray<MeshSlotPose>         m_MeshSlotPose;
         /// Currently used mesh
         const dmRigDDF::MeshEntry*    m_MeshEntry;
         dmhash_t                      m_MeshId;

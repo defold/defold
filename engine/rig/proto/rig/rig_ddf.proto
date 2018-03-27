@@ -59,14 +59,11 @@ message IKAnimationTrack
 
 message MeshAnimationTrack
 {
-    required uint32 mesh_index = 1;
-    required uint64 mesh_id = 2;
-    // draw-index = draw-index + order_offset
-    repeated int32 order_offset = 3;
-    // visibility
-    repeated bool visible = 4;
-    // r0, g0, b0, a0, …
-    repeated float colors = 5;
+    required uint32 mesh_slot = 1;
+    repeated int32 order_offset = 2;
+    repeated int32 mesh_attachment = 3;
+    // r0, g0, b0, a0, r1, g1, b1, a1, ...
+    repeated float colors = 4;
 }
 
 message EventKey
@@ -123,31 +120,41 @@ message Mesh
     repeated float weights = 5;
     // i00, i01, i02, i03, i10, … (only specified for skinned meshes)
     repeated uint32 bone_indices = 6;
-    optional bool visible = 7 [default = true];
-    optional uint32 draw_order = 8;
-    repeated float normals   = 9;
-    repeated uint32 normals_indices = 10;
-    repeated uint32 texcoord0_indices  = 11;
-    repeated float skin_color = 12;
+    repeated float normals   = 7;
+    repeated uint32 normals_indices = 8;
+    repeated uint32 texcoord0_indices  = 9;
+}
+
+// Each mesh slot can have different mesh attachments, with indices pointing
+// to the actual mesh data in the MeshSet.
+// The list of mesh attachments will never change during runtime,
+// instead animation can change the active index which points to
+// the current active mesh attachment.
+message MeshSlot
+{
+    repeated uint32 mesh_attachments = 1;
+    required uint32 active_index = 2;
+    repeated float skin_color = 3;
 }
 
 message MeshEntry
 {
     required uint64 id = 1;
-    repeated Mesh meshes = 2;
+    repeated MeshSlot mesh_slots = 2;
 }
 
 message MeshSet
 {
     repeated MeshEntry mesh_entries = 1;
+    repeated Mesh mesh_attachments = 2;
 
     // List of bone names that represent the order of the bone influences.
     // Not used for Spine rigs since they don't have support for external skeletons.
-    repeated uint64 bone_list = 2;
+    repeated uint64 bone_list = 3;
     // Max number of bones used in any of the meshes (in the bone_indices list)
-    optional uint32 max_bone_count = 3;
+    optional uint32 max_bone_count = 4;
     // number of spine scene slot entries
-    optional uint32 slot_count = 4 [default = 0];
+    optional uint32 slot_count = 5 [default = 0];
 }
 
 message RigScene

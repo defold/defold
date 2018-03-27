@@ -23,7 +23,7 @@ import org.osgi.framework.FrameworkUtil;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.RigUtil;
-import com.dynamo.bob.util.RigUtil.Slot;
+import com.dynamo.bob.util.RigUtil.BaseSlot;
 import com.dynamo.bob.util.RigUtil.SlotAnimationTrack;
 import com.dynamo.bob.util.SpineSceneUtil;
 import com.dynamo.bob.util.RigUtil.Animation;
@@ -32,7 +32,7 @@ import com.dynamo.bob.util.RigUtil.AnimationTrack;
 import com.dynamo.bob.util.RigUtil.AnimationTrack.Property;
 import com.dynamo.bob.util.RigUtil.Bone;
 import com.dynamo.bob.util.RigUtil.EventTrack;
-import com.dynamo.bob.util.RigUtil.Mesh;
+import com.dynamo.bob.util.RigUtil.MeshAttachment;
 import com.dynamo.bob.util.RigUtil.Transform;
 import com.dynamo.bob.util.RigUtil.UVTransformProvider;
 import com.dynamo.rig.proto.Rig;
@@ -196,7 +196,7 @@ public class SpineSceneTest {
         assertTransform(rotated.localT, null, new Quat4d(0.0, 0.0, halfSqrt2, halfSqrt2), null);
     }
 
-    private void assertMesh(Mesh mesh, String path, float[] vertices, int[] triangles, int[] boneIndices, float[] boneWeights) {
+    private void assertMesh(MeshAttachment mesh, String path, float[] vertices, int[] triangles, int[] boneIndices, float[] boneWeights) {
         assertEquals(path, mesh.path);
         assertFloatArrays(vertices, mesh.vertices);
         assertIntArrays(triangles, mesh.triangles);
@@ -207,8 +207,8 @@ public class SpineSceneTest {
     @Test
     public void testLoadingMeshes() throws Exception {
         SpineSceneUtil scene = load("skeleton.json");
-        assertEquals(3, scene.meshes.size());
-        assertMesh(scene.meshes.get(0), "test_sprite",
+        assertEquals(3, scene.getDefaultAttachments().size());
+        assertMesh(scene.getDefaultAttachments().get(0), "test_sprite",
                 new float[] {
                     100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
                     100.0f, 100.0f, 0.0f, 0.0f, 0.0f,
@@ -232,7 +232,7 @@ public class SpineSceneTest {
                     1.0f, 0.0f, 0.0f, 0.0f,
                 }
         );
-        assertMesh(scene.meshes.get(1), "test_sprite",
+        assertMesh(scene.getDefaultAttachments().get(1), "test_sprite",
                 new float[] {
                     100.0f, 0.0f, 0.0f, 0.5f, 1.0f,
                     -100.0f, 0.0f, 0.0f, 0.0f, 1.0f,
@@ -256,7 +256,7 @@ public class SpineSceneTest {
                     1.0f, 0.0f, 0.0f, 0.0f,
                 }
         );
-        assertMesh(scene.meshes.get(2), "test_sprite",
+        assertMesh(scene.getDefaultAttachments().get(2), "test_sprite",
                 new float[] {
                     100.0f, 100.0f, 0.0f, 0.5f, 1.0f,
                     -100.0f, 100.0f, 0.0f, 0.0f, 1.0f,
@@ -356,7 +356,7 @@ public class SpineSceneTest {
         
         RigUtil.sampleTrack(track, rotBuilder, new Quat4d(0.0, 0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, true);
         double halfSqrt2 = Math.sqrt(2.0) / 2.0;
-        int expectedNumRotSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 4; // Quaternions
+        int expectedNumRotSamples = ((int)Math.ceil(duration * sampleRate) + 2) * 4; // Quaternions
         Quat4d expectedInitRot = new Quat4d(0.0, 0.0, 0.0, 1.0);
         Quat4d expectedEndRot = new Quat4d(0.0, 0.0, halfSqrt2, halfSqrt2);
         
@@ -379,7 +379,7 @@ public class SpineSceneTest {
         MockPositionBuilder posBuilder = new MockPositionBuilder(animTrackBuilder);
         
         RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, true);
-        int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 3; // Point3d
+        int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 2) * 3; // Point3d
         Point3d expectedInitPos = new Point3d(0.0, 0.0, 0.0);
         Point3d expectedEndPos = new Point3d(100.0, 0.0, 0.0);
         
@@ -404,7 +404,7 @@ public class SpineSceneTest {
         MockPositionBuilder posBuilder = new MockPositionBuilder(animTrackBuilder);
         
         RigUtil.sampleTrack(track, posBuilder, new Point3d(0.0, 0.0, 0.0), 0.0, duration, sampleRate, spf, interpolate);
-        int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 1) * 3; // Point3d
+        int expectedNumPosSamples = ((int)Math.ceil(duration * sampleRate) + 2) * 3; // Point3d
         Point3d expectedInitPos = new Point3d(0.0, 0.0, 0.0);
         Point3d expectedLowMidPos = new Point3d(0.0, 0.0, 0.0);
         Point3d expectedHighMidPos = new Point3d(0.0, 0.0, 0.0);
@@ -428,29 +428,28 @@ public class SpineSceneTest {
         SpineSceneUtil scene = load("visibility_skeleton.json");
         Animation anim = scene.getAnimation("animation");
         SlotAnimationTrack track = anim.slotTracks.get(0);
-        Slot slot = scene.getSlot(track.slot.name);
+        BaseSlot slot = scene.baseSlots.get(track.slot);
 
         double sampleRate = 30.0;
         double spf = 1.0/sampleRate;
         double duration = anim.duration;
         boolean interpolate = false;
         boolean shouldSlerp = false;
-        
-        int expectedSampleCountPerMesh = 5;
-        
-        String[] meshNames = {"_1", "_2", "_3", "_4", "_5"};
-        
-        for (int i=0; i < meshNames.length; ++i) {
-            MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
-            trackBuilder.setMeshId(1337);
-            trackBuilder.setMeshIndex(666);
-            MockVisibilityBuilder visibilityBuilder = new MockVisibilityBuilder(trackBuilder, meshNames[i]);
-            RigUtil.sampleTrack(track, visibilityBuilder, new Boolean(meshNames[i].equals(slot.attachment)), 0.0, duration, sampleRate, spf, interpolate);
-            assertEquals(expectedSampleCountPerMesh, visibilityBuilder.GetVisibleCount());
-            
-            for (int j=0; j < expectedSampleCountPerMesh; ++j) {
-                assertEquals(i == j, visibilityBuilder.GetVisible(j));
-            }
+
+        // Original slot attachment names: _1, _2, _3, _4, _5
+        // Slot attachment names are lost in the built data.
+        // The default attachment for a slot is added first, in our case "_5" which gets the index 0.
+        int[] attachmentIndices = {1, 2, 3, 4, 0, 0};
+        int expectedSampleCountPerMesh = attachmentIndices.length; // One sample per attachment + copy of last one
+
+        MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
+        trackBuilder.setMeshSlot(0);
+        MockAttachmentBuilder attachmentBuilder = new MockAttachmentBuilder(trackBuilder);
+        RigUtil.sampleTrack(track, attachmentBuilder, slot.activeAttachment, 0.0, duration, sampleRate, spf, interpolate);
+        assertEquals(expectedSampleCountPerMesh, attachmentBuilder.GetMeshAttachmentCount());
+
+        for (int j=0; j < expectedSampleCountPerMesh; ++j) {
+            assertEquals(attachmentIndices[j], attachmentBuilder.GetMeshAttachment(j));
         }
     }
     
@@ -471,41 +470,44 @@ public class SpineSceneTest {
         boolean interpolate = false;
         boolean shouldSlerp = false;
 
-        int expectedSampleCountPerMesh = 5;
         
+        int expectedSampleCountPerMesh = 6;
         MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
         
         // Mesh "_3" [0, 2, 1, 0, 0]
         MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_3, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_3, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(1));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(2));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(3));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(5));
         trackBuilder.clear();
 
         // Mesh "_4" [0, 2, 1, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(1));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(2));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(3));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(5));
         trackBuilder.clear();
         
         // Mesh "_5" [0, 0, 4, 4, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_5, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_5, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(2));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(3));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(5));
     }
     
     @Test
@@ -522,30 +524,30 @@ public class SpineSceneTest {
         double duration = anim.duration;
         boolean interpolate = false;
         boolean shouldSlerp = false;
-        int expectedSampleCountPerMesh = 14;
-        int signal_locked = 0x10CCED;
-        
+        int expectedSampleCountPerMesh = 15;
+
         MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
         MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
         
         // Mesh "_4" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0xDEAD, 0xDEAD, 0xDEAD, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(2));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
-        assertEquals(signal_locked, drawOrderBuilder.GetOrderOffset(9));
-        assertEquals(signal_locked, drawOrderBuilder.GetOrderOffset(10));
-        assertEquals(signal_locked, drawOrderBuilder.GetOrderOffset(11));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(0, drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(14));
         trackBuilder.clear();
     }
     
@@ -566,68 +568,71 @@ public class SpineSceneTest {
         boolean interpolate = false;
         boolean shouldSlerp = false;
 
-        int expectedSampleCountPerMesh = 14;
-        
+        int expectedSampleCountPerMesh = 15;
+
         MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
 
         // Mesh "_3" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
         MockDrawOrderBuilder drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_3, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_3, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(2));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(9));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(10));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(11));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(14));
         trackBuilder.clear();
 
         // Mesh "_4" [0, 0, 0, 2, 2, 2, 1, 1, 1, 0, 0, 0, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_4, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_4, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(2));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(3));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(4));
         assertEquals(2, drawOrderBuilder.GetOrderOffset(5));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(6));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(7));
         assertEquals(1, drawOrderBuilder.GetOrderOffset(8));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(9));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(10));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(11));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(9));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(10));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(11));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(14));
         trackBuilder.clear();
         
         // Mesh "_5" [0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 4, 0, 0]
         drawOrderBuilder = new MockDrawOrderBuilder(trackBuilder);
-        RigUtil.sampleTrack(track_5, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, interpolate);
+        RigUtil.sampleTrack(track_5, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, interpolate);
         assertEquals(expectedSampleCountPerMesh, drawOrderBuilder.GetOrderOffsetCount());
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(0));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(1));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(2));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(3));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(4));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(5));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(0));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(1));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(2));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(3));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(4));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(5));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(6));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(7));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(8));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(9));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(10));
         assertEquals(4, drawOrderBuilder.GetOrderOffset(11));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(12));
-        assertEquals(0, drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(12));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(13));
+        assertEquals(SpineSceneUtil.slotSignalUnchanged, drawOrderBuilder.GetOrderOffset(14));
     }
 
     @Test
@@ -637,7 +642,7 @@ public class SpineSceneTest {
             input = getClass().getResourceAsStream("empty.json");
             SpineSceneUtil scene = SpineSceneUtil.loadJson(input, new TestUVTProvider());
             assertEquals(1, scene.bones.size());
-            assertEquals(0, scene.meshes.size());
+            assertEquals(0, scene.getDefaultAttachments().size());
             assertEquals(0, scene.animations.size());
         } finally {
             IOUtils.closeQuietly(input);
@@ -652,7 +657,7 @@ public class SpineSceneTest {
                 input = getClass().getResourceAsStream(String.format("sample%d.json", i));
                 SpineSceneUtil scene = SpineSceneUtil.loadJson(input, new TestUVTProvider());
                 assertTrue(0 < scene.bones.size());
-                assertTrue(0 < scene.meshes.size());
+                assertTrue(0 < scene.getDefaultAttachments().size());
                 assertTrue(0 < scene.animations.size());
             } finally {
                 IOUtils.closeQuietly(input);

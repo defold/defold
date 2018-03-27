@@ -2,6 +2,8 @@ package com.dynamo.bob.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Matrix4d;
@@ -115,11 +117,10 @@ public class RigUtil {
         public int index = -1;
     }
 
-    public static class Mesh {
-        public String attachment;
+    public static class MeshAttachment {
         public String path;
-        public Slot slot;
-        public boolean visible;
+        public int index;
+        public long uniqueHash = 0;
         // format is: x0, y0, z0, u0, v0, ...
         public float[] vertices;
         public int[] triangles;
@@ -127,20 +128,82 @@ public class RigUtil {
         public int[] boneIndices;
 
         public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+
+        public void hash()
+        {
+            String data = path;
+            for (int i = 0; i < vertices.length; i++) {
+                data += vertices[i];
+            }
+            for (int i = 0; i < triangles.length; i++) {
+                data += triangles[i];
+            }
+            for (int i = 0; i < boneWeights.length; i++) {
+                data += boneWeights[i];
+            }
+            for (int i = 0; i < boneIndices.length; i++) {
+                data += boneIndices[i];
+            }
+            for (int i = 0; i < color.length; i++) {
+                data += color[i];
+            }
+            uniqueHash = MurmurHash.hash64(data);
+        }
     }
 
-    public static class Slot {
+    public static class BaseSlot {
         public String name;
-        public Bone bone;
         public int index;
-        public String attachment;
+        public Bone bone;
+        public String defaultAttachmentString;
         public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
 
-        public Slot(String name, Bone bone, int index, String attachment) {
+        public List<String> attachments = new ArrayList<>();
+        public Map<String, Integer> attachmentsLut = new HashMap<>();
+        public int activeAttachment = -1;
+
+        public BaseSlot() {
+            name = null;
+            index = -1;
+            bone = null;
+            defaultAttachmentString = null;
+        }
+        public BaseSlot(String name, int index, Bone bone, String defaultAttachmentString) {
             this.name = name;
-            this.bone = bone;
             this.index = index;
-            this.attachment = attachment;
+            this.bone = bone;
+            this.defaultAttachmentString = defaultAttachmentString;
+
+            if (defaultAttachmentString != null && !defaultAttachmentString.isEmpty())
+            {
+                this.attachments.add(defaultAttachmentString);
+                this.attachmentsLut.put(defaultAttachmentString, 0);
+            }
+        }
+    }
+
+    public static class SkinSlot {
+        public BaseSlot baseSlot;
+        public int activeAttachment = -1;
+        public List<Integer> meshAttachments = new ArrayList<>();
+        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+
+        public SkinSlot(BaseSlot baseSlot) {
+            this.baseSlot = baseSlot;
+            this.activeAttachment = baseSlot.activeAttachment;
+            this.color = baseSlot.color;
+            for (int i = 0; i < baseSlot.attachments.size(); i++) {
+                this.meshAttachments.add(-1);
+            }
+        }
+
+        public SkinSlot(SkinSlot copy) {
+            this.baseSlot = copy.baseSlot;
+            this.activeAttachment = copy.activeAttachment;
+            this.color = copy.color;
+            for (int i = 0; i < copy.meshAttachments.size(); i++) {
+                this.meshAttachments.add(copy.meshAttachments.get(i));
+            }
         }
     }
 
@@ -159,7 +222,7 @@ public class RigUtil {
     }
 
     public static class AnimationKey {
-        public float t;
+        public double t;
         public float[] value = new float[4];
         public boolean stepped;
         public AnimationCurve curve;
@@ -187,7 +250,7 @@ public class RigUtil {
     }
 
     public static class SlotAnimationKey extends AnimationKey {
-        public String attachment;
+        public int attachment;
         public int orderOffset;
     }
 
@@ -195,7 +258,7 @@ public class RigUtil {
         public enum Property {
             ATTACHMENT, COLOR, DRAW_ORDER
         }
-        public Slot slot;
+        public int slot;
         public Property property;
     }
 
@@ -207,7 +270,7 @@ public class RigUtil {
     }
 
     public static class EventKey {
-        public float t;
+        public double t;
         public String stringPayload;
         public float floatPayload;
         public int intPayload;
@@ -220,7 +283,7 @@ public class RigUtil {
 
     public static class Animation {
         public String name;
-        public float duration;
+        public double duration;
         public List<AnimationTrack> tracks = new ArrayList<AnimationTrack>();
         public List<IKAnimationTrack> iKTracks = new ArrayList<IKAnimationTrack>();
         public List<SlotAnimationTrack> slotTracks = new ArrayList<SlotAnimationTrack>();
@@ -509,17 +572,15 @@ public class RigUtil {
         }
     }
 
-    public static class VisibilityBuilder extends AbstractMeshPropertyBuilder<Boolean> {
-        private String meshName;
+    public static class AttachmentBuilder extends AbstractMeshPropertyBuilder<Integer> {
 
-        public VisibilityBuilder(MeshAnimationTrack.Builder builder, String meshName) {
+        public AttachmentBuilder(MeshAnimationTrack.Builder builder) {
             super(builder);
-            this.meshName = meshName;
         }
 
         @Override
-        public void addComposite(Boolean value) {
-            builder.addVisible(value);
+        public void addComposite(Integer value) {
+            builder.addMeshAttachment(value);
         }
 
         @Override
@@ -528,12 +589,12 @@ public class RigUtil {
         }
 
         @Override
-        public Boolean toComposite(RigUtil.SlotAnimationKey key) {
-            return this.meshName.equals(key.attachment);
+        public Integer toComposite(RigUtil.SlotAnimationKey key) {
+            return key.attachment;
         }
 
         @Override
-        public Boolean interpolate(double t, Boolean a, Boolean b)
+        public Integer interpolate(double t, Integer a, Integer b)
         {
             if (t <= 0.5) {
                 return a;
@@ -600,7 +661,7 @@ public class RigUtil {
         // in turn we can safely interpolate at end of the animation in runtime when the cursor is the same as duration.
         // If the animation has a duration of zero (ie only one keyframe at time 0), we need to make sure
         // we always have 2 keyframes (ie a duplicate of the last one here as well).
-        int sampleCount = Math.max(2, (int)Math.ceil(duration * sampleRate) + 1);
+        int sampleCount = (int)Math.ceil(duration * sampleRate) + 2;
         double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();

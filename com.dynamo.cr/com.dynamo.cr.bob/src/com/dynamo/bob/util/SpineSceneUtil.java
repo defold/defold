@@ -24,10 +24,11 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.RigUtil.Bone;
-import com.dynamo.bob.util.RigUtil.Mesh;
+import com.dynamo.bob.util.RigUtil.MeshAttachment;
+import com.dynamo.bob.util.RigUtil.SkinSlot;
+import com.dynamo.bob.util.RigUtil.BaseSlot;
 import com.dynamo.bob.util.RigUtil.IK;
 import com.dynamo.bob.util.RigUtil.Animation;
-import com.dynamo.bob.util.RigUtil.Slot;
 import com.dynamo.bob.util.RigUtil.Event;
 import com.dynamo.bob.util.RigUtil.Transform;
 import com.dynamo.bob.util.RigUtil.AnimationTrack;
@@ -56,17 +57,30 @@ public class SpineSceneUtil {
         }
     }
 
+    public static int slotSignalUnchanged = 0x10CCED;
+
+    public String spineVersion = null;
+    public boolean localBoneScaling = true;
+
     public List<Bone> bones = new ArrayList<Bone>();
     public List<IK> iks = new ArrayList<IK>();
     public Map<String, Bone> nameToBones = new HashMap<String, Bone>();
     public Map<String, IK> nameToIKs = new HashMap<String, IK>();
-    public List<Mesh> meshes = new ArrayList<Mesh>();
-    public Map<String, List<Mesh>> skins = new HashMap<String, List<Mesh>>();
-    public Map<String, Animation> animations = new HashMap<String, Animation>();
-    public Map<String, Slot> slots = new HashMap<String, Slot>();
-    public Map<String, Event> events = new HashMap<String, Event>();
-    public boolean localBoneScaling = true;
+
+    // Slots
     public int slotCount = 0;
+    public List<BaseSlot> baseSlots = new ArrayList<BaseSlot>();
+    public Map<String, BaseSlot> baseSlotsLut = new HashMap<String, BaseSlot>();
+    public List<MeshAttachment> attachments = new ArrayList<MeshAttachment>();
+    public Map<Long, MeshAttachment> attachmentLut = new HashMap<Long, MeshAttachment>();
+    // public Map<String, Integer> attachmentsLut = new HashMap<String, Integer>();
+
+    // Skins
+    public Map<String, List<SkinSlot>> skins = new HashMap<String, List<SkinSlot>>();
+    public List<SkinSlot> defaultSkin = null;
+
+    public Map<String, Animation> animations = new HashMap<String, Animation>();
+    public Map<String, Event> events = new HashMap<String, Event>();
 
     public Bone getBone(String name) {
         return nameToBones.get(name);
@@ -84,8 +98,8 @@ public class SpineSceneUtil {
         return iks.get(index);
     }
 
-    public Slot getSlot(String name) {
-        return slots.get(name);
+    public BaseSlot getBaseSlot(String name) {
+        return baseSlotsLut.get(name);
     }
 
     public Animation getAnimation(String name) {
@@ -98,6 +112,40 @@ public class SpineSceneUtil {
 
     public int getSlotCount() {
         return slotCount;
+    }
+
+    public List<SkinSlot> getDefaultSkin() {
+        return defaultSkin;
+    }
+
+    public List<SkinSlot> getSkin(String name) {
+        if (name.isEmpty()) {
+            return getDefaultSkin();
+        }
+        return skins.get(name);
+    }
+
+    public List<MeshAttachment> getAttachmentsForSkin(String name) {
+        List<SkinSlot> skin = getSkin(name);
+        if (skin == null) {
+            return new ArrayList<MeshAttachment>();
+        }
+        List<MeshAttachment> skinAttachments = new ArrayList<>();
+        for (SkinSlot slot : skin) {
+            if (slot.activeAttachment >= 0) {
+                int meshAttachmentIndex = slot.meshAttachments.get(slot.activeAttachment);
+                if (meshAttachmentIndex >= 0) {
+                    MeshAttachment attachment = attachments.get(meshAttachmentIndex);
+                    skinAttachments.add(attachment);
+                }
+            }
+        }
+
+        return skinAttachments;
+    }
+
+    public List<MeshAttachment> getDefaultAttachments() {
+        return getAttachmentsForSkin("");
     }
 
     private static void loadTransform(JsonNode node, Transform t) {
@@ -164,7 +212,7 @@ public class SpineSceneUtil {
         this.nameToIKs.put(ik.name, ik);
     }
 
-    private void loadRegion(JsonNode attNode, Mesh mesh, Bone bone) {
+    private void loadRegion(JsonNode attNode, MeshAttachment mesh, Bone bone) {
         Transform world = new Transform(bone.worldT);
         Transform local = new Transform();
         loadTransform(attNode, local);
@@ -200,9 +248,11 @@ public class SpineSceneUtil {
                 0, 1, 2,
                 2, 1, 3
         };
+
+        mesh.hash();
     }
 
-    private void loadMesh(JsonNode attNode, Mesh mesh, Bone bone, boolean skinned) throws LoadException {
+    private void loadMesh(JsonNode attNode, MeshAttachment mesh, Bone bone, boolean skinned) throws LoadException {
         Iterator<JsonNode> vertexIt = attNode.get("vertices").getElements();
         Iterator<JsonNode> uvIt = attNode.get("uvs").getElements();
         int vertexCount = 0;
@@ -273,6 +323,8 @@ public class SpineSceneUtil {
             }
         }
         mesh.triangles = ArrayUtils.toPrimitive(triangles.toArray(new Integer[triangles.size()]));
+
+        mesh.hash();
     }
 
     private void loadTrack(JsonNode propNode, AnimationTrack track) {
@@ -285,7 +337,7 @@ public class SpineSceneUtil {
         while (keyIt.hasNext()) {
             JsonNode keyNode =  keyIt.next();
             AnimationKey key = new AnimationKey();
-            key.t = (float)keyNode.get("time").asDouble();
+            key.t = keyNode.get("time").asDouble();
             switch (track.property) {
             case POSITION:
                 key.value = new float[] {JsonUtil.get(keyNode, "x", 0.0f), JsonUtil.get(keyNode, "y", 0.0f), 0.0f};
@@ -324,7 +376,7 @@ public class SpineSceneUtil {
         while (keyIt.hasNext()) {
             JsonNode keyNode =  keyIt.next();
             IKAnimationKey key = new IKAnimationKey();
-            key.t = (float)keyNode.get("time").asDouble();
+            key.t = keyNode.get("time").asDouble();
             key.mix = (float)JsonUtil.get(keyNode, "mix", 1.0f);
             key.positive = JsonUtil.get(keyNode, "bendPositive", true);
             if (keyNode.has("curve")) {
@@ -350,7 +402,7 @@ public class SpineSceneUtil {
         while (keyIt.hasNext()) {
             JsonNode keyNode =  keyIt.next();
             SlotAnimationKey key = new SlotAnimationKey();
-            key.t = (float)keyNode.get("time").asDouble();
+            key.t = keyNode.get("time").asDouble();
             switch (track.property) {
             case COLOR:
                 // Hex to RGBA
@@ -358,7 +410,20 @@ public class SpineSceneUtil {
                 JsonUtil.hexToRGBA(hex, key.value);
                 break;
             case ATTACHMENT:
-                key.attachment = JsonUtil.get(keyNode, "name", (String)null);
+                BaseSlot baseSlot = baseSlots.get(track.slot);
+                String attachmentPointName = JsonUtil.get(keyNode, "name", null);
+                if (attachmentPointName != null) {
+                    Integer attachmentPointIndex = baseSlot.attachmentsLut.get(attachmentPointName);
+                    if (attachmentPointIndex == null) {
+                        // If the attachment name wasn't found it means that no skin
+                        // has an actual mesh for this attachment, effectively it will never be drawn.
+                        key.attachment = -1;
+                    } else {
+                        key.attachment = attachmentPointIndex;
+                    }
+                } else {
+                    key.attachment = -1;
+                }
                 break;
             case DRAW_ORDER:
                 // Handled separately, stored in separate JSON node
@@ -439,7 +504,8 @@ public class SpineSceneUtil {
                     }
                     JsonNode propNode = propEntry.getValue();
                     SlotAnimationTrack track = new SlotAnimationTrack();
-                    track.slot = getSlot(slotName);
+                    BaseSlot slot = getBaseSlot(slotName);
+                    track.slot = slot.index;
                     track.property = prop;
                     loadSlotTrack(propNode, track);
                     animation.slotTracks.add(track);
@@ -460,7 +526,7 @@ public class SpineSceneUtil {
                 }
                 Event event = getEvent(eventId);
                 EventKey key = new EventKey();
-                key.t = (float)keyNode.get("time").asDouble();
+                key.t = keyNode.get("time").asDouble();
                 key.intPayload = JsonUtil.get(keyNode, "int", event.intPayload);
                 key.floatPayload = JsonUtil.get(keyNode, "float", event.floatPayload);
                 key.stringPayload = JsonUtil.get(keyNode, "string", event.stringPayload);
@@ -473,8 +539,7 @@ public class SpineSceneUtil {
                 animation.eventTracks.add(track);
             }
         }
-        float duration = 0.0f;
-        int signal_locked = 0x10CCED; // "LOCKED" indicates that draw order offset for this key should not be modified in runtime
+        double duration = 0.0f;
         JsonNode drawOrderNode = animNode.get("drawOrder");
         if (drawOrderNode != null) {
             Iterator<JsonNode> animDrawOrderIt = drawOrderNode.getElements();
@@ -482,7 +547,7 @@ public class SpineSceneUtil {
 
             while (animDrawOrderIt.hasNext()) {
                 JsonNode drawOrderEntry = animDrawOrderIt.next();
-                float t = JsonUtil.get(drawOrderEntry, "time", 0.0f);
+                double t = JsonUtil.get(drawOrderEntry, "time", 0.0f);
                 duration = Math.max(duration, t);
                 JsonNode offsetsNode = drawOrderEntry.get("offsets");
                 if (offsetsNode != null) {
@@ -494,18 +559,13 @@ public class SpineSceneUtil {
                         if (track == null) {
                             track = new SlotAnimationTrack();
                             track.property = SlotAnimationTrack.Property.DRAW_ORDER;
-                            track.slot = slots.get(slotName);
+                            BaseSlot slot = baseSlotsLut.get(slotName);
+                            track.slot = slot.index;
                             slotTracks.put(slotName, track);
                             animation.slotTracks.add(track);
                         }
                         SlotAnimationKey key = new SlotAnimationKey();
                         key.orderOffset = JsonUtil.get(offsetNode, "offset", 0);
-                        
-                        // Key with explicit offset 0 means that a previous draw order offset is finished at this key, but it should yet not be considered unchanged.
-                        if(key.orderOffset == 0) {
-                            key.orderOffset = signal_locked;
-                        }
-                        
                         key.t = t;
                         track.keys.add(key);
                     }
@@ -516,7 +576,7 @@ public class SpineSceneUtil {
                     SlotAnimationKey key = track.keys.get(track.keys.size() - 1);
                     if (key.t != t) {
                         key = new SlotAnimationKey();
-                        key.orderOffset = 0;
+                        key.orderOffset = slotSignalUnchanged;
                         key.t = t;
                         track.keys.add(key);
                     }
@@ -569,6 +629,161 @@ public class SpineSceneUtil {
         return size;
     }
 
+    private static List<SkinSlot> loadSkin(SpineSceneUtil scene, String skinName, JsonNode skinNode, UVTransformProvider uvTransformProvider) throws LoadException {
+        Iterator<Map.Entry<String, JsonNode>> skinSlotIt = skinNode.getFields();
+
+        Map<String, SkinSlot> skinSlotsLut = new HashMap<String, SkinSlot>();
+        List<SkinSlot> skinSlots = new ArrayList<SkinSlot>();
+
+        boolean isDefaultSkin = false;
+        List<SkinSlot> defaultSkin = scene.getDefaultSkin();
+        if (defaultSkin == null) {
+            // This is the default skin, create list of SkinSlots from BaseSlotss
+            for (BaseSlot baseSlot : scene.baseSlots) {
+                SkinSlot skinSlot = new SkinSlot(baseSlot);
+                skinSlotsLut.put(baseSlot.name, skinSlot);
+                skinSlots.add(skinSlot);
+            }
+
+            isDefaultSkin = true;
+        } else {
+            // Copy default skin
+            for (SkinSlot defaultSlot : defaultSkin) {
+                SkinSlot skinSlot = new SkinSlot(defaultSlot);
+                skinSlotsLut.put(defaultSlot.baseSlot.name, skinSlot);
+                skinSlots.add(skinSlot);
+            }
+        }
+
+        while (skinSlotIt.hasNext()) {
+            Map.Entry<String, JsonNode> slotEntry = skinSlotIt.next();
+            String slotName = slotEntry.getKey();
+            SkinSlot slot = skinSlotsLut.get(slotName);
+            JsonNode slotNode = slotEntry.getValue();
+
+            Iterator<Map.Entry<String, JsonNode>> attIt = slotNode.getFields();
+            while (attIt.hasNext()) {
+                Map.Entry<String, JsonNode> attEntry = attIt.next();
+                String attName = attEntry.getKey();
+                JsonNode attNode = attEntry.getValue();
+
+                String path = attName;
+                if (attNode.has("name")) {
+                    path = attNode.get("name").asText();
+                }
+
+                Bone bone = slot.baseSlot.bone;
+                if (bone == null) {
+                    throw new LoadException(String.format("No bone mapped to attachment '%s'.", attName));
+                }
+
+                String type = JsonUtil.get(attNode, "type", "region");
+                MeshAttachment mesh = new MeshAttachment();
+                mesh.path = path;
+
+                if ((scene.spineVersion != null) && (scene.spineVersion.compareTo("3.3.07") >= 0)) {
+                    // spineVersion >= 3.3.07
+                    if (type.equals("region")) {
+                        scene.loadRegion(attNode, mesh, bone);
+                    } else if (type.equals("mesh")) {
+                        // For each vertex either an x,y pair or, for a weighted mesh, first
+                        // the number of bones which influence the vertex, then for that
+                        // many bones: bone index, bind position X, bind position Y, weight.
+                        // A mesh is weighted if the number of vertices > number of UVs.
+                        // http://esotericsoftware.com/spine-json-format
+                        long verticesSize = getIteratorSize(attNode.get("vertices").getElements());
+                        long uvSize = getIteratorSize(attNode.get("uvs").getElements());
+                        if (verticesSize > uvSize) {
+                            scene.loadMesh(attNode, mesh, bone, true);
+                        } else {
+                            scene.loadMesh(attNode, mesh, bone, false);
+                        }
+                    } else {
+                        mesh = null;
+                    }
+                } else {
+                    if (type.equals("region")) {
+                        scene.loadRegion(attNode, mesh, bone);
+                    } else if (type.equals("mesh")) {
+                        scene.loadMesh(attNode, mesh, bone, false);
+                    } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
+                        scene.loadMesh(attNode, mesh, bone, true);
+                    } else {
+                        mesh = null;
+                    }
+                }
+
+                // Silently ignore unsupported types
+                if (mesh != null) {
+                    transformUvs(mesh, uvTransformProvider);
+
+                    // Check if mesh already has been found
+                    int attachmentMeshIndex = scene.attachments.size();
+                    if (scene.attachmentLut.containsKey(mesh.uniqueHash))
+                    {
+                        MeshAttachment prev = scene.attachmentLut.get(mesh.uniqueHash);
+                        attachmentMeshIndex = prev.index;
+                    } else {
+                        // Add mesh data to scene global list
+                        mesh.index = attachmentMeshIndex;
+                        scene.attachments.add(mesh);
+                        scene.attachmentLut.put(mesh.uniqueHash, mesh);
+                    }
+
+
+                    // Figure out to what attachment point this mesh is attached
+                    int attachmentPointIndex = slot.baseSlot.attachmentsLut.get(attName);
+                    slot.meshAttachments.set(attachmentPointIndex, attachmentMeshIndex);
+                }
+            }
+        }
+
+        return skinSlots;
+    }
+
+    private static void getAllAttachments(JsonNode skinJsonNode, SpineSceneUtil scene) throws LoadException {
+
+        Iterator<Map.Entry<String, JsonNode>> skinIt = skinJsonNode.getFields();
+
+        // Loop over all skin entries from JSON
+        while (skinIt.hasNext()) {
+            Map.Entry<String, JsonNode> entry = skinIt.next();
+            String skinName = entry.getKey();
+            JsonNode skinNode = entry.getValue();
+
+            // Loop over all slots in the skin
+            Iterator<Map.Entry<String, JsonNode>> skinSlotIt = skinNode.getFields();
+            while (skinSlotIt.hasNext()) {
+                Map.Entry<String, JsonNode> slotEntry = skinSlotIt.next();
+                String slotName = slotEntry.getKey();
+                JsonNode slotNode = slotEntry.getValue();
+
+                // Get corresponding BaseSlot
+                BaseSlot slot = scene.getBaseSlot(slotName);
+
+                // Collect all attachments this skin can attach to this slot
+                Iterator<Map.Entry<String, JsonNode>> attIt = slotNode.getFields();
+                while (attIt.hasNext()) {
+                    Map.Entry<String, JsonNode> attEntry = attIt.next();
+                    String attName = attEntry.getKey();
+
+                    if (!slot.attachmentsLut.containsKey(attName)) {
+                        slot.attachmentsLut.put(attName, slot.attachments.size());
+                        slot.attachments.add(attName);
+                    }
+                }
+            }
+        }
+
+        // Apply default attachments based on original slot JSON list
+        for (int i = 0; i < scene.baseSlots.size(); i++) {
+            BaseSlot baseSlot = scene.baseSlots.get(i);
+            if (baseSlot.defaultAttachmentString != null && !baseSlot.defaultAttachmentString.isEmpty()) {
+                baseSlot.activeAttachment = baseSlot.attachmentsLut.get(baseSlot.defaultAttachmentString);
+            }
+        }
+    }
+
     public static SpineSceneUtil loadJson(InputStream is, UVTransformProvider uvTransformProvider) throws LoadException {
         SpineSceneUtil scene = new SpineSceneUtil();
         ObjectMapper m = new ObjectMapper();
@@ -601,13 +816,21 @@ public class SpineSceneUtil {
                 if (bone == null) {
                     throw new LoadException(String.format("The bone '%s' of attachment '%s' does not exist.", boneName, attachment));
                 }
-                Slot slot = new Slot(slotName, bone, slotIndex, attachment);
+
+                BaseSlot slot = new BaseSlot(slotName, slotIndex, bone, attachment);
                 JsonUtil.hexToRGBA(JsonUtil.get(slotNode,  "color",  "ffffffff"), slot.color);
-                scene.slots.put(slotNode.get("name").asText(), slot);
+                scene.baseSlots.add(slot);
+                scene.baseSlotsLut.put(slotName, slot);
+
                 ++slotIndex;
                 ++slotCount;
             }
             scene.slotCount = slotCount;
+
+            // Gather all available attachment points in all slots.
+            // We do this by looping over all the different skins and their slots.
+            getAllAttachments(node.get("skins"), scene);
+
             if (node.has("events")) {
                 Iterator<Map.Entry<String, JsonNode>> eventIt = node.get("events").getFields();
                 while (eventIt.hasNext()) {
@@ -626,97 +849,29 @@ public class SpineSceneUtil {
             }
 
             JsonNode skeleton = node.get("skeleton");
-            String spineVersion = (skeleton != null) ? JsonUtil.get(skeleton, "spine", (String) null) : null;
-            
+            scene.spineVersion = (skeleton != null) ? JsonUtil.get(skeleton, "spine", (String) null) : null;
+
             // If Spine version is 3 and above it uses a different scaling model than 2.x.
-            if (spineVersion != null) {
-                String[] versionParts = spineVersion.split("\\.");
+            if (scene.spineVersion != null) {
+                String[] versionParts = scene.spineVersion.split("\\.");
                 if (versionParts != null && Integer.parseInt(versionParts[0]) >= 3) {
                     scene.localBoneScaling = false;
                 }
             }
+
+            // Load default skin first since other skins will be based on this.
+            JsonNode defaultSkinNode = node.get("skins").get("default");
+            scene.defaultSkin = loadSkin(scene, "default", defaultSkinNode, uvTransformProvider);
 
             Iterator<Map.Entry<String, JsonNode>> skinIt = node.get("skins").getFields();
             while (skinIt.hasNext()) {
                 Map.Entry<String, JsonNode> entry = skinIt.next();
                 String skinName = entry.getKey();
                 JsonNode skinNode = entry.getValue();
-                Iterator<Map.Entry<String, JsonNode>> skinSlotIt = skinNode.getFields();
-                List<Mesh> meshes = new ArrayList<Mesh>();
-                while (skinSlotIt.hasNext()) {
-                    Map.Entry<String, JsonNode> slotEntry = skinSlotIt.next();
-                    String slotName = slotEntry.getKey();
-                    Slot slot = scene.slots.get(slotName);
-                    JsonNode slotNode = slotEntry.getValue();
-                    Iterator<Map.Entry<String, JsonNode>> attIt = slotNode.getFields();
-                    while (attIt.hasNext()) {
-                        Map.Entry<String, JsonNode> attEntry = attIt.next();
-                        String attName = attEntry.getKey();
-                        JsonNode attNode = attEntry.getValue();
-                        Bone bone = slot.bone;
-                        if (bone == null) {
-                            throw new LoadException(String.format("No bone mapped to attachment '%s'.", attName));
-                        }
-                        String path = attName;
-                        if (attNode.has("name")) {
-                            path = attNode.get("name").asText();
-                        }
-                        String type = JsonUtil.get(attNode, "type", "region");
-                        Mesh mesh = new Mesh();
-                        mesh.attachment = attName;
-                        mesh.path = path;
-                        mesh.slot = slot;
-                        mesh.visible = attName.equals(slot.attachment);
-
-                        if ((spineVersion != null) && (spineVersion.compareTo("3.3.07") >= 0)) {
-                            // spineVersion >= 3.3.07
-                            if (type.equals("region")) {
-                                scene.loadRegion(attNode, mesh, bone);
-                            } else if (type.equals("mesh")) {
-                                // For each vertex either an x,y pair or, for a weighted mesh, first
-                                // the number of bones which influence the vertex, then for that
-                                // many bones: bone index, bind position X, bind position Y, weight.
-                                // A mesh is weighted if the number of vertices > number of UVs.
-                                // http://esotericsoftware.com/spine-json-format
-                                long verticesSize = getIteratorSize(attNode.get("vertices").getElements());
-                                long uvSize = getIteratorSize(attNode.get("uvs").getElements());
-                                if (verticesSize > uvSize) {
-                                    scene.loadMesh(attNode, mesh, bone, true);
-                                } else {
-                                    scene.loadMesh(attNode, mesh, bone, false);
-                                }
-                            } else {
-                                mesh = null;
-                            }
-                        } else {
-                            if (type.equals("region")) {
-                                scene.loadRegion(attNode, mesh, bone);
-                            } else if (type.equals("mesh")) {
-                                scene.loadMesh(attNode, mesh, bone, false);
-                            } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
-                                scene.loadMesh(attNode, mesh, bone, true);
-                            } else {
-                                mesh = null;
-                            }
-                        }
-                        // Silently ignore unsupported types
-                        if (mesh != null) {
-                            transformUvs(mesh, uvTransformProvider);
-                            meshes.add(mesh);
-                        }
-                    }
-                }
-                Collections.sort(meshes, new Comparator<Mesh>() {
-                    @Override
-                    public int compare(Mesh o1, Mesh o2) {
-                        return o1.slot.index - o2.slot.index;
-                    }
-                });
-                // Special handling of the default skin
-                if (skinName.equals("default")) {
-                    scene.meshes = meshes;
-                } else {
-                    scene.skins.put(skinName, meshes);
+                if (!skinName.equals("default"))
+                {
+                    List<SkinSlot> skin = loadSkin(scene, skinName, skinNode, uvTransformProvider);
+                    scene.skins.put(skinName, skin);
                 }
             }
             if (!node.has("animations")) {
@@ -736,7 +891,7 @@ public class SpineSceneUtil {
         }
     }
 
-    private static void transformUvs(Mesh mesh, UVTransformProvider uvTransformProvider) throws LoadException {
+    private static void transformUvs(MeshAttachment mesh, UVTransformProvider uvTransformProvider) throws LoadException {
         UVTransform t = uvTransformProvider.getUVTransform(mesh.path);
         if (t == null) {
             // default to identity
@@ -785,7 +940,7 @@ public class SpineSceneUtil {
         }
 
         public static String get(JsonNode n, String name, String defaultVal) {
-            return n.has(name) ? n.get(name).asText() : defaultVal;
+            return n.has(name) ? (!n.get(name).isNull() ? n.get(name).asText() : defaultVal) : defaultVal;
         }
 
         public static int get(JsonNode n, String name, int defaultVal) {

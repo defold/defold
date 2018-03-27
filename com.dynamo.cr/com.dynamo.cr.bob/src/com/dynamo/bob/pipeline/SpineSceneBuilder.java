@@ -42,6 +42,7 @@ import com.dynamo.rig.proto.Rig.EventKey;
 import com.dynamo.rig.proto.Rig.EventTrack;
 import com.dynamo.rig.proto.Rig.IK;
 import com.dynamo.rig.proto.Rig.Mesh;
+import com.dynamo.rig.proto.Rig.MeshSlot;
 import com.dynamo.rig.proto.Rig.MeshAnimationTrack;
 import com.dynamo.rig.proto.Rig.MeshEntry;
 import com.dynamo.rig.proto.Rig.MeshSet;
@@ -87,7 +88,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         return index;
     }
 
-    private static List<Integer> toDDF(List<RigUtil.Bone> bones, List<RigUtil.IK> iks, Skeleton.Builder skeletonBuilder) {
+    private static List<Integer> skeletonToDDF(List<RigUtil.Bone> bones, List<RigUtil.IK> iks, Skeleton.Builder skeletonBuilder) {
         // Order bones strictly breadth-first
         Map<RigUtil.Bone, List<RigUtil.Bone>> children = new HashMap<RigUtil.Bone, List<RigUtil.Bone>>();
         for (RigUtil.Bone bone : bones) {
@@ -143,7 +144,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         return indexRemap;
     }
 
-    private static void toDDF(RigUtil.Mesh mesh, Mesh.Builder meshBuilder, List<Integer> boneIndexRemap, int drawOrder) {
+    private static void attachmentToDDF(RigUtil.MeshAttachment mesh, Mesh.Builder meshBuilder, List<Integer> boneIndexRemap) {
         float[] v = mesh.vertices;
         int vertexCount = v.length / 5;
         for (int i = 0; i < vertexCount; ++i) {
@@ -156,8 +157,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             }
         }
         for (int ci = 0; ci < 4; ++ci) {
-            meshBuilder.addColor(mesh.slot.color[ci]);
-            meshBuilder.addSkinColor(mesh.color[ci]);
+            meshBuilder.addColor(mesh.color[ci]);
         }
         if (mesh.boneIndices != null) {
             for (int boneIndex : mesh.boneIndices) {
@@ -170,47 +170,52 @@ public class SpineSceneBuilder extends Builder<Void> {
         for (int index : mesh.triangles) {
             meshBuilder.addIndices(index);
         }
-        meshBuilder.setVisible(mesh.visible);
-        meshBuilder.setDrawOrder(drawOrder);
     }
 
-    private static List<MeshIndex> getIndexList(Map<String, List<MeshIndex>> slotIndices, String slot) {
-        List<MeshIndex> indexList = slotIndices.get(slot);
-        if (indexList == null) {
-            indexList = new ArrayList<MeshIndex>();
-            slotIndices.put(slot, indexList);
+    private static void attachmentsToDDF(List<RigUtil.MeshAttachment> attachments, MeshSet.Builder meshSetBuilder, List<Integer> boneIndexRemap) {
+        for (int attachmentIndex = 0; attachmentIndex < attachments.size(); attachmentIndex++) {
+            RigUtil.MeshAttachment attachment = attachments.get(attachmentIndex);
+            Mesh.Builder meshBuilder = Mesh.newBuilder();
+            attachmentToDDF(attachment, meshBuilder, boneIndexRemap);
+            meshSetBuilder.addMeshAttachments(meshBuilder);
         }
-        return indexList;
     }
 
-    private static Map<String, List<MeshIndex>> toDDF(String skinName, List<RigUtil.Mesh> generics, List<RigUtil.Mesh> specifics, MeshSet.Builder meshSetBuilder, List<Integer> boneIndexRemap) {
-        Map<String, List<MeshIndex>> slotIndices = new HashMap<String, List<MeshIndex>>();
+    private static void skinToDDF(String skinName, List<RigUtil.SkinSlot> skinSlots, MeshSet.Builder meshSetBuilder) {
+
         MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
         meshEntryBuilder.setId(MurmurHash.hash64(skinName));
-        List<RigUtil.Mesh> meshes = new ArrayList<RigUtil.Mesh>(generics.size() + specifics.size());
-        meshes.addAll(generics);
-        meshes.addAll(specifics);
-        Collections.sort(meshes, new Comparator<RigUtil.Mesh>() {
-            @Override
-            public int compare(com.dynamo.bob.util.RigUtil.Mesh arg0,
-                    com.dynamo.bob.util.RigUtil.Mesh arg1) {
-                return arg0.slot.index - arg1.slot.index;
+
+        for (int slotIndex = 0; slotIndex < skinSlots.size(); slotIndex++) {
+            RigUtil.SkinSlot skinSlot = skinSlots.get(slotIndex);
+            MeshSlot.Builder meshSlotBuilder = MeshSlot.newBuilder();
+            meshSlotBuilder.setActiveIndex(skinSlot.activeAttachment);
+
+            for (int ai = 0; ai < skinSlot.meshAttachments.size(); ai++) {
+                meshSlotBuilder.addMeshAttachments(skinSlot.meshAttachments.get(ai));
             }
-        });
-        int meshIndex = 0;
-        for (RigUtil.Mesh mesh : meshes) {
-            Mesh.Builder meshBuilder = Mesh.newBuilder();
-            toDDF(mesh, meshBuilder, boneIndexRemap, mesh.slot.index);
-            meshEntryBuilder.addMeshes(meshBuilder);
-            List<MeshIndex> indexList = getIndexList(slotIndices, mesh.slot.name);
-            indexList.add(new MeshIndex(meshIndex, mesh.attachment));
-            ++meshIndex;
+
+            for (int ci = 0; ci < 4; ++ci) {
+                meshSlotBuilder.addSkinColor(skinSlot.color[ci]);
+            }
+
+            meshEntryBuilder.addMeshSlots(meshSlotBuilder);
+
         }
+
         meshSetBuilder.addMeshEntries(meshEntryBuilder);
-        return slotIndices;
     }
 
-    private static void toDDF(RigUtil.AnimationTrack track, AnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf) {
+    private static void skinsToDDF(Map<String, List<RigUtil.SkinSlot>> skins, MeshSet.Builder meshSetBuilder) {
+        for (Map.Entry<String, List<RigUtil.SkinSlot>> skin : skins.entrySet()) {
+            String skinName = skin.getKey();
+            List<RigUtil.SkinSlot> skinSlots = skin.getValue();
+
+            skinToDDF(skinName, skinSlots, meshSetBuilder);
+        }
+    }
+
+    private static void boneAnimationToDDF(RigUtil.AnimationTrack track, AnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf) {
         switch (track.property) {
         case POSITION:
             RigUtil.PositionBuilder posBuilder = new RigUtil.PositionBuilder(animTrackBuilder);
@@ -227,18 +232,18 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
     }
 
-    private static void toDDF(RigUtil.IKAnimationTrack track, IKAnimationTrack.Builder iKanimTrackBuilder, double duration, double sampleRate, double spf) {
+    private static void ikAnimationToDDF(RigUtil.IKAnimationTrack track, IKAnimationTrack.Builder iKanimTrackBuilder, double duration, double sampleRate, double spf) {
         RigUtil.IKMixBuilder mixBuilder = new RigUtil.IKMixBuilder(iKanimTrackBuilder);
         RigUtil.sampleTrack(track, mixBuilder, track.ik.mix, 0.0, duration, sampleRate, spf, false);
         RigUtil.IKPositiveBuilder positiveBuilder = new RigUtil.IKPositiveBuilder(iKanimTrackBuilder);
         RigUtil.sampleTrack(track, positiveBuilder, track.ik.positive, 0.0, duration, sampleRate, spf, false);
     }
 
-    private static void toDDF(RigUtil.Slot slot, RigUtil.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf, String meshName) {
+    private static void meshAnimationToDDF(RigUtil.SkinSlot slot, RigUtil.SlotAnimationTrack track, MeshAnimationTrack.Builder animTrackBuilder, double duration, double sampleRate, double spf) {
         switch (track.property) {
         case ATTACHMENT:
-            RigUtil.VisibilityBuilder visibilityBuilder = new RigUtil.VisibilityBuilder(animTrackBuilder, meshName);
-            RigUtil.sampleTrack(track, visibilityBuilder, new Boolean(meshName.equals(slot.attachment)), 0.0, duration, sampleRate, spf, false);
+            RigUtil.AttachmentBuilder attachmentBuilder = new RigUtil.AttachmentBuilder(animTrackBuilder);
+            RigUtil.sampleTrack(track, attachmentBuilder, slot.baseSlot.activeAttachment, 0.0, duration, sampleRate, spf, false);
             break;
         case COLOR:
             RigUtil.ColorBuilder colorBuilder = new RigUtil.ColorBuilder(animTrackBuilder);
@@ -246,24 +251,24 @@ public class SpineSceneBuilder extends Builder<Void> {
             break;
         case DRAW_ORDER:
             RigUtil.DrawOrderBuilder drawOrderBuilder = new RigUtil.DrawOrderBuilder(animTrackBuilder);
-            RigUtil.sampleTrack(track, drawOrderBuilder, new Integer(0), 0.0, duration, sampleRate, spf, false);
+            RigUtil.sampleTrack(track, drawOrderBuilder, SpineSceneUtil.slotSignalUnchanged, 0.0, duration, sampleRate, spf, false);
             break;
         }
     }
 
-    private static void toDDF(RigUtil.EventTrack track, EventTrack.Builder builder) {
+    private static void eventAnimationToDDF(RigUtil.EventTrack track, EventTrack.Builder builder) {
         builder.setEventId(MurmurHash.hash64(track.name));
         for (RigUtil.EventKey key : track.keys) {
             EventKey.Builder keyBuilder = EventKey.newBuilder();
-            keyBuilder.setT(key.t).setInteger(key.intPayload).setFloat(key.floatPayload).setString(MurmurHash.hash64(key.stringPayload));
+            keyBuilder.setT((float)key.t).setInteger(key.intPayload).setFloat(key.floatPayload).setString(MurmurHash.hash64(key.stringPayload));
             builder.addKeys(keyBuilder);
         }
     }
 
-    private static void toDDF(SpineSceneUtil scene, String id, RigUtil.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate, Map<Long, Map<String, List<MeshIndex>>> slotIndices) {
+    private static void animationToDDF(SpineSceneUtil scene, String id, RigUtil.Animation animation, AnimationSet.Builder animSetBuilder, double sampleRate) {
         RigAnimation.Builder animBuilder = RigAnimation.newBuilder();
         animBuilder.setId(MurmurHash.hash64(id));
-        animBuilder.setDuration(animation.duration);
+        animBuilder.setDuration((float)animation.duration);
         animBuilder.setSampleRate((float)sampleRate);
         double spf = 1.0 / sampleRate;
         if (!animation.tracks.isEmpty()) {
@@ -277,7 +282,7 @@ public class SpineSceneBuilder extends Builder<Void> {
                     animTrackBuilder = AnimationTrack.newBuilder();
                     animTrackBuilder.setBoneIndex(track.bone.index);
                 }
-                toDDF(track, animTrackBuilder, animation.duration, sampleRate, spf);
+                boneAnimationToDDF(track, animTrackBuilder, animation.duration, sampleRate, spf);
             }
             builders.add(animTrackBuilder);
             // Compiled anim tracks must be in bone order
@@ -303,7 +308,7 @@ public class SpineSceneBuilder extends Builder<Void> {
                     animTrackBuilder = IKAnimationTrack.newBuilder();
                     animTrackBuilder.setIkIndex(track.ik.index);
                 }
-                toDDF(track, animTrackBuilder, animation.duration, sampleRate, spf);
+                ikAnimationToDDF(track, animTrackBuilder, animation.duration, sampleRate, spf);
             }
             builders.add(animTrackBuilder);
             // Compiled ik tracks must be in ik index order
@@ -319,27 +324,18 @@ public class SpineSceneBuilder extends Builder<Void> {
         }
 
         if (!animation.slotTracks.isEmpty()) {
-            for (Map.Entry<Long, Map<String, List<MeshIndex>>> skinEntry : slotIndices.entrySet()) {
-                long skinId = skinEntry.getKey();
-                Map<String, List<MeshIndex>> slotToMeshIndex = skinEntry.getValue();
-                for (RigUtil.SlotAnimationTrack track : animation.slotTracks) {
-                    List<MeshIndex> meshIndices = slotToMeshIndex.get(track.slot.name);
-                    RigUtil.Slot slot = scene.getSlot(track.slot.name);
-                    if (meshIndices != null) {
-                        for (MeshIndex meshIndex : meshIndices) {
-                            MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
-                            trackBuilder.setMeshId(skinId);
-                            trackBuilder.setMeshIndex(meshIndex.index);
-                            toDDF(slot, track, trackBuilder, animation.duration, sampleRate, spf, meshIndex.name);
-                            animBuilder.addMeshTracks(trackBuilder.build());
-                        }
-                    }
-                }
+            List<RigUtil.SkinSlot> defaultSkin = scene.getDefaultSkin();
+            for (RigUtil.SlotAnimationTrack track : animation.slotTracks) {
+                RigUtil.SkinSlot defaultSlot = defaultSkin.get(track.slot);
+                MeshAnimationTrack.Builder trackBuilder = MeshAnimationTrack.newBuilder();
+                trackBuilder.setMeshSlot(track.slot);
+                meshAnimationToDDF(defaultSlot, track, trackBuilder, animation.duration, sampleRate, spf);
+                animBuilder.addMeshTracks(trackBuilder.build());
             }
         }
         for (RigUtil.EventTrack track : animation.eventTracks) {
             EventTrack.Builder builder = EventTrack.newBuilder();
-            toDDF(track, builder);
+            eventAnimationToDDF(track, builder);
             animBuilder.addEventTracks(builder);
         }
 
@@ -394,7 +390,7 @@ public class SpineSceneBuilder extends Builder<Void> {
 
             // Skeleton
             Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-            List<Integer> boneIndexRemap = toDDF(scene.bones, scene.iks, skeletonBuilder);
+            List<Integer> boneIndexRemap = skeletonToDDF(scene.bones, scene.iks, skeletonBuilder);
             int maxBoneCount = skeletonBuilder.getBonesCount();
             out = new ByteArrayOutputStream(64 * 1024);
             skeletonBuilder.setLocalBoneScaling(scene.localBoneScaling);
@@ -404,12 +400,9 @@ public class SpineSceneBuilder extends Builder<Void> {
 
             // MeshSet
             MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-            Map<Long, Map<String, List<MeshIndex>>> slotIndices = new HashMap<Long, Map<String, List<MeshIndex>>>();
-            slotIndices.put(MurmurHash.hash64(""), toDDF("", scene.meshes, Collections.<RigUtil.Mesh>emptyList(), meshSetBuilder, boneIndexRemap));
-            for (Map.Entry<String, List<RigUtil.Mesh>> entry : scene.skins.entrySet()) {
-                slotIndices.put(MurmurHash.hash64(entry.getKey()), toDDF(entry.getKey(), scene.meshes, entry.getValue(), meshSetBuilder, boneIndexRemap));
-            }
-            meshSetBuilder.setMaxBoneCount(maxBoneCount);
+            attachmentsToDDF(scene.attachments, meshSetBuilder, boneIndexRemap);
+            skinToDDF("", scene.getDefaultSkin(), meshSetBuilder); // Default skin
+            skinsToDDF(scene.skins, meshSetBuilder);
             meshSetBuilder.setSlotCount(scene.getSlotCount());
             out = new ByteArrayOutputStream(64 * 1024);
             meshSetBuilder.build().writeTo(out);
@@ -419,7 +412,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             // AnimationSet
             AnimationSet.Builder animSetBuilder = AnimationSet.newBuilder();
             for (Map.Entry<String, RigUtil.Animation> entry : scene.animations.entrySet()) {
-                toDDF(scene, entry.getKey(), entry.getValue(), animSetBuilder, builder.getSampleRate(), slotIndices);
+                animationToDDF(scene, entry.getKey(), entry.getValue(), animSetBuilder, builder.getSampleRate());
             }
             out = new ByteArrayOutputStream(64 * 1024);
             animSetBuilder.build().writeTo(out);
