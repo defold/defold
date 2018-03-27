@@ -194,7 +194,7 @@
   [[k v]]
   (if (map? k)
     (-> k meta :tostring)
-    k))
+    (str k)))
 
 (defn- lua-str
   [v]
@@ -204,7 +204,7 @@
 
 (defn- make-variable-tree-item
   [[name value]]
-  (let [variable {:name name
+  (let [variable {:name (lua-str name)
                   :display-name (lua-str name)
                   :value value
                   :display-value (lua-str value)}
@@ -305,10 +305,12 @@
   [project debug-view]
   (let [state   (volatile! {})
         tick-fn (fn [timer _]
-                  (let [breakpoints (set (g/node-value project :breakpoints))]
-                    (when-some [debug-session (g/node-value debug-view :debug-session)]
-                      (update-breakpoints! debug-session (:breakpoints @state) breakpoints))
-                    (vreset! state {:breakpoints breakpoints})))]
+                  ;; if we don't have a debug session going on, there is no point in pulling
+                  ;; project/breakpoints or updating the "last breakpoints" state.
+                  (when-some [debug-session (g/node-value debug-view :debug-session)]
+                    (let [breakpoints (set (g/node-value project :breakpoints))]
+                      (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
+                      (vreset! state {:breakpoints breakpoints}))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]

@@ -998,11 +998,12 @@ namespace dmGameObject
      * Set the local transforms recursively of all instances flagged as bones, starting with component with id.
      * The order of the transforms is depth-first.
      * @param instance First Instance of the hierarchy to set
+     * @param component_transform the transform for component root
      * @param transforms Array of transforms to set depth-first for the bone instances
      * @param transform_count Size of the transforms array
      * @return Number of instances found
      */
-    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform* transforms, uint32_t transform_count);
+    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
 
     /**
      * Recursively delete all instances flagged as bones under the given parent instance.

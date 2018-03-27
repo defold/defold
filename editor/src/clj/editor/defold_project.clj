@@ -87,7 +87,7 @@
     * new node-id if the path is being reloaded
     * old node-id if the path is not being reloaded
 
-  `resource-node-dependencies` is a map from node id to the project
+  `resource-node-dependencies` is a function from node id to the project
   paths which are the in-memory/current dependencies for nodes not
   being reloaded."
 
@@ -127,22 +127,6 @@
                   (conj dep-queued node-id)
                   batch
                   load-deps)))))))
-
-(defn resource-node-dependencies
-  "Returns a map from node id to its current project path dependencies.
-
-  Does not work in the intermediate stages of the resource sync. Must
-  be called when the project is in a stable state, i.e. before
-  creating new versions of resource nodes to be reloaded."
-  [node-ids]
-  (let [evaluation-context (g/make-evaluation-context)
-        dependencies (into {}
-                           (map (fn [node-id]
-                                  (let [dependency-paths (g/node-value node-id :reload-dependencies evaluation-context)]
-                                    [node-id dependency-paths])))
-                           node-ids)]
-    (g/update-cache-from-evaluation-context! evaluation-context)
-    dependencies))
 
 (defn load-resource-nodes [project node-ids render-progress! resource-node-dependencies]
   (let [evaluation-context (g/make-evaluation-context)
@@ -418,7 +402,12 @@
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
     (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
-          old-resource-node-dependencies (resource-node-dependencies (g/node-value project :nodes))
+          rn-dependencies-evaluation-context (g/make-evaluation-context)
+          old-resource-node-dependencies (memoize
+                                           (fn [node-id]
+                                             (let [deps (g/node-value node-id :reload-dependencies rn-dependencies-evaluation-context)]
+                                               (when-not (g/error? deps)
+                                                 deps))))
           resource->old-node (comp old-nodes-by-path resource/proj-path)
           new-nodes (make-nodes! project (:new plan))
           resource-path->new-node (into {} (map (fn [resource-node]
@@ -448,6 +437,8 @@
           (g/delete-node node)))
 
       (load-nodes! project new-nodes render-progress! old-resource-node-dependencies)
+
+      (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context)
 
       (g/transact
         (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
@@ -603,6 +594,11 @@
 (defn shared-script-state? [project]
   (some-> (settings project) (get ["script" "shared_state"])))
 
+(defn project-title [project]
+  (some-> project
+    (settings)
+    (get ["project" "title"])))
+
 (defn- disconnect-from-inputs [src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* src)))
         inputs (set (g/input-labels (g/node-type* tgt)))]
@@ -679,10 +675,12 @@
         progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
 
-    (when (workspace/dependencies-reachable? dependencies login-fn)
+    ;; Fetch+install libs if we have network, otherwise fallback to disk state
+    (if (workspace/dependencies-reachable? dependencies login-fn)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
-           (workspace/install-validated-libraries! workspace-id dependencies)))
-    
+           (workspace/install-validated-libraries! workspace-id dependencies))
+      (workspace/set-project-dependencies! workspace-id dependencies))
+
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project"))
