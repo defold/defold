@@ -283,6 +283,7 @@ namespace dmRender
             if (vertex_count > 0)
             {
                 dmGraphics::SetVertexBufferSubData(debug_renderer.m_VertexBuffer, ro.m_VertexStart * sizeof(DebugVertex), vertex_count * sizeof(DebugVertex), type_data.m_ClientBuffer);
+                write_ptr->m_MinorOrder = 0;
                 write_ptr->m_MajorOrder = RENDER_ORDER_AFTER_WORLD;
                 write_ptr->m_Order = render_order;
                 write_ptr->m_UserData = (uintptr_t) &ro;

@@ -25,6 +25,8 @@ namespace dmGraphics
         uint32_t                m_MaxTextureSize;
         TextureFilter           m_DefaultTextureMinFilter;
         TextureFilter           m_DefaultTextureMagFilter;
+        uint32_t                m_MaxElementVertices;
+        uint32_t                m_MaxElementIndices;
         // Counter to keep track of various modifications. Used for cache flush etc
         // Version zero is never used
         uint32_t                m_ModificationVersion;
