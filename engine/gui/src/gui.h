@@ -956,6 +956,7 @@ namespace dmGui
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
+    bool GetNodeInheritAlpha(HScene scene, HNode node);
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
     Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
