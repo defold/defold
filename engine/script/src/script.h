@@ -535,7 +535,7 @@ namespace dmScript
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
 
     typedef struct TimerContext* HTimerContext;
-    typedef void (*TimerTrigger)(uint32_t timer_id, void* userdata1, void* userdata2);
+    typedef void (*TimerTrigger)(uint32_t timer_id, HContext scriptContext, void* userdata2);
     HTimerContext NewTimerContext(uint16_t max_instance_count);
     void DeleteTimerContext(HTimerContext timer_context);
     void UpdateTimerContext(HTimerContext timer_context, float dt);
@@ -544,11 +544,11 @@ namespace dmScript
     uint32_t AddTimer(HTimerContext timer_context,
                             float delay,
                             TimerTrigger timer_trigger,
-                            void* userdata1,
+                            HContext scriptContext,
                             void* userdata2,
                             bool repeat);
     bool CancelTimer(HTimerContext timer_context, uint32_t id);
-    uint32_t CancelTimers(HTimerContext timer_context, void* userdata1);
+    uint32_t CancelTimers(HTimerContext timer_context, HContext scriptContext);
 }
 
 

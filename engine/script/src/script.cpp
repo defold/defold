@@ -852,12 +852,12 @@ namespace dmScript
         float           m_Remaining;
 
         TimerTrigger    m_Trigger;
-        uintptr_t       m_Userdata1;
+        HContext        m_ScriptContext;
         uintptr_t       m_Userdata2;
 
-        // We chain together timers associated with the same userdata1 so we can quickly remove all of them without scanning all timers
-        uint32_t        m_PrevIdWithSameUserdata1;
-        uint32_t        m_NextIdWithSameUserdata1;
+        // We chain together timers associated with the same script context so we can quickly remove all of them without scanning all timers
+        uint32_t        m_PrevIdWithSameScriptContext;
+        uint32_t        m_NextIdWithSameScriptContext;
 
         uint32_t        m_Id;
 
@@ -877,7 +877,7 @@ namespace dmScript
         dmArray<uint16_t>                   m_IdToIndexMap;
 
         dmIndexPool<uint16_t>               m_IndexPool;
-        dmHashTable<uintptr_t, uint32_t>    m_Userdata1ToFirstId;
+        dmHashTable<uintptr_t, uint32_t>    m_ScriptContextToFirstId;
         uint32_t                            m_Generation;
         uint32_t                            m_InUpdate : 1;
     };
@@ -897,10 +897,10 @@ namespace dmScript
     {
         timer->m_Remaining = 0.f;
         timer->m_Trigger = 0x0;
-        timer->m_Userdata1 = 0x0;
+        timer->m_ScriptContext = 0x0;
         timer->m_Userdata2 = 0x0;
-        timer->m_PrevIdWithSameUserdata1 = 0x0;
-        timer->m_NextIdWithSameUserdata1 = 0x0;
+        timer->m_PrevIdWithSameScriptContext = 0x0;
+        timer->m_NextIdWithSameScriptContext = 0x0;
 
         timer->m_Id = INVALID_TIMER_ID;
 
@@ -911,7 +911,7 @@ namespace dmScript
         timer->m_Repeat = 0;
     }
 
-    static Timer* AllocateTimer(HTimerContext timer_context, uintptr_t userdata1)
+    static Timer* AllocateTimer(HTimerContext timer_context, HContext script_context)
     {
         assert(timer_context != 0x0);
         uint32_t triggerCount = timer_context->m_Timers.Size();
@@ -921,12 +921,12 @@ namespace dmScript
             return 0x0;
         }
 
-        uint32_t* id_ptr = timer_context->m_Userdata1ToFirstId.Get(userdata1);
+        uint32_t* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)script_context);
         if (id_ptr == 0x0)
         {
-            if (timer_context->m_Userdata1ToFirstId.Full())
+            if (timer_context->m_ScriptContextToFirstId.Full())
             {
-                dmLogError("Timer could not be stored since the instance lookup buffer is full (%d).", timer_context->m_Userdata1ToFirstId.Size());
+                dmLogError("Timer could not be stored since the instance lookup buffer is full (%d).", timer_context->m_ScriptContextToFirstId.Size());
                 return 0x0;
             }
         }
@@ -945,26 +945,26 @@ namespace dmScript
         timer_context->m_Timers.SetSize(triggerCount + 1);
         Timer& timer = timer_context->m_Timers[triggerCount];
         timer.m_Id = id;
-        timer.m_Userdata1 = userdata1;
+        timer.m_ScriptContext = script_context;
 
-        timer.m_PrevIdWithSameUserdata1 = INVALID_TIMER_ID;
+        timer.m_PrevIdWithSameScriptContext = INVALID_TIMER_ID;
         if (id_ptr != 0x0)
         {
             uint16_t next_id_index = GetIdIndex(*id_ptr);
             Timer& nextTimer = timer_context->m_Timers[timer_context->m_IdToIndexMap[next_id_index]];
-            nextTimer.m_PrevIdWithSameUserdata1 = id;
-            timer.m_NextIdWithSameUserdata1 = nextTimer.m_Id;
+            nextTimer.m_PrevIdWithSameScriptContext = id;
+            timer.m_NextIdWithSameScriptContext = nextTimer.m_Id;
         }
         else
         {
-            timer.m_NextIdWithSameUserdata1 = INVALID_TIMER_ID;
+            timer.m_NextIdWithSameScriptContext = INVALID_TIMER_ID;
         }
 
         uint16_t id_index = GetIdIndex(id);
         timer_context->m_IdToIndexMap[id_index] = triggerCount;
         if (id_ptr == 0x0)
         {
-            timer_context->m_Userdata1ToFirstId.Put(userdata1, id);
+            timer_context->m_ScriptContextToFirstId.Put((uintptr_t)script_context, id);
         }
         else
         {
@@ -981,28 +981,28 @@ namespace dmScript
         uint32_t timer_index = timer_context->m_IdToIndexMap[id_index];
         timer_context->m_IndexPool.Push(id_index);
 
-        uint32_t previousId = timer.m_PrevIdWithSameUserdata1;
-        uint32_t nextId = timer.m_NextIdWithSameUserdata1;
+        uint32_t previousId = timer.m_PrevIdWithSameScriptContext;
+        uint32_t nextId = timer.m_NextIdWithSameScriptContext;
         if (INVALID_TIMER_ID != nextId)
         {
             uint16_t next_id_index = GetIdIndex(nextId);
-            timer_context->m_Timers[timer_context->m_IdToIndexMap[next_id_index]].m_PrevIdWithSameUserdata1 = previousId;
+            timer_context->m_Timers[timer_context->m_IdToIndexMap[next_id_index]].m_PrevIdWithSameScriptContext = previousId;
         }
 
         if (INVALID_TIMER_ID != previousId)
         {
             uint16_t prev_id_index = GetIdIndex(previousId);
-            timer_context->m_Timers[timer_context->m_IdToIndexMap[prev_id_index]].m_NextIdWithSameUserdata1 = nextId;
+            timer_context->m_Timers[timer_context->m_IdToIndexMap[prev_id_index]].m_NextIdWithSameScriptContext = nextId;
         }
         else
         {
             if (INVALID_TIMER_ID == nextId)
             {
-                timer_context->m_Userdata1ToFirstId.Erase(timer.m_Userdata1);
+                timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)timer.m_ScriptContext);
             }
             else
             {
-                uint32_t* id_ptr = timer_context->m_Userdata1ToFirstId.Get(timer.m_Userdata1);
+                uint32_t* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)timer.m_ScriptContext);
                 assert(id_ptr != 0x0);
                 *id_ptr = nextId;
             }
@@ -1010,9 +1010,9 @@ namespace dmScript
 
     //    timer_context->m_IdToIndexMap.Erase(timer->m_Id);
     //    timer->m_Id = INVALID_TIMER_ID;
-    //    timer->m_NextIdWithSameUserdata1 = INVALID_TIMER_ID;
-    //    timer->m_PrevIdWithSameUserdata1 = INVALID_TIMER_ID;
-    //    timer->m_Userdata1 = 0x0;
+    //    timer->m_NextIdWithSameScriptContext = INVALID_TIMER_ID;
+    //    timer->m_PrevIdWithSameScriptContext = INVALID_TIMER_ID;
+    //    timer->m_ScriptContext = 0x0;
 
         ResetTimer(&timer);
         Timer& movedTimer = timer_context->m_Timers.EraseSwap(timer_index);
@@ -1032,7 +1032,7 @@ namespace dmScript
         timer_context->m_IdToIndexMap.SetSize(MAX_TIMER_CAPACITY);
         timer_context->m_IndexPool.SetCapacity(MAX_TIMER_CAPACITY);
         const uint32_t table_count = dmMath::Max(1, max_instance_count/3);
-        timer_context->m_Userdata1ToFirstId.SetCapacity(table_count, max_instance_count);
+        timer_context->m_ScriptContextToFirstId.SetCapacity(table_count, max_instance_count);
         timer_context->m_Generation = 0;
         timer_context->m_InUpdate = 0;
         return timer_context;
@@ -1062,7 +1062,7 @@ namespace dmScript
                 if (timer.m_Remaining <= 0.0f)
                 {
                     assert(timer.m_Trigger != 0x0);
-                    timer.m_Trigger(timer.m_Id, (void*)timer.m_Userdata1, (void*)timer.m_Userdata2);
+                    timer.m_Trigger(timer.m_Id, timer.m_ScriptContext, (void*)timer.m_Userdata2);
 
                     // New timers may be added during the trigger
                     size = timer_context->m_Timers.Size();
@@ -1107,13 +1107,13 @@ namespace dmScript
     uint32_t AddTimer(HTimerContext timer_context,
                         float delay,
                         TimerTrigger timer_trigger,
-                        void* userdata1,
+                        HContext script_context,
                         void* userdata2,
                         bool repeat)
     {
         assert(timer_context != 0x0);
         assert(delay >= 0.f);
-        Timer* timer = AllocateTimer(timer_context, (uintptr_t)userdata1);
+        Timer* timer = AllocateTimer(timer_context, script_context);
         if (timer == 0x0)
         {
             return INVALID_TIMER_ID;
@@ -1154,17 +1154,17 @@ namespace dmScript
             timer.m_Remaining = 0.0f;
             timer.m_Repeat = 0;
 
-            uint32_t* id_ptr = timer_context->m_Userdata1ToFirstId.Get(timer.m_Userdata1);
+            uint32_t* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)timer.m_ScriptContext);
             assert(id_ptr != 0x0);
             if (*id_ptr == id)
             {
-                if (timer.m_NextIdWithSameUserdata1 == INVALID_TIMER_ID)
+                if (timer.m_NextIdWithSameScriptContext == INVALID_TIMER_ID)
                 {
-                    timer_context->m_Userdata1ToFirstId.Erase(timer.m_Userdata1);
+                    timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)timer.m_ScriptContext);
                 }
                 else
                 {
-                    *id_ptr = timer.m_NextIdWithSameUserdata1;
+                    *id_ptr = timer.m_NextIdWithSameScriptContext;
                 }
             }
         }
@@ -1176,10 +1176,10 @@ namespace dmScript
         return true;
     }
 
-    uint32_t CancelTimers(HTimerContext timer_context, void* userdata1)
+    uint32_t CancelTimers(HTimerContext timer_context, HContext script_context)
     {
         assert(timer_context != 0x0);
-        uint32_t* id_ptr = timer_context->m_Userdata1ToFirstId.Get((uintptr_t)userdata1);
+        uint32_t* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)script_context);
         if (id_ptr == 0x0)
             return 0u;
 
@@ -1193,7 +1193,7 @@ namespace dmScript
 
             timer_context->m_IndexPool.Push(id_index);
 
-            id = timer.m_NextIdWithSameUserdata1;
+            id = timer.m_NextIdWithSameScriptContext;
 
             if (timer_context->m_InUpdate)
             {
@@ -1214,7 +1214,7 @@ namespace dmScript
             ++cancelled_count;
         } while (id != INVALID_TIMER_ID);
 
-        timer_context->m_Userdata1ToFirstId.Erase((uintptr_t)userdata1);
+        timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)script_context);
         ++timer_context->m_Generation;
         return cancelled_count;
     }
