@@ -610,7 +610,7 @@ private:
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
                 if (mesh_slot.m_SkinColor.m_Count > 0) { delete [] mesh_slot.m_SkinColor.m_Data; }
             }
-            delete [] mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
 
         }
         delete [] m_MeshSet->m_MeshEntries.m_Data;
@@ -4755,7 +4755,7 @@ static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
                 if (mesh_slot.m_SkinColor.m_Count > 0) { delete [] mesh_slot.m_SkinColor.m_Data; }
             }
-            delete [] mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
+            delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
 
         }
         delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
