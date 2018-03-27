@@ -237,10 +237,12 @@ public class BundleHelper {
     private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(error|warning|note).*?:\\s*(.+)"); // CL.exe
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
-    private static Pattern resourceIssueLinkerGCCRe = Pattern.compile("^(?:upload|build)\\/([^:]+):([0-9]+):\\s(\\w+):\\s*(.+)");
 
-    // Some errors/warning have an extra line _before_ the reported error, which is also very good to have
+    // Some errors/warning have an extra line before or after the the reported error, which is also very good to have
     private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
+
+    private static Pattern resourceIssueLinkerLINKLibError = Pattern.compile("^(.+\\.lib)(\\(.+\\.obj\\)\\s:\\s.+)");
+    private static Pattern resourceIssueLinkerLINKCatchAll = Pattern.compile("^(.+error\\s.+)");
 
     // Matches ext.manifest and also _app/app.manifest
     private static Pattern manifestIssueRe = Pattern.compile("^.+'(.+\\.manifest)'.+");
@@ -315,21 +317,31 @@ public class BundleHelper {
     }
 
     private static void parseLogWin32(String[] lines, List<ResourceInfo> issues) {
-        final Pattern compilerPattern = resourceIssueCLRe;
-        final Pattern linkerPattern = resourceIssueLinkerLINKRe;
 
         for (int count = 0; count < lines.length; ++count) {
             String line = lines[count];
-            Matcher m = compilerPattern.matcher(line);
+            Matcher m = resourceIssueCLRe.matcher(line);
             if (m.matches()) {
                 // Groups: resource, line, column, "error", message
                 issues.add(new BundleHelper.ResourceInfo(m.group(4), m.group(1), m.group(2), m.group(5)));
             }
 
-            m = linkerPattern.matcher(line);
+            m = resourceIssueLinkerLINKRe.matcher(line);
             if (m.matches()) {
                 // Groups: resource, line, column, "error", message
                 issues.add(new BundleHelper.ResourceInfo(m.group(4), m.group(1), m.group(2), m.group(5)));
+            }
+
+            m = resourceIssueLinkerLINKLibError.matcher(line);
+            if (m.matches()) {
+                // Groups: resource, message
+                issues.add(new BundleHelper.ResourceInfo("error", m.group(1), "", line));
+            }
+
+            m = resourceIssueLinkerLINKCatchAll.matcher(line);
+            if (m.matches()) {
+                // Groups: message
+                issues.add(new BundleHelper.ResourceInfo("error", null, "", line));
             }
         }
     }
