@@ -109,6 +109,7 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
                 if (mesh_slot.m_SkinColor.m_Count > 0) { delete [] mesh_slot.m_SkinColor.m_Data; }
             }
+            delete [] mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
 
         }
         delete [] mesh_set->m_MeshEntries.m_Data;
