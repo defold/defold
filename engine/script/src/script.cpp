@@ -853,7 +853,7 @@ namespace dmScript
 
         TimerTrigger    m_Trigger;
         HContext        m_ScriptContext;
-        uintptr_t       m_Userdata2;
+        int             m_Ref;
 
         // We chain together timers associated with the same script context so we can quickly remove all of them without scanning all timers
         uint32_t        m_PrevIdWithSameScriptContext;
@@ -898,7 +898,7 @@ namespace dmScript
         timer->m_Remaining = 0.f;
         timer->m_Trigger = 0x0;
         timer->m_ScriptContext = 0x0;
-        timer->m_Userdata2 = 0x0;
+        timer->m_Ref = 0x0;
         timer->m_PrevIdWithSameScriptContext = 0x0;
         timer->m_NextIdWithSameScriptContext = 0x0;
 
@@ -1062,7 +1062,7 @@ namespace dmScript
                 if (timer.m_Remaining <= 0.0f)
                 {
                     assert(timer.m_Trigger != 0x0);
-                    timer.m_Trigger(timer.m_Id, timer.m_ScriptContext, (void*)timer.m_Userdata2);
+                    timer.m_Trigger(timer.m_Id, timer.m_ScriptContext, timer.m_Ref);
 
                     // New timers may be added during the trigger
                     size = timer_context->m_Timers.Size();
@@ -1108,7 +1108,7 @@ namespace dmScript
                         float delay,
                         TimerTrigger timer_trigger,
                         HContext script_context,
-                        void* userdata2,
+                        int ref,
                         bool repeat)
     {
         assert(timer_context != 0x0);
@@ -1119,7 +1119,7 @@ namespace dmScript
             return INVALID_TIMER_ID;
         }
 
-        timer->m_Userdata2 = (uintptr_t)userdata2;
+        timer->m_Ref = ref;
         timer->m_Intervall = delay;
         timer->m_Remaining = delay;
         timer->m_Repeat = repeat;

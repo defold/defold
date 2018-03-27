@@ -81,7 +81,7 @@ TEST_F(ScriptTimerTest, TestSameScriptContextTimer)
         (dmScript::HContext)1u
     };
 
-    uint32_t userdata2[] =
+    uint32_t refs[] =
     {
         10u,
         20u,
@@ -92,11 +92,11 @@ TEST_F(ScriptTimerTest, TestSameScriptContextTimer)
 
     uint32_t ids[] = 
     {
-        dmScript::AddTimer(timer_context, 0.016f, 0x0, script_contexts[0], &userdata2[0], false),
-        dmScript::AddTimer(timer_context, 0.017f, 0x0, script_contexts[0], &userdata2[1], false),
-        dmScript::AddTimer(timer_context, 0.018f, 0x0, script_contexts[0], &userdata2[2], false),
-        dmScript::AddTimer(timer_context, 0.019f, 0x0, script_contexts[0], &userdata2[3], false),
-        dmScript::AddTimer(timer_context, 0.020f, 0x0, script_contexts[0], &userdata2[4], false)
+        dmScript::AddTimer(timer_context, 0.016f, 0x0, script_contexts[0], refs[0], false),
+        dmScript::AddTimer(timer_context, 0.017f, 0x0, script_contexts[0], refs[1], false),
+        dmScript::AddTimer(timer_context, 0.018f, 0x0, script_contexts[0], refs[2], false),
+        dmScript::AddTimer(timer_context, 0.019f, 0x0, script_contexts[0], refs[3], false),
+        dmScript::AddTimer(timer_context, 0.020f, 0x0, script_contexts[0], refs[4], false)
     };
     ASSERT_NE(ids[0], INVALID_TIMER_ID);
     ASSERT_NE(ids[1], INVALID_TIMER_ID);
@@ -124,7 +124,7 @@ TEST_F(ScriptTimerTest, TestMixedScriptContextsTimer)
         (dmScript::HContext)2u
     };
 
-    uint32_t userdata2[] =
+    uint32_t refs[] =
     {
         10u,
         20u,
@@ -135,11 +135,11 @@ TEST_F(ScriptTimerTest, TestMixedScriptContextsTimer)
 
     uint32_t ids[] = 
     {
-        dmScript::AddTimer(timer_context, 0.016f, 0x0, script_contexts[0], &userdata2[0], false),
-        dmScript::AddTimer(timer_context, 0.017f, 0x0, script_contexts[1], &userdata2[1], false),
-        dmScript::AddTimer(timer_context, 0.018f, 0x0, script_contexts[0], &userdata2[2], false),
-        dmScript::AddTimer(timer_context, 0.019f, 0x0, script_contexts[0], &userdata2[3], false),
-        dmScript::AddTimer(timer_context, 0.020f, 0x0, script_contexts[1], &userdata2[4], false)
+        dmScript::AddTimer(timer_context, 0.016f, 0x0, script_contexts[0], refs[0], false),
+        dmScript::AddTimer(timer_context, 0.017f, 0x0, script_contexts[1], refs[1], false),
+        dmScript::AddTimer(timer_context, 0.018f, 0x0, script_contexts[0], refs[2], false),
+        dmScript::AddTimer(timer_context, 0.019f, 0x0, script_contexts[0], refs[3], false),
+        dmScript::AddTimer(timer_context, 0.020f, 0x0, script_contexts[1], refs[4], false)
     };
     ASSERT_NE(ids[0], INVALID_TIMER_ID);
     ASSERT_NE(ids[1], INVALID_TIMER_ID);
