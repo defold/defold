@@ -538,7 +538,7 @@ namespace dmRig
             }
 
             if (track->m_MeshAttachment.m_Count > 0) {
-                if (blend_weight >= 0.5f) {
+                if (update_draw_order) {
                     MeshSlotPose& mesh_slot = mesh_slot_pose[track->m_MeshSlot];
                     mesh_slot.m_ActiveAttachment = track->m_MeshAttachment[rounded_sample];
                 }
@@ -609,6 +609,7 @@ namespace dmRig
             draw_order_deltas.SetCapacity(slot_count);
             draw_order_deltas.SetSize(slot_count);
             for (int i = 0; i < slot_count; i++) {
+                instance->m_DrawOrder[i] = i;
                 draw_order_deltas[i] = SIGNAL_DELTA_UNCHANGED;
             }
             int slot_changed = 0;
@@ -626,8 +627,10 @@ namespace dmRig
                     if (player != p) {
                         blend_weight = 1.0f - fade_rate;
                     }
+
                     UpdatePlayer(instance, p, dt, blend_weight);
-                    ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, instance->m_MeshSlotPose, blend_weight > 0.5, instance->m_MeshEntry, draw_order_deltas, slot_changed, alpha, instance->m_MeshId);
+                    bool draw_order = player == p ? fade_rate >= 0.5f : fade_rate < 0.5f;
+                    ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, instance->m_MeshSlotPose, draw_order, instance->m_MeshEntry, draw_order_deltas, slot_changed, alpha, instance->m_MeshId);
                     if (player == p)
                     {
                         alpha = 1.0f - fade_rate;
@@ -930,12 +933,11 @@ namespace dmRig
         }
 
         int slot_count = draw_order.Size();
-        int unchanged_count = slot_count - changed;
 
         // TODO make this a scratch buffer
         dmArray<int32_t> unchanged;
-        unchanged.SetCapacity(unchanged_count);
-        unchanged.SetSize(unchanged_count);
+        unchanged.SetCapacity(slot_count);
+        unchanged.SetSize(slot_count);
 
         for (int i = 0; i < slot_count; i++) {
             draw_order[i] = -1;
@@ -980,7 +982,6 @@ namespace dmRig
         int32_t slot_count = instance->m_MeshSet->m_SlotCount;
         for (int32_t slot_index = 0; slot_index < slot_count; slot_index++)
         {
-            const dmRigDDF::MeshSlot* mesh_slot = &instance->m_MeshEntry->m_MeshSlots[slot_index];
             MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
 
             // Get attachment index for current slot
