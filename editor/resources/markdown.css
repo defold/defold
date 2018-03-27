@@ -1,13 +1,13 @@
 body {
     margin: 2em;
     color: #c3cad1;
-    background-color: #212428;
-    font-family: "Source Sans Pro";
+    background-color: #27292d;
+    font-family: "Source Sans Pro", sans-serif;
     font-size: 1.1em;
 }
 
 h1, h2 {
-    font-family: "Source Sans Pro Light";
+    font-family: "Source Sans Pro Light", sans-serif;
     color: #cfdae6;
 }
 
@@ -21,22 +21,22 @@ a {
 }
 
 kbd {
-    font-family: "Source Sans Pro";
+    font-family: "Source Sans Pro", sans-serif;
     padding: 0 0.3em;
     border: 1px solid #515458;
 }
 
 code {
-    font-family: "Dejavu Sans Mono";
+    font-family: "Dejavu Sans Mono", monospace;
     color: #eeeeee;
-    background-color: #27292D;
+    background-color: #27292d;
     border: 1px solid #515458;
     font-size: 0.9em;
 }
 
 pre {
     padding: 1em;
-    background-color: #27292D;
+    background-color: #27292d;
 }
 
 pre > code {
@@ -45,4 +45,25 @@ pre > code {
 
 img {
     max-width: 100%;
+}
+
+::-webkit-scrollbar
+{
+    background-color: #27292d;
+    width: 14px;
+}
+
+::-webkit-scrollbar-thumb
+{
+    background-color: #393c41;
+    border-radius: 2em;
+    border: 3px solid #27292d;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #8f9296;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background-color: #dddddd;
 }

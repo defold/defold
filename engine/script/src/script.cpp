@@ -674,6 +674,7 @@ namespace dmScript
 
     LuaStackCheck::LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff)
     {
+        assert(m_Diff >= 0);
     }
 
     int LuaStackCheck::Error(const char* fmt, ... )
@@ -685,6 +686,7 @@ namespace dmScript
         lua_pushvfstring(m_L, fmt, argp);
         va_end(argp);
         lua_concat(m_L, 2);
+        m_Diff = -1;
         return lua_error(m_L);
     }
 
@@ -701,7 +703,9 @@ namespace dmScript
 
     LuaStackCheck::~LuaStackCheck()
     {
-        Verify(m_Diff);
+        if (m_Diff >= 0) {
+            Verify(m_Diff);
+        }
     }
 
     void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)

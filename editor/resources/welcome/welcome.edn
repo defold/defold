@@ -1,0 +1,67 @@
+{:new-project
+ {:categories [{:label "From Template"
+                :templates [{:name "Empty project"
+                             :description "Choose this template if you want to start from a completely blank slate."
+                             :image "empty.svg"
+                             :duration "Short"
+                             :user-level "Beginner"
+                             :zip-url "https://github.com/defold/template-empty/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Mobile game"
+                             :description "This template contains useful settings and assets if you want to start building a game for mobile devices."
+                             :image "mobile.svg"
+                             :duration "Medium"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/template-mobile/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Desktop game"
+                             :description "This template contains useful settings and assets if you want to start building a game for desktop."
+                             :image "desktop.svg"
+                             :duration "Long"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/template-desktop/archive/master.zip"
+                             :skip-root? true}]}
+
+               {:label "From Tutorial"
+                :templates [{:name "Side scroller tutorial"
+                             :description "In this beginner's tutorial you get a taste of how to build a game in Defold by modifying a very simple side scroller game."
+                             :image "side-scroller.png"
+                             :duration "Short"
+                             :user-level "Beginner"
+                             :zip-url "https://github.com/defold/tutorial-side-scroller/archive/master.zip"
+                             :skip-root? true}
+
+                             {:name "War battles tutorial"
+                             :description "In this tutorial you build the foundation for a top down shooter game based on the \"War Battles\" RTS asset pack."
+                             :image "war-battles.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/tutorial-war-battles/archive/master.zip"
+                             :skip-root? true}]}
+
+               {:label "From Sample"
+                :templates [{:name "Linker sample game"
+                             :description "This is a complete sample game where you click and drag to link fish of the same color to remove them from the board. Long chains of fish yields boosters."
+                             :image "linker.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-linker/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Roids sample game"
+                             :description "This is a complete sample game where you steer a space ship and fire your way through a storm of meteors."
+                             :image "roids.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-roids/archive/master.zip"
+                             :skip-root? true}
+
+                             {:name "Shadertoy sample"
+                             :description "This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold."
+                             :image "shadertoy.png"
+                             :duration "Short"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/sample-shadertoy/archive/master.zip"
+                             :skip-root? true}]}]}}
