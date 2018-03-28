@@ -9,8 +9,7 @@
             [editor.settings-core :as settings-core]
             [util.text-util :as text-util]
             [editor.workspace :as workspace]
-            [editor.outline :as outline]
-            [util.digest :as digest])
+            [editor.outline :as outline])
   (:import [org.apache.commons.codec.digest DigestUtils]
            [java.io StringReader]))
 

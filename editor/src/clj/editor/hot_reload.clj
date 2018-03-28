@@ -4,8 +4,7 @@
             [dynamo.graph :as g]
             [editor.pipeline :as pipeline]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [util.digest :as digest])
+            [editor.resource :as resource])
   (:import [java.io FileNotFoundException]
            [java.net URI]
            [org.apache.commons.io FilenameUtils IOUtils]))

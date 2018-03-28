@@ -64,15 +64,15 @@
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn- build-shader [resource _dep-resources user-data]
-  {:resource resource :content user-data})
+(defn- build-shader [resource _dep-resources ^String user-data]
+  ;; user-data is full-source
+  {:resource resource :content (.getBytes user-data "UTF-8")})
 
 (g/defnk produce-build-targets [_node-id resource ^String full-source]
-  (let [content (.getBytes full-source "UTF-8")]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-shader
-      :user-data content}]))
+  [{:node-id _node-id
+    :resource (workspace/make-build-resource resource)
+    :build-fn build-shader
+    :user-data full-source}])
 
 (g/defnk produce-full-source [resource lines]
   (string/join "\n" (if-some [compat-directive-lines (get shader/compat-directives (resource/ext resource))]

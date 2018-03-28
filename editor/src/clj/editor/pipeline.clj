@@ -6,6 +6,7 @@
    [editor.progress :as progress]
    [editor.protobuf :as protobuf]
    [editor.workspace :as workspace]
+   [dynamo.graph :as g]
    [util.digest :as digest])
   (:import
    (java.io File)
@@ -79,7 +80,10 @@
   [build-targets]
   (into {} (map #(let [key (target-key %)] [key (assoc % :key key)])) build-targets))
 
-(defn- build-targets-deep [build-targets]
+(defn- flatten-build-targets
+  "Breadth first traversal / collection of build-targets and their child :deps,
+  skipping seen targets identified by target-key."
+  [build-targets]
   (loop [targets build-targets
          queue []
          seen #{}
@@ -96,7 +100,7 @@
 (defn- make-build-targets-by-key
   [build-targets]
   (->> build-targets
-       build-targets-deep
+       flatten-build-targets
        build-targets-by-key))
 
 (defn- make-dep-resources
@@ -132,7 +136,7 @@
           :key key
           :mtime mtime
           :size size
-          :etag (digest/sha1->hex content))))))
+          :etag (digest/sha1-hex content))))))
 
 (defn- prune-build-dir! [build-dir build-targets-by-key]
   (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)]
@@ -144,25 +148,34 @@
 (defn build!
   [build-targets build-dir old-artifact-map render-progress!]
   (let [build-targets-by-key (make-build-targets-by-key build-targets)
-        artifacts (prune-artifacts old-artifact-map build-targets-by-key)
-        progress  (atom (progress/make "" (count build-targets-by-key)))]
+        pruned-old-artifacts (prune-artifacts old-artifact-map build-targets-by-key)
+        progress             (atom (progress/make "" (count build-targets-by-key)))]
     (prune-build-dir! build-dir build-targets-by-key)
-    (let [results (into []
-                        (map (fn [[key {:keys [resource] :as build-target}]]
-                               (render-progress! (swap! progress
-                                                        #(-> %
-                                                             (progress/advance)
-                                                             (progress/with-message (str "Writing " (resource/proj-path resource))))))
-                               (or (when-let [artifact (get artifacts resource)]
-                                     (and (valid? artifact) artifact))
-                                   (let [{:keys [resource deps build-fn user-data]} build-target
-                                         dep-resources (make-dep-resources deps build-targets-by-key)
-                                         result (-> (build-fn resource dep-resources user-data)
-                                                    (to-disk! key))]
-                                     result))))
-                        build-targets-by-key)
-          new-artifact-map (into {} (map (fn [a] [(:resource a) a])) results)
-          etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
-      {:artifacts results
-       :artifact-map new-artifact-map
-       :etags etags})))
+    (let [results          (into []
+                                 (map (fn [[key {:keys [node-id resource] :as build-target}]]
+                                        (let [cached-artifact (when-let [artifact (get pruned-old-artifacts resource)]
+                                                                (and (valid? artifact) artifact))
+                                              message         (str (if cached-artifact
+                                                                     "Reusing cached "
+                                                                     "Building ")
+                                                                   (resource/proj-path resource))]
+                                          (render-progress! (swap! progress
+                                                                   #(-> %
+                                                                        (progress/advance)
+                                                                        (progress/with-message message))))
+                                          (or cached-artifact
+                                              (let [{:keys [resource deps build-fn user-data]} build-target
+                                                    dep-resources                              (make-dep-resources deps build-targets-by-key)
+                                                    result (build-fn resource dep-resources user-data)]
+                                                (if (g/error? result)
+                                                  (assoc result :_node-id node-id)
+                                                  (to-disk! result key)))))))
+                                 build-targets-by-key)
+          {successful-results false error-results true} (group-by #(boolean (g/error? %)) results)
+          new-artifact-map (into {} (map (fn [a] [(:resource a) a])) successful-results)
+          etags            (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) successful-results)]
+      (cond-> {:artifacts    successful-results
+               :artifact-map new-artifact-map
+               :etags        etags}
+        (seq error-results)
+        (assoc :error (g/error-aggregate error-results))))))

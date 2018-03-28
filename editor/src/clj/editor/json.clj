@@ -28,8 +28,14 @@
 
 (g/defnode JsonNode
   (inherits resource-node/ResourceNode)
-  (property content g/Any)
+  (property content-transform g/Any
+            (dynamic visible (g/constantly false)))
   (input structure g/Any)
+
+  (output content g/Any (g/fnk [resource content-transform]
+                               (-> (slurp resource)
+                                   json/read-str
+                                   content-transform)))
 
   ;; we never modify JsonNode, save-data and source-value can be trivial and not cached
   (output save-data g/Any (g/constantly nil))
@@ -40,15 +46,15 @@
 (defn load-json [project self resource]
   (let [content (-> (slurp resource)
                   json/read-str)
-        [load-fn new-content] (some (fn [[loader-id {:keys [accept-fn load-fn]}]]
+        [load-fn accept-fn new-content] (some (fn [[loader-id {:keys [accept-fn load-fn]}]]
                                       (when-let [new-content (accept-fn content)]
-                                        [load-fn new-content]))
+                                        [load-fn accept-fn new-content]))
                                     @json-loaders)]
     (if load-fn
       (concat
-        (g/set-property self :content new-content)
+        (g/set-property self :content-transform accept-fn)
         (load-fn self new-content))
-      (g/set-property self :content content))))
+      (g/set-property self :content-transform identity))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
