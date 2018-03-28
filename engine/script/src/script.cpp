@@ -847,9 +847,7 @@ namespace dmScript
 
     struct Timer
     {
-        // How much time remaining until the timer fires, reduced with dt at each call to UpdateTimerContext
-        // If the result of removing dt from remaining is <= 0.f then fire the event, if repeat then add intervall
-        // to remaining after triggering.
+        // How much time remaining until the timer fires
         float           m_Remaining;
 
         // The timer intervall, we need to keep this for repeating timers
@@ -876,37 +874,21 @@ namespace dmScript
     struct TimerContext
     {
         dmArray<Timer>                      m_Timers;
-        dmArray<uint16_t>                   m_IdToIndexLookup;
+        dmArray<uint16_t>                   m_IndexLookup;
         dmIndexPool<uint16_t>               m_IndexPool;
         dmHashTable<uintptr_t, HTimer>      m_ScriptContextToFirstId;
-        uint16_t                            m_Generation;   // Incremented to avoid collisions each time we push old timer indexes back to the m_IndexPool
+        uint16_t                            m_Generation;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
         uint16_t                            m_InUpdate : 1;
     };
 
-    static uint16_t GetIdIndex(HTimer id)
+    static uint16_t GetLookupIndex(HTimer id)
     {
         return (uint16_t)(id & 0xffffu) - 1u;
     }
 
-    static HTimer MakeId(uint16_t generation, uint16_t id_index)
+    static HTimer MakeId(uint16_t generation, uint16_t lookup_index)
     {
-        return (((uint32_t)generation) << 16) | (id_index + 1u);
-    }
-
-    static void ResetTimer(Timer* timer)
-    {
-        assert(timer->m_IsAlive == 0);
-
-        // We don't strictly *need* to reset all the fields, but it is nice when debugging...
-        timer->m_Remaining = 0.f;
-        timer->m_Trigger = 0x0;
-        timer->m_ScriptContext = 0x0;
-        timer->m_Ref = 0x0;
-        timer->m_PrevIdWithSameScriptContext = INVALID_TIMER_ID;
-        timer->m_NextIdWithSameScriptContext = INVALID_TIMER_ID;
-        timer->m_Id = INVALID_TIMER_ID;
-        timer->m_Intervall = 0.f;
-        timer->m_Repeat = 0;
+        return (((uint32_t)generation) << 16) | (lookup_index + 1u);
     }
 
     static Timer* AllocateTimer(HTimerContext timer_context, HContext script_context)
@@ -949,14 +931,14 @@ namespace dmScript
         }
         else
         {
-            uint16_t next_id_index = GetIdIndex(*id_ptr);
-            Timer& nextTimer = timer_context->m_Timers[timer_context->m_IdToIndexLookup[next_id_index]];
+            uint16_t next_lookup_index = GetLookupIndex(*id_ptr);
+            Timer& nextTimer = timer_context->m_Timers[timer_context->m_IndexLookup[next_lookup_index]];
             nextTimer.m_PrevIdWithSameScriptContext = id;
             timer.m_NextIdWithSameScriptContext = nextTimer.m_Id;
         }
 
-        uint16_t id_index = GetIdIndex(id);
-        timer_context->m_IdToIndexLookup[id_index] = triggerCount;
+        uint16_t lookup_index = GetLookupIndex(id);
+        timer_context->m_IndexLookup[lookup_index] = triggerCount;
         if (id_ptr == 0x0)
         {
             timer_context->m_ScriptContextToFirstId.Put((uintptr_t)script_context, id);
@@ -968,27 +950,40 @@ namespace dmScript
         return &timer;
     }
 
+    static void EraseTimer(HTimerContext timer_context, uint32_t timer_index)
+    {
+        Timer& movedTimer = timer_context->m_Timers.EraseSwap(timer_index);
+
+        if (timer_index < timer_context->m_Timers.Size())
+        {
+            uint16_t moved_lookup_index = GetLookupIndex(movedTimer.m_Id);
+            timer_context->m_IndexLookup[moved_lookup_index] = timer_index;
+        }
+    }
+
     static void FreeTimer(HTimerContext timer_context, Timer& timer)
     {
         assert(timer_context != 0x0);
         assert(timer.m_IsAlive == 0);
 
-        uint16_t id_index = GetIdIndex(timer.m_Id);
-        uint16_t timer_index = timer_context->m_IdToIndexLookup[id_index];
-        timer_context->m_IndexPool.Push(id_index);
+        uint16_t lookup_index = GetLookupIndex(timer.m_Id);
+        uint16_t timer_index = timer_context->m_IndexLookup[lookup_index];
+        timer_context->m_IndexPool.Push(lookup_index);
 
         HTimer previousId = timer.m_PrevIdWithSameScriptContext;
         HTimer nextId = timer.m_NextIdWithSameScriptContext;
         if (INVALID_TIMER_ID != nextId)
         {
-            uint16_t next_id_index = GetIdIndex(nextId);
-            timer_context->m_Timers[timer_context->m_IdToIndexLookup[next_id_index]].m_PrevIdWithSameScriptContext = previousId;
+            uint16_t next_lookup_index = GetLookupIndex(nextId);
+            uint32_t next_timer_index = timer_context->m_IndexLookup[next_lookup_index];
+            timer_context->m_Timers[next_timer_index].m_PrevIdWithSameScriptContext = previousId;
         }
 
         if (INVALID_TIMER_ID != previousId)
         {
-            uint16_t prev_id_index = GetIdIndex(previousId);
-            timer_context->m_Timers[timer_context->m_IdToIndexLookup[prev_id_index]].m_NextIdWithSameScriptContext = nextId;
+            uint16_t prev_lookup_index = GetLookupIndex(previousId);
+            uint32_t prev_timer_index = timer_context->m_IndexLookup[prev_lookup_index];
+            timer_context->m_Timers[prev_timer_index].m_NextIdWithSameScriptContext = nextId;
         }
         else
         {
@@ -1004,22 +999,15 @@ namespace dmScript
             }
         }
 
-        ResetTimer(&timer);
-        Timer& movedTimer = timer_context->m_Timers.EraseSwap(timer_index);
-
-        if (timer_index < timer_context->m_Timers.Size())
-        {
-            uint16_t moved_id_index = GetIdIndex(movedTimer.m_Id);
-            timer_context->m_IdToIndexLookup[moved_id_index] = timer_index;
-        }
+        EraseTimer(timer_context, timer_index);
     }
 
     HTimerContext NewTimerContext(uint16_t max_instance_count)
     {
         TimerContext* timer_context = new TimerContext();
         timer_context->m_Timers.SetCapacity(max_instance_count);
-        timer_context->m_IdToIndexLookup.SetCapacity(MAX_TIMER_CAPACITY);
-        timer_context->m_IdToIndexLookup.SetSize(MAX_TIMER_CAPACITY);
+        timer_context->m_IndexLookup.SetCapacity(MAX_TIMER_CAPACITY);
+        timer_context->m_IndexLookup.SetSize(MAX_TIMER_CAPACITY);
         timer_context->m_IndexPool.SetCapacity(MAX_TIMER_CAPACITY);
         const uint32_t table_count = dmMath::Max(1, max_instance_count/3);
         timer_context->m_ScriptContextToFirstId.SetCapacity(table_count, max_instance_count);
@@ -1031,7 +1019,6 @@ namespace dmScript
     void DeleteTimerContext(HTimerContext timer_context)
     {
         assert(timer_context->m_InUpdate == 0);
-
         delete timer_context;
     }
 
@@ -1130,13 +1117,13 @@ namespace dmScript
     bool CancelTimer(HTimerContext timer_context, HTimer id)
     {
         assert(timer_context != 0x0);
-        uint16_t id_index = GetIdIndex(id);
-        if (id_index >= timer_context->m_IdToIndexLookup.Size())
+        uint16_t lookup_index = GetLookupIndex(id);
+        if (lookup_index >= timer_context->m_IndexLookup.Size())
         {
             return false;
         }
 
-        uint16_t timer_index = timer_context->m_IdToIndexLookup[id_index];
+        uint16_t timer_index = timer_context->m_IndexLookup[lookup_index];
         if (timer_index >= timer_context->m_Timers.Size())
         {
             return false;
@@ -1172,11 +1159,11 @@ namespace dmScript
         HTimer id = *id_ptr;
         do
         {
-            uint16_t id_index = GetIdIndex(id);
-            uint16_t timer_index = timer_context->m_IdToIndexLookup[id_index];
+            uint16_t lookup_index = GetLookupIndex(id);
+            uint16_t timer_index = timer_context->m_IndexLookup[lookup_index];
             Timer& timer = timer_context->m_Timers[timer_index];
 
-            timer_context->m_IndexPool.Push(id_index);
+            timer_context->m_IndexPool.Push(lookup_index);
 
             id = timer.m_NextIdWithSameScriptContext;
 
@@ -1188,14 +1175,7 @@ namespace dmScript
 
             if (timer_context->m_InUpdate == 0)
             {
-                ResetTimer(&timer);
-                Timer& movedTimer = timer_context->m_Timers.EraseSwap(timer_index);
-
-                if (timer_index < timer_context->m_Timers.Size())
-                {
-                    uint16_t moved_id_index = GetIdIndex(movedTimer.m_Id);
-                    timer_context->m_IdToIndexLookup[moved_id_index] = timer_index;
-                }
+                EraseTimer(timer_context, timer_index);
             }
         } while (id != INVALID_TIMER_ID);
 

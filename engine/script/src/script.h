@@ -535,10 +535,12 @@ namespace dmScript
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
 
     typedef struct TimerContext* HTimerContext;
+
     typedef uint32_t HTimer;
-    typedef void (*TimerTrigger)(HTimerContext timer_context, HTimer timer_id, float time_elapsed, HContext script_context, int ref);
 
     const HTimer INVALID_TIMER_ID = 0u;
+
+    typedef void (*TimerTrigger)(HTimerContext timer_context, HTimer timer_id, float time_elapsed, HContext script_context, int ref);
 
     /**
      * Creates a timer context.
