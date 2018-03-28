@@ -535,20 +535,85 @@ namespace dmScript
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
 
     typedef struct TimerContext* HTimerContext;
-    typedef void (*TimerTrigger)(HTimerContext timer_context, uint32_t timer_id, HContext scriptContext, int ref);
-    #define INVALID_TIMER_ID            0u  // TODO: Is a #define what we want?
+    typedef uint32_t HTimer;
+    typedef void (*TimerTrigger)(HTimerContext timer_context, HTimer timer_id, float time_elapsed, HContext script_context, int ref);
 
+    const HTimer INVALID_TIMER_ID = 0u;
+
+    /**
+     * Creates a timer context.
+     * @param max_instance_count maximum number of unique script instances that can be live at the same time
+     * @return the timer context, use it to add and delete timers and update/delete the context.
+     */
     HTimerContext NewTimerContext(uint16_t max_instance_count);
+
+    /**
+     * Deletes a timer context.
+     * You may *not* delete a timer context from within a timer callback
+     * 
+     * @param timer_context the timer context
+     */
     void DeleteTimerContext(HTimerContext timer_context);
+
+    /**
+     * Update the a timer context. Any timers whose time is elapsed will be triggered
+     * The resolution of all timers are dictated to the time step used when calling UpdateTimerContext
+     * 
+     * @param timer_context the timer context
+     * @param dt time step during which to simulate
+     */
     void UpdateTimerContext(HTimerContext timer_context, float dt);
-    uint32_t AddTimer(HTimerContext timer_context,
+
+    /**
+     * Adds a timer and returns a unique id within the timer_context
+     * You may add a timer from inside a timer callback
+     * Using a delay of 0.0f will result in a timer that triggers at the next call to UpdateTimerContext
+     * If you want a timer that triggers on each UpdateTimerContext, set delay to 0.0f and repeat to true
+     * 
+     * @param timer_context the timer context
+     * @param delay the time to wait in same unit as used for time step with UpdateTimerContext
+     * @param timer_trigger the callback to call when the timer triggers
+     * @param script_context a script context
+     * @param ref a script reference
+     * @param repeate indicates if the timer should reset at trigger or die
+     * @return the timer id, returns INVALID_TIMER_ID if the timer can not be created
+     */
+    HTimer AddTimer(HTimerContext timer_context,
                             float delay,
                             TimerTrigger timer_trigger,
-                            HContext scriptContext,
+                            HContext script_context,
                             int ref,
                             bool repeat);
-    bool CancelTimer(HTimerContext timer_context, uint32_t id);
-    uint32_t CancelTimers(HTimerContext timer_context, HContext scriptContext);
+
+    /**
+     * Cancel a timer
+     * You may cancel a timer from inside a timer callback, cancelling a timer that is already
+     * executed or cancelled is safe.
+     * 
+     * @param timer_context the timer context
+     * @param id the timer id
+     * @return true if the timer was active, false if the timer is already cancelled / complete
+     */
+    bool CancelTimer(HTimerContext timer_context, HTimer id);
+
+    /**
+     * Cancels all active timers assiciated with a script_context
+     * You may cancel a timers from inside a timer callback
+     * 
+     * @param timer_context the timer context
+     * @param script_context the script context timers should be associated with to be cancelled
+     * @return number of active timers that was cancelled
+     */
+    uint32_t CancelTimers(HTimerContext timer_context, HContext script_context);
+
+    /**
+     * Get the number of alive timers for a timer_context, currently only useful for unit tests
+     * You may query the number of alive timers from inside a timer callback
+     * 
+     * @param timer_context the timer context
+     * @return number of active timers that was cancelled
+     */
+    uint32_t GetAliveTimers(HTimerContext timer_context);
 }
 
 
