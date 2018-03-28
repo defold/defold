@@ -53,23 +53,32 @@
       (assoc! transient-runs last-coll-index run)
       (conj! transient-runs run))))
 
-(defn- append-match-result! [transient-runs ^MatchResult match-result scope captures]
+(defn- append-match-result! [transient-runs ^MatchResult match-result scope captures end-match-result-scope?]
   (let [parent-scope (second (get transient-runs (dec (count transient-runs))))
-        sorted-scope-changes (->> (range 0 (inc (.groupCount match-result)))
-                                  (mapcat (fn [^long group]
-                                            (let [start (.start match-result group)
-                                                  end (.end match-result group)
-                                                  scope (or (:name (get captures group))
-                                                            (when (zero? group)
-                                                              scope))]
-                                              (when (and (some? scope)
-                                                         (not= -1 start))
-                                                (pair (pair start scope)
-                                                      (pair end :end))))))
-                                  (sort-by first))]
+        sorted-scope-changes (cond-> (into [(pair (.start match-result) scope)]
+                                           (sort-by first
+                                                    (mapcat (fn [^long group]
+                                                              (let [scope (:name (get captures group))
+                                                                    start (.start match-result group)
+                                                                    end (.end match-result group)]
+                                                                (when (and (some? scope)
+                                                                           (not= -1 start))
+                                                                  (pair (pair start scope)
+                                                                        (pair end :end)))))
+                                                            (range 0 (inc (.groupCount match-result))))))
+                                     end-match-result-scope? (conj (pair (.end match-result) :end)))]
+    (prn "--------------------")
+    (prn "append-match-result!" scope)
+    (prn "  parent-scope" parent-scope)
+    (prn "  sorted-scope-changes" sorted-scope-changes)
+    (prn)
+    (prn "  loop:")
     (loop [parent-scopes (list parent-scope)
            scope-changes sorted-scope-changes
            transient-runs transient-runs]
+      (prn "    parent-scopes" parent-scopes)
+      (prn "    transient-runs" (mapv #(get transient-runs %)
+                                      (range 0 (count transient-runs))))
       (if-some [scope-change (first scope-changes)]
         (let [[index scope-or-end] scope-change
               parent-scopes (if (= :end scope-or-end)
@@ -86,24 +95,27 @@
         transient-runs))))
 
 (defn- append-match! [transient-runs ^MatchResult match-result pattern]
+  (prn "append-match!")
   (let [scope (:name pattern)
         captures (:captures pattern)]
-    (append-match-result! transient-runs match-result scope captures)))
+    (append-match-result! transient-runs match-result scope captures true)))
 
 (defn- append-begin! [transient-runs ^MatchResult match-result pattern]
+  (prn "append-begin!")
   (let [scope (:name pattern)
         content-scope (:content-name pattern)
         captures (or (:begin-captures pattern) (:captures pattern))]
-    (cond-> (append-match-result! transient-runs match-result scope captures)
+    (cond-> (append-match-result! transient-runs match-result scope captures false)
             content-scope (append-run! (pair (.start match-result) content-scope)))))
 
 (defn- append-end! [transient-runs ^MatchResult match-result pattern]
+  (prn "append-end!")
   (let [scope (:name pattern)
         content-scope (:content-name pattern)
         captures (or (:end-captures pattern) (:captures pattern))]
     (cond-> transient-runs
             content-scope (append-run! (pair (.start match-result) content-scope))
-            true (append-match-result! match-result scope captures))))
+            true (append-match-result! match-result scope captures true))))
 
 (defn- find-parent-scope [^AnalysisContext context]
   (when-some [parent-pattern (.parent-pattern context)]

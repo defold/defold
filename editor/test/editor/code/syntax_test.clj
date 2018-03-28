@@ -30,8 +30,8 @@
     17 0 [18 19]
     19 1 [20 24]))
 
-(defn ^:private analyze-runs [patterns line]
-  (let [contexts (list (syntax/make-context "source.lua" patterns))]
+(defn ^:private analyze-runs [scope-name patterns line]
+  (let [contexts (list (syntax/make-context scope-name patterns))]
     (second (syntax/analyze contexts line))))
 
 (deftest runs-test
@@ -44,17 +44,17 @@
             [19 "source.lua"]
             [20 "keyword.control.lua"]
             [24 "source.lua"]]
-           (analyze-runs simple-patterns simple-line))))
+           (analyze-runs "source.lua" simple-patterns simple-line))))
 
   (testing "Captures"
-    (let [capture-patterns [{:captures {1 {:name "keyword.control.lua"}
-                                        2 {:name "entity.name.function.scope.lua"}
-                                        3 {:name "entity.name.function.lua"}
-                                        4 {:name "punctuation.definition.parameters.begin.lua"}
-                                        5 {:name "variable.parameter.function.lua"}
-                                        6 {:name "punctuation.definition.parameters.end.lua"}}
-                             :match #"\b(function)(?:\s+([a-zA-Z_.:]+[.:])?([a-zA-Z_]\w*)\s*)?(\()([^)]*)(\))"
-                             :name "meta.function.lua"}]]
+    (let [patterns [{:captures {1 {:name "keyword.control.lua"}
+                                2 {:name "entity.name.function.scope.lua"}
+                                3 {:name "entity.name.function.lua"}
+                                4 {:name "punctuation.definition.parameters.begin.lua"}
+                                5 {:name "variable.parameter.function.lua"}
+                                6 {:name "punctuation.definition.parameters.end.lua"}}
+                     :match #"\b(function)(?:\s+([a-zA-Z_.:]+[.:])?([a-zA-Z_]\w*)\s*)?(\()([^)]*)(\))"
+                     :name "meta.function.lua"}]]
       (is (= [[0 "keyword.control.lua"]
               [8 "meta.function.lua"]
               [9 "entity.name.function.lua"]
@@ -62,7 +62,7 @@
               [14 "variable.parameter.function.lua"]
               [32 "punctuation.definition.parameters.end.lua"]
               [33 "source.lua"]]
-             (analyze-runs capture-patterns "function push(position, velocity)")))
+             (analyze-runs "source.lua" patterns "function push(position, velocity)")))
       (is (= [[0 "keyword.control.lua"]
               [8 "meta.function.lua"]
               [9 "entity.name.function.scope.lua"]
@@ -71,4 +71,23 @@
               [19 "variable.parameter.function.lua"]
               [37 "punctuation.definition.parameters.end.lua"]
               [38 "source.lua"]]
-             (analyze-runs capture-patterns "function Ball:push(position, velocity)"))))))
+             (analyze-runs "source.lua" patterns "function Ball:push(position, velocity)")))))
+
+  (testing "Begin captures"
+    (let [patterns [{:begin #"(u|u8|U|L)?\""
+                     :begin-captures {0 {:name "punctuation.definition.string.begin.cpp"}
+                                      1 {:name "meta.encoding.cpp"}}
+                     :end #"\""
+                     :end-captures {0 {:name "punctuation.definition.string.end.cpp"}}
+                     :name "string.quoted.double.cpp"}]]
+      (is (= [[0 "punctuation.definition.string.begin.cpp"]
+              [1 "string.quoted.double.cpp"]
+              [4 "punctuation.definition.string.end.cpp"]
+              [5 "source.cish"]]
+             (analyze-runs "source.cish" patterns "\"str\"")))
+      (is (= [[0 "meta.encoding.cpp"]
+              [1 "punctuation.definition.string.begin.cpp"]
+              [2 "string.quoted.double.cpp"]
+              [5 "punctuation.definition.string.end.cpp"]
+              [6 "source.cish"]]
+             (analyze-runs "source.cish" patterns "L\"str\""))))))
