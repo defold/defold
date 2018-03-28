@@ -6,6 +6,7 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/pprint.h>
+#include <dlib/profile.h>
 #include <extension/extension.h>
 
 #include "script_private.h"
@@ -848,7 +849,6 @@ namespace dmScript
     {
         // How much time remaining until the timer fires, reduced with dt at each update
         // If the result of removing dt from remaining is <= 0.f then fire the event, if repeat then add intervall to remaining
-        // If <= 0.0f then the timer is dead
         float           m_Remaining;
 
         TimerTrigger    m_Trigger;
@@ -861,11 +861,13 @@ namespace dmScript
 
         uint32_t        m_Id;
 
-        // The timer intervall, we need to keep this for repeating timers, not really for one-shots
+        // The timer intervall, we need to keep this for repeating timers
         float           m_Intervall;
 
         // Flag if the timer should repeat
         uint32_t        m_Repeat : 1;
+        // Flag if the timer is alive
+        uint32_t        m_IsAlive : 1;
     };
 
     #define MAX_TIMER_CAPACITY          65000u
@@ -909,6 +911,7 @@ namespace dmScript
 
         // Flag if the timer should repeat
         timer->m_Repeat = 0;
+        timer->m_IsAlive = 0;
     }
 
     static Timer* AllocateTimer(HTimerContext timer_context, HContext script_context)
@@ -948,16 +951,16 @@ namespace dmScript
         timer.m_ScriptContext = script_context;
 
         timer.m_PrevIdWithSameScriptContext = INVALID_TIMER_ID;
-        if (id_ptr != 0x0)
+        if (id_ptr == 0x0)
+        {
+            timer.m_NextIdWithSameScriptContext = INVALID_TIMER_ID;
+        }
+        else
         {
             uint16_t next_id_index = GetIdIndex(*id_ptr);
             Timer& nextTimer = timer_context->m_Timers[timer_context->m_IdToIndexMap[next_id_index]];
             nextTimer.m_PrevIdWithSameScriptContext = id;
             timer.m_NextIdWithSameScriptContext = nextTimer.m_Id;
-        }
-        else
-        {
-            timer.m_NextIdWithSameScriptContext = INVALID_TIMER_ID;
         }
 
         uint16_t id_index = GetIdIndex(id);
@@ -976,6 +979,7 @@ namespace dmScript
     static void FreeTimer(HTimerContext timer_context, Timer& timer)
     {
         assert(timer_context != 0x0);
+        assert(timer.m_IsAlive == 0);
 
         uint16_t id_index = GetIdIndex(timer.m_Id);
         uint32_t timer_index = timer_context->m_IdToIndexMap[id_index];
@@ -1008,12 +1012,6 @@ namespace dmScript
             }
         }
 
-    //    timer_context->m_IdToIndexMap.Erase(timer->m_Id);
-    //    timer->m_Id = INVALID_TIMER_ID;
-    //    timer->m_NextIdWithSameScriptContext = INVALID_TIMER_ID;
-    //    timer->m_PrevIdWithSameScriptContext = INVALID_TIMER_ID;
-    //    timer->m_ScriptContext = 0x0;
-
         ResetTimer(&timer);
         Timer& movedTimer = timer_context->m_Timers.EraseSwap(timer_index);
 
@@ -1022,6 +1020,7 @@ namespace dmScript
             uint16_t moved_id_index = GetIdIndex(movedTimer.m_Id);
             timer_context->m_IdToIndexMap[moved_id_index] = timer_index;
         }
+        ++timer_context->m_Generation;
     }
 
     HTimerContext NewTimerContext(uint16_t max_instance_count)
@@ -1040,68 +1039,77 @@ namespace dmScript
 
     void DeleteTimerContext(HTimerContext timer_context)
     {
+        assert(timer_context->m_InUpdate == 0);
+
+        // TODO: This is mostly validation that no lingering timers are left, should we force this test?
         // Do we need to clean up any callback references?
+        uint32_t size = timer_context->m_Timers.Size();
+        uint32_t i = 0;
+        while (i < size)
+        {
+            Timer& timer = timer_context->m_Timers[i];
+            assert(timer.m_IsAlive == 0);
+            FreeTimer(timer_context, timer);
+            --size;
+        }
+
         delete timer_context;
     }
     
     void UpdateTimerContext(HTimerContext timer_context, float dt)
     {
         assert(timer_context != 0x0);
-//        DM_PROFILE(Timer, "Update");
+        DM_PROFILE(TimerContext, "Update"); // TODO: We might want to do profiling "outside" of this to see context?
 
         timer_context->m_InUpdate = 1;
+
+        // We only scan timers for trigger/purge if the timer *existed at entry to UpdateTimerContext*
         uint32_t size = timer_context->m_Timers.Size();
-//        DM_COUNTER("timerc", size);
+        DM_COUNTER("timerc", size);
+
         uint32_t i = 0;
         while (i < size)
         {
             Timer& timer = timer_context->m_Timers[i];
-            if (timer.m_Remaining > 0.0f)
+            if (timer.m_IsAlive == 1)
             {
+                assert(timer.m_Remaining >= 0.0f);
+
                 timer.m_Remaining -= dt;
                 if (timer.m_Remaining <= 0.0f)
                 {
                     assert(timer.m_Trigger != 0x0);
-                    timer.m_Trigger(timer.m_Id, timer.m_ScriptContext, timer.m_Ref);
 
-                    // New timers may be added during the trigger
-                    size = timer_context->m_Timers.Size();
+                    timer.m_IsAlive = timer.m_Repeat;
+
+                    timer.m_Trigger(timer_context, timer.m_Id, timer.m_ScriptContext, timer.m_Ref);
+
+                    if (timer.m_Repeat == 1)
+                    {
+                        timer.m_Remaining += timer.m_Intervall;
+                        assert(timer.m_Remaining >= 0.f);
+                    }
                 }
             }
             ++i;
         }
+        timer_context->m_InUpdate = 0;
 
         size = timer_context->m_Timers.Size();
         i = 0;
-        uint32_t old_size = size;
         while (i < size)
         {
             Timer& timer = timer_context->m_Timers[i];
-            if (timer.m_Remaining <= 0.0f)
+            if (timer.m_IsAlive == 0)
             {
-                if (timer.m_Repeat)
-                {
-                    timer.m_Remaining += timer.m_Intervall;
-                    ++i;
-                }
-                else
-                {
-                    FreeTimer(timer_context, timer);
-                    --size;
-                }
+                FreeTimer(timer_context, timer);
+                --size;
             }
             else
             {
                 ++i;
             }
         }
-
-        if (old_size != size)
-        {
-            ++timer_context->m_Generation;
-        }
-
-        timer_context->m_InUpdate = 0;
     }
 
     uint32_t AddTimer(HTimerContext timer_context,
@@ -1122,7 +1130,9 @@ namespace dmScript
         timer->m_Ref = ref;
         timer->m_Intervall = delay;
         timer->m_Remaining = delay;
+        timer->m_Trigger = timer_trigger;
         timer->m_Repeat = repeat;
+        timer->m_IsAlive = 1;
 
         return timer->m_Id;
     }
@@ -1149,31 +1159,16 @@ namespace dmScript
             return false;
         }
 
-        if (timer_context->m_InUpdate)
-        {
-            timer.m_Remaining = 0.0f;
-            timer.m_Repeat = 0;
+        bool cancelled = timer.m_IsAlive == 1;
 
-            uint32_t* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)timer.m_ScriptContext);
-            assert(id_ptr != 0x0);
-            if (*id_ptr == id)
-            {
-                if (timer.m_NextIdWithSameScriptContext == INVALID_TIMER_ID)
-                {
-                    timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)timer.m_ScriptContext);
-                }
-                else
-                {
-                    *id_ptr = timer.m_NextIdWithSameScriptContext;
-                }
-            }
-        }
-        else
+        timer.m_IsAlive = 0;
+
+        // We can actually be inside the timer callback when the CancelTimer call comes
+        if (timer_context->m_InUpdate == 0)
         {
             FreeTimer(timer_context, timer);
-            ++timer_context->m_Generation;
         }
-        return true;
+        return cancelled;
     }
 
     uint32_t CancelTimers(HTimerContext timer_context, HContext script_context)
@@ -1195,10 +1190,15 @@ namespace dmScript
 
             id = timer.m_NextIdWithSameScriptContext;
 
-            if (timer_context->m_InUpdate)
+            if (timer.m_IsAlive == 1)
             {
-                timer.m_Remaining = 0.0f;
-                timer.m_Repeat = 0;
+                // We can actually be inside a timer callback when a CancelTimers call comes, only count timers that are still alive
+                ++cancelled_count;
+            }
+
+            if (timer_context->m_InUpdate == 1)
+            {
+                timer.m_IsAlive = 0;
             }
             else
             {
@@ -1210,12 +1210,11 @@ namespace dmScript
                     uint16_t moved_id_index = GetIdIndex(movedTimer.m_Id);
                     timer_context->m_IdToIndexMap[moved_id_index] = timer_index;
                 }
+                ++timer_context->m_Generation;
             }
-            ++cancelled_count;
         } while (id != INVALID_TIMER_ID);
 
         timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)script_context);
-        ++timer_context->m_Generation;
         return cancelled_count;
     }
 }

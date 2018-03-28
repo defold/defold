@@ -535,12 +535,12 @@ namespace dmScript
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
 
     typedef struct TimerContext* HTimerContext;
-    typedef void (*TimerTrigger)(uint32_t timer_id, HContext scriptContext, int ref);
+    typedef void (*TimerTrigger)(HTimerContext timer_context, uint32_t timer_id, HContext scriptContext, int ref);
+    #define INVALID_TIMER_ID            0u  // TODO: Is a #define what we want?
+
     HTimerContext NewTimerContext(uint16_t max_instance_count);
     void DeleteTimerContext(HTimerContext timer_context);
     void UpdateTimerContext(HTimerContext timer_context, float dt);
- 
-    #define INVALID_TIMER_ID            0u
     uint32_t AddTimer(HTimerContext timer_context,
                             float delay,
                             TimerTrigger timer_trigger,

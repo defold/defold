@@ -227,6 +227,12 @@ TEST_F(ScriptTimerTest, TestTimerInstanceCountLimit)
     id3 = dmScript::AddTimer(timer_context, 0.010f, 0x0, script_contexts[0], 0x0, false);
     ASSERT_NE(id3, INVALID_TIMER_ID);
     
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        dmScript::CancelTimers(timer_context, script_contexts[i]);
+    }
+    dmScript::CancelTimers(timer_context, 0x0);
+
     dmScript::DeleteTimerContext(timer_context);
 }
 
@@ -263,8 +269,245 @@ TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
 
     ASSERT_GT(timer_count, 16);
 
+    for (uint32_t i = 0; i < 8; ++i)
+    {
+        dmScript::CancelTimers(timer_context, script_contexts[i]);
+    }
+
     dmScript::DeleteTimerContext(timer_context);
 }
+
+TEST_F(ScriptTimerTest, TestOneshotTimerCallback)
+{
+    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    ASSERT_NE(timer_context, (dmScript::HTimerContext)0x0);
+
+    static uint32_t id = INVALID_TIMER_ID;
+
+    static uint32_t callback_count = 0;
+
+    struct Callback {
+        static void cb(dmScript::HTimerContext timer_context, uint32_t timer_id, dmScript::HContext scriptContext, int ref)
+        {
+            ASSERT_EQ(timer_id, id);
+            ++callback_count;
+        }
+    };
+
+    id = dmScript::AddTimer(timer_context, 2.f, Callback::cb, m_Context, 1, false);
+    ASSERT_NE(id, INVALID_TIMER_ID);
+
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 0u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+
+    dmScript::CancelTimer(timer_context, id);
+
+    dmScript::DeleteTimerContext(timer_context);
+}
+
+TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
+{
+    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    ASSERT_NE(timer_context, (dmScript::HTimerContext)0x0);
+
+    static uint32_t id = INVALID_TIMER_ID;
+
+    static uint32_t callback_count = 0;
+
+    struct Callback {
+        static void cb(dmScript::HTimerContext timer_context, uint32_t timer_id, dmScript::HContext scriptContext, int ref)
+        {
+            ASSERT_EQ(timer_id, id);
+            ++callback_count;
+        }
+    };
+
+    id = dmScript::AddTimer(timer_context, 2.f, Callback::cb, m_Context, 1, true);
+    ASSERT_NE(id, INVALID_TIMER_ID);
+
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 0u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+
+    dmScript::CancelTimer(timer_context, id);
+
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+
+    dmScript::DeleteTimerContext(timer_context);
+}
+
+TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
+{
+    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    ASSERT_NE(timer_context, (dmScript::HTimerContext)0x0);
+
+    static uint32_t id = INVALID_TIMER_ID;
+
+    static uint32_t callback_count = 0;
+
+    struct Callback {
+        static void cb(dmScript::HTimerContext timer_context, uint32_t timer_id, dmScript::HContext scriptContext, int ref)
+        {
+            ASSERT_EQ(timer_id, id);
+            ASSERT_NE(callback_count, 2u);
+            ++callback_count;
+            if (callback_count == 2u)
+            {
+                bool cancelled = dmScript::CancelTimer(timer_context, timer_id);
+                ASSERT_EQ(cancelled, true);
+            }
+            else
+            {
+                ASSERT_LT(callback_count, 2u);
+            }
+        }
+    };
+
+    id = dmScript::AddTimer(timer_context, 2.f, Callback::cb, m_Context, 1, true);
+    ASSERT_NE(id, INVALID_TIMER_ID);
+
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 0u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+    bool cancelled = dmScript::CancelTimer(timer_context, id);
+    ASSERT_EQ(cancelled, false);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+
+    dmScript::DeleteTimerContext(timer_context);
+}
+
+TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
+{
+    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    ASSERT_NE(timer_context, (dmScript::HTimerContext)0x0);
+
+    static uint32_t id = INVALID_TIMER_ID;
+
+    static uint32_t callback_count = 0;
+
+    struct Callback {
+        static void cb(dmScript::HTimerContext timer_context, uint32_t timer_id, dmScript::HContext scriptContext, int ref)
+        {
+            ASSERT_EQ(timer_id, id);
+            ASSERT_EQ(callback_count, 0u);
+            ++callback_count;
+            bool cancelled = dmScript::CancelTimer(timer_context, timer_id);
+            ASSERT_EQ(cancelled, false);
+        }
+    };
+
+    id = dmScript::AddTimer(timer_context, 2.f, Callback::cb, m_Context, 1, false);
+    ASSERT_NE(id, INVALID_TIMER_ID);
+
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 0u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    bool cancelled = dmScript::CancelTimer(timer_context, id);
+    ASSERT_EQ(cancelled, false);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+
+    dmScript::DeleteTimerContext(timer_context);
+}
+
+TEST_F(ScriptTimerTest, TestRetriggerTimerInCallback)
+{
+    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    ASSERT_NE(timer_context, (dmScript::HTimerContext)0x0);
+
+    static uint32_t outer_id = INVALID_TIMER_ID;
+    static uint32_t inner_id = INVALID_TIMER_ID;
+    static uint32_t inner2_id = INVALID_TIMER_ID;
+    static uint32_t callback_count = 0;
+
+    struct Callback {
+        static void cb(dmScript::HTimerContext timer_context, uint32_t timer_id, dmScript::HContext scriptContext, int ref)
+        {
+            ++callback_count;
+            if (callback_count < 2u)
+            {
+                ASSERT_EQ(timer_id, outer_id);
+                outer_id = dmScript::AddTimer(timer_context, 2.f, Callback::cb, scriptContext, 1, false);
+                ASSERT_NE(outer_id, INVALID_TIMER_ID);
+            }
+            else if (callback_count == 2u)
+            {
+                ASSERT_EQ(timer_id, outer_id);
+                inner_id = dmScript::AddTimer(timer_context, 0.f, Callback::cb, scriptContext, 1, false);
+                ASSERT_NE(inner_id, INVALID_TIMER_ID);
+            }
+            else if (callback_count == 3u)
+            {
+                ASSERT_EQ(timer_id, inner_id);
+                inner2_id = dmScript::AddTimer(timer_context, 1.f, Callback::cb, scriptContext, 1, false);
+                ASSERT_NE(inner2_id, INVALID_TIMER_ID);
+            }
+        }
+    };
+
+    outer_id = dmScript::AddTimer(timer_context, 2.f, Callback::cb, m_Context, 1, false);
+    ASSERT_NE(outer_id, INVALID_TIMER_ID);
+
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 0u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 1u);
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 2u);
+
+    bool cancelled = dmScript::CancelTimer(timer_context, outer_id);
+    ASSERT_EQ(cancelled, false);
+
+    dmScript::UpdateTimerContext(timer_context, 0.00001f);
+    ASSERT_EQ(callback_count, 3u);
+
+    cancelled = dmScript::CancelTimer(timer_context, inner_id);
+    ASSERT_EQ(cancelled, false);
+    
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 4u);
+
+    cancelled = dmScript::CancelTimer(timer_context, inner2_id);
+    ASSERT_EQ(cancelled, false);
+
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(callback_count, 4u);
+
+    dmScript::DeleteTimerContext(timer_context);
+}
+
+// Create timer inside callback
 
 int main(int argc, char **argv)
 {
