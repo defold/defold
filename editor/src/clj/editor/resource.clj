@@ -6,7 +6,8 @@
             [schema.core :as s]
             [editor.core :as core]
             [editor.fs :as fs]
-            [editor.handler :as handler])
+            [editor.handler :as handler]
+            [util.digest :as digest])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
            [java.nio.file FileSystem FileSystems PathMatcher]
            [java.net URI URL]
@@ -125,6 +126,9 @@
 (defmethod print-method FileResource [file-resource ^java.io.Writer w]
   (.write w (format "{:FileResource %s}" (pr-str (proj-path file-resource)))))
 
+;; Note that `data` is used for resource-hash, used to name
+;; the output of build-resources. So better be unique for the
+;; data the MemoryResource represents!
 (defrecord MemoryResource [workspace ext data]
   Resource
   (children [this] nil)
@@ -274,6 +278,10 @@
   (if resource
     (proj-path resource)
     ""))
+
+(defn resource->sha1-hex [resource]
+  (with-open [rs (io/input-stream resource)]
+    (digest/stream->sha1-hex rs)))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
 
