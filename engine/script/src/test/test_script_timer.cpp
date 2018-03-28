@@ -37,7 +37,7 @@ TEST_F(ScriptTimerTest, TestCreateDeleteTimer)
 
     bool cancelled = dmScript::CancelTimer(timer_context, 0);
     ASSERT_EQ(cancelled, false);
-    dmScript::HTimer id = dmScript::AddTimer(timer_context, 0.016f, 0x0, m_Context, 0x0, false);
+    dmScript::HTimer id = dmScript::AddTimer(timer_context, 0.016f, 0x0, m_Context, 0, false);
     ASSERT_NE(id, dmScript::INVALID_TIMER_ID);
     cancelled = dmScript::CancelTimer(timer_context, id);
     ASSERT_EQ(cancelled, true);
@@ -53,19 +53,19 @@ TEST_F(ScriptTimerTest, TestIdReuse)
     dmScript::HTimerContext timer_context = dmScript::NewTimerContext(8);
     ASSERT_NE(timer_context, (dmScript::HTimerContext)0x0);
 
-    dmScript::HTimer id1 = dmScript::AddTimer(timer_context, 0.016f, 0x0, m_Context, 0x0, false);
-    dmScript::HTimer id2 = dmScript::AddTimer(timer_context, 0.016f, 0x0, m_Context, 0x0, false);
+    dmScript::HTimer id1 = dmScript::AddTimer(timer_context, 0.016f, 0x0, m_Context, 0, false);
+    dmScript::HTimer id2 = dmScript::AddTimer(timer_context, 0.016f, 0x0, m_Context, 0, false);
     ASSERT_NE(id1, id2);
     bool cancelled = dmScript::CancelTimer(timer_context, id1);
     ASSERT_EQ(cancelled, true);
-    dmScript::HTimer id3 = dmScript::AddTimer(timer_context, 0.016f, 0x0, m_Context, 0x0, false);
+    dmScript::HTimer id3 = dmScript::AddTimer(timer_context, 0.016f, 0x0, m_Context, 0, false);
     ASSERT_NE(id1, id2);
     ASSERT_NE(id1, id3);
     cancelled = dmScript::CancelTimer(timer_context, id2);
     ASSERT_EQ(cancelled, true);
     cancelled = dmScript::CancelTimer(timer_context, id3);
     ASSERT_EQ(cancelled, true);
-    dmScript::HTimer id4 = dmScript::AddTimer(timer_context, 0.016f, 0x0, 0x0, 0x0, false);
+    dmScript::HTimer id4 = dmScript::AddTimer(timer_context, 0.016f, 0x0, 0x0, 0, false);
     ASSERT_NE(id1, id4);
     cancelled = dmScript::CancelTimer(timer_context, id4);
     ASSERT_EQ(cancelled, true);
@@ -188,14 +188,14 @@ TEST_F(ScriptTimerTest, TestTimerInstanceCountLimit)
 
     dmScript::HTimer ids[8] = 
     {
-        dmScript::AddTimer(timer_context, 0.016f, 0x0, script_contexts[0], 0x0, false),
-        dmScript::AddTimer(timer_context, 0.017f, 0x0, script_contexts[1], 0x0, false),
-        dmScript::AddTimer(timer_context, 0.018f, 0x0, script_contexts[2], 0x0, false),
-        dmScript::AddTimer(timer_context, 0.019f, 0x0, script_contexts[3], 0x0, false),
-        dmScript::AddTimer(timer_context, 0.020f, 0x0, script_contexts[4], 0x0, false),
-        dmScript::AddTimer(timer_context, 0.021f, 0x0, script_contexts[5], 0x0, false),
-        dmScript::AddTimer(timer_context, 0.022f, 0x0, script_contexts[6], 0x0, false),
-        dmScript::AddTimer(timer_context, 0.023f, 0x0, script_contexts[7], 0x0, false)
+        dmScript::AddTimer(timer_context, 0.016f, 0x0, script_contexts[0], 0, false),
+        dmScript::AddTimer(timer_context, 0.017f, 0x0, script_contexts[1], 0, false),
+        dmScript::AddTimer(timer_context, 0.018f, 0x0, script_contexts[2], 0, false),
+        dmScript::AddTimer(timer_context, 0.019f, 0x0, script_contexts[3], 0, false),
+        dmScript::AddTimer(timer_context, 0.020f, 0x0, script_contexts[4], 0, false),
+        dmScript::AddTimer(timer_context, 0.021f, 0x0, script_contexts[5], 0, false),
+        dmScript::AddTimer(timer_context, 0.022f, 0x0, script_contexts[6], 0, false),
+        dmScript::AddTimer(timer_context, 0.023f, 0x0, script_contexts[7], 0, false)
     };
     ASSERT_NE(ids[0], dmScript::INVALID_TIMER_ID);
     ASSERT_NE(ids[1], dmScript::INVALID_TIMER_ID);
@@ -207,29 +207,29 @@ TEST_F(ScriptTimerTest, TestTimerInstanceCountLimit)
     ASSERT_NE(ids[7], dmScript::INVALID_TIMER_ID);
 
     // Can't add a timer with yet another script context
-    dmScript::HTimer id1 = dmScript::AddTimer(timer_context, 0.010f, 0x0, 0x0, 0x0, false);
+    dmScript::HTimer id1 = dmScript::AddTimer(timer_context, 0.010f, 0x0, 0x0, 0, false);
     ASSERT_EQ(id1, dmScript::INVALID_TIMER_ID);
 
     // Using the same script context should be fine
-    id1 = dmScript::AddTimer(timer_context, 0.010f, 0x0, script_contexts[1], 0x0, false);
+    id1 = dmScript::AddTimer(timer_context, 0.010f, 0x0, script_contexts[1], 0, false);
     ASSERT_NE(id1, dmScript::INVALID_TIMER_ID);
 
     bool cancelled = dmScript::CancelTimer(timer_context, ids[0]);
     ASSERT_EQ(cancelled, true);
 
     // Should be room for one more script context
-    dmScript::HTimer id2 = dmScript::AddTimer(timer_context, 0.010f, 0x0, 0x0, 0x0, false);
+    dmScript::HTimer id2 = dmScript::AddTimer(timer_context, 0.010f, 0x0, 0x0, 0, false);
     ASSERT_NE(id2, dmScript::INVALID_TIMER_ID);
 
     // Now we should not have space for this
-    dmScript::HTimer id3 = dmScript::AddTimer(timer_context, 0.010f, 0x0, script_contexts[0], 0x0, false);
+    dmScript::HTimer id3 = dmScript::AddTimer(timer_context, 0.010f, 0x0, script_contexts[0], 0, false);
     ASSERT_EQ(id3, dmScript::INVALID_TIMER_ID);
     
     cancelled = dmScript::CancelTimer(timer_context, ids[4]);
     ASSERT_EQ(cancelled, true);
 
     // Space should be available   
-    id3 = dmScript::AddTimer(timer_context, 0.010f, 0x0, script_contexts[0], 0x0, false);
+    id3 = dmScript::AddTimer(timer_context, 0.010f, 0x0, script_contexts[0], 0, false);
     ASSERT_NE(id3, dmScript::INVALID_TIMER_ID);
     
     for (uint32_t i = 0; i < 8; ++i)
@@ -266,7 +266,7 @@ TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
 
     for (; timer_count < ids.Size(); ++timer_count)
     {
-        ids[timer_count] = dmScript::AddTimer(timer_context, 0.10f + timer_count, 0x0, script_contexts[timer_count % 8], 0x0, false);
+        ids[timer_count] = dmScript::AddTimer(timer_context, 0.10f + timer_count, 0x0, script_contexts[timer_count % 8], 0, false);
         if (ids[timer_count] == dmScript::INVALID_TIMER_ID)
         {
             break;

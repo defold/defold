@@ -932,7 +932,8 @@ namespace dmScript
         else
         {
             uint16_t next_lookup_index = GetLookupIndex(*id_ptr);
-            Timer& nextTimer = timer_context->m_Timers[timer_context->m_IndexLookup[next_lookup_index]];
+            uint32_t next_timer_index = timer_context->m_IndexLookup[next_lookup_index];
+            Timer& nextTimer = timer_context->m_Timers[next_timer_index];
             nextTimer.m_PrevIdWithSameScriptContext = id;
             timer.m_NextIdWithSameScriptContext = nextTimer.m_Id;
         }
@@ -1029,8 +1030,8 @@ namespace dmScript
 
         timer_context->m_InUpdate = 1;
 
-        // We only scan timers for trigger/purge if the timer *existed at entry to UpdateTimerContext*, any timers added
-        // in a trigger callback will always be added at the end of m_Timers.
+        // We only scan timers for trigger if the timer *existed at entry to UpdateTimerContext*, any timers added
+        // in a trigger callback will always be added at the end of m_Timers and not triggered in this scope.
         uint32_t size = timer_context->m_Timers.Size();
         DM_COUNTER("timerc", size);
 
