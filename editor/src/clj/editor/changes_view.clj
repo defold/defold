@@ -164,12 +164,21 @@
   (workspace/resolve-workspace-resource workspace (format "/%s" (or (:new-path status)
                                                                     (:old-path status)))))
 
+(defn- try-open-git
+  ^Git [workspace]
+  (let [repo-path (io/as-file (g/node-value workspace :root))
+        git (git/try-open repo-path)
+        head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
+    (if (some? head-commit)
+      git
+      (when (some? git)
+        (.close git)))))
+
 (defn make-changes-view [view-graph workspace prefs ^Parent parent]
   (let [^ListView list-view (.lookup parent "#changes")
         diff-button         (.lookup parent "#changes-diff")
         revert-button       (.lookup parent "#changes-revert")
-        git                 (try (Git/open (io/file (g/node-value workspace :root)))
-                                 (catch Exception _))
+        git                 (try-open-git workspace)
         view-id             (g/make-node! view-graph ChangesView :list-view list-view :unconfigured-git git :prefs prefs)]
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
