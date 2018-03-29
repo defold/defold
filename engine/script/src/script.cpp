@@ -1135,10 +1135,21 @@ namespace dmScript
 
                     if (timer.m_Repeat == 1)
                     {
-                        do
+                        if (timer.m_Interval == 0.0f)
                         {
-                            timer.m_Remaining += timer.m_Interval;
-                        } while (timer.m_Remaining < 0.f); // Bit of an edge case I guess, could be done more efficently, but do we really need to?
+                            timer.m_Remaining = timer.m_Interval;
+                        }
+                        else if (timer.m_Remaining == 0.0f)
+                        {
+                            timer.m_Remaining = timer.m_Interval;
+                        }
+                        else if (timer.m_Remaining < 0.0f)
+                        {
+                            float wrapped_count = (-timer.m_Remaining) / timer.m_Interval;
+                            float offset_to_next_trigger  = ceil(wrapped_count) * timer.m_Interval;
+                            timer.m_Remaining += offset_to_next_trigger;
+                            assert(timer.m_Remaining >= 0.f);
+                        }
                     }
                 }
             }
