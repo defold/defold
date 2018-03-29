@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "../script.h"
+#include "../script_private.h"
 
 
 class ScriptTimerTest : public ::testing::Test
@@ -557,8 +558,6 @@ TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
     ASSERT_EQ(GetAliveTimers(timer_context), 0u);
     dmScript::DeleteTimerContext(timer_context);
 }
-
-// Create timer inside callback
 
 int main(int argc, char **argv)
 {

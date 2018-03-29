@@ -43,6 +43,17 @@ namespace dmScript
      * @param context script context
      */
     void ClearModules(HContext context);
+
+    typedef struct TimerContext* HTimerContext;
+
+    /**
+     * Get the number of alive timers for a timer_context, currently only useful for unit tests
+     * You may query the number of alive timers from inside a timer callback
+     * 
+     * @param timer_context the timer context
+     * @return number of active timers that was cancelled
+     */
+    uint32_t GetAliveTimers(HTimerContext timer_context);
 }
 
 #endif // SCRIPT_PRIVATE_H

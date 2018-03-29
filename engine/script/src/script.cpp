@@ -845,27 +845,96 @@ namespace dmScript
         return r;
     }
 
+    /*
+        The timers are stored in a flat array which we scan sequenctially on each update.
+
+        When a timer is removed the last timer in the list may change location (EraseSwap), we
+        do this to not leave holes in the array.
+
+        This is to keep the array sweep fast and handle cases where multiple short lived timers are
+        created followed by one long-lived timer. If we did not re-shuffle we would keep scanning the
+        array to the end where the only live timer exists skipping all the holes. How much of an issue
+        this is is guesswork at this point.
+
+        The timer identity is an index into an indirection layer combined with a generation counter,
+        this makes it possible to reuse the identity index without risk of using stale indexes - the
+        caller to CancelTimer is allowed to call with an id of a timer that already has expired.
+
+        We also keep track of all timers associated with a specific script context, we do this by
+        creating a linked list (using inderected lookup indexes) inside the timer array and just
+        holding the most recently added timer to a specific script context in a hash table for fast lookup.
+        This is to avoid scanning the entire timer array for a specific script context for items to remove.
+
+        Each game object needs to call CancelTimers for its script instance to clean up potential timers
+        that has not been cancelled. We don't want each GO to scan the array for timers even if there are
+        no timer associated with it, the m_ScriptContextToFirstId make the cleanup of a context with zero
+        timers fast.
+
+        m_IndexLookup
+
+            Lookup index               Timer array index
+             0 <---------------------   3
+             1                       |  0  
+             2 <-----------------    |  2
+             3                   |   |  4
+             4                   |   |  1
+                                 |   |
+        m_ScriptContextToFirstId |   |
+                                 |   |
+            Script context       |   |  Lookup index
+             1                   |    -- 0
+             2                    ------ 2
+
+           -----------------------------------
+        0 | m_Id: generation 0, lookupindex 1 | <--------------
+          | m_ScriptContext 1                 |            |   |
+          | m_PrevIdWithSameScriptContext 1   | --------   |   |
+          | m_NextIdWithSameScriptContext 3   | ---     |  |   |
+           -----------------------------------     |    |  |   |
+        1 | m_Id: generation 2, lookupindex 4 | <--     |  |   |
+          | m_ScriptContext 1                 |         |  |   |
+          | m_PrevIdWithSameScriptContext -1  | --------|--    |
+          | m_NextIdWithSameScriptContext 0   |         |      |
+           -----------------------------------          |      |
+        2 | m_Id: generation 0, lookupindex 2 |         |      |      m_ScriptContextToFirstId[2] -> m_IndexLookup[2] -> m_Timers[2]
+          | m_ScriptContext 2                 |         |      |
+          | m_PrevIdWithSameScriptContext 0   |         |      |
+          | m_NextIdWithSameScriptContext 0   |         |      |
+           -----------------------------------          |      |
+        3 | m_Id: generation 1, lookupindex 0 | <----   |      |      m_ScriptContextToFirstId[1] -> m_IndexLookup[0] -> m_Timers[3]
+          | m_ScriptContext 1                 |      |  |      |
+          | m_PrevIdWithSameScriptContext 0   |      |  |      |
+          | m_NextIdWithSameScriptContext 3   | --   |  |      |
+           -----------------------------------    |  |  |      |
+        4 | m_Id: generation 0, lookupindex 3 | <----|--       |
+          | m_ScriptContext 1                 |      |         |
+          | m_PrevIdWithSameScriptContext 0   | -----          |
+          | m_NextIdWithSameScriptContext 3   | ---------------
+           -----------------------------------
+    */
+
     struct Timer
     {
+        TimerTrigger    m_Trigger;
+        HContext        m_ScriptContext;
+
+        HTimer          m_Id;   // We need generation here to identify stale timer ids.
+        // We chain together timers associated with the same script context so we can quickly remove all of them without scanning all timers
+        HTimer          m_PrevIdWithSameScriptContext;  // We should not need to keep generation here!
+        HTimer          m_NextIdWithSameScriptContext;
+
         // How much time remaining until the timer fires
         float           m_Remaining;
 
-        // The timer intervall, we need to keep this for repeating timers
-        float           m_Intervall;
+        // The timer interval, we need to keep this for repeating timers
+        float           m_Interval;
+
+        int             m_Ref;
 
         // Flag if the timer should repeat
         uint32_t        m_Repeat : 1;
         // Flag if the timer is alive
         uint32_t        m_IsAlive : 1;
-
-        HTimer          m_Id;
-        TimerTrigger    m_Trigger;
-        HContext        m_ScriptContext;
-        int             m_Ref;
-
-        // We chain together timers associated with the same script context so we can quickly remove all of them without scanning all timers
-        HTimer          m_PrevIdWithSameScriptContext;
-        HTimer          m_NextIdWithSameScriptContext;
     };
 
     #define MAX_TIMER_CAPACITY          65000u
@@ -876,7 +945,7 @@ namespace dmScript
         dmArray<Timer>                      m_Timers;
         dmArray<uint16_t>                   m_IndexLookup;
         dmIndexPool<uint16_t>               m_IndexPool;
-        dmHashTable<uintptr_t, HTimer>      m_ScriptContextToFirstId;
+        dmHashTable<uintptr_t, HTimer>      m_ScriptContextToFirstId;   // Should not need generation!
         uint16_t                            m_Generation;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
         uint16_t                            m_InUpdate : 1;
     };
@@ -894,8 +963,8 @@ namespace dmScript
     static Timer* AllocateTimer(HTimerContext timer_context, HContext script_context)
     {
         assert(timer_context != 0x0);
-        uint32_t triggerCount = timer_context->m_Timers.Size();
-        if (triggerCount == MAX_TIMER_CAPACITY)
+        uint32_t timer_count = timer_context->m_Timers.Size();
+        if (timer_count == MAX_TIMER_CAPACITY)
         {
             dmLogError("Timer could not be stored since the timer buffer is full (%d).", MAX_TIMER_CAPACITY);
             return 0x0;
@@ -919,8 +988,8 @@ namespace dmScript
             timer_context->m_Timers.SetCapacity(capacity);
         }
 
-        timer_context->m_Timers.SetSize(triggerCount + 1);
-        Timer& timer = timer_context->m_Timers[triggerCount];
+        timer_context->m_Timers.SetSize(timer_count + 1);
+        Timer& timer = timer_context->m_Timers[timer_count];
         timer.m_Id = id;
         timer.m_ScriptContext = script_context;
 
@@ -939,7 +1008,7 @@ namespace dmScript
         }
 
         uint16_t lookup_index = GetLookupIndex(id);
-        timer_context->m_IndexLookup[lookup_index] = triggerCount;
+        timer_context->m_IndexLookup[lookup_index] = timer_count;
         if (id_ptr == 0x0)
         {
             timer_context->m_ScriptContextToFirstId.Put((uintptr_t)script_context, id);
@@ -1050,7 +1119,7 @@ namespace dmScript
 
                     timer.m_IsAlive = timer.m_Repeat;
 
-                    float elapsed_time = timer.m_Intervall - timer.m_Remaining;
+                    float elapsed_time = timer.m_Interval - timer.m_Remaining;
 
                     timer.m_Trigger(timer_context, timer.m_Id, elapsed_time, timer.m_ScriptContext, timer.m_Ref);
 
@@ -1058,7 +1127,7 @@ namespace dmScript
                     {
                         do
                         {
-                            timer.m_Remaining += timer.m_Intervall;
+                            timer.m_Remaining += timer.m_Interval;
                         } while (timer.m_Remaining < 0.f); // Bit of an edge case I guess, could be done more efficently, but do we really need to?
                     }
                 }
@@ -1106,7 +1175,7 @@ namespace dmScript
         }
 
         timer->m_Ref = ref;
-        timer->m_Intervall = delay;
+        timer->m_Interval = delay;
         timer->m_Remaining = delay;
         timer->m_Trigger = timer_trigger;
         timer->m_Repeat = repeat;

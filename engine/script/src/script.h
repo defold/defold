@@ -607,15 +607,6 @@ namespace dmScript
      * @return number of active timers that was cancelled
      */
     uint32_t CancelTimers(HTimerContext timer_context, HContext script_context);
-
-    /**
-     * Get the number of alive timers for a timer_context, currently only useful for unit tests
-     * You may query the number of alive timers from inside a timer callback
-     * 
-     * @param timer_context the timer context
-     * @return number of active timers that was cancelled
-     */
-    uint32_t GetAliveTimers(HTimerContext timer_context);
 }
 
 
