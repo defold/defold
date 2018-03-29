@@ -985,12 +985,13 @@ namespace dmScript
         if (timer_context->m_IndexPool.Remaining() == 0)
         {
             // Growth heuristic is to grow with the mean of MIN_TIMER_CAPACITY_GROWTH and half current capacity, and at least MIN_TIMER_CAPACITY_GROWTH
-            uint32_t capacity = timer_context->m_IndexPool.Capacity();
-            uint32_t growth = dmMath::Min(MIN_TIMER_CAPACITY_GROWTH, (MIN_TIMER_CAPACITY_GROWTH + capacity / 2) / 2);
-            capacity = dmMath::Min(capacity + growth, MAX_TIMER_CAPACITY);
+            uint32_t old_capacity = timer_context->m_IndexPool.Capacity();
+            uint32_t growth = dmMath::Min(MIN_TIMER_CAPACITY_GROWTH, (MIN_TIMER_CAPACITY_GROWTH + old_capacity / 2) / 2);
+            uint32_t capacity = dmMath::Min(old_capacity + growth, MAX_TIMER_CAPACITY);
             timer_context->m_IndexPool.SetCapacity(capacity);
             timer_context->m_IndexLookup.SetCapacity(capacity);
             timer_context->m_IndexLookup.SetSize(capacity);
+            memset(&timer_context->m_IndexLookup[old_capacity], 0u, (capacity - old_capacity) * sizeof(uint16_t));
         }
 
         HTimer id = MakeId(timer_context->m_Generation, timer_context->m_IndexPool.Pop());
@@ -1100,6 +1101,7 @@ namespace dmScript
         timer_context->m_Timers.SetCapacity(INITIAL_TIMER_CAPACITY);
         timer_context->m_IndexLookup.SetCapacity(INITIAL_TIMER_CAPACITY);
         timer_context->m_IndexLookup.SetSize(INITIAL_TIMER_CAPACITY);
+        memset(&timer_context->m_IndexLookup[0], 0u, INITIAL_TIMER_CAPACITY * sizeof(uint16_t));
         timer_context->m_IndexPool.SetCapacity(INITIAL_TIMER_CAPACITY);
         const uint32_t table_count = dmMath::Max(1, max_instance_count/3);
         timer_context->m_ScriptContextToFirstId.SetCapacity(table_count, max_instance_count);
