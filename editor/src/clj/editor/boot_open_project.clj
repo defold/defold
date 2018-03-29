@@ -96,9 +96,9 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes changes-view editor-tabs]
-  (ui/run-later
-    (changes-view/refresh! changes-view)))
+(defn- handle-resource-changes! [editor-tabs open-views changes-view]
+  (app-view/remove-invalid-tabs! editor-tabs open-views)
+  (changes-view/refresh! changes-view))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (ui/visible! label (let [update (updater/pending-update update-context)]
@@ -212,8 +212,9 @@
         (.setManaged menu-bar-space collapse-menu-bar?))
 
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
-                                                    (handle-changes [_ changes _]
-                                                      (handle-resource-changes! changes changes-view editor-tabs))))
+                                                    (handle-changes [_ _ _]
+                                                      (let [open-views (g/node-value app-view :open-views)]
+                                                        (handle-resource-changes! editor-tabs open-views changes-view)))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
