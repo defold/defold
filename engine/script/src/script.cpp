@@ -941,6 +941,7 @@ namespace dmScript
     };
 
     #define INVALID_TIMER_LOOKUP_INDEX  0xffffu
+    #define INITIAL_TIMER_CAPACITY      256u
     #define MAX_TIMER_CAPACITY          65000u  // Needs to be less that 65536 since 65535 is reserved for invalid index
     #define MIN_TIMER_CAPACITY_GROWTH   2048u
 
@@ -981,6 +982,17 @@ namespace dmScript
             return 0x0;
         }
 
+        if (timer_context->m_IndexPool.Remaining() == 0)
+        {
+            // Growth heuristic is to grow with the mean of MIN_TIMER_CAPACITY_GROWTH and half current capacity, and at least MIN_TIMER_CAPACITY_GROWTH
+            uint32_t capacity = timer_context->m_IndexPool.Capacity();
+            uint32_t growth = dmMath::Min(MIN_TIMER_CAPACITY_GROWTH, (MIN_TIMER_CAPACITY_GROWTH + capacity / 2) / 2);
+            capacity = dmMath::Min(capacity + growth, MAX_TIMER_CAPACITY);
+            timer_context->m_IndexPool.SetCapacity(capacity);
+            timer_context->m_IndexLookup.SetCapacity(capacity);
+            timer_context->m_IndexLookup.SetSize(capacity);
+        }
+
         HTimer id = MakeId(timer_context->m_Generation, timer_context->m_IndexPool.Pop());
 
         if (timer_context->m_Timers.Full())
@@ -1012,6 +1024,7 @@ namespace dmScript
         }
 
         uint16_t lookup_index = GetLookupIndex(id);
+
         timer_context->m_IndexLookup[lookup_index] = timer_count;
         if (id_ptr == 0x0)
         {
@@ -1075,7 +1088,6 @@ namespace dmScript
                 uint32_t prev_timer_index = timer_context->m_IndexLookup[prev_lookup_index];
                 Timer& prev_timer = timer_context->m_Timers[prev_timer_index];
                 prev_timer.m_NextScriptContextLookupIndex = next_lookup_index;
-                
             }
         }
 
@@ -1085,10 +1097,10 @@ namespace dmScript
     HTimerContext NewTimerContext(uint16_t max_instance_count)
     {
         TimerContext* timer_context = new TimerContext();
-        timer_context->m_Timers.SetCapacity(max_instance_count);
-        timer_context->m_IndexLookup.SetCapacity(MAX_TIMER_CAPACITY);
-        timer_context->m_IndexLookup.SetSize(MAX_TIMER_CAPACITY);
-        timer_context->m_IndexPool.SetCapacity(MAX_TIMER_CAPACITY);
+        timer_context->m_Timers.SetCapacity(INITIAL_TIMER_CAPACITY);
+        timer_context->m_IndexLookup.SetCapacity(INITIAL_TIMER_CAPACITY);
+        timer_context->m_IndexLookup.SetSize(INITIAL_TIMER_CAPACITY);
+        timer_context->m_IndexPool.SetCapacity(INITIAL_TIMER_CAPACITY);
         const uint32_t table_count = dmMath::Max(1, max_instance_count/3);
         timer_context->m_ScriptContextToFirstId.SetCapacity(table_count, max_instance_count);
         timer_context->m_Generation = 0;
