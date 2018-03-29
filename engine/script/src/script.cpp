@@ -846,29 +846,30 @@ namespace dmScript
     }
 
     /*
-        The timers are stored in a flat array which we scan sequenctially on each update.
+        The timers are stored in a flat array with no holes which we scan sequenctially on each update.
 
-        When a timer is removed the last timer in the list may change location (EraseSwap), we
-        do this to not leave holes in the array.
+        When a timer is removed the last timer in the list may change location (EraseSwap).
 
         This is to keep the array sweep fast and handle cases where multiple short lived timers are
-        created followed by one long-lived timer. If we did not re-shuffle we would keep scanning the
-        array to the end where the only live timer exists skipping all the holes. How much of an issue
-        this is is guesswork at this point.
+        created followed by one long-lived timer. If we did not re-shuffle and keep holes we would keep
+        scanning the array to the end where the only live timer exists skipping all the holes.
+        How much of an issue this is is guesswork at this point.
 
         The timer identity is an index into an indirection layer combined with a generation counter,
-        this makes it possible to reuse the identity index without risk of using stale indexes - the
-        caller to CancelTimer is allowed to call with an id of a timer that already has expired.
+        this makes it possible to reuse the index for the indirection layer without risk of using
+        stale indexes - the caller to CancelTimer is allowed to call with an id of a timer that already
+        has expired.
 
         We also keep track of all timers associated with a specific script context, we do this by
-        creating a linked list (using inderected lookup indexes) inside the timer array and just
+        creating a linked list (using indirected lookup indexes) inside the timer array and just
         holding the most recently added timer to a specific script context in a hash table for fast lookup.
+
         This is to avoid scanning the entire timer array for a specific script context for items to remove.
 
         Each game object needs to call CancelTimers for its script instance to clean up potential timers
-        that has not been cancelled. We don't want each GO to scan the array for timers even if there are
-        no timer associated with it, the m_ScriptContextToFirstId make the cleanup of a context with zero
-        timers fast.
+        that has not yet been cancelled. We don't want each GO to scan the entire array for timers at destuction.
+        The m_ScriptContextToFirstId make the cleanup of a context with zero timers fast and the linked list
+        makes it possible to remove individual timers and still keep the m_ScriptContextToFirstId lookup valid.
 
         m_IndexLookup
 
@@ -886,30 +887,30 @@ namespace dmScript
              2                    ------ 2
 
            -----------------------------------
-        0 | m_Id: generation 0, lookupindex 1 | <--------------
+        0 | m_Id: 0x0000 0001                 | <--------------
           | m_ScriptContext 1                 |            |   |
-          | m_PrevIdWithSameScriptContext 1   | --------   |   |
-          | m_NextIdWithSameScriptContext 3   | ---     |  |   |
+          | m_PrevScriptContextLookupIndex 3  | --------   |   |
+          | m_NextScriptContextLookupIndex 4  | ---     |  |   |
            -----------------------------------     |    |  |   |
-        1 | m_Id: generation 2, lookupindex 4 | <--     |  |   |
+        1 | m_Id: 0x0002 0004                 | <--     |  |   |
           | m_ScriptContext 1                 |         |  |   |
-          | m_PrevIdWithSameScriptContext -1  | --------|--    |
-          | m_NextIdWithSameScriptContext 0   |         |      |
+          | m_PrevScriptContextLookupIndex 1  | --------|--    |
+          | m_NextScriptContextLookupIndex -1 |         |      |
            -----------------------------------          |      |
-        2 | m_Id: generation 0, lookupindex 2 |         |      |      m_ScriptContextToFirstId[2] -> m_IndexLookup[2] -> m_Timers[2]
+        2 | m_Id: 0x0000 0002                 |         |      |   <-   m_ScriptContextToFirstId[2] -> m_IndexLookup[2] -> m_Timers[2]
           | m_ScriptContext 2                 |         |      |
-          | m_PrevIdWithSameScriptContext 0   |         |      |
-          | m_NextIdWithSameScriptContext 0   |         |      |
+          | m_PrevScriptContextLookupIndex -1 |         |      |
+          | m_NextScriptContextLookupIndex -1 |         |      |
            -----------------------------------          |      |
-        3 | m_Id: generation 1, lookupindex 0 | <----   |      |      m_ScriptContextToFirstId[1] -> m_IndexLookup[0] -> m_Timers[3]
+        3 | m_Id: 0x0001 0000                 | <----   |      |   <-   m_ScriptContextToFirstId[1] -> m_IndexLookup[0] -> m_Timers[3]
           | m_ScriptContext 1                 |      |  |      |
-          | m_PrevIdWithSameScriptContext 0   |      |  |      |
-          | m_NextIdWithSameScriptContext 3   | --   |  |      |
+          | m_PrevScriptContextLookupIndex -1 |      |  |      |
+          | m_NextScriptContextLookupIndex 3  | --   |  |      |
            -----------------------------------    |  |  |      |
-        4 | m_Id: generation 0, lookupindex 3 | <----|--       |
+        4 | m_Id: 0x0000 0003                 | <----|--       |
           | m_ScriptContext 1                 |      |         |
-          | m_PrevIdWithSameScriptContext 0   | -----          |
-          | m_NextIdWithSameScriptContext 3   | ---------------
+          | m_PrevScriptContextLookupIndex 0  | -----          |
+          | m_NextScriptContextLookupIndex 1  | ---------------
            -----------------------------------
     */
 
@@ -918,10 +919,8 @@ namespace dmScript
         TimerTrigger    m_Trigger;
         HContext        m_ScriptContext;
 
-        HTimer          m_Id;   // We need generation here to identify stale timer ids.
-        // We chain together timers associated with the same script context so we can quickly remove all of them without scanning all timers
-        HTimer          m_PrevIdWithSameScriptContext;  // We should not need to keep generation here!
-        HTimer          m_NextIdWithSameScriptContext;
+        // Store complete timer id with generation here to identify stale timer ids
+        HTimer          m_Id;
 
         // How much time remaining until the timer fires
         float           m_Remaining;
@@ -931,13 +930,18 @@ namespace dmScript
 
         int             m_Ref;
 
+        // Linked list of all timers with same script context
+        uint16_t        m_PrevScriptContextLookupIndex;
+        uint16_t        m_NextScriptContextLookupIndex;
+
         // Flag if the timer should repeat
         uint32_t        m_Repeat : 1;
         // Flag if the timer is alive
         uint32_t        m_IsAlive : 1;
     };
 
-    #define MAX_TIMER_CAPACITY          65000u
+    #define INVALID_TIMER_LOOKUP_INDEX  0xffffu
+    #define MAX_TIMER_CAPACITY          65000u  // Needs to be less that 65536 since 65535 is reserved for invalid index
     #define MIN_TIMER_CAPACITY_GROWTH   2048u
 
     struct TimerContext
@@ -993,18 +997,18 @@ namespace dmScript
         timer.m_Id = id;
         timer.m_ScriptContext = script_context;
 
-        timer.m_PrevIdWithSameScriptContext = INVALID_TIMER_ID;
+        timer.m_PrevScriptContextLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
         if (id_ptr == 0x0)
         {
-            timer.m_NextIdWithSameScriptContext = INVALID_TIMER_ID;
+            timer.m_NextScriptContextLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
         }
         else
         {
             uint16_t next_lookup_index = GetLookupIndex(*id_ptr);
             uint32_t next_timer_index = timer_context->m_IndexLookup[next_lookup_index];
             Timer& nextTimer = timer_context->m_Timers[next_timer_index];
-            nextTimer.m_PrevIdWithSameScriptContext = id;
-            timer.m_NextIdWithSameScriptContext = nextTimer.m_Id;
+            nextTimer.m_PrevScriptContextLookupIndex = GetLookupIndex(id);
+            timer.m_NextScriptContextLookupIndex = next_lookup_index;
         }
 
         uint16_t lookup_index = GetLookupIndex(id);
@@ -1040,32 +1044,38 @@ namespace dmScript
         uint16_t timer_index = timer_context->m_IndexLookup[lookup_index];
         timer_context->m_IndexPool.Push(lookup_index);
 
-        HTimer previousId = timer.m_PrevIdWithSameScriptContext;
-        HTimer nextId = timer.m_NextIdWithSameScriptContext;
-        if (INVALID_TIMER_ID != nextId)
-        {
-            uint16_t next_lookup_index = GetLookupIndex(nextId);
-            uint32_t next_timer_index = timer_context->m_IndexLookup[next_lookup_index];
-            timer_context->m_Timers[next_timer_index].m_PrevIdWithSameScriptContext = previousId;
-        }
+        uint16_t prev_lookup_index = timer.m_PrevScriptContextLookupIndex;
+        uint16_t next_lookup_index = timer.m_NextScriptContextLookupIndex;
 
-        if (INVALID_TIMER_ID != previousId)
+        bool is_first_timer = INVALID_TIMER_LOOKUP_INDEX == prev_lookup_index;
+        bool is_last_timer = INVALID_TIMER_LOOKUP_INDEX == next_lookup_index;
+
+        if (is_first_timer && is_last_timer)
         {
-            uint16_t prev_lookup_index = GetLookupIndex(previousId);
-            uint32_t prev_timer_index = timer_context->m_IndexLookup[prev_lookup_index];
-            timer_context->m_Timers[prev_timer_index].m_NextIdWithSameScriptContext = nextId;
+            timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)timer.m_ScriptContext);
         }
         else
         {
-            if (INVALID_TIMER_ID == nextId)
+            if (!is_last_timer)
             {
-                timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)timer.m_ScriptContext);
+                uint32_t next_timer_index = timer_context->m_IndexLookup[next_lookup_index];
+                Timer& next_timer = timer_context->m_Timers[next_timer_index];
+                next_timer.m_PrevScriptContextLookupIndex = prev_lookup_index;
+
+                if (is_first_timer)
+                {
+                    HTimer* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)timer.m_ScriptContext);
+                    assert(id_ptr != 0x0);
+                    *id_ptr = next_timer.m_Id;
+                }
             }
-            else
+
+            if (!is_first_timer)
             {
-                HTimer* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)timer.m_ScriptContext);
-                assert(id_ptr != 0x0);
-                *id_ptr = nextId;
+                uint32_t prev_timer_index = timer_context->m_IndexLookup[prev_lookup_index];
+                Timer& prev_timer = timer_context->m_Timers[prev_timer_index];
+                prev_timer.m_NextScriptContextLookupIndex = next_lookup_index;
+                
             }
         }
 
@@ -1226,16 +1236,14 @@ namespace dmScript
         ++timer_context->m_Generation;
 
         uint32_t cancelled_count = 0u;
-        HTimer id = *id_ptr;
+        uint16_t lookup_index = GetLookupIndex(*id_ptr);
         do
         {
-            uint16_t lookup_index = GetLookupIndex(id);
-            uint16_t timer_index = timer_context->m_IndexLookup[lookup_index];
-            Timer& timer = timer_context->m_Timers[timer_index];
-
             timer_context->m_IndexPool.Push(lookup_index);
 
-            id = timer.m_NextIdWithSameScriptContext;
+            uint16_t timer_index = timer_context->m_IndexLookup[lookup_index];
+            Timer& timer = timer_context->m_Timers[timer_index];
+            lookup_index = timer.m_NextScriptContextLookupIndex;
 
             if (timer.m_IsAlive == 1)
             {
@@ -1247,7 +1255,7 @@ namespace dmScript
             {
                 EraseTimer(timer_context, timer_index);
             }
-        } while (id != INVALID_TIMER_ID);
+        } while (lookup_index != INVALID_TIMER_LOOKUP_INDEX);
 
         timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)script_context);
         return cancelled_count;
