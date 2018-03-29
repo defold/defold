@@ -36,7 +36,7 @@
       (throw (ex-info (format "Shell call failed:\n%s" args) {} e)))))
 
 (defn- cr-project-id [workspace]
-  (when-let [git (git/open (workspace/project-path workspace))]
+  (when-let [git (git/try-open (workspace/project-path workspace))]
     (try
       (when-let [remote-url (git/remote-origin-url git)]
         (let [url (URL. remote-url)
