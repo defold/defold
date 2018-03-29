@@ -538,7 +538,7 @@ namespace dmScript
 
     typedef uint32_t HTimer;
 
-    const HTimer INVALID_TIMER_ID = 0u;
+    const HTimer INVALID_TIMER_ID = 0xffffffffu;
 
     typedef void (*TimerTrigger)(HTimerContext timer_context, HTimer timer_id, float time_elapsed, HContext script_context, int ref);
 

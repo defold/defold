@@ -952,12 +952,12 @@ namespace dmScript
 
     static uint16_t GetLookupIndex(HTimer id)
     {
-        return (uint16_t)(id & 0xffffu) - 1u;
+        return (uint16_t)(id & 0xffffu);
     }
 
     static HTimer MakeId(uint16_t generation, uint16_t lookup_index)
     {
-        return (((uint32_t)generation) << 16) | (lookup_index + 1u);
+        return (((uint32_t)generation) << 16) | (lookup_index);
     }
 
     static Timer* AllocateTimer(HTimerContext timer_context, HContext script_context)
