@@ -1381,17 +1381,17 @@ TEST(DynamicResources, GetPath)
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
-    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test01.foo", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
-    GetCanonicalPath(factory, "/test02.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test02.foo", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource3, &hash) );
-    GetCanonicalPath(factory, "/test02.foo_0", canonical_path);
+    dmResource::GetCanonicalPath("/test02.foo_0", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
 
@@ -1489,7 +1489,7 @@ TEST_F(DynamicResourceTest, RefCount)
 
     // Make sure the original resource exists, and has refcount 1
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test01.foo", canonical_path);
     uint64_t hash = dmHashString64(canonical_path);
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, hash));
 

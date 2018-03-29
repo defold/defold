@@ -637,7 +637,7 @@ If you do not specifically require different script states, consider changing th
                              (build-errors-view/clear-build-errors build-errors-view)
                              (engine/reload-resource (targets/selected-target prefs) resource)
                              (catch Exception e
-                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s'" (targets/target-message-label (targets/selected-target prefs))))))))))))))
+                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -954,16 +954,14 @@ If you do not specifically require different script states, consider changing th
     (assert (g/node-instance? view/WorkbenchView view))
     (g/transact
       (concat
-        (g/connect resource-node :_node-id view :resource-node)
-        (g/connect resource-node :node-id+resource view :node-id+resource)
-        (g/connect resource-node :dirty? view :dirty?)
+        (view/connect-resource-node view resource-node)
         (g/connect view :view-data app-view :open-views)
         (g/connect view :view-dirty? app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (g/transact
       (select app-view resource-node [resource-node]))
-    (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
+    (.setGraphic tab (jfx/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]
