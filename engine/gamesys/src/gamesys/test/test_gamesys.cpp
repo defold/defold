@@ -497,7 +497,14 @@ TEST_F(WindowEventTest, Test)
 
 TEST_P(FactoryTest, Test)
 {
-    char resource_path[4][DMPATH_MAX_PATH];
+    const char* resource_path[] = {
+            "/factory/factory_resource.goc",
+            "/sprite/valid.spritec",
+            "/tile/valid.texturesetc",
+            "/sprite/sprite.materialc",
+    };
+    dmHashEnableReverseHash(true);
+
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory = m_Factory;
     scriptlibcontext.m_Register = m_Register;
@@ -534,12 +541,6 @@ TEST_P(FactoryTest, Test)
     {
         dmResource::DeletePreloader(go_pr);
     }
-
-    // create resource paths for resource to test for references
-    DM_SNPRINTF(resource_path[0], DMPATH_MAX_PATH, "%s/%s", ROOT, "factory/factory_resource.goc");     // instance referenced in factory protoype
-    DM_SNPRINTF(resource_path[1], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/valid.spritec");             // single instance (subresource of go)
-    DM_SNPRINTF(resource_path[2], DMPATH_MAX_PATH, "%s/%s", ROOT, "tile/valid.texturesetc");           // subresource referenced by sprite instances
-    DM_SNPRINTF(resource_path[3], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/sprite.materialc");          // subresource referenced by sprite instances
 
     if(param.m_IsDynamic)
     {
@@ -672,7 +673,15 @@ TEST_P(FactoryTest, Test)
 
 TEST_P(CollectionFactoryTest, Test)
 {
-    char resource_path[5][DMPATH_MAX_PATH];
+    const char* resource_path[] = {
+            "/collection_factory/collectionfactory_test.collectionc", // prototype resource (loaded in collection factory resource)
+            "/collection_factory/collectionfactory_resource.goc", // two instances referenced in factory collection protoype
+            "/sprite/valid.spritec", // single instance (subresource of go's)
+            "/tile/valid.texturesetc", // single instance (subresource of sprite)
+            "/sprite/sprite.materialc", // single instance (subresource of sprite)
+    };
+    dmHashEnableReverseHash(true);
+
     dmGameSystem::ScriptLibContext scriptlibcontext;
     scriptlibcontext.m_Factory = m_Factory;
     scriptlibcontext.m_Register = m_Register;
@@ -709,13 +718,6 @@ TEST_P(CollectionFactoryTest, Test)
     {
         dmResource::DeletePreloader(go_pr);
     }
-
-    // create resource paths for resource to test for references
-    DM_SNPRINTF(resource_path[0], DMPATH_MAX_PATH, "%s/%s", ROOT, "collection_factory/collectionfactory_test.collectionc"); // prototype resource (loaded in collection factory resource)
-    DM_SNPRINTF(resource_path[1], DMPATH_MAX_PATH, "%s/%s", ROOT, "collection_factory/collectionfactory_resource.goc");     // two instances referenced in factory collection protoype
-    DM_SNPRINTF(resource_path[2], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/valid.spritec");                                  // single instance (subresource of go's)
-    DM_SNPRINTF(resource_path[3], DMPATH_MAX_PATH, "%s/%s", ROOT, "tile/valid.texturesetc");                                // subresource referenced by sprite instances
-    DM_SNPRINTF(resource_path[4], DMPATH_MAX_PATH, "%s/%s", ROOT, "sprite/sprite.materialc");                               // subresource referenced by sprite instances
 
     if(param.m_IsDynamic)
     {
