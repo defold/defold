@@ -950,8 +950,8 @@ namespace dmScript
         dmArray<Timer>                      m_Timers;
         dmArray<uint16_t>                   m_IndexLookup;
         dmIndexPool<uint16_t>               m_IndexPool;
-        dmHashTable<uintptr_t, HTimer>      m_ScriptContextToFirstId;   // Should not need generation!
-        uint16_t                            m_Generation;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
+        dmHashTable<uintptr_t, HTimer>      m_ScriptContextToFirstId;
+        uint16_t                            m_Version;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
         uint16_t                            m_InUpdate : 1;
     };
 
@@ -994,7 +994,7 @@ namespace dmScript
             memset(&timer_context->m_IndexLookup[old_capacity], 0u, (capacity - old_capacity) * sizeof(uint16_t));
         }
 
-        HTimer id = MakeId(timer_context->m_Generation, timer_context->m_IndexPool.Pop());
+        HTimer id = MakeId(timer_context->m_Version, timer_context->m_IndexPool.Pop());
 
         if (timer_context->m_Timers.Full())
         {
@@ -1105,7 +1105,7 @@ namespace dmScript
         timer_context->m_IndexPool.SetCapacity(INITIAL_TIMER_CAPACITY);
         const uint32_t table_count = dmMath::Max(1, max_instance_count/3);
         timer_context->m_ScriptContextToFirstId.SetCapacity(table_count, max_instance_count);
-        timer_context->m_Generation = 0;
+        timer_context->m_Version = 0;
         timer_context->m_InUpdate = 0;
         return timer_context;
     }
@@ -1190,7 +1190,7 @@ namespace dmScript
 
         if (size != original_size)
         {
-            ++timer_context->m_Generation;            
+            ++timer_context->m_Version;            
         }
     }
 
@@ -1246,7 +1246,7 @@ namespace dmScript
         if (timer_context->m_InUpdate == 0)
         {
             FreeTimer(timer_context, timer);
-            ++timer_context->m_Generation;
+            ++timer_context->m_Version;
         }
         return cancelled;
     }
@@ -1258,7 +1258,7 @@ namespace dmScript
         if (id_ptr == 0x0)
             return 0u;
 
-        ++timer_context->m_Generation;
+        ++timer_context->m_Version;
 
         uint32_t cancelled_count = 0u;
         uint16_t lookup_index = GetLookupIndex(*id_ptr);

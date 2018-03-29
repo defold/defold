@@ -78,8 +78,7 @@ def build(bld):
 
     test_script_table.install_path = None
 
-    script_timer_features = flist + ' embed';
-    test_script_timer = bld.new_task_gen(features = script_timer_features,
+    test_script_timer = bld.new_task_gen(features = flist,
                                      includes = '.. .',
                                      uselib = libs,
                                      uselib_local = 'script',
