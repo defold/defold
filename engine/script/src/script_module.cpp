@@ -43,6 +43,28 @@ namespace dmScript
         *size = source->m_Script.m_Count;
     }
 
+    // Chunkname (the identifying part of a script/source chunk) in Lua has a maximum length,
+    // by default defined to 60 chars.
+    //
+    // If a script error occurs in runtime we want Lua to report the end of the filepath
+    // associated with the chunk, since this is where the filename is visible.
+    //
+    // This function will return a pointer to where the chunkname part can be found in the
+    // input filepath. We limit the remaining character count in the string to 59 since
+    // we want to prefix the final string with '=', see PrefixFilename() below.
+    static const char* FindSuitableChunkname(const char* input)
+    {
+        if (!input)
+            return 0;
+
+        size_t str_len = strlen(input);
+        if (str_len >= 59) {
+            return &input[str_len-59];
+        }
+
+        return input;
+    }
+
     // Prefixes string 'input' with 'prefix' into buffer 'buf' of size 'size'
     //
     // This is used to supply '=' prefixed strings into Lua, since that will allow passing in
@@ -66,7 +88,7 @@ namespace dmScript
         GetLuaSource(source, &buf, &size);
 
         char tmp[DMPATH_MAX_PATH];
-        return luaL_loadbuffer(L, buf, size, PrefixFilename(source->m_Filename, '=', tmp, sizeof(tmp)));
+        return luaL_loadbuffer(L, buf, size, PrefixFilename(FindSuitableChunkname(source->m_Filename), '=', tmp, sizeof(tmp)));
     }
 
     static bool LuaLoadModule(lua_State *L, const char *buf, uint32_t size, const char *filename)
@@ -75,7 +97,7 @@ namespace dmScript
         (void) top;
 
         char tmp[DMPATH_MAX_PATH];
-        int ret = luaL_loadbuffer(L, buf, size, PrefixFilename(filename, '=', tmp, sizeof(tmp)));
+        int ret = luaL_loadbuffer(L, buf, size, PrefixFilename(FindSuitableChunkname(filename), '=', tmp, sizeof(tmp)));
         if (ret == 0)
         {
             assert(top + 1 == lua_gettop(L));
