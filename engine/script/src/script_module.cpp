@@ -52,7 +52,7 @@ namespace dmScript
     // This function will return a pointer to where the chunkname part can be found in the
     // input filepath. We limit the remaining character count in the string to 59 since
     // we want to prefix the final string with '=', see PrefixFilename() below.
-    static const char* FindSuitableChunkname(const char* input)
+    const char* FindSuitableChunkname(const char* input)
     {
         if (!input)
             return 0;
@@ -71,7 +71,7 @@ namespace dmScript
     // chunk name strings unmangled. '=' prefix means user data and will not be automagically modified.
     //
     // For this reason a null value for input is also just returned as null as it indicates unused argument.
-    static const char* PrefixFilename(const char *input, char prefix, char *buf, uint32_t size)
+    const char* PrefixFilename(const char *input, char prefix, char *buf, uint32_t size)
     {
         if (!input)
             return 0;
