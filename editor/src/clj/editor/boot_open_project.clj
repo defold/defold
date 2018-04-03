@@ -298,8 +298,8 @@
           (do
             ;; If the project was just created, we automatically open the readme resource.
             (when newly-created?
-              (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
-                (ui/run-later
+              (ui/run-later
+                (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
                   (open-resource readme-resource))))
 
             ;; Ensure .gitignore is configured to ignore build output and metadata files.
