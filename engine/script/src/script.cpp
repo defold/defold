@@ -1159,8 +1159,8 @@ namespace dmScript
                         }
                         else if (timer.m_Remaining < 0.0f)
                         {
-                            float wrapped_count = (-timer.m_Remaining) / timer.m_Interval;
-                            float offset_to_next_trigger  = ceil(wrapped_count) * timer.m_Interval;
+                            float wrapped_count = ((-timer.m_Remaining) / timer.m_Interval) + 1.f;
+                            float offset_to_next_trigger  = floor(wrapped_count) * timer.m_Interval;
                             timer.m_Remaining += offset_to_next_trigger;
                             assert(timer.m_Remaining >= 0.f);
                         }
@@ -1298,6 +1298,7 @@ namespace dmScript
             {
                 ++alive_timers;
             }
+            ++i;
         }
         return alive_timers;
     }

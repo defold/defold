@@ -416,6 +416,42 @@ TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
     dmScript::DeleteTimerContext(timer_context);
 }
 
+TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
+{
+    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
+
+    static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
+
+    static uint32_t callback_count = 0u;
+    static float total_elapsed_time = 0.0f;
+
+    struct Callback {
+        static void cb(dmScript::HTimerContext timer_context, dmScript::HTimer timer_id, float elapsed_time, dmScript::HContext scriptContext, int )
+        {
+            ASSERT_EQ(id, timer_id);
+            ++callback_count;
+            total_elapsed_time += elapsed_time;
+        }
+    };
+    id = dmScript::AddTimer(timer_context, 0.5f, Callback::cb, m_Context, 1, true);
+    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
+
+    dmScript::UpdateTimerContext(timer_context, 1.f);
+    ASSERT_EQ(1u, callback_count);
+    ASSERT_EQ(1.f, total_elapsed_time);
+
+    dmScript::UpdateTimerContext(timer_context, 0.5f);
+    ASSERT_EQ(2u, callback_count);
+    ASSERT_EQ(1.5f, total_elapsed_time);
+
+    bool cancelled = dmScript::CancelTimer(timer_context, id);
+    ASSERT_EQ(true, cancelled);
+
+    ASSERT_EQ(0u, GetAliveTimers(timer_context));
+    dmScript::DeleteTimerContext(timer_context);
+}
+
 TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
 {
     dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
