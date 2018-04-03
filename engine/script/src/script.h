@@ -536,28 +536,11 @@ namespace dmScript
 
     typedef struct TimerContext* HTimerContext;
 
-    HTimerContext GetTimerContext(HContext context);
-
     typedef uint32_t HTimer;
 
     const HTimer INVALID_TIMER_ID = 0xffffffffu;
 
-    typedef void (*TimerTrigger)(HTimerContext timer_context, HTimer timer_id, float time_elapsed, uintptr_t owner, int self_ref, int callback_ref);
-
-    /**
-     * Creates a timer context.
-     * @param max_owner_count maximum number of unique owners that can be live at the same time
-     * @return the timer context, use it to add and delete timers and update/delete the context.
-     */
-    HTimerContext NewTimerContext(uint16_t max_owner_count);
-
-    /**
-     * Deletes a timer context.
-     * You may *not* delete a timer context from within a timer callback
-     * 
-     * @param timer_context the timer context
-     */
-    void DeleteTimerContext(HTimerContext timer_context);
+    typedef void (*TimerTrigger)(HContext context, HTimer timer_id, float time_elapsed, uintptr_t owner, int self_ref, int callback_ref);
 
     /**
      * Update the a timer context. Any timers whose time is elapsed will be triggered
@@ -566,7 +549,7 @@ namespace dmScript
      * @param timer_context the timer context
      * @param dt time step during which to simulate
      */
-    void UpdateTimerContext(HTimerContext timer_context, float dt);
+    void UpdateTimerContext(HContext context, float dt);
 
     /**
      * Adds a timer and returns a unique id within the timer_context
@@ -583,7 +566,7 @@ namespace dmScript
      * @param callback_ref lua reference to a callback
      * @return the timer id, returns INVALID_TIMER_ID if the timer can not be created
      */
-    HTimer AddTimer(HTimerContext timer_context,
+    HTimer AddTimer(HContext context,
                             float delay,
                             bool repeat,
                             TimerTrigger timer_trigger,
@@ -600,7 +583,7 @@ namespace dmScript
      * @param id the timer id
      * @return true if the timer was active, false if the timer is already cancelled / complete
      */
-    bool CancelTimer(HTimerContext timer_context, HTimer id);
+    bool CancelTimer(HContext context, HTimer id);
 
     /**
      * Cancels all active timers assiciated with a script_context
@@ -610,7 +593,7 @@ namespace dmScript
      * @param owner the owner associated with the timers that should be cancelled
      * @return number of active timers that was cancelled
      */
-    uint32_t CancelTimers(HTimerContext timer_context, uintptr_t owner);
+    uint32_t CancelTimers(HContext context, uintptr_t owner);
 }
 
 

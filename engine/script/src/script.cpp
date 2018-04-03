@@ -51,6 +51,9 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
+    HTimerContext NewTimerContext(uint16_t max_owner_count);
+    void DeleteTimerContext(HTimerContext timer_context);
+
     HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
     {
         Context* context = new Context();
@@ -847,11 +850,6 @@ namespace dmScript
         return r;
     }
 
-    HTimerContext GetTimerContext(HContext context)
-    {
-        return context->m_TimerContext;
-    }
-
     /*
         The timers are stored in a flat array with no holes which we scan sequenctially on each update.
 
@@ -1124,8 +1122,10 @@ namespace dmScript
         delete timer_context;
     }
 
-    void UpdateTimerContext(HTimerContext timer_context, float dt)
+    void UpdateTimerContext(HContext context, float dt)
     {
+        assert(context != 0x0);
+        HTimerContext timer_context = context->m_TimerContext;
         assert(timer_context != 0x0);
         DM_PROFILE(TimerContext, "Update");
 
@@ -1153,7 +1153,7 @@ namespace dmScript
 
                     float elapsed_time = timer.m_Interval - timer.m_Remaining;
 
-                    timer.m_Trigger(timer_context, timer.m_Id, elapsed_time, timer.m_Owner, timer.m_SelfRef, timer.m_CallbackRef);
+                    timer.m_Trigger(context, timer.m_Id, elapsed_time, timer.m_Owner, timer.m_SelfRef, timer.m_CallbackRef);
 
                     if (timer.m_Repeat == 1)
                     {
@@ -1202,7 +1202,7 @@ namespace dmScript
         }
     }
 
-    HTimer AddTimer(HTimerContext timer_context,
+    HTimer AddTimer(HContext context,
                     float delay,
                     bool repeat,
                     TimerTrigger timer_trigger,
@@ -1210,6 +1210,8 @@ namespace dmScript
                     int self_ref,
                     int callback_ref)
     {
+        assert(context != 0x0);
+        HTimerContext timer_context = context->m_TimerContext;
         assert(timer_context != 0x0);
         assert(delay >= 0.f);
         Timer* timer = AllocateTimer(timer_context, owner);
@@ -1229,8 +1231,10 @@ namespace dmScript
         return timer->m_Id;
     }
 
-    bool CancelTimer(HTimerContext timer_context, HTimer id)
+    bool CancelTimer(HContext context, HTimer id)
     {
+        assert(context != 0x0);
+        HTimerContext timer_context = context->m_TimerContext;
         assert(timer_context != 0x0);
         uint16_t lookup_index = GetLookupIndex(id);
         if (lookup_index >= timer_context->m_IndexLookup.Size())
@@ -1261,8 +1265,10 @@ namespace dmScript
         return cancelled;
     }
 
-    uint32_t CancelTimers(HTimerContext timer_context, uintptr_t owner)
+    uint32_t CancelTimers(HContext context, uintptr_t owner)
     {
+        assert(context != 0x0);
+        HTimerContext timer_context = context->m_TimerContext;
         assert(timer_context != 0x0);
         HTimer* id_ptr = timer_context->m_OwnerToFirstId.Get(owner);
         if (id_ptr == 0x0)
@@ -1296,8 +1302,12 @@ namespace dmScript
         return cancelled_count;
     }
 
-    uint32_t GetAliveTimers(HTimerContext timer_context)
+    uint32_t GetAliveTimers(HContext context)
     {
+        assert(context != 0x0);
+        HTimerContext timer_context = context->m_TimerContext;
+        assert(timer_context != 0x0);
+
         uint32_t alive_timers = 0u;
         uint32_t size = timer_context->m_Timers.Size();
         uint32_t i = 0;
