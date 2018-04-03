@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "../script.h"
-#include "../script_private.h"
+#include "../script_timer.h"
 
 
 class ScriptTimerTest : public ::testing::Test
