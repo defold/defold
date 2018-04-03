@@ -1323,4 +1323,40 @@ namespace dmScript
         return alive_timers;
     }
     
+    void LuaTimerCallback(dmScript::HContext context, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, int self_ref, int callback_ref)
+    {
+        lua_State* L = dmScript::GetLuaState(context);
+        int top = lua_gettop(L);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_ref);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, self_ref);
+        lua_pushvalue(L, -1);
+        dmScript::SetInstance(L);
+        {
+            lua_pushinteger(L, timer_id);
+            lua_pushnumber(L, time_elapsed);
+            int ret = lua_pcall(L, 3, LUA_MULTRET, 0);
+            if (ret != 0) {
+                dmLogError("Error running timer callback: %s", lua_tostring(L, -1));
+                lua_pop(L, 2);
+            }
+        }
+        assert(top == lua_gettop(L));
+    }
+
+    HTimer AddTimer(HContext context,
+                            float delay,
+                            bool repeat,
+                            uintptr_t owner,
+                            int self_ref,
+                            int callback_ref)
+    {
+        return AddTimer(context,
+                    delay,
+                    repeat,
+                    LuaTimerCallback,
+                    owner,
+                    self_ref,
+                    callback_ref);
+    }
+
 }

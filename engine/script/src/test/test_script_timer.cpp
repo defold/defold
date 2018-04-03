@@ -92,6 +92,7 @@ TEST_F(ScriptTimerTest, TestSameOwnerTimer)
         dmScript::AddTimer(m_Context, 0.019f, false, 0x0, owner[0], refs[3], 0),
         dmScript::AddTimer(m_Context, 0.020f, false, 0x0, owner[0], refs[4], 0)
     };
+
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[0]);
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[1]);
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[2]);
@@ -132,6 +133,7 @@ TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
         dmScript::AddTimer(m_Context, 0.019f, false, 0x0, owner[0], refs[3], 0),
         dmScript::AddTimer(m_Context, 0.020f, false, 0x0, owner[1], refs[4], 0)
     };
+
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[0]);
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[1]);
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[2]);
@@ -181,6 +183,7 @@ TEST_F(ScriptTimerTest, TestTimerOwnerCountLimit)
         dmScript::AddTimer(m_Context, 0.022f, false, 0x0, owner[6], 0, 0),
         dmScript::AddTimer(m_Context, 0.023f, false, 0x0, owner[7], 0, 0)
     };
+
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[0]);
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[1]);
     ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[2]);
@@ -593,6 +596,190 @@ TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
     ASSERT_EQ(4u, callback_count);
 
     ASSERT_EQ(0u, GetAliveTimers(m_Context));
+}
+
+static bool RunString(lua_State* L, const char* script)
+{
+    luaL_loadstring(L, script);
+    if (lua_pcall(L, 0, LUA_MULTRET, 0) != 0)
+    {
+        dmLogError("%s", lua_tolstring(L, -1, 0));
+        return false;
+    }
+    return true;
+}
+
+static int Delay(lua_State* L) {
+    int top = lua_gettop(L);
+    luaL_checktype(L, 1, LUA_TNUMBER);
+    luaL_checktype(L, 2, LUA_TBOOLEAN);
+    luaL_checktype(L, 3, LUA_TFUNCTION);
+
+    const double seconds = lua_tonumber(L, 1);
+    bool repeat = lua_toboolean(L, 2);
+   
+    lua_pushvalue(L, 3);
+       int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    int self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    lua_getglobal(L, SCRIPT_CONTEXT);
+    dmScript::HContext context = (dmScript::HContext)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    dmScript::HTimer id = dmScript::AddTimer(context, seconds, repeat, 0x0, self, cb);
+    lua_pushinteger(L, id);
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
+static int Cancel(lua_State* L)
+{
+    int top = lua_gettop(L);
+    const int id = luaL_checkint(L, 1);
+
+    lua_getglobal(L, SCRIPT_CONTEXT);
+    dmScript::HContext context = (dmScript::HContext)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    bool cancelled = dmScript::CancelTimer(context, (dmScript::HTimer)id);
+    lua_pushboolean(L, cancelled ? 1 : 0);
+    assert(top + 1 == lua_gettop(L));
+    return 1;
+}
+
+static int Update(lua_State* L)
+{
+    int top = lua_gettop(L);
+    const int dt = luaL_checkint(L, 1);
+
+    lua_getglobal(L, SCRIPT_CONTEXT);
+    dmScript::HContext context = (dmScript::HContext)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+
+    dmScript::UpdateTimerContext(context, (float)dt);
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
+static dmScript::HTimer cb_callback_id = dmScript::INVALID_TIMER_ID;
+static uint32_t cb_callback_counter = 0u;
+static float cb_elapsed_time = 0.0f;
+
+static int CallbackCounter(lua_State* L)
+{
+    int top = lua_gettop(L);
+    const int id = luaL_checkint(L, 1);
+    const double dt = luaL_checknumber(L, 2);
+    cb_callback_id = (dmScript::HTimer)id;
+    cb_elapsed_time += dt;
+    ++cb_callback_counter;
+    assert(top == lua_gettop(L));
+    return 0;
+}
+
+static const luaL_reg Module_methods[] = {
+       { "delay", Delay },
+       { "cancel", Cancel },
+       { "update", Update },
+    { "callback_counter", CallbackCounter},
+       { 0, 0 }
+};
+
+static void LuaInit(lua_State* L) {
+    int top = lua_gettop(L);
+
+    luaL_register(L, "timer", Module_methods);
+
+    lua_pop(L, 1);
+    assert(top == lua_gettop(L));
+}
+
+TEST_F(ScriptTimerTest, TestLuaOneshot)
+{
+    int top = lua_gettop(L);
+
+    LuaInit(L);
+
+    const char pre_script[] =
+        "local function cb(self, id, elapsed_time)\n"
+        "    print(\"Timer: \"..tostring(id)..\", Elapsed: \"..tostring(elapsed_time))\n"
+        "    timer.callback_counter(id, elapsed_time)\n"
+        "end\n"
+        "\n"
+        "id = timer.delay(1, false, cb)\n"
+        "\n";
+
+    const char post_script[] =
+        "local cancelled = timer.cancel(id)\n"
+        "if cancelled == true then\n"
+        "    print(\"ERROR\")"  // Would be nicer if we could force the lua execution to return an error here!
+        "end";
+
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateTimerContext(m_Context, 1.0f);
+
+    ASSERT_NE(dmScript::INVALID_TIMER_ID, cb_callback_id);
+    ASSERT_EQ(1u, cb_callback_counter);
+    ASSERT_EQ(1.0f, cb_elapsed_time);
+
+    dmScript::UpdateTimerContext(m_Context, 1.0f);
+    ASSERT_EQ(1u, cb_callback_counter);
+    ASSERT_EQ(1.0f, cb_elapsed_time);
+
+    ASSERT_TRUE(RunString(L, post_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_EQ(GetAliveTimers(m_Context), 0u);
+}
+
+TEST_F(ScriptTimerTest, TestLuaRepeating)
+{
+    int top = lua_gettop(L);
+
+    LuaInit(L);
+
+    const char pre_script[] =
+        "local function cb(self, id, elapsed_time)\n"
+        "    print(\"Timer: \"..tostring(id)..\", Elapsed: \"..tostring(elapsed_time))\n"
+        "    timer.callback_counter(id, elapsed_time)\n"
+        "end\n"
+        "\n"
+        "id = timer.delay(0.5, true, cb)\n"
+        "\n";
+
+    const char post_script[] =
+        "local cancelled = timer.cancel(id)\n"
+        "if cancelled == false then\n"
+        "    print(\"ERROR\")"  // Would be nicer if we could force the lua execution to return an error here!
+        "end";
+
+    cb_callback_counter = 0u;
+    cb_elapsed_time = 0.0f;
+
+    ASSERT_TRUE(RunString(L, pre_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    dmScript::UpdateTimerContext(m_Context, 1.0f);
+
+    ASSERT_NE(dmScript::INVALID_TIMER_ID, cb_callback_id);
+    ASSERT_EQ(1u, cb_callback_counter);
+    ASSERT_EQ(1.0f, cb_elapsed_time);
+
+    dmScript::UpdateTimerContext(m_Context, 0.5f);
+    ASSERT_EQ(2u, cb_callback_counter);
+    ASSERT_EQ(1.5f, cb_elapsed_time);
+
+    ASSERT_TRUE(RunString(L, post_script));
+    ASSERT_EQ(top, lua_gettop(L));
+
+    ASSERT_EQ(GetAliveTimers(m_Context), 0u);
 }
 
 int main(int argc, char **argv)

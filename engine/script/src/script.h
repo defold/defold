@@ -534,13 +534,9 @@ namespace dmScript
      */
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
 
-    typedef struct TimerContext* HTimerContext;
-
     typedef uint32_t HTimer;
 
     const HTimer INVALID_TIMER_ID = 0xffffffffu;
-
-    typedef void (*TimerTrigger)(HContext context, HTimer timer_id, float time_elapsed, uintptr_t owner, int self_ref, int callback_ref);
 
     /**
      * Update the a timer context. Any timers whose time is elapsed will be triggered
@@ -557,10 +553,12 @@ namespace dmScript
      * Using a delay of 0.0f will result in a timer that triggers at the next call to UpdateTimerContext
      * If you want a timer that triggers on each UpdateTimerContext, set delay to 0.0f and repeat to true
      * 
+     * The parameters owner, self_ref and callback_ref are just passed on to the trigger callback and are
+     * not used by the timer implementation.
+     * 
      * @param timer_context the timer context
      * @param delay the time to wait in same unit as used for time step with UpdateTimerContext
      * @param repeat indicates if the timer should reset at trigger or die
-     * @param timer_trigger the callback to call when the timer triggers
      * @param owner used to group timers for fast removal of associated timers
      * @param self_ref lua reference to self
      * @param callback_ref lua reference to a callback
@@ -569,7 +567,6 @@ namespace dmScript
     HTimer AddTimer(HContext context,
                             float delay,
                             bool repeat,
-                            TimerTrigger timer_trigger,
                             uintptr_t owner,
                             int self_ref,
                             int callback_ref);

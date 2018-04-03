@@ -47,6 +47,34 @@ namespace dmScript
      */
     void ClearModules(HContext context);
 
+    typedef void (*TimerTrigger)(HContext context, HTimer timer_id, float time_elapsed, uintptr_t owner, int self_ref, int callback_ref);
+
+    /**
+     * Adds a timer and returns a unique id within the timer_context
+     * You may add a timer from inside a timer callback
+     * Using a delay of 0.0f will result in a timer that triggers at the next call to UpdateTimerContext
+     * If you want a timer that triggers on each UpdateTimerContext, set delay to 0.0f and repeat to true
+     * 
+     * The parameters owner, self_ref and callback_ref are just passed on to the trigger callback and are
+     * not used by the timer implementation.
+     * 
+     * @param timer_context the timer context
+     * @param delay the time to wait in same unit as used for time step with UpdateTimerContext
+     * @param repeat indicates if the timer should reset at trigger or die
+     * @param timer_trigger the callback to call when the timer triggers
+     * @param owner used to group timers for fast removal of associated timers
+     * @param self_ref lua reference to self
+     * @param callback_ref lua reference to a callback
+     * @return the timer id, returns INVALID_TIMER_ID if the timer can not be created
+     */
+    HTimer AddTimer(HContext context,
+                            float delay,
+                            bool repeat,
+                            TimerTrigger timer_trigger,
+                            uintptr_t owner,
+                            int self_ref,
+                            int callback_ref);
+
     /**
      * Get the number of alive timers for a timer_context, currently only useful for unit tests
      * You may query the number of alive timers from inside a timer callback
