@@ -860,64 +860,64 @@ namespace dmScript
         stale indexes - the caller to CancelTimer is allowed to call with an id of a timer that already
         has expired.
 
-        We also keep track of all timers associated with a specific script context, we do this by
+        We also keep track of all timers associated with a specific owner, we do this by
         creating a linked list (using indirected lookup indexes) inside the timer array and just
-        holding the most recently added timer to a specific script context in a hash table for fast lookup.
+        holding the most recently added timer to a specific owner in a hash table for fast lookup.
 
-        This is to avoid scanning the entire timer array for a specific script context for items to remove.
+        This is to avoid scanning the entire timer array for a specific owner for items to remove.
 
-        Each game object needs to call CancelTimers for its script instance to clean up potential timers
+        Each game object needs to call CancelTimers for its owner to clean up potential timers
         that has not yet been cancelled. We don't want each GO to scan the entire array for timers at destuction.
-        The m_ScriptContextToFirstId make the cleanup of a context with zero timers fast and the linked list
-        makes it possible to remove individual timers and still keep the m_ScriptContextToFirstId lookup valid.
+        The m_OwnerToFirstId make the cleanup of a owner with zero timers fast and the linked list
+        makes it possible to remove individual timers and still keep the m_OwnerToFirstId lookup valid.
 
         m_IndexLookup
 
             Lookup index               Timer array index
              0 <---------------------   3
              1                       |  0  
-             2 <-----------------    |  2
-             3                   |   |  4
-             4                   |   |  1
-                                 |   |
-        m_ScriptContextToFirstId |   |
-                                 |   |
-            Script context       |   |  Lookup index
-             1                   |    -- 0
-             2                    ------ 2
+             2 <------------------   |  2
+             3                    |  |  4
+             4                    |  |  1
+                                  |  |
+        m_OwnerToFirstId          |  |
+                                  |  |
+            Script context        |  |  Lookup index
+             1                    |   -- 0
+             2                     ----- 2
 
            -----------------------------------
         0 | m_Id: 0x0000 0001                 | <--------------
-          | m_ScriptContext 1                 |            |   |
-          | m_PrevScriptContextLookupIndex 3  | --------   |   |
-          | m_NextScriptContextLookupIndex 4  | ---     |  |   |
+          | m_Owner 1                         |            |   |
+          | m_PrevOwnerLookupIndex 3          | --------   |   |
+          | m_NextOwnerLookupIndex 4          | ---     |  |   |
            -----------------------------------     |    |  |   |
         1 | m_Id: 0x0002 0004                 | <--     |  |   |
-          | m_ScriptContext 1                 |         |  |   |
-          | m_PrevScriptContextLookupIndex 1  | --------|--    |
-          | m_NextScriptContextLookupIndex -1 |         |      |
+          | m_Owner 1                         |         |  |   |
+          | m_PrevOwnerLookupIndex 1          | --------|--    |
+          | m_NextOwnerLookupIndex -1         |         |      |
            -----------------------------------          |      |
-        2 | m_Id: 0x0000 0002                 |         |      |   <-   m_ScriptContextToFirstId[2] -> m_IndexLookup[2] -> m_Timers[2]
-          | m_ScriptContext 2                 |         |      |
-          | m_PrevScriptContextLookupIndex -1 |         |      |
-          | m_NextScriptContextLookupIndex -1 |         |      |
+        2 | m_Id: 0x0000 0002                 |         |      |   <-   m_OwnerToFirstId[2] -> m_IndexLookup[2] -> m_Timers[2]
+          | m_Owner 2                         |         |      |
+          | m_PrevOwnerLookupIndex -1         |         |      |
+          | m_NextOwnerLookupIndex -1         |         |      |
            -----------------------------------          |      |
-        3 | m_Id: 0x0001 0000                 | <----   |      |   <-   m_ScriptContextToFirstId[1] -> m_IndexLookup[0] -> m_Timers[3]
-          | m_ScriptContext 1                 |      |  |      |
-          | m_PrevScriptContextLookupIndex -1 |      |  |      |
-          | m_NextScriptContextLookupIndex 3  | --   |  |      |
+        3 | m_Id: 0x0001 0000                 | <----   |      |   <-   m_OwnerToFirstId[1] -> m_IndexLookup[0] -> m_Timers[3]
+          | m_Owner 1                         |      |  |      |
+          | m_PrevOwnerLookupIndex -1         |      |  |      |
+          | m_NextOwnerLookupIndex 3          | --   |  |      |
            -----------------------------------    |  |  |      |
         4 | m_Id: 0x0000 0003                 | <----|--       |
-          | m_ScriptContext 1                 |      |         |
-          | m_PrevScriptContextLookupIndex 0  | -----          |
-          | m_NextScriptContextLookupIndex 1  | ---------------
+          | m_Owner 1                         |      |         |
+          | m_PrevOwnerLookupIndex 0          | -----          |
+          | m_NextOwnerLookupIndex 1          | ---------------
            -----------------------------------
     */
 
     struct Timer
     {
         TimerTrigger    m_Trigger;
-        HContext        m_ScriptContext;
+        uintptr_t       m_Owner;
 
         // Store complete timer id with generation here to identify stale timer ids
         HTimer          m_Id;
@@ -928,11 +928,12 @@ namespace dmScript
         // The timer interval, we need to keep this for repeating timers
         float           m_Interval;
 
-        int             m_Ref;
+        int             m_SelfRef;
+        int             m_CallbackRef;
 
-        // Linked list of all timers with same script context
-        uint16_t        m_PrevScriptContextLookupIndex;
-        uint16_t        m_NextScriptContextLookupIndex;
+        // Linked list of all timers with same owner
+        uint16_t        m_PrevOwnerLookupIndex;
+        uint16_t        m_NextOwnerLookupIndex;
 
         // Flag if the timer should repeat
         uint32_t        m_Repeat : 1;
@@ -950,7 +951,7 @@ namespace dmScript
         dmArray<Timer>                      m_Timers;
         dmArray<uint16_t>                   m_IndexLookup;
         dmIndexPool<uint16_t>               m_IndexPool;
-        dmHashTable<uintptr_t, HTimer>      m_ScriptContextToFirstId;
+        dmHashTable<uintptr_t, HTimer>      m_OwnerToFirstId;
         uint16_t                            m_Version;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
         uint16_t                            m_InUpdate : 1;
     };
@@ -965,7 +966,7 @@ namespace dmScript
         return (((uint32_t)generation) << 16) | (lookup_index);
     }
 
-    static Timer* AllocateTimer(HTimerContext timer_context, HContext script_context)
+    static Timer* AllocateTimer(HTimerContext timer_context, uintptr_t owner)
     {
         assert(timer_context != 0x0);
         uint32_t timer_count = timer_context->m_Timers.Size();
@@ -975,10 +976,10 @@ namespace dmScript
             return 0x0;
         }
 
-        HTimer* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)script_context);
-        if ((id_ptr == 0x0) && timer_context->m_ScriptContextToFirstId.Full())
+        HTimer* id_ptr = timer_context->m_OwnerToFirstId.Get(owner);
+        if ((id_ptr == 0x0) && timer_context->m_OwnerToFirstId.Full())
         {
-            dmLogError("Timer could not be stored since the instance lookup buffer is full (%d).", timer_context->m_ScriptContextToFirstId.Size());
+            dmLogError("Timer could not be stored since the owner lookup buffer is full (%d).", timer_context->m_OwnerToFirstId.Size());
             return 0x0;
         }
 
@@ -1008,20 +1009,20 @@ namespace dmScript
         timer_context->m_Timers.SetSize(timer_count + 1);
         Timer& timer = timer_context->m_Timers[timer_count];
         timer.m_Id = id;
-        timer.m_ScriptContext = script_context;
+        timer.m_Owner = owner;
 
-        timer.m_PrevScriptContextLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
+        timer.m_PrevOwnerLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
         if (id_ptr == 0x0)
         {
-            timer.m_NextScriptContextLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
+            timer.m_NextOwnerLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
         }
         else
         {
             uint16_t next_lookup_index = GetLookupIndex(*id_ptr);
             uint32_t next_timer_index = timer_context->m_IndexLookup[next_lookup_index];
             Timer& nextTimer = timer_context->m_Timers[next_timer_index];
-            nextTimer.m_PrevScriptContextLookupIndex = GetLookupIndex(id);
-            timer.m_NextScriptContextLookupIndex = next_lookup_index;
+            nextTimer.m_PrevOwnerLookupIndex = GetLookupIndex(id);
+            timer.m_NextOwnerLookupIndex = next_lookup_index;
         }
 
         uint16_t lookup_index = GetLookupIndex(id);
@@ -1029,7 +1030,7 @@ namespace dmScript
         timer_context->m_IndexLookup[lookup_index] = timer_count;
         if (id_ptr == 0x0)
         {
-            timer_context->m_ScriptContextToFirstId.Put((uintptr_t)script_context, id);
+            timer_context->m_OwnerToFirstId.Put(owner, id);
         }
         else
         {
@@ -1058,15 +1059,15 @@ namespace dmScript
         uint16_t timer_index = timer_context->m_IndexLookup[lookup_index];
         timer_context->m_IndexPool.Push(lookup_index);
 
-        uint16_t prev_lookup_index = timer.m_PrevScriptContextLookupIndex;
-        uint16_t next_lookup_index = timer.m_NextScriptContextLookupIndex;
+        uint16_t prev_lookup_index = timer.m_PrevOwnerLookupIndex;
+        uint16_t next_lookup_index = timer.m_NextOwnerLookupIndex;
 
         bool is_first_timer = INVALID_TIMER_LOOKUP_INDEX == prev_lookup_index;
         bool is_last_timer = INVALID_TIMER_LOOKUP_INDEX == next_lookup_index;
 
         if (is_first_timer && is_last_timer)
         {
-            timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)timer.m_ScriptContext);
+            timer_context->m_OwnerToFirstId.Erase(timer.m_Owner);
         }
         else
         {
@@ -1074,11 +1075,11 @@ namespace dmScript
             {
                 uint32_t next_timer_index = timer_context->m_IndexLookup[next_lookup_index];
                 Timer& next_timer = timer_context->m_Timers[next_timer_index];
-                next_timer.m_PrevScriptContextLookupIndex = prev_lookup_index;
+                next_timer.m_PrevOwnerLookupIndex = prev_lookup_index;
 
                 if (is_first_timer)
                 {
-                    HTimer* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)timer.m_ScriptContext);
+                    HTimer* id_ptr = timer_context->m_OwnerToFirstId.Get(timer.m_Owner);
                     assert(id_ptr != 0x0);
                     *id_ptr = next_timer.m_Id;
                 }
@@ -1088,14 +1089,14 @@ namespace dmScript
             {
                 uint32_t prev_timer_index = timer_context->m_IndexLookup[prev_lookup_index];
                 Timer& prev_timer = timer_context->m_Timers[prev_timer_index];
-                prev_timer.m_NextScriptContextLookupIndex = next_lookup_index;
+                prev_timer.m_NextOwnerLookupIndex = next_lookup_index;
             }
         }
 
         EraseTimer(timer_context, timer_index);
     }
 
-    HTimerContext NewTimerContext(uint16_t max_instance_count)
+    HTimerContext NewTimerContext(uint16_t max_owner_count)
     {
         TimerContext* timer_context = new TimerContext();
         timer_context->m_Timers.SetCapacity(INITIAL_TIMER_CAPACITY);
@@ -1103,8 +1104,8 @@ namespace dmScript
         timer_context->m_IndexLookup.SetSize(INITIAL_TIMER_CAPACITY);
         memset(&timer_context->m_IndexLookup[0], 0u, INITIAL_TIMER_CAPACITY * sizeof(uint16_t));
         timer_context->m_IndexPool.SetCapacity(INITIAL_TIMER_CAPACITY);
-        const uint32_t table_count = dmMath::Max(1, max_instance_count/3);
-        timer_context->m_ScriptContextToFirstId.SetCapacity(table_count, max_instance_count);
+        const uint32_t table_count = dmMath::Max(1, max_owner_count/3);
+        timer_context->m_OwnerToFirstId.SetCapacity(table_count, max_owner_count);
         timer_context->m_Version = 0;
         timer_context->m_InUpdate = 0;
         return timer_context;
@@ -1145,7 +1146,7 @@ namespace dmScript
 
                     float elapsed_time = timer.m_Interval - timer.m_Remaining;
 
-                    timer.m_Trigger(timer_context, timer.m_Id, elapsed_time, timer.m_ScriptContext, timer.m_Ref);
+                    timer.m_Trigger(timer_context, timer.m_Id, elapsed_time, timer.m_Owner, timer.m_SelfRef, timer.m_CallbackRef);
 
                     if (timer.m_Repeat == 1)
                     {
@@ -1195,23 +1196,25 @@ namespace dmScript
     }
 
     HTimer AddTimer(HTimerContext timer_context,
-                        float delay,
-                        TimerTrigger timer_trigger,
-                        HContext script_context,
-                        int ref,
-                        bool repeat)
+                    float delay,
+                    bool repeat,
+                    TimerTrigger timer_trigger,
+                    uintptr_t owner,
+                    int self_ref,
+                    int callback_ref)
     {
         assert(timer_context != 0x0);
         assert(delay >= 0.f);
-        Timer* timer = AllocateTimer(timer_context, script_context);
+        Timer* timer = AllocateTimer(timer_context, owner);
         if (timer == 0x0)
         {
             return INVALID_TIMER_ID;
         }
 
-        timer->m_Ref = ref;
         timer->m_Interval = delay;
         timer->m_Remaining = delay;
+        timer->m_SelfRef = self_ref;
+        timer->m_CallbackRef = callback_ref;
         timer->m_Trigger = timer_trigger;
         timer->m_Repeat = repeat;
         timer->m_IsAlive = 1;
@@ -1251,10 +1254,10 @@ namespace dmScript
         return cancelled;
     }
 
-    uint32_t CancelTimers(HTimerContext timer_context, HContext script_context)
+    uint32_t CancelTimers(HTimerContext timer_context, uintptr_t owner)
     {
         assert(timer_context != 0x0);
-        HTimer* id_ptr = timer_context->m_ScriptContextToFirstId.Get((uintptr_t)script_context);
+        HTimer* id_ptr = timer_context->m_OwnerToFirstId.Get(owner);
         if (id_ptr == 0x0)
             return 0u;
 
@@ -1268,7 +1271,7 @@ namespace dmScript
 
             uint16_t timer_index = timer_context->m_IndexLookup[lookup_index];
             Timer& timer = timer_context->m_Timers[timer_index];
-            lookup_index = timer.m_NextScriptContextLookupIndex;
+            lookup_index = timer.m_NextOwnerLookupIndex;
 
             if (timer.m_IsAlive == 1)
             {
@@ -1282,7 +1285,7 @@ namespace dmScript
             }
         } while (lookup_index != INVALID_TIMER_LOOKUP_INDEX);
 
-        timer_context->m_ScriptContextToFirstId.Erase((uintptr_t)script_context);
+        timer_context->m_OwnerToFirstId.Erase(owner);
         return cancelled_count;
     }
 

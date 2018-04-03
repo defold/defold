@@ -540,14 +540,14 @@ namespace dmScript
 
     const HTimer INVALID_TIMER_ID = 0xffffffffu;
 
-    typedef void (*TimerTrigger)(HTimerContext timer_context, HTimer timer_id, float time_elapsed, HContext script_context, int ref);
+    typedef void (*TimerTrigger)(HTimerContext timer_context, HTimer timer_id, float time_elapsed, uintptr_t owner, int self_ref, int callback_ref);
 
     /**
      * Creates a timer context.
-     * @param max_instance_count maximum number of unique script instances that can be live at the same time
+     * @param max_owner_count maximum number of unique owners that can be live at the same time
      * @return the timer context, use it to add and delete timers and update/delete the context.
      */
-    HTimerContext NewTimerContext(uint16_t max_instance_count);
+    HTimerContext NewTimerContext(uint16_t max_owner_count);
 
     /**
      * Deletes a timer context.
@@ -574,18 +574,20 @@ namespace dmScript
      * 
      * @param timer_context the timer context
      * @param delay the time to wait in same unit as used for time step with UpdateTimerContext
+     * @param repeat indicates if the timer should reset at trigger or die
      * @param timer_trigger the callback to call when the timer triggers
-     * @param script_context a script context
-     * @param ref a script reference
-     * @param repeate indicates if the timer should reset at trigger or die
+     * @param owner used to group timers for fast removal of associated timers
+     * @param self_ref lua reference to self
+     * @param callback_ref lua reference to a callback
      * @return the timer id, returns INVALID_TIMER_ID if the timer can not be created
      */
     HTimer AddTimer(HTimerContext timer_context,
                             float delay,
+                            bool repeat,
                             TimerTrigger timer_trigger,
-                            HContext script_context,
-                            int ref,
-                            bool repeat);
+                            uintptr_t owner,
+                            int self_ref,
+                            int callback_ref);
 
     /**
      * Cancel a timer
@@ -603,10 +605,10 @@ namespace dmScript
      * You may cancel a timers from inside a timer callback
      * 
      * @param timer_context the timer context
-     * @param script_context the script context timers should be associated with to be cancelled
+     * @param owner the owner associated with the timers that should be cancelled
      * @return number of active timers that was cancelled
      */
-    uint32_t CancelTimers(HTimerContext timer_context, HContext script_context);
+    uint32_t CancelTimers(HTimerContext timer_context, uintptr_t owner);
 }
 
 
