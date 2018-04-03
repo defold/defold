@@ -402,7 +402,7 @@ U[a-fA-F0-9]{0,8} )"
                        }
                       ;; strings
                       {
-                       :begin #"(u|u8|U|L)?\""
+                       :begin #"(u|u8|U|L)?R?\""
                        :begin-captures {0 {:name "punctuation.definition.string.begin.cpp"}}
                        :end #"\""
                        :end-captures {0 {:name "punctuation.definition.string.end.cpp"}}

@@ -14,9 +14,45 @@
             [4 "punctuation.definition.string.end.c"]
             [5 "source.cish"]]
            (analyze-runs "\"str\""))))
-  (testing "Wide string literal"
+
+  (testing "Prefixed string literals"
+    (are [line]
+      (= [[0 "punctuation.definition.string.begin.cpp"]
+          [2 "string.quoted.double.cpp"]
+          [5 "punctuation.definition.string.end.cpp"]
+          [6 "source.cish"]]
+         (analyze-runs line))
+
+      "L\"str\""
+      "u\"str\""
+      "U\"str\"")
+
+    (is (= [[0 "punctuation.definition.string.begin.cpp"]
+            [3 "string.quoted.double.cpp"]
+            [6 "punctuation.definition.string.end.cpp"]
+            [7 "source.cish"]]
+           (analyze-runs "u8\"str\""))))
+
+  (testing "Raw string literals"
+    (are [line]
+      (= [[0 "punctuation.definition.string.begin.cpp"]
+          [3 "string.quoted.double.cpp"]
+          [8 "punctuation.definition.string.end.cpp"]
+          [9 "source.cish"]]
+         (analyze-runs line))
+
+      "LR\"(str)\""
+      "uR\"(str)\""
+      "UR\"(str)\"")
+
+    (is (= [[0 "punctuation.definition.string.begin.cpp"]
+            [4 "string.quoted.double.cpp"]
+            [9 "punctuation.definition.string.end.cpp"]
+            [10 "source.cish"]]
+           (analyze-runs "u8R\"(str)\"")))
+
     (is (= [[0 "punctuation.definition.string.begin.cpp"]
             [2 "string.quoted.double.cpp"]
-            [5 "punctuation.definition.string.end.cpp"]
-            [6 "source.cish"]]
-           (analyze-runs "L\"str\"")))))
+            [7 "punctuation.definition.string.end.cpp"]
+            [8 "source.cish"]]
+           (analyze-runs "R\"(str)\"")))))
