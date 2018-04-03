@@ -59,6 +59,7 @@ namespace dmScript
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
+        context->m_TimerContext = NewTimerContext(config_file ? dmConfigFile::GetInt(config_file, "timer.max_context_count", 256u) : 256u);
         context->m_EnableExtensions = enable_extensions;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
@@ -67,6 +68,7 @@ namespace dmScript
 
     void DeleteContext(HContext context)
     {
+        DeleteTimerContext(context->m_TimerContext);
         ClearModules(context);
         lua_close(context->m_LuaState);
         delete context;
@@ -845,6 +847,11 @@ namespace dmScript
         return r;
     }
 
+    HTimerContext GetTimerContext(HContext context)
+    {
+        return context->m_TimerContext;
+    }
+
     /*
         The timers are stored in a flat array with no holes which we scan sequenctially on each update.
 
@@ -979,7 +986,7 @@ namespace dmScript
         HTimer* id_ptr = timer_context->m_OwnerToFirstId.Get(owner);
         if ((id_ptr == 0x0) && timer_context->m_OwnerToFirstId.Full())
         {
-            dmLogError("Timer could not be stored since the owner lookup buffer is full (%d).", timer_context->m_OwnerToFirstId.Size());
+            dmLogError("Timer could not be stored since timer max_context_count has been reached (%d).", timer_context->m_OwnerToFirstId.Size());
             return 0x0;
         }
 

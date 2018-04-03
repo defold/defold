@@ -8,7 +8,9 @@ class ScriptTimerTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
-        m_Context = dmScript::NewContext(0x0, 0, true);
+        dmConfigFile::Result r = dmConfigFile::Load("src/test/test.config", 0, 0, &m_ConfigFile);
+        ASSERT_EQ(dmConfigFile::RESULT_OK, r);
+        m_Context = dmScript::NewContext(m_ConfigFile, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
     }
@@ -17,8 +19,10 @@ protected:
     {
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
+        dmConfigFile::Delete(m_ConfigFile);
     }
 
+    dmConfigFile::HConfig m_ConfigFile;
     dmScript::HContext m_Context;
     lua_State* L;
 };
@@ -33,7 +37,7 @@ TEST_F(ScriptTimerTest, TestCreateDeleteContext)
 
 TEST_F(ScriptTimerTest, TestCreateDeleteTimer)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(8);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     bool cancelled = dmScript::CancelTimer(timer_context, 0);
@@ -46,12 +50,11 @@ TEST_F(ScriptTimerTest, TestCreateDeleteTimer)
     ASSERT_EQ(false, cancelled);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestIdReuse)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(8);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     dmScript::HTimer id1 = dmScript::AddTimer(timer_context, 0.016f, false, 0x0, 0x10, 0, 0);
@@ -72,10 +75,9 @@ TEST_F(ScriptTimerTest, TestIdReuse)
     ASSERT_EQ(true, cancelled);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
-TEST_F(ScriptTimerTest, TestSameScriptContextTimer)
+TEST_F(ScriptTimerTest, TestSameOwnerTimer)
 {
     dmScript::HTimerContext timer_context = dmScript::NewTimerContext(1);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
@@ -118,7 +120,7 @@ TEST_F(ScriptTimerTest, TestSameScriptContextTimer)
     dmScript::DeleteTimerContext(timer_context);
 }
 
-TEST_F(ScriptTimerTest, TestMixedScriptContextsTimer)
+TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
 {
     dmScript::HTimerContext timer_context = dmScript::NewTimerContext(2);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
@@ -245,7 +247,7 @@ TEST_F(ScriptTimerTest, TestTimerOwnerCountLimit)
 
 TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     uintptr_t owner[8] = {
@@ -282,12 +284,11 @@ TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
     }
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestOneshotTimerCallback)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
@@ -317,12 +318,11 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCallback)
     dmScript::CancelTimer(timer_context, id);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
@@ -359,12 +359,11 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
     ASSERT_EQ(2u, callback_count);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
@@ -413,12 +412,11 @@ TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
     ASSERT_EQ(8u, callback_count);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
@@ -449,12 +447,11 @@ TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
     ASSERT_EQ(true, cancelled);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
@@ -500,12 +497,11 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
     ASSERT_EQ(2u, callback_count);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE(timer_context, (dmScript::HTimerContext)0x0);
 
     static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
@@ -538,12 +534,11 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
     ASSERT_EQ(callback_count, 1u);
 
     ASSERT_EQ(GetAliveTimers(timer_context), 0u);
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     static dmScript::HTimer outer_id = dmScript::INVALID_TIMER_ID;
@@ -607,12 +602,11 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
     ASSERT_EQ(4u, callback_count);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
 {
-    dmScript::HTimerContext timer_context = dmScript::NewTimerContext(16);
+    dmScript::HTimerContext timer_context = dmScript::GetTimerContext(m_Context);
     ASSERT_NE((dmScript::HTimerContext)0x0, timer_context);
 
     static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
@@ -646,7 +640,6 @@ TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
     ASSERT_EQ(4u, callback_count);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_context));
-    dmScript::DeleteTimerContext(timer_context);
 }
 
 int main(int argc, char **argv)

@@ -536,6 +536,8 @@ namespace dmScript
 
     typedef struct TimerContext* HTimerContext;
 
+    HTimerContext GetTimerContext(HContext context);
+
     typedef uint32_t HTimer;
 
     const HTimer INVALID_TIMER_ID = 0xffffffffu;
