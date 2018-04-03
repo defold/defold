@@ -250,7 +250,7 @@
                             (update-fn @current-value))))
       (ui/auto-commit! tf (fn [_]
                             (if-let [val (parse-val)]
-                              (let [new-focus-owner (some-> tf .getScene .getFocusOwner)]
+                              (let [new-focus-owner (some-> tf .getScene ui/focus-owner)]
                                 (reset! current-value val)
                                 (when-not (some #(= new-focus-owner %) text-fields)
                                   (set path @current-value)))

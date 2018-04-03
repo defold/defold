@@ -101,6 +101,9 @@
   (editable! [this val])
   (on-edit! [this fn]))
 
+(defprotocol HasSelectionModel
+  (^SelectionModel selection-model [this]))
+
 (def application-icon-image (with-open [in (io/input-stream (io/resource "logo_blue.png"))]
                               (Image. in)))
 
@@ -462,10 +465,38 @@
   (.setFocusTraversable node false)
   (run-later (.setFocusTraversable node true)))
 
+(defn owning-tab
+  "Find the Tab that the node belongs to, if any.
+  Returns nil if the node does not belong to a Tab."
+  ^Tab [node]
+  (when-some [tab-content-area (closest-node-with-style "tab-content-area" node)]
+    (when-some [tab-pane (.getParent tab-content-area)]
+      (when (instance? TabPane tab-pane)
+        (some (fn [^Tab tab]
+                (when-some [tab-content-parent (some-> tab .getContent .getParent)]
+                  (when (identical? tab-content-area tab-content-parent)
+                    tab)))
+              (.getTabs ^TabPane tab-pane))))))
+
+(defn focus-owner
+  "Returns the Node that owns focus in the specified Scene, or nil if no node
+  has input focus. This function works around a bug in JavaFX related to nodes
+  inside TabPanes, and should be used in place of the .getFocusOwner method.
+  The bug causes nodes that are under a deselected Tab to remain the focus owner
+  at the time when the selected tab property change event fires. To avoid this
+  we check if the focus owner is below a deselected tab and if so return nil."
+  ^Node [^Scene scene]
+  (when-some [focus-owner (.getFocusOwner scene)]
+    (if-some [owning-tab (owning-tab focus-owner)]
+      (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selection-model .getSelectedItem)]
+        (when (identical? owning-tab selected-tab-in-owning-tab-pane)
+          focus-owner))
+      focus-owner)))
+
 (defn- ensure-some-focus-owner! [^Window window]
   (run-later
     (when-let [scene (.getScene window)]
-      (when (nil? (.getFocusOwner scene))
+      (when (nil? (focus-owner scene))
         (when-let [root (.getRoot scene)]
           (.requestFocus root))))))
 
@@ -862,9 +893,6 @@
     (when-not (= -1 row)
       (.scrollTo tree-view row))))
 
-(defprotocol HasSelectionModel
-  (^SelectionModel selection-model [this]))
-
 (extend-protocol HasSelectionModel
   ChoiceBox     (selection-model [this] (.getSelectionModel this))
   ComboBox      (selection-model [this] (.getSelectionModel this))
@@ -971,7 +999,7 @@
   ([^Scene scene]
    (contexts scene true))
   ([^Scene scene all-selections?]
-   (node-contexts (or (.getFocusOwner scene) (.getRoot scene)) all-selections?)))
+   (node-contexts (or (focus-owner scene) (.getRoot scene)) all-selections?)))
 
 (defn select-items [items options command-contexts]
   (some-> (handler/active :select-items command-contexts {:items items
@@ -1650,7 +1678,7 @@
 (defn disable-ui
   []
   (let [scene       (.getScene (main-stage))
-        focus-owner (.getFocusOwner scene)
+        focus-owner (focus-owner scene)
         root        (.getRoot scene)]
     (.setDisable root true)
     focus-owner))
