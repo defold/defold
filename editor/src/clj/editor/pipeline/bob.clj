@@ -202,16 +202,34 @@
 (defn- handler [project {:keys [url method headers]}]
   (if (= method "GET")
     (let [path (-> url
-                   (subs (inc (count html5-url-prefix))) ; Strip prefix and slash character.
-                   (URLDecoder/decode "UTF-8"))
-          f (io/file (build-html5-output-path project) (project-title project) path)]
-      (if (.exists f)
-        (let [length (.length f)
-              response {:code 200
-                        :response-headers {"Content-Length" (str length)}
-                        :body f}]
-          response)
-        {:code 404}))))
+                   (subs (count html5-url-prefix))
+                   (URLDecoder/decode "UTF-8"))]
+
+      ; When accessing the root, redirect to index.html
+      (if (or (empty? path) (= path "/"))
+        {:code 302
+         :headers {"Location" (str html5-url-prefix "/index.html")}}
+
+        (let [rel-path (subs path 1)
+              f (io/file (build-html5-output-path project) (project-title project) rel-path)]
+          (cond
+            ; Directories are forbidden
+            (.isDirectory f)
+            {:code 403
+             :body "Forbidden"}
+
+            ; Regular file, return content as body
+            (.exists f)
+            (let [length (.length f)
+                  response {:code 200
+                            :response-headers {"Content-Length" (str length)}
+                            :body f}]
+              response)
+
+            ; For everything else send 404
+            :else
+            {:code 404
+             :body "Not found"}))))))
 
 (defn html5-handler [project req-headers]
   (handler project req-headers))
