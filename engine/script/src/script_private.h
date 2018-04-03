@@ -47,6 +47,10 @@ namespace dmScript
      */
     void ClearModules(HContext context);
 
+    // Exposed here for tests in test_script_module.cpp
+    const char* FindSuitableChunkname(const char* input);
+    const char* PrefixFilename(const char *input, char prefix, char *buf, uint32_t size);
+
     typedef void (*TimerTrigger)(HContext context, HTimer timer_id, float time_elapsed, uintptr_t owner, int self_ref, int callback_ref);
 
     /**
@@ -63,8 +67,8 @@ namespace dmScript
      * @param repeat indicates if the timer should reset at trigger or die
      * @param timer_trigger the callback to call when the timer triggers
      * @param owner used to group timers for fast removal of associated timers
-     * @param self_ref lua reference to self
-     * @param callback_ref lua reference to a callback
+     * @param self_ref lua reference to self, will be unrefd when timer dies (use LUA_NOREF for no cleanup)
+     * @param callback_ref lua reference to a callback, will be unrefd when timer dies (use LUA_NOREF for no cleanup)
      * @return the timer id, returns INVALID_TIMER_ID if the timer can not be created
      */
     HTimer AddTimer(HContext context,

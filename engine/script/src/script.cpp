@@ -53,6 +53,7 @@ namespace dmScript
 
     HTimerContext NewTimerContext(uint16_t max_owner_count);
     void DeleteTimerContext(HTimerContext timer_context);
+    void InitializeTimer(lua_State* L);
 
     HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
     {
@@ -154,6 +155,7 @@ namespace dmScript
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
+        InitializeTimer(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
@@ -1044,8 +1046,17 @@ namespace dmScript
         return &timer;
     }
 
-    static void EraseTimer(HTimerContext timer_context, uint32_t timer_index)
+    static void EraseTimer(HContext context, uint32_t timer_index)
     {
+        assert(context != 0x0);
+        HTimerContext timer_context = context->m_TimerContext;
+        assert(timer_context != 0x0);
+ 
+        Timer& timer = timer_context->m_Timers[timer_index];
+        lua_State* L = dmScript::GetLuaState(context);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, timer.m_CallbackRef);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, timer.m_SelfRef);
+
         Timer& movedTimer = timer_context->m_Timers.EraseSwap(timer_index);
 
         if (timer_index < timer_context->m_Timers.Size())
@@ -1055,8 +1066,10 @@ namespace dmScript
         }
     }
 
-    static void FreeTimer(HTimerContext timer_context, Timer& timer)
+    static void FreeTimer(HContext context, Timer& timer)
     {
+        assert(context != 0x0);
+        HTimerContext timer_context = context->m_TimerContext;
         assert(timer_context != 0x0);
         assert(timer.m_IsAlive == 0);
 
@@ -1098,7 +1111,7 @@ namespace dmScript
             }
         }
 
-        EraseTimer(timer_context, timer_index);
+        EraseTimer(context, timer_index);
     }
 
     HTimerContext NewTimerContext(uint16_t max_owner_count)
@@ -1187,7 +1200,7 @@ namespace dmScript
             Timer& timer = timer_context->m_Timers[i];
             if (timer.m_IsAlive == 0)
             {
-                FreeTimer(timer_context, timer);
+                FreeTimer(context, timer);
                 --size;
             }
             else
@@ -1259,7 +1272,7 @@ namespace dmScript
 
         if (timer_context->m_InUpdate == 0)
         {
-            FreeTimer(timer_context, timer);
+            FreeTimer(context, timer);
             ++timer_context->m_Version;
         }
         return cancelled;
@@ -1294,7 +1307,7 @@ namespace dmScript
 
             if (timer_context->m_InUpdate == 0)
             {
-                EraseTimer(timer_context, timer_index);
+                EraseTimer(context, timer_index);
             }
         } while (lookup_index != INVALID_TIMER_LOOKUP_INDEX);
 
@@ -1357,6 +1370,62 @@ namespace dmScript
                     owner,
                     self_ref,
                     callback_ref);
+    }
+
+    static int TimerDelay(lua_State* L) {
+        int top = lua_gettop(L);
+        luaL_checktype(L, 1, LUA_TNUMBER);
+        luaL_checktype(L, 2, LUA_TBOOLEAN);
+        luaL_checktype(L, 3, LUA_TFUNCTION);
+
+        const double seconds = lua_tonumber(L, 1);
+        bool repeat = lua_toboolean(L, 2);
+    
+        lua_pushvalue(L, 3);
+        int cb = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        dmScript::GetInstance(L);
+        int self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        lua_getglobal(L, SCRIPT_CONTEXT);
+        dmScript::HContext context = (dmScript::HContext)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmScript::HTimer id = dmScript::AddTimer(context, seconds, repeat, 0x0, self, cb);
+        lua_pushinteger(L, id);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    static int TimerCancel(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        const int id = luaL_checkint(L, 1);
+
+        lua_getglobal(L, SCRIPT_CONTEXT);
+        dmScript::HContext context = (dmScript::HContext)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        bool cancelled = dmScript::CancelTimer(context, (dmScript::HTimer)id);
+        lua_pushboolean(L, cancelled ? 1 : 0);
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
+    static const luaL_reg TIMER_COMP_FUNCTIONS[] = {
+        { "delay", TimerDelay },
+        { "cancel", TimerCancel },
+        { 0, 0 }
+    };
+
+    void InitializeTimer(lua_State* L)
+    {
+        int top = lua_gettop(L);
+ 
+        luaL_register(L, "timer", TIMER_COMP_FUNCTIONS);
+
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
     }
 
 }

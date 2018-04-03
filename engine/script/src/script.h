@@ -560,8 +560,8 @@ namespace dmScript
      * @param delay the time to wait in same unit as used for time step with UpdateTimerContext
      * @param repeat indicates if the timer should reset at trigger or die
      * @param owner used to group timers for fast removal of associated timers
-     * @param self_ref lua reference to self
-     * @param callback_ref lua reference to a callback
+     * @param self_ref lua reference to self, will be unrefd when timer dies (use LUA_NOREF for no cleanup)
+     * @param callback_ref lua reference to a callback, will be unrefd when timer dies (use LUA_NOREF for no cleanup)
      * @return the timer id, returns INVALID_TIMER_ID if the timer can not be created
      */
     HTimer AddTimer(HContext context,
