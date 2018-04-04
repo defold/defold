@@ -310,7 +310,6 @@ namespace dmGameSystem
                     write_ptr->m_BatchKey = render_data->m_MixedHash;
                     write_ptr->m_TagMask = dmRender::GetMaterialTagMask((dmRender::HMaterial)render_data->m_Material);
                     write_ptr->m_Dispatch = dispatch;
-                    write_ptr->m_MinorOrder = 0;
                     write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
                     ++write_ptr;
                 }
