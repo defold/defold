@@ -458,7 +458,6 @@ namespace dmRender
                     // use the integer value provided.
                     sort_values[idx].m_Order = entry->m_Order;
                 }
-                sort_values[idx].m_MinorOrder = entry->m_MinorOrder;
                 sort_values[idx].m_BatchKey = entry->m_BatchKey & 0xffffff;
                 sort_values[idx].m_Dispatch = entry->m_Dispatch;
                 context->m_RenderListSortBuffer.Push(idx);
@@ -573,7 +572,7 @@ namespace dmRender
         params.m_Operation = RENDER_LIST_OPERATION_BATCH;
         params.m_Buf = context->m_RenderList.Begin();
 
-        // Make batches for matching dispatch, batch key & minor order
+        // Make batches for matching dispatch & batch key
         RenderListEntry *base = context->m_RenderList.Begin();
         uint32_t *last = context->m_RenderListSortBuffer.Begin();
         uint32_t count = context->m_RenderListSortBuffer.Size();
@@ -584,14 +583,8 @@ namespace dmRender
             const RenderListEntry *last_entry = &base[*last];
 
             // continue batch on match, or dispatch
-            if (i < count && (last_entry->m_Dispatch == base[*idx].m_Dispatch && last_entry->m_BatchKey == base[*idx].m_BatchKey && last_entry->m_MinorOrder == base[*idx].m_MinorOrder))
+            if (i < count && (last_entry->m_Dispatch == base[*idx].m_Dispatch && last_entry->m_BatchKey == base[*idx].m_BatchKey))
                 continue;
-
-            if(i == context->m_RenderListDispatch.Capacity())
-            {
-                dmLogError("Exhausted number of render dispatches (%d, max is %d)", count, context->m_RenderListDispatch.Capacity());
-                return RESULT_BUFFER_IS_FULL;
-            }
 
             if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
             {
