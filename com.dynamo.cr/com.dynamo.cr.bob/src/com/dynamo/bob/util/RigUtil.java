@@ -639,7 +639,7 @@ public class RigUtil {
         // in turn we can safely interpolate at end of the animation in runtime when the cursor is the same as duration.
         // If the animation has a duration of zero (ie only one keyframe at time 0), we need to make sure
         // we always have 2 keyframes (ie a duplicate of the last one here as well).
-        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
+        int sampleCount = Math.max(2, (int)Math.ceil(duration * sampleRate) + 1);
         double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();
