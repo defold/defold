@@ -615,25 +615,9 @@ static void LogFrameBufferError(GLenum status)
         context->m_DepthBufferBits = (uint32_t) depth_buffer_bits;
 #endif
 
-        GLint gl_int_result;
-        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_int_result);
-        context->m_MaxTextureSize = gl_int_result;
-        CLEAR_GL_ERROR
-
-#if (defined(__arm__) || defined(__arm64__)) || (defined(ANDROID))
-        // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
-        // The below seems to be the reported sweet spot for modern or semi-modern hardware
-        context->m_MaxElementVertices = 1024*1024;
-        context->m_MaxElementIndices = 1024*1024;
-#else
-        // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
-        glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_int_result);
-        context->m_MaxElementVertices = dmMath::Max(65536, gl_int_result);
-        CLEAR_GL_ERROR
-        glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_int_result);
-        context->m_MaxElementIndices = dmMath::Max(65536, gl_int_result);
-        CLEAR_GL_ERROR
-#endif
+        GLint max_texture_size;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
+        context->m_MaxTextureSize = max_texture_size;
 
         JobQueueInitialize();
         if(JobQueueIsAsync())
@@ -850,11 +834,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
-    uint32_t GetMaxElementsVertices(HContext context)
-    {
-        return context->m_MaxElementVertices;
-    }
-
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
@@ -891,11 +870,6 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
-    }
-
-    uint32_t GetMaxElementIndices(HContext context)
-    {
-        return context->m_MaxElementIndices;
     }
 
     static uint32_t GetTypeSize(Type type)

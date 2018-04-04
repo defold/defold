@@ -521,8 +521,6 @@ namespace dmGraphics
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
     bool UnmapVertexBuffer(HVertexBuffer buffer);
-    uint32_t GetMaxElementsVertices(HContext context);
-
 
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
     void DeleteIndexBuffer(HIndexBuffer buffer);
@@ -530,7 +528,6 @@ namespace dmGraphics
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
     bool UnmapIndexBuffer(HIndexBuffer buffer);
-    uint32_t GetMaxElementsIndices(HContext context);
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
