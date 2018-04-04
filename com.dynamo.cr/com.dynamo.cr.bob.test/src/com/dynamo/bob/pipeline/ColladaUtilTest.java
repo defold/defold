@@ -166,7 +166,7 @@ public class ColladaUtilTest {
      */
     private void assertAnimationRotationChanges(Rig.AnimationTrack track, float changesOnX, float changesOnY, float changesOnZ) {
         // 4 floats per keyframe due to quaternions, last keyframe is a duplicate so skip it.
-        int keyframeCount = track.getRotationsCount() / 4 - 2;
+        int keyframeCount = track.getRotationsCount() / 4 - 1;
 
         String[] axisLabel = {"X", "Y", "Z"};
         double[] changes = {changesOnX, changesOnY, changesOnZ};
@@ -832,7 +832,7 @@ public class ColladaUtilTest {
                     Quat4d bindPoseInverse = new Quat4d(bindPoseRot.getX(), bindPoseRot.getY(), bindPoseRot.getZ(), bindPoseRot.getW());
                     bindPoseInverse.inverse();
 
-                    int rotCount = track.getRotationsCount() / 4 - 1;
+                    int rotCount = track.getRotationsCount() / 4;
                     for (int i = 0; i < rotCount; i++) {
                         assertEquals(bindPoseInverse.getX(), track.getRotations(i*4), EPSILON);
                         assertEquals(bindPoseInverse.getY(), track.getRotations(i*4+1), EPSILON);
@@ -948,7 +948,7 @@ public class ColladaUtilTest {
             // restrict the values to be between 1 and 2.
             if (positionCount > 0) {
                 List<Float> positions = track.getPositionsList();
-                for (int i = 0; i < positionCount - 3; i+=3) {
+                for (int i = 0; i < positionCount; i+=3) {
                     float actualZ = positions.get(i+2);
                     assertTrue(actualZ >= 1.0 && actualZ <= 2.0);
                 }

@@ -80,7 +80,7 @@ public class SpineSceneBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(1.0f, anim.getDuration(), 0.0f);
         assertEquals(30.0f, anim.getSampleRate(), 0.0f);
         AnimationTrack track = anim.getTracks(0);
-        int sampleCount = (int)Math.ceil(anim.getDuration() * anim.getSampleRate()) + 2;
+        int sampleCount = (int)Math.floor(anim.getDuration() * anim.getSampleRate()) + 1;
         int posCount = 3 * sampleCount;
         if (!pos) {
             posCount = 0;
