@@ -196,6 +196,9 @@ namespace dmRig
         // used to creating primitives from indices.
         dmArray<Vector3>                m_ScratchPositionBuffer;
         dmArray<Vector3>                m_ScratchNormalBuffer;
+        // Temporary scratch buffers to handle draw order changes.
+        dmArray<int32_t>                m_ScratchDrawOrderDeltas;
+        dmArray<int32_t>                m_ScratchDrawOrderUnchanged;
     };
 
     struct NewContextParams {
@@ -231,7 +234,7 @@ namespace dmRig
         dmArray<IKAnimation>          m_IKAnimation;
         /// User IK constraint targets
         dmArray<IKTarget>             m_IKTargets;
-        /// Animated mesh properties
+        /// Slot pose state (active mesh attachment index and color) that can be animated.
         dmArray<MeshSlotPose>         m_MeshSlotPose;
         /// Currently used mesh
         const dmRigDDF::MeshEntry*    m_MeshEntry;

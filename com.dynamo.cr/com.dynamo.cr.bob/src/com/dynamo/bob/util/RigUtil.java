@@ -120,7 +120,6 @@ public class RigUtil {
     public static class MeshAttachment {
         public String path;
         public int index;
-        public long uniqueHash = 0;
         // format is: x0, y0, z0, u0, v0, ...
         public float[] vertices;
         public int[] triangles;
@@ -128,27 +127,6 @@ public class RigUtil {
         public int[] boneIndices;
 
         public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
-
-        public void hash()
-        {
-            String data = path;
-            for (int i = 0; i < vertices.length; i++) {
-                data += vertices[i];
-            }
-            for (int i = 0; i < triangles.length; i++) {
-                data += triangles[i];
-            }
-            for (int i = 0; i < boneWeights.length; i++) {
-                data += boneWeights[i];
-            }
-            for (int i = 0; i < boneIndices.length; i++) {
-                data += boneIndices[i];
-            }
-            for (int i = 0; i < color.length; i++) {
-                data += color[i];
-            }
-            uniqueHash = MurmurHash.hash64(data);
-        }
     }
 
     public static class BaseSlot {

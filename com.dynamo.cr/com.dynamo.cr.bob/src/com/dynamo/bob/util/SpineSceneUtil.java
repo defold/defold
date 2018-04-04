@@ -6,7 +6,6 @@ import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -72,8 +71,6 @@ public class SpineSceneUtil {
     public List<BaseSlot> baseSlots = new ArrayList<BaseSlot>();
     public Map<String, BaseSlot> baseSlotsLut = new HashMap<String, BaseSlot>();
     public List<MeshAttachment> attachments = new ArrayList<MeshAttachment>();
-    public Map<Long, MeshAttachment> attachmentLut = new HashMap<Long, MeshAttachment>();
-    // public Map<String, Integer> attachmentsLut = new HashMap<String, Integer>();
 
     // Skins
     public Map<String, List<SkinSlot>> skins = new HashMap<String, List<SkinSlot>>();
@@ -248,8 +245,6 @@ public class SpineSceneUtil {
                 0, 1, 2,
                 2, 1, 3
         };
-
-        mesh.hash();
     }
 
     private void loadMesh(JsonNode attNode, MeshAttachment mesh, Bone bone, boolean skinned) throws LoadException {
@@ -326,8 +321,6 @@ public class SpineSceneUtil {
             }
         }
         mesh.triangles = ArrayUtils.toPrimitive(triangles.toArray(new Integer[triangles.size()]));
-
-        mesh.hash();
     }
 
     private void loadTrack(JsonNode propNode, AnimationTrack track) {
@@ -638,7 +631,6 @@ public class SpineSceneUtil {
         Map<String, SkinSlot> skinSlotsLut = new HashMap<String, SkinSlot>();
         List<SkinSlot> skinSlots = new ArrayList<SkinSlot>();
 
-        boolean isDefaultSkin = false;
         List<SkinSlot> defaultSkin = scene.getDefaultSkin();
         if (defaultSkin == null) {
             // This is the default skin, create list of SkinSlots from BaseSlotss
@@ -647,8 +639,6 @@ public class SpineSceneUtil {
                 skinSlotsLut.put(baseSlot.name, skinSlot);
                 skinSlots.add(skinSlot);
             }
-
-            isDefaultSkin = true;
         } else {
             // Copy default skin
             for (SkinSlot defaultSlot : defaultSkin) {
@@ -722,17 +712,8 @@ public class SpineSceneUtil {
 
                     // Check if mesh already has been found
                     int attachmentMeshIndex = scene.attachments.size();
-                    if (scene.attachmentLut.containsKey(mesh.uniqueHash))
-                    {
-                        MeshAttachment prev = scene.attachmentLut.get(mesh.uniqueHash);
-                        attachmentMeshIndex = prev.index;
-                    } else {
-                        // Add mesh data to scene global list
-                        mesh.index = attachmentMeshIndex;
-                        scene.attachments.add(mesh);
-                        scene.attachmentLut.put(mesh.uniqueHash, mesh);
-                    }
-
+                    mesh.index = attachmentMeshIndex;
+                    scene.attachments.add(mesh);
 
                     // Figure out to what attachment point this mesh is attached
                     int attachmentPointIndex = slot.baseSlot.attachmentsLut.get(attName);
@@ -751,7 +732,6 @@ public class SpineSceneUtil {
         // Loop over all skin entries from JSON
         while (skinIt.hasNext()) {
             Map.Entry<String, JsonNode> entry = skinIt.next();
-            String skinName = entry.getKey();
             JsonNode skinNode = entry.getValue();
 
             // Loop over all slots in the skin

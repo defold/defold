@@ -6,6 +6,53 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.rig.proto";
 option java_outer_classname = "Rig";
 
+/************************************************************************
+ *                Notes on Meshes and MeshAnimationTracks
+ *
+ * There is only one list of available meshes (ie renderable data)
+ * located in the MeshSet. These meshes can be referenced (by index into
+ * this list) by MeshSlots. MeshEntries represent different setups of
+ * MeshSlots (ie the "same" slot id/index can attach different Meshes
+ * depending on MeshEntry). A MeshSlot can contain references to multiple
+ * Meshes, but only one mesh is visible (active) at one time.
+ *
+ * MeshSlots needs to know which Meshes it should be able to display,
+ * since this can be animated via an MeshAnimationTrack, which overrides
+ * the currently active Mesh.
+ *
+ * MeshAnimationTrack can also animate draw order for MeshSlots inside a
+ * MeshEntry. This is why there is always the same number of MeshSlots
+ * available inside a MeshEntry, to simplify rendering code in rig.cpp.
+ *
+ * ----------------------------------------------------------------------
+ * Details for each mesh related message:
+ *
+ * MeshSet   - Contains a list of all available meshes (mesh_attachments)
+ *             that the RigScene can reference/use (see MeshSlot below).
+ *
+ *             It also contains a list of MeshEntries, which represents
+ *             different initial MeshSlot setups (each with the same
+ *             number of MeshSlots as MeshSet::slot_count).
+ *
+ * Mesh      - Holds a renderable data chunk (vertices, texture coords).
+ *
+ * MeshEntry - Holds a list of MeshSlots (roughly corresponds to a skin
+ *             in Spine).
+ *
+ * MeshSlot  - Holds a list of indices (index to mesh_attachments list
+ *             in MeshSet) for available Meshes that this "slot" can
+ *             display. The value -1 indicates that there will never be
+ *             a renderable mesh at this attachment point. (However, the
+ *             number of attachments for a specific slot id/index will
+ *             be the same in all MeshEntries to keep animations for
+ *             MeshAnimationTracks simple.)
+ *
+ *             The active_index indicate which one of these meshes is
+ *             initially visible (the value -1 indicates no mesh is
+ *             initially visible).
+ *
+ ************************************************************************/
+
 message Bone
 {
     option (struct_align) = true;
