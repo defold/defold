@@ -236,7 +236,7 @@ public class Start extends Application {
         }
         catch (Throwable t) {
             t.printStackTrace();
-            logger.error("start failed", t);
+            logger.error("failed start", t);
             throw t;
         }
     }
