@@ -105,10 +105,10 @@ public class Start extends Application {
                     Object editorApplication = makeEditor();
                     pool.add(editorApplication);
                 }
-                catch (Exception e) {
-                    e.printStackTrace();
-                    logger.error("failed to make editor", e);
-                    throw e;
+                catch (Throwable t) {
+                    t.printStackTrace();
+                    logger.error("failed to make editor", t);
+                    throw t;
                 }
                 return null;
             }
@@ -225,19 +225,19 @@ public class Start extends Application {
                             try {
                                 kickLoading(splash);
                             }
-                            catch (Exception e) {
-                                e.printStackTrace();
-                                logger.error("failed to kick loading", e);
+                            catch (Throwable t) {
+                                t.printStackTrace();
+                                logger.error("failed to kick loading", t);
                             }
                         }
                     }
                 });
             splash.show();
         }
-        catch (Exception e) {
-            e.printStackTrace();
-            logger.error("start failed", e);
-            throw e;
+        catch (Throwable t) {
+            t.printStackTrace();
+            logger.error("start failed", t);
+            throw t;
         }
     }
 
