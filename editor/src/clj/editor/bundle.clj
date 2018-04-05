@@ -36,7 +36,7 @@
       (throw (ex-info (format "Shell call failed:\n%s" args) {} e)))))
 
 (defn- cr-project-id [workspace]
-  (when-let [git (git/open (workspace/project-path workspace))]
+  (when-let [git (git/try-open (workspace/project-path workspace))]
     (try
       (when-let [remote-url (git/remote-origin-url git)]
         (let [url (URL. remote-url)
@@ -163,6 +163,29 @@
     (catch Exception e
       {:err e :message "Failed to create Info.plist."})))
 
+(g/defnk copy-launch-images [^File app-dir]
+  (try
+    (doseq [launch-image ["Default.png"
+                          "Default@2x.png"
+                          "Default-Portrait-812h@3x.png"
+                          "Default-Portrait-736h@3x.png"
+                          "Default-Portrait-667h@2x.png"
+                          "Default-Portrait-1366h@2x.png"
+                          "Default-Portrait-1024h@2x.png"
+                          "Default-Portrait-1024h.png"
+                          "Default-Landscape-812h@3x.png"
+                          "Default-Landscape-736h@3x.png"
+                          "Default-Landscape-667h@2x.png"
+                          "Default-Landscape-1366h@2x.png"
+                          "Default-Landscape-1024h@2x.png"
+                          "Default-Landscape-1024h.png"
+                          "Default-568h@2x.png"]]
+      (with-open [launch-image-stream (io/input-stream (io/resource (str "bundle/ios/" launch-image)))]
+        (io/copy launch-image-stream (io/file app-dir launch-image)))
+      {:copied-launch-images true})
+    (catch Exception e
+      {:err e :message "Failed to copy launch images for bundling."})))
+
 (g/defnk setup-fs-env []
   (try
     (let [package-dir (fs/create-temp-directory!)
@@ -198,10 +221,8 @@
   (enabled? [controls] (and (ui/selection (:identities controls))
                             (.exists (io/file (ui/text (:provisioning-profile controls))))
                             (.isDirectory (io/file (ui/text (:build-dir controls))))))
-  (run [workspace prefs ^Stage stage root controls project build-options]
-    (let [clear-errors! (:clear-errors! build-options)
-          render-error! (:render-error! build-options)
-          ipa-dir (ui/text (:build-dir controls))
+  (run [workspace prefs ^Stage stage root controls project result]
+    (let [ipa-dir (ui/text (:build-dir controls))
           ipa (format "%s/%s.ipa" ipa-dir name)
           settings (g/node-value project :settings)
           w (get settings ["display" "width"] 1)
@@ -222,8 +243,6 @@
       (prefs/set-prefs prefs "last-identity" identity)
       (prefs/set-prefs prefs "last-provisioning-profile" profile)
       (prefs/set-prefs prefs "last-ios-build-dir" ipa-dir)
-      (clear-errors!)
-
       ;; if project hosted by us, make sure we're logged in first
       (when (or (nil? cr-project-id)
                 (login/login prefs))
@@ -240,6 +259,7 @@
                           make-provisioning-profile-plist
                           extract-entitlements-plist
                           make-info-plist
+                          copy-launch-images
                           get-armv7-engine
                           get-arm64-engine
                           lipo-ios-engine
@@ -254,24 +274,21 @@
             (when-let [step (first steps)]
               (assert (every? env (-> step meta :arguments)))
               (let [step-result (step env)]
-                (if-let [err (:err step-result)]
-                  (if (engine-build-errors/handle-build-error! render-error! project err)
-                    (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
-                    (do (error-reporting/report-exception! err)
-                        (when-let [message (:message step-result)]
-                          (dialogs/make-alert-dialog message))))
+                (if-let [error (:err step-result)]
+                  (reset! result {:error error :message (:message step-result)})
                   (recur (next steps)
                          (merge env step-result))))))
           (ui/close! stage))))))
 
-(defn make-sign-dialog [workspace prefs project build-options]
+(defn make-sign-dialog [workspace prefs project]
   (let [root ^Parent (ui/load-fxml "sign-dialog.fxml")
         stage (ui/make-dialog-stage)
         scene (Scene. root)
         controls (ui/collect-controls root ["identities" "sign" "provisioning-profile" "provisioning-profile-button" "build-dir" "build-dir-button"])
-        identities (find-identities)]
+        identities (find-identities)
+        result (atom nil)]
 
-    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project :build-options build-options} nil)
+    (ui/context! root :dialog {:root root :workspace workspace :prefs prefs :controls controls :stage stage :project project :result result} nil)
     (ui/cell-factory! (:identities controls) (fn [i] {:text (second i)}))
 
     (ui/text! (:provisioning-profile controls) (prefs/get-prefs prefs "last-provisioning-profile" ""))
@@ -291,5 +308,5 @@
     (ui/title! stage "Sign iOS Application")
     (.initModality stage Modality/NONE)
     (.setScene stage scene)
-    (ui/show! stage)
-    stage))
+    (ui/show-and-wait! stage)
+    @result))

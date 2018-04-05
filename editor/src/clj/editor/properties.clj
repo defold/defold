@@ -224,7 +224,7 @@
       (recur (rest vs) (conj! values v))
       values)))
 
-(defn properties->decls [properties]
+(defn properties->decls [properties include-element-ids?]
   (loop [properties properties
          decl (->decl [:number-entries :hash-entries :url-entries :vector3-entries
                        :vector4-entries :quat-entries :bool-entries :float-values
@@ -241,7 +241,20 @@
             [entry-key values-key] (type->entry-keys type)
             entry {:key (:id prop)
                    :id (murmur/hash64 (:id prop))
-                   :index (count (get decl values-key))}]
+                   :index (count (get decl values-key))}
+            entry (cond
+                    (not include-element-ids?)
+                    entry
+
+                    (= type :property-type-vector3)
+                    (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                                                    [".x" ".y" ".z"]))
+
+                    (or (= type :property-type-vector4)
+                        (= type :property-type-quat))
+                    (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                                                    [".x" ".y" ".z" ".w"]))
+                    :else entry)]
         (recur (rest properties)
                (-> decl
                  (update entry-key conj! entry)

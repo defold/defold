@@ -80,11 +80,8 @@
   (.selectFirst (.getSelectionModel choice-box))
   (ui/value! choice-box selected-entry))
 
-(defn- existing-file? [^File file]
-  (and (some? file) (.isFile file)))
-
 (defn- existing-file-of-type? [^String ext ^File file]
-  (and (existing-file? file)
+  (and (fs/existing-file? file)
        (.endsWith (.toLowerCase (.getPath file))
                   (str "." ext))))
 
@@ -381,7 +378,7 @@
   {:general (when (and (nil? certificate) (nil? private-key))
               [:info "Set certificate and private key, or leave blank to sign APK with an auto-generated debug certificate."])
    :certificate (cond
-                  (and (some? certificate) (not (existing-file? certificate)))
+                  (and (some? certificate) (not (fs/existing-file? certificate)))
                   [:fatal "Certificate file not found."]
 
                   (and (some? certificate) (not (existing-file-of-type? "pem" certificate)))
@@ -390,7 +387,7 @@
                   (and (nil? certificate) (some? private-key))
                   [:fatal "Certificate must be set if private key is specified."])
    :private-key (cond
-                  (and (some? private-key) (not (existing-file? private-key)))
+                  (and (some? private-key) (not (fs/existing-file? private-key)))
                   [:fatal "Private key file not found."]
 
                   (and (some? private-key) (not (existing-file-of-type? "pk8" private-key)))
@@ -481,7 +478,7 @@
       (set-file! provisioning-profile)
       (set-field-status! (:provisioning-profile issues)))
     (ui/enable! ok-button (and (some? code-signing-identity)
-                               (existing-file? provisioning-profile)))))
+                               (fs/existing-file? provisioning-profile)))))
 
 (defn- get-ios-issues [{:keys [code-signing-identity provisioning-profile] :as _options} code-signing-identity-names]
   {:general (when (empty? code-signing-identity-names)
@@ -492,7 +489,7 @@
                            (nil? provisioning-profile)
                            [:fatal "Provisioning profile must be set."]
 
-                           (not (existing-file? provisioning-profile))
+                           (not (fs/existing-file? provisioning-profile))
                            [:fatal "Provisioning profile file not found."]
 
                            (not (existing-file-of-type? "mobileprovision" provisioning-profile))
@@ -540,20 +537,20 @@
 (handler/defhandler ::query-output-directory :bundle-dialog
   (run [bundle! prefs presenter stage]
     (save-prefs! presenter prefs)
-    (let [build-options (get-options presenter)
+    (let [bundle-options (get-options presenter)
           initial-directory (get-file-pref prefs "bundle-output-directory")]
-      (assert (string? (not-empty (:platform build-options))))
+      (assert (string? (not-empty (:platform bundle-options))))
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
         (set-file-pref! prefs "bundle-output-directory" output-directory)
-        (let [platform-bundle-output-directory (io/file output-directory (:platform build-options))
+        (let [platform-bundle-output-directory (io/file output-directory (:platform bundle-options))
               platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
           (when (or (not platform-bundle-output-directory-exists?)
                     (query-overwrite! platform-bundle-output-directory stage))
             (when (not platform-bundle-output-directory-exists?)
               (fs/create-directories! platform-bundle-output-directory))
-            (let [build-options (assoc build-options :output-directory platform-bundle-output-directory)]
+            (let [bundle-options (assoc bundle-options :output-directory platform-bundle-output-directory)]
               (ui/close! stage)
-              (bundle! build-options))))))))
+              (bundle! bundle-options))))))))
 
 (defn show-bundle-dialog! [workspace platform prefs owner-window bundle!]
   (let [stage (doto (ui/make-dialog-stage owner-window)

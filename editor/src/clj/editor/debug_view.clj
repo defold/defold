@@ -194,7 +194,7 @@
   [[k v]]
   (if (map? k)
     (-> k meta :tostring)
-    k))
+    (str k)))
 
 (defn- lua-str
   [v]
@@ -204,7 +204,7 @@
 
 (defn- make-variable-tree-item
   [[name value]]
-  (let [variable {:name name
+  (let [variable {:name (lua-str name)
                   :display-name (lua-str name)
                   :value value
                   :display-value (lua-str value)}
@@ -305,10 +305,12 @@
   [project debug-view]
   (let [state   (volatile! {})
         tick-fn (fn [timer _]
-                  (let [breakpoints (set (g/node-value project :breakpoints))]
-                    (when-some [debug-session (g/node-value debug-view :debug-session)]
-                      (update-breakpoints! debug-session (:breakpoints @state) breakpoints))
-                    (vreset! state {:breakpoints breakpoints})))]
+                  ;; if we don't have a debug session going on, there is no point in pulling
+                  ;; project/breakpoints or updating the "last breakpoints" state.
+                  (when-some [debug-session (g/node-value debug-view :debug-session)]
+                    (let [breakpoints (set (g/node-value project :breakpoints))]
+                      (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
+                      (vreset! state {:breakpoints breakpoints}))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
@@ -384,15 +386,15 @@
 
 (defn build-targets
   [project evaluation-context]
-  (let [start-script (project/get-resource-node project debugger-init-script)]
-    (g/node-value start-script :build-targets)))
+  (let [start-script (project/get-resource-node project debugger-init-script evaluation-context)]
+    (g/node-value start-script :build-targets evaluation-context)))
 
 (defn- built-lua-module
-  [build-results path]
-  (let [build-result (->> build-results
-                          (filter #(= (some-> % :resource :resource resource/proj-path) path))
-                          (first))]
-    (some->> build-result
+  [build-artifacts path]
+  (let [build-artifact (->> build-artifacts
+                            (filter #(= (some-> % :resource :resource resource/proj-path) path))
+                            (first))]
+    (some->> build-artifact
              :resource
              io/file
              .toPath
@@ -400,15 +402,12 @@
              (protobuf/bytes->map Lua$LuaModule))))
 
 (defn attach!
-  [debug-view project target build-options]
-  (let [evaluation-context (g/make-evaluation-context)
-        extra-build-targets (build-targets project evaluation-context)]
-    (when-some [build-results (project/build-and-write-project project evaluation-context extra-build-targets build-options)]
-      (let [target-address (:address target "localhost")
-            lua-module (built-lua-module build-results debugger-init-script)]
-        (assert lua-module)
-        (start-debugger! debug-view project target-address)
-        (engine/run-script target lua-module)))))
+  [debug-view project target build-artifacts]
+  (let [target-address (:address target "localhost")
+        lua-module (built-lua-module build-artifacts debugger-init-script)]
+    (assert lua-module)
+    (start-debugger! debug-view project target-address)
+    (engine/run-script! target lua-module)))
 
 (defn detach!
   [debug-view]

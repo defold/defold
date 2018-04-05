@@ -40,9 +40,9 @@
             [util.http-server :as http-server])
   (:import [java.io File]
            [javafx.scene Node Scene]
-           [javafx.stage Stage]
+           [javafx.stage Stage WindowEvent]
            [javafx.scene.layout Region VBox AnchorPane]
-           [javafx.scene.control Label MenuBar Tab TabPane TreeView]))
+           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TreeView]))
 
 (set! *warn-on-reflection* true)
 
@@ -96,9 +96,9 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [changes-view]
-  (ui/run-later
-    (changes-view/refresh! changes-view)))
+(defn- handle-resource-changes! [tab-panes open-views changes-view]
+  (app-view/remove-invalid-tabs! tab-panes open-views)
+  (changes-view/refresh! changes-view))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (ui/visible! label (let [update (updater/pending-update update-context)]
@@ -106,8 +106,8 @@
         tick-fn (fn [_ _] (update-visibility!))
         timer (ui/->timer 0.1 "pending-update-check" tick-fn)]
     (update-visibility!)
-    (ui/add-on-shown! stage #(ui/timer-start! timer))
-    (ui/add-on-hiding! stage #(ui/timer-stop! timer))))
+    (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
+    (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
 
 (defn- init-pending-update-indicator! [^Stage stage ^Label label project update-context]
   (.setOnMouseClicked label
@@ -132,8 +132,8 @@
 (defn- init-status-pane-timer! [^Stage stage ^AnchorPane status-pane content-prospects]
   (let [timer (ui/->timer 5 "update-status-pane" (fn [_ _] (update-status-pane-contents! status-pane content-prospects)))]
     (update-status-pane-contents! status-pane content-prospects)
-    (ui/add-on-shown! stage #(ui/timer-start! timer))
-    (ui/add-on-hiding! stage #(ui/timer-stop! timer))))
+    (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
+    (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
@@ -141,7 +141,7 @@
                                   "\n"
                                   "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
 
-(defn load-stage [workspace project prefs update-context]
+(defn load-stage [workspace project prefs update-context newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)
@@ -149,8 +149,6 @@
         update-available-label (doto (Label. "Update Available")
                                  (ui/visible! false)
                                  (ui/add-style! "link-label"))]
-
-    (ui/init-stage-shown-hiding-hooks! stage)
 
     (when update-context
       (init-pending-update-indicator! stage update-available-label project update-context))
@@ -215,7 +213,9 @@
 
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ _ _]
-                                                      (handle-resource-changes! changes-view))))
+                                                      (let [open-views (g/node-value app-view :open-views)
+                                                            panes (.getItems ^SplitPane editor-tabs-split)]
+                                                        (handle-resource-changes! panes open-views changes-view)))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
@@ -295,20 +295,27 @@
                     (changes-view/resource-sync-after-git-change! changes-view workspace))))))
 
           ;; A sync was not in progress.
-          ;; Ensure .gitignore is configured to ignore build output and metadata files.
-          (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
-                internal-files-are-tracked? (git/internal-files-are-tracked? git)]
-            (if gitignore-was-modified?
-              (do (changes-view/refresh! changes-view)
+          (do
+            ;; If the project was just created, we automatically open the readme resource.
+            (when newly-created?
+              (ui/run-later
+                (when-some [readme-resource (workspace/find-resource workspace "/README.md")]
+                  (open-resource readme-resource))))
+
+            ;; Ensure .gitignore is configured to ignore build output and metadata files.
+            (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
+                  internal-files-are-tracked? (git/internal-files-are-tracked? git)]
+              (if gitignore-was-modified?
+                (do (changes-view/refresh! changes-view)
+                    (ui/run-later
+                      (dialogs/make-message-box "Updated .gitignore File"
+                                                (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
+                                                     "You should include it along with your changes the next time you synchronize."))
+                      (when internal-files-are-tracked?
+                        (show-tracked-internal-files-warning!))))
+                (when internal-files-are-tracked?
                   (ui/run-later
-                    (dialogs/make-message-box "Updated .gitignore File"
-                                              (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
-                                                   "You should include it along with your changes the next time you synchronize."))
-                    (when internal-files-are-tracked?
-                      (show-tracked-internal-files-warning!))))
-              (when internal-files-are-tracked?
-                (ui/run-later
-                  (show-tracked-internal-files-warning!))))))))
+                    (show-tracked-internal-files-warning!)))))))))
 
     (reset! the-root root)
     root))
@@ -321,14 +328,14 @@
                                                         "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
 
 (defn open-project
-  [^File game-project-file prefs render-progress! update-context]
+  [^File game-project-file prefs render-progress! update-context newly-created?]
   (let [project-path (.getPath (.getParentFile game-project-file))
         build-settings (workspace/make-build-settings prefs)
         workspace    (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
         project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
     (ui/run-now
-      (load-stage workspace project prefs update-context)
+      (load-stage workspace project prefs update-context newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (g/reset-undo! *project-graph*)

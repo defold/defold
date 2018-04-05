@@ -107,32 +107,43 @@
   (run [selection ^Git git]
        (diff-view/present-diff-data (git/selection-diff-data git selection))))
 
-(handler/defhandler :synchronize :global
-  (enabled? [changes-view]
-            (g/node-value changes-view :unconfigured-git))
-  (run [changes-view workspace project]
-    (let [git   (g/node-value changes-view :git)
-          prefs (g/node-value changes-view :prefs)]
-      ;; Check if there are locked files below the project folder before proceeding.
-      ;; If so, we abort the sync and notify the user, since this could cause problems.
-      (loop []
-        (if-some [locked-files (not-empty (git/locked-files git))]
-          ;; Found locked files below the project. Notify user and offer to retry.
-          (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
-                                             {:title "Not Safe to Sync"
-                                              :ok-label "Retry"
-                                              :cancel-label "Cancel"})
-            (recur))
+(defn- first-sync! [changes-view workspace project prefs]
+  (do
+    (project/save-all! project)
+    (let [proj-path (.getPath (workspace/project-path workspace))
+          project-title (project/project-title project)]
+      (-> (sync/begin-first-flow! proj-path project-title prefs
+            (fn [git]
+              (ui/run-later
+                (g/set-property! changes-view :unconfigured-git git))))
+        (sync/open-sync-dialog)))))
 
-          ;; Found no locked files.
-          ;; Save the project before we initiate the sync process. We need to do this because
-          ;; the unsaved files may also have changed on the server, and we'll need to merge.
-          (do (project/save-all! project)
-              (when (login/login prefs)
-                (let [creds (git/credentials prefs)
-                      flow (sync/begin-flow! git creds)]
-                  (sync/open-sync-dialog flow)
-                  (resource-sync-after-git-change! changes-view workspace)))))))))
+(handler/defhandler :synchronize :global
+  (run [changes-view workspace project]
+    (let [prefs (g/node-value changes-view :prefs)]
+      (if (not (g/node-value changes-view :unconfigured-git))
+        (first-sync! changes-view workspace project prefs)
+        (let [git   (g/node-value changes-view :git)]
+          ;; Check if there are locked files below the project folder before proceeding.
+          ;; If so, we abort the sync and notify the user, since this could cause problems.
+          (loop []
+            (if-some [locked-files (not-empty (git/locked-files git))]
+              ;; Found locked files below the project. Notify user and offer to retry.
+              (when (dialogs/make-confirm-dialog (git/locked-files-error-message locked-files)
+                                                 {:title "Not Safe to Sync"
+                                                  :ok-label "Retry"
+                                                  :cancel-label "Cancel"})
+                (recur))
+
+              ;; Found no locked files.
+              ;; Save the project before we initiate the sync process. We need to do this because
+              ;; the unsaved files may also have changed on the server, and we'll need to merge.
+              (do (project/save-all! project)
+                  (when (login/login prefs)
+                    (let [creds (git/credentials prefs)
+                          flow (sync/begin-flow! git creds)]
+                      (sync/open-sync-dialog flow)
+                      (resource-sync-after-git-change! changes-view workspace)))))))))))
 
 (ui/extend-menu ::menubar :editor.app-view/open
                 [{:label "Synchronize..."
@@ -153,20 +164,30 @@
   (workspace/resolve-workspace-resource workspace (format "/%s" (or (:new-path status)
                                                                     (:old-path status)))))
 
+(defn- try-open-git
+  ^Git [workspace]
+  (let [repo-path (io/as-file (g/node-value workspace :root))
+        git (git/try-open repo-path)
+        head-commit (some-> git .getRepository (git/get-commit "HEAD"))]
+    (if (some? head-commit)
+      git
+      (when (some? git)
+        (.close git)))))
+
 (defn make-changes-view [view-graph workspace prefs ^Parent parent]
   (let [^ListView list-view (.lookup parent "#changes")
         diff-button         (.lookup parent "#changes-diff")
         revert-button       (.lookup parent "#changes-revert")
-        git                 (try (Git/open (io/file (g/node-value workspace :root)))
-                                 (catch Exception _))
+        git                 (try-open-git workspace)
         view-id             (g/make-node! view-graph ChangesView :list-view list-view :unconfigured-git git :prefs prefs)]
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?
     (try
       (ui/user-data! list-view :refresh-pending (ref false))
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! parent :changes-view {:git git :changes-view view-id :workspace workspace} (ui/->selection-provider list-view) {}
-                   {resource/Resource (fn [status] (status->resource workspace status))})
+      (ui/context! parent :changes-view {:changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
+        {:git [:changes-view :unconfigured-git]}
+        {resource/Resource (fn [status] (status->resource workspace status))})
       (ui/register-context-menu list-view ::changes-menu)
       (ui/cell-factory! list-view vcs-status/render)
       (ui/bind-action! diff-button :diff)

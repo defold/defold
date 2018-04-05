@@ -2284,6 +2284,12 @@ TEST_F(RigContextTest, DEF_3121)
     // the complete callback, which also will trigger a new animation, "trans_rot".
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 10.0f));
 
+    // Verify that the position of the root bone is the same as previous frame.
+    ASSERT_VEC3(Vector3(0.0f), pose[0].GetTranslation());
+
+    // One more update, this time the new animation should start playing.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+
     // Verify that the position of the root bone is from the new animation.
     ASSERT_VEC3(Vector3(10.0f, 0.0f, 0.0f), pose[0].GetTranslation());
 

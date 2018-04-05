@@ -29,8 +29,8 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/hierarchy");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
@@ -664,7 +664,7 @@ TEST_F(HierarchyTest, TestHierarchyBonesOrder)
         instances[i] = dmGameObject::New(m_Collection, 0x0);
         dmGameObject::SetBone(instances[i], true);
         transforms[i].SetIdentity();
-        transforms[i].SetTranslation(Vector3((float)i, 0.0f, 0.0f));
+        transforms[i].SetTranslation(Vector3((float)i + 1, (float)i + 2, (float)i + 3));
     }
     for (uint32_t i = 0; i < instance_count; ++i)
     {
@@ -675,11 +675,29 @@ TEST_F(HierarchyTest, TestHierarchyBonesOrder)
         dmGameObject::SetParent(instances[index], parent);
     }
 
-    ASSERT_EQ(instance_count, SetBoneTransforms(instances[0], transforms, instance_count));
+    dmTransform::Transform component_transform;
+    component_transform.SetIdentity();
+    ASSERT_EQ(instance_count, SetBoneTransforms(instances[0], component_transform, transforms, instance_count));
 
     for (uint32_t i = 0; i < instance_count; ++i)
     {
-        ASSERT_NEAR((float)i, dmGameObject::GetPosition(instances[i]).getX(), EPSILON);
+        ASSERT_NEAR((float)i + 1.f, dmGameObject::GetPosition(instances[i]).getX(), EPSILON);
+        ASSERT_NEAR((float)i + 2.f, dmGameObject::GetPosition(instances[i]).getY(), EPSILON);
+        ASSERT_NEAR((float)i + 3.f, dmGameObject::GetPosition(instances[i]).getZ(), EPSILON);
+    }
+
+    component_transform.SetTranslation(Vector3(100.0f, 100.0f, 100.0f));
+    ASSERT_EQ(instance_count, SetBoneTransforms(instances[0], component_transform, transforms, instance_count));
+
+    ASSERT_NEAR((float)101.f, dmGameObject::GetPosition(instances[0]).getX(), EPSILON);
+    ASSERT_NEAR((float)102.f, dmGameObject::GetPosition(instances[0]).getY(), EPSILON);
+    ASSERT_NEAR((float)103.f, dmGameObject::GetPosition(instances[0]).getZ(), EPSILON);
+
+    for (uint32_t i = 1; i < instance_count; ++i)
+    {
+        ASSERT_NEAR((float)i + 1, dmGameObject::GetPosition(instances[i]).getX(), EPSILON);
+        ASSERT_NEAR((float)i + 2, dmGameObject::GetPosition(instances[i]).getY(), EPSILON);
+        ASSERT_NEAR((float)i + 3, dmGameObject::GetPosition(instances[i]).getZ(), EPSILON);
     }
 
     for (uint32_t i = 0; i < instance_count; ++i)
@@ -723,7 +741,9 @@ TEST_F(HierarchyTest, TestHierarchyBonesMulti)
 
     ASSERT_NEAR(1.0f, world.GetTranslation().getX(), EPSILON);
 
-    ASSERT_EQ(2, SetBoneTransforms(p1, t, 2));
+    dmTransform::Transform component_transform;
+    component_transform.SetIdentity();
+    ASSERT_EQ(2, SetBoneTransforms(p1, component_transform, t, 2));
 
     ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
