@@ -1486,8 +1486,11 @@ namespace dmGameObject
             prev_index = *prev_index_ptr;
         }
         *prev_index_ptr = instance->m_NextToAdd;
+        if (prev_index_ptr == &collection->m_InstancesToAddHead && *prev_index_ptr == INVALID_INSTANCE_INDEX) { // If we unlinked the last item
+            collection->m_InstancesToAddTail = INVALID_INSTANCE_INDEX;
+        }
         instance->m_NextToAdd = INVALID_INSTANCE_INDEX;
-        instance->m_ToBeAdded = false;
+        instance->m_ToBeAdded = 0;
     }
 
     void DoDelete(HCollection collection, HInstance instance)
@@ -3139,4 +3142,31 @@ namespace dmGameObject
         }
     }
 
+#if !defined(NDEBUG)
+    // Unit test functions
+
+    uint32_t GetAddToUpdateCount(HCollection collection)
+    {
+        uint32_t count = 0;
+        uint16_t index = collection->m_InstancesToAddHead;
+        while (index != INVALID_INSTANCE_INDEX) {
+            index = collection->m_Instances[index]->m_NextToAdd;
+            ++count;
+        }
+        return count;
+    }
+
+    uint32_t GetRemoveFromUpdateCount(HCollection collection)
+    {
+        uint32_t count = 0;
+        uint16_t index = collection->m_InstancesToDeleteHead;
+        while (index != INVALID_INSTANCE_INDEX) {
+            index = collection->m_Instances[index]->m_NextToDelete;
+            ++count;
+        }
+        return count;
+    }
+
+
+#endif // NDEBUG
 }
