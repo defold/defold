@@ -87,7 +87,7 @@
     * new node-id if the path is being reloaded
     * old node-id if the path is not being reloaded
 
-  `resource-node-dependencies` is a map from node id to the project
+  `resource-node-dependencies` is a function from node id to the project
   paths which are the in-memory/current dependencies for nodes not
   being reloaded."
 
@@ -127,22 +127,6 @@
                   (conj dep-queued node-id)
                   batch
                   load-deps)))))))
-
-(defn resource-node-dependencies
-  "Returns a map from node id to its current project path dependencies.
-
-  Does not work in the intermediate stages of the resource sync. Must
-  be called when the project is in a stable state, i.e. before
-  creating new versions of resource nodes to be reloaded."
-  [node-ids]
-  (let [evaluation-context (g/make-evaluation-context)
-        dependencies (into {}
-                           (map (fn [node-id]
-                                  (let [dependency-paths (g/node-value node-id :reload-dependencies evaluation-context)]
-                                    [node-id dependency-paths])))
-                           node-ids)]
-    (g/update-cache-from-evaluation-context! evaluation-context)
-    dependencies))
 
 (defn load-resource-nodes [project node-ids render-progress! resource-node-dependencies]
   (let [evaluation-context (g/make-evaluation-context)
@@ -208,13 +192,18 @@
                                                                                [:resource :node-resources]]})
             []))))))
 
-(defn get-resource-node [project path-or-resource]
-  (when-let [resource (cond
-                        (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace) path-or-resource)
-                        (satisfies? resource/Resource path-or-resource) path-or-resource
-                        :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
-    (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path)]
-      (get nodes-by-resource-path (resource/proj-path resource)))))
+(defn get-resource-node
+  ([project path-or-resource]
+   (g/with-auto-evaluation-context ec
+     (get-resource-node project path-or-resource ec)))
+  ([project path-or-resource evaluation-context]
+   (when-let [resource (cond
+                         ;; TODO: pass evaluation-context to workspace/find-resource functions
+                         (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace evaluation-context) path-or-resource)
+                         (satisfies? resource/Resource path-or-resource) path-or-resource
+                         :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
+     (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
+       (get nodes-by-resource-path (resource/proj-path resource))))))
 
 (defn load-project
   ([project]
@@ -302,29 +291,20 @@
         (render-progress! @progress)))))
 
 (defn build
-  ([project node evaluation-context opts]
-   (build project node evaluation-context nil opts))
-  ([project node evaluation-context extra-build-targets {:keys [render-progress! render-error!]
-                                                         :or   {render-progress! progress/null-render-progress!}
-                                                         :as   opts}]
-   (let [steps (atom [])
-         node-id->resource-path (clojure.set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
-         _ (g/node-value node :build-targets (assoc evaluation-context
-                                                    :dry-run true
-                                                    :tracer (make-collect-progress-steps-tracer steps)))
-         node-build-targets (g/node-value node :build-targets
-                                          (assoc evaluation-context
-                                                 :tracer (make-progress-tracer steps node-id->resource-path
-                                                                               (progress/nest-render-progress render-progress! (progress/make "" 10) 7))))
-         build-targets (cond-> node-build-targets
-                         (seq extra-build-targets)
-                         (into extra-build-targets))]
-     (if (g/error? build-targets)
-       (do
-         (when render-error!
-           (render-error! build-targets))
-         nil)
-       (pipeline/build! (workspace project) build-targets (progress/nest-render-progress render-progress! (progress/make "" 10 7) 3))))))
+  [project node evaluation-context extra-build-targets old-artifact-map render-progress!]
+  (let [steps                  (atom [])
+        collect-tracer         (make-collect-progress-steps-tracer steps)
+        _                      (g/node-value node :build-targets (assoc evaluation-context :dry-run true :tracer collect-tracer))
+        node-id->resource-path (clojure.set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
+        progress-tracer        (make-progress-tracer steps node-id->resource-path (progress/nest-render-progress render-progress! (progress/make "" 10) 7))
+        node-build-targets     (g/node-value node :build-targets (assoc evaluation-context :tracer progress-tracer))
+        build-targets          (cond-> node-build-targets
+                                 (seq extra-build-targets)
+                                 (into extra-build-targets))
+        build-dir              (workspace/build-path (workspace project))]
+    (if (g/error? build-targets)
+      {:error build-targets}
+      (pipeline/build! build-targets build-dir old-artifact-map (progress/nest-render-progress render-progress! (progress/make "" 10 7) 3)))))
 
 (handler/defhandler :undo :global
   (enabled? [project-graph] (g/has-undo? project-graph))
@@ -422,7 +402,12 @@
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
     (let [old-nodes-by-path (g/node-value project :nodes-by-resource-path)
-          old-resource-node-dependencies (resource-node-dependencies (g/node-value project :nodes))
+          rn-dependencies-evaluation-context (g/make-evaluation-context)
+          old-resource-node-dependencies (memoize
+                                           (fn [node-id]
+                                             (let [deps (g/node-value node-id :reload-dependencies rn-dependencies-evaluation-context)]
+                                               (when-not (g/error? deps)
+                                                 deps))))
           resource->old-node (comp old-nodes-by-path resource/proj-path)
           new-nodes (make-nodes! project (:new plan))
           resource-path->new-node (into {} (map (fn [resource-node]
@@ -452,6 +437,8 @@
           (g/delete-node node)))
 
       (load-nodes! project new-nodes render-progress! old-resource-node-dependencies)
+
+      (g/update-cache-from-evaluation-context! rn-dependencies-evaluation-context)
 
       (g/transact
         (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
@@ -587,19 +574,15 @@
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
 (defn build-and-write-project
-  ([project evaluation-context build-options]
-   (build-and-write-project project evaluation-context nil build-options))
-  ([project evaluation-context extra-build-targets build-options]
-   (let [game-project  (get-resource-node project "/game.project")
-         clear-errors! (:clear-errors! build-options)
-         build-options (update build-options :render-progress! (fnil progress/throttle-render-progress progress/null-render-progress!))]
-     (try
-       (ui/with-progress [render-fn (:render-progress! build-options)]
-         (clear-errors!)
-         (seq (build project game-project evaluation-context extra-build-targets build-options)))
-       (catch Throwable error
-         (error-reporting/report-exception! error)
-         nil)))))
+  [project evaluation-context extra-build-targets old-artifact-map render-progress!]
+  (let [game-project  (get-resource-node project "/game.project" evaluation-context)
+        render-progress! (progress/throttle-render-progress render-progress!)]
+    (try
+      (ui/with-progress [render-progress! (progress/throttle-render-progress render-progress!)]
+        (build project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+      (catch Throwable error
+        (error-reporting/report-exception! error)
+        nil))))
 
 (defn settings [project]
   (g/node-value project :settings))
@@ -610,6 +593,11 @@
 
 (defn shared-script-state? [project]
   (some-> (settings project) (get ["script" "shared_state"])))
+
+(defn project-title [project]
+  (some-> project
+    (settings)
+    (get ["project" "title"])))
 
 (defn- disconnect-from-inputs [src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* src)))
@@ -687,10 +675,12 @@
         progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
 
-    (when (workspace/dependencies-reachable? dependencies login-fn)
+    ;; Fetch+install libs if we have network, otherwise fallback to disk state
+    (if (workspace/dependencies-reachable? dependencies login-fn)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
-           (workspace/install-validated-libraries! workspace-id dependencies)))
-    
+           (workspace/install-validated-libraries! workspace-id dependencies))
+      (workspace/set-project-dependencies! workspace-id dependencies))
+
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project"))

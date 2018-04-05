@@ -50,6 +50,9 @@
   ([] (clone-system @*the-system*))
   ([sys] (is/clone-system sys)))
 
+(defn system= [s1 s2]
+  (is/system= s1 s2))
+
 (defmacro with-system [sys & body]
   `(binding [*the-system* (atom ~sys)]
      ~@body))
@@ -86,7 +89,8 @@
 (defn clear-system-cache!
   "Clears *the-system* cache, useful when debugging"
   []
-  (swap! *the-system* assoc :cache (ref (is/make-cache {}))))
+  (swap! *the-system* assoc :cache (ref (is/make-cache {})))
+  nil)
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
@@ -745,6 +749,9 @@
                (swap! stack #(conj (rest %) (update parent :dependencies conj step)))
                (reset! result-atom step)))))))))
 
+(defn tree-trace-seq [result]
+  (tree-seq :dependencies :dependencies result))
+
 ;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
@@ -759,6 +766,12 @@
   [evaluation-context]
   (is/update-cache-from-evaluation-context! @*the-system* evaluation-context)
   nil)
+
+(defmacro with-auto-evaluation-context [ec & body]
+  `(let [~ec (make-evaluation-context)
+         result# (do ~@body)]
+     (update-cache-from-evaluation-context! ~ec)
+     result#))
 
 (defn node-value
   "Pull a value from a node's output, identified by `label`.

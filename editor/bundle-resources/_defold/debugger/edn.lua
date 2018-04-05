@@ -6,7 +6,8 @@
 
 local M = {}
 
-local encode
+local encode_value
+local encode_key
 
 local escape_char_map = {
   ["\\" ] = "\\\\",
@@ -51,7 +52,7 @@ local function encode_string(val)
   return '"' .. val:gsub('[%z\1-\31\\"]', escape_char) .. '"'
 end
 
-local function encode_table(val, stack)
+local function encode_table_value(val, stack)
   local res = {}
   stack = stack or {}
 
@@ -63,12 +64,16 @@ local function encode_table(val, stack)
   stack[val] = true
 
   for k, v in pairs(val) do
-      table.insert(res, encode(k, stack) .. " " .. encode(v, stack))
+      table.insert(res, encode_key(k, stack) .. " " .. encode_value(v, stack))
   end
 
   stack[val] = nil
-  
+
   return "#lua/table{:tostring \"" .. str(val) .. "\", :data {" .. table.concat(res, ",") .. "}}"
+end
+
+local function encode_table_ref(val, stack)
+   return "#lua/tableref{:tostring \"" .. str(val) .. "\"}"
 end
 
 local function make_tagged_string_encoder(tag)
@@ -85,28 +90,37 @@ local function encode_function(val)
   return "#lua/function" .. encode_string(str(val))
 end
 
-local type_func_map = {
+local value_encoder_map = {
   ["nil"     ] = encode_nil,
   ["boolean" ] = str,
   ["number"  ] = encode_number,
   ["string"  ] = encode_string,
-  ["table"   ] = encode_table,
+  ["table"   ] = encode_table_value,
   ["userdata"] = make_tagged_string_encoder("#lua/userdata"),
   ["function"] = make_tagged_string_encoder("#lua/function"),
   ["thread"  ] = make_tagged_string_encoder("#lua/thread"),
 }
 
-encode = function(val, stack)
+encode_value = function(val, stack)
   local t = type(val)
-  local f = type_func_map[t]
+  local f = value_encoder_map[t]
   if f then
     return f(val, stack)
   end
   error("unexpected type '" .. t .. "'")
 end
 
+encode_key = function(val, stack)
+  local t = type(val)
+  if t == "table" then
+     return encode_table_ref(val, stack)
+  else
+     return encode_value(val, stack)
+  end
+end
+
 function M.encode(val)
-  return encode(val)
+  return encode_value(val)
 end
 
 return M

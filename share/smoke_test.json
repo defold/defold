@@ -26,7 +26,7 @@
 		["wait" 2000],
 		["screen-capture" "script"],
 		["press" "Shortcut+B"],
-		["await-log" "engine-log" 4000 "intro started"],
+		["await-log" "engine-log" 10000 "intro started"],
 		["await-log" "engine-log" 60000 " seconds"],
 		["screen-capture" "game_intro"],
 		["await-log" "engine-log" 60000 "level started"],

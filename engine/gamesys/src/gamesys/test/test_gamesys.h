@@ -181,8 +181,8 @@ void GamesysTest<T>::SetUp()
     m_Factory = dmResource::NewFactory(&params, "build/default/src/gamesys/test");
     m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
     dmScript::Initialize(m_ScriptContext);
-    dmGameObject::Initialize(m_Register, m_ScriptContext);
     m_Register = dmGameObject::NewRegister();
+    dmGameObject::Initialize(m_Register, m_ScriptContext);
     dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
     dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
 
