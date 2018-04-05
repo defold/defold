@@ -330,11 +330,16 @@
     (catch Exception _
       "invalid host")))
 
-(defn target-label [target]
+(defn target-menu-label [target]
   (format "%s - %s" (str (if (local-target? target) "Local " "") (:name target)) (url-string (:url target))))
 
+(defn target-message-label [target]
+  (let [url (:url target)]
+    (str (when (local-target? target) "Local ") (:name target)
+         (when (some? url) (str " - " (url-string url))))))
+
 (defn- target-option [target]
-  {:label     (target-label target)
+  {:label     (target-menu-label target)
    :command   :target
    :check     true
    :user-data target})

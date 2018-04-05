@@ -58,6 +58,10 @@
   (input build-settings g/Any)
   (input texture-profiles g/Any)
   
+  ;; we never modify ImageNode, save-data and source-value can be trivial and not cached
+  (output save-data g/Any (g/constantly nil))
+  (output source-value g/Any (g/constantly nil))
+
   (output texture-profile g/Any (g/fnk [texture-profiles resource]
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 

@@ -1,7 +1,6 @@
 (ns editor.pipeline
   (:require
    [clojure.java.io :as io]
-   [dynamo.graph :as g]
    [editor.fs :as fs]
    [editor.resource :as resource]
    [editor.progress :as progress]
@@ -113,9 +112,6 @@
         (filter (fn [[resource result]] (contains? build-targets-by-key (:key result))))
         artifacts))
 
-(defn- workspace->artifacts [workspace]
-  (or (g/user-data workspace ::artifacts) {}))
-
 (defn- valid? [artifact]
   (when-let [^File f (io/as-file (:resource artifact))]
     (let [{:keys [mtime size]} artifact]
@@ -138,49 +134,35 @@
           :size size
           :etag (digest/sha1->hex content))))))
 
-(defn- prune-build-dir! [workspace build-targets-by-key]
-  (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)
-        dir (io/as-file (workspace/build-path workspace))]
-    (fs/create-directories! dir)
-    (doseq [^File f (file-seq dir)]
+(defn- prune-build-dir! [build-dir build-targets-by-key]
+  (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)]
+    (fs/create-directories! build-dir)
+    (doseq [^File f (file-seq build-dir)]
       (when (and (not (.isDirectory f)) (not (contains? targets f)))
         (fs/delete! f)))))
 
 (defn build!
-  ([workspace build-targets]
-   (build! workspace build-targets progress/null-render-progress!))
-  ([workspace build-targets render-progress!]
-   (let [build-targets-by-key (make-build-targets-by-key build-targets)
-         artifacts (-> (workspace->artifacts workspace)
-                       (prune-artifacts build-targets-by-key))
-         progress  (atom (progress/make "" (count build-targets-by-key)))]
-     (prune-build-dir! workspace build-targets-by-key)
-     (let [results (into []
-                         (map (fn [[key {:keys [resource] :as build-target}]]
-                                (swap! progress #(-> %
-                                                     (progress/advance)
-                                                     (progress/with-message (str "Writing " (resource/proj-path resource)))))
-                                (or (when-let [artifact (get artifacts resource)]
-                                      (and (valid? artifact) artifact))
-                                    (render-progress! @progress)
-                                    (let [{:keys [resource deps build-fn user-data]} build-target
-                                          dep-resources (make-dep-resources deps build-targets-by-key)
-                                          result (-> (build-fn resource dep-resources user-data)
-                                                     (to-disk! key))]
-                                      result))))
-                         build-targets-by-key)
-           new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)
-           etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
-       (g/user-data! workspace ::artifacts new-artifacts)
-       (g/user-data! workspace ::etags etags)
-       results))))
-
-(defn reset-cache! [workspace]
-  (g/user-data! workspace ::artifacts nil)
-  (g/user-data! workspace ::etags nil))
-
-(defn etags [workspace]
-  (g/user-data workspace ::etags))
-
-(defn etag [workspace path]
-  (get (etags workspace) path))
+  [build-targets build-dir old-artifact-map render-progress!]
+  (let [build-targets-by-key (make-build-targets-by-key build-targets)
+        artifacts (prune-artifacts old-artifact-map build-targets-by-key)
+        progress  (atom (progress/make "" (count build-targets-by-key)))]
+    (prune-build-dir! build-dir build-targets-by-key)
+    (let [results (into []
+                        (map (fn [[key {:keys [resource] :as build-target}]]
+                               (render-progress! (swap! progress
+                                                        #(-> %
+                                                             (progress/advance)
+                                                             (progress/with-message (str "Writing " (resource/proj-path resource))))))
+                               (or (when-let [artifact (get artifacts resource)]
+                                     (and (valid? artifact) artifact))
+                                   (let [{:keys [resource deps build-fn user-data]} build-target
+                                         dep-resources (make-dep-resources deps build-targets-by-key)
+                                         result (-> (build-fn resource dep-resources user-data)
+                                                    (to-disk! key))]
+                                     result))))
+                        build-targets-by-key)
+          new-artifact-map (into {} (map (fn [a] [(:resource a) a])) results)
+          etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
+      {:artifacts results
+       :artifact-map new-artifact-map
+       :etags etags})))

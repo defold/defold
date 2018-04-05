@@ -5,7 +5,8 @@
             [editor.code.util :refer [split-lines]]
             [editor.code.view :as view]
             [editor.handler :as handler]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [util.thread-util :refer [preset!]])
   (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
            (javafx.beans.property SimpleStringProperty)
            (javafx.scene Parent)
@@ -39,11 +40,7 @@
   (reset! *pending {:clear? true :entries []}))
 
 (defn- flip-pending! []
-  (let [*unconsumed (volatile! nil)]
-    (swap! *pending (fn [pending]
-                      (vreset! *unconsumed pending)
-                      {:clear? false :entries []}))
-    @*unconsumed))
+  (preset! *pending {:clear? false :entries []}))
 
 (defn show! [view-node]
   (let [canvas (g/node-value view-node :canvas)

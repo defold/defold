@@ -1741,8 +1741,7 @@
         maybe-row))))
 
 (defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node]
-  (.bind (.visibleProperty goto-line-bar) (Bindings/equal (name :goto-line) bar-ui-type-property))
-  (.bind (.managedProperty goto-line-bar) (.visibleProperty goto-line-bar))
+  (ui/bind-presence! goto-line-bar (Bindings/equal (name :goto-line) bar-ui-type-property))
   (ui/with-controls goto-line-bar [^TextField line-field ^Button go-button]
     (ui/bind-keys! goto-line-bar {KeyCode/ENTER :goto-entered-line})
     (ui/bind-action! go-button :goto-entered-line)
@@ -1791,9 +1790,8 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- setup-find-bar! [^GridPane find-bar view-node]
-  (.bind (.visibleProperty find-bar) (Bindings/equal (name :find) bar-ui-type-property))
-  (.bind (.managedProperty find-bar) (.visibleProperty find-bar))
   (doto find-bar
+    (ui/bind-presence! (Bindings/equal (name :find) bar-ui-type-property))
     (ui/context! :code-view-find-bar {:find-bar find-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
@@ -1816,9 +1814,8 @@
     (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
-  (.bind (.visibleProperty replace-bar) (Bindings/equal (name :replace) bar-ui-type-property))
-  (.bind (.managedProperty replace-bar) (.visibleProperty replace-bar))
   (doto replace-bar
+    (ui/bind-presence! (Bindings/equal (name :replace) bar-ui-type-property))
     (ui/context! :code-view-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
