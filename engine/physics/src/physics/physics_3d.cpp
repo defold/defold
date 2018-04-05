@@ -132,6 +132,8 @@ namespace dmPhysics
         m_DynamicsWorld->setGravity(btVector3(context->m_Gravity.getX(), context->m_Gravity.getY(), context->m_Gravity.getZ()));
         m_DynamicsWorld->setDebugDrawer(&m_DebugDraw);
 
+        m_DynamicsWorld->getPairCache()->setInternalGhostPairCallback(new btGhostPairCallback());
+
         m_GetWorldTransform = params.m_GetWorldTransformCallback;
         m_SetWorldTransform = params.m_SetWorldTransformCallback;
 
@@ -985,6 +987,17 @@ namespace dmPhysics
         }
     }
 
+    struct CallbackType2 : public btCollisionWorld::ContactResultCallback
+    {
+        virtual btScalar addSingleResult(btManifoldPoint& pt, const btCollisionObject* object_a, int part_id_a, int part_index_a,
+                                                              const btCollisionObject* object_b, int part_id_b, int part_index_b)
+        {
+dmLogWarning("CallbackType2: posOnA %f, %f, %f   posOnB %f, %f, %f   distance: %f", pt.getPositionWorldOnA().getX(), pt.getPositionWorldOnA().getY(), pt.getPositionWorldOnA().getZ(),
+                pt.getPositionWorldOnB().getX(), pt.getPositionWorldOnB().getY(), pt.getPositionWorldOnB().getZ(),
+                pt.getDistance());
+        }
+    };
+
     struct DMContactResultCallback : public btCollisionWorld::ContactResultCallback
     {
         ContactPointTestCallback    m_Callback;
@@ -994,17 +1007,23 @@ namespace dmPhysics
         float                       m_ObjectMass;   // The mass of the object we're temporarily using
         float                       m_InvScale;     // The inverse scale of the world
 
+        btCollisionWorld*           m_World;
+
         virtual btScalar addSingleResult(btManifoldPoint& pt, const btCollisionObject* object_a, int part_id_a, int part_index_a,
                                                               const btCollisionObject* object_b, int part_id_b, int part_index_b)
         {
             // Don't collide with itself!
             if (m_Object == object_a || m_Object == object_b)
             {
-                return 1.0f;
+                dmLogWarning("Skipped colliding with 'myself'!");
+                return 0.0f;
             }
 
             const btRigidBody* body_a = btRigidBody::upcast(object_a);
             const btRigidBody* body_b = btRigidBody::upcast(object_b);
+
+            CallbackType2 cbk2;
+            m_World->contactPairTest(const_cast<btCollisionObject*>(object_a), const_cast<btCollisionObject*>(object_b), cbk2);
 
             ContactPoint point;
 
@@ -1036,20 +1055,23 @@ namespace dmPhysics
                 // Our test object
                 FromBt(pt.getPositionWorldOnB(), point.m_PositionA, m_InvScale);
                 point.m_UserDataA = object_b->getUserPointer();
-                point.m_GroupA = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
+                point.m_GroupA = point.m_GroupB;//object_b->getBroadphaseHandle()->m_collisionFilterGroup;
                 point.m_MassA = m_ObjectMass;
                 const btVector3& normal = pt.m_normalWorldOnB;
                 FromBt(normal, point.m_Normal, -1.0f); // Don't scale normals
             }
 
+dmLogWarning("P3D: bodyA: %p   bodyB: %p     flip: %d", body_a, body_b, flip_objects);
+dmLogWarning("P3D: posOnA %f, %f, %f   posOnB %f, %f, %f   ", pt.getPositionWorldOnA().getX(), pt.getPositionWorldOnA().getY(), pt.getPositionWorldOnA().getZ(),
+                pt.getPositionWorldOnB().getX(), pt.getPositionWorldOnB().getY(), pt.getPositionWorldOnB().getZ());
             point.m_Distance = -pt.getDistance() * m_InvScale;
 
             m_Callback(point, m_CallbackContext);
-            return 1.0f;
+            return 0.0f;
         }
     };
 
-    void ContactPointTest3D(HContext3D context, HWorld3D world, HCollisionObject3D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx)
+    void ContactPointTest3DInternal(HContext3D context, HWorld3D world, HCollisionObject3D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx)
     {
         btTransform transform;
         btVector3 origin;
@@ -1060,12 +1082,12 @@ namespace dmPhysics
         btCollisionObject* btobject = GetCollisionObject(object);
         btCollisionShape* shape = btobject->getCollisionShape();
 
-        btPairCachingGhostObject ghost;
+dmLogWarning("P3D: pos: %f, %f, %f   rot: %f, %f, %f, %f", origin.getX(),origin.getY(),origin.getZ(),
+            rotation.getX(),rotation.getY(),rotation.getZ(),rotation.getW());
+
+        btGhostObject ghost;
         ghost.setCollisionShape(shape);
         ghost.setWorldTransform(transform);
-
-        world->m_DynamicsWorld->addCollisionObject(&ghost);
-        ghost.getBroadphaseHandle()->m_collisionFilterGroup = btobject->getBroadphaseHandle()->m_collisionFilterGroup;
 
         DMContactResultCallback contact_callback;
         contact_callback.m_Callback = callback;
@@ -1074,8 +1096,92 @@ namespace dmPhysics
         contact_callback.m_Object = btobject;
         contact_callback.m_Ghost = &ghost;
         contact_callback.m_ObjectMass = GetMass3D(object);
+
+        contact_callback.m_World = world->m_DynamicsWorld;
+
         world->m_DynamicsWorld->contactTest(&ghost, contact_callback);
+    }
+
+    void ContactPointTest3DInternal2(HContext3D context, HWorld3D world, HCollisionObject3D object, const Vectormath::Aos::Point3 &position, const Vectormath::Aos::Quat &rotation, ContactPointTestCallback callback, void *user_ctx)
+    {
+        btTransform transform;
+        btVector3 origin;
+        ToBt(position, origin, context->m_Scale);
+        transform.setOrigin(origin);
+        transform.setRotation(btQuaternion(rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW()));
+
+        btCollisionObject* btobject = GetCollisionObject(object);
+        btCollisionShape* shape = btobject->getCollisionShape();
+
+        dmLogWarning("P3D: pos: %f, %f, %f   rot: %f, %f, %f, %f", origin.getX(), origin.getY(), origin.getZ(),
+                     rotation.getX(), rotation.getY(), rotation.getZ(), rotation.getW());
+
+        btPairCachingGhostObject ghost;
+        ghost.setCollisionShape(shape);
+        ghost.setWorldTransform(transform);
+
+        world->m_DynamicsWorld->addCollisionObject(&ghost);
+        ghost.getBroadphaseHandle()->m_collisionFilterGroup = btobject->getBroadphaseHandle()->m_collisionFilterGroup;
+
+        world->m_DynamicsWorld->updateSingleAabb(&ghost);
+        //world->m_DynamicsWorld->updateAabbs();
+
+        //world->m_DynamicsWorld->stepSimulation(0.01f, 1);
+        world->m_DynamicsWorld->performDiscreteCollisionDetection();
+
+        btManifoldArray manifoldArray;
+        btBroadphasePairArray &pairArray = ghost.getOverlappingPairCache()->getOverlappingPairArray();
+        int numPairs = pairArray.size();
+
+        for (int i = 0; i < numPairs; ++i)
+        {
+            manifoldArray.clear();
+
+            const btBroadphasePair &pair = pairArray[i];
+
+            btBroadphasePair *collisionPair = world->m_DynamicsWorld->getPairCache()->findPair(pair.m_pProxy0, pair.m_pProxy1);
+
+            if (!collisionPair)
+                continue;
+
+            if (collisionPair->m_algorithm)
+                collisionPair->m_algorithm->getAllContactManifolds(manifoldArray);
+
+            for (int j = 0; j < manifoldArray.size(); j++)
+            {
+                btPersistentManifold *manifold = manifoldArray[j];
+
+                bool isFirstBody = manifold->getBody0() == &ghost;
+
+                btScalar direction = isFirstBody ? btScalar(-1.0) : btScalar(1.0);
+
+                for (int p = 0; p < manifold->getNumContacts(); ++p)
+                {
+                    const btManifoldPoint &pt = manifold->getContactPoint(p);
+
+                    if (pt.getDistance() < 0.f)
+                    {
+                        const btVector3 &ptA = pt.getPositionWorldOnA();
+                        const btVector3 &ptB = pt.getPositionWorldOnB();
+                        const btVector3 &normalOnB = pt.m_normalWorldOnB;
+
+                        // handle collisions here
+                        dmLogWarning("HELLO I GOT A CONTACT");
+                    }
+                }
+            }
+        }
 
         world->m_DynamicsWorld->removeCollisionObject(&ghost);
     }
+
+    void ContactPointTest3D(HContext3D context, HWorld3D world, HCollisionObject3D object, const Vectormath::Aos::Point3& position, const Vectormath::Aos::Quat& rotation, ContactPointTestCallback callback, void* user_ctx)
+    {
+        Vectormath::Aos::Point3 origin;
+        origin = Vectormath::Aos::Point3(-1.3815783262253f, 1.3026319742203f, 0);
+        ContactPointTest3DInternal(context, world, object, origin, rotation, callback, user_ctx);
+        origin = Vectormath::Aos::Point3(-1.4315782785416f, 1.3026319742203f, 0);
+        ContactPointTest3DInternal(context, world, object, origin, rotation, callback, user_ctx);
+    }
+
 }
