@@ -261,7 +261,7 @@ namespace dmGameSystem
             prop_buffer = &(buffer[msg_size]);
             prop_buffer_size -= msg_size;
         }
-        if (top >= 4)
+        if (top >= 4 && !lua_isnil(L, 4))
         {
             actual_prop_buffer_size = dmScript::CheckTable(L, (char*)prop_buffer, prop_buffer_size, 4);
             if (actual_prop_buffer_size > prop_buffer_size)

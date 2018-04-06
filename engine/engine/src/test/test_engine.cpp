@@ -274,6 +274,7 @@ int main(int argc, char **argv)
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
+    dmHashEnableReverseHash(true);
 
     int ret = RUN_ALL_TESTS();
     dmProfile::Finalize();
