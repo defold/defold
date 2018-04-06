@@ -1210,10 +1210,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     _glfwInput.AccZ = acceleration.z;
 }
 
-- (BOOL) prefersStatusBarHidden {
-    return YES;
-}
-
 - (UIRectEdge)preferredScreenEdgesDeferringSystemGestures {
     return UIRectEdgeAll;
 }
