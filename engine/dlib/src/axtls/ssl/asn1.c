@@ -40,6 +40,8 @@
 #include <axtls/crypto/crypto.h>
 #include <axtls/ssl/crypto_misc.h>
 
+namespace dmAxTls {
+
 /* 1.2.840.113549.1.1 OID prefix - handle the following */
 /* md5WithRSAEncryption(4) */
 /* sha1WithRSAEncryption(5) */
@@ -773,3 +775,5 @@ int asn1_signature_type(const uint8_t *cert,
 end_check_sig:
     return ret;
 }
+
+} // namespace
