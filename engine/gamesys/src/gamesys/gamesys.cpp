@@ -201,7 +201,7 @@ namespace dmGameSystem
         REGISTER_COMPONENT_TYPE("guic", 300, gui_context,
                 CompGuiNewWorld, CompGuiDeleteWorld,
                 CompGuiCreate, CompGuiDestroy, CompGuiInit, CompGuiFinal, CompGuiAddToUpdate, 0,
-                CompGuiUpdate, CompGuiRender, 0, CompGuiOnMessage, CompGuiOnInput, CompGuiOnReload, 0, 0,
+                CompGuiUpdate, CompGuiRender, 0, CompGuiOnMessage, CompGuiOnInput, CompGuiOnReload, CompGuiGetProperty, CompGuiSetProperty,
                 0);
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,

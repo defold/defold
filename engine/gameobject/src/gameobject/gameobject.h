@@ -1081,6 +1081,14 @@ namespace dmGameObject
     dmResource::HFactory GetFactory(HCollection collection);
 
     /**
+     * Retrieve a factory from the specified instance
+     * Convenience for GetFactory(GetCollection(instance)).
+     * @param instance Game object instance
+     * @return The resource factory bound to the specified instance, via its collection
+     */
+    dmResource::HFactory GetFactory(HInstance instance);
+
+    /**
      * Retrieve a register from the specified collection
      * @param collection Game object collection
      * @return The register bound to the specified collection

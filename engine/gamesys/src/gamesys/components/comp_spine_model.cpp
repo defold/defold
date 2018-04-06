@@ -215,19 +215,26 @@ namespace dmGameSystem
         }
     }
 
+    static inline dmRender::HMaterial GetMaterial(const SpineModelComponent* component, const SpineModelResource* resource) {
+        return component->m_Material ? component->m_Material : resource->m_Material;
+    }
+
     static void ReHash(SpineModelComponent* component)
     {
-        // Hash resource-ptr, material-handle, blend mode and render constants
+        // material, texture set, blend mode and render constants
         HashState32 state;
         bool reverse = false;
         SpineModelResource* resource = component->m_Resource;
         dmGameSystemDDF::SpineModelDesc* ddf = resource->m_Model;
+        dmRender::HMaterial material = GetMaterial(component, resource);
+        TextureSetResource* texture_set = resource->m_RigScene->m_TextureSet;
         dmHashInit32(&state, reverse);
+        dmHashUpdateBuffer32(&state, material, sizeof(material));
+        dmHashUpdateBuffer32(&state, texture_set, sizeof(texture_set));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
-        HashRenderTextures(&component->m_RenderTextures, &state);
-        HashRenderMaterial(&component->m_RenderMaterial, &state);
         ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
+        component->m_ReHash = 0;
     }
 
     static bool CreateGOBones(SpineModelWorld* world, SpineModelComponent* component)
@@ -364,16 +371,7 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
-        component->m_RenderTextures.Init(factory);
-        for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            SetRenderTexture(&component->m_RenderTextures, i, component->m_Resource->m_Textures[i]);
-        }
-        component->m_RenderMaterial.Init(factory);
-        SetRenderMaterial(&component->m_RenderMaterial, component->m_Resource->m_Material);
-
-        ReHash(component);
+        component->m_ReHash = 1;
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -400,8 +398,9 @@ namespace dmGameSystem
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
         uint32_t index = *params.m_UserData;
         SpineModelComponent* component = world->m_Components.Get(index);
-        ClearRenderMaterial(&component->m_RenderMaterial);
-        ClearRenderTextures(&component->m_RenderTextures);
+        if (component->m_Material) {
+            dmResource::Release(dmGameObject::GetFactory(params.m_Instance), (void*)component->m_Material);
+        }
         DestroyComponent(world, index);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -445,10 +444,8 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
-        ro.m_Material = first->m_RenderMaterial.m_Material;
+        ro.m_Material = GetMaterial(first, first->m_Resource);
         ro.m_WorldTransform = first->m_World;
-
-        ApplyRenderTextures(&first->m_RenderTextures, &ro);
 
         const dmRender::Constant* constants = first->m_RenderConstants.m_Constants;
         uint32_t size = first->m_RenderConstants.m_ConstantCount;
@@ -543,7 +540,7 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            bool rehash = component.m_RenderTextures.m_InvalidHash | component.m_RenderMaterial.m_InvalidHash;
+            bool rehash = component.m_ReHash;
             if(!rehash)
             {
                 uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
@@ -626,7 +623,7 @@ namespace dmGameSystem
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &component;
             write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_RenderMaterial.m_Material);
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(GetMaterial(&component, component.m_Resource));
             write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
@@ -645,8 +642,8 @@ namespace dmGameSystem
     static void CompSpineModelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         SpineModelComponent* component = (SpineModelComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, component->m_RenderMaterial.m_Material, name_hash, element_index, var);
-        ReHash(component);
+        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        component->m_ReHash = 1;
     }
 
     dmGameObject::UpdateResult CompSpineModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -680,7 +677,7 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetConstantSpineModel::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::SetConstantSpineModel* ddf = (dmGameSystemDDF::SetConstantSpineModel*)params.m_Message->m_Data;
-                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(component->m_RenderMaterial.m_Material, ddf->m_NameHash,
+                dmGameObject::PropertyResult result = dmGameSystem::SetMaterialConstant(GetMaterial(component, component->m_Resource), ddf->m_NameHash,
                         dmGameObject::PropertyVar(ddf->m_Value), CompSpineModelSetConstantCallback, component);
                 if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
                 {
@@ -704,7 +701,7 @@ namespace dmGameSystem
                         constants[i] = constants[size - 1];
                         component->m_RenderConstants.m_PrevConstants[i] = component->m_RenderConstants.m_PrevConstants[size - 1];
                         component->m_RenderConstants.m_ConstantCount--;
-                        ReHash(component);
+                        component->m_ReHash = 1;
                         break;
                     }
                 }
@@ -766,7 +763,7 @@ namespace dmGameSystem
             return false;
         }
 
-        ReHash(component);
+        component->m_ReHash = 1;
 
         return true;
     }
@@ -806,14 +803,10 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return GetComponentMaterial(&component->m_RenderMaterial, out_value);
+            dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), material, out_value);
         }
-        dmGameObject::PropertyResult result = GetComponentTexture(&component->m_RenderTextures, params.m_PropertyId, out_value);
-        if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
-        {
-            result = GetMaterialConstant(component->m_RenderMaterial.m_Material, params.m_PropertyId, out_value, true, CompSpineModelGetConstantCallback, component);
-        }
-        return result;
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, out_value, true, CompSpineModelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompSpineModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -861,14 +854,11 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            return SetComponentMaterial(&component->m_RenderMaterial, params.m_Value);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+            return res;
         }
-        dmGameObject::PropertyResult result = SetComponentTexture(&component->m_RenderTextures, params.m_PropertyId, params.m_Value);
-        if (result == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
-        {
-            result = SetMaterialConstant(component->m_RenderMaterial.m_Material, params.m_PropertyId, params.m_Value, CompSpineModelSetConstantCallback, component);
-        }
-        return result;
+        return SetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, params.m_Value, CompSpineModelSetConstantCallback, component);
     }
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)

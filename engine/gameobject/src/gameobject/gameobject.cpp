@@ -2463,6 +2463,11 @@ namespace dmGameObject
             return 0x0;
     }
 
+    dmResource::HFactory GetFactory(HInstance instance)
+    {
+        return instance->m_Collection->m_Factory;
+    }
+
     HRegister GetRegister(HCollection collection)
     {
         if (collection != 0x0)

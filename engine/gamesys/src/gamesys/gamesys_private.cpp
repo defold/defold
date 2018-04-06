@@ -8,20 +8,6 @@ namespace dmGameSystem
 {
     using namespace Vectormath::Aos;
 
-    const dmhash_t PROP_TEXTURESET = dmHashString64("textureset");
-    const dmhash_t PROP_MATERIAL = dmHashString64("material");
-
-    static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
-        dmHashString64("texture0"),
-        dmHashString64("texture1"),
-        dmHashString64("texture2"),
-        dmHashString64("texture3"),
-        dmHashString64("texture4"),
-        dmHashString64("texture5"),
-        dmHashString64("texture6"),
-        dmHashString64("texture7")
-    };
-
     void LogMessageError(dmMessage::Message* message, const char* format, ...)
     {
         va_list lst;

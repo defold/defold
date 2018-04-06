@@ -1,0 +1,32 @@
+image: "/tile/mario_tileset.png"
+tile_width: 32
+tile_height: 32
+tile_margin: 0
+tile_spacing: 1
+collision: "/tile/mario_tileset.png"
+material_tag: "tile"
+convex_hulls {
+  index: 0
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 4
+  count: 4
+  collision_group: ""
+}
+convex_hulls {
+  index: 8
+  count: 5
+  collision_group: ""
+}
+convex_hulls {
+  index: 13
+  count: 8
+  collision_group: ""
+}
+animations {
+  id: "anim"
+  start_tile: 1
+  end_tile: 1
+}

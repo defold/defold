@@ -360,7 +360,6 @@ namespace dmGameSystem
 
         bool result = true;
 
-        dmGui::SetMaterial(scene, scene_resource->m_Material);
         dmGui::SetSceneAdjustReference(scene, (dmGui::AdjustReference)scene_desc->m_AdjustReference);
 
         for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
@@ -531,7 +530,9 @@ namespace dmGameSystem
         dmGuiDDF::SceneDesc* scene_desc = scene_resource->m_SceneDesc;
 
         GuiComponent* gui_component = new GuiComponent();
+        gui_component->m_Resource = scene_resource;
         gui_component->m_Instance = params.m_Instance;
+        gui_component->m_Material = 0;
         gui_component->m_ComponentIndex = params.m_ComponentIndex;
         gui_component->m_Enabled = 1;
         gui_component->m_AddedToUpdate = 0;
@@ -576,6 +577,9 @@ namespace dmGameSystem
         {
             if (gui_world->m_Components[i] == gui_component)
             {
+                if (gui_component->m_Material) {
+                    dmResource::Release(dmGameObject::GetFactory(params.m_Instance), gui_component->m_Material);
+                }
                 dmGui::DeleteScene(gui_component->m_Scene);
                 delete gui_component;
                 gui_world->m_Components.EraseSwap(i);
@@ -614,6 +618,7 @@ namespace dmGameSystem
     struct RenderGuiContext
     {
         dmRender::HRenderContext    m_RenderContext;
+        dmRender::HMaterial         m_Material;
         GuiWorld*                   m_GuiWorld;
 
         // This order value is increased during rendering for each
@@ -814,7 +819,7 @@ namespace dmGameSystem
         ro.m_VertexBuffer = gui_world->m_VertexBuffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
+        ro.m_Material = gui_context->m_Material;
         ro.m_Textures[0] = (dmGraphics::HTexture)first_emitter_render_data->m_Texture;
 
         // Offset capacity to fit vertices for all emitters we are about to render
@@ -929,7 +934,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = vertex_count;
-        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
+        ro.m_Material = gui_context->m_Material;
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
@@ -1006,7 +1011,7 @@ namespace dmGameSystem
         ro.m_VertexBuffer = gui_world->m_VertexBuffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
-        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
+        ro.m_Material = gui_context->m_Material;
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);
@@ -1227,7 +1232,7 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLE_STRIP;
         ro.m_VertexStart = gui_world->m_ClientVertexBuffer.Size();
         ro.m_VertexCount = 0;
-        ro.m_Material = (dmRender::HMaterial) dmGui::GetMaterial(scene);
+        ro.m_Material = gui_context->m_Material;
 
         // Set default texture
         void* texture = dmGui::GetNodeTexture(scene, first_node);
@@ -1662,6 +1667,10 @@ namespace dmGameSystem
         }
     }
 
+    static inline dmRender::HMaterial GetMaterial(GuiComponent* component, GuiSceneResource* resource) {
+        return component->m_Material ? component->m_Material : resource->m_Material;
+    }
+
     dmGameObject::UpdateResult CompGuiRender(const dmGameObject::ComponentsRenderParams& params)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
@@ -1705,6 +1714,7 @@ namespace dmGameSystem
                 continue;
 
             // Render scene and see how many render objects it added, then we add those individually.
+            render_gui_context.m_Material = GetMaterial(c, c->m_Resource);
             dmGui::RenderScene(c->m_Scene, rp, &render_gui_context);
             const uint32_t count = gui_world->m_GuiRenderObjects.Size() - lastEnd;
 
@@ -1869,5 +1879,21 @@ namespace dmGameSystem
         out_metrics->m_Height = metrics.m_Height;
         out_metrics->m_MaxAscent = metrics.m_MaxAscent;
         out_metrics->m_MaxDescent = metrics.m_MaxDescent;
+    }
+
+    dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value) {
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
+        if (params.m_PropertyId == PROP_MATERIAL) {
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(gui_component, gui_component->m_Resource), out_value);
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+    }
+
+    dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params) {
+        GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
+        if (params.m_PropertyId == PROP_MATERIAL) {
+            return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&gui_component->m_Material);
+        }
+        return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
     }
 }

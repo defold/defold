@@ -48,7 +48,8 @@ namespace dmGameSystem
         dmhash_t                    m_ListenerComponent;
         LabelResource*              m_Resource;
         CompRenderConstants         m_RenderConstants;
-        CompRenderMaterial          m_RenderMaterial;
+        dmRender::HMaterial         m_Material;
+        dmRender::HFontMap          m_FontMap;
 
         const char*                 m_Text;
 
@@ -56,7 +57,8 @@ namespace dmGameSystem
         uint16_t                    m_Enabled : 1;
         uint16_t                    m_AddedToUpdate : 1;
         uint16_t                    m_UserAllocatedText : 1;
-        uint16_t                    m_Padding : 5;
+        uint16_t                    m_ReHash : 1;
+        uint16_t                    m_Padding : 4;
     };
 
     struct LabelWorld
@@ -102,6 +104,14 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    static inline dmRender::HMaterial GetMaterial(LabelComponent* component, LabelResource* resource) {
+        return component->m_Material ? component->m_Material : resource->m_Material;
+    }
+
+    static inline dmRender::HFontMap GetFontMap(LabelComponent* component, LabelResource* resource) {
+        return component->m_FontMap ? component->m_FontMap : resource->m_FontMap;
+    }
+
     void ReHash(LabelComponent* component)
     {
         // Hash resource-ptr, material-handle, blend mode and render constants
@@ -109,18 +119,21 @@ namespace dmGameSystem
         bool reverse = false;
         LabelResource* resource = component->m_Resource;
         dmGameSystemDDF::LabelDesc* ddf = resource->m_DDF;
-        dmHashInit32(&state, reverse);
+        dmRender::HMaterial material = GetMaterial(component, resource);
+        dmRender::HFontMap font_map = GetFontMap(component, resource);
 
-        dmHashUpdateBuffer32(&state, &resource->m_FontMap, sizeof(resource->m_FontMap));
+        dmHashInit32(&state, reverse);
+        dmHashUpdateBuffer32(&state, &material, sizeof(material));
+        dmHashUpdateBuffer32(&state, &font_map, sizeof(font_map));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
         dmHashUpdateBuffer32(&state, &ddf->m_Color, sizeof(ddf->m_Color));
         dmHashUpdateBuffer32(&state, &ddf->m_Outline, sizeof(ddf->m_Outline));
         dmHashUpdateBuffer32(&state, &ddf->m_Shadow, sizeof(ddf->m_Shadow));
 
-        HashRenderMaterial(&component->m_RenderMaterial, &state);
         ReHashRenderConstants(&component->m_RenderConstants, &state);
 
         component->m_MixedHash = dmHashFinal32(&state);
+        component->m_ReHash = 0;
     }
 
     /** Taken from gui_private.h
@@ -204,11 +217,7 @@ namespace dmGameSystem
         component->m_Enabled = 1;
         component->m_Text = ddf->m_Text;
         component->m_UserAllocatedText = 0;
-        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
-        component->m_RenderMaterial.Init(factory);
-        SetRenderMaterial(&component->m_RenderMaterial, component->m_Resource->m_Material);
-
-        ReHash(component);
+        component->m_ReHash = 1;
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -225,7 +234,13 @@ namespace dmGameSystem
             component.m_UserAllocatedText = 0;
             free((void*)component.m_Text);
         }
-        ClearRenderMaterial(&component.m_RenderMaterial);
+        dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Collection);
+        if (component.m_Material) {
+            dmResource::Release(factory, component.m_Material);
+        }
+        if (component.m_FontMap) {
+            dmResource::Release(factory, component.m_FontMap);
+        }
         world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -387,7 +402,7 @@ namespace dmGameSystem
             if (!component->m_Enabled || !component->m_AddedToUpdate)
                 continue;
 
-            bool rehash = component->m_RenderMaterial.m_InvalidHash;
+            bool rehash = component->m_ReHash;
             if(!rehash)
             {
                 uint32_t const_count = component->m_RenderConstants.m_ConstantCount;
@@ -411,7 +426,9 @@ namespace dmGameSystem
             assert( component->m_RenderConstants.m_ConstantCount <= dmRender::MAX_FONT_RENDER_CONSTANTS );
             params.m_NumRenderConstants = component->m_RenderConstants.m_ConstantCount;
             memcpy( params.m_RenderConstants, component->m_RenderConstants.m_Constants, params.m_NumRenderConstants * sizeof(dmRender::Constant));
-            dmRender::DrawText(render_context, component->m_Resource->m_FontMap, component->m_RenderMaterial.m_Material, component->m_MixedHash, params);
+
+            LabelResource* resource = component->m_Resource;
+            dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, params);
         }
 
         dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_WORLD, 0, false);
@@ -427,8 +444,8 @@ namespace dmGameSystem
     static void CompLabelSetConstantCallback(void* user_data, dmhash_t name_hash, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         LabelComponent* component = (LabelComponent*)user_data;
-        SetRenderConstant(&component->m_RenderConstants, component->m_RenderMaterial.m_Material, name_hash, element_index, var);
-        ReHash(component);
+        SetRenderConstant(&component->m_RenderConstants, GetMaterial(component, component->m_Resource), name_hash, element_index, var);
+        component->m_ReHash = 1;
     }
 
     dmGameObject::UpdateResult CompLabelOnMessage(const dmGameObject::ComponentOnMessageParams& params)
@@ -516,9 +533,13 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_MATERIAL)
         {
-            return GetComponentMaterial(&component->m_RenderMaterial, out_value);
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetMaterial(component, component->m_Resource), out_value);
         }
-        return GetMaterialConstant(component->m_RenderMaterial.m_Material, get_property, out_value, false, CompLabelGetConstantCallback, component);
+        else if (get_property == PROP_FONT)
+        {
+            return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetFontMap(component, component->m_Resource), out_value);
+        }
+        return GetMaterialConstant(GetMaterial(component, component->m_Resource), get_property, out_value, false, CompLabelGetConstantCallback, component);
     }
 
     dmGameObject::PropertyResult CompLabelSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
@@ -549,8 +570,16 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_MATERIAL)
         {
-            return SetComponentMaterial(&component->m_RenderMaterial, params.m_Value);
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+            return res;
         }
-        return SetMaterialConstant(component->m_RenderMaterial.m_Material, set_property, params.m_Value, CompLabelSetConstantCallback, component);
+        else if (set_property == PROP_FONT)
+        {
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, FONT_EXT_HASH, (void**)&component->m_FontMap);
+            component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
+            return res;
+        }
+        return SetMaterialConstant(GetMaterial(component, component->m_Resource), set_property, params.m_Value, CompLabelSetConstantCallback, component);
     }
 }
