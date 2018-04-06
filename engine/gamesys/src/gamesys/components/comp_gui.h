@@ -12,10 +12,14 @@ namespace dmGameSystem
 {
     extern dmRender::HRenderType g_GuiRenderType;
 
+    struct GuiSceneResource;
+
     struct GuiComponent
     {
+        GuiSceneResource*       m_Resource;
         dmGui::HScene           m_Scene;
         dmGameObject::HInstance m_Instance;
+        dmRender::HMaterial     m_Material;
         uint16_t                m_ComponentIndex;
         uint8_t                 m_Enabled : 1;
         uint8_t                 m_AddedToUpdate : 1;
@@ -101,6 +105,10 @@ namespace dmGameSystem
     dmGameObject::InputResult CompGuiOnInput(const dmGameObject::ComponentOnInputParams& params);
 
     void CompGuiOnReload(const dmGameObject::ComponentOnReloadParams& params);
+
+    dmGameObject::PropertyResult CompGuiGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+
+    dmGameObject::PropertyResult CompGuiSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 }
 
 #endif // DM_GAMESYS_COMP_GUI_H

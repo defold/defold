@@ -232,6 +232,50 @@ dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObje
     return result;
 }
 
+dmGameObject::PropertyResult GetResourceProperty(dmResource::HFactory factory, void* resource, dmGameObject::PropertyDesc& out_value)
+{
+    dmhash_t path;
+    dmResource::Result res = dmResource::GetPath(factory, resource, &path);
+    if (res == dmResource::RESULT_OK)
+    {
+        out_value.m_Variant = path;
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+    return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
+}
+
+dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, dmhash_t* exts, uint32_t ext_count, void** out_resource)
+{
+    if (value.m_Type != dmGameObject::PROPERTY_TYPE_HASH && value.m_Type != dmGameObject::PROPERTY_TYPE_RESOURCE) {
+        return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+    }
+    dmResource::SResourceDescriptor rd;
+    dmResource::Result res = dmResource::GetDescriptorWithExt(factory, value.m_Hash, exts, ext_count, &rd);
+    if (res == dmResource::RESULT_OK)
+    {
+        if (*out_resource != rd.m_Resource) {
+            dmResource::IncRef(factory, rd.m_Resource);
+            if (*out_resource) {
+                dmResource::Release(factory, *out_resource);
+            }
+            *out_resource = rd.m_Resource;
+        }
+        return dmGameObject::PROPERTY_RESULT_OK;
+    }
+    switch (res)
+    {
+    case dmResource::RESULT_INVALID_FILE_EXTENSION:
+        return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+    default:
+        return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
+    }
+}
+
+dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, dmhash_t ext, void** out_resource)
+{
+    return SetResourceProperty(factory, value, &ext, 1, out_resource);
+}
+
 bool GetRenderConstant(CompRenderConstants* constants, dmhash_t name_hash, dmRender::Constant** out_constant)
 {
     uint32_t count = constants->m_ConstantCount;
@@ -304,8 +348,8 @@ void ReHashRenderConstants(CompRenderConstants* constants, HashState32* state)
     for (uint32_t i = 0; i < constants->m_ConstantCount; ++i)
     {
         dmRender::Constant& c = constants->m_Constants[i];
-        dmHashUpdateBuffer32(state, &c.m_NameHash, sizeof(uint64_t));
-        dmHashUpdateBuffer32(state, &c.m_Value, sizeof(Vector4));
+        dmHashUpdateBuffer32(state, &c.m_NameHash, sizeof(c.m_NameHash));
+        dmHashUpdateBuffer32(state, &c.m_Value, sizeof(c.m_Value));
         constants->m_PrevConstants[i] = c.m_Value;
     }
 }

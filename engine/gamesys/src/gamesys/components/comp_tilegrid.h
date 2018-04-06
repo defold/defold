@@ -45,8 +45,8 @@ namespace dmGameSystem
         Vectormath::Aos::Matrix4    m_RenderWorldTransform;
         dmGameObject::HInstance     m_Instance;
         CompRenderConstants         m_RenderConstants;
-        CompRenderTextures          m_RenderTextures;
-        CompRenderMaterial          m_RenderMaterial;
+        dmRender::HMaterial         m_Material;
+        TextureSetResource*         m_TextureSet;
         TileGridResource*           m_TileGridResource;
         uint16_t*                   m_Cells;
         Flags*                      m_CellFlags;

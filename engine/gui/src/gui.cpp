@@ -718,16 +718,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
-    void SetMaterial(HScene scene, void* material)
-    {
-        scene->m_Material = material;
-    }
-
-    void* GetMaterial(HScene scene)
-    {
-        return scene->m_Material;
-    }
-
     Result AddLayer(HScene scene, const char* layer_name)
     {
         if (scene->m_Layers.Full())

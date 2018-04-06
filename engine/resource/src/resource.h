@@ -64,6 +64,7 @@ namespace dmResource
         RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
         RESULT_RESOURCE_LOOP_ERROR       = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
         RESULT_PENDING                   = -17,  //!< RESULT_PENDING
+        RESULT_INVALID_FILE_EXTENSION    = -18,  //!< RESULT_INVALID_FILE_EXTENSION
     };
 
     /**
@@ -504,6 +505,17 @@ namespace dmResource
      * @return RESULT_OK on success
      */
     Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
+
+    /**
+     * Get resource descriptor from resource (hash) with supplied extensions
+     * @param factory Factory handle
+     * @param hashed_name Resource name hash
+     * @param exts Allowed extension hashes
+     * @param ext_count Count of exts
+     * @param descriptor pointer to write result to in case of RESULT_OK
+     * @return RESULT_OK on success
+     */
+    Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor);
 
     /**
      * Get pointer to resource descriptor from resource (hash)

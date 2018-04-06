@@ -1495,6 +1495,34 @@ Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* de
     }
 }
 
+Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor)
+{
+    SResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(hashed_name);
+    if (tmp_descriptor)
+    {
+        SResourceType* type = (SResourceType*) tmp_descriptor->m_ResourceType;
+        bool ext_match = ext_count == 0;
+        if (!ext_match) {
+            for (uint32_t i = 0; i < ext_count; ++i) {
+                if (type->m_ExtensionHash == exts[i]) {
+                    ext_match = true;
+                    break;
+                }
+            }
+        }
+        if (ext_match) {
+            *descriptor = *tmp_descriptor;
+            return RESULT_OK;
+        } else {
+            return RESULT_INVALID_FILE_EXTENSION;
+        }
+    }
+    else
+    {
+        return RESULT_NOT_LOADED;
+    }
+}
+
 SResourceDescriptor* GetDescriptorRef(HFactory factory, uint64_t resource_hash)
 {
     SResourceDescriptor* rd = factory->m_Resources->Get(resource_hash);

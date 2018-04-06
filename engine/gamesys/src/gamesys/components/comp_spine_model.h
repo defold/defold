@@ -24,8 +24,7 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
         CompRenderConstants         m_RenderConstants;
-        CompRenderTextures          m_RenderTextures;
-        CompRenderMaterial          m_RenderMaterial;
+        dmRender::HMaterial         m_Material;
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
         uint16_t                    m_ComponentIndex;
@@ -34,6 +33,7 @@ namespace dmGameSystem
         uint8_t                     m_DoRender : 1;
         /// Added to update or not
         uint8_t                     m_AddedToUpdate : 1;
+        uint8_t                     m_ReHash : 1;
     };
 
     struct SpineModelWorld

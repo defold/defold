@@ -18,3 +18,7 @@ components {
   id: "label"
   component: "/resource/label.label"
 }
+components {
+  id: "gui"
+  component: "/gui/valid.gui"
+}

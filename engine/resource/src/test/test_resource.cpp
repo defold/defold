@@ -21,6 +21,15 @@ extern uint32_t RESOURCES_ARCD_SIZE;
 extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
+#define EXT_CONSTANTS(prefix, ext)\
+    static const char* prefix##_EXT = ext;\
+    static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
+
+    EXT_CONSTANTS(CONT, "cont")
+    EXT_CONSTANTS(FOO, "foo")
+
+#undef EXT_CONSTANTS
+
 class ResourceTest : public ::testing::Test
 {
 protected:
@@ -119,7 +128,7 @@ TEST_F(ResourceTest, RegisterType)
 TEST_F(ResourceTest, NotFound)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0);
+    e = dmResource::RegisterType(factory, FOO_EXT, 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
     void* resource = (void*) 0xdeadbeef;
     e = dmResource::Get(factory, "/DOES_NOT_EXISTS.foo", &resource);
@@ -180,10 +189,10 @@ protected:
         m_ResourceName = "/test.cont";
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, CONT_EXT, this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &FooResourceCreate, &FooResourcePostCreate, &FooResourceDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, FOO_EXT, this, 0, &FooResourceCreate, &FooResourcePostCreate, &FooResourceDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
@@ -467,7 +476,7 @@ TEST_P(GetResourceTest, GetDescriptor)
     desc = dmResource::GetDescriptorRef(m_Factory, canonical_path_hash);
     ASSERT_NE((void*) 0, desc);
     ASSERT_EQ((uint32_t) 2, desc->m_ReferenceCount);
-    dmhash_t extension_hash_1 = dmHashString64("cont");
+    dmhash_t extension_hash_1 = CONT_EXT_HASH;
     dmhash_t extension_hash_2 = dmResource::GetDescriptorExtension(desc);
     ASSERT_EQ(extension_hash_1, extension_hash_2);
     dmResource::Release(m_Factory, resource);
@@ -475,6 +484,54 @@ TEST_P(GetResourceTest, GetDescriptor)
     dmResource::Release(m_Factory, resource);
     desc = dmResource::GetDescriptorRef(m_Factory, canonical_path_hash);
     ASSERT_EQ((void*) 0, desc);
+}
+
+TEST_P(GetResourceTest, GetDescriptorWithExt)
+{
+    dmResource::Result e;
+
+    void* resource = (void*) 0;
+    e = dmResource::Get(m_Factory, m_ResourceName, &resource);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_NE((void*) 0, resource);
+    dmhash_t name_hash = dmHashString64(m_ResourceName);
+
+    dmResource::SResourceDescriptor descriptor;
+    // No exts means any ext
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, 0, 0, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+
+    // One ext
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &CONT_EXT_HASH, 1, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+
+    // Two exts
+    dmhash_t two_exts[] = {CONT_EXT_HASH, FOO_EXT_HASH};
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, two_exts, 2, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+
+    // Two exts, reversed order
+    dmhash_t two_exts_rev[] = {FOO_EXT_HASH, CONT_EXT_HASH};
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, two_exts_rev, 2, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
+    ASSERT_EQ(name_hash, descriptor.m_NameHash);
+
+    // No match
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &FOO_EXT_HASH, 1, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+
+    // No match, two exts
+    dmhash_t two_exts_inv[] = {FOO_EXT_HASH, 0};
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, two_exts_inv, 2, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_INVALID_FILE_EXTENSION, e);
+
+    dmResource::Release(m_Factory, resource);
+
+    e = dmResource::GetDescriptorWithExt(m_Factory, name_hash, &CONT_EXT_HASH, 1, &descriptor);
+    ASSERT_EQ(dmResource::RESULT_NOT_LOADED, e);
 }
 
 INSTANTIATE_TEST_CASE_P(GetResourceTestURI,
@@ -916,11 +973,11 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
-    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
+    e = dmResource::GetTypeFromExtension(factory, FOO_EXT, &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -989,11 +1046,11 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
-    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
+    e = dmResource::GetTypeFromExtension(factory, FOO_EXT, &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -1090,11 +1147,11 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
-    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
+    e = dmResource::GetTypeFromExtension(factory, FOO_EXT, &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testfilename__.foo";
@@ -1159,7 +1216,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -1211,7 +1268,7 @@ TEST(OverflowTest, OverflowTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     int* resource;
@@ -1240,9 +1297,9 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
         ASSERT_NE((void*) 0, m_Factory);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+        e = dmResource::RegisterType(m_Factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, CONT_EXT, this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         int* resource;
@@ -1352,7 +1409,7 @@ TEST(DynamicResources, GetPath)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;
@@ -1405,7 +1462,7 @@ TEST(DynamicResources, GetPath)
 TEST_F(DynamicResourceTest, Set)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;
@@ -1479,7 +1536,7 @@ TEST_F(DynamicResourceTest, Set)
 TEST_F(DynamicResourceTest, RefCount)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;

@@ -141,15 +141,20 @@ public:
     virtual ~DrawCountTest() {}
 };
 
-struct ResourcePropParams
-{
-    const char* go_path;
-    dmhash_t comp_same_1;
-    dmhash_t comp_same_2;
-    dmhash_t comp_different;
+struct ResourcePropParams {
+    const char* m_PropertyName;
+    const char* m_ResourcePath;
+    const char* m_ResourcePathNotFound;
+    const char* m_ResourcePathInvExt;
+    const char* m_Component0;
+    const char* m_Component1;
+    const char* m_Component2;
+    const char* m_Component3;
+    const char* m_Component4;
+    const char* m_Component5;
 };
 
-class TexturePropTest : public GamesysTest<ResourcePropParams>
+class ResourcePropTest : public GamesysTest<ResourcePropParams>
 {
 protected:
     void SetUp()
@@ -157,40 +162,7 @@ protected:
         GamesysTest::SetUp();
     }
 public:
-    virtual ~TexturePropTest() {}
-};
-
-class TextureSetPropTest : public GamesysTest<ResourcePropParams>
-{
-protected:
-    void SetUp()
-    {
-        GamesysTest::SetUp();
-    }
-public:
-    virtual ~TextureSetPropTest() {}
-};
-
-class MaterialPropTest : public GamesysTest<ResourcePropParams>
-{
-protected:
-    void SetUp()
-    {
-        GamesysTest::SetUp();
-    }
-public:
-    virtual ~MaterialPropTest() {}
-};
-
-class GetSetResourcePropTest : public GamesysTest<const char*>
-{
-protected:
-    void SetUp()
-    {
-        GamesysTest::SetUp();
-    }
-public:
-    virtual ~GetSetResourcePropTest() {}
+    virtual ~ResourcePropTest() {}
 };
 
 bool CopyResource(const char* src, const char* dst);
