@@ -1060,7 +1060,7 @@ static int send_raw_packet(SSL *ssl, uint8_t protocol)
     while (sent < pkt_size)
     {
         ret = SOCKET_WRITE(ssl->client_fd,
-                        &ssl->bm_all_data[sent], pkt_size-sent);
+                        (const char*)&ssl->bm_all_data[sent], pkt_size-sent);
 
         if (ret >= 0)
             sent += ret;
@@ -1304,7 +1304,7 @@ int basic_read(SSL *ssl, uint8_t **in_data)
     if (IS_SET_SSL_FLAG(SSL_SENT_CLOSE_NOTIFY))
         return SSL_CLOSE_NOTIFY;
 
-    read_len = SOCKET_READ(ssl->client_fd, &buf[ssl->bm_read_index],
+    read_len = SOCKET_READ(ssl->client_fd, (char*)&buf[ssl->bm_read_index],
                             ssl->need_bytes-ssl->got_bytes);
 
     if (read_len < 0)
