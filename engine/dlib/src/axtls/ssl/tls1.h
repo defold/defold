@@ -161,9 +161,9 @@ typedef struct
 
 typedef struct
 {
-    MD5_CTX md5_ctx;
-    SHA1_CTX sha1_ctx;
-    SHA256_CTX sha256_ctx;
+    DM_MD5_CTX md5_ctx;
+    DM_SHA1_CTX sha1_ctx;
+    DM_SHA256_CTX sha256_ctx;
     uint8_t client_random[SSL_RANDOM_SIZE]; /* client's random sequence */
     uint8_t server_random[SSL_RANDOM_SIZE]; /* server's random sequence */
     uint8_t final_finish_mac[128];
@@ -212,7 +212,7 @@ struct _SSL
     SSL_SESSION *session;
 #endif
 #ifdef CONFIG_SSL_CERT_VERIFICATION
-    X509_CTX *x509_ctx;
+    DM_X509_CTX *x509_ctx;
 #endif
 
     uint8_t session_id[SSL_SESSION_ID_SIZE];
@@ -230,9 +230,9 @@ struct _SSL_CTX
 {
     uint32_t options;
     uint8_t chain_length;
-    RSA_CTX *rsa_ctx;
+    DM_RSA_CTX *rsa_ctx;
 #ifdef CONFIG_SSL_CERT_VERIFICATION
-    CA_CERT_CTX *ca_cert_ctx;
+    DM_CA_CERT_CTX *ca_cert_ctx;
 #endif
     SSL *head;
     SSL *tail;
@@ -281,7 +281,7 @@ int pkcs12_decode(SSL_CTX *ssl_ctx, SSLObjLoader *ssl_obj, const char *password)
 int load_key_certs(SSL_CTX *ssl_ctx);
 #ifdef CONFIG_SSL_CERT_VERIFICATION
 int add_cert_auth(SSL_CTX *ssl_ctx, const uint8_t *buf, int len);
-void remove_ca_certs(CA_CERT_CTX *ca_cert_ctx);
+void remove_ca_certs(DM_CA_CERT_CTX *ca_cert_ctx);
 #endif
 #ifdef CONFIG_SSL_ENABLE_CLIENT
 int do_client_connect(SSL *ssl);
@@ -291,8 +291,8 @@ int do_client_connect(SSL *ssl);
 void DISPLAY_STATE(SSL *ssl, int is_send, uint8_t state, int not_ok);
 void DISPLAY_BYTES(SSL *ssl, const char *format,
         const uint8_t *data, int size, ...);
-void DISPLAY_CERT(SSL *ssl, const X509_CTX *x509_ctx);
-void DISPLAY_RSA(SSL *ssl,  const RSA_CTX *rsa_ctx);
+void DISPLAY_CERT(SSL *ssl, const DM_X509_CTX *x509_ctx);
+void DISPLAY_RSA(SSL *ssl,  const DM_RSA_CTX *rsa_ctx);
 void DISPLAY_ALERT(SSL *ssl, int alert);
 #else
 #define DISPLAY_STATE(A,B,C,D)
@@ -308,7 +308,7 @@ void DISPLAY_BYTES(SSL *ssl, const char *format,/* win32 has no variadic macros 
 #endif
 
 #ifdef CONFIG_SSL_CERT_VERIFICATION
-int process_certificate(SSL *ssl, X509_CTX **x509_ctx);
+int process_certificate(SSL *ssl, DM_X509_CTX **x509_ctx);
 #endif
 
 SSL_SESSION *ssl_session_update(int max_sessions,

@@ -103,7 +103,7 @@ static const uint8_t PADDING[64] =
 /**
  * MD5 initialization - begins an MD5 operation, writing a new ctx.
  */
-EXP_FUNC void STDCALL MD5_Init(MD5_CTX *ctx)
+EXP_FUNC void STDCALL DM_MD5_Init(DM_MD5_CTX *ctx)
 {
     ctx->count[0] = ctx->count[1] = 0;
 
@@ -118,7 +118,7 @@ EXP_FUNC void STDCALL MD5_Init(MD5_CTX *ctx)
 /**
  * Accepts an array of octets as the next portion of the message.
  */
-EXP_FUNC void STDCALL MD5_Update(MD5_CTX *ctx, const uint8_t * msg, int len)
+EXP_FUNC void STDCALL DM_MD5_Update(DM_MD5_CTX *ctx, const uint8_t * msg, int len)
 {
     uint32_t x;
     int i, partLen;
@@ -154,7 +154,7 @@ EXP_FUNC void STDCALL MD5_Update(MD5_CTX *ctx, const uint8_t * msg, int len)
 /**
  * Return the 128-bit message digest into the user's array
  */
-EXP_FUNC void STDCALL MD5_Final(uint8_t *digest, MD5_CTX *ctx)
+EXP_FUNC void STDCALL DM_MD5_Final(uint8_t *digest, DM_MD5_CTX *ctx)
 {
     uint8_t bits[8];
     uint32_t x, padLen;
@@ -166,10 +166,10 @@ EXP_FUNC void STDCALL MD5_Final(uint8_t *digest, MD5_CTX *ctx)
      */
     x = (uint32_t)((ctx->count[0] >> 3) & 0x3f);
     padLen = (x < 56) ? (56 - x) : (120 - x);
-    MD5_Update(ctx, PADDING, padLen);
+    DM_MD5_Update(ctx, PADDING, padLen);
 
     /* Append length (before padding) */
-    MD5_Update(ctx, bits, 8);
+    DM_MD5_Update(ctx, bits, 8);
 
     /* Store state in digest */
     Encode(digest, ctx->state, MD5_SIZE);

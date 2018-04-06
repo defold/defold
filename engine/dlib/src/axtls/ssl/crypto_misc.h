@@ -85,7 +85,7 @@ extern "C" {
 #define KEY_USAGE_ENCIPHER_ONLY             0x0001
 #define KEY_USAGE_DECIPHER_ONLY             0x8000
 
-struct _x509_ctx
+struct _DM_x509_ctx
 {
     char *ca_cert_dn[X509_NUM_DN_TYPES];
     char *cert_dn[X509_NUM_DN_TYPES];
@@ -93,7 +93,7 @@ struct _x509_ctx
     time_t not_before;
     time_t not_after;
     uint8_t *signature;
-    RSA_CTX *rsa_ctx;
+    DM_RSA_CTX *rsa_ctx;
     bigint *digest;
     uint16_t sig_len;
     uint8_t sig_type;
@@ -106,26 +106,26 @@ struct _x509_ctx
     bool basic_constraint_cA;
     int basic_constraint_pathLenConstraint;
     uint32_t key_usage;
-    struct _x509_ctx *next;
+    struct _DM_x509_ctx *next;
 };
 
-typedef struct _x509_ctx X509_CTX;
+typedef struct _DM_x509_ctx DM_X509_CTX;
 
 #ifdef CONFIG_SSL_CERT_VERIFICATION
 typedef struct
 {
-    X509_CTX *cert[CONFIG_X509_MAX_CA_CERTS];
-} CA_CERT_CTX;
+    DM_X509_CTX *cert[CONFIG_X509_MAX_CA_CERTS];
+} DM_CA_CERT_CTX;
 #endif
 
-int x509_new(const uint8_t *cert, int *len, X509_CTX **ctx);
-void x509_free(X509_CTX *x509_ctx);
+int x509_new(const uint8_t *cert, int *len, DM_X509_CTX **ctx);
+void x509_free(DM_X509_CTX *x509_ctx);
 #ifdef CONFIG_SSL_CERT_VERIFICATION
-int x509_verify(const CA_CERT_CTX *ca_cert_ctx, const X509_CTX *cert,
+int x509_verify(const DM_CA_CERT_CTX *ca_cert_ctx, const DM_X509_CTX *cert,
         int *pathLenConstraint);
 #endif
 #ifdef CONFIG_SSL_FULL_MODE
-void x509_print(const X509_CTX *cert, CA_CERT_CTX *ca_cert_ctx);
+void x509_print(const DM_X509_CTX *cert, DM_CA_CERT_CTX *ca_cert_ctx);
 const char * x509_display_error(int error);
 #endif
 
@@ -162,7 +162,7 @@ const char * x509_display_error(int error);
 #define SIG_TYPE_SHA512         0x0d
 
 uint32_t get_asn1_length(const uint8_t *buf, int *offset);
-int asn1_get_private_key(const uint8_t *buf, int len, RSA_CTX **rsa_ctx);
+int asn1_get_private_key(const uint8_t *buf, int len, DM_RSA_CTX **rsa_ctx);
 int asn1_next_obj(const uint8_t *buf, int *offset, int obj_type);
 int asn1_skip_obj(const uint8_t *buf, int *offset, int obj_type);
 int asn1_get_big_int(const uint8_t *buf, int *offset, uint8_t **object);
@@ -170,11 +170,11 @@ int asn1_get_int(const uint8_t *buf, int *offset, int32_t *val);
 int asn1_get_bool(const uint8_t *buf, int *offset, bool *val);
 int asn1_get_bit_string_as_int(const uint8_t *buf, int *offset, uint32_t *val);
 int asn1_version(const uint8_t *cert, int *offset, int *val);
-int asn1_validity(const uint8_t *cert, int *offset, X509_CTX *x509_ctx);
+int asn1_validity(const uint8_t *cert, int *offset, DM_X509_CTX *x509_ctx);
 int asn1_name(const uint8_t *cert, int *offset, char *dn[]);
-int asn1_public_key(const uint8_t *cert, int *offset, X509_CTX *x509_ctx);
+int asn1_public_key(const uint8_t *cert, int *offset, DM_X509_CTX *x509_ctx);
 #ifdef CONFIG_SSL_CERT_VERIFICATION
-int asn1_signature(const uint8_t *cert, int *offset, X509_CTX *x509_ctx);
+int asn1_signature(const uint8_t *cert, int *offset, DM_X509_CTX *x509_ctx);
 int asn1_compare_dn(char * const dn1[], char * const dn2[]);
 int asn1_is_subject_alt_name(const uint8_t *cert, int offset);
 int asn1_is_basic_constraints(const uint8_t *cert, int offset);
@@ -182,7 +182,7 @@ int asn1_is_key_usage(const uint8_t *cert, int offset);
 bool asn1_is_critical_ext(const uint8_t *buf, int *offset);
 #endif /* CONFIG_SSL_CERT_VERIFICATION */
 int asn1_signature_type(const uint8_t *cert,
-                                int *offset, X509_CTX *x509_ctx);
+                                int *offset, DM_X509_CTX *x509_ctx);
 
 /**************************************************************************
  * MISC declarations
@@ -195,15 +195,15 @@ typedef void (*crypt_func)(void *, const uint8_t *, uint8_t *, int);
 typedef void (*hmac_func)(const uint8_t *msg, int length, const uint8_t *key,
         int key_len, uint8_t *digest);
 
-int get_file(const char *filename, uint8_t **buf);
+int DM_get_file(const char *filename, uint8_t **buf);
 
 #if defined(CONFIG_SSL_FULL_MODE) || defined(WIN32) || defined(CONFIG_DEBUG)
-EXP_FUNC void STDCALL print_blob(const char *format, const uint8_t *data, int size, ...);
+EXP_FUNC void STDCALL DM_print_blob(const char *format, const uint8_t *data, int size, ...);
 #else
     #define print_blob(...)
 #endif
 
-EXP_FUNC int STDCALL base64_decode(const char *in,  int len,
+EXP_FUNC int STDCALL DM_base64_decode(const char *in,  int len,
                     uint8_t *out, int *outlen);
 
 #ifdef __cplusplus

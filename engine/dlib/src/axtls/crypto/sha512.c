@@ -81,7 +81,7 @@ static const uint64_t k[80] =
 /**
 * Initialize the SHA512 context
 */
-void SHA512_Init(SHA512_CTX *ctx)
+void DM_SHA512_Init(DM_SHA512_CTX *ctx)
 {
     ctx->h_dig.h[0] = 0x6A09E667F3BCC908LL;
     ctx->h_dig.h[1] = 0xBB67AE8584CAA73BLL;
@@ -95,7 +95,7 @@ void SHA512_Init(SHA512_CTX *ctx)
     ctx->totalSize = 0;
 }
 
-static void SHA512_Process(SHA512_CTX *ctx)
+static void DM_SHA512_Process(DM_SHA512_CTX *ctx)
 {
     int t;
     uint64_t temp1;
@@ -154,7 +154,7 @@ static void SHA512_Process(SHA512_CTX *ctx)
 /**
 * Accepts an array of octets as the next portion of the message.
 */
-void SHA512_Update(SHA512_CTX *ctx, const uint8_t * msg, int len)
+void DM_SHA512_Update(DM_SHA512_CTX *ctx, const uint8_t * msg, int len)
 {
     // Process the incoming data
     while (len > 0)
@@ -177,7 +177,7 @@ void SHA512_Update(SHA512_CTX *ctx, const uint8_t * msg, int len)
         if (ctx->size == 128)
         {
             // Transform the 16-word block
-            SHA512_Process(ctx);
+            DM_SHA512_Process(ctx);
             // Empty the buffer
             ctx->size = 0;
         }
@@ -187,7 +187,7 @@ void SHA512_Update(SHA512_CTX *ctx, const uint8_t * msg, int len)
 /**
 * Return the 512-bit message digest into the user's array
 */
-void SHA512_Final(uint8_t *digest, SHA512_CTX *ctx)
+void DM_SHA512_Final(uint8_t *digest, DM_SHA512_CTX *ctx)
 {
     int i;
     size_t paddingSize;
@@ -200,14 +200,14 @@ void SHA512_Final(uint8_t *digest, SHA512_CTX *ctx)
     paddingSize = (ctx->size < 112) ? (112 - ctx->size) :
                                         (128 + 112 - ctx->size);
     // Append padding
-    SHA512_Update(ctx, padding, paddingSize);
+    DM_SHA512_Update(ctx, padding, paddingSize);
 
     // Append the length of the original message
     ctx->w_buf.w[14] = 0;
     ctx->w_buf.w[15] = be64toh(totalSize);
 
     // Calculate the message digest
-    SHA512_Process(ctx);
+    DM_SHA512_Process(ctx);
 
     // Convert from host byte order to big-endian byte order
     for (i = 0; i < 8; i++)

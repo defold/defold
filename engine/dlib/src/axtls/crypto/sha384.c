@@ -35,7 +35,7 @@
 /**
 * Initialize the SHA384 context
 */
- void SHA384_Init(SHA384_CTX *ctx)
+ void DM_SHA384_Init(DM_SHA384_CTX *ctx)
  {
     //Set initial hash value
     ctx->h_dig.h[0] = 0xCBBB9D5DC1059ED8LL;
@@ -56,19 +56,19 @@
 /**
 * Accepts an array of octets as the next portion of the message.
 */
-void SHA384_Update(SHA384_CTX *ctx, const uint8_t * msg, int len)
+void DM_SHA384_Update(DM_SHA384_CTX *ctx, const uint8_t * msg, int len)
 {
     // The function is defined in the exact same manner as SHA-512
-    SHA512_Update(ctx, msg, len);
+    DM_SHA512_Update(ctx, msg, len);
 }
 
 /**
 * Return the 384-bit message digest into the user's array
 */
-void SHA384_Final(uint8_t *digest, SHA384_CTX *ctx)
+void DM_SHA384_Final(uint8_t *digest, DM_SHA384_CTX *ctx)
 {
     // The function is defined in the exact same manner as SHA-512
-    SHA512_Final(NULL, ctx);
+    DM_SHA512_Final(NULL, ctx);
 
     // Copy the resulting digest
     if (digest != NULL)

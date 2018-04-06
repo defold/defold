@@ -42,10 +42,10 @@
  * Perform HMAC-MD5
  * NOTE: does not handle keys larger than the block size.
  */
-void hmac_md5(const uint8_t *msg, int length, const uint8_t *key,
+void DM_hmac_md5(const uint8_t *msg, int length, const uint8_t *key,
         int key_len, uint8_t *digest)
 {
-    MD5_CTX context;
+    DM_MD5_CTX context;
     uint8_t k_ipad[64];
     uint8_t k_opad[64];
     int i;
@@ -61,24 +61,24 @@ void hmac_md5(const uint8_t *msg, int length, const uint8_t *key,
         k_opad[i] ^= 0x5c;
     }
 
-    MD5_Init(&context);
-    MD5_Update(&context, k_ipad, 64);
-    MD5_Update(&context, msg, length);
-    MD5_Final(digest, &context);
-    MD5_Init(&context);
-    MD5_Update(&context, k_opad, 64);
-    MD5_Update(&context, digest, MD5_SIZE);
-    MD5_Final(digest, &context);
+    DM_MD5_Init(&context);
+    DM_MD5_Update(&context, k_ipad, 64);
+    DM_MD5_Update(&context, msg, length);
+    DM_MD5_Final(digest, &context);
+    DM_MD5_Init(&context);
+    DM_MD5_Update(&context, k_opad, 64);
+    DM_MD5_Update(&context, digest, MD5_SIZE);
+    DM_MD5_Final(digest, &context);
 }
 
 /**
  * Perform HMAC-SHA1
  * NOTE: does not handle keys larger than the block size.
  */
-void hmac_sha1(const uint8_t *msg, int length, const uint8_t *key,
+void DM_hmac_sha1(const uint8_t *msg, int length, const uint8_t *key,
         int key_len, uint8_t *digest)
 {
-    SHA1_CTX context;
+    DM_SHA1_CTX context;
     uint8_t k_ipad[64];
     uint8_t k_opad[64];
     int i;
@@ -94,24 +94,24 @@ void hmac_sha1(const uint8_t *msg, int length, const uint8_t *key,
         k_opad[i] ^= 0x5c;
     }
 
-    SHA1_Init(&context);
-    SHA1_Update(&context, k_ipad, 64);
-    SHA1_Update(&context, msg, length);
-    SHA1_Final(digest, &context);
-    SHA1_Init(&context);
-    SHA1_Update(&context, k_opad, 64);
-    SHA1_Update(&context, digest, SHA1_SIZE);
-    SHA1_Final(digest, &context);
+    DM_SHA1_Init(&context);
+    DM_SHA1_Update(&context, k_ipad, 64);
+    DM_SHA1_Update(&context, msg, length);
+    DM_SHA1_Final(digest, &context);
+    DM_SHA1_Init(&context);
+    DM_SHA1_Update(&context, k_opad, 64);
+    DM_SHA1_Update(&context, digest, SHA1_SIZE);
+    DM_SHA1_Final(digest, &context);
 }
 
 /**
  * Perform HMAC-SHA256
  * NOTE: does not handle keys larger than the block size.
  */
-void hmac_sha256(const uint8_t *msg, int length, const uint8_t *key,
+void DM_hmac_sha256(const uint8_t *msg, int length, const uint8_t *key,
         int key_len, uint8_t *digest)
 {
-    SHA256_CTX context;
+    DM_SHA256_CTX context;
     uint8_t k_ipad[64];
     uint8_t k_opad[64];
     int i;
@@ -127,12 +127,12 @@ void hmac_sha256(const uint8_t *msg, int length, const uint8_t *key,
         k_opad[i] ^= 0x5c;
     }
 
-    SHA256_Init(&context);
-    SHA256_Update(&context, k_ipad, 64);
-    SHA256_Update(&context, msg, length);
-    SHA256_Final(digest, &context);
-    SHA256_Init(&context);
-    SHA256_Update(&context, k_opad, 64);
-    SHA256_Update(&context, digest, SHA256_SIZE);
-    SHA256_Final(digest, &context);
+    DM_SHA256_Init(&context);
+    DM_SHA256_Update(&context, k_ipad, 64);
+    DM_SHA256_Update(&context, msg, length);
+    DM_SHA256_Final(digest, &context);
+    DM_SHA256_Init(&context);
+    DM_SHA256_Update(&context, k_opad, 64);
+    DM_SHA256_Update(&context, digest, SHA256_SIZE);
+    DM_SHA256_Final(digest, &context);
 }

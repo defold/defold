@@ -1,18 +1,18 @@
 /*
  * Copyright (c) 2007, Cameron Rich
- * 
+ *
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
+ *
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
- * * Redistributions of source code must retain the above copyright notice, 
+ * * Redistributions of source code must retain the above copyright notice,
  *   this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above copyright notice, 
- *   this list of conditions and the following disclaimer in the documentation 
+ * * Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
  *   and/or other materials provided with the distribution.
- * * Neither the name of the axTLS project nor the names of its contributors 
- *   may be used to endorse or promote products derived from this software 
+ * * Neither the name of the axTLS project nor the names of its contributors
+ *   may be used to endorse or promote products derived from this software
  *   without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
@@ -80,7 +80,7 @@ typedef int64_t slong_comp;     /**< A signed double precision component. */
  * @struct  _bigint
  * @brief A big integer basic object
  */
-struct _bigint
+struct _dm_bigint
 {
     struct _bigint* next;       /**< The next bigint in the cache. */
     short size;                 /**< The number of components in this bigint. */
@@ -89,10 +89,10 @@ struct _bigint
     comp* comps;                /**< A ptr to the actual component data */
 };
 
-typedef struct _bigint bigint;  /**< An alias for _bigint */
+typedef struct _dm_bigint bigint;  /**< An alias for _bigint */
 
 /**
- * Maintains the state of the cache, and a number of variables used in 
+ * Maintains the state of the cache, and a number of variables used in
  * reduction.
  */
 typedef struct /**< A big integer "session" context. */
@@ -119,7 +119,7 @@ typedef struct /**< A big integer "session" context. */
     uint8_t use_classical;      /**< Use classical reduction. */
 #endif
     uint8_t mod_offset;         /**< The mod offset we are using */
-} BI_CTX;
+} DM_BI_CTX;
 
 #ifndef WIN32
 #define max(a,b) ((a)>(b)?(a):(b))  /**< Find the maximum of 2 numbers. */

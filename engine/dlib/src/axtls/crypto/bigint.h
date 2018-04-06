@@ -33,40 +33,40 @@
 
 #include <axtls/crypto/crypto.h>
 
-BI_CTX *bi_initialize(void);
-void bi_terminate(BI_CTX *ctx);
-void bi_permanent(bigint *bi);
-void bi_depermanent(bigint *bi);
-void bi_clear_cache(BI_CTX *ctx);
-void bi_free(BI_CTX *ctx, bigint *bi);
-bigint *bi_copy(bigint *bi);
-bigint *bi_clone(BI_CTX *ctx, const bigint *bi);
-void bi_export(BI_CTX *ctx, bigint *bi, uint8_t *data, int size);
-bigint *bi_import(BI_CTX *ctx, const uint8_t *data, int len);
-bigint *int_to_bi(BI_CTX *ctx, comp i);
+DM_BI_CTX *DM_bi_initialize(void);
+void DM_bi_terminate(DM_BI_CTX *ctx);
+void DM_bi_permanent(bigint *bi);
+void DM_bi_depermanent(bigint *bi);
+void DM_bi_clear_cache(DM_BI_CTX *ctx);
+void DM_bi_free(DM_BI_CTX *ctx, bigint *bi);
+bigint *DM_bi_copy(bigint *bi);
+bigint *DM_bi_clone(DM_BI_CTX *ctx, const bigint *bi);
+void DM_bi_export(DM_BI_CTX *ctx, bigint *bi, uint8_t *data, int size);
+bigint *DM_bi_import(DM_BI_CTX *ctx, const uint8_t *data, int len);
+bigint *DM_int_to_bi(DM_BI_CTX *ctx, comp i);
 
 /* the functions that actually do something interesting */
-bigint *bi_add(BI_CTX *ctx, bigint *bia, bigint *bib);
-bigint *bi_subtract(BI_CTX *ctx, bigint *bia,
+bigint *DM_bi_add(DM_BI_CTX *ctx, bigint *bia, bigint *bib);
+bigint *DM_bi_subtract(DM_BI_CTX *ctx, bigint *bia,
         bigint *bib, int *is_negative);
-bigint *bi_divide(BI_CTX *ctx, bigint *bia, bigint *bim, int is_mod);
-bigint *bi_multiply(BI_CTX *ctx, bigint *bia, bigint *bib);
-bigint *bi_mod_power(BI_CTX *ctx, bigint *bi, bigint *biexp);
-bigint *bi_mod_power2(BI_CTX *ctx, bigint *bi, bigint *bim, bigint *biexp);
-int bi_compare(bigint *bia, bigint *bib);
-void bi_set_mod(BI_CTX *ctx, bigint *bim, int mod_offset);
-void bi_free_mod(BI_CTX *ctx, int mod_offset);
+bigint *DM_bi_divide(DM_BI_CTX *ctx, bigint *bia, bigint *bim, int is_mod);
+bigint *DM_bi_multiply(DM_BI_CTX *ctx, bigint *bia, bigint *bib);
+bigint *DM_bi_mod_power(DM_BI_CTX *ctx, bigint *bi, bigint *biexp);
+bigint *DM_bi_mod_power2(DM_BI_CTX *ctx, bigint *bi, bigint *bim, bigint *biexp);
+int DM_bi_compare(bigint *bia, bigint *bib);
+void DM_bi_set_mod(DM_BI_CTX *ctx, bigint *bim, int mod_offset);
+void DM_bi_free_mod(DM_BI_CTX *ctx, int mod_offset);
 
 #ifdef CONFIG_SSL_FULL_MODE
-void bi_print(const char *label, bigint *bi);
-bigint *bi_str_import(BI_CTX *ctx, const char *data);
+void DM_bi_print(const char *label, bigint *bi);
+bigint *DM_bi_str_import(DM_BI_CTX *ctx, const char *data);
 #endif
 
 /**
  * @def bi_mod
  * Find the residue of B. bi_set_mod() must be called before hand.
  */
-#define bi_mod(A, B)      bi_divide(A, B, ctx->bi_mod[ctx->mod_offset], 1)
+#define bi_mod(A, B)      DM_bi_divide(A, B, ctx->bi_mod[ctx->mod_offset], 1)
 
 /**
  * bi_residue() is technically the same as bi_mod(), but it uses the
@@ -74,23 +74,23 @@ bigint *bi_str_import(BI_CTX *ctx, const char *data);
  * reduction).
  */
 #if defined(CONFIG_BIGINT_MONTGOMERY)
-#define bi_residue(A, B)         bi_mont(A, B)
-bigint *bi_mont(BI_CTX *ctx, bigint *bixy);
+#define DM_bi_residue(A, B)         DM_bi_mont(A, B)
+bigint *DM_bi_mont(DM_BI_CTX *ctx, bigint *bixy);
 #elif defined(CONFIG_BIGINT_BARRETT)
-#define bi_residue(A, B)         bi_barrett(A, B)
-bigint *bi_barrett(BI_CTX *ctx, bigint *bi);
+#define DM_bi_residue(A, B)         DM_bi_barrett(A, B)
+bigint *DM_bi_barrett(DM_BI_CTX *ctx, bigint *bi);
 #else /* if defined(CONFIG_BIGINT_CLASSICAL) */
-#define bi_residue(A, B)         bi_mod(A, B)
+#define DM_bi_residue(A, B)         DM_bi_mod(A, B)
 #endif
 
 #ifdef CONFIG_BIGINT_SQUARE
-bigint *bi_square(BI_CTX *ctx, bigint *bi);
+bigint *DM_bi_square(DM_BI_CTX *ctx, bigint *bi);
 #else
-#define bi_square(A, B)     bi_multiply(A, bi_copy(B), B)
+#define DM_bi_square(A, B)     DM_bi_multiply(A, bi_copy(B), B)
 #endif
 
 #ifdef CONFIG_BIGINT_CRT
-bigint *bi_crt(BI_CTX *ctx, bigint *bi,
+bigint *DM_bi_crt(DM_BI_CTX *ctx, bigint *bi,
         bigint *dP, bigint *dQ,
         bigint *p, bigint *q,
         bigint *qInv);

@@ -44,13 +44,13 @@
                 (((word) << (bits)) | ((word) >> (32-(bits))))
 
 /* ----- static functions ----- */
-static void SHA1PadMessage(SHA1_CTX *ctx);
-static void SHA1ProcessMessageBlock(SHA1_CTX *ctx);
+static void SHA1PadMessage(DM_SHA1_CTX *ctx);
+static void SHA1ProcessMessageBlock(DM_SHA1_CTX *ctx);
 
 /**
  * Initialize the SHA1 context
  */
-void SHA1_Init(SHA1_CTX *ctx)
+void DM_SHA1_Init(DM_SHA1_CTX *ctx)
 {
     ctx->Length_Low             = 0;
     ctx->Length_High            = 0;
@@ -65,7 +65,7 @@ void SHA1_Init(SHA1_CTX *ctx)
 /**
  * Accepts an array of octets as the next portion of the message.
  */
-void SHA1_Update(SHA1_CTX *ctx, const uint8_t *msg, int len)
+void DM_SHA1_Update(DM_SHA1_CTX *ctx, const uint8_t *msg, int len)
 {
     while (len--)
     {
@@ -85,7 +85,7 @@ void SHA1_Update(SHA1_CTX *ctx, const uint8_t *msg, int len)
 /**
  * Return the 160-bit message digest into the user's array
  */
-void SHA1_Final(uint8_t *digest, SHA1_CTX *ctx)
+void DM_SHA1_Final(uint8_t *digest, DM_SHA1_CTX *ctx)
 {
     int i;
 
@@ -103,7 +103,7 @@ void SHA1_Final(uint8_t *digest, SHA1_CTX *ctx)
 /**
  * Process the next 512 bits of the message stored in the array.
  */
-static void SHA1ProcessMessageBlock(SHA1_CTX *ctx)
+static void SHA1ProcessMessageBlock(DM_SHA1_CTX *ctx)
 {
     const uint32_t K[] =    {       /* Constants defined in SHA-1   */
                             0x5A827999,
@@ -201,7 +201,7 @@ static void SHA1ProcessMessageBlock(SHA1_CTX *ctx)
  *
  * @param ctx [in, out] The SHA1 context
  */
-static void SHA1PadMessage(SHA1_CTX *ctx)
+static void SHA1PadMessage(DM_SHA1_CTX *ctx)
 {
     /*
      *  Check to see if the current message block is too small to hold
