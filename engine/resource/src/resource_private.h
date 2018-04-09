@@ -41,7 +41,8 @@ namespace dmResource
     Result DoLoadResource(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
 
     Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, SResourceDescriptor* descriptor);
-    void GetCanonicalPath(HFactory factory, const char* relative_dir, char* buf);
+    void GetCanonicalPath(const char* relative_dir, char* buf);
+    void GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
 
     SResourceDescriptor* GetByHash(HFactory factory, uint64_t canonical_path_hash);
     SResourceType* FindResourceType(SResourceFactory* factory, const char* extension);
