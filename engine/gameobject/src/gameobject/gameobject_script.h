@@ -48,6 +48,7 @@ namespace dmGameObject
         PropertySet             m_PropertySet;
         dmLuaDDF::LuaModule*    m_LuaModule;
         int                     m_InstanceReference;
+        // Resources referenced through property values in the script
         dmArray<void*>          m_PropertyResources;
     };
 

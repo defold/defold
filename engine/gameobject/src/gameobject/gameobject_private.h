@@ -59,6 +59,7 @@ namespace dmGameObject
         };
 
         dmArray<Component>     m_Components;
+        // Resources referenced through property overrides inside the prototype
         dmArray<void*>         m_PropertyResources;
     };
 
@@ -263,7 +264,7 @@ namespace dmGameObject
         // Index pool for mapping Instance::m_Index to m_Instances
         dmIndexPool16            m_InstanceIndices;
 
-        // Array of property resources referenced by the collection instances
+        // Resources referenced through property overrides inside the collection
         dmArray<void*>         m_PropertyResources;
 
         // Array of dynamically allocated index arrays, one for each level
