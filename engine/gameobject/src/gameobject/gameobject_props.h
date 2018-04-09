@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 
+#include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <ddf/ddf.h>
+#include <resource/resource.h>
 #include <script/script.h>
 
 #include "gameobject.h"
@@ -37,7 +39,6 @@ namespace dmGameObject
         dmScript::ResolvePathCallback m_ResolvePathCallback;
         uintptr_t m_ResolvePathUserData;
         dmScript::GetURLCallback m_GetURLCallback;
-        dmResource::HFactory m_Factory;
     };
 
     struct NewPropertiesParams
@@ -47,7 +48,6 @@ namespace dmGameObject
         dmScript::ResolvePathCallback m_ResolvePathCallback;
         uintptr_t m_ResolvePathUserData;
         dmScript::GetURLCallback m_GetURLCallback;
-        dmResource::HFactory m_Factory;
     };
 
     HProperties NewProperties(const NewPropertiesParams& params);
@@ -56,6 +56,12 @@ namespace dmGameObject
     void SetPropertySet(HProperties properties, PropertyLayer layer, const PropertySet& set);
 
     PropertyResult GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var);
+
+    // dmResource::Get supplied paths and stores into out_resources which will be re-allocated through SetCapacity(resource_path_count)
+    // Unwinds at failure
+    dmResource::Result LoadPropertyResources(dmResource::HFactory factory, const char** resource_paths, uint32_t resource_path_count, dmArray<void*>& out_resources);
+    // dmResource::Release supplied paths and de-allocates through SetCapacity(0)
+    void UnloadPropertyResources(dmResource::HFactory factory, dmArray<void*>& resources);
 }
 
 #endif // GAMEOBJECT_PROPS_H

@@ -5,9 +5,7 @@ go.property("vec3", vmath.vector3())
 go.property("vec4", vmath.vector4(0, 0, 0, 0))
 go.property("quat", vmath.quat())
 go.property("bool", false)
-go.property("material", material("material"))
-go.property("textureset", textureset("textureset"))
-go.property("texture", texture("texture"))
+go.property("material", resource.material("material"))
 
 function update(self)
     -- the properties are set by props_get_set_a.script
@@ -19,6 +17,4 @@ function update(self)
     assert(self.quat == vmath.quat(1, 1, 1, 1))
     assert(self.bool)
     assert(self.material)
-    assert(self.textureset)
-    assert(self.texture)
 end

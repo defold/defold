@@ -23,8 +23,7 @@ message PropertyDeclarations
     repeated PropertyDeclarationEntry   vector4_entries = 5;
     repeated PropertyDeclarationEntry   quat_entries = 6;
     repeated PropertyDeclarationEntry   bool_entries = 7;
-    repeated PropertyDeclarationEntry   resource_entries = 8;
-    repeated float                      float_values = 9;
-    repeated uint64                     hash_values = 10;
-    repeated string                     string_values = 11;
+    repeated float                      float_values = 8;
+    repeated uint64                     hash_values = 9;
+    repeated string                     string_values = 10;
 }

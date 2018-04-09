@@ -16,18 +16,7 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
                           TileGridResource* tile_grid, const char* filename)
     {
-        dmResource::Result result;
-        size_t texture_count = dmMath::Min(tile_grid_ddf->m_Textures.m_Count, dmRender::RenderObject::MAX_TEXTURE_COUNT);
-        for(uint32_t i = 0; i < texture_count; ++i)
-        {
-            const char* texture = tile_grid_ddf->m_Textures[i];
-            if (*texture == 0)
-                continue;
-            result = dmResource::Get(factory, texture, (void**) &tile_grid->m_Textures[i]);
-            if (result != dmResource::RESULT_OK)
-                return result;
-        }
-        result = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
+        dmResource::Result result = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
         if (result != dmResource::RESULT_OK)
             return result;
         result = dmResource::Get(factory, tile_grid_ddf->m_Material, (void**)&tile_grid->m_Material);
@@ -93,11 +82,6 @@ namespace dmGameSystem
         if (tile_grid->m_Material)
             dmResource::Release(factory, tile_grid->m_Material);
 
-        for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            if (tile_grid->m_Textures[i] != 0x0)
-                dmResource::Release(factory, tile_grid->m_Textures[i]);
-        }
         if (tile_grid->m_TileGrid)
             dmDDF::FreeMessage(tile_grid->m_TileGrid);
 
@@ -118,13 +102,6 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        for(uint32_t i = 0; i < tile_grid_ddf->m_Textures.m_Count; ++i)
-        {
-            const char* texture = tile_grid_ddf->m_Textures[i];
-            if (*texture == 0)
-                continue;
-            dmResource::PreloadHint(params.m_HintInfo, texture);
-        }
         dmResource::PreloadHint(params.m_HintInfo, tile_grid_ddf->m_TileSet);
         dmResource::PreloadHint(params.m_HintInfo, tile_grid_ddf->m_Material);
 

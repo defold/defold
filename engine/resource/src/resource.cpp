@@ -1523,33 +1523,6 @@ Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64
     }
 }
 
-SResourceDescriptor* GetDescriptorRef(HFactory factory, uint64_t resource_hash)
-{
-    SResourceDescriptor* rd = factory->m_Resources->Get(resource_hash);
-    if(!rd)
-    {
-        return 0x0;
-    }
-    assert(rd->m_ReferenceCount > 0);
-    ++rd->m_ReferenceCount;
-    return rd;
-}
-
-SResourceDescriptor* GetDescriptorRef(HFactory factory, const void* resource)
-{
-    assert(resource);
-    uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
-    if(!resource_hash)
-    {
-        return 0x0;
-    }
-    SResourceDescriptor* rd = factory->m_Resources->Get(*resource_hash);
-    assert(rd);
-    assert(rd->m_ReferenceCount > 0);
-    ++rd->m_ReferenceCount;
-    return rd;
-}
-
 dmhash_t GetDescriptorExtension(SResourceDescriptor* descriptor)
 {
     assert(descriptor);

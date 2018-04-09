@@ -112,7 +112,6 @@ namespace dmRender
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
         uint64_t            m_BatchKey;
-        uint32_t            m_MaterialTagMask;
         uint32_t            m_FaceColor;
         uint32_t            m_StringOffset;
         uint32_t            m_OutlineColor;

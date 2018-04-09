@@ -29,7 +29,6 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Enumeration;
 import java.util.List;
 
 import javax.inject.Singleton;
@@ -839,7 +838,6 @@ public class GridTest implements IResourceChangeListener {
                 .setTileSet("my.tileset")
                 .setMaterial("/builtins/materials/tile_map.material")
                 .setBlendMode(BlendMode.BLEND_MODE_ALPHA)
-                .addTextures("my.tileset").addTextures("").addTextures("").addTextures("").addTextures("").addTextures("").addTextures("").addTextures("")
                 .addLayers(TileLayer.newBuilder()
                         .setId("some_id")
                         .setIsVisible(1)

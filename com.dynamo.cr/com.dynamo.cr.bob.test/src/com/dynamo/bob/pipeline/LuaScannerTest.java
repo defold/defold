@@ -216,28 +216,6 @@ public class LuaScannerTest {
     }
 
     @Test
-    public void testPropsTextureSet() throws Exception {
-        List<Property> properties = scanProperties("test_props_textureset.lua");
-
-        assertEquals(4, properties.size());
-        assertProperty(properties, "prop1", "textureset", 0);
-        assertProperty(properties, "prop2", "", 1);
-        assertProperty(properties, "prop3", "", 2);
-        assertProperty(properties, "prop4", "textureset", 3);
-    }
-
-    @Test
-    public void testPropsTexture() throws Exception {
-        List<Property> properties = scanProperties("test_props_texture.lua");
-
-        assertEquals(4, properties.size());
-        assertProperty(properties, "prop1", "texture", 0);
-        assertProperty(properties, "prop2", "", 1);
-        assertProperty(properties, "prop3", "", 2);
-        assertProperty(properties, "prop4", "texture", 3);
-    }
-
-    @Test
     public void testPropsMaterial() throws Exception {
         List<Property> properties = scanProperties("test_props_material.lua");
 

@@ -292,15 +292,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             setTileSource(tileGrid.getTileSet());
             setMaterial(tileGrid.getMaterial());
             setBlendMode(tileGrid.getBlendMode());
-            int tc = tileGrid.getTexturesCount();
-            setTexture0(tc > 0 ? tileGrid.getTextures(0) : "");
-            setTexture1(tc > 1 ? tileGrid.getTextures(1) : "");
-            setTexture2(tc > 2 ? tileGrid.getTextures(2) : "");
-            setTexture3(tc > 3 ? tileGrid.getTextures(3) : "");
-            setTexture4(tc > 4 ? tileGrid.getTextures(4) : "");
-            setTexture5(tc > 5 ? tileGrid.getTextures(5) : "");
-            setTexture6(tc > 6 ? tileGrid.getTextures(6) : "");
-            setTexture7(tc > 7 ? tileGrid.getTextures(7) : "");
 
             List<Layer> layers = new ArrayList<Layer>(tileGrid.getLayersCount());
             for (Tile.TileLayer layerDDF : tileGrid.getLayersList()) {
@@ -332,14 +323,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     public void save(OutputStream os, IProgressMonitor monitor) throws IOException {
         TileGrid.Builder tileGridBuilder = TileGrid.newBuilder()
                 .setTileSet(this.tileSource).setMaterial(this.material).setBlendMode(this.blendMode);
-        tileGridBuilder.addTextures(getTexture0());
-        tileGridBuilder.addTextures(getTexture1());
-        tileGridBuilder.addTextures(getTexture2());
-        tileGridBuilder.addTextures(getTexture3());
-        tileGridBuilder.addTextures(getTexture4());
-        tileGridBuilder.addTextures(getTexture5());
-        tileGridBuilder.addTextures(getTexture6());
-        tileGridBuilder.addTextures(getTexture7());
 
         for (Layer layer : this.layers) {
             TileLayer.Builder layerBuilder = TileLayer.newBuilder()

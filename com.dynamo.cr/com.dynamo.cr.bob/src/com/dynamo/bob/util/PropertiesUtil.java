@@ -5,9 +5,9 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 
+import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.BuilderUtil;
-import com.dynamo.bob.pipeline.LuaScanner;
 import com.dynamo.bob.pipeline.ProtoBuilders;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
@@ -16,7 +16,7 @@ import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 
 public class PropertiesUtil {
 
-    public static boolean transformPropertyDesc(IResource resource, PropertyDesc desc, PropertyDeclarations.Builder builder, Collection<String> propertytResources) {
+    public static boolean transformPropertyDesc(Project project, PropertyDesc desc, PropertyDeclarations.Builder builder, Collection<String> propertyResources) {
         PropertyDeclarationEntry.Builder entryBuilder = PropertyDeclarationEntry.newBuilder();
         entryBuilder.setKey(desc.getId());
         entryBuilder.setId(MurmurHash.hash64(desc.getId()));
@@ -29,8 +29,13 @@ public class PropertiesUtil {
                 builder.addNumberEntries(entryBuilder);
                 break;
             case PROPERTY_TYPE_HASH:
+                String value = desc.getValue();
+                if (isResourceProperty(project, desc.getType(), desc.getValue())) {
+                    value = transformResourcePropertyValue(value);
+                    propertyResources.add(value);
+                }
                 entryBuilder.setIndex(builder.getHashValuesCount());
-                builder.addHashValues(MurmurHash.hash64(desc.getValue()));
+                builder.addHashValues(MurmurHash.hash64(value));
                 builder.addHashEntries(entryBuilder);
                 break;
             case PROPERTY_TYPE_URL:
@@ -75,18 +80,6 @@ public class PropertiesUtil {
                 builder.addFloatValues(Boolean.parseBoolean(desc.getValue()) ? 1.0f : 0.0f);
                 builder.addBoolEntries(entryBuilder);
                 break;
-            case PROPERTY_TYPE_RESOURCE:
-                {
-                    entryBuilder.setIndex(builder.getStringValuesCount());
-                    String s = transformResourcePropertyValue(desc);
-                    if(!s.isEmpty()) {
-                        propertytResources.add(s);
-                    }
-                    builder.addStringValues(s);
-                    builder.addResourceEntries(entryBuilder);
-                }
-                break;
-
             default:
                 return false;
             }
@@ -96,46 +89,28 @@ public class PropertiesUtil {
         return true;
     }
 
-    public static String transformResourcePropertyValue(PropertyType type, long subType, String value) {
-
-        if((type == PropertyType.PROPERTY_TYPE_RESOURCE) && (!value.isEmpty())) {
-            if (subType == LuaScanner.Property.subTypeMaterial) {
-                if(!value.endsWith(".material")) {
-                    throw new IllegalArgumentException(String.format("%s is not a material file", value));
-                }
-                value = BuilderUtil.replaceExt(value, ".material", ".materialc");
-            }
-            else if (subType == LuaScanner.Property.subTypeTextureSet) {
-                String org_value = value;
-                value = ProtoBuilders.transformTextureSetFilename(org_value);
-                if(value.equals(org_value)) {
-                     throw new IllegalArgumentException(String.format("%s is not a valid textureset file", org_value));
-                }
-            }
-            else if (subType == LuaScanner.Property.subTypeTexture) {
-                String org_value = value;
-                value = ProtoBuilders.resolveTextureFilename(org_value);
-                if(value.equals(org_value)) {
-                     throw new IllegalArgumentException(String.format("%s is not a valid texture file", org_value));
-                }
-            }
+    public static boolean isResourceProperty(Project project, PropertyType type, String value) {
+        if (type == PropertyType.PROPERTY_TYPE_HASH) {
+            IResource resource = project.getResource(value);
+            return resource.exists();
         }
+        return false;
+    }
+
+    public static String transformResourcePropertyValue(String value) {
+        // Beware, sloppy conversion
+        value = BuilderUtil.replaceExt(value, ".material", ".materialc");
+        value = BuilderUtil.replaceExt(value, ".font", ".fontc");
+        value = ProtoBuilders.transformTextureFilename(value);
+        value = ProtoBuilders.transformTextureSetFilename(value);
         return value;
     }
 
-    public static String transformResourcePropertyValue(PropertyDesc desc) {
-        return transformResourcePropertyValue(desc.getType(), desc.getSubType(), desc.getValue());
-    }
-
-    public static Collection<String> getPropertyDescResources(List<PropertyDesc> propertyDescList) {
+    public static Collection<String> getPropertyDescResources(Project project, List<PropertyDesc> propertyDescList) {
         Collection<String> resources = new HashSet<String>();
         for (PropertyDesc desc : propertyDescList) {
-            if(desc.getType() == PropertyType.PROPERTY_TYPE_RESOURCE) {
-                String resource = desc.getValue();
-                if(resource.isEmpty()) {
-                    continue;
-                }
-                resources.add(resource);
+            if (isResourceProperty(project, desc.getType(), desc.getValue())) {
+                resources.add(desc.getValue());
             }
         }
         return resources;

@@ -17,7 +17,6 @@ namespace dmGameSystem
         dmhash_t m_DefaultAnimation;
         TextureSetResource* m_TextureSet;
         dmGameSystemDDF::SpriteDesc* m_DDF;
-        dmGraphics::HTexture m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmRender::HMaterial m_Material;
     };
 

@@ -101,7 +101,6 @@ public class GameObjectLoader implements INodeLoader<GameObjectNode> {
                             PropertyDesc.Builder propertyBuilder = PropertyDesc.newBuilder();
                             propertyBuilder.setId(property.name);
                             propertyBuilder.setType(property.type);
-                            propertyBuilder.setSubType(property.subType);
                             propertyBuilder.setValue(GoPropertyUtil.propertyToString(value));
                             componentBuilder.addProperties(propertyBuilder);
                         }

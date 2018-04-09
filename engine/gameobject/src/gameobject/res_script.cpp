@@ -21,43 +21,14 @@ namespace dmGameObject
             dmResource::PreloadHint(params.m_HintInfo, lua_module->m_Resources[i]);
         }
 
-        for (uint32_t i = 0; i < lua_module->m_PropertyResources.m_Count; ++i)
+        const char** resources = lua_module->m_PropertyResources.m_Data;
+        uint32_t n_resources = lua_module->m_PropertyResources.m_Count;
+        for (uint32_t i = 0; i < n_resources; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, lua_module->m_PropertyResources.m_Data[i]);
+            dmResource::PreloadHint(params.m_HintInfo, resources[i]);
         }
 
         *params.m_PreloadData = lua_module;
-        return dmResource::RESULT_OK;
-    }
-
-    static void UnloadPropertyResources(dmResource::HFactory factory, dmArray<void*>& property_resources)
-    {
-        for(uint32_t i = 0; i < property_resources.Size(); ++i)
-        {
-            dmResource::Release(factory, property_resources[i]);
-        }
-        property_resources.SetSize(0);
-        property_resources.SetCapacity(0);
-    }
-
-    static dmResource::Result LoadPropertyResources(dmResource::HFactory factory, dmArray<void*>& property_resources, dmLuaDDF::LuaModule* ddf)
-    {
-        const char**& list = ddf->m_PropertyResources.m_Data;
-        uint32_t count = ddf->m_PropertyResources.m_Count;
-        assert(property_resources.Size() == 0);
-        property_resources.SetCapacity(count);
-        for(uint32_t i = 0; i < count; ++i)
-        {
-            void* resource;
-            dmResource::Result res = dmResource::Get(factory, list[i], &resource);
-            if(res != dmResource::RESULT_OK)
-            {
-                dmLogError("Could not load script component property resource '%s' (%d)", list[i], res);
-                UnloadPropertyResources(factory, property_resources);
-                return res;
-            }
-            property_resources.Push(resource);
-        }
         return dmResource::RESULT_OK;
     }
 
@@ -77,7 +48,7 @@ namespace dmGameObject
         HScript script = NewScript(L, lua_module);
         if (script)
         {
-            dmResource::Result res = LoadPropertyResources(params.m_Factory, script->m_PropertyResources, lua_module);
+            dmResource::Result res = LoadPropertyResources(params.m_Factory, lua_module->m_PropertyResources.m_Data, lua_module->m_PropertyResources.m_Count, script->m_PropertyResources);
             if(res != dmResource::RESULT_OK)
             {
                 DeleteScript(script);
@@ -123,15 +94,11 @@ namespace dmGameObject
         if (ok)
         {
             dmArray<void*> tmp_res;
-            dmResource::Result res = LoadPropertyResources(params.m_Factory, tmp_res, lua_module);
+            dmResource::Result res = LoadPropertyResources(params.m_Factory, lua_module->m_PropertyResources.m_Data, lua_module->m_PropertyResources.m_Count, tmp_res);
             if(res == dmResource::RESULT_OK)
             {
                 UnloadPropertyResources(params.m_Factory, script->m_PropertyResources);
-                if(tmp_res.Size())
-                {
-                    script->m_PropertyResources.SetCapacity(tmp_res.Size());
-                    script->m_PropertyResources.PushArray(&tmp_res[0], tmp_res.Size());
-                }
+                script->m_PropertyResources.Swap(tmp_res);
             }
             dmDDF::FreeMessage(old_lua_module);
             return dmResource::RESULT_OK;

@@ -18,8 +18,7 @@ enum PropertyType
     PROPERTY_TYPE_VECTOR4 = 4;
     PROPERTY_TYPE_QUAT = 5;
     PROPERTY_TYPE_BOOLEAN = 6;
-    PROPERTY_TYPE_RESOURCE = 7;
-    PROPERTY_TYPE_COUNT = 8;
+    PROPERTY_TYPE_COUNT = 7;
 }
 
 message PropertyDesc
@@ -27,7 +26,6 @@ message PropertyDesc
     required string id = 1;
     required string value = 2;
     required PropertyType type = 3;
-    optional uint64 sub_type = 4;
 }
 
 message ComponentDesc
