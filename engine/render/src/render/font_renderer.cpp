@@ -443,7 +443,6 @@ namespace dmRender
         te.m_FontMap = font_map;
         te.m_Material = material;
         te.m_BatchKey = batch_key;
-        te.m_MaterialTagMask = GetMaterialTagMask(material);
         te.m_Next = -1;
         te.m_Tail = -1;
 
@@ -759,7 +758,7 @@ namespace dmRender
                     write_ptr->m_Order = render_order;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
                     write_ptr->m_BatchKey = te.m_BatchKey;
-                    write_ptr->m_TagMask = te.m_MaterialTagMask;
+                    write_ptr->m_TagMask = GetMaterialTagMask(te.m_Material);
                     write_ptr->m_Dispatch = dispatch;
                     write_ptr++;
                 }

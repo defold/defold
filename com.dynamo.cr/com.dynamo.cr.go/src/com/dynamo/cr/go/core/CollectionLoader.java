@@ -244,7 +244,6 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                             PropertyDesc.Builder propBuilder = PropertyDesc.newBuilder();
                             propBuilder.setId(property.name);
                             propBuilder.setType(property.type);
-                            propBuilder.setSubType(property.subType);
                             propBuilder.setValue(GoPropertyUtil.propertyToString(value));
                             compPropBuilder.addProperties(propBuilder);
                         }
@@ -296,7 +295,6 @@ public class CollectionLoader implements INodeLoader<CollectionNode> {
                                 PropertyDesc.Builder propBuilder = PropertyDesc.newBuilder();
                                 propBuilder.setId(property.name);
                                 propBuilder.setType(property.type);
-                                propBuilder.setSubType(property.subType);
                                 propBuilder.setValue(GoPropertyUtil.propertyToString(value));
                                 compPropBuilder.addProperties(propBuilder);
                             }

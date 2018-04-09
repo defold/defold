@@ -31,7 +31,6 @@ import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
 import com.dynamo.gameobject.proto.GameObject.InstancePropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-import com.dynamo.proto.DdfMath;
 
 @ProtoParams(messageClass = CollectionDesc.class)
 @BuilderParams(name="Collection", inExts=".collection", outExt=".collectionc")
@@ -320,7 +319,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
         messageBuilder.clearEmbeddedInstances();
 
-        Collection<String> propertytResources = new HashSet<String>();
+        Collection<String> propertyResources = new HashSet<String>();
         for (int i = 0; i < messageBuilder.getInstancesCount(); ++i) {
             InstanceDesc.Builder b = InstanceDesc.newBuilder().mergeFrom(messageBuilder.getInstances(i));
             b.setId("/" + b.getId());
@@ -339,7 +338,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 ComponentPropertyDesc.Builder compPropBuilder = ComponentPropertyDesc.newBuilder(b.getComponentProperties(j));
                 PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
                 for (PropertyDesc desc : compPropBuilder.getPropertiesList()) {
-                    if (!PropertiesUtil.transformPropertyDesc(resource, desc, properties, propertytResources)) {
+                    if (!PropertiesUtil.transformPropertyDesc(project, desc, properties, propertyResources)) {
                         throw new CompileExceptionError(resource, 0, String.format("The property %s.%s.%s has an invalid format: %s", b.getId(), compPropBuilder.getId(), desc.getId(), desc.getValue()));
                     }
                 }
@@ -348,7 +347,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             }
             messageBuilder.setInstances(i, b);
         }
-        messageBuilder.addAllPropertyResources(propertytResources);
+        messageBuilder.addAllPropertyResources(propertyResources);
 
         return messageBuilder;
     }

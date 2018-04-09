@@ -1,8 +1,6 @@
 go.property("number", 1)
 
-go.property("material", material("material"))
-go.property("textureset", textureset("textureset"))
-go.property("texture", texture("texture"))
+go.property("material", resource.material("material"))
 
 function init(self)
     -- local game object properties
@@ -78,12 +76,4 @@ function init(self)
     assert(self.material == go.get("b#script", "material"))
     go.set("b#script", "material", hash("material"))
     assert(hash("material") == go.get("b#script", "material"))
-    -- textureset
-    assert(self.textureset == go.get("b#script", "textureset"))
-    go.set("b#script", "textureset", hash("textureset"))
-    assert(hash("textureset") == go.get("b#script", "textureset"))
-    -- texture
-    assert(self.texture == go.get("b#script", "texture"))
-    go.set("b#script", "texture", hash("texture"))
-    assert(hash("texture") == go.get("b#script", "texture"))
 end

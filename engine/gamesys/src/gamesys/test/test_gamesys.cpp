@@ -252,8 +252,7 @@ static void GetResourceProperty(dmGameObject::HInstance instance, dmhash_t comp_
     dmGameObject::PropertyDesc desc;
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::GetProperty(instance, comp_name, prop_name, desc));
     dmGameObject::PropertyType type = desc.m_Variant.m_Type;
-    ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_HASH == type
-            || dmGameObject::PROPERTY_TYPE_RESOURCE == type);
+    ASSERT_TRUE(dmGameObject::PROPERTY_TYPE_HASH == type);
     *out_val = desc.m_Variant.m_Hash;
 }
 

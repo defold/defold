@@ -254,15 +254,11 @@ def transform_render(task, msg):
 
 def transform_sprite(task, msg):
     msg.tile_set = transform_tilesource_name(msg.tile_set)
-    for i,n in enumerate(msg.textures):
-        msg.textures[i] = transform_textureset_filename(task, msg.textures[i])
     msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
 def transform_tilegrid(task, msg):
     msg.tile_set = transform_tilesource_name(msg.tile_set)
-    for i,n in enumerate(msg.textures):
-        msg.textures[i] = transform_textureset_filename(task, msg.textures[i])
     msg.material = msg.material.replace('.material', '.materialc')
     return msg
 
@@ -274,8 +270,6 @@ def transform_sound(task, msg):
 def transform_spine_model(task, msg):
     msg.spine_scene = msg.spine_scene.replace('.spinescene', '.rigscenec')
     msg.material = msg.material.replace('.material', '.materialc')
-    for i,n in enumerate(msg.textures):
-        msg.textures[i] = transform_textureset_filename(task, msg.textures[i])
     return msg
 
 def transform_rig_scene(task, msg):

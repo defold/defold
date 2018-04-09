@@ -1,4 +1,3 @@
 tile_set: "/resource/tileset.tileset"
 default_animation: "anim"
 material: "/resource/resource_alt.material"
-textures: "/texture/valid_png.png"

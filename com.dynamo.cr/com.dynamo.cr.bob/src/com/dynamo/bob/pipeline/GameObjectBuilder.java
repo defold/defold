@@ -69,7 +69,7 @@ public class GameObjectBuilder extends Builder<Void> {
                 .addOutput(input.changeExt(params.outExt()));
 
         for (ComponentDesc cd : b.getComponentsList()) {
-            Collection<String> resources = PropertiesUtil.getPropertyDescResources(cd.getPropertiesList());
+            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
             for(String r : resources) {
                 IResource resource = BuilderUtil.checkResource(this.project, input, "resource", r);
                 taskBuilder.addInput(resource);
@@ -176,7 +176,7 @@ public class GameObjectBuilder extends Builder<Void> {
             PrototypeDesc.Builder protoBuilder) throws CompileExceptionError {
 
         protoBuilder.clearPropertyResources();
-        Collection<String> propertytResources = new HashSet<String>();
+        Collection<String> propertyResources = new HashSet<String>();
         List<ComponentDesc> newList = new ArrayList<ComponentDesc>();
         for (ComponentDesc cd : protoBuilder.getComponentsList()) {
             String c = cd.getComponent();
@@ -185,7 +185,7 @@ public class GameObjectBuilder extends Builder<Void> {
             }
             PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
             for (PropertyDesc desc : cd.getPropertiesList()) {
-                if (!PropertiesUtil.transformPropertyDesc(resource, desc, properties, propertytResources)) {
+                if (!PropertiesUtil.transformPropertyDesc(project, desc, properties, propertyResources)) {
                     throw new CompileExceptionError(resource, 0, String.format("The property %s.%s has an invalid format: %s", cd.getId(), desc.getId(), desc.getValue()));
                 }
             }
@@ -194,7 +194,7 @@ public class GameObjectBuilder extends Builder<Void> {
             compBuilder.setPropertyDecls(properties);
             newList.add(compBuilder.build());
         }
-        protoBuilder.addAllPropertyResources(propertytResources);
+        protoBuilder.addAllPropertyResources(propertyResources);
         protoBuilder.clearComponents();
         protoBuilder.addAllComponents(newList);
 

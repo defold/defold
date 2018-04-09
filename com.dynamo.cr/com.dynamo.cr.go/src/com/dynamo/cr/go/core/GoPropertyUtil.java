@@ -8,14 +8,12 @@ import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
-import com.dynamo.bob.pipeline.LuaScanner;
 import com.dynamo.cr.properties.IPropertyDesc;
 import com.dynamo.cr.properties.IPropertyObjectWorld;
 import com.dynamo.cr.properties.Property.EditorType;
 import com.dynamo.cr.properties.descriptors.BooleanPropertyDesc;
 import com.dynamo.cr.properties.descriptors.DoublePropertyDesc;
 import com.dynamo.cr.properties.descriptors.Quat4PropertyDesc;
-import com.dynamo.cr.properties.descriptors.ResourcePropertyDesc;
 import com.dynamo.cr.properties.descriptors.TextPropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector3PropertyDesc;
 import com.dynamo.cr.properties.descriptors.Vector4PropertyDesc;
@@ -52,7 +50,6 @@ public class GoPropertyUtil {
             return Double.parseDouble(value);
         case PROPERTY_TYPE_HASH:
         case PROPERTY_TYPE_URL:
-        case PROPERTY_TYPE_RESOURCE:
             return value;
         case PROPERTY_TYPE_VECTOR3:
             return new Vector3d(Double.parseDouble(tokenizer.nextToken().trim()),
@@ -97,19 +94,6 @@ public class GoPropertyUtil {
             break;
         case PROPERTY_TYPE_BOOLEAN:
             desc = new BooleanPropertyDesc<T, U>(id, name, category);
-            break;
-        case PROPERTY_TYPE_RESOURCE:
-            String[] extensions = null;
-            if(subType == LuaScanner.Property.subTypeMaterial) {
-                extensions = new String[]{"material"};
-            }
-            else if(subType == LuaScanner.Property.subTypeTextureSet) {
-                extensions = new String[]{"atlas", "tilesource"};
-            }
-            else if(subType == LuaScanner.Property.subTypeTexture) {
-                extensions = new String[]{"atlas", "tilesource", "png", "jpg", "tga", "cubemap"};
-            }
-            desc = new ResourcePropertyDesc<T, U>(id, name, category, extensions );
             break;
         }
         return desc;

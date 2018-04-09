@@ -24,6 +24,7 @@ message Model
 {
     required string rig_scene   = 1 [(resource)=true];
     required string material    = 2 [(resource)=true];
+    repeated string textures    = 3 [(resource)=true];
     optional string default_animation  = 4;
 }
 

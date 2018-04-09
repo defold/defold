@@ -215,19 +215,6 @@ public class ProtoBuilders {
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
 
-            ArrayList<String> textures = new ArrayList<String>( messageBuilder.getTexturesList() );
-            messageBuilder.clearTextures();
-            if(textures.isEmpty()) {
-                messageBuilder.addTextures(resolveTextureFilename(messageBuilder.getTileSet()));
-            } else {
-                for( String texture : textures ) {
-                    if(!texture.isEmpty()) {
-                        BuilderUtil.checkResource(this.project, resource, "texture", texture);
-                    }
-                    messageBuilder.addTextures(resolveTextureFilename(texture));
-                }
-            }
-
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
@@ -257,19 +244,6 @@ public class ProtoBuilders {
         protected TileGrid.Builder transform(Task<Void> task, IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
-
-            ArrayList<String> textures = new ArrayList<String>( messageBuilder.getTexturesList() );
-            messageBuilder.clearTextures();
-            if(textures.isEmpty()) {
-                messageBuilder.addTextures(resolveTextureFilename(messageBuilder.getTileSet()));
-            } else {
-                for( String texture : textures ) {
-                    if(!texture.isEmpty()) {
-                        BuilderUtil.checkResource(this.project, resource, "texture", texture);
-                    }
-                    messageBuilder.addTextures(resolveTextureFilename(texture));
-                }
-            }
 
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));

@@ -30,4 +30,3 @@ layers
     }
 }
 material: "/tile/tile_map.material"
-textures: "/texture/valid_png.png"

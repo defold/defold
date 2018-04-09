@@ -52,12 +52,12 @@ public abstract class LuaBuilder extends Builder<Void> {
                 .addInput(input);
 
                 for (LuaScanner.Property property : properties) {
-                    if(property.type == PropertyType.PROPERTY_TYPE_RESOURCE) {
-                        if(((String)property.value).isEmpty()) {
-                            continue;
+                    if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
+                        String value = (String)property.value;
+                        if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                            IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
+                            taskBuilder.addInput(resource);
                         }
-                        IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", (String)property.value);
-                        taskBuilder.addInput(resource);
                     }
                 }
 
@@ -195,7 +195,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     }
 
-    private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties, Collection<String> propertytResources) throws CompileExceptionError {
+    private PropertyDeclarations buildProperties(IResource resource, List<LuaScanner.Property> properties, Collection<String> propertyResources) throws CompileExceptionError {
         PropertyDeclarations.Builder builder = PropertyDeclarations.newBuilder();
         if (!properties.isEmpty()) {
             for (LuaScanner.Property property : properties) {
@@ -210,8 +210,13 @@ public abstract class LuaBuilder extends Builder<Void> {
                         builder.addNumberEntries(entryBuilder);
                         break;
                     case PROPERTY_TYPE_HASH:
+                        String value = (String)property.value;
+                        if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                            value = PropertiesUtil.transformResourcePropertyValue(value);
+                            propertyResources.add(value);
+                        }
                         entryBuilder.setIndex(builder.getHashValuesCount());
-                        builder.addHashValues(MurmurHash.hash64((String)property.value));
+                        builder.addHashValues(MurmurHash.hash64(value));
                         builder.addHashEntries(entryBuilder);
                         break;
                     case PROPERTY_TYPE_URL:
@@ -260,17 +265,6 @@ public abstract class LuaBuilder extends Builder<Void> {
                         entryBuilder.setIndex(builder.getFloatValuesCount());
                         builder.addFloatValues(((Boolean)property.value) ? 1.0f : 0.0f);
                         builder.addBoolEntries(entryBuilder);
-                        break;
-                    case PROPERTY_TYPE_RESOURCE:
-                        {
-                            entryBuilder.setIndex(builder.getStringValuesCount());
-                            String s = PropertiesUtil.transformResourcePropertyValue(property.type, property.subType, (String)property.value);
-                            if(!s.isEmpty()) {
-                                propertytResources.add(s);
-                            }
-                            builder.addStringValues(s);
-                            builder.addResourceEntries(entryBuilder);
-                        }
                         break;
                     }
                 } else if (property.status == Status.INVALID_ARGS) {

@@ -518,24 +518,6 @@ namespace dmResource
     Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor);
 
     /**
-     * Get pointer to resource descriptor from resource (hash)
-     * Increases resource reference count
-     * @param factory Factory handle
-     * @param resource_hash Resource canonical path hash
-     * @return pointer to resource descriptor, or null if resource isn't loaded
-     */
-    SResourceDescriptor* GetDescriptorRef(HFactory factory, uint64_t resource_hash);
-
-    /**
-     * Get pointer to resource descriptor from resource (resource ptr)
-     * Increases resource reference count
-     * @param factory Factory handle
-     * @param name name Resource name
-     * @return pointer to resource descriptor, or null if resource isn't loaded
-     */
-    SResourceDescriptor* GetDescriptorRef(HFactory factory, const void* resource);
-
-    /**
      * Get extension hash from resource descriptor
      * @param descriptor Returned resource descriptor
      * @return extension hash

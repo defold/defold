@@ -22,37 +22,6 @@ namespace dmGameObject
         delete prototype;
     }
 
-    static void UnloadPropertyResources(dmResource::HFactory factory, dmArray<void*>& property_resources)
-    {
-        for(uint32_t i = 0; i < property_resources.Size(); ++i)
-        {
-            dmResource::Release(factory, property_resources[i]);
-        }
-        property_resources.SetSize(0);
-        property_resources.SetCapacity(0);
-    }
-
-    static dmResource::Result LoadPropertyResources(dmResource::HFactory factory, dmArray<void*>& property_resources, dmGameObjectDDF::PrototypeDesc* ddf)
-    {
-        const char**& list = ddf->m_PropertyResources.m_Data;
-        uint32_t count = ddf->m_PropertyResources.m_Count;
-        assert(property_resources.Size() == 0);
-        property_resources.SetCapacity(count);
-        for(uint32_t i = 0; i < count; ++i)
-        {
-            void* resource;
-            dmResource::Result res = dmResource::Get(factory, list[i], &resource);
-            if(res != dmResource::RESULT_OK)
-            {
-                dmLogError("Could not load gameobject prototype component property resource '%s' (%d)", list[i], res);
-                UnloadPropertyResources(factory, property_resources);
-                return res;
-            }
-            property_resources.Push(resource);
-        }
-        return dmResource::RESULT_OK;
-    }
-
     dmResource::Result ResPrototypePreload(const dmResource::ResourcePreloadParams& params)
     {
         dmGameObjectDDF::PrototypeDesc* proto_desc;
@@ -63,14 +32,17 @@ namespace dmGameObject
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)
+        dmGameObjectDDF::ComponentDesc* components = proto_desc->m_Components.m_Data;
+        uint32_t n_components = proto_desc->m_Components.m_Count;
+        for (uint32_t i = 0; i < n_components; ++i)
         {
-            dmGameObjectDDF::ComponentDesc& component_desc = proto_desc->m_Components[i];
-            dmResource::PreloadHint(params.m_HintInfo, component_desc.m_Component);
+            dmResource::PreloadHint(params.m_HintInfo, components[i].m_Component);
         }
-        for (uint32_t i = 0; i < proto_desc->m_PropertyResources.m_Count; ++i)
+        const char** resources = proto_desc->m_PropertyResources.m_Data;
+        uint32_t n_resources = proto_desc->m_PropertyResources.m_Count;
+        for (uint32_t i = 0; i < n_resources; ++i)
         {
-            dmResource::PreloadHint(params.m_HintInfo, proto_desc->m_PropertyResources.m_Data[i]);
+            dmResource::PreloadHint(params.m_HintInfo, resources[i]);
         }
 
         *params.m_PreloadData = proto_desc;
@@ -84,7 +56,7 @@ namespace dmGameObject
 
         Prototype* proto = new Prototype();
 
-        dmResource::Result res = LoadPropertyResources(params.m_Factory, proto->m_PropertyResources, proto_desc);
+        dmResource::Result res = LoadPropertyResources(params.m_Factory, proto_desc->m_PropertyResources.m_Data, proto_desc->m_PropertyResources.m_Count, proto->m_PropertyResources);
         if(res != dmResource::RESULT_OK)
         {
             DestroyPrototype(proto, params.m_Factory);
@@ -123,6 +95,7 @@ namespace dmGameObject
                     dmResource::Release(params.m_Factory, component);
                 DestroyPrototype(proto, params.m_Factory);
                 dmDDF::FreeMessage(proto_desc);
+                UnloadPropertyResources(params.m_Factory, proto->m_PropertyResources);
                 if (id_used)
                     return dmResource::RESULT_FORMAT_ERROR;
                 else
@@ -155,6 +128,7 @@ namespace dmGameObject
                 {
                     DestroyPrototype(proto, params.m_Factory);
                     dmDDF::FreeMessage(proto_desc);
+                    UnloadPropertyResources(params.m_Factory, proto->m_PropertyResources);
                     return dmResource::RESULT_FORMAT_ERROR;
                 }
             }

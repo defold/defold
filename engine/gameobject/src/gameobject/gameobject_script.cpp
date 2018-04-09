@@ -609,8 +609,6 @@ namespace dmGameObject
             return "vmath.quat";
         case PROPERTY_TYPE_BOOLEAN:
             return "boolean";
-        case PROPERTY_TYPE_RESOURCE:
-            return "resource";
         default:
             return "unknown";
         }
@@ -2039,17 +2037,6 @@ bail:
                 return PROPERTY_RESULT_OK;
             }
         }
-        n = defs->m_ResourceEntries.m_Count;
-        for (uint32_t i = 0; i < n; ++i)
-        {
-            const PropertyDeclarationEntry& entry = defs->m_ResourceEntries[i];
-            if (entry.m_Id == id)
-            {
-                out_var.m_Type = PROPERTY_TYPE_RESOURCE;
-                out_var.m_Hash = dmResource::GetPath(properties->m_Factory, defs->m_StringValues[entry.m_Index]);
-                return PROPERTY_RESULT_OK;
-            }
-        }
         return PROPERTY_RESULT_NOT_FOUND;
     }
 
@@ -2082,7 +2069,6 @@ bail:
         params.m_ResolvePathCallback = ScriptInstanceResolvePathCB;
         params.m_ResolvePathUserData = (uintptr_t)L;
         params.m_GetURLCallback = ScriptInstanceGetURLCB;
-        params.m_Factory = GetFactory(GetCollection(instance));
         i->m_Properties = NewProperties(params);
         SetPropertySet(i->m_Properties, PROPERTY_LAYER_DEFAULT, script->m_PropertySet);
         luaL_getmetatable(L, SCRIPTINSTANCE);
@@ -2123,7 +2109,6 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
         "vmath.vector4", // PROPERTY_TYPE_VECTOR4
         "vmath.quat", // PROPERTY_TYPE_QUAT
         "boolean", // PROPERTY_TYPE_BOOLEAN
-        "resource", // PROPERTY_TYPE_RESOURCE
 };
 
 #define CHECK_PROP_RESULT(key, type, expected_type, result)\
@@ -2217,16 +2202,6 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
             CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_BOOLEAN, result)
             lua_pushstring(L, entry.m_Key);
             lua_pushboolean(L, var.m_Bool);
-            lua_settable(L, index - 2);
-        }
-        count = declarations->m_ResourceEntries.m_Count;
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            const PropertyDeclarationEntry& entry = declarations->m_ResourceEntries[i];
-            PropertyResult result = GetProperty(properties, entry.m_Id, var);
-            CHECK_PROP_RESULT(entry.m_Key, var.m_Type, PROPERTY_TYPE_RESOURCE, result)
-            lua_pushstring(L, entry.m_Key);
-            dmScript::PushHash(L, var.m_Hash);
             lua_settable(L, index - 2);
         }
         return PROPERTY_RESULT_OK;

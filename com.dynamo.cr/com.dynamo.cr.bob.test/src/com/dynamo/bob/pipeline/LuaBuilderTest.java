@@ -29,6 +29,9 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testProps() throws Exception {
+        addFile("/vp.vp", "");
+        addFile("/fp.fp", "");
+        addFile("/material.material", "name: \"material\"\nvertex_program: \"/vp.vp\"\nfragment_program: \"/fp.fp\"");
         StringBuilder src = new StringBuilder();
         src.append("\n");
         src.append("go.property(\"number\", 1)\n");
@@ -38,9 +41,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("go.property(\"vec4\", vmath.vector4(4, 5, 6, 7))\n");
         src.append("go.property(\"quat\", vmath.quat(8, 9, 10, 11))\n");
         src.append("go.property(\"bool\", true)\n");
-        src.append("go.property(\"textureset\", textureset(\"\"))\n");
-        src.append("go.property(\"texture\", texture(\"\"))\n");
-        src.append("go.property(\"material\", material(\"\"))\n");
+        src.append("go.property(\"material\", resource.material(\"/material.material\"))\n");
         src.append("\n");
         src.append("    go.property(  \"space_number\"  ,  1   )\n");
         src.append("go.property(\"semi_colon\", 1); \n");
@@ -51,15 +52,13 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         PropertiesTestUtil.assertNumber(properties, 1, 1);
         PropertiesTestUtil.assertNumber(properties, 1, 2);
         PropertiesTestUtil.assertHash(properties, MurmurHash.hash64("hash"), 0);
+        PropertiesTestUtil.assertHash(properties, MurmurHash.hash64("/material.materialc"), 1);
         PropertiesTestUtil.assertURL(properties, "", 0);
         PropertiesTestUtil.assertVector3(properties, 1, 2, 3, 0);
         PropertiesTestUtil.assertVector4(properties, 4, 5, 6, 7, 0);
         PropertiesTestUtil.assertQuat(properties, 8, 9, 10, 11, 0);
         PropertiesTestUtil.assertBoolean(properties, true, 0);
-        assertEquals(3, properties.getResourceEntriesCount());
-        PropertiesTestUtil.assertResource(properties, "", 0);
-        PropertiesTestUtil.assertResource(properties, "", 1);
-        PropertiesTestUtil.assertResource(properties, "", 2);
+        assertEquals("/material.materialc", luaModule.getPropertyResources(0));
 
         // Verify that .x, .y, .z and .w exists as sub element ids for Vec3, Vec4 and Quat.
         assertSubElementsV3(properties.getVector3Entries(0));

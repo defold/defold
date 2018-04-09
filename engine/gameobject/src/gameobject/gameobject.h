@@ -189,7 +189,6 @@ namespace dmGameObject
         PROPERTY_TYPE_VECTOR4 = 4,
         PROPERTY_TYPE_QUAT = 5,
         PROPERTY_TYPE_BOOLEAN = 6,
-        PROPERTY_TYPE_RESOURCE = 7,
         PROPERTY_TYPE_COUNT
     };
 

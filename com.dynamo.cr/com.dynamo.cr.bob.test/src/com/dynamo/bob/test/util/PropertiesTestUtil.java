@@ -46,8 +46,4 @@ public class PropertiesTestUtil {
         assertTrue(expected == (properties.getFloatValues(properties.getBoolEntries(index).getIndex()) != 0.0f));
     }
 
-    public static void assertResource(PropertyDeclarations properties, String expected, int index) {
-        assertEquals(expected, properties.getStringValues(properties.getResourceEntries(index).getIndex()));
-    }
-
 }
