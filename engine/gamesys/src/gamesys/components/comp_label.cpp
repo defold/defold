@@ -408,7 +408,7 @@ namespace dmGameSystem
                 uint32_t const_count = component->m_RenderConstants.m_ConstantCount;
                 for (uint32_t const_i = 0; const_i < const_count; ++const_i)
                 {
-                    if (lengthSqr(component->m_RenderConstants.m_Constants[const_i].m_Value - component->m_RenderConstants.m_PrevConstants[const_i]) > 0)
+                    if (lengthSqr(component->m_RenderConstants.m_RenderConstants[const_i].m_Value - component->m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
                     {
                         rehash = true;
                         break;
@@ -425,7 +425,7 @@ namespace dmGameSystem
 
             assert( component->m_RenderConstants.m_ConstantCount <= dmRender::MAX_FONT_RENDER_CONSTANTS );
             params.m_NumRenderConstants = component->m_RenderConstants.m_ConstantCount;
-            memcpy( params.m_RenderConstants, component->m_RenderConstants.m_Constants, params.m_NumRenderConstants * sizeof(dmRender::Constant));
+            memcpy( params.m_RenderConstants, component->m_RenderConstants.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::Constant));
 
             LabelResource* resource = component->m_Resource;
             dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, params);
