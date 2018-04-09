@@ -284,7 +284,7 @@
                  (= (first @steps-left) [node output-type label]))
         (swap! steps-left rest)
         (let [new-message (if-let [path (node-id->resource-path node)]
-                            (str "Planning " path)
+                            (str "Compiling " path)
                             (or (progress/message @progress) ""))]
           (swap! progress progress/advance 1 new-message))
         (render-progress! @progress)))))
