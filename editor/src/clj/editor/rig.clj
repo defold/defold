@@ -19,7 +19,7 @@
         ;; data of memory-resource below only used for
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
-        skeleton-resource (resource/make-memory-resource workspace skeleton-type (digest/string->sha1-hex (protobuf/map->str Rig$Skeleton skeleton)))]
+        skeleton-resource (resource/make-memory-resource workspace skeleton-type (protobuf/map->sha1-hex Rig$Skeleton skeleton))]
     {:node-id   node-id
      :resource  (workspace/make-build-resource skeleton-resource)
      :build-fn  build-skeleton
@@ -36,7 +36,7 @@
         ;; data of memory-resource below only used for
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
-        animation-set-resource (resource/make-memory-resource workspace animation-set-type (digest/string->sha1-hex (protobuf/map->str Rig$AnimationSet animation-set)))]
+        animation-set-resource (resource/make-memory-resource workspace animation-set-type (protobuf/map->sha1-hex Rig$AnimationSet animation-set))]
     {:node-id   node-id
      :resource  (workspace/make-build-resource animation-set-resource)
      :build-fn  build-animation-set
@@ -53,7 +53,7 @@
         ;; data of memory-resource below only used for
         ;; resource/resource-hash used to name the
         ;; corresponding "generated" build resource.
-        mesh-set-resource (resource/make-memory-resource workspace mesh-set-type (digest/string->sha1-hex (protobuf/map->str Rig$MeshSet mesh-set)))]
+        mesh-set-resource (resource/make-memory-resource workspace mesh-set-type (protobuf/map->sha1-hex Rig$MeshSet mesh-set))]
     {:node-id   node-id
      :resource  (workspace/make-build-resource mesh-set-resource)
      :build-fn  build-mesh-set

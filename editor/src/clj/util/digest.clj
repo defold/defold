@@ -1,6 +1,8 @@
 (ns util.digest
-  (:import [java.io InputStream]
-           [org.apache.commons.codec.digest DigestUtils]))
+  (:import [java.io InputStream OutputStream]
+           [java.security DigestOutputStream MessageDigest]
+           [org.apache.commons.codec.digest DigestUtils]
+           [org.apache.commons.codec.binary Hex]))
 
 (set! *warn-on-reflection* true)
 
@@ -22,3 +24,15 @@
 (defn stream->sha1-hex [^InputStream stream]
   (DigestUtils/sha1Hex stream))
 
+(def ^:private ^OutputStream sink-output-stream
+  (proxy [OutputStream] []
+    (write
+      ([byte-or-bytes])
+      ([^bytes b, ^long off, ^long len]))))
+
+(defn make-digest-output-stream
+  ^DigestOutputStream [^String algorithm]
+  (DigestOutputStream. sink-output-stream (MessageDigest/getInstance algorithm)))
+
+(defn bytes->hex [^bytes data]
+  (Hex/encodeHexString data))

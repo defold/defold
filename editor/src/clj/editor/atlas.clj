@@ -442,13 +442,13 @@
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resources]
                                               (let [flat-image-resources (flatten image-resources)
-                                                    shas                 (str/join (map #(validation/resource-io-with-errors resource/resource->sha1-hex % _node-id nil)
-                                                                                        flat-image-resources))
+                                                    shas                 (map #(validation/resource-io-with-errors resource/resource->sha1-hex % _node-id nil)
+                                                                              flat-image-resources)
                                                     errors               (filter g/error? shas)]
                                                 (if (seq errors)
                                                   (g/error-aggregate errors)
                                                   {:f    generate-packed-image
-                                                   :sha1 shas
+                                                   :sha1 (str/join shas)
                                                    :args {:_node-id                   _node-id
                                                           :image-resources            flat-image-resources
                                                           :texture-set-data-generator texture-set-data-generator}}))))

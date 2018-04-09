@@ -149,33 +149,33 @@
   [build-targets build-dir old-artifact-map render-progress!]
   (let [build-targets-by-key (make-build-targets-by-key build-targets)
         pruned-old-artifacts (prune-artifacts old-artifact-map build-targets-by-key)
-        progress             (atom (progress/make "" (count build-targets-by-key)))]
+        progress (atom (progress/make "" (count build-targets-by-key)))]
     (prune-build-dir! build-dir build-targets-by-key)
-    (let [results          (into []
-                                 (map (fn [[key {:keys [node-id resource] :as build-target}]]
-                                        (let [cached-artifact (when-let [artifact (get pruned-old-artifacts resource)]
-                                                                (and (valid? artifact) artifact))
-                                              message         (str (if cached-artifact
-                                                                     "Reusing cached "
-                                                                     "Building ")
-                                                                   (resource/proj-path resource))]
-                                          (render-progress! (swap! progress
-                                                                   #(-> %
-                                                                        (progress/advance)
-                                                                        (progress/with-message message))))
-                                          (or cached-artifact
-                                              (let [{:keys [resource deps build-fn user-data]} build-target
-                                                    dep-resources                              (make-dep-resources deps build-targets-by-key)
-                                                    result (build-fn resource dep-resources user-data)]
-                                                (if (g/error? result)
-                                                  (assoc result :_node-id node-id)
-                                                  (to-disk! result key)))))))
-                                 build-targets-by-key)
+    (let [results (into []
+                        (map (fn [[key {:keys [node-id resource] :as build-target}]]
+                               (let [cached-artifact (when-let [artifact (get pruned-old-artifacts resource)]
+                                                       (and (valid? artifact) artifact))
+                                     message (str (if cached-artifact
+                                                    "Reusing cached "
+                                                    "Building ")
+                                                  (resource/proj-path resource))]
+                                 (render-progress! (swap! progress
+                                                          #(-> %
+                                                               (progress/advance)
+                                                               (progress/with-message message))))
+                                 (or cached-artifact
+                                     (let [{:keys [resource deps build-fn user-data]} build-target
+                                           dep-resources (make-dep-resources deps build-targets-by-key)
+                                           result (build-fn resource dep-resources user-data)]
+                                       (if (g/error? result)
+                                         (assoc result :_node-id node-id)
+                                         (to-disk! result key)))))))
+                        build-targets-by-key)
           {successful-results false error-results true} (group-by #(boolean (g/error? %)) results)
           new-artifact-map (into {} (map (fn [a] [(:resource a) a])) successful-results)
-          etags            (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) successful-results)]
-      (cond-> {:artifacts    successful-results
+          etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) successful-results)]
+      (cond-> {:artifacts successful-results
                :artifact-map new-artifact-map
-               :etags        etags}
+               :etags etags}
         (seq error-results)
         (assoc :error (g/error-aggregate error-results))))))

@@ -1,6 +1,7 @@
 (ns editor.json
   (:require [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
+            [clojure.java.io :as io]
             [clojure.data.json :as json]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
@@ -26,6 +27,11 @@
 
 (defonce ^:private json-loaders (atom {}))
 
+(defn- resource->json [resource]
+  (with-open [reader (PushbackReader. (io/reader resource))]
+    (-> reader
+        json/read)))
+
 (g/defnode JsonNode
   (inherits resource-node/ResourceNode)
   (property content-transform g/Any
@@ -33,9 +39,8 @@
   (input structure g/Any)
 
   (output content g/Any (g/fnk [resource content-transform]
-                               (-> (slurp resource)
-                                   json/read-str
-                                   content-transform)))
+                            (-> (resource->json resource)
+                                content-transform)))
 
   ;; we never modify JsonNode, save-data and source-value can be trivial and not cached
   (output save-data g/Any (g/constantly nil))
@@ -44,8 +49,7 @@
   (output structure g/Any (g/fnk [structure] structure)))
 
 (defn load-json [project self resource]
-  (let [content (-> (slurp resource)
-                  json/read-str)
+  (let [content (resource->json resource)
         [load-fn accept-fn new-content] (some (fn [[loader-id {:keys [accept-fn load-fn]}]]
                                       (when-let [new-content (accept-fn content)]
                                         [load-fn accept-fn new-content]))
