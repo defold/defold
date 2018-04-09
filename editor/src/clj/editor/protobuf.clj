@@ -18,6 +18,7 @@ Macros currently mean no foreseeable performance gain however."
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.lang.reflect Method]
            [java.io Reader ByteArrayOutputStream]
+           [java.security MessageDigest]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -588,9 +589,9 @@ Macros currently mean no foreseeable performance gain however."
 
 (defn pb->hash
   ^bytes [^String algorithm ^Message pb]
-  (.digest (with-open [digest-output-stream (digest/make-digest-output-stream algorithm)]
-             (.writeTo pb digest-output-stream)
-             (.getMessageDigest digest-output-stream))))
+  (with-open [digest-output-stream (digest/make-digest-output-stream algorithm)]
+    (.writeTo pb digest-output-stream)
+    (.digest (.getMessageDigest digest-output-stream))))
 
 (defn map->sha1-hex
   ^String [^Class cls m]
