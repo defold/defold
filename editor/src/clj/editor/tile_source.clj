@@ -147,9 +147,9 @@
     {:resource resource :content (protobuf/map->bytes TextureSetProto$TextureSet tex-set)}))
 
 (g/defnk produce-build-targets [_node-id resource packed-image-generator texture-set texture-profile build-settings]
-  (let [workspace        (project/workspace (project/get-project _node-id))
-        compress?         (:compress-textures? build-settings false)
-        texture-target   (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)]
+  (let [workspace (project/workspace (project/get-project _node-id))
+        compress? (:compress-textures? build-settings false)
+        texture-target (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)]
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-texture-set
@@ -578,29 +578,29 @@
   (output tile-source-attributes g/Any :cached produce-tile-source-attributes)
   (output tile->collision-group-node g/Any :cached produce-tile->collision-group-node)
 
-  (output texture-set-data-generator g/Any     (g/fnk [image-resource tile-source-attributes animation-data collision-groups convex-hulls collision tile-count :as args]
-                                                      (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
-                                                            (g/error-aggregate errors))
-                                                          {:f    generate-texture-set-data
-                                                           :args args})))
+  (output texture-set-data-generator g/Any (g/fnk [image-resource tile-source-attributes animation-data collision-groups convex-hulls collision tile-count :as args]
+                                             (or (when-let [errors (not-empty (mapcat #(check-anim-error tile-count %) animation-data))]
+                                                   (g/error-aggregate errors))
+                                                 {:f generate-texture-set-data
+                                                  :args args})))
 
-  (output texture-set-data g/Any :cached       (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
-  (output layout-size      g/Any               (g/fnk [texture-set-data] (:size texture-set-data)))
-  (output texture-set      g/Any               (g/fnk [texture-set-data] (:texture-set texture-set-data)))
-  (output uv-transforms    g/Any               (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
+  (output texture-set-data g/Any :cached (g/fnk [texture-set-data-generator] (call-generator texture-set-data-generator)))
+  (output layout-size g/Any (g/fnk [texture-set-data] (:size texture-set-data)))
+  (output texture-set g/Any (g/fnk [texture-set-data] (:texture-set texture-set-data)))
+  (output uv-transforms g/Any (g/fnk [texture-set-data] (:uv-transforms texture-set-data)))
 
-  (output packed-image-generator g/Any         (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
-                                                      {:f    generate-packed-image
-                                                       :sha1 (resource/resource->sha1-hex image-resource)
-                                                       :args {:_node-id                   _node-id
-                                                              :texture-set-data-generator texture-set-data-generator
-                                                              :image-resource             image-resource
-                                                              :tile-source-attributes     tile-source-attributes}}))
+  (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resource tile-source-attributes]
+                                          {:f generate-packed-image
+                                           :sha1 (resource/resource->sha1-hex image-resource)
+                                           :args {:_node-id _node-id
+                                                  :texture-set-data-generator texture-set-data-generator
+                                                  :image-resource image-resource
+                                                  :tile-source-attributes tile-source-attributes}}))
 
-  (output packed-image     BufferedImage       (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
+  (output packed-image BufferedImage (g/fnk [packed-image-generator] (call-generator packed-image-generator)))
 
-  (output texture-image    g/Any               (g/fnk [packed-image texture-profile]
-                                                 (tex-gen/make-preview-texture-image packed-image texture-profile)))
+  (output texture-image g/Any (g/fnk [packed-image texture-profile]
+                                (tex-gen/make-preview-texture-image packed-image texture-profile)))
 
   (output convex-hull-points g/Any :cached produce-convex-hull-points)
   (output convex-hulls g/Any :cached produce-convex-hulls)
@@ -626,7 +626,7 @@
                                        (* (:tiles-per-row tile-source-attributes) (:tiles-per-column tile-source-attributes))))
   (output image-dim-error g/Err (g/fnk [image-size collision-size]
                                        (when (and image-size collision-size)
-                                         (let [{img-w :width img-h :height}   image-size
+                                         (let [{img-w :width img-h :height} image-size
                                                {coll-w :width coll-h :height} collision-size]
                                            (when (or (not= img-w coll-w)
                                                      (not= img-h coll-h))
@@ -637,7 +637,7 @@
                                         (let [dims (or image-size collision-size)]
                                           (when dims
                                             (let [{w :width} dims
-                                                  total-w    (+ tile-width tile-margin)]
+                                                  total-w (+ tile-width tile-margin)]
                                               (when (< w total-w)
                                                 (g/error-fatal (format "the total width ('Tile Width' + 'Tile Margin') is greater than the 'Image' width (%d vs %d)"
                                                                        total-w w))))))))
@@ -645,7 +645,7 @@
                                          (let [dims (or image-size collision-size)]
                                            (when dims
                                              (let [{h :height} dims
-                                                   total-h     (+ tile-height tile-margin)]
+                                                   total-h (+ tile-height tile-margin)]
                                                (when (< h total-h)
                                                  (g/error-fatal (format "the total height ('Tile Height' + 'Tile Margin') is greater than the 'Image' height (%d vs %d)"
                                                                         total-h h)))))))))

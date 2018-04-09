@@ -58,10 +58,7 @@
   (texture/texture-image->gpu-texture request-id texture-image params unit))
 
 (defn- generate-content [{:keys [_node-id resource]}]
-  (validation/resource-io-with-errors
-    #(or (image-util/read-image %)
-         (validation/invalid-content-error _node-id :resource :fatal %))
-    resource _node-id :resource))
+  (validation/resource-io-with-errors image-util/read-image resource _node-id :resource))
 
 (g/defnode ImageNode
   (inherits resource-node/ResourceNode)
@@ -77,10 +74,7 @@
                                   (tex-gen/match-texture-profile texture-profiles (resource/proj-path resource))))
 
   (output size g/Any :cached (g/fnk [_node-id resource]
-                                    (validation/resource-io-with-errors
-                                      #(or (image-util/read-size %)
-                                           (validation/invalid-content-error _node-id :size :fatal %))
-                                      resource _node-id :size)))
+                               (validation/resource-io-with-errors image-util/read-size resource _node-id :size)))
 
   (output content BufferedImage (g/fnk [content-generator]
                                   ((:f content-generator) (:args content-generator))))
