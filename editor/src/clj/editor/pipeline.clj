@@ -155,10 +155,7 @@
                         (map (fn [[key {:keys [node-id resource] :as build-target}]]
                                (let [cached-artifact (when-let [artifact (get pruned-old-artifacts resource)]
                                                        (and (valid? artifact) artifact))
-                                     message (str (if cached-artifact
-                                                    "Reusing cached "
-                                                    "Building ")
-                                                  (resource/proj-path resource))]
+                                     message (str "Building " (resource/proj-path resource))]
                                  (render-progress! (swap! progress
                                                           #(-> %
                                                                (progress/advance)
