@@ -476,7 +476,6 @@ namespace dmGameSystem
             write_ptr->m_TagMask = dmRender::GetMaterialTagMask(tile_grid->m_TileGridResource->m_Material);
             write_ptr->m_BatchKey = i;
             write_ptr->m_Dispatch = dispatch;
-            write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
         }
