@@ -82,7 +82,7 @@ public class LuaScanner {
         return sb.toString();
     }
 
-    public static String stripComments(String str) {
+    private static String stripComments(String str) {
         str = stripSingleLineComments(str);
         Matcher matcher = multiLineCommentPattern.matcher(str);
 
@@ -124,17 +124,10 @@ public class LuaScanner {
             INVALID_VALUE
         }
 
-        /// supported resource property sub-types
-        static public long subTypeMaterial = MurmurHash.hash64("material");
-        static public long subTypeTextureSet = MurmurHash.hash64("textureset");
-        static public long subTypeTexture = MurmurHash.hash64("texture");
-
         /// Set iff status != INVALID_ARGS
         public String name;
         /// Set iff status == OK
         public PropertyType type;
-        /// Set iff status != INVALID_ARGS
-        public long subType;
         /// Set iff status != INVALID_ARGS
         public String rawValue;
         /// Set iff status == OK
@@ -150,6 +143,7 @@ public class LuaScanner {
     }
 
     public static String stripProperties(String str) {
+        str = stripComments(str);
         str = str.replace("\r", "");
         StringBuffer sb = new StringBuffer();
         String[] lines = str.split("\n");
@@ -157,6 +151,10 @@ public class LuaScanner {
             Matcher propDeclMatcher = propertyDeclPattern.matcher(line.trim());
             if (!propDeclMatcher.matches()) {
                 sb.append(line);
+            } else {
+                for (int i = 0; i < line.length(); ++i) {
+                    sb.append(" ");
+                }
             }
             sb.append("\n");
         }

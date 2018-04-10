@@ -43,9 +43,9 @@ import com.dynamo.tile.proto.Tile.TileGrid;
 public class ProtoBuilders {
 
     private static String[] textureSrcExts = {".png", ".jpg", ".tga", ".cubemap"};
-    private static String[] textureSetSrdExts = {".atlas", ".tileset", ".tilesource"};
+    private static String[] textureSetSrcExts = {".atlas", ".tileset", ".tilesource"};
 
-    public static String transformTextureFilename(String str) {
+    public static String replaceTextureName(String str) {
         String out = str;
         for (String srcExt : textureSrcExts) {
             out = BuilderUtil.replaceExt(out, srcExt, ".texturec");
@@ -53,22 +53,12 @@ public class ProtoBuilders {
         return out;
     }
 
-    public static String transformTextureSetFilename(String str) {
+    public static String replaceTextureSetName(String str) {
         String out = str;
-        for (String srcExt : textureSetSrdExts) {
+        for (String srcExt : textureSetSrcExts) {
             out = BuilderUtil.replaceExt(out, srcExt, ".texturesetc");
         }
         return out;
-    }
-
-    public static String resolveTextureFilename(String str) {
-        if(str.endsWith(".atlas")) {
-            return AtlasBuilder.generateTextureFilename(str);
-        }
-        if(str.endsWith(".tileset") || str.endsWith(".tilesource")) {
-            return TileSetBuilder.generateTextureFilename(str);
-        }
-        return transformTextureFilename(str);
     }
 
     @ProtoParams(messageClass = CollectionProxyDesc.class)
@@ -214,7 +204,6 @@ public class ProtoBuilders {
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
-
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));
@@ -244,7 +233,6 @@ public class ProtoBuilders {
         protected TileGrid.Builder transform(Task<Void> task, IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
-
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tilesource", "texturesetc"));
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "atlas", "texturesetc"));

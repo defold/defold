@@ -292,7 +292,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             setTileSource(tileGrid.getTileSet());
             setMaterial(tileGrid.getMaterial());
             setBlendMode(tileGrid.getBlendMode());
-
             List<Layer> layers = new ArrayList<Layer>(tileGrid.getLayersCount());
             for (Tile.TileLayer layerDDF : tileGrid.getLayersList()) {
                 Layer layer = new Layer();
@@ -323,7 +322,6 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
     public void save(OutputStream os, IProgressMonitor monitor) throws IOException {
         TileGrid.Builder tileGridBuilder = TileGrid.newBuilder()
                 .setTileSet(this.tileSource).setMaterial(this.material).setBlendMode(this.blendMode);
-
         for (Layer layer : this.layers) {
             TileLayer.Builder layerBuilder = TileLayer.newBuilder()
                     .setId(layer.getId())
@@ -417,104 +415,5 @@ public class GridModel extends Model implements ITileWorld, IAdaptable {
             }
         }
     }
-
-    @Property(category ="Textures")
-    private String texture0 = "";
-
-    @Property(category ="Textures", editorType=EditorType.RESOURCE, extensions={"tilesource","atlas", "png", "jpg" })
-    @Resource
-    private String texture1 = "";
-
-    @Property(category ="Textures", editorType=EditorType.RESOURCE, extensions={"tilesource","atlas", "png", "jpg" })
-    @Resource
-    private String texture2 = "";
-
-    @Property(category ="Textures", editorType=EditorType.RESOURCE, extensions={"tilesource","atlas", "png", "jpg" })
-    @Resource
-    private String texture3 = "";
-
-    @Property(category ="Textures", editorType=EditorType.RESOURCE, extensions={"tilesource","atlas", "png", "jpg" })
-    @Resource
-    private String texture4 = "";
-
-    @Property(category ="Textures", editorType=EditorType.RESOURCE, extensions={"tilesource","atlas", "png", "jpg" })
-    @Resource
-    private String texture5 = "";
-
-    @Property(category ="Textures", editorType=EditorType.RESOURCE, extensions={"tilesource","atlas", "png", "jpg" })
-    @Resource
-    private String texture6 = "";
-
-    @Property(category ="Textures", editorType=EditorType.RESOURCE, extensions={"tilesource","atlas", "png", "jpg" })
-    @Resource
-    private String texture7 = "";
-
-    public boolean isTexture0Editable() {
-        return false;
-    }
-
-    public String getTexture0() {
-        return texture0 = getTileSource();
-    }
-
-    public void setTexture0(String s) {
-        texture0 = getTileSource();
-    }
-
-    public String getTexture1() {
-        return texture1;
-    }
-    public void setTexture1(String s) {
-        texture1 = s;
-    }
-
-    public String getTexture2() {
-        return texture2;
-    }
-
-    public void setTexture2(String s) {
-        texture2 = s;
-    }
-
-    public String getTexture3() {
-        return texture3;
-    }
-
-    public void setTexture3(String s) {
-        texture3 = s;
-    }
-
-    public String getTexture4() {
-        return texture4;
-    }
-
-    public void setTexture4(String s) {
-        texture4 = s;
-    }
-
-    public String getTexture5() {
-        return texture5;
-    }
-
-    public void setTexture5(String s) {
-        texture5 = s;
-    }
-
-    public String getTexture6() {
-        return texture6;
-    }
-
-    public void setTexture6(String s) {
-        texture6 = s;
-    }
-
-    public String getTexture7() {
-        return texture7;
-    }
-
-    public void setTexture7(String s) {
-        texture7 = s;
-    }
-
 
 }
