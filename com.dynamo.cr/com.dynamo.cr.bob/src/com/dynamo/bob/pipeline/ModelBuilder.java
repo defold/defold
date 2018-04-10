@@ -83,12 +83,6 @@ public class ModelBuilder extends Builder<Void> {
 
         }
 
-        List<String> newTextureList = new ArrayList<String>();
-        for (String t : modelDescBuilder.getTexturesList()) {
-            newTextureList.add(ProtoBuilders.resolveTextureFilename(t));
-        }
-        rigBuilder.addAllTextures(newTextureList);
-
         ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
         rigBuilder.build().writeTo(out);
         out.close();
@@ -98,6 +92,11 @@ public class ModelBuilder extends Builder<Void> {
         IResource resource = task.input(0);
         Model.Builder model = Model.newBuilder();
         model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
+        List<String> newTextureList = new ArrayList<String>();
+        for (String t : modelDescBuilder.getTexturesList()) {
+            newTextureList.add(ProtoBuilders.resolveTextureFilename(t));
+        }
+        model.addAllTextures(newTextureList);
 
         BuilderUtil.checkResource(this.project, resource, "material", modelDescBuilder.getMaterial());
         model.setMaterial(BuilderUtil.replaceExt(modelDescBuilder.getMaterial(), ".material", ".materialc"));
