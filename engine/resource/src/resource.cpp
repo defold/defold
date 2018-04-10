@@ -372,13 +372,17 @@ Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manife
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest data (%i)", result);
+        dmDDF::FreeMessage(manifest->m_DDF);
+        manifest->m_DDF = 0x0;
         return RESULT_IO_ERROR;
     }
     if (manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
     {
         dmLogError("Manifest format mismatch (expected '%x', actual '%x')",
             MANIFEST_MAGIC_NUMBER, manifest->m_DDFData->m_Header.m_MagicNumber);
+        dmDDF::FreeMessage(manifest->m_DDFData);
         dmDDF::FreeMessage(manifest->m_DDF);
+        manifest->m_DDFData = 0x0;
         manifest->m_DDF = 0x0;
         return RESULT_FORMAT_ERROR;
     }
@@ -387,7 +391,9 @@ Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manife
     {
         dmLogError("Manifest version mismatch (expected '%i', actual '%i')",
             dmResourceArchive::VERSION, manifest->m_DDFData->m_Header.m_Version);
+        dmDDF::FreeMessage(manifest->m_DDFData);
         dmDDF::FreeMessage(manifest->m_DDF);
+        manifest->m_DDFData = 0x0;
         manifest->m_DDF = 0x0;
         return RESULT_FORMAT_ERROR;
     }
@@ -414,24 +420,18 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
     }
 
     Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest);
-    // if (result == RESULT_OK)
-    // {
-    //     dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
-    //     factory->m_Manifest->m_DDF = 0x0;
-    // }
     dmMemory::AlignedFree(manifestBuffer);
 
     return result;
 }
 
-// Separate function to load manifest stored in disk instead of in bundle
+// Load manifest at specified manifest_path instead of from bundle
 Result LoadExternalManifest(const char* manifest_path, HFactory factory)
 {
 // Android uses different functions to access resources in local storage compared to bundled resources
 #if !defined(__ANDROID__)
         return LoadManifest(manifest_path, factory);
 #else
-
     uint32_t manifest_len = 0;
     uint8_t* manifest_buf = 0x0;
 
@@ -481,8 +481,8 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     uint32_t signature_hash_len = HashLength(signature_hash_algorithm);
     out_digest_len = 0;
 
-    RSA_CTX* rsa_parameters = 0x0;
-    int ret = asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
+    dmAxTls::RSA_CTX* rsa_parameters = 0x0;
+    int ret = dmAxTls::asn1_get_public_key(pub_key_buf, pub_key_len, &rsa_parameters);
     if (ret != 0) {
         dmLogError("Failed to parse public key during manifest verification.");
         RSA_free(rsa_parameters);
@@ -490,7 +490,7 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     }
 
     uint8_t* hash_decrypted = (uint8_t*)malloc(rsa_parameters->num_octets);
-    ret = RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets);
+    ret = dmAxTls::RSA_decrypt_public(rsa_parameters, signature, hash_decrypted, rsa_parameters->num_octets);
     if(ret != 0) {
         dmLogError("Failed to decrypt manifest signature for verification");
         free(hash_decrypted);
@@ -653,49 +653,61 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         factory->m_Manifest = new Manifest();
         factory->m_ArchiveMountInfo = 0x0;
 
-        /* DEF-2411 Check app support path for if "liveupdate.dmanifest" exists, if it does load that one instead of bundled*/
         char* manifest_path = factory->m_UriParts.m_Path;
         Result r = LoadManifest(manifest_path, factory);
 
-        // TODO check and act on result r from LoadManifest (cleanup etc.)
+        // Nothing to do to recover here
+        if (r != RESULT_OK)
+        {
+            dmLogError("Unable to load bundled manifest: %s with result: %i.", factory->m_UriParts.m_Path, r);
+            dmMessage::DeleteSocket(socket);
+            delete factory->m_Manifest;
+            delete factory;
+            return 0;
+        }
 
-        // Check if liveupdate.dmanifest exists, if it does, try to load it
+        // Check if liveupdate manifest exists. If it does, try to load that one instead
         char app_support_path[DMPATH_MAX_PATH];
-        char manifest_file_path[DMPATH_MAX_PATH];
+        char lu_manifest_file_path[DMPATH_MAX_PATH];
         char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
         HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
         dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-        dmPath::Concat(app_support_path, "liveupdate.dmanifest", manifest_file_path, DMPATH_MAX_PATH);
+        dmPath::Concat(app_support_path, "liveupdate.dmanifest", lu_manifest_file_path, DMPATH_MAX_PATH);
         struct stat file_stat;
-        bool luManifestExists = stat(manifest_file_path, &file_stat) == 0;
-        if (luManifestExists)
+        bool lu_manifest_exists = stat(lu_manifest_file_path, &file_stat) == 0;
+        if (lu_manifest_exists)
         {
-            // Unload bundled manifest data
-            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+            // Unload bundled manifest data and load liveupdate manifest
             dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
             factory->m_Manifest->m_DDFData = 0x0;
             factory->m_Manifest->m_DDF = 0x0;
-            manifest_path = manifest_file_path;
+            manifest_path = lu_manifest_file_path;
             dmLogInfo("LiveUpdate manifest file exists! path: %s", manifest_path);
             r = LoadExternalManifest(manifest_path, factory);
         }
         else
-            dmLogInfo("No external LiveUpdate manifest file found :( Looked for path: %s", manifest_file_path);
+            dmLogInfo("No external LiveUpdate manifest file found :( Looked for path: %s", lu_manifest_file_path);
 
         if (r == RESULT_OK)
         {
             r = LoadArchiveIndex(manifest_path, factory->m_UriParts.m_Path, factory);
-        }
 
-        if (r == RESULT_OK)
-        {
-            // Only need factory->m_Manifest->m_DDFData from this point on, make sure we release unneeded message
-            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
-            factory->m_Manifest->m_DDF = 0x0;
+            if (r == RESULT_OK)
+            {
+                // Only need factory->m_Manifest->m_DDFData from this point on, make sure we release unneeded message
+                dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+                factory->m_Manifest->m_DDF = 0x0;
+            }
+            else
+            {
+                dmLogError("Unable to load archive.");
+            }
         }
-        else
+        
+        if (r != RESULT_OK)
         {
-            dmLogError("Unable to load archive: %s with result %i", factory->m_UriParts.m_Path, r);
+            dmLogError("Failed to create factory %s with result %i.", factory->m_UriParts.m_Path, r);
             dmMessage::DeleteSocket(socket);
             dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
             dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);

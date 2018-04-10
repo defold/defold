@@ -108,25 +108,24 @@ namespace dmLiveUpdate
     {
         if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
         {
-            SHA1_CTX context;
-
-            SHA1_Init(&context);
-            SHA1_Update(&context, (const uint8_t*) buf, buflen);
-            SHA1_Final(digest, &context);
+            dmAxTls::SHA1_CTX context;
+            dmAxTls::SHA1_Init(&context);
+            dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::SHA1_Final(digest, &context);
         }
         else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
         {
-            SHA256_CTX context;
-            SHA256_Init(&context);
-            SHA256_Update(&context, (const uint8_t*) buf, buflen);
-            SHA256_Final(digest, &context);
+            dmAxTls::SHA256_CTX context;
+            dmAxTls::SHA256_Init(&context);
+            dmAxTls::SHA256_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::SHA256_Final(digest, &context);
         }
         else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
         {
-            SHA512_CTX context;
-            SHA512_Init(&context);
-            SHA512_Update(&context, (const uint8_t*) buf, buflen);
-            SHA512_Final(digest, &context);
+            dmAxTls::SHA512_CTX context;
+            dmAxTls::SHA512_Init(&context);
+            dmAxTls::SHA512_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::SHA512_Final(digest, &context);
         }
         else
         {
