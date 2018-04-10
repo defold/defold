@@ -222,7 +222,7 @@ public class RefComponentNode extends ComponentNode {
                 for (int j = 1; j < tokenCount; ++j) {
                     name += tokens[j].substring(0, 1).toUpperCase() + tokens[j].substring(1);
                 }
-                descs[i] = GoPropertyUtil.typeToDesc(defProp.type, defProp.subType, defProp.name, name, "");
+                descs[i] = GoPropertyUtil.typeToDesc(defProp.type, defProp.name, name, "");
             }
             ++i;
         }

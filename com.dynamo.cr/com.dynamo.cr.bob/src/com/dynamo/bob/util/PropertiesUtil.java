@@ -101,8 +101,8 @@ public class PropertiesUtil {
         // Beware, sloppy conversion
         value = BuilderUtil.replaceExt(value, ".material", ".materialc");
         value = BuilderUtil.replaceExt(value, ".font", ".fontc");
-        value = ProtoBuilders.transformTextureFilename(value);
-        value = ProtoBuilders.transformTextureSetFilename(value);
+        value = ProtoBuilders.replaceTextureName(value);
+        value = ProtoBuilders.replaceTextureSetName(value);
         return value;
     }
 

@@ -73,7 +73,6 @@ public class SpineSceneBuilder extends Builder<Void> {
 
         taskBuilder.addInput(input.getResource(builder.getSpineJson()));
         taskBuilder.addInput(project.getResource(project.getBuildDirectory() + BuilderUtil.replaceExt( builder.getAtlas(), "atlas", "texturesetc")));
-
         return taskBuilder.build();
     }
 

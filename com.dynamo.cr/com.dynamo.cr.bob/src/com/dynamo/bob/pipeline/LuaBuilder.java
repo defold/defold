@@ -45,33 +45,33 @@ public abstract class LuaBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        String script = new String((input.getContent()));
-        List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
-                .addInput(input);
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
 
-                for (LuaScanner.Property property : properties) {
-                    if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
-                        String value = (String)property.value;
-                        if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
-                            IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
-                            taskBuilder.addInput(resource);
-                        }
-                    }
+        String script = new String((input.getContent()));
+        List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
+        for (LuaScanner.Property property : properties) {
+            if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
+                String value = (String)property.value;
+                if (PropertiesUtil.isResourceProperty(project, property.type, value)) {
+                    IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
+                    taskBuilder.addInput(resource);
                 }
+            }
+        }
 
-                taskBuilder.addOutput(input.changeExt(params.outExt()));
         return taskBuilder.build();
     }
 
     public byte[] constructStrippedLuaCode(byte[] byteString) throws IOException, CompileExceptionError {
-        String string = new String(byteString);
-        string = LuaScanner.stripProperties(LuaScanner.stripComments(string));
+        String string = new String(byteString, "UTF-8");
+        string = LuaScanner.stripProperties(string);
         return string.getBytes();
     }
 
-    public byte[] constructBytecode(Task<Void> task) throws IOException, CompileExceptionError {
+    public byte[] constructBytecode(IResource resource, String path, byte[] byteString) throws IOException, CompileExceptionError {
 
         java.io.FileOutputStream fo = null;
         RandomAccessFile rdr = null;
@@ -84,7 +84,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
             fo = new java.io.FileOutputStream(inputFile);
-            fo.write(constructStrippedLuaCode(task.input(0).getContent()));
+            fo.write(byteString);
             fo.close();
 
             // Doing a bit of custom set up here as the path is required.
@@ -93,7 +93,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             //       correct chunk name (the original original source file) already here.
             //
             // See implementation of luaO_chunkid and why a prefix '=' is used; it is to pass through the filename without modifications.
-            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), "luajit"), "-bgf", ("=" + task.input(0).getPath()), inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
+            ProcessBuilder pb = new ProcessBuilder(new String[] { Bob.getExe(Platform.getHostPlatform(), "luajit"), "-bgf", ("=" + path), inputFile.getAbsolutePath(), outputFile.getAbsolutePath() }).redirectErrorStream(true);
 
             java.util.Map<String, String> env = pb.environment();
             env.put("LUA_PATH", Bob.getPath("share/luajit/") + "/?.lua");
@@ -121,7 +121,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                         if (lineBegin > 0) {
                             int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
                             if (lineEnd > 0) {
-                                throw new CompileExceptionError(task.input(0),
+                                throw new CompileExceptionError(resource,
                                         Integer.parseInt(cmdOutput.substring(
                                                 lineBegin + 1, lineEnd)),
                                         cmdOutput.substring(lineEnd + 2));
@@ -131,7 +131,7 @@ public abstract class LuaBuilder extends Builder<Void> {
                     // Since parsing out the actual error failed, as a backup just
                     // spit out whatever jualit said.
                     inputFile.delete();
-                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+                    throw new CompileExceptionError(resource, 1, cmdOutput);
                 }
             } catch (InterruptedException e) {
                 Logger.getLogger(LuaBuilder.class.getCanonicalName()).log(Level.SEVERE, "Unexpected interruption", e);
@@ -168,11 +168,11 @@ public abstract class LuaBuilder extends Builder<Void> {
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
-        Collection<String> propertytResources = new HashSet<String>();
+        Collection<String> propertyResources = new HashSet<String>();
         List<LuaScanner.Property> properties = LuaScanner.scanProperties(script);
-        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertytResources);
+        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertyResources);
         builder.setProperties(propertiesMsg);
-        builder.addAllPropertyResources(propertytResources);
+        builder.addAllPropertyResources(propertyResources);
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         byte[] scriptBytesStripped = constructStrippedLuaCode(task.input(0).getContent());
         srcBuilder.setScript(ByteString.copyFrom(scriptBytesStripped));
@@ -180,7 +180,7 @@ public abstract class LuaBuilder extends Builder<Void> {
 
         // For now it will always return, or throw an exception. This leaves the possibility of
         // disabling bytecode generation.
-        byte[] bytecode = constructBytecode(task);
+        byte[] bytecode = constructBytecode(task.input(0), task.input(0).getPath(), scriptBytesStripped);
         if (bytecode != null)
             srcBuilder.setBytecode(ByteString.copyFrom(bytecode));
 
@@ -268,9 +268,9 @@ public abstract class LuaBuilder extends Builder<Void> {
                         break;
                     }
                 } else if (property.status == Status.INVALID_ARGS) {
-                    throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4 or vmath.quat, material, textureset, texture.");
+                    throw new CompileExceptionError(resource, property.line + 1, "go.property takes a string and a value as arguments. The value must have the type number, boolean, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, or resource.*.");
                 } else if (property.status == Status.INVALID_VALUE) {
-                    throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, material, textureset, texture");
+                    throw new CompileExceptionError(resource, property.line + 1, "Only these types are available: number, hash, msg.url, vmath.vector3, vmath.vector4, vmath.quat, resource.*");
                 }
             }
         }

@@ -71,7 +71,7 @@ public class GoPropertyUtil {
         return null;
     }
 
-    public static <T, U extends IPropertyObjectWorld> IPropertyDesc<T, U> typeToDesc(PropertyType type, long subType, String id, String name, String category) {
+    public static <T, U extends IPropertyObjectWorld> IPropertyDesc<T, U> typeToDesc(PropertyType type, String id, String name, String category) {
         IPropertyDesc<T, U> desc = null;
         switch (type) {
         case PROPERTY_TYPE_NUMBER:

@@ -244,6 +244,18 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
         }
     }
 
+    private static String replaceTextureName(String str) {
+        String out = str;
+        if(str.endsWith(".atlas")) {
+            out = BuilderUtil.replaceExt(out, ".atlas", ".texturesetc");
+        } else if(str.endsWith(".tilesource")) {
+            out = BuilderUtil.replaceExt(out, ".tilesource", ".texturesetc");
+        } else {
+            out = ProtoBuilders.replaceTextureName(str);
+        }
+        return out;
+    }
+
     private static HashMap<String, HashMap<String, NodeDesc>> createNodeMap(HashMap<String, ArrayList<NodeDesc>> newScene) {
         HashMap<String, HashMap<String, NodeDesc>> map = new HashMap<String, HashMap<String, NodeDesc>>(newScene.size());
         for(String layout : newScene.keySet()) {
@@ -367,11 +379,7 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                             f.getName()));
                 }
                 textureNames.add(f.getName());
-                String fileName = ProtoBuilders.transformTextureSetFilename(f.getTexture());
-                if(f.getTexture().equals(fileName)) {
-                    fileName = ProtoBuilders.transformTextureFilename(f.getTexture());
-                }
-                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(fileName).build());
+                newTextureList.add(TextureDesc.newBuilder().mergeFrom(f).setTexture(replaceTextureName(f.getTexture())).build());
             }
 
             // transform scene internal resources
