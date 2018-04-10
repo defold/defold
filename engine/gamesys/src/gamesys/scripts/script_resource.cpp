@@ -21,6 +21,120 @@ namespace dmGameSystem
  * @namespace resource
  */
 
+/*# reference to material resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.material
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Load a material and set it to a sprite:
+ *
+ * ```lua
+ * go.property("my_material", resource.material("/material.material"))
+ * function init(self)
+ *   go.set("#sprite", "material", self.my_material)
+ * end
+ * ```
+ */
+
+/*# reference to font resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.font
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Load a font and set it to a label:
+ *
+ * ```lua
+ * go.property("my_font", resource.font("/font.font"))
+ * function init(self)
+ *   go.set("#label", "font", self.my_font)
+ * end
+ * ```
+ */
+
+/*# reference to texture resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.texture
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Load a texture and set it to a model:
+ *
+ * ```lua
+ * go.property("my_texture", resource.font("/texture.png"))
+ * function init(self)
+ *   go.set("#model", "texture0", self.my_texture)
+ * end
+ * ```
+ */
+
+/*# reference to atlas resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.atlas
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Load an atlas and set it to a sprite:
+ *
+ * ```lua
+ * go.property("my_atlas", resource.atlas("/atlas.atlas"))
+ * function init(self)
+ *   go.set("#sprite", "image", self.my_atlas)
+ * end
+ * ```
+ */
+
+/*# reference to tile source resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.tile_source
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Load tile source and set it to a tile map:
+ *
+ * ```lua
+ * go.property("my_tile_source", resource.tile_source("/tilesource.tilesource"))
+ * function init(self)
+ *   go.set("#tilemap", "tile_source", self.my_tile_source)
+ * end
+ * ```
+ */
 
 struct ResourceModule
 {

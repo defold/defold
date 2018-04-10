@@ -74,59 +74,40 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:hash] sprite textureset
+    /*# [type:hash] sprite image
      *
-     * The textureset hash id of the sprite. Used for getting/setting sprite textureset
+     * The image used when rendering the sprite. The type of the property is hash.
      *
-     * @name textureset
+     * @name image
      * @property
      *
      * @examples
      *
-     * How to set sprite textureset from a go textureset resource property
+     * How to set image using a script property (see [ref:resource.atlas])
      *
      * ```lua
-     * go.property("mytextureset", textureset("/main/texture.atlas"))
+     * go.property("my_image", resource.atlas("/atlas.atlas"))
      * function init(self)
-     *   go.set("#sprite", "textureset", self.mytextureset)
-     * end
-     * ```
-     */
-
-    /*# [type:hash] sprite texture(n) where n is 0-7
-     *
-     * The texture hash id of the sprite. Used for getting/setting sprite texture for unit 0-7
-     *
-     * @name texture(n)
-     * @property
-     *
-     * @examples
-     *
-     * How to set sprite texture for unit 0 from a go texture resource property
-     *
-     * ```lua
-     * go.property("mytexture", texture("/main/texture.png"))
-     * function init(self)
-     *   go.set("#sprite", "texture0", self.mytexture)
+     *   go.set("#sprite", "image", self.my_image)
      * end
      * ```
      */
 
     /*# [type:hash] sprite material
      *
-     * The material hash id of the sprite. Used for getting/setting sprite material
+     * The material used when rendering the sprite. The type of the property is hash.
      *
      * @name material
      * @property
      *
      * @examples
      *
-     * How to set sprite material from a go material resource property
+     * How to set material using a script property (see [ref:resource.material])
      *
      * ```lua
-     * go.property("mymaterial", material("/main/material.material"))
+     * go.property("my_material", resource.material("/material.material"))
      * function init(self)
-     *   go.set("#sprite", "material", self.mymaterial)
+     *   go.set("#sprite", "material", self.my_material)
      * end
      * ```
      */

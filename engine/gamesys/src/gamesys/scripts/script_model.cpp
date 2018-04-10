@@ -103,40 +103,40 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:hash] model texture(n) where n is 0-7
+    /*# [type:hash] model textureN where N is 0-7
      *
      * The texture hash id of the model. Used for getting/setting model texture for unit 0-7
      *
-     * @name texture(n)
+     * @name textureN
      * @property
      *
      * @examples
      *
-     * How to set model texture for unit 0 from a go texture resource property
+     * How to set texture using a script property (see [ref:resource.texture])
      *
      * ```lua
-     * go.property("mytexture", texture("/main/texture.png"))
+     * go.property("my_texture", texture("/texture.png"))
      * function init(self)
-     *   go.set("#model", "texture0", self.mytexture)
+     *   go.set("#model", "texture0", self.my_texture)
      * end
      * ```
      */
 
     /*# [type:hash] model material
      *
-     * The material hash id of the model. Used for getting/setting model material
+     * The material used when rendering the model. The type of the property is hash.
      *
      * @name material
      * @property
      *
      * @examples
      *
-     * How to set model material from a go material resource property
+     * How to set material using a script property (see [ref:resource.material])
      *
      * ```lua
-     * go.property("mymaterial", material("/main/material.material"))
+     * go.property("my_material", resource.material("/material.material"))
      * function init(self)
-     *   go.set("#model", "material", self.mymaterial)
+     *   go.set("#model", "material", self.my_material)
      * end
      * ```
      */
