@@ -152,13 +152,13 @@ def compile_model(task):
         msg_out.mesh_set = "/" + msg.mesh.replace(".dae", ".meshsetc")
         msg_out.skeleton = "/" + msg.mesh.replace(".dae", ".skeletonc")
         msg_out.animation_set = "/" + msg.animations.replace(".dae", ".animationsetc")
-        for i,n in enumerate(msg.textures):
-            msg_out.textures.append(transform_texture_name(task, msg.textures[i]))
         with open(task.outputs[1].bldpath(task.env), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
 
         msg_out = model_ddf_pb2.Model()
         msg_out.rig_scene = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
+        for i,n in enumerate(msg.textures):
+            msg_out.textures.append(transform_texture_name(task, msg.textures[i]))
         msg_out.material = msg.material.replace(".material", ".materialc")
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:
             out_f.write(msg_out.SerializeToString())
@@ -277,8 +277,6 @@ def transform_rig_scene(task, msg):
     msg.animation_set = msg.animation_set.replace('.animationset', '.animationsetc')
     msg.mesh_set = msg.mesh_set.replace('.meshset', '.meshsetc')
     msg.texture_set = msg.texture_set.replace('.atlas', '.texturesetc')
-    for i,n in enumerate(msg.textures):
-        msg.textures[i] = transform_textureset_filename(task, msg.textures[i])
     return msg
 
 def transform_label(task, msg):
@@ -603,7 +601,7 @@ def compile_spinescene(task):
         msg_out.skeleton = "/" + os.path.relpath(task.outputs[1].abspath(), task.generator.content_root)
         msg_out.mesh_set = "/" + os.path.relpath(task.outputs[2].abspath(), task.generator.content_root)
         msg_out.animation_set = "/" + os.path.relpath(task.outputs[3].abspath(), task.generator.content_root)
-        msg_out.texture_set = transform_textureset_filename( task, msg.atlas )
+        msg_out.texture_set = transform_textureset_filename(task, msg.atlas)
 
         # write scene desc
         with open(task.outputs[0].bldpath(task.env), 'wb') as out_f:

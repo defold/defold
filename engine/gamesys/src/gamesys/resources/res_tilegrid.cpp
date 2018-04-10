@@ -3,8 +3,6 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <vectormath/ppu/cpp/vec_aos.h>
-#include <render/render.h>
-#include <graphics/graphics.h>
 
 #include "gamesys.h"
 #include "gamesys_ddf.h"
@@ -16,13 +14,15 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmPhysics::HContext2D context, dmResource::HFactory factory, dmGameSystemDDF::TileGrid* tile_grid_ddf,
                           TileGridResource* tile_grid, const char* filename)
     {
-        dmResource::Result result = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
-        if (result != dmResource::RESULT_OK)
-            return result;
-        result = dmResource::Get(factory, tile_grid_ddf->m_Material, (void**)&tile_grid->m_Material);
-        if (result != dmResource::RESULT_OK)
+        dmResource::Result r = dmResource::Get(factory, tile_grid_ddf->m_TileSet, (void**)&tile_grid->m_TextureSet);
+        if (r != dmResource::RESULT_OK)
         {
-            return result;
+            return r;
+        }
+        r = dmResource::Get(factory, tile_grid_ddf->m_Material, (void**)&tile_grid->m_Material);
+        if (r != dmResource::RESULT_OK)
+        {
+            return r;
         }
         // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
         if (tile_grid_ddf->m_BlendMode == dmGameSystemDDF::TileGrid::BLEND_MODE_ADD_ALPHA)
@@ -71,7 +71,7 @@ namespace dmGameSystem
                 tile_grid->m_GridShapes[i] = dmPhysics::NewGridShape2D(context, hull_set, offset, cell_width, cell_height, tile_grid->m_RowCount, tile_grid->m_ColumnCount);
             }
         }
-        return result;
+        return r;
     }
 
     void ReleaseResources(dmResource::HFactory factory, TileGridResource* tile_grid)

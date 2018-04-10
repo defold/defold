@@ -161,7 +161,7 @@ namespace dmGameSystem
         return component->m_Material ? component->m_Material : resource->m_Material;
     }
 
-    static inline dmGraphics::HTexture GetTexture(const ModelComponent* component, const RigSceneResource* resource, uint32_t index) {
+    static inline dmGraphics::HTexture GetTexture(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
         if (index >= MAX_TEXTURE_COUNT) {
             return 0;
         }
@@ -173,13 +173,13 @@ namespace dmGameSystem
         // material, textures and render constants
         HashState32 state;
         bool reverse = false;
-        RigSceneResource* rig_resource = component->m_Resource->m_RigScene;
+        ModelResource* resource = component->m_Resource;
         dmHashInit32(&state, reverse);
-        dmRender::HMaterial material = GetMaterial(component, component->m_Resource);
+        dmRender::HMaterial material = GetMaterial(component, resource);
         dmHashUpdateBuffer32(&state, &material, sizeof(material));
         // We have to hash individually since we don't know which textures are set as properties
         for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-            dmGraphics::HTexture texture = GetTexture(component, rig_resource, i);
+            dmGraphics::HTexture texture = GetTexture(component, resource, i);
             dmHashUpdateBuffer32(&state, &texture, sizeof(texture));
         }
         ReHashRenderConstants(&component->m_RenderConstants, &state);
@@ -384,6 +384,7 @@ namespace dmGameSystem
         DM_PROFILE(Model, "RenderBatch");
 
         const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
+        const ModelResource* resource = first->m_Resource;
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
         for (uint32_t *i=begin;i!=end;i++)
@@ -426,13 +427,12 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
-        ro.m_Material = GetMaterial(first, first->m_Resource);
+        ro.m_Material = GetMaterial(first, resource);
         ro.m_WorldTransform = first->m_World;
 
-        const RigSceneResource* rig_resource = first->m_Resource->m_RigScene;
         for(uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i)
         {
-            ro.m_Textures[i] = GetTexture(first, rig_resource, i);
+            ro.m_Textures[i] = GetTexture(first, resource, i);
         }
 
         const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
@@ -585,7 +585,7 @@ namespace dmGameSystem
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = (uintptr_t) &component;
             write_ptr->m_BatchKey = component.m_MixedHash;
-            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Material);
+            write_ptr->m_TagMask = dmRender::GetMaterialTagMask(GetMaterial(&component, component.m_Resource));
             write_ptr->m_Dispatch = dispatch;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
@@ -771,7 +771,7 @@ namespace dmGameSystem
         {
             if (params.m_PropertyId == PROP_TEXTURE[i])
             {
-                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource->m_RigScene, i), out_value);
+                return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), GetTexture(component, component->m_Resource, i), out_value);
             }
         }
         return GetMaterialConstant(GetMaterial(component, component->m_Resource), params.m_PropertyId, out_value, true, CompModelGetConstantCallback, component);
