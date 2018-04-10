@@ -18,7 +18,6 @@ public class SpineModelBuilder extends ProtoBuilder<SpineModelDesc.Builder> {
         messageBuilder.setSpineScene(BuilderUtil.replaceExt(messageBuilder.getSpineScene(), ".spinescene", ".rigscenec"));
         BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
         messageBuilder.setMaterial(BuilderUtil.replaceExt(messageBuilder.getMaterial(), ".material", ".materialc"));
-
         return messageBuilder;
     }
 }

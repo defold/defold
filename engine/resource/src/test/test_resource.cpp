@@ -128,7 +128,7 @@ TEST_F(ResourceTest, RegisterType)
 TEST_F(ResourceTest, NotFound)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0);
+    e = dmResource::RegisterType(factory, "foo", 0, 0, &DummyCreate, 0, &DummyDestroy, 0, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
     void* resource = (void*) 0xdeadbeef;
     e = dmResource::Get(factory, "/DOES_NOT_EXISTS.foo", &resource);
@@ -189,10 +189,10 @@ protected:
         m_ResourceName = "/test.cont";
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, CONT_EXT, this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        e = dmResource::RegisterType(m_Factory, FOO_EXT, this, 0, &FooResourceCreate, &FooResourcePostCreate, &FooResourceDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &FooResourceCreate, &FooResourcePostCreate, &FooResourceDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
     }
 
@@ -935,11 +935,11 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
-    e = dmResource::GetTypeFromExtension(factory, FOO_EXT, &type);
+    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -1008,11 +1008,11 @@ TEST(RecreateTest, RecreateTestHttp)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
-    e = dmResource::GetTypeFromExtension(factory, FOO_EXT, &type);
+    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -1109,11 +1109,11 @@ TEST(FilenameTest, FilenameTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     dmResource::ResourceType type;
-    e = dmResource::GetTypeFromExtension(factory, FOO_EXT, &type);
+    e = dmResource::GetTypeFromExtension(factory, "foo", &type);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testfilename__.foo";
@@ -1178,7 +1178,7 @@ TEST(RecreateTest, ReloadCallbackTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     const char* resource_name = "/__testrecreate__.foo";
@@ -1230,7 +1230,7 @@ TEST(OverflowTest, OverflowTest)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     int* resource;
@@ -1259,9 +1259,9 @@ TEST_P(GetResourceTest, OverflowTestRecursive)
         ASSERT_NE((void*) 0, m_Factory);
 
         dmResource::Result e;
-        e = dmResource::RegisterType(m_Factory, FOO_EXT, this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
+        e = dmResource::RegisterType(m_Factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
-        e = dmResource::RegisterType(m_Factory, CONT_EXT, this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
+        e = dmResource::RegisterType(m_Factory, "cont", this, &ResourceContainerPreload, &ResourceContainerCreate, 0, &ResourceContainerDestroy, 0, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         int* resource;
@@ -1371,7 +1371,7 @@ TEST(DynamicResources, GetPath)
     ASSERT_NE((void*) 0, factory);
 
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;
@@ -1424,7 +1424,7 @@ TEST(DynamicResources, GetPath)
 TEST_F(DynamicResourceTest, Set)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;
@@ -1498,7 +1498,7 @@ TEST_F(DynamicResourceTest, Set)
 TEST_F(DynamicResourceTest, RefCount)
 {
     dmResource::Result e;
-    e = dmResource::RegisterType(factory, FOO_EXT, this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
+    e = dmResource::RegisterType(factory, "foo", this, 0, &SharedResourceCreate, 0, &SharedResourceDestroy, &SharedResourceRecreate, &SharedResourceDuplicate);
     ASSERT_EQ(dmResource::RESULT_OK, e);
 
     ResourceHolder* resource1;

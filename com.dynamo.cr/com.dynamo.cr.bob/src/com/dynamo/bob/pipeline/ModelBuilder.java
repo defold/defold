@@ -97,7 +97,6 @@ public class ModelBuilder extends Builder<Void> {
             newTextureList.add(ProtoBuilders.replaceTextureName(t));
         }
         model.addAllTextures(newTextureList);
-
         model.setDefaultAnimation(modelDescBuilder.getDefaultAnimation());
 
         out = new ByteArrayOutputStream(64 * 1024);
