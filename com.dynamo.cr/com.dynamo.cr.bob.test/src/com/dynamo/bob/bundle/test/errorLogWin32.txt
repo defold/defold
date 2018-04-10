@@ -12,3 +12,7 @@ LINK : fatal error LNK1181: cannot open input file 'libengine.lib'
 ca7eea62-9c8f-449d-b9ff-a855c952ac24.lib(main.cpp_0.o) : error LNK2019: unresolved external symbol "void __cdecl Foobar(void)" (?Foobar@@YAXXZ) referenced in function "enum dmExtension::Result __cdecl AppInitializeExtension(struct dmExtension::AppParams * __ptr64)" (?AppInitializeExtension@@YA?AW4Result@dmExtension@@PEAUAppParams@2@@Z)
 build/dmengine.exe : fatal error LNK1120: 1 unresolved externals
 
+# found when building with a library that was built using MSVC2017 while we're still using MSVC2015
+MathFuncsLib.lib(MathFuncsLib.obj) : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance
+fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'
+LINK : fatal error LNK1257: code generation failed

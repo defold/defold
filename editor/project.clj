@@ -1,6 +1,6 @@
 (defproject defold-editor "2.0.0-SNAPSHOT"
   :description      "Defold game editor"
-  :url              "http://doc.defold.com"
+  :url              "https://www.defold.com/learn/"
 
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 

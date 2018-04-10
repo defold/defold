@@ -199,19 +199,38 @@
                          compress-archive? (assoc "compress" "true"))]
     (bob-build! project bob-commands bob-args)))
 
-(defn- handler [project {:keys [url method headers]}]
-  (if (= method "GET")
-    (let [path (-> url
-                   (subs (inc (count html5-url-prefix))) ; Strip prefix and slash character.
-                   (URLDecoder/decode "UTF-8"))
-          f (io/file (build-html5-output-path project) (project-title project) path)]
-      (if (.exists f)
-        (let [length (.length f)
-              response {:code 200
-                        :response-headers {"Content-Length" (str length)}
-                        :body f}]
-          response)
-        {:code 404}))))
+(defn- try-resolve-html5-file
+  ^File [project ^String rel-url]
+  (let [build-html5-output-path (build-html5-output-path project)
+        project-title (project-title project)
+        rel-path (subs rel-url (inc (count html5-url-prefix)))
+        content-path (.normalize (.toPath (io/file build-html5-output-path project-title)))
+        absolute-path (.normalize (.resolve content-path rel-path))]
+    (when (.startsWith absolute-path content-path)
+      (.toFile absolute-path))))
+
+(defn- handler [project {:keys [url method]}]
+  (when (= method "GET")
+    (if (or (= html5-url-prefix url)
+            (= (str html5-url-prefix "/") url))
+      {:code 302
+       :headers {"Location" (str html5-url-prefix "/index.html")}}
+
+      (let [served-file (try-resolve-html5-file project url)]
+        (cond
+          ;; The requested URL is a directory or located outside build-html5-output-path.
+          (or (nil? served-file) (.isDirectory served-file))
+          {:code 403
+           :body "Forbidden"}
+
+          (.exists served-file)
+          {:code 200
+           :response-headers {"Content-Length" (str (.length served-file))}
+           :body served-file}
+
+          :else
+          {:code 404
+           :body "Not found"})))))
 
 (defn html5-handler [project req-headers]
   (handler project req-headers))

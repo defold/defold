@@ -3067,8 +3067,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_WRONG_TYPE;
         }
 
-        dmParticle::HInstance inst = n->m_Node.m_ParticleInstance;
-        dmParticle::StopInstance(scene->m_ParticlefxContext, inst);
+        uint32_t alive_count = scene->m_AliveParticlefxs.Size();
+        for (uint32_t i = 0; i < alive_count; ++i)
+        {
+            ParticlefxComponent* component = &scene->m_AliveParticlefxs[i];
+            if (component->m_Node == node)
+            {
+                dmParticle::StopInstance(scene->m_ParticlefxContext, component->m_Instance);
+            }
+        }
 
         return RESULT_OK;
     }

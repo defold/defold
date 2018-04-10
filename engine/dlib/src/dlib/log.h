@@ -60,5 +60,17 @@ void dmLogSetlevel(dmLogSeverity severity);
  */
 void dmSetLogFile(const char* path);
 
+/**
+ * iOS specific print function that wraps NSLog to be able to
+ * output logging to the device/XCode log.
+ *
+ * Declared here to be accessible from log.cpp, defined in log_ios.mm
+ * since it needs to be compiled as Objective-C.
+ *
+ * @param severity Log severity
+ * @param str_buf String buffer to print
+ */
+void __ios_log_print(dmLogSeverity severity, const char* str_buf);
+
 
 #endif // DM_LOG_H

@@ -44,6 +44,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/ssl/ssl.h>
 
+namespace dmAxTls {
+
 static int do_obj(SSL_CTX *ssl_ctx, int obj_type,
                     SSLObjLoader *ssl_obj, const char *password);
 #ifdef CONFIG_SSL_HAS_PEM
@@ -219,7 +221,7 @@ static int pem_decrypt(const char *where, const char *end,
 {
     int ret = -1;
     int is_aes_256 = 0;
-    char *start = NULL;
+    const char *start = NULL;
     uint8_t iv[IV_SIZE];
     int i, pem_size;
     MD5_CTX md5_ctx;
@@ -486,3 +488,5 @@ error:
     return ret;
 
 }
+
+} // namespace

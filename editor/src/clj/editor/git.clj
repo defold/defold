@@ -37,16 +37,19 @@
                                                  ".cproject"
                                                  "builtins"])))
 
-(defn open ^Git [^File repo-path]
+(defn try-open
+  ^Git [^File repo-path]
   (try
     (Git/open repo-path)
-    (catch RepositoryNotFoundException e
+    (catch Exception _
       nil)))
 
-(defn get-commit [^Repository repository revision]
-  (let [walk (RevWalk. repository)]
-    (.setRetainBody walk true)
-    (.parseCommit walk (.resolve repository revision))))
+(defn get-commit
+  ^RevCommit [^Repository repository revision]
+  (when-some [object-id (.resolve repository revision)]
+    (let [walk (RevWalk. repository)]
+      (.setRetainBody walk true)
+      (.parseCommit walk object-id))))
 
 (defn- diff-entry->map [^DiffEntry de]
   ; NOTE: We convert /dev/null paths to nil, and convert copies into adds.
