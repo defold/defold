@@ -239,7 +239,7 @@ namespace dmExtension
      *
      * @end
      *
-     * void ExtensionAppInitializeiOS(AppParams* params)
+     * void ExtensionAppInitializeiOS(dmExtension::AppParams* params)
      * {
      *     g_MyApplicationDelegate = [[MyApplicationDelegate alloc] init];
      *     dmExtension::RegisteriOSUIApplicationDelegate(g_MyApplicationDelegate);
@@ -257,7 +257,7 @@ namespace dmExtension
      * @examples
      * ```cpp
      * // myextension_ios.mm
-     * void ExtensionAppFinalizeiOS(AppParams* params)
+     * void ExtensionAppFinalizeiOS(dmExtension::AppParams* params)
      * {
      *     dmExtension::UnregisteriOSUIApplicationDelegate(g_MyApplicationDelegate);
      *     [g_MyApplicationDelegate release];
