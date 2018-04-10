@@ -35,12 +35,10 @@
 #ifndef HEADER_CRYPTO_H
 #define HEADER_CRYPTO_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <axtls/crypto/bigint_impl.h>
 #include <axtls/crypto/bigint.h>
+
+namespace dmAxTls {
 
 #ifndef STDCALL
 #define STDCALL
@@ -260,8 +258,6 @@ EXP_FUNC void STDCALL RNG_terminate(void);
 EXP_FUNC int STDCALL get_random(int num_rand_bytes, uint8_t *rand_data);
 int get_random_NZ(int num_rand_bytes, uint8_t *rand_data);
 
-#ifdef __cplusplus
-}
-#endif
+} // namespace
 
 #endif

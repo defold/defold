@@ -35,6 +35,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/ssl/ssl.h>
 
+namespace dmAxTls {
+
 #ifdef CONFIG_SSL_ENABLE_CLIENT        /* all commented out if no client */
 
 /* support sha512/384/256/1 RSA */
@@ -536,3 +538,5 @@ error:
 }
 
 #endif      /* CONFIG_SSL_ENABLE_CLIENT */
+
+} // namespace
