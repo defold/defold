@@ -668,6 +668,12 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     {
         if (GLFW_PHASE_BEGAN == t.phase) {
             GLFWTouch* glfwt = [self touchById: t];
+            if (glfwt == 0x0) {
+                // Could not find corresponding GLFWTouch.
+                // Possibly due to too many touches at once,
+                // we only support GLFW_MAX_TOUCH.
+                continue;
+            }
             [self touchStart: glfwt withTouch: t];
 
             if (glfwt == _glfwInput.MouseEmulationTouch) {
@@ -686,6 +692,13 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     {
         if (phase == t.phase) {
             GLFWTouch* glfwt = [self touchById: t];
+            if (glfwt == 0x0) {
+                // Could not find corresponding GLFWTouch.
+                // Possibly due to too many touches at once,
+                // we only support GLFW_MAX_TOUCH.
+                continue;
+            }
+
             [self touchUpdate: glfwt withTouch: t];
 
             if (glfwt == _glfwInput.MouseEmulationTouch || !_glfwInput.MouseEmulationTouch) {

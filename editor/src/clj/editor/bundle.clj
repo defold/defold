@@ -36,7 +36,7 @@
       (throw (ex-info (format "Shell call failed:\n%s" args) {} e)))))
 
 (defn- cr-project-id [workspace]
-  (when-let [git (git/open (workspace/project-path workspace))]
+  (when-let [git (git/try-open (workspace/project-path workspace))]
     (try
       (when-let [remote-url (git/remote-origin-url git)]
         (let [url (URL. remote-url)
@@ -163,6 +163,29 @@
     (catch Exception e
       {:err e :message "Failed to create Info.plist."})))
 
+(g/defnk copy-launch-images [^File app-dir]
+  (try
+    (doseq [launch-image ["Default.png"
+                          "Default@2x.png"
+                          "Default-Portrait-812h@3x.png"
+                          "Default-Portrait-736h@3x.png"
+                          "Default-Portrait-667h@2x.png"
+                          "Default-Portrait-1366h@2x.png"
+                          "Default-Portrait-1024h@2x.png"
+                          "Default-Portrait-1024h.png"
+                          "Default-Landscape-812h@3x.png"
+                          "Default-Landscape-736h@3x.png"
+                          "Default-Landscape-667h@2x.png"
+                          "Default-Landscape-1366h@2x.png"
+                          "Default-Landscape-1024h@2x.png"
+                          "Default-Landscape-1024h.png"
+                          "Default-568h@2x.png"]]
+      (with-open [launch-image-stream (io/input-stream (io/resource (str "bundle/ios/" launch-image)))]
+        (io/copy launch-image-stream (io/file app-dir launch-image)))
+      {:copied-launch-images true})
+    (catch Exception e
+      {:err e :message "Failed to copy launch images for bundling."})))
+
 (g/defnk setup-fs-env []
   (try
     (let [package-dir (fs/create-temp-directory!)
@@ -236,6 +259,7 @@
                           make-provisioning-profile-plist
                           extract-entitlements-plist
                           make-info-plist
+                          copy-launch-images
                           get-armv7-engine
                           get-arm64-engine
                           lipo-ios-engine

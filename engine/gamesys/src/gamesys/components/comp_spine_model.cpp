@@ -211,8 +211,7 @@ namespace dmGameSystem
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
         if (!pose.Empty()) {
-            pose[0] = dmTransform::Mul(component->m_Transform, pose[0]);
-            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], pose.Begin(), pose.Size());
+            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], component->m_Transform, pose.Begin(), pose.Size());
         }
     }
 
@@ -617,6 +616,7 @@ namespace dmGameSystem
             write_ptr->m_BatchKey = component.m_MixedHash;
             write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
             write_ptr->m_Dispatch = dispatch;
+            write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
         }

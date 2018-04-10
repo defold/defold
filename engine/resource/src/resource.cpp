@@ -138,7 +138,7 @@ SResourceType* FindResourceType(SResourceFactory* factory, const char* extension
 }
 
 // TODO: Test this...
-static void GetCanonicalPath(const char* base_dir, const char* relative_dir, char* buf)
+void GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf)
 {
     DM_SNPRINTF(buf, RESOURCE_PATH_MAX, "%s/%s", base_dir, relative_dir);
 
@@ -157,9 +157,9 @@ static void GetCanonicalPath(const char* base_dir, const char* relative_dir, cha
     *dest = '\0';
 }
 
-void GetCanonicalPath(HFactory factory, const char* relative_dir, char* buf)
+void GetCanonicalPath(const char* relative_dir, char* buf)
 {
-    return GetCanonicalPath(factory->m_UriParts.m_Path, relative_dir, buf);
+    GetCanonicalPathFromBase("", relative_dir, buf);
 }
 
 Result CheckSuppliedResourcePath(const char* name)
@@ -961,6 +961,8 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
         }
     }
 
+    char factory_path[RESOURCE_PATH_MAX];
+    GetCanonicalPathFromBase(factory->m_UriParts.m_Path, path, factory_path);
     // NOTE: No else if here. Fall through
     if (factory->m_HttpClient)
     {
@@ -973,7 +975,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
         factory->m_HttpStatus = -1;
 
         char uri[RESOURCE_PATH_MAX*2];
-        dmURI::Encode(path, uri, sizeof(uri));
+        dmURI::Encode(factory_path, uri, sizeof(uri));
 
         dmHttpClient::Result http_result = dmHttpClient::Get(factory->m_HttpClient, uri);
         if (http_result != dmHttpClient::RESULT_OK)
@@ -999,7 +1001,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
         // Only check content-length if status != 304 (NOT MODIFIED)
         if (factory->m_HttpStatus != 304 && factory->m_HttpContentLength != -1 && factory->m_HttpContentLength != factory->m_HttpTotalBytesStreamed)
         {
-            dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", path, factory->m_HttpContentLength, factory->m_HttpTotalBytesStreamed);
+            dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", factory_path, factory->m_HttpContentLength, factory->m_HttpTotalBytesStreamed);
         }
 
         *resource_size = factory->m_HttpTotalBytesStreamed;
@@ -1014,7 +1016,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
     {
         // Load over local file system
         uint32_t file_size;
-        dmSys::Result r = dmSys::ResourceSize(path, &file_size);
+        dmSys::Result r = dmSys::ResourceSize(factory_path, &file_size);
         if (r != dmSys::RESULT_OK) {
             if (r == dmSys::RESULT_NOENT)
                 return RESULT_RESOURCE_NOT_FOUND;
@@ -1027,7 +1029,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
         }
         buffer->SetSize(0);
 
-        r = dmSys::LoadResource(path, buffer->Begin(), file_size, &file_size);
+        r = dmSys::LoadResource(factory_path, buffer->Begin(), file_size, &file_size);
         if (r == dmSys::RESULT_OK) {
             buffer->SetSize(file_size);
             *resource_size = file_size;
@@ -1175,7 +1177,7 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
     *resource = 0;
 
     char canonical_path[RESOURCE_PATH_MAX]; // The actual resource path. E.g. "/my/icon.texturec"
-    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+    GetCanonicalPath(name, canonical_path);
 
     bool is_shared = !IsPathTagged(name);
     if( !is_shared )
@@ -1402,7 +1404,7 @@ Result InsertResource(HFactory factory, const char* path, uint64_t canonical_pat
     if (factory->m_ResourceHashToFilename)
     {
         char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(factory, path, canonical_path);
+        GetCanonicalPath(path, canonical_path);
         factory->m_ResourceHashToFilename->Put(canonical_path_hash, strdup(canonical_path));
     }
 
@@ -1427,7 +1429,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
 
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+    GetCanonicalPath(name, canonical_path);
 
     void* buffer;
     uint32_t file_size;
@@ -1444,7 +1446,7 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
 static Result DoReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+    GetCanonicalPath(name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
@@ -1717,7 +1719,7 @@ Result GetExtensionFromType(HFactory factory, ResourceType type, const char** ex
 Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory->m_UriParts.m_Path, name, canonical_path);
+    GetCanonicalPath(name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 

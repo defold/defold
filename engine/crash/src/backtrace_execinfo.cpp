@@ -94,5 +94,6 @@ namespace dmCrash
         InstallOnSignal(SIGBUS);
         InstallOnSignal(SIGTRAP);
         InstallOnSignal(SIGILL);
+        InstallOnSignal(SIGABRT);
     }
 }
