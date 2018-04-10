@@ -19,6 +19,7 @@ namespace dmGameObject
             DestroyPropertySetUserData(c.m_PropertySet.m_UserData);
         }
 
+        UnloadPropertyResources(factory, prototype->m_PropertyResources);
         delete prototype;
     }
 
@@ -95,7 +96,6 @@ namespace dmGameObject
                     dmResource::Release(params.m_Factory, component);
                 DestroyPrototype(proto, params.m_Factory);
                 dmDDF::FreeMessage(proto_desc);
-                UnloadPropertyResources(params.m_Factory, proto->m_PropertyResources);
                 if (id_used)
                     return dmResource::RESULT_FORMAT_ERROR;
                 else
@@ -128,7 +128,6 @@ namespace dmGameObject
                 {
                     DestroyPrototype(proto, params.m_Factory);
                     dmDDF::FreeMessage(proto_desc);
-                    UnloadPropertyResources(params.m_Factory, proto->m_PropertyResources);
                     return dmResource::RESULT_FORMAT_ERROR;
                 }
             }
@@ -143,7 +142,6 @@ namespace dmGameObject
     dmResource::Result ResPrototypeDestroy(const dmResource::ResourceDestroyParams& params)
     {
         Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
-        UnloadPropertyResources(params.m_Factory, proto->m_PropertyResources);
         DestroyPrototype(proto, params.m_Factory);
         return dmResource::RESULT_OK;
     }
