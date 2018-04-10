@@ -31,7 +31,7 @@
 
 ; NOTE: Version without exceptions. Haven't decided yet...
 #_(defn rget [client path entity-class]
-   (let [server-url (prefs/get-prefs (:prefs client) "server-url" "http://cr.defold.com")
+   (let [server-url (prefs/get-prefs (:prefs client) "server-url" "https://cr.defold.com")
          resource (.resource (:client client) (URI. server-url))]
      (let [^ClientResponse cr (-> resource
                                 (.path path)

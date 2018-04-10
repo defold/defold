@@ -42,6 +42,8 @@
 #define SIGMA4(x) (ROR64(x, 19) ^ ROR64(x, 61) ^ SHR64(x, 6))
 #define MIN(x, y) ((x) < (y) ? x : y)
 
+namespace dmAxTls {
+
 static const uint8_t padding[128] =
 {
     0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -217,3 +219,5 @@ void SHA512_Final(uint8_t *digest, SHA512_CTX *ctx)
     if (digest != NULL)
        memcpy(digest, ctx->h_dig.digest, SHA512_SIZE);
  }
+
+} // namespace
