@@ -50,7 +50,7 @@ namespace dmResourceArchive
         /// Used if the archive is loaded from file (bundled archive)
         uint8_t* m_Hashes;
         EntryData* m_Entries;
-        uint8_t* m_ResourceData;
+        uint8_t* m_ResourceData; // mem-mapped game.arcd
         FILE* m_FileResourceData; // game.arcd file handle
 
         /// Resources acquired with LiveUpdate

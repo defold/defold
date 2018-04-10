@@ -93,7 +93,7 @@ namespace dmResourceArchive
      * @param archive archive index container handle
      * @return RESULT_OK on success
      */
-    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
+    Result WrapArchiveBuffer(const void* index_buffer, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive);
 
     /**
      * Load archive from filename. Only the index data is loaded into memory.

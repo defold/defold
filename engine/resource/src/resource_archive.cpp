@@ -33,7 +33,7 @@ namespace dmResourceArchive
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 
-    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
+    Result WrapArchiveBuffer(const void* index_buffer, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
         (*archive)->m_IsMemMapped = true;
@@ -230,6 +230,7 @@ namespace dmResourceArchive
             delete lu_entries;
             return RESULT_IO_ERROR;
         }
+        fflush(f_lu_index);
         fclose(f_lu_index);
 
         free(lu_entries->m_Entries);
@@ -399,10 +400,13 @@ namespace dmResourceArchive
             fclose(archive->m_LiveUpdateFileResourceData);
         }
 
-        if (archive->m_LiveUpdateResourceData)
+        if (archive->m_LiveUpdateResourcesMemMapped)
         {
             void* tmp_ptr = (void*)archive->m_LiveUpdateResourceData;
             dmResource::UnmapFile(tmp_ptr, archive->m_LiveUpdateResourceSize);
+            archive->m_LiveUpdateResourceData = 0x0;
+            archive->m_LiveUpdateResourceSize = 0;
+            archive->m_LiveUpdateResourcesMemMapped = false;
         }
 
         if (!archive->m_IsMemMapped)
@@ -536,7 +540,7 @@ namespace dmResourceArchive
                 return RESULT_IO_ERROR;
             }
             archive->m_LiveUpdateResourceData = (uint8_t*)temp_map;
-            archive->m_LiveUpdateResourceSize += bytes_written;
+            archive->m_LiveUpdateResourceSize = offset + bytes_written;
         }
 
         return RESULT_OK;
@@ -644,7 +648,7 @@ namespace dmResourceArchive
         Result index_result = GetInsertionIndex(archive_container, hash_digest, &idx);
         if (index_result != RESULT_OK)
         {
-            dmLogError("Could not calculate valid resource insertion index");
+            dmLogError("Could not calculate valid resource insertion index, resource probably already stored in index.");
             return index_result;
         }
 

@@ -369,6 +369,11 @@ Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manife
 
     // Read data blob from ManifestFile into ManifestData message
     result = dmDDF::LoadMessage(manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &manifest->m_DDFData);
+    if (result != dmDDF::RESULT_OK)
+    {
+        dmLogError("Failed to parse Manifest data (%i)", result);
+        return RESULT_IO_ERROR;
+    }
     if (manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
     {
         dmLogError("Manifest format mismatch (expected '%x', actual '%x')",
@@ -652,6 +657,8 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         char* manifest_path = factory->m_UriParts.m_Path;
         Result r = LoadManifest(manifest_path, factory);
 
+        // TODO check and act on result r from LoadManifest (cleanup etc.)
+
         // Check if liveupdate.dmanifest exists, if it does, try to load it
         char app_support_path[DMPATH_MAX_PATH];
         char manifest_file_path[DMPATH_MAX_PATH];
@@ -664,8 +671,10 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         if (luManifestExists)
         {
             // Unload bundled manifest data
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
             dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
             factory->m_Manifest->m_DDFData = 0x0;
+            factory->m_Manifest->m_DDF = 0x0;
             manifest_path = manifest_file_path;
             dmLogInfo("LiveUpdate manifest file exists! path: %s", manifest_path);
             r = LoadExternalManifest(manifest_path, factory);
@@ -680,15 +689,18 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
 
         if (r == RESULT_OK)
         {
+            // Only need factory->m_Manifest->m_DDFData from this point on, make sure we release unneeded message
             dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
             factory->m_Manifest->m_DDF = 0x0;
         }
         else
         {
-            dmLogError("Unable to load manifest: %s with result = %i", factory->m_UriParts.m_Path, r);
+            dmLogError("Unable to load archive: %s with result %i", factory->m_UriParts.m_Path, r);
             dmMessage::DeleteSocket(socket);
             dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
             factory->m_Manifest->m_DDF = 0x0;
+            factory->m_Manifest->m_DDFData = 0x0;
             delete factory->m_Manifest;
             delete factory;
             return 0;
@@ -738,7 +750,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         else
         {
             res = dmDDF::LoadMessage(factory->m_BuiltinsManifest->m_DDF->m_Data.m_Data, factory->m_BuiltinsManifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**)&factory->m_BuiltinsManifest->m_DDFData);
-            dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveIndex.m_Size, params->m_ArchiveData.m_Data, 0x0, 0x0, 0x0, &factory->m_BuiltinsManifest->m_ArchiveIndex);
+            dmResourceArchive::WrapArchiveBuffer(params->m_ArchiveIndex.m_Data, params->m_ArchiveData.m_Data, 0x0, 0x0, 0x0, &factory->m_BuiltinsManifest->m_ArchiveIndex);
         }
     }
 

@@ -169,7 +169,7 @@ namespace dmResource
             }
         }
 
-        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, index_length, data_map, lu_data_path, lu_data_map, lu_data_file, archive);
+        dmResourceArchive::Result res = WrapArchiveBuffer(index_map, data_map, lu_data_path, lu_data_map, lu_data_file, archive);
         if (res != dmResourceArchive::RESULT_OK)
         {
             UnmapAsset(index_asset);
