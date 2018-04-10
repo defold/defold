@@ -25,7 +25,6 @@ namespace dmGameSystem
         AnimationSetResource*   m_AnimationSetRes;
         TextureSetResource*     m_TextureSet;
 
-        dmGraphics::HTexture    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmArray<uint32_t>       m_PoseIdxToInfluence;
         dmArray<uint32_t>       m_TrackIdxToPose;
     };

@@ -9,21 +9,15 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmResource::HFactory factory, RigSceneResource* resource, const char* filename, bool reload)
     {
         dmResource::Result result;
-        size_t texture_count = dmMath::Min(resource->m_RigScene->m_Textures.m_Count, dmRender::RenderObject::MAX_TEXTURE_COUNT);
-        for(uint32_t i = 0; i < texture_count; ++i)
+        if (strlen(resource->m_RigScene->m_TextureSet) != 0)
         {
-            const char* texture = resource->m_RigScene->m_Textures[i];
-            if (*texture == 0)
-                continue;
-            result = dmResource::Get(factory, texture, (void**) &resource->m_Textures[i]);
+            result = dmResource::Get(factory, resource->m_RigScene->m_TextureSet, (void**) &resource->m_TextureSet);
             if (result != dmResource::RESULT_OK)
                 return result;
         }
-        if(resource->m_RigScene->m_TextureSet[0])
+        else
         {
-            result = dmResource::Get(factory, resource->m_RigScene->m_TextureSet, (void**)&resource->m_TextureSet);
-            if (result != dmResource::RESULT_OK)
-                return result;
+            resource->m_TextureSet = 0x0;
         }
         if(resource->m_RigScene->m_Skeleton[0])
         {
@@ -93,6 +87,8 @@ namespace dmGameSystem
     {
         if (resource->m_RigScene != 0x0)
             dmDDF::FreeMessage(resource->m_RigScene);
+        if (resource->m_TextureSet != 0x0)
+            dmResource::Release(factory, resource->m_TextureSet);
         if (resource->m_SkeletonRes != 0x0)
             dmResource::Release(factory, resource->m_SkeletonRes);
         if (resource->m_AnimationSetRes != 0x0)
@@ -100,13 +96,6 @@ namespace dmGameSystem
         if (resource->m_MeshSetRes != 0x0)
             dmResource::Release(factory, resource->m_MeshSetRes);
 
-        if (resource->m_TextureSet != 0x0)
-            dmResource::Release(factory, resource->m_TextureSet);
-        for(uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
-        {
-            if (resource->m_Textures[i] != 0x0)
-                dmResource::Release(factory, resource->m_Textures[i]);
-        }
     }
 
     dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams& params)
@@ -118,14 +107,8 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
-        for(uint32_t i = 0; i < rig_scene->m_Textures.m_Count; ++i)
-        {
-            const char* texture = rig_scene->m_Textures[i];
-            if (*texture)
-            {
-                dmResource::PreloadHint(params.m_HintInfo, texture);
-            }
-        }
+        if(rig_scene->m_TextureSet[0])
+            dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_TextureSet);
         if(rig_scene->m_Skeleton[0])
             dmResource::PreloadHint(params.m_HintInfo, rig_scene->m_Skeleton);
         if(rig_scene->m_AnimationSet[0])

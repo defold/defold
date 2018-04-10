@@ -430,6 +430,8 @@ namespace dmGameSystem
             assert((params.m_End - params.m_Begin) == 1);
 
             TileGridComponent *tile_grid = (TileGridComponent*) params.m_Buf[*params.m_Begin].m_UserData;
+            dmRender::HMaterial material = GetMaterial(tile_grid);
+            dmGraphics::HTexture texture = GetTextureSet(tile_grid)->m_Texture;
             for (uint32_t rx = 0; rx < tile_grid->m_RegionsX; ++rx)
             {
                 for (uint32_t ry = 0; ry < tile_grid->m_RegionsY; ++ry)
@@ -441,8 +443,8 @@ namespace dmGameSystem
                     dmRender::RenderObject* ro = &region->m_RenderObject;
                     if (ro->m_VertexCount > 0)
                     {
-                        ro->m_Material = GetMaterial(tile_grid);
-                        ro->m_Textures[0] = GetTextureSet(tile_grid)->m_Texture;
+                        ro->m_Material = material;
+                        ro->m_Textures[0] = texture;
                         ro->m_WorldTransform = tile_grid->m_RenderWorldTransform;
                         dmRender::AddToRender(params.m_Context, ro);
                     }

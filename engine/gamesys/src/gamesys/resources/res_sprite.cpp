@@ -11,19 +11,19 @@ namespace dmGameSystem
     dmResource::Result AcquireResources(dmResource::HFactory factory,
         SpriteResource* resource, const char* filename)
     {
-        dmResource::Result result;
-
         // Add-alpha is deprecated because of premultiplied alpha and replaced by Add
         if (resource->m_DDF->m_BlendMode == dmGameSystemDDF::SpriteDesc::BLEND_MODE_ADD_ALPHA)
             resource->m_DDF->m_BlendMode = dmGameSystemDDF::SpriteDesc::BLEND_MODE_ADD;
 
-        result = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_TextureSet);
-        if (result != dmResource::RESULT_OK)
-            return result;
-        result = dmResource::Get(factory, resource->m_DDF->m_Material, (void**)&resource->m_Material);
-        if (result != dmResource::RESULT_OK)
+        dmResource::Result fr = dmResource::Get(factory, resource->m_DDF->m_TileSet, (void**)&resource->m_TextureSet);
+        if (fr != dmResource::RESULT_OK)
         {
-            return result;
+            return fr;
+        }
+        fr = dmResource::Get(factory, resource->m_DDF->m_Material, (void**)&resource->m_Material);
+        if (fr != dmResource::RESULT_OK)
+        {
+            return fr;
         }
         resource->m_DefaultAnimation = dmHashString64(resource->m_DDF->m_DefaultAnimation);
         if (!resource->m_TextureSet->m_AnimationIds.Get(resource->m_DefaultAnimation))
@@ -48,10 +48,10 @@ namespace dmGameSystem
     {
         if (resource->m_DDF != 0x0)
             dmDDF::FreeMessage(resource->m_DDF);
-        if (resource->m_Material != 0x0)
-            dmResource::Release(factory, resource->m_Material);
         if (resource->m_TextureSet != 0x0)
             dmResource::Release(factory, resource->m_TextureSet);
+        if (resource->m_Material != 0x0)
+            dmResource::Release(factory, resource->m_Material);
     }
 
     dmResource::Result ResSpritePreload(const dmResource::ResourcePreloadParams& params)
