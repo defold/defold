@@ -89,6 +89,15 @@ public class PropertiesUtil {
         return true;
     }
 
+    /* NOTE!
+     * This is a very weak method of determining whether a hash-property should be considered a resource.
+     * The test checks for existing of the value (=path) as a file on disk, if so it is included as a resource file.
+     * This might not be what the user expects, and if so the file is erroneously included in the build and loaded into memory.
+     * Note that the user must use the full path as a property value (e.g. "/x.png") for this check to falsely evaluate truthy.
+     * The reason for this hack is that it would require a lot of code changes to do this properly. E.g. when building a collection
+     * we would need to load each sub-collection, prototype, script file etc. to determine if the property is referencing a resource
+     * or not.
+     */
     public static boolean isResourceProperty(Project project, PropertyType type, String value) {
         if (type == PropertyType.PROPERTY_TYPE_HASH) {
             IResource resource = project.getResource(value);
@@ -98,7 +107,7 @@ public class PropertiesUtil {
     }
 
     public static String transformResourcePropertyValue(String value) {
-        // Beware, sloppy conversion
+        // This is not optimal, but arguably ok for this case.
         value = BuilderUtil.replaceExt(value, ".material", ".materialc");
         value = BuilderUtil.replaceExt(value, ".font", ".fontc");
         value = ProtoBuilders.replaceTextureName(value);

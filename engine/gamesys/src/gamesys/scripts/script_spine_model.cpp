@@ -130,40 +130,21 @@ namespace dmGameSystem
      * ```
      */
 
-    /*# [type:hash] spine texture(n) where n is 0-7
-     *
-     * The texture hash id of the spinemodel. Used for getting/setting spinemodel texture for unit 0-7
-     *
-     * @name texture(n)
-     * @property
-     *
-     * @examples
-     *
-     * How to set spinemodel texture for unit 0 from a go texture resource property
-     *
-     * ```lua
-     * go.property("mytexture", texture("/main/texture.png"))
-     * function init(self)
-     *   go.set("#spinemodel", "texture0", self.mytexture)
-     * end
-     * ```
-     */
-
     /*# [type:hash] spine material
      *
-     * The material hash id of the spinemodel. Used for getting/setting spinemodel material
+     * The material used when rendering the spine model. The type of the property is hash.
      *
      * @name material
      * @property
      *
      * @examples
      *
-     * How to set spinemodel material from a go material resource property
+     * How to set material using a script property (see [ref:resource.material])
      *
      * ```lua
-     * go.property("mymaterial", material("/main/material.material"))
+     * go.property("my_material", resource.material("/material.material"))
      * function init(self)
-     *   go.set("#spinemodel", "material", self.mymaterial)
+     *   go.set("#spinemodel", "material", self.my_material)
      * end
      * ```
      */

@@ -25,40 +25,40 @@ namespace dmGameSystem
      * @namespace tilemap
      */
 
-    /*# [type:hash] tile map texture(n) where n is 0-7
+    /*# [type:hash] tile source
      *
-     * The texture hash id of the tile map. Used for getting/setting tile map texture for unit 0-7
+     * The tile source used when rendering the tile map. The type of the property is hash.
      *
-     * @name texture(n)
+     * @name tile_source
      * @property
      *
      * @examples
      *
-     * How to set tile map texture for unit 0 from a go texture resource property
+     * How to set tile source using a script property (see [ref:resource.tile_source])
      *
      * ```lua
-     * go.property("mytexture", texture("/main/texture.png"))
+     * go.property("my_tile_source", resource.tile_source("/tilesource.tilesource"))
      * function init(self)
-     *   go.set("#tilemap", "texture0", self.mytexture)
+     *   go.set("#tilemap", "tile_source", self.my_tile_source)
      * end
      * ```
      */
 
     /*# [type:hash] tile map material
      *
-     * The material hash id of the tile map. Used for getting/setting tile map material
+     * The material used when rendering the tile map. The type of the property is hash.
      *
      * @name material
      * @property
      *
      * @examples
      *
-     * How to set tile map material from a go material resource property
+     * How to set material using a script property (see [ref:resource.material])
      *
      * ```lua
-     * go.property("mymaterial", material("/main/material.material"))
+     * go.property("my_material", resource.material("/material.material"))
      * function init(self)
-     *   go.set("#tilemap", "material", self.mymaterial)
+     *   go.set("#tilemap", "material", self.my_material)
      * end
      * ```
      */
