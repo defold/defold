@@ -152,7 +152,7 @@
                                              :type  type}))
                               (:properties user-properties))
         modules         (:modules user-data)
-        bytecode        (script->bytecode (:lines user-data) (resource/proj-path resource))]
+        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data))]
     (g/precluding-errors
       [bytecode]
       {:resource resource
@@ -168,7 +168,7 @@
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
-    :user-data {:lines lines :user-properties user-properties :modules modules}
+    :user-data {:lines lines :user-properties user-properties :modules modules :proj-path (resource/proj-path resource)}
     :deps dep-build-targets}])
 
 (g/defnk produce-completions [completion-info module-completion-infos]
