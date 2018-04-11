@@ -64,6 +64,8 @@ namespace dmResource
         RESULT_NOT_SUPPORTED             = -15,  //!< RESULT_NOT_SUPPORTED
         RESULT_RESOURCE_LOOP_ERROR       = -16,  //!< RESULT_RESOURCE_LOOP_ERROR
         RESULT_PENDING                   = -17,  //!< RESULT_PENDING
+        RESULT_VERSION_MISMATCH          = -18,  //!< RESULT_VERSION_MISMATCH
+        RESULT_SIGNATURE_MISMATCH        = -19,  //!< RESULT_SIGNATURE_MISMATCH
     };
 
     /**

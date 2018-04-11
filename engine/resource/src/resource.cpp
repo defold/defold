@@ -396,7 +396,7 @@ Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manife
         dmDDF::FreeMessage(manifest->m_DDF);
         manifest->m_DDFData = 0x0;
         manifest->m_DDF = 0x0;
-        return RESULT_FORMAT_ERROR;
+        return RESULT_VERSION_MISMATCH;
     }
 
     return RESULT_OK;

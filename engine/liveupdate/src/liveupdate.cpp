@@ -240,51 +240,9 @@ namespace dmLiveUpdate
         dmResourceArchive::SetNewArchiveIndex(archive_container, new_index, mem_mapped);
     }
 
-    int AddManifest(dmResource::Manifest* manifest)
+    dmResource::Manifest* GetCurrentManifest()
     {
-        for (int i = 0; i < MAX_MANIFEST_COUNT; ++i)
-        {
-            if (g_LiveUpdate.m_Manifests[i] == 0x0)
-            {
-                g_LiveUpdate.m_Manifests[i] = manifest;
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    dmResource::Manifest* GetManifest(int manifestIndex)
-    {
-        if (manifestIndex == CURRENT_MANIFEST)
-        {
-            return g_LiveUpdate.m_Manifest;
-        }
-
-        for (int i = 0; i < MAX_MANIFEST_COUNT; ++i)
-        {
-            if (i == manifestIndex)
-            {
-                return g_LiveUpdate.m_Manifests[i];
-            }
-        }
-
-        return 0x0;
-    }
-
-    bool RemoveManifest(int manifestIndex)
-    {
-        if (manifestIndex >= 0 && manifestIndex < MAX_MANIFEST_COUNT)
-        {
-            if (g_LiveUpdate.m_Manifests[manifestIndex] != 0x0)
-            {
-                delete g_LiveUpdate.m_Manifests[manifestIndex];
-                g_LiveUpdate.m_Manifests[manifestIndex] = 0x0;
-                return true;
-            }
-        }
-
-        return false;
+        return g_LiveUpdate.m_Manifest;
     }
 
     void Initialize(const dmResource::HFactory factory)

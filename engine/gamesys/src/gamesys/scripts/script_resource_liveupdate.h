@@ -27,61 +27,6 @@ namespace dmLiveUpdate
      */
     int Resource_GetCurrentManifest(lua_State* L);
 
-    // DOCUMENTATION NOT CURRENTLY EXPOSED
-    /* create a new manifest from a buffer
-     *
-     * Create a new manifest from a buffer and return a reference to the
-     * manifest. Before storing a manifest that has been downloaded it is
-     * important to verify that the manifest was created using the correct
-     * private key during the bundle process, this is done by passing the
-     * reference returned by `create_manifest` to the function `verify_manifest`.
-     *
-     * Once the manifest has been verified, this reference should be passed on
-     * to the functions `verify_resource` and `store_manifest` when updating a game.
-     * It is possible to create up to eight different manifests at the same
-     * time and it is important that the manifests are removed by passing the
-     * reference to `destroy_manifest` once all processing has been done to free
-     * up memory.
-     *
-     * @name resource.create_manifest
-     * @param buffer [type:string] the binary data that represents the manifest
-     * @return manifest_reference [type:number] a reference to the manifest
-     * @error An error occurs when too many manifests have been created, or when
-     * the manifest could not be parsed correctly.
-     *
-     * @examples
-     *
-     * ```lua
-     * local manifest = resource.create_manifest(buffer)
-     * ...
-     * resource.destroy_manifest(manifest)
-     * ```
-     */
-    int Resource_CreateManifest(lua_State* L);
-
-    // DOCUMENTATION NOT CURRENTLY EXPOSED
-    /* remove a manifest that has been created
-     *
-     * remove a manifest that has been created using `create_manifest`. This will
-     * free up the memory that was allocated when creating the manifest. The
-     * manifest that is currently loaded and retrieved through
-     * `get_current_manifest` cannot be destroyed.
-     *
-     * @name resource.destroy_manifest
-     * @param manifest_reference [type:number] the reference that should be destroyed
-     * @error An error occurs if a reference to the current manifest is
-     * supplied, or if the reference supplied does not exist.
-     *
-     * @examples
-     *
-     * ```lua
-     * local manifest = resource.create_manifest(buffer)
-     * ...
-     * resource.destroy_manifest(manifest)
-     * ```
-     */
-    int Resource_DestroyManifest(lua_State* L);
-
     /*# add a resource to the data archive and runtime index
      *
      * add a resource to the data archive and runtime index. The resource will be verified
@@ -138,18 +83,20 @@ namespace dmLiveUpdate
     int Resource_StoreResource(lua_State* L);
 
     // DOCUMENTATION NOT CURRENTLY EXPOSED
-    /* store a manifest to device
+    /* create, verify, and store a manifest to device
      *
-     * Store a manifest to device. The manifest that is stored should be
-     * verified using `verify_manifest` before the manifest is stored. The next
-     * time the engine starts (or is rebooted) it will look for the latest
+     * Create a new manifest from a buffer. The created manifest is verified
+     * by ensuring that the manifest was created using the correct private key
+     * during the bundle process and that the manifest supports the current running
+     * engine version. Once the manifest is verified it is stored on device.
+     * The next time the engine starts (or is rebooted) it will look for the stored
      * manifest before loading resources. Storing a new manifest allows the
      * developer to update the game, modify existing resources, or add new
      * resources to the game through LiveUpdate.
      *
      * @name resource.store_manifest
-     * @param manifest_reference [type:number] the reference that should be verified.
-     * @param callback [type:function(self, manifest_index, status)] the callback function this
+     * @param manifest_buffer [type:string] the binary data that represents the manifest
+     * @param callback [type:function(self, status)] the callback function this
      * executed once the engine has attempted to store the manifest.
      */
     int Resource_StoreManifest(lua_State* L);

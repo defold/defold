@@ -86,11 +86,7 @@ namespace dmLiveUpdate
 
     Result StoreManifest(dmResource::Manifest* manifest);
 
-    int AddManifest(dmResource::Manifest* manifest);
-
-    dmResource::Manifest* GetManifest(int manifestIndex);
-
-    bool RemoveManifest(int manifestIndex);
+    dmResource::Manifest* GetCurrentManifest();
 
 };
 
