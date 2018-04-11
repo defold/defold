@@ -518,13 +518,6 @@ namespace dmResource
     Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor);
 
     /**
-     * Get extension hash from resource descriptor
-     * @param descriptor Returned resource descriptor
-     * @return extension hash
-     */
-    dmhash_t GetDescriptorExtension(SResourceDescriptor* descriptor);
-
-    /**
      * Increase resource reference count
      * @param factory Factory handle
      * @param resource Resource
@@ -635,14 +628,6 @@ namespace dmResource
      * @return RESULT_OK on success
     */
     Result GetPath(HFactory factory, const void* resource, uint64_t* hash);
-
-    /**
-     * Returns the canonical path hash of a resource name
-     * @param factory Factory handle
-     * @param name Resource name
-     * @return canonical path hash
-    */
-    dmhash_t GetPath(HFactory factory, const char* name);
 
     /**
      * Returns the mutex held when loading asynchronous

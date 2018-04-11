@@ -1277,7 +1277,6 @@ ResourcePropParams res_prop_params[] =
     {"texture0", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
     {"texture1", "/tile/mario_tileset.texturec", "/not_found.texturec", "/resource/res_getset_prop.goc", "model", 0},
     {"tile_source", "/tile/valid2.texturesetc", "", "/resource/res_getset_prop.goc", "tilemap", 0},
-    //{"textureset", "", "", "", "sprite", 0},
 };
 INSTANTIATE_TEST_CASE_P(ResourceProperty, ResourcePropTest, ::testing::ValuesIn(res_prop_params));
 

@@ -1523,12 +1523,6 @@ Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64
     }
 }
 
-dmhash_t GetDescriptorExtension(SResourceDescriptor* descriptor)
-{
-    assert(descriptor);
-    return ((SResourceType*) descriptor->m_ResourceType)->m_ExtensionHash;
-}
-
 void IncRef(HFactory factory, void* resource)
 {
     uint64_t* resource_hash = factory->m_ResourceToHash->Get((uintptr_t) resource);
@@ -1652,13 +1646,6 @@ Result GetPath(HFactory factory, const void* resource, uint64_t* hash)
     }
     *hash = 0;
     return RESULT_RESOURCE_NOT_FOUND;
-}
-
-dmhash_t GetPath(HFactory factory, const char* name)
-{
-    char canonical_path[RESOURCE_PATH_MAX];
-    GetCanonicalPath(name, canonical_path);
-    return dmHashBuffer64(canonical_path, strlen(canonical_path));
 }
 
 dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)

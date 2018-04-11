@@ -22,7 +22,6 @@ extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
 
 #define EXT_CONSTANTS(prefix, ext)\
-    static const char* prefix##_EXT = ext;\
     static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
 
     EXT_CONSTANTS(CONT, "cont")
