@@ -115,6 +115,11 @@
     (is (= vertex-1 (get vertex-buffer 0)))
     (is (= vertex-2 (get vertex-buffer 1)))))
 
+(deftest equals
+  (let [vertex-buffer-1 (persistent! (conj! (->four-d-position-and-2d-texture 2) [100.0 101.0 102.0 103.0 150.0 151.0]))
+        vertex-buffer-2 (persistent! (conj! (->four-d-position-and-2d-texture 2) [100.0 101.0 102.0 103.0 150.0 151.0]))]
+    (is (= vertex-buffer-1 vertex-buffer-2))))
+
 (deftest byte-pack
   (testing "returns a ByteString containing contents before current position"
     (are [expected vertex-buffer] (array= (byte-array expected) (.toByteArray (b/byte-pack vertex-buffer)))
