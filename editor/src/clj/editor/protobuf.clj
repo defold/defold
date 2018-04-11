@@ -10,13 +10,15 @@ Macros currently mean no foreseeable performance gain however."
             [clojure.string :as s]
             [internal.java :as j]
             [editor.util :as util]
-            [util.murmur :as murmur])
+            [util.murmur :as murmur]
+            [util.digest :as digest])
   (:import [com.google.protobuf Message TextFormat ProtocolMessageEnum GeneratedMessage$Builder Descriptors$Descriptor DescriptorProtos$FieldOptions
             Descriptors$FileDescriptor Descriptors$EnumDescriptor Descriptors$EnumValueDescriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$Type Descriptors$FieldDescriptor$JavaType]
            [javax.vecmath Point3d Vector3d Vector4d Quat4d Matrix4d]
            [com.dynamo.proto DdfExtensions DdfMath$Point3 DdfMath$Vector3 DdfMath$Vector4 DdfMath$Quat DdfMath$Matrix4]
            [java.lang.reflect Method]
            [java.io Reader ByteArrayOutputStream]
+           [java.security MessageDigest]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
@@ -584,3 +586,13 @@ Macros currently mean no foreseeable performance gain however."
     (into {} (map (fn [^Descriptors$FieldDescriptor field] [(.getNumber field) (field->key field)]) (.getFields desc)))))
 
 (def fields-by-indices (memoize fields-by-indices-raw))
+
+(defn pb->hash
+  ^bytes [^String algorithm ^Message pb]
+  (with-open [digest-output-stream (digest/make-digest-output-stream algorithm)]
+    (.writeTo pb digest-output-stream)
+    (.digest (.getMessageDigest digest-output-stream))))
+
+(defn map->sha1-hex
+  ^String [^Class cls m]
+  (digest/bytes->hex (pb->hash "SHA-1" (map->pb cls m))))

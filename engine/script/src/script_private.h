@@ -43,6 +43,10 @@ namespace dmScript
      * @param context script context
      */
     void ClearModules(HContext context);
+
+    // Exposed here for tests in test_script_module.cpp
+    const char* FindSuitableChunkname(const char* input);
+    const char* PrefixFilename(const char *input, char prefix, char *buf, uint32_t size);
 }
 
 #endif // SCRIPT_PRIVATE_H
