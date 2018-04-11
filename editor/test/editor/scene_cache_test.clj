@@ -27,7 +27,7 @@
   (scene-cache/lookup-object ::test request-id context))
 
 (defn- prune! []
-  (scene-cache/prune-object-caches! context))
+  (scene-cache/prune-context! context))
 
 (defn- drop-context! []
   (scene-cache/drop-context! context))

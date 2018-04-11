@@ -253,7 +253,7 @@ def bundle(platform, jar_file, options):
 
 def check_reflections():
     reflection_prefix = 'Reflection warning, ' # final space important
-    included_reflections = ['editor/'] # [] = include all
+    included_reflections = ['editor/', 'util/'] # [] = include all
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
