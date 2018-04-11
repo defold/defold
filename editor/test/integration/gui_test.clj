@@ -583,11 +583,11 @@
       (g/transact
         (gui/add-font scene (g/node-value scene :fonts-node) resource name)))))
 
-(defn- add-layer! [scene name]
+(defn- add-layer! [scene name index]
   (first
     (g/tx-nodes-added
       (g/transact
-        (gui/add-layer nil scene (g/node-value scene :layers-node) name nil)))))
+        (gui/add-layer nil scene (g/node-value scene :layers-node) name index nil)))))
 
 (defn- add-texture! [scene name resource]
   (first
@@ -632,7 +632,7 @@
       (testing "Introduce missing referenced layer"
         (with-open [_ (make-restore-point!)]
           (is (nil? (g/node-value (:pie shapes) :layer-index)))
-          (add-layer! scene (g/node-value (:pie shapes) :layer))
+          (add-layer! scene (g/node-value (:pie shapes) :layer) 0)
           (is (= 0 (g/node-value (:pie shapes) :layer-index)))))
 
       (testing "Introduce missing referenced texture"
@@ -703,7 +703,7 @@
         (with-open [_ (make-restore-point!)]
           (is (nil? (g/node-value (:pie template-shapes) :layer-index)))
           (is (nil? (g/node-value (:pie shapes) :layer-index)))
-          (add-layer! template-scene (g/node-value (:pie template-shapes) :layer))
+          (add-layer! template-scene (g/node-value (:pie template-shapes) :layer) 0)
           (is (= 0 (g/node-value (:pie template-shapes) :layer-index)))
           (is (= 0 (g/node-value (:pie shapes) :layer-index)))))
 
