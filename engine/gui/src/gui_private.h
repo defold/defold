@@ -268,7 +268,6 @@ namespace dmGui
         dmParticle::HParticleContext m_ParticlefxContext;
         dmHashTable64<dmParticle::HPrototype>    m_Particlefxs;
         dmArray<ParticlefxComponent> m_AliveParticlefxs;
-        void*                   m_Material;
         dmHashTable64<uint16_t> m_Layers;
         dmArray<dmhash_t>       m_Layouts;
         dmArray<void*>          m_LayoutsNodeDescs;
