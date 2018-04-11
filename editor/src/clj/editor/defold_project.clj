@@ -26,7 +26,6 @@
             [editor.util :as util]
             [service.log :as log]
             [editor.graph-util :as gu]
-            [util.digest :as digest]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [clojure.string :as str]
@@ -285,12 +284,12 @@
                  (= (first @steps-left) [node output-type label]))
         (swap! steps-left rest)
         (let [new-message (if-let [path (node-id->resource-path node)]
-                            (str "Building " path)
+                            (str "Compiling " path)
                             (or (progress/message @progress) ""))]
           (swap! progress progress/advance 1 new-message))
         (render-progress! @progress)))))
 
-(defn build
+(defn build!
   [project node evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [steps                  (atom [])
         collect-tracer         (make-collect-progress-steps-tracer steps)
@@ -573,13 +572,13 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-write-project
+(defn build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project  (get-resource-node project "/game.project" evaluation-context)
         render-progress! (progress/throttle-render-progress render-progress!)]
     (try
       (ui/with-progress [render-progress! (progress/throttle-render-progress render-progress!)]
-        (build project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+        (build! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
       (catch Throwable error
         (error-reporting/report-exception! error)
         nil))))
