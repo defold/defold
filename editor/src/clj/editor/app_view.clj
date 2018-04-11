@@ -1007,7 +1007,7 @@ If you do not specifically require different script states, consider changing th
       (refresh-fn)
       (catch Throwable error
         (error-reporting/report-exception! error))))
-  (scene-cache/prune!))
+  (scene-cache/prune-context! nil))
 
 (defn- tab->resource-node [^Tab tab]
   (some-> tab
