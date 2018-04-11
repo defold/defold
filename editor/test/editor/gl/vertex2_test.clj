@@ -84,3 +84,10 @@
     (is (= 1 (count vertex-buffer)))
     (apply pos-4f-uv-2f-put! vertex-buffer vertex-2)
     (is (= 2 (count vertex-buffer)))))
+
+(deftest equals
+  (let [vertex-buffer-1 (->pos-4f-uv-2f 2)
+        vertex-buffer-2 (->pos-4f-uv-2f 2)]
+    (apply pos-4f-uv-2f-put! vertex-buffer-1 [100.0 101.0 102.0 103.0 150.0 151.0])
+    (apply pos-4f-uv-2f-put! vertex-buffer-2 [100.0 101.0 102.0 103.0 150.0 151.0])
+    (is (= (flip! vertex-buffer-1) (flip! vertex-buffer-2)))))
