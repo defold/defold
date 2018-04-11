@@ -1169,7 +1169,7 @@
               new-cursor-ranges (if (seq tab-trigger-word-regions)
                                   (mapv (comp data/sanitize-cursor-range first) tab-trigger-word-region-colls)
                                   (mapv data/cursor-range-end-range cursor-ranges))]
-          (set-properties! view-node :typing
+          (set-properties! view-node nil
                            (cond-> (assoc props :cursor-ranges new-cursor-ranges)
 
                                    (seq tab-trigger-word-regions)
@@ -1800,7 +1800,8 @@
     (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
     (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
     (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
+    (ui/bind-key-commands! find-bar {"Enter" :find-next
+                                     "Shift+Enter" :find-prev})
     (ui/bind-action! next :find-next)
     (ui/bind-action! prev :find-prev))
   find-bar)
