@@ -29,14 +29,15 @@
            (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleStringProperty)
            (javafx.beans.value ChangeListener)
            (javafx.geometry HPos Point2D VPos)
-           (javafx.scene Node Parent)
+           (javafx.scene Node Parent Scene)
            (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Button CheckBox PopupControl Tab TextField)
            (javafx.scene.input Clipboard DataFormat KeyCode KeyEvent MouseButton MouseDragEvent MouseEvent ScrollEvent)
            (javafx.scene.layout ColumnConstraints GridPane Pane Priority)
            (javafx.scene.paint Color LinearGradient Paint)
            (javafx.scene.shape Rectangle)
-           (javafx.scene.text Font FontSmoothingType TextAlignment)))
+           (javafx.scene.text Font FontSmoothingType TextAlignment)
+           (javafx.stage Stage)))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -60,6 +61,7 @@
 (def ^:private undo-groupings #{:navigation :newline :selection :typing})
 (g/deftype ColorScheme [[(s/one s/Str "pattern") (s/one Paint "paint")]])
 (g/deftype CursorRangeDrawInfos [CursorRangeDrawInfo])
+(g/deftype FocusState (s/->EnumSchema #{:not-focused :semi-focused :input-focused}))
 (g/deftype GutterMetrics [(s/one s/Num "gutter-width") (s/one s/Num "gutter-margin")])
 (g/deftype HoveredElement {:type s/Keyword s/Keyword s/Any})
 (g/deftype MatchingBraces [[(s/one r/TCursorRange "brace") (s/one r/TCursorRange "counterpart")]])
@@ -623,8 +625,8 @@
       syntax-info)
     []))
 
-(g/defnk produce-matching-braces [lines cursor-ranges focused?]
-  (when focused?
+(g/defnk produce-matching-braces [lines cursor-ranges focus-state]
+  (when (= :input-focused focus-state)
     (into []
           (comp (filter data/cursor-range-empty?)
                 (map data/CursorRange->Cursor)
@@ -638,8 +640,8 @@
 (g/defnk produce-tab-trigger-word-regions-by-scope-id [regions]
   (group-by :scope-id (filter #(= :tab-trigger-word (:type %)) regions)))
 
-(g/defnk produce-visible-cursors [visible-cursor-ranges focused?]
-  (when focused?
+(g/defnk produce-visible-cursors [visible-cursor-ranges focus-state]
+  (when (= :input-focused focus-state)
     (mapv data/CursorRange->Cursor visible-cursor-ranges)))
 
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
@@ -660,10 +662,10 @@
     :current-frame
     (cursor-range-draw-info :word nil frame-color execution-marker)))
 
-(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focused? layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
+(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focus-state layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
   (let [background-color (color-lookup color-scheme "editor.background")
         ^Color selection-background-color (color-lookup color-scheme "editor.selection.background")
-        selection-background-color (if focused? selection-background-color (color-lookup color-scheme "editor.selection.background.inactive"))
+        selection-background-color (if (not= :not-focused focus-state) selection-background-color (color-lookup color-scheme "editor.selection.background.inactive"))
         selection-occurrence-outline-color (color-lookup color-scheme "editor.selection.occurrence.outline")
         tab-trigger-word-outline-color (color-lookup color-scheme "editor.tab.trigger.word.outline")
         find-term-occurrence-color (color-lookup color-scheme "editor.find.term.occurrence")
@@ -810,7 +812,7 @@
   (property hovered-element HoveredElement (dynamic visible (g/constantly false)))
   (property find-case-sensitive? g/Bool (dynamic visible (g/constantly false)))
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
-  (property focused? g/Bool (default false) (dynamic visible (g/constantly false)))
+  (property focus-state FocusState (default :not-focused) (dynamic visible (g/constantly false)))
 
   (property font-name g/Str (default "Dejavu Sans Mono"))
   (property font-size g/Num (default (g/constantly default-font-size)))
@@ -1169,7 +1171,7 @@
               new-cursor-ranges (if (seq tab-trigger-word-regions)
                                   (mapv (comp data/sanitize-cursor-range first) tab-trigger-word-region-colls)
                                   (mapv data/cursor-range-end-range cursor-ranges))]
-          (set-properties! view-node :typing
+          (set-properties! view-node nil
                            (cond-> (assoc props :cursor-ranges new-cursor-ranges)
 
                                    (seq tab-trigger-word-regions)
@@ -1800,7 +1802,8 @@
     (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
     (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
     (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
-    (ui/bind-keys! find-bar {KeyCode/ENTER :find-next})
+    (ui/bind-key-commands! find-bar {"Enter" :find-next
+                                     "Shift+Enter" :find-prev})
     (ui/bind-action! next :find-next)
     (ui/bind-action! prev :find-prev))
   find-bar)
@@ -2200,6 +2203,24 @@
     (changed [_this _observable _old new]
       (g/set-property! node-id prop-kw new))))
 
+(defn make-focus-change-listener
+  ^ChangeListener [view-node parent canvas]
+  (assert (integer? view-node))
+  (assert (instance? Parent parent))
+  (assert (instance? Canvas canvas))
+  (reify ChangeListener
+    (changed [_ _ _ focus-owner]
+      (g/set-property! view-node :focus-state
+                       (cond
+                         (= canvas focus-owner)
+                         :input-focused
+
+                         (some? (ui/closest-node-where (partial = parent) focus-owner))
+                         :semi-focused
+
+                         :else
+                         :not-focused)))))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         app-view (:app-view opts)
@@ -2209,6 +2230,7 @@
         suggestions-list-view (make-suggestions-list-view canvas)
         suggestions-popup (popup/make-choices-popup canvas-pane suggestions-list-view)
         undo-grouping-info (pair :navigation (gensym))
+        app-view (:app-view opts)
         view-node (setup-view! resource-node
                                (g/make-node! graph CodeEditorView
                                              :canvas canvas
@@ -2242,7 +2264,6 @@
     (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
-    (ui/observe (.focusedProperty canvas) (fn [_ _ focused?] (g/set-property! view-node :focused? focused?)))
 
     ;; Configure canvas.
     (doto canvas
@@ -2298,21 +2319,29 @@
       (.addListener visible-minimap-property visible-minimap-setter)
       (.addListener visible-whitespace-property visible-whitespace-setter)
 
-      ;; Remove callbacks when our tab is closed.
-      (ui/on-closed! tab (fn [_]
-                           (ui/timer-stop! repainter)
-                           (dispose-goto-line-bar! goto-line-bar)
-                           (dispose-find-bar! find-bar)
-                           (dispose-replace-bar! replace-bar)
-                           (swap! *elapsed-time-by-view-node dissoc view-node)
-                           (g/set-property! view-node :elapsed-time-at-last-action 0.0)
-                           (.removeListener find-case-sensitive-property find-case-sensitive-setter)
-                           (.removeListener find-whole-word-property find-whole-word-setter)
-                           (.removeListener font-size-property font-size-setter)
-                           (.removeListener highlighted-find-term-property highlighted-find-term-setter)
-                           (.removeListener visible-indentation-guides-property visible-indentation-guides-setter)
-                           (.removeListener visible-minimap-property visible-minimap-setter)
-                           (.removeListener visible-whitespace-property visible-whitespace-setter))))
+      ;; Ensure the focus-state property reflects the current input focus state.
+      (let [^Stage stage (g/node-value app-view :stage)
+            ^Scene scene (.getScene stage)
+            focus-owner-property (.focusOwnerProperty scene)
+            focus-change-listener (make-focus-change-listener view-node grid canvas)]
+        (.addListener focus-owner-property focus-change-listener)
+
+        ;; Remove callbacks when our tab is closed.
+        (ui/on-closed! tab (fn [_]
+                             (ui/timer-stop! repainter)
+                             (dispose-goto-line-bar! goto-line-bar)
+                             (dispose-find-bar! find-bar)
+                             (dispose-replace-bar! replace-bar)
+                             (swap! *elapsed-time-by-view-node dissoc view-node)
+                             (g/set-property! view-node :elapsed-time-at-last-action 0.0)
+                             (.removeListener find-case-sensitive-property find-case-sensitive-setter)
+                             (.removeListener find-whole-word-property find-whole-word-setter)
+                             (.removeListener font-size-property font-size-setter)
+                             (.removeListener highlighted-find-term-property highlighted-find-term-setter)
+                             (.removeListener visible-indentation-guides-property visible-indentation-guides-setter)
+                             (.removeListener visible-minimap-property visible-minimap-setter)
+                             (.removeListener visible-whitespace-property visible-whitespace-setter)
+                             (.removeListener focus-owner-property focus-change-listener)))))
 
     ;; Start repaint timer.
     (ui/timer-start! repainter)

@@ -795,7 +795,7 @@
                                                       (reduce mesh->aabb (geom/null-aabb) meshes))))
   (output anim-data g/Any (gu/passthrough anim-data))
   (output scene-structure g/Any (gu/passthrough scene-structure))
-  (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations")))))
+  (output spine-anim-ids g/Any (g/fnk [scene-structure] (:animations scene-structure))))
 
 (defn load-spine-scene [project self resource spine]
   (let [spine-resource (workspace/resolve-resource resource (:spine-json spine))
@@ -857,7 +857,7 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
 
-(g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets scene-structure]
+(g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets]
   (g/precluding-errors own-build-errors
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
@@ -1025,7 +1025,8 @@
   (input content g/Any)
   (output structure g/Any :cached (g/fnk [skeleton content]
                                          {:skeleton (update-transforms (math/->mat4) skeleton)
-                                          :skins (vec (sort (keys (get content "skins"))))})))
+                                          :skins (vec (sort (keys (get content "skins"))))
+                                          :animations (keys (get content "animations"))})))
 
 (defn accept-spine-scene-json [content]
   (when (or (get-in content ["skeleton" "spine"])

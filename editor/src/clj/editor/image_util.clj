@@ -34,14 +34,15 @@
   (with-open [source-stream (io/input-stream source)
               image-stream (ImageIO/createImageInputStream source-stream)]
     (let [readers (ImageIO/getImageReaders image-stream)]
-      (when (.hasNext readers)
+      (if (.hasNext readers)
         (let [^javax.imageio.ImageReader reader (.next readers)]
           (try
             (.setInput reader image-stream true true)
             {:width (.getWidth reader 0)
              :height (.getHeight reader 0)}
             (finally
-              (.dispose reader))))))))
+              (.dispose reader))))
+        (throw (ex-info "No matching ImageReader"))))))
 
 (defmacro with-graphics
   [binding & body]

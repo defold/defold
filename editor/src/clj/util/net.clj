@@ -1,13 +1,12 @@
 (ns util.net
-  (:require
-    [clojure.java.io :as io])
-  (:import
-    (java.net URLConnection)))
+  (:require [clojure.java.io :as io])
+  (:import [java.io OutputStream]
+           [java.net URLConnection]))
 
 (def ^:const ^:private default-read-timeout 2000)
 (def ^:const ^:private default-connect-timeout 2000)
 
-(defn download! [url output & {:keys [read-timeout connect-timeout chunk-size progress-callback cancelled-atom]
+(defn download! [url ^OutputStream output & {:keys [read-timeout connect-timeout chunk-size progress-callback cancelled-atom]
                                :or {read-timeout default-read-timeout
                                     connect-timeout default-connect-timeout
                                     chunk-size 0}}]

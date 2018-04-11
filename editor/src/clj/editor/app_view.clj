@@ -514,7 +514,7 @@
                 extra-build-targets (when debug?
                                       (debug-view/build-targets project evaluation-context))
                 build-results       (ui/with-progress [_ render-build-progress!]
-                                      (project/build-and-write-project project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
+                                      (project/build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
             (ui/run-later
               (try
                 (g/update-cache-from-evaluation-context! evaluation-context)
@@ -642,11 +642,11 @@ If you do not specifically require different script states, consider changing th
                      (let [evaluation-context (g/make-evaluation-context)
                            workspace (project/workspace project)
                            old-artifact-map (workspace/artifact-map workspace)
-                           {:keys [error artifacts artifact-map etags]} (project/build-and-write-project project
-                                                                                                         evaluation-context
-                                                                                                         nil
-                                                                                                         old-artifact-map
-                                                                                                         (make-render-task-progress :build))]
+                           {:keys [error artifacts artifact-map etags]} (project/build-project! project
+                                                                                                evaluation-context
+                                                                                                nil
+                                                                                                old-artifact-map
+                                                                                                (make-render-task-progress :build))]
                        (g/update-cache-from-evaluation-context! evaluation-context)
                        (if (some? error)
                          (build-errors-view/update-build-errors build-errors-view error)
