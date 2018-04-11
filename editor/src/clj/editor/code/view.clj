@@ -2203,6 +2203,24 @@
     (changed [_this _observable _old new]
       (g/set-property! node-id prop-kw new))))
 
+(defn make-focus-change-listener
+  ^ChangeListener [view-node parent canvas]
+  (assert (integer? view-node))
+  (assert (instance? Parent parent))
+  (assert (instance? Canvas canvas))
+  (reify ChangeListener
+    (changed [_ _ _ focus-owner]
+      (g/set-property! view-node :focus-state
+                       (cond
+                         (= canvas focus-owner)
+                         :input-focused
+
+                         (some? (ui/closest-node-where (partial = parent) focus-owner))
+                         :semi-focused
+
+                         :else
+                         :not-focused)))))
+
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
         grid (GridPane.)
@@ -2299,18 +2317,7 @@
       (let [^Stage stage (g/node-value app-view :stage)
             ^Scene scene (.getScene stage)
             focus-owner-property (.focusOwnerProperty scene)
-            focus-change-listener (reify ChangeListener
-                                    (changed [_ _ _ focus-owner]
-                                      (g/set-property! view-node :focus-state
-                                                       (cond
-                                                         (= canvas focus-owner)
-                                                         :input-focused
-
-                                                         (some? (ui/closest-node-where (partial = grid) focus-owner))
-                                                         :semi-focused
-
-                                                         :else
-                                                         :not-focused))))]
+            focus-change-listener (make-focus-change-listener view-node grid canvas)]
         (.addListener focus-owner-property focus-change-listener)
 
         ;; Remove callbacks when our tab is closed.
