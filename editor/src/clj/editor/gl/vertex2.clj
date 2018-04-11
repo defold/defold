@@ -48,6 +48,14 @@
   (version [this]))
 
 (deftype VertexBuffer [vertex-description usage ^ByteBuffer buf ^{:unsynchronized-mutable true} version]
+  Object
+  (equals [this other]
+    (and (instance? VertexBuffer other)
+         (= vertex-description (.vertex-description ^VertexBuffer other))
+         (= usage (.usage ^VertexBuffer other))
+         (= version (.version ^VertexBuffer other))
+         (= 0 (compare buf (.buf ^VertexBuffer other)))))
+
   IVertexBuffer
   (flip! [this] (.flip buf) (set! version (inc version)) this)
   (flipped? [this] (and (= 0 (.position buf))))

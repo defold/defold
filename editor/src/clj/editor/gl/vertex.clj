@@ -200,6 +200,12 @@ the `do-gl` macro from `editor.gl`."
 (declare new-transient-vertex-buffer)
 
 (deftype PersistentVertexBuffer [layout capacity ^ByteBuffer buffer slices ^AtomicLong count set-fn get-fn]
+  Object
+  (equals [this other]
+    (and (instance? PersistentVertexBuffer other)
+         (= (.get count) (.count ^PersistentVertexBuffer other))
+         (= (seq this) (seq other))))
+
   b/ByteStringCoding
   (byte-pack [this] (b/byte-pack buffer))
 
@@ -216,10 +222,7 @@ the `do-gl` macro from `editor.gl`."
     (assert (integer? i) "Key must be an integer")
     (< i (.get count)))
   (equiv [this val]
-    (and
-      (instance? PersistentVertexBuffer val)
-      (= (.get count) (.count ^PersistentVertexBuffer val))
-      (.equals this val)))
+    (.equals this val))
 
   ;; accessors
   (valAt [this i not-found]
