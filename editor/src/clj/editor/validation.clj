@@ -83,3 +83,13 @@
 
 (defn invalid-content-error [node-id label severity resource]
   (g/->error node-id label severity nil (format "The file '%s' could not be loaded." (resource/proj-path resource)) {:type :invalid-content :resource resource}))
+
+(defn resource-io-with-errors
+  "Helper function that performs resource io and translates exceptions to g/errors"
+  [io-fn resource node-id label]
+  (try
+    (io-fn resource)
+    (catch java.io.FileNotFoundException e
+      (file-not-found-error node-id label :fatal resource))
+    (catch Exception _
+      (invalid-content-error node-id label :fatal resource))))

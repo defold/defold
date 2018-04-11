@@ -1241,6 +1241,35 @@
                                                    [binding {}])]
                          (run-command node command user-data true (fn [] (.consume event)))))))))
 
+(defn bind-key-commands!
+  "A more flexible version of bind-keys! that supports modifier keys. Accelerators are specified as strings, which are
+  resolved into KeyCombinations. Bindings can be either command keywords or a two-element vector of command-keyword
+  and user-data map."
+  [^Node node bindings-by-acc]
+  (let [bindings-by-combo (into []
+                                (map (fn [[^String acc binding]]
+                                       (let [combo (KeyCombination/keyCombination acc)]
+                                         (assert (= acc (.getName combo))
+                                                 (str "Invalid key combination: " (pr-str acc)))
+                                         (assert (or (keyword? binding)
+                                                     (and (vector? binding)
+                                                          (= 2 (count binding))
+                                                          (keyword? (first binding))
+                                                          (map? (second binding))))
+                                                 (str "Invalid binding: " (pr-str binding)))
+                                         [combo binding])))
+                                bindings-by-acc)]
+    (.addEventFilter node KeyEvent/KEY_PRESSED
+                     (event-handler event
+                                    (when-some [binding (some (fn [[^KeyCombination combo binding]]
+                                                                (when (.match combo event)
+                                                                  binding))
+                                                              bindings-by-combo)]
+                                      (let [[command user-data] (if (vector? binding)
+                                                                  binding
+                                                                  [binding {}])]
+                                        (run-command node command user-data true #(.consume event))))))))
+
 (defn bind-presence!
   "Make the nodes presence in the scene dependent on an ObservableValue.
   If the ObservableValue evaluates to false, the node is both hidden and
