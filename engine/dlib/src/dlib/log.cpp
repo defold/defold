@@ -464,8 +464,9 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 // iOS
 #elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
     __ios_log_print(severity, str_buf);
+#endif
 
-#else
+#if !defined(ANDROID)
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
     va_end(lst);
