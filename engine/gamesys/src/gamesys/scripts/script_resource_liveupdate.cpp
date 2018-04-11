@@ -123,7 +123,7 @@ namespace dmLiveUpdate
         cb.m_Status = true;
 
         dmResource::Manifest* manifest = new dmResource::Manifest();
-        // TODO call async
+        // TODO do async
         dmResource::Result result = dmResource::ParseManifestDDF((uint8_t*) manifestData, manifestLength, manifest);
 
         if (result == dmResource::RESULT_OK)

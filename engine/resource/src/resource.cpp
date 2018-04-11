@@ -274,6 +274,7 @@ Result StoreManifest(Manifest* manifest)
     dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
     if (ddf_result != dmDDF::RESULT_OK)
     {
+        dmLogError("Failed storing manifest to file, result: %i", ddf_result);
         return RESULT_DDF_ERROR;
     }
     dmSys::Result sys_result = dmSys::WriteWithMove(manifest_file_path, manifest_tmp_file_path);
@@ -682,27 +683,31 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
             factory->m_Manifest->m_DDFData = 0x0;
             factory->m_Manifest->m_DDF = 0x0;
-            manifest_path = lu_manifest_file_path;
-            dmLogInfo("LiveUpdate manifest file exists! path: %s", manifest_path);
-            r = LoadExternalManifest(manifest_path, factory);
+            dmLogInfo("LiveUpdate manifest file exists! path: %s", lu_manifest_file_path);
+            r = LoadExternalManifest(lu_manifest_file_path, factory);
+            // Use liveupdate manifest if successfully loaded, otherwise fall back to bundled manifest
+            if (r == RESULT_OK)
+                manifest_path = lu_manifest_file_path;
+            else
+            {
+                dmLogWarning("Failed to load liveupdate manifest: %s with result: %i. Falling back to bundled manifest", lu_manifest_file_path, r);
+                r = LoadManifest(manifest_path, factory);
+            }
         }
         else
             dmLogInfo("No external LiveUpdate manifest file found :( Looked for path: %s", lu_manifest_file_path);
 
+        r = LoadArchiveIndex(manifest_path, factory->m_UriParts.m_Path, factory);
+
         if (r == RESULT_OK)
         {
-            r = LoadArchiveIndex(manifest_path, factory->m_UriParts.m_Path, factory);
-
-            if (r == RESULT_OK)
-            {
-                // Only need factory->m_Manifest->m_DDFData from this point on, make sure we release unneeded message
-                dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
-                factory->m_Manifest->m_DDF = 0x0;
-            }
-            else
-            {
-                dmLogError("Unable to load archive.");
-            }
+            // Only need factory->m_Manifest->m_DDFData from this point on, make sure we release unneeded message
+            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+            factory->m_Manifest->m_DDF = 0x0;
+        }
+        else
+        {
+            dmLogError("Unable to load archive.");
         }
         
         if (r != RESULT_OK)

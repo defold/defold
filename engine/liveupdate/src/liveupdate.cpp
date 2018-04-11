@@ -186,7 +186,7 @@ namespace dmLiveUpdate
 
     Result StoreManifest(dmResource::Manifest* manifest)
     {
-        Result res = (dmResource::StoreManifest(manifest) == dmResource::RESULT_OK) ? RESULT_OK : RESULT_INVALID_RESOURCE;
+        Result res = dmResource::StoreManifest(manifest) == dmResource::RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
         return res;
     }
 
