@@ -1,6 +1,7 @@
 (ns editor.scene-cache
   (:require [clojure.core.cache :as cache]
-            [editor.volatile-cache :as vcache]))
+            [editor.volatile-cache :as vcache]
+            [util.thread-util :refer [preset!]]))
 
 (set! *warn-on-reflection* true)
 
@@ -35,26 +36,23 @@
     (when-let [cache (get-in cache-meta [:caches context])]
       (first (cache/lookup cache request-id)))))
 
-(defn- prune [caches]
+(defn prune-context [caches context]
   (into {}
         (map (fn [[cache-id meta]]
-                  (let [destroy-batch-fn (:destroy-batch-fn meta)]
-                    [cache-id (update meta :caches
-                                      (fn [cache-by-context]
-                                        (into {}
-                                              (map (fn [[context cache]]
-                                                     [context (when cache
-                                                                (let [pruned-cache (vcache/prune cache)
-                                                                      dead-entries (filter (fn [[request-id _]] (not (contains? pruned-cache request-id))) cache)
-                                                                      dead-objects (mapv (fn [[_ object]] object) dead-entries)]
-                                                                  (when (not (empty? dead-objects))
-                                                                    (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
-                                                                  pruned-cache))]))
-                                              cache-by-context)))])))
+               (let [destroy-batch-fn (:destroy-batch-fn meta)]
+                 [cache-id (update-in meta [:caches context]
+                                      (fn [cache]
+                                        (when cache
+                                          (let [pruned-cache (vcache/prune cache)
+                                                dead-entries (filter (fn [[request-id _]] (not (contains? pruned-cache request-id))) cache)
+                                                dead-objects (mapv (fn [[_ object]] object) dead-entries)]
+                                            (when (not (empty? dead-objects))
+                                              (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
+                                            pruned-cache))))])))
         caches))
 
-(defn prune! []
-  (swap! object-caches prune))
+(defn prune-context! [context]
+  (swap! object-caches prune-context context))
 
 (defn- drop-context [caches context]
   (into {}
@@ -63,8 +61,8 @@
                      cache (get-in meta [:caches context])]
                  [cache-id (if (nil? cache)
                              meta
-                             (let [entries (map second cache)]
-                               (destroy-batch-fn context (map first entries) (map second entries))
+                             (let [dead-objects (map second cache)]
+                               (destroy-batch-fn context (map first dead-objects) (map second dead-objects))
                                (update meta :caches dissoc context)))])))
         caches))
 
@@ -72,11 +70,8 @@
   (swap! object-caches drop-context context))
 
 (defn drop-all! []
-  (let [snapshot (volatile! nil)]
-    (swap! object-caches (fn [caches]
-                           (vreset! snapshot caches)
-                           {}))
-    (doseq [meta (vals (deref snapshot))]
+  (let [snapshot (preset! object-caches {})]
+    (doseq [meta (vals snapshot)]
       (let [cache-by-context (:caches meta)
             destroy-batch-fn (:destroy-batch-fn meta)]
         (doseq [[context cache] cache-by-context]

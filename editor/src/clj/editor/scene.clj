@@ -790,7 +790,8 @@
           (with-drawable-as-current drawable
             (when (not= current-frame-version frame-version)
               (render! render-args gl-context (g/node-value view-id :updatable-states))
-              (ui/user-data! image-view ::current-frame-version frame-version))
+              (ui/user-data! image-view ::current-frame-version frame-version)
+              (scene-cache/prune-context! gl))
             (when-let [^WritableImage image (.flip async-copier gl frame-version)]
               (.setImage image-view image))))))))
 
@@ -944,8 +945,10 @@
 (g/defnk produce-frame [render-args ^GLAutoDrawable drawable]
   (with-drawable-as-current drawable
     (render! render-args gl-context nil)
-    (let [[w h] (vp-dims (:viewport render-args))]
-      (read-to-buffered-image w h))))
+    (let [[w h] (vp-dims (:viewport render-args))
+          buf-image (read-to-buffered-image w h)]
+      (scene-cache/prune-context! gl)
+      buf-image)))
 
 (g/defnode PreviewView
   (inherits view/WorkbenchView)
