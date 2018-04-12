@@ -187,7 +187,7 @@ namespace dmGameSystem
      * Properties defined in scripts in the created game object can be overridden through the properties-parameter below.
      * See go.property for more information on script properties.
      *
-     * [icon:attention] Calling [ref:factory.create] create on a factory that is marked as dynamic without having loaded resources
+     * [icon:attention] Calling [ref:factory.create] on a factory that is marked as dynamic without having loaded resources
      * using [ref:factory.load] will synchronously load and create resources which may affect application performance.
      *
      * @name factory.create
