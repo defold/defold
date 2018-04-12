@@ -189,6 +189,7 @@ namespace dmGameSystem
             ro->m_VertexDeclaration = world->m_VertexDeclaration;
             ro->m_VertexBuffer = 0;
             ro->m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+            ro->m_Material = resource->m_Material;
         }
 
         world->m_TileGrids.Push(component);
