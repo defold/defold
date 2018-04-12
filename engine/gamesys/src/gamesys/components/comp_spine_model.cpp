@@ -229,8 +229,8 @@ namespace dmGameSystem
         dmRender::HMaterial material = GetMaterial(component, resource);
         TextureSetResource* texture_set = resource->m_RigScene->m_TextureSet;
         dmHashInit32(&state, reverse);
-        dmHashUpdateBuffer32(&state, material, sizeof(material));
-        dmHashUpdateBuffer32(&state, texture_set, sizeof(texture_set));
+        dmHashUpdateBuffer32(&state, &material, sizeof(material));
+        dmHashUpdateBuffer32(&state, &texture_set, sizeof(texture_set));
         dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
         ReHashRenderConstants(&component->m_RenderConstants, &state);
         component->m_MixedHash = dmHashFinal32(&state);
@@ -410,6 +410,7 @@ namespace dmGameSystem
         DM_PROFILE(SpineModel, "RenderBatch");
 
         const SpineModelComponent* first = (SpineModelComponent*) buf[*begin].m_UserData;
+        const SpineModelResource* resource = first->m_Resource;
 
         uint32_t vertex_count = 0;
         for (uint32_t *i=begin;i!=end;i++)
@@ -444,8 +445,8 @@ namespace dmGameSystem
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
-        ro.m_Material = GetMaterial(first, first->m_Resource);
-        ro.m_WorldTransform = first->m_World;
+        ro.m_Textures[0] = resource->m_RigScene->m_TextureSet->m_Texture;
+        ro.m_Material = GetMaterial(first, resource);
 
         const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
         uint32_t size = first->m_RenderConstants.m_ConstantCount;
@@ -455,7 +456,7 @@ namespace dmGameSystem
             dmRender::EnableRenderObjectConstant(&ro, c.m_NameHash, c.m_Value);
         }
 
-        dmGameSystemDDF::SpineModelDesc::BlendMode blend_mode = first->m_Resource->m_Model->m_BlendMode;
+        dmGameSystemDDF::SpineModelDesc::BlendMode blend_mode = resource->m_Model->m_BlendMode;
         switch (blend_mode)
         {
             case dmGameSystemDDF::SpineModelDesc::BLEND_MODE_ALPHA:
