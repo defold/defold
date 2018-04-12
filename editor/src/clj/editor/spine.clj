@@ -353,9 +353,11 @@
 
 (def ^:private ^TextureSetGenerator$UVTransform uv-identity (TextureSetGenerator$UVTransform.))
 
-(defn- attachment->mesh [attachment slot-data anim-data bones-remap bone-index->world]
+(defn- attachment->mesh [attachment base-slots anim-data bones-remap bone-index->world]
   (when anim-data
     (let [type (get attachment "type" "region")
+          slot-name (get attachment "slot-name")
+          slot-data (get base-slots slot-name)
           world ^RigUtil$Transform (:bone-world slot-data)
           anim-id (get attachment "name")
           uv-trans (or ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms])) uv-identity)
@@ -447,9 +449,7 @@
                  ; Ignore other types
                  nil)]
       (some-> mesh
-              (assoc :color (:color slot-data)
-                     :visible (= att-name (:attachment slot-data))
-                     :draw-order (:draw-order slot-data))))))
+              (assoc :color (:color slot-data))))))
 
 #_(defn- attachment->mesh [attachment att-name slot-data anim-data bones-remap bone-index->world]
   (when anim-data
@@ -675,9 +675,10 @@
                              }])))
           (get spine-scene "slots"))))
 
-(defn- attachment-entry->named-attachment [[attachment-name attachment]]
+(defn- attachment-entry->named-attachment [[attachment-name attachment slot-name]]
   (assoc attachment
-    "name" (get attachment "name" attachment-name)))
+    "name" (get attachment "name" attachment-name)
+    "slot-name" slot-name))
 
 (defn- mesh-value->mesh-index
   [meshes mesh-value]
@@ -688,7 +689,10 @@
   (vec (sort-by util/map->sort-key
                 (into #{}
                       (comp (mapcat second)
-                            (mapcat second)
+                            (mapcat (fn [[slot-name attachments]]
+                                      (map (fn [[attachment-point attachment]]
+                                             [attachment-point attachment slot-name])
+                                           attachments)))
                             (map attachment-entry->named-attachment))
                       skins))))
 
@@ -709,7 +713,7 @@
 (defn- update-slot-attachment-indices
   [slot-name slot-attachments-x slot-attachments-j meshes]
   (reduce-kv (fn [attachment attachment-point-index [attachment-name attachment-indx]]
-               (let [mesh-entry (attachment-entry->named-attachment [attachment-name (get slot-attachments-j attachment-name)])
+               (let [mesh-entry (attachment-entry->named-attachment [attachment-name (get slot-attachments-j attachment-name) slot-name])
                      mesh-index (mesh-value->mesh-index meshes mesh-entry)
                      mesh-index (if (not= mesh-index -1) mesh-index attachment-indx)]
                    (assoc attachment attachment-point-index [attachment-name mesh-index])))
@@ -734,7 +738,7 @@
 (defn- load-rest-skins
   [skins-j default-skin-x meshes]
   (mapcat (fn [[skin-name skin-j]]
-            {skin-name (update-skin-attachment-indices default-skin-x skin-j meshes)})
+            [skin-name (update-skin-attachment-indices default-skin-x skin-j meshes)])
           skins-j))
 
 ; load one skin
@@ -875,6 +879,30 @@
                                           [(.x p) (.y p) (.z p)])))))))
 
 (defn- renderable->meshes [renderable]
+  (let [meshes (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-attachments])
+        skins (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])
+        skin-id (some-> renderable :user-data :skin murmur/hash64)
+        skin (or (first (filter #(= (:id %) skin-id) skins))
+                       (first skins))
+        out-meshes (keep (fn [slot]
+                           (get meshes (get (get slot :mesh-attachments) (get slot :active-index) -1)))
+                         skin)]
+    (prn "meshes" (count meshes))
+    (prn "skin" skin)
+    (prn "out-meshes" out-meshes)
+    out-meshes
+    #_(->> (:meshes mesh-entry)
+         (filter :visible)
+         (sort-by :draw-order)
+         (map (partial transform-positions (:world-transform renderable)))
+         (map (fn [mesh]
+                (let [tint-color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])
+                      slot-color (:color mesh)
+                      skin-color (:skin-color mesh)
+                      final-color (mapv * slot-color tint-color skin-color)]
+                  (assoc mesh :color final-color)))))))
+
+#_(defn- renderable->meshes [renderable]
   (let [mesh-entries (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])
         skin-id (some-> renderable :user-data :skin murmur/hash64)
         mesh-entry (or (first (filter #(= (:id %) skin-id) mesh-entries))
@@ -889,6 +917,7 @@
                       skin-color (:skin-color mesh)
                       final-color (mapv * slot-color tint-color skin-color)]
                   (assoc mesh :color final-color)))))))
+
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
@@ -979,6 +1008,7 @@
     (reduce (fn [aabb pos] (apply geom/aabb-incorporate aabb pos)) aabb positions)))
 
 (def stuff (atom nil))
+(def g-anim-data (atom nil))
 
 ; load one skin
 #_(let [skins-j (get @ss "skins")
@@ -1041,7 +1071,8 @@
   (output own-build-errors g/Any :cached produce-scene-own-build-errors)
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached (g/fnk [_node-id spine-json spine-scene anim-data sample-rate]
-                                      (prn "hello")
+                                        (prn "hello")
+                                        (reset! g-anim-data anim-data)
                                         (let [spf (/ 1.0 sample-rate)
                                               ;; Bone data
                                               bones (read-bones spine-scene)
@@ -1061,7 +1092,7 @@
                                               ik-id->index (zipmap (map :id iks) (range))
 
                                               ;; Slot data
-                                              ; slots-data (read-slots spine-scene bone-id->index bone-index->world-transform)
+                                              slots-data (read-slots spine-scene bone-id->index bone-index->world-transform)
 
                                               ;; NEW Slot data
                                               _ (reset! stuff [spine-scene bone-id->index bone-index->world-transform]) ; TEMP
@@ -1073,25 +1104,25 @@
                                               meshes (read-distinct-meshes skins-j)
                                               default-skin-x (load-default-skin (get skins-j "default") base-slots meshes)
                                               skins-x (load-rest-skins (filter (fn [[skin _]] (not= "default" skin)) skins-j) default-skin-x meshes)
-                                              all-skins (conj skins-x {"" default-skin-x})
+                                              all-skins (conj skins-x ["" default-skin-x])
 
                                               ;; Skin data
-                                              ; mesh-sort-fn (fn [[k v]] (:draw-order v))
-                                              ; sort-meshes (partial sort-by mesh-sort-fn)
-                                              ; skins (get spine-scene "skins" {})
-                                              ; generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-index->world-transform)
-                                              ; new-skins {"" (sort-meshes generic-meshes)} ; "default" skin is called "" (hashed to 0) in build data
-                                              ; new-skins (reduce (fn [m [skin slots]]
+                                              ;mesh-sort-fn (fn [[k v]] (:draw-order v))
+                                              ;sort-meshes (partial sort-by mesh-sort-fn)
+                                              ;skins (get spine-scene "skins" {})
+                                              ;generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-index->world-transform)
+                                              ;new-skins {"" (sort-meshes generic-meshes)} ; "default" skin is called "" (hashed to 0) in build data
+                                              ;new-skins (reduce (fn [m [skin slots]]
                                               ;                    (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-index->world-transform)]
                                               ;                       (assoc m skin (sort-meshes (merge generic-meshes specific-meshes)))))
                                               ;                   new-skins
                                               ;                  (filter (fn [[skin _]] (not= "default" skin)) skins))
-                                              slot->track-data (reduce-kv (fn [m skin meshes]
-                                                                            (let [skin-id (murmur/hash64 skin)]
-                                                                              (reduce-kv (fn [m i [[slot att]]]
-                                                                                           (update m slot conj {:skin-id skin-id :mesh-index i :attachment att}))
-                                                                                         m (vec meshes))))
-                                                                          {} new-skins)
+                                              ;slot->track-data (reduce-kv (fn [m skin meshes]
+                                              ;                              (let [skin-id (murmur/hash64 skin)]
+                                              ;                                (reduce-kv (fn [m i [[slot att]]]
+                                              ;                                             (update m slot conj {:skin-id skin-id :mesh-index i :attachment att}))
+                                              ;                                           m (vec meshes))))
+                                              ;                            {} new-skins)
 
                                               ;; Protobuf
                                               pb (try
@@ -1111,16 +1142,22 @@
                                                                                           (get spine-scene "animations"))]
                                                                      {:animations animations})
                                                     :mesh-set {:slot-count slot-count
-                                                               :mesh-attachments meshes
+                                                               :mesh-attachments (mapv (fn [mesh]
+                                                                                         (attachment->mesh mesh base-slots anim-data bones-remap bone-index->world-transform))
+                                                                                      meshes)
                                                                :mesh-entries (mapv (fn [[skin-name slots]]
-                                                                                     {:id skin-name
-                                                                                      :mesh-slots (mapv (fn [[slot-name slot-data]]
-                                                                                                          {:mesh-attachments (mapv (fn [[_ attachment-index]]
-                                                                                                                                     attachment-index)
-                                                                                                                                   (get slot-data :attachment-points))
-                                                                                                           :active-index (get slot-data :active-attachment -1)
-                                                                                                           :skin-color (hex->color "ffffffff")})
-                                                                                                        slots)})
+                                                                                     {:id (murmur/hash64 skin-name)
+                                                                                      :mesh-slots (mapv (fn [slot]
+                                                                                                          (let [slot-name (key slot)
+                                                                                                                slot-data (val slot)]
+                                                                                                            ;(prn slot-name slot-data)
+                                                                                                            {:mesh-attachments (mapv (fn [[_ attachment-index]]
+                                                                                                                                       attachment-index)
+                                                                                                                                     (get slot-data :attachment-points))
+                                                                                                             :active-index (get slot-data :active-attachment -1)
+                                                                                                             :skin-color (hex->color "ffffffff")}))
+                                                                                                        (sort-by (fn [[_ slot-data]]
+                                                                                                                   (get slot-data :draw-order)) slots))})
                                                                                    all-skins)}}
                                                     ; :mesh-set {:slot-count slot-count
                                                     ;            :mesh-attachments meshes
@@ -1131,6 +1168,7 @@
                                                    (catch Exception e
                                                      (log/error :exception e)
                                                      (g/->error _node-id :spine-json :fatal spine-json (str "Incompatible data found in spine json " (resource/resource->proj-path spine-json)))))]
+                                          (prn pb)
                                           pb)))
   (output scene g/Any :cached produce-scene)
   (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
