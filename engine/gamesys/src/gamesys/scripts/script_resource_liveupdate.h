@@ -82,8 +82,7 @@ namespace dmLiveUpdate
      */
     int Resource_StoreResource(lua_State* L);
 
-    // DOCUMENTATION NOT CURRENTLY EXPOSED
-    /* create, verify, and store a manifest to device
+    /*# create, verify, and store a manifest to device
      *
      * Create a new manifest from a buffer. The created manifest is verified
      * by ensuring that the manifest was created using the correct private key
@@ -98,6 +97,40 @@ namespace dmLiveUpdate
      * @param manifest_buffer [type:string] the binary data that represents the manifest
      * @param callback [type:function(self, status)] the callback function this
      * executed once the engine has attempted to store the manifest.
+
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `status`
+     * : [type:constant] the status of the store operation:
+     *
+     * - `resource.LIVEUPATE_OK`
+     * - `resource.LIVEUPATE_INVALID_RESOURCE`
+     * - `resource.LIVEUPATE_VERSION_MISMATCH`
+     * - `resource.LIVEUPATE_ENGINE_VERSION_MISMATCH`
+     * - `resource.LIVEUPATE_SIGNATURE_MISMATCH`
+     *
+     * @examples
+     * 
+     * How to download a manifest with HTTP and store it on device.
+     *
+     * ```lua
+     * local function store_manifest_cb(self, status)
+     *   if status == resource.LIVEUPATE_OK then
+     *     pprint("Successfully stored manifest. This manifest will be loaded instead of the bundled manifest the next time the engine starts.")
+     *   else
+     *     pprint("Failed to store manifest")
+     *   end
+     * end
+     *
+     * local function download_and_store_manifest(self)
+     *   http.request(MANIFEST_URL, "GET", function(self, id, response)
+     *       if response.status > 199 and response.status < 400 then
+     *         resource.store_manifest(response.response, store_manifest_cb)
+     *       end
+     *     end)
+     * end
+     * ```
      */
     int Resource_StoreManifest(lua_State* L);
 

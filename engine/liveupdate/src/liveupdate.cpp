@@ -10,6 +10,32 @@
 
 namespace dmLiveUpdate
 {
+    Result ResourceResultToLiveupdateResult(dmResource::Result r)
+    {
+        Result result;
+        switch (r)
+        {
+            case dmResource::RESULT_OK:
+                result = RESULT_OK;
+                break;
+            case dmResource::RESULT_IO_ERROR:
+                result = RESULT_INVALID_RESOURCE;
+                break;
+            case dmResource::RESULT_FORMAT_ERROR:
+                result = RESULT_INVALID_RESOURCE;
+                break;
+            case dmResource::RESULT_VERSION_MISMATCH:
+                result = RESULT_VERSION_MISMATCH;
+                break;
+            case dmResource::RESULT_SIGNATURE_MISMATCH:
+                result = RESULT_SIGNATURE_MISMATCH;
+                break;
+            default:
+                result = RESULT_INVALID_RESOURCE;
+                break;
+        }
+        return result;
+    }
 
     struct LiveUpdate
     {
@@ -146,7 +172,7 @@ namespace dmLiveUpdate
         return engine_version_supported;
     }
 
-    bool VerifyManifestSignature(dmResource::Manifest* manifest)
+    Result VerifyManifestSignature(dmResource::Manifest* manifest)
     {
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
         uint32_t digest_len = dmResource::HashLength(algorithm);
@@ -154,7 +180,7 @@ namespace dmLiveUpdate
         if (digest == 0x0)
         {
             dmLogError("Failed to allocate memory for hash calculation.");
-            return false;
+            return RESULT_MEM_ERROR;
         }
 
         dmLiveUpdate::CreateManifestHash(algorithm, manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, digest);
@@ -165,13 +191,13 @@ namespace dmLiveUpdate
         {
             dmLogError("Failed to allocate memory for hash calculation.");
             free(digest);
-            return false;
+            return RESULT_MEM_ERROR;
         }
 
         dmResource::HashToString(algorithm, digest, hex_digest, hex_digest_len);
         dmLogInfo("Actual manifest hash; %s", hex_digest);
 
-        bool result = dmResource::VerifyManifestHash(m_ResourceFactory, manifest, (const uint8_t*)hex_digest, hex_digest_len) == dmResource::RESULT_OK;
+        Result result = ResourceResultToLiveupdateResult(dmResource::VerifyManifestHash(m_ResourceFactory, manifest, (const uint8_t*)hex_digest, hex_digest_len));
 
         free(hex_digest);
         free(digest);
@@ -179,9 +205,17 @@ namespace dmLiveUpdate
         return result;
     }
 
-    bool VerifyManifest(dmResource::Manifest* manifest)
+    Result VerifyManifest(dmResource::Manifest* manifest)
     {
-        return (VerifyManifestSupportedEngineVersion(manifest) && VerifyManifestSignature(manifest));
+        if (!VerifyManifestSupportedEngineVersion(manifest))
+            return RESULT_ENGINE_VERSION_MISMATCH;
+
+        return VerifyManifestSignature(manifest);
+    }
+
+    Result ParseManifestBin(uint8_t* manifest_data, size_t manifest_len, dmResource::Manifest* manifest)
+    {
+        return ResourceResultToLiveupdateResult(dmResource::ParseManifestDDF(manifest_data, manifest_len, manifest));
     }
 
     Result StoreManifest(dmResource::Manifest* manifest)

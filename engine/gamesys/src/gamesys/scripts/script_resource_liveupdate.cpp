@@ -140,9 +140,8 @@ namespace dmLiveUpdate
     int Resource_StoreManifest(lua_State* L)
     {
         int top = lua_gettop(L);
-        bool res = false;
-        size_t manifestLength = 0;
-        const char* manifestData = luaL_checklstring(L, 1, &manifestLength);
+        size_t manifest_len = 0;
+        const char* manifest_data = luaL_checklstring(L, 1, &manifest_len);
 
         luaL_checktype(L, 2, LUA_TFUNCTION);
         lua_pushvalue(L, 2);
@@ -153,49 +152,34 @@ namespace dmLiveUpdate
         dmScript::GetInstance(L);
         cb.m_Callback = callback;
         cb.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-        cb.m_Status = false;
         
         dmResource::Manifest* manifest = new dmResource::Manifest();
 
-        // TODO do create/verify/store async?
+        // TODO create/verify/store async
         // Create
-        dmResource::Result result = dmResource::ParseManifestDDF((uint8_t*) manifestData, manifestLength, manifest);
-        res = result == dmResource::RESULT_OK;
-        if (res)
+        Result result = ParseManifestBin((uint8_t*) manifest_data, manifest_len, manifest);
+        if (result == RESULT_OK)
         {
             // Verify
-            res = dmLiveUpdate::VerifyManifest(manifest); 
-            if (!res)
+            result = dmLiveUpdate::VerifyManifest(manifest);
+            if (result != RESULT_OK)
             {
                 dmLogError("Manifest verification failed. Manifest was not stored");
             }
         }
         else
         {
-            switch(result)
-            {
-                case dmResource::RESULT_IO_ERROR:
-                    dmLogError("Failed to parse manifest, I/O error.");
-                    break;
-                case dmResource::RESULT_FORMAT_ERROR:
-                    dmLogError("Failed to parse manifest, format error.");
-                    break;
-                case dmResource::RESULT_VERSION_MISMATCH:
-                    dmLogError("Failed to parse manifest, manifest version mismatch.");
-                    break;
-                default:
-                    dmLogError("Failed to parse manifest.");
-                    break;
-            }
-            dmLogError("Failed to parse manifest. Manifest was note stored.")
+            dmLogError("Failed to parse manifest, result: %i", result);
         }
 
         // Store
-        if (res)
-            cb.m_Status = dmLiveUpdate::StoreManifest(manifest) == dmLiveUpdate::RESULT_OK;
+        if (result == RESULT_OK)
+            result = dmLiveUpdate::StoreManifest(manifest);
+
+        cb.m_Status = result;
+        Callback_StoreManifest(&cb);
 
         delete manifest;
-        Callback_StoreManifest(&cb);
 
         assert(top == lua_gettop(L));
         return 0;

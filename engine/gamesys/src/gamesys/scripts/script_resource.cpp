@@ -5,6 +5,7 @@
 #include <resource/resource.h>
 #include <graphics/graphics_ddf.h>
 #include <script/script.h>
+#include <liveupdate/liveupdate.h>
 #include "../gamesys.h"
 #include "script_resource_liveupdate.h"
 
@@ -348,6 +349,39 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
+ /*# LIVEUPDATE_OK
+ *
+ * @name resource.LIVEUPDATE_OK
+ * @variable
+ */
+
+ /*# LIVEUPDATE_INVALID_RESOURCE
+ * The handled resource is invalid.
+ * 
+ * @name resource.LIVEUPDATE_INVALID_RESOURCE
+ * @variable
+ */
+
+ /*# LIVEUPDATE_VERSION_MISMATCH
+ * Mismatch between manifest expected version and actual version.
+ * 
+ * @name resource.LIVEUPDATE_VERSION_MISMATCH
+ * @variable
+ */
+
+ /*# LIVEUPDATE_ENGINE_VERSION_MISMATCH
+ * Mismatch between running engine version and engine versions supported by manifest.
+ * 
+ * @name resource.LIVEUPDATE_ENGINE_VERSION_MISMATCH
+ * @variable
+ */
+
+ /*# LIVEUPDATE_SIGNATURE_MISMATCH
+ * Mismatch between manifest expected signature and actual signature.
+ * 
+ * @name resource.LIVEUPDATE_SIGNATURE_MISMATCH
+ * @variable
+ */
 static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -378,6 +412,18 @@ static void LuaInit(lua_State* L)
     */
 
 #undef SETGRAPHICSCONSTANT
+
+#define SETCONSTANT(name, val) \
+        lua_pushnumber(L, (lua_Number) val); \
+        lua_setfield(L, -2, #name);\
+
+    SETCONSTANT(LIVEUPDATE_OK, dmLiveUpdate::RESULT_OK);
+    SETCONSTANT(LIVEUPDATE_INVALID_RESOURCE, dmLiveUpdate::RESULT_INVALID_RESOURCE);
+    SETCONSTANT(LIVEUPDATE_VERSION_MISMATCH, dmLiveUpdate::RESULT_VERSION_MISMATCH);
+    SETCONSTANT(LIVEUPDATE_ENGINE_VERSION_MISMATCH, dmLiveUpdate::RESULT_ENGINE_VERSION_MISMATCH);
+    SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
+
+#undef SETCONSTANT
 
     lua_pop(L, 1);
     assert(top == lua_gettop(L));

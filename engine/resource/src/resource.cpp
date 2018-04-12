@@ -516,7 +516,7 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
 {
     if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") != 0)
     {
-        dmLogWarning("Skipping manifest verification, resources are loaded with scheme: %s", factory->m_UriParts.m_Scheme);
+        dmLogWarning("Skipping manifest verification, resources are loaded with scheme: %s and not from manifest.", factory->m_UriParts.m_Scheme);
         return RESULT_FORMAT_ERROR;
     }
 
