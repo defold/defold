@@ -349,7 +349,7 @@
           :cache-width cache-width
           :cache-height cache-height}))
 
-(g/defnk produce-font-map [_node-id font type pb-msg]
+(defn- make-font-map [_node-id font type pb-msg font-resource-resolver]
   (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font "Font")
                                       (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font "Font")
                                       (validation/prop-error :fatal _node-id :cache-width validation/prop-negative? (:cache-width pb-msg) "Cache Width")
@@ -367,17 +367,30 @@
                              (remove nil?)
                              (not-empty))]
         (g/error-aggregate errors))
-      (let [resolver (partial workspace/resolve-resource font)]
-        (try
-          (font-gen/generate pb-msg font resolver)
-          (catch Exception error
-            (g/->error _node-id :font :fatal font (str "Failed to generate bitmap from Font. " (.getMessage error))))))))
+      (try
+        (font-gen/generate pb-msg font font-resource-resolver)
+        (catch Exception error
+          (g/->error _node-id :font :fatal font (str "Failed to generate bitmap from Font. " (.getMessage error)))))))
+
+
+(defn- make-font-resource-resolver [resource-map]
+  ;; Note: We only resolve absolute paths, and only to existing resources.
+  resource-map)
+
+(g/defnk produce-font-map [_node-id font type pb-msg]
+  (let [resource-map (g/node-value (:workspace font) :resource-map)]
+    (make-font-map _node-id font type pb-msg (make-font-resource-resolver resource-map))))
 
 (defn- build-font [resource dep-resources user-data]
-  (let [font-map (assoc (:font-map user-data) :textures [(resource/proj-path (second (first dep-resources)))])]
-    {:resource resource :content (protobuf/map->bytes Font$FontMap font-map)}))
+  (let [{:keys [font type resource-map pb-msg]} user-data
+        font-resource-resolver (make-font-resource-resolver resource-map)
+        font-map (make-font-map nil font type pb-msg font-resource-resolver)]
+    (g/precluding-errors
+      [font-map]
+      (let [font-map (assoc font-map :textures [(resource/proj-path (second (first dep-resources)))])]
+        {:resource resource :content (protobuf/map->bytes Font$FontMap font-map)}))))
 
-(g/defnk produce-build-targets [_node-id resource font-map material dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource font type pb-msg #_font-map material dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
                              (remove nil?)
@@ -386,7 +399,10 @@
       [{:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-font
-        :user-data {:font-map font-map}
+        :user-data {:font font
+                    :type type
+                    :pb-msg pb-msg
+                    :resource-map (g/node-value (:workspace font) :resource-map)}
         :deps (flatten dep-build-targets)}]))
 
 (g/defnode FontSourceNode
