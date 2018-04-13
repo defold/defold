@@ -653,8 +653,11 @@
          (sort-by :draw-order)
          (map (partial transform-positions (:world-transform renderable)))
          (map (fn [mesh]
-                (let [color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])]
-                  (update mesh :color (fn [src tint] (mapv * src tint)) color)))))))
+                (let [tint-color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])
+                      slot-color (:color mesh)
+                      skin-color (:skin-color mesh)
+                      final-color (mapv * slot-color tint-color skin-color)]
+                  (assoc mesh :color final-color)))))))
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
@@ -783,7 +786,7 @@
   (input spine-scene g/Any)
   (input scene-structure g/Any)
 
-  (output save-value g/Any :cached produce-save-value)
+  (output save-value g/Any produce-save-value)
   (output own-build-errors g/Any :cached produce-scene-own-build-errors)
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
@@ -792,7 +795,7 @@
                                                       (reduce mesh->aabb (geom/null-aabb) meshes))))
   (output anim-data g/Any (gu/passthrough anim-data))
   (output scene-structure g/Any (gu/passthrough scene-structure))
-  (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations")))))
+  (output spine-anim-ids g/Any (g/fnk [scene-structure] (:animations scene-structure))))
 
 (defn load-spine-scene [project self resource spine]
   (let [spine-resource (workspace/resolve-resource resource (:spine-json spine))
@@ -854,7 +857,7 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
 
-(g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets scene-structure]
+(g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets]
   (g/precluding-errors own-build-errors
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
@@ -933,7 +936,7 @@
                                         (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
                                         (assoc-in [:renderable :user-data :skin] skin))
                                     spine-scene-scene))))
-  (output model-pb g/Any :cached produce-model-pb)
+  (output model-pb g/Any produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
   (output own-build-errors g/Any :cached produce-model-own-build-errors)
   (output build-targets g/Any :cached produce-model-build-targets)
@@ -1022,7 +1025,8 @@
   (input content g/Any)
   (output structure g/Any :cached (g/fnk [skeleton content]
                                          {:skeleton (update-transforms (math/->mat4) skeleton)
-                                          :skins (vec (sort (keys (get content "skins"))))})))
+                                          :skins (vec (sort (keys (get content "skins"))))
+                                          :animations (keys (get content "animations"))})))
 
 (defn accept-spine-scene-json [content]
   (when (or (get-in content ["skeleton" "spine"])

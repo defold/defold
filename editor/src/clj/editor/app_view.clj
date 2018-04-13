@@ -67,11 +67,24 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- remove-tab [^TabPane tab-pane ^Tab tab]
-  (.remove (.getTabs tab-pane) tab)
+(defn- fire-tab-closed-event! [^Tab tab]
   ;; TODO: Workaround as there's currently no API to close tabs programatically with identical semantics to close manually
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
   (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
+
+(defn- remove-tab! [^TabPane tab-pane ^Tab tab]
+  (fire-tab-closed-event! tab)
+  (.remove (.getTabs tab-pane) tab))
+
+(defn remove-invalid-tabs! [^TabPane tab-pane open-views]
+  (let [invalid-tab? (fn [tab] (nil? (get open-views (ui/user-data tab ::view))))
+        closed-tabs (filterv invalid-tab? (.getTabs tab-pane))]
+    ;; We must remove all invalid tabs in one go to ensure the selected
+    ;; tab change event does not trigger onto an invalid tab.
+    (when (seq closed-tabs)
+      (doseq [tab closed-tabs]
+        (fire-tab-closed-event! tab))
+      (.removeAll (.getTabs tab-pane) ^Collection closed-tabs))))
 
 (g/defnode AppView
   (property stage Stage)
@@ -110,17 +123,14 @@
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
   (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views open-dirty-views]
-                                           (let [tabs (.getTabs tab-pane)
-                                                 open? (fn [^Tab tab] (get open-views (ui/user-data tab ::view)))
-                                                 open-tabs (filter open? tabs)
-                                                 closed-tabs (filter (complement open?) tabs)]
-                                             (doseq [^Tab tab open-tabs
-                                                     :let [view (ui/user-data tab ::view)
-                                                           {:keys [resource resource-node]} (get open-views view)
-                                                           title (str (if (contains? open-dirty-views view) "*" "") (resource/resource-name resource))]]
-                                               (ui/text! tab title))
-                                             (doseq [^Tab tab closed-tabs]
-                                               (remove-tab tab-pane tab)))))
+                                           (remove-invalid-tabs! tab-pane open-views)
+                                           (doseq [^Tab tab (.getTabs tab-pane)
+                                                   :let [view (ui/user-data tab ::view)
+                                                         resource-name (resource/resource-name (:resource (get open-views view)))
+                                                         title (if (contains? open-dirty-views view)
+                                                                 (str "*" resource-name)
+                                                                 resource-name)]]
+                                             (ui/text! tab title))))
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
@@ -494,7 +504,7 @@
                 extra-build-targets (when debug?
                                       (debug-view/build-targets project evaluation-context))
                 build-results       (ui/with-progress [_ render-build-progress!]
-                                      (project/build-and-write-project project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
+                                      (project/build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
             (ui/run-later
               (try
                 (g/update-cache-from-evaluation-context! evaluation-context)
@@ -622,11 +632,11 @@ If you do not specifically require different script states, consider changing th
                      (let [evaluation-context (g/make-evaluation-context)
                            workspace (project/workspace project)
                            old-artifact-map (workspace/artifact-map workspace)
-                           {:keys [error artifacts artifact-map etags]} (project/build-and-write-project project
-                                                                                                         evaluation-context
-                                                                                                         nil
-                                                                                                         old-artifact-map
-                                                                                                         (make-render-task-progress :build))]
+                           {:keys [error artifacts artifact-map etags]} (project/build-project! project
+                                                                                                evaluation-context
+                                                                                                nil
+                                                                                                old-artifact-map
+                                                                                                (make-render-task-progress :build))]
                        (g/update-cache-from-evaluation-context! evaluation-context)
                        (if (some? error)
                          (build-errors-view/update-build-errors build-errors-view error)
@@ -637,14 +647,14 @@ If you do not specifically require different script states, consider changing th
                              (build-errors-view/clear-build-errors build-errors-view)
                              (engine/reload-resource (targets/selected-target prefs) resource)
                              (catch Exception e
-                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s'" (targets/target-message-label (targets/selected-target prefs))))))))))))))
+                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
-        (remove-tab tab-pane tab)))))
+        (remove-tab! tab-pane tab)))))
 
 (handler/defhandler :close-other :global
   (enabled? [app-view] (not-empty (next (get-tabs app-view))))
@@ -653,14 +663,14 @@ If you do not specifically require different script states, consider changing th
       (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
         (doseq [tab (.getTabs tab-pane)]
           (when (not= tab selected-tab)
-            (remove-tab tab-pane tab)))))))
+            (remove-tab! tab-pane tab)))))))
 
 (handler/defhandler :close-all :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
       (doseq [tab (.getTabs tab-pane)]
-        (remove-tab tab-pane tab)))))
+        (remove-tab! tab-pane tab)))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -677,7 +687,7 @@ If you do not specifically require different script states, consider changing th
     (ui/show! stage)))
 
 (handler/defhandler :documentation :global
-  (run [] (ui/open-url "http://www.defold.com/learn/")))
+  (run [] (ui/open-url "https://www.defold.com/learn/")))
 
 (handler/defhandler :report-issue :global
   (run [] (ui/open-url (github/new-issue-link))))
@@ -954,16 +964,14 @@ If you do not specifically require different script states, consider changing th
     (assert (g/node-instance? view/WorkbenchView view))
     (g/transact
       (concat
-        (g/connect resource-node :_node-id view :resource-node)
-        (g/connect resource-node :node-id+resource view :node-id+resource)
-        (g/connect resource-node :dirty? view :dirty?)
+        (view/connect-resource-node view resource-node)
         (g/connect view :view-data app-view :open-views)
         (g/connect view :view-dirty? app-view :open-dirty-views)))
     (ui/user-data! tab ::view view)
     (.add tabs tab)
     (g/transact
       (select app-view resource-node [resource-node]))
-    (.setGraphic tab (jfx/get-image-view (:icon resource-type "icons/64/Icons_29-AT-Unknown.png") 16))
+    (.setGraphic tab (jfx/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16))
     (.addAll (.getStyleClass tab) ^Collection (resource/style-classes resource))
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (let [close-handler (.getOnClosed tab)]

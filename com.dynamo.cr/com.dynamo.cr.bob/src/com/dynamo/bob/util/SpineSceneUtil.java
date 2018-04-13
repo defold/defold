@@ -203,6 +203,9 @@ public class SpineSceneUtil {
     }
 
     private void loadMesh(JsonNode attNode, Mesh mesh, Bone bone, boolean skinned) throws LoadException {
+        String hex = JsonUtil.get(attNode, "color", "ffffffff");
+        JsonUtil.hexToRGBA(hex, mesh.color);
+
         Iterator<JsonNode> vertexIt = attNode.get("vertices").getElements();
         Iterator<JsonNode> uvIt = attNode.get("uvs").getElements();
         int vertexCount = 0;

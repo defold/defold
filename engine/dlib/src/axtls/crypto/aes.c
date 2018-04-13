@@ -72,6 +72,8 @@
 			(f8)^=rot2(f4), \
 			(f8)^rot1(f9))
 
+namespace dmAxTls {
+
 /*
  * AES S-box
  */
@@ -308,11 +310,11 @@ void AES_cbc_encrypt(AES_CTX *ctx, const uint8_t *msg, uint8_t *out, int length)
 void AES_cbc_decrypt(AES_CTX *ctx, const uint8_t *msg, uint8_t *out, int length)
 {
     int i;
-    uint32_t tin[4], xor[4], tout[4], data[4], iv[4];
+    uint32_t tin[4], _xor[4], tout[4], data[4], iv[4];
 
     memcpy(iv, ctx->iv, AES_IV_SIZE);
     for (i = 0; i < 4; i++)
-        xor[i] = ntohl(iv[i]);
+        _xor[i] = ntohl(iv[i]);
 
     for (length -= 16; length >= 0; length -= 16)
     {
@@ -331,8 +333,8 @@ void AES_cbc_decrypt(AES_CTX *ctx, const uint8_t *msg, uint8_t *out, int length)
 
         for (i = 0; i < 4; i++)
         {
-            tout[i] = data[i]^xor[i];
-            xor[i] = tin[i];
+            tout[i] = data[i]^_xor[i];
+            _xor[i] = tin[i];
             out_32[i] = htonl(tout[i]);
         }
 
@@ -341,7 +343,7 @@ void AES_cbc_decrypt(AES_CTX *ctx, const uint8_t *msg, uint8_t *out, int length)
     }
 
     for (i = 0; i < 4; i++)
-        iv[i] = htonl(xor[i]);
+        iv[i] = htonl(_xor[i]);
     memcpy(ctx->iv, iv, AES_IV_SIZE);
 }
 
@@ -450,3 +452,5 @@ static void AES_decrypt(const AES_CTX *ctx, uint32_t *data)
             data[row-1] = tmp[row-1] ^ *(--k);
     }
 }
+
+} // namespace

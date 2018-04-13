@@ -138,7 +138,8 @@
   (output texture-profiles-data g/Any (gu/passthrough texture-profiles-data))
   
   (input settings-map g/Any)
-  (output settings-map g/Any :cached (gu/passthrough settings-map))
+  ;; settings-map already cached in SettingsNode
+  (output settings-map g/Any (gu/passthrough settings-map))
 
   (input form-data g/Any)
   (output form-data g/Any :cached (gu/passthrough form-data))
