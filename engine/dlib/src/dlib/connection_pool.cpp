@@ -40,7 +40,7 @@ namespace dmConnectionPool
         uint16_t            m_Port;
         uint64_t            m_Expires;
         dmSocket::Socket    m_Socket;
-        SSL*                m_SSLConnection;
+        dmAxTls::SSL*       m_SSLConnection;
         State               m_State;
         uint16_t            m_WasShutdown:1;
     };
@@ -52,7 +52,7 @@ namespace dmConnectionPool
         uint64_t            m_MaxKeepAlive;
         dmArray<Connection> m_Connections;
         uint16_t            m_NextVersion;
-        SSL_CTX*            m_SSLContext;
+        dmAxTls::SSL_CTX*   m_SSLContext;
         dmMutex::Mutex      m_Mutex;
 
         uint16_t            m_AllowNewConnections:1;
@@ -87,7 +87,7 @@ namespace dmConnectionPool
             // ssl-context is shared among all threads
             // 0 is number of sessions to cache and currently arbitrary.
             // Since we don't use sessions (see Connect) we don't need any.
-            m_SSLContext = ssl_ctx_new(options, 0);
+            m_SSLContext = dmAxTls::ssl_ctx_new(options, 0);
 
             // This is to block new connections when shutting down the pool.
             m_AllowNewConnections = 1;
@@ -110,7 +110,7 @@ namespace dmConnectionPool
                 dmLogError("Leaking %d connections from connection pool", in_use);
             }
 
-            ssl_ctx_free(m_SSLContext);
+            dmAxTls::ssl_ctx_free(m_SSLContext);
 
             dmMutex::Delete(m_Mutex);
         }
@@ -330,10 +330,10 @@ namespace dmConnectionPool
                 dmSocket::SetSendTimeout(c->m_Socket, (int)ssl_handshake_timeout);
                 dmSocket::SetReceiveTimeout(c->m_Socket, (int)ssl_handshake_timeout);
 
-                SSL_EXTENSIONS *ext = ssl_ext_new();
+                dmAxTls::SSL_EXTENSIONS *ext = dmAxTls::ssl_ext_new();
                 ext->host_name = host;
                 // NOTE: No session resume support. We would require a pool of session-id's or similar.
-                SSL* ssl = ssl_client_new(pool->m_SSLContext,
+                dmAxTls::SSL* ssl = dmAxTls::ssl_client_new(pool->m_SSLContext,
                                           dmSocket::GetFD(c->m_Socket),
                                           0,
                                           0,
@@ -361,7 +361,7 @@ namespace dmConnectionPool
                 if (hs != SSL_OK) {
                     r = RESULT_HANDSHAKE_FAILED;
                     dmLogWarning("SSL handshake failed (%d)", hs);
-                    ssl_free(ssl);
+                    dmAxTls::ssl_free(ssl);
                     ssl = 0;
                     dmSocket::Delete(c->m_Socket);
                     c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;

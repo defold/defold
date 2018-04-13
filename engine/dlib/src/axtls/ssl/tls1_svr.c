@@ -34,6 +34,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/ssl/ssl.h>
 
+namespace dmAxTls {
+
 static const uint8_t g_hello_done[] = { HS_SERVER_HELLO_DONE, 0, 0, 0 };
 static const uint8_t g_asn1_sha256[] =
 {
@@ -528,3 +530,5 @@ error:
 }
 
 #endif
+
+} // namespace

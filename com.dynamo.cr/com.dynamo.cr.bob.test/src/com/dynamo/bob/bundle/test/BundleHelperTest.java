@@ -103,6 +103,8 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "MathFuncsLib.lib", 1, "error", "MathFuncsLib.lib(MathFuncsLib.obj) : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'"));
             assertEquals(true, checkIssue(issues, null, 1, "error", "LINK : fatal error LNK1257: code generation failed"));
+
+            assertEquals(true, checkIssue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogOSX.txt");
