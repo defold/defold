@@ -71,6 +71,8 @@ namespace dmVMath
         // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
         uint8_t mask = (q2 != 0.f) << 2 | (q1 != 0.f) << 1 | (q0 != 0.f);
         switch (mask) {
+        case 0b000:
+            return Vectormath::Aos::Vector3(0.0f, 0.0f, 0.0f);
         case 0b001:
         case 0b010:
         case 0b100:
@@ -129,6 +131,8 @@ namespace dmVMath
         // The reasons we make this distinction is that one-axis rotation is common (and cheaper), especially around Z in 2D games
         uint8_t mask = (xyz.getZ() != 0.f) << 2 | (xyz.getY() != 0.f) << 1 | (xyz.getX() != 0.f);
         switch (mask) {
+        case 0b000:
+            return Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f);
         case 0b001:
         case 0b010:
         case 0b100:

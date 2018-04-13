@@ -37,6 +37,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
 
+namespace dmAxTls {
+
 /*
  *  Define the SHA1 circular left shift macro
  */
@@ -247,3 +249,5 @@ static void SHA1PadMessage(SHA1_CTX *ctx)
     ctx->Message_Block[63] = ctx->Length_Low;
     SHA1ProcessMessageBlock(ctx);
 }
+
+} // namespace

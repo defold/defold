@@ -26,7 +26,6 @@
             [editor.util :as util]
             [service.log :as log]
             [editor.graph-util :as gu]
-            [util.digest :as digest]
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [clojure.string :as str]
@@ -285,12 +284,12 @@
                  (= (first @steps-left) [node output-type label]))
         (swap! steps-left rest)
         (let [new-message (if-let [path (node-id->resource-path node)]
-                            (str "Building " path)
+                            (str "Compiling " path)
                             (or (progress/message @progress) ""))]
           (swap! progress progress/advance 1 new-message))
         (render-progress! @progress)))))
 
-(defn build
+(defn build!
   [project node evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [steps                  (atom [])
         collect-tracer         (make-collect-progress-steps-tracer steps)
@@ -573,13 +572,13 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-and-write-project
+(defn build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project  (get-resource-node project "/game.project" evaluation-context)
         render-progress! (progress/throttle-render-progress render-progress!)]
     (try
       (ui/with-progress [render-progress! (progress/throttle-render-progress render-progress!)]
-        (build project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+        (build! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
       (catch Throwable error
         (error-reporting/report-exception! error)
         nil))))
@@ -593,6 +592,11 @@
 
 (defn shared-script-state? [project]
   (some-> (settings project) (get ["script" "shared_state"])))
+
+(defn project-title [project]
+  (some-> project
+    (settings)
+    (get ["project" "title"])))
 
 (defn- disconnect-from-inputs [src tgt connections]
   (let [outputs (set (g/output-labels (g/node-type* src)))
@@ -670,10 +674,12 @@
         progress (atom (progress/make "Updating dependencies..." 3))]
     (render-progress! @progress)
 
-    (when (workspace/dependencies-reachable? dependencies login-fn)
+    ;; Fetch+install libs if we have network, otherwise fallback to disk state
+    (if (workspace/dependencies-reachable? dependencies login-fn)
       (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
-           (workspace/install-validated-libraries! workspace-id dependencies)))
-    
+           (workspace/install-validated-libraries! workspace-id dependencies))
+      (workspace/set-project-dependencies! workspace-id dependencies))
+
     (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
     (render-progress! (swap! progress progress/advance 1 "Loading project"))

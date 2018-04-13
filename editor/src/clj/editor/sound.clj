@@ -150,7 +150,7 @@
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)
-  (output pb-msg g/Any :cached produce-pb-msg)
+  (output pb-msg g/Any produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 

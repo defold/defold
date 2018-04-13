@@ -60,7 +60,19 @@
   (let [libs (library-files project-directory)]
     (map #(assoc (find-matching-library libs %) :uri %) lib-uris)))
 
-(defn current-library-state [project-directory lib-uris]
+(defn current-library-state
+  "Returns a list of lib-states for the lib-uris.
+
+  The lib-states have the following keys
+  :file A File object to the corresponding lib zip in the library cache (.internal/lib), if it is already downloaded
+  :tag The version/etag of the library, parsed from the file name, originally from the resolver response
+  :status The current library status. Always :unknown since we don't know yet if this is the latest version of the library
+
+  Statuses used elsewhere:
+  * :error Something is wrong with the library, reason given in :reason, exception in :exception
+  * :up-to-date The uri not modified according to resolver, etag the same, i.e. library is up to date.
+  * :stale The uri modified according to resolver, etags differ, i.e. newer/other version available"
+  [project-directory lib-uris]
   (map #(assoc % :status :unknown) (library-cache-info project-directory (distinct lib-uris))))
 
 ;; -----
@@ -182,17 +194,29 @@
               :reason :io-failure
               :exception e}))))
 
-(defn fetch-library-updates [resolver render-progress! lib-states]
-   (progress/mapv
-     (fn [lib-state progress]
-       (if (= (:status lib-state) :unknown)
-         (fetch-library-update! lib-state resolver
-                                (progress/nest-render-progress render-progress! progress))
-         lib-state))
-     lib-states
-     render-progress!))
+(defn fetch-library-updates
+  "Fetch updates for libraries with :status :unknown.
 
-(defn validate-updated-libraries [lib-states]
+  Will update:
+  * :status to :up-to-date, :stale or :error (with :reason, :exception)
+  * :new-file to downloaded file if any
+  * :tag with etag from resolver"
+  [resolver render-progress! lib-states]
+  (progress/mapv
+    (fn [lib-state progress]
+      (if (= (:status lib-state) :unknown)
+        (fetch-library-update! lib-state resolver
+                               (progress/nest-render-progress render-progress! progress))
+        lib-state))
+    lib-states
+    render-progress!))
+
+(defn validate-updated-libraries
+  "Validate newly downloaded libraries (:status is :stale).
+
+  Will update:
+  :status to :error (with :reason, :exception) if the library is invalid"
+  [lib-states]
   (mapv
     (fn [lib-state]
       (if (= (:status lib-state) :stale)
@@ -200,7 +224,14 @@
         lib-state))
     lib-states))
 
-(defn install-validated-libraries! [project-directory lib-states]
+(defn install-validated-libraries!
+  "Installs the newly downloaded libraries (:status is still :stale).
+
+  Will update:
+  :status to :up-to-date or :error (with :reason, :exception)
+  :file to File in the library cache
+  Also, :new-file is removed since no longer interesting"
+  [project-directory lib-states]
   (mapv
     (fn [lib-state]
       (-> (if (= (:status lib-state) :stale)

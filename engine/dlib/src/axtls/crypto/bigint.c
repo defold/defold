@@ -73,6 +73,8 @@
 #define U(j)    tmp_u->comps[tmp_u->size-j-1]       /**< uj for division */
 #define Q(j)    quotient->comps[quotient->size-j-1] /**< qj for division */
 
+namespace dmAxTls {
+
 static bigint *bi_int_multiply(BI_CTX *ctx, bigint *bi, comp i);
 static bigint *bi_int_divide(BI_CTX *ctx, bigint *biR, comp denom);
 static bigint *alloc(BI_CTX *ctx, int size);
@@ -1510,3 +1512,5 @@ bigint *bi_crt(BI_CTX *ctx, bigint *bi,
 }
 #endif
 /** @} */
+
+} // namespace

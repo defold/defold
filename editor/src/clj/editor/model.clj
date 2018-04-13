@@ -12,7 +12,8 @@
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.digest :as digest])
   (:import [com.dynamo.model.proto ModelProto$Model ModelProto$ModelDesc]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
@@ -68,7 +69,8 @@
                g/error-aggregate)
       (let [workspace (resource/workspace resource)
             rig-scene-type (workspace/get-resource-type workspace "rigscene")
-            rig-scene-resource (resource/make-memory-resource workspace rig-scene-type (str (gensym)))
+            rig-scene-pseudo-data (digest/string->sha1-hex (str/join (map #(-> % :resource :resource :data) [animation-set-build-target mesh-set-build-target skeleton-build-target])))
+            rig-scene-resource (resource/make-memory-resource workspace rig-scene-type rig-scene-pseudo-data)
             rig-scene-dep-build-targets {:animation-set animation-set-build-target
                                          :mesh-set mesh-set-build-target
                                          :skeleton skeleton-build-target}
@@ -88,10 +90,10 @@
           :deps dep-build-targets}])))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
-  (into {} (map (fn [unit-index sampler {:keys [generate-fn user-data]}]
+  (into {} (map (fn [unit-index sampler {tex-fn :f tex-args :args}]
                   (let [request-id [_node-id unit-index]
-                        params (material/sampler->tex-params sampler)
-                        texture (generate-fn user-data request-id params unit-index)]
+                        params     (material/sampler->tex-params sampler)
+                        texture    (tex-fn tex-args request-id params unit-index)]
                     [(:name sampler) texture]))
                 (range)
                 samplers

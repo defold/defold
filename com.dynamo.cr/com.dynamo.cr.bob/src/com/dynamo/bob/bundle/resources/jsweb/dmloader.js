@@ -242,6 +242,10 @@ var Progress = {
     removeProgress: function () {
         if (Progress.progress.parentElement !== null) {
             Progress.progress.parentElement.removeChild(Progress.progress);
+
+            // Remove any background/splash image that was set in runApp().
+            // Workaround for Safari bug DEF-3061.
+            Module.canvas.style.background = "";
         }
     }
 };
