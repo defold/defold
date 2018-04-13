@@ -309,7 +309,7 @@
 
 (defn- fetch-dashboard-projects [{:keys [prefs] :as _dashboard-client}]
   (let [client (client/make-client prefs)]
-    (let [project-info-list (client/rget client "/projects/-1" Protocol$ProjectInfoList)]
+    (let [project-info-list (client/cr-get client ["projects" -1] Protocol$ProjectInfoList)]
       (sort compare-project-names (:projects project-info-list)))))
 
 ;; -----------------------------------------------------------------------------

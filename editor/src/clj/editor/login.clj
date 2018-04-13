@@ -16,7 +16,7 @@
 (defn logged-in? [prefs client]
   (if-let [email (prefs/get-prefs prefs "email" nil)]
     (try
-      (client/rget client (format "/users/%s" email) Protocol$UserInfo)
+      (client/user-info client)
       true
       (catch Exception e
         (log/warn :exception e)
@@ -32,7 +32,7 @@
     [token action]))
 
 (defn- get-exchange-info [client token]
-  (let [exchange-info (client/rget client (format "/login/oauth/exchange/%s" token) Protocol$TokenExchangeInfo)]
+  (let [exchange-info (client/cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
     (if (= (:type exchange-info) :SIGNUP)
       (throw (Exception. "This account is not associated with defold.com yet. Please go to defold.com to signup"))
       exchange-info)))
