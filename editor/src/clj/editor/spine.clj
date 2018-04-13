@@ -137,7 +137,7 @@
                               "rotate" :rotations
                               "scale" :scale
                               "color" :colors
-                              "attachment" :visible
+                              "attachment" :mesh-attachment
                               "drawOrder" :order-offset
                               "mix" :mix
                               "bendPositive" :positive})
@@ -146,7 +146,7 @@
                                  "rotate" :double
                                  "scale" :double
                                  "color" :double
-                                 "attachment" :boolean
+                                 "attachment" :long
                                  "drawOrder" :long
                                  "mix" :double
                                  "bendPositive" :boolean})
@@ -255,43 +255,43 @@
                                   {} timelines)]
     (sort-by :bone-index (vals tracks-by-bone))))
 
-(defn- build-mesh-tracks [slot-timelines do-timelines duration sample-rate spf slots-data slot->track-data]
+(defn- build-mesh-tracks [slot-timelines do-timelines duration sample-rate spf base-slots]
   (let [; Reshape do-timelines into slot-timelines
         do-by-slot (into {} (map (fn [[slot timeline]]
                                    [slot {"drawOrder" timeline}])
-                             (reduce (fn [m timeline]
-                                      (let [t (get timeline "time")
-                                            explicit (reduce (fn [m offset]
-                                                               (assoc m (get offset "slot") [{"time" t "offset" (get offset "offset")}]))
-                                                             {} (get timeline "offsets"))
-                                            ; Supply implicit slots with 0 in offset
-                                            all (reduce (fn [m slot]
-                                                          (if (not (contains? m slot))
-                                                            (assoc m slot [{"time" t "offset" 0}])
-                                                            m))
-                                                        explicit (keys m))]
-                                        (merge-with into m all)))
-                                    {} do-timelines)))
+                                 (reduce (fn [m timeline]
+                                           (let [t (get timeline "time")
+                                                 explicit (reduce (fn [m offset]
+                                                                    (assoc m (get offset "slot") [{"time" t "offset" (get offset "offset")}]))
+                                                                  {} (get timeline "offsets"))
+                                                 ; Supply implicit slots with 0 in offset
+                                                 all (reduce (fn [m slot]
+                                                               (if (not (contains? m slot))
+                                                                 (assoc m slot [{"time" t "offset" 0}])
+                                                                 m))
+                                                             explicit (keys m))]
+                                             (merge-with into m all)))
+                                         {} do-timelines)))
         slot-timelines (merge-with merge slot-timelines do-by-slot)
         tracks-by-slot (reduce-kv (fn [m slot timeline]
-                                    (let [slot-data (get slots-data slot)
-                                          tracks (mapv (fn [{:keys [skin-id mesh-index attachment]}]
-                                                         (reduce-kv (fn [track type keys]
-                                                                      (let [interpolate? (= type "color")
-                                                                            val-fn (when (= type "attachment")
-                                                                                     (fn [type key]
-                                                                                       (= attachment (get key "name"))))
-                                                                            default-val (when (= type "attachment")
-                                                                                          (= (:attachment slot-data) attachment))
-                                                                            field (timeline-type->pb-field type)
-                                                                            pb-track {:mesh-index mesh-index
-                                                                                      :mesh-id skin-id
-                                                                                      field (sample type keys duration sample-rate spf val-fn default-val interpolate?)}]
-                                                                        (merge track pb-track)))
-                                                                    {} timeline))
-                                                       (slot->track-data slot))]
+                                    (let [slot-data (get base-slots slot)
+                                          default-attachment-name (:default-attachment slot-data)
+                                          default-attachment-index (:active-attachment slot-data)
+                                          attachment-names (:attachment-names slot-data)
+                                          tracks (reduce-kv (fn [track type keys]
+                                                              (let [interpolate? (= type "color")
+                                                                    val-fn (when (= type "attachment")
+                                                                             (fn [type key]
+                                                                               (.indexOf attachment-names (get key "name"))))
+                                                                    default-val (when (= type "attachment")
+                                                                                  (.indexOf attachment-names default-attachment-name))
+                                                                    field (timeline-type->pb-field type)
+                                                                    pb-track {:mesh-slot (:draw-order slot-data)
+                                                                              field (sample type keys duration sample-rate spf val-fn default-val interpolate?)}]
+                                                                (merge track pb-track)))
+                                                            {} timeline)]
                                       (assoc m slot tracks)))
-                               {} slot-timelines)]
+                                  {} slot-timelines)]
     (flatten (vals tracks-by-slot))))
 
 (defn- build-event-tracks
@@ -524,18 +524,6 @@
              :mix (get ik "mix" 1.0)}))
         (get spine-scene "ik")))
 
-(defn- read-slots
-  [spine-scene bone-id->index bone-index->world-transform]
-  (into {} (map-indexed (fn [i slot]
-                          (let [bone-index (bone-id->index (murmur/hash64 (get slot "bone")))]
-                            [(get slot "name")
-                             {:bone-index bone-index
-                              :bone-world (get bone-index->world-transform bone-index)
-                              :draw-order i
-                              :color (hex->color (get slot "color" "FFFFFFFF"))
-                              :attachment (get slot "attachment")}]))
-                        (get spine-scene "slots"))))
-
 (defn- read-base-slots
   [spine-scene bone-id->index bone-index->world-transform]
   (let [skins (get spine-scene "skins")
@@ -560,9 +548,10 @@
                              :draw-order i
                              :color (hex->color (get slot "color" "FFFFFFFF"))
                              :attachment-points attachment-points-v
+                             :attachment-names attachment-points
                              :default-attachment default-attachment
-                             :active-attachment (.indexOf attachment-points default-attachment)
-                             }])))
+                             :active-attachment (.indexOf attachment-points default-attachment)}])))
+
           (get spine-scene "slots"))))
 
 (defn- attachment-entry->named-attachment [[attachment-name attachment slot-name]]
@@ -697,8 +686,7 @@
                                                          :sample-rate  sample-rate
                                                          :duration     duration
                                                          :tracks       (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
-                                                         ; :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
-                                                         :mesh-tracks  nil
+                                                         :mesh-tracks  (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf base-slots)
                                                          :event-tracks (build-event-tracks (get a "events") event-name->event-props)
                                                          :ik-tracks    (build-ik-tracks (get a "ik") duration sample-rate spf ik-id->index)}))
                                                     (get spine-scene "animations"))]
@@ -740,7 +728,7 @@
         skins (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])
         skin-id (some-> renderable :user-data :skin murmur/hash64)
         skin (or (first (filter #(= (:id %) skin-id) skins))
-                       (first skins))]
+                 (first skins))]
     (into []
           (comp (keep #(get meshes (get (get % :mesh-attachments) (get % :active-index) -1)))
                 (map (partial transform-positions (:world-transform renderable)))
