@@ -1588,7 +1588,7 @@
        (let [lines (get-property view-node :lines)
              cursor-ranges (get-property view-node :cursor-ranges)
              regions (get-property view-node :regions)
-             breakpoint-rows (data/cursor-ranges->rows lines cursor-ranges)]
+             breakpoint-rows (data/cursor-ranges->start-rows lines cursor-ranges)]
          (set-properties! view-node nil
                           (data/toggle-breakpoint lines
                                                   regions
@@ -2158,10 +2158,10 @@
             dropped-line-count (.dropped-line-count layout)
             source-line-count (count lines)
             indicator-diameter (- line-height 6.0)
-            breakpoint-rows (data/cursor-ranges->rows lines (filter data/breakpoint-region? regions))
+            breakpoint-rows (data/cursor-ranges->start-rows lines (filter data/breakpoint-region? regions))
             execution-markers-by-type (group-by :location-type (filter data/execution-marker? regions))
-            execution-marker-current-rows (data/cursor-ranges->rows lines (:current-line execution-markers-by-type))
-            execution-marker-frame-rows (data/cursor-ranges->rows lines (:current-frame execution-markers-by-type))]
+            execution-marker-current-rows (data/cursor-ranges->start-rows lines (:current-line execution-markers-by-type))
+            execution-marker-frame-rows (data/cursor-ranges->start-rows lines (:current-frame execution-markers-by-type))]
         (loop [drawn-line-index 0
                source-line-index dropped-line-count]
           (when (and (< drawn-line-index drawn-line-count)
