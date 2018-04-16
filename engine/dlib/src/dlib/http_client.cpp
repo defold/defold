@@ -909,6 +909,12 @@ bail:
             return r;
         }
 
+        if (response.m_Status == 204 /* No Content*/)
+        {
+            assert(response.m_ContentLength == -1);
+            response.m_ContentLength = 0;
+        }
+
         if (response.m_Chunked)
         {
             // Ok

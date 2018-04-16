@@ -54,6 +54,7 @@ namespace dmGraphics
         uint16_t    m_Height;
         uint16_t    m_OriginalWidth;
         uint16_t    m_OriginalHeight;
+        uint16_t    m_MipMapCount;
 
         // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         volatile uint16_t    m_DataState;
