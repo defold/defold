@@ -66,7 +66,7 @@
                :name "comment.line.double-dash.lua"}
               {:match #"\b(and|or|not|break|do|else|for|if|elseif|return|then|repeat|while|until|end|function|local|in|goto)\b"
                :name "keyword.control.lua"}
-              {:match #"(?<![^.]\.|:)\b([A-Z_]+|false|nil|true|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)"
+              {:match #"(?<![^.]\.|:)\b([A-Z_][0-9A-Z_]*|false|nil|true|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)"
                :name "constant.language.lua"}
               {:match #"(?<![^.]\.|:)\b(self)\b"
                :name "variable.language.self.lua"}
