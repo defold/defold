@@ -2297,6 +2297,12 @@
                   (when became-selected?
                     (ui/run-later (.requestFocus canvas)))))
 
+    ;; Clicking an autocomplete-entry in the suggestions popup accepts it.
+    (.setOnMouseClicked suggestions-list-view
+                        (ui/event-handler event
+                          (when (some? (ui/cell-item-under-mouse event))
+                            (accept-suggestion! view-node))))
+
     ;; Highlight occurrences of search term while find bar is open.
     (let [find-case-sensitive-setter (make-property-change-setter view-node :find-case-sensitive?)
           find-whole-word-setter (make-property-change-setter view-node :find-whole-word?)
