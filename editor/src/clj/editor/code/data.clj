@@ -582,6 +582,11 @@
                                (inc (.row (cursor-range-end cursor-range)))))))
         cursor-ranges))
 
+(defn cursor-ranges->start-rows [lines cursor-ranges]
+  (into (sorted-set)
+        (map #(.row (cursor-range-start (adjust-cursor-range lines %))))
+        cursor-ranges))
+
 (defn- cursor-ranges->row-runs-xform [lines]
   (comp (map (partial adjust-cursor-range lines))
         (map (fn [cursor-range]
