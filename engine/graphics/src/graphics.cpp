@@ -1,4 +1,5 @@
 #include "graphics.h"
+#include <string.h>
 
 namespace dmGraphics
 {
@@ -24,5 +25,36 @@ namespace dmGraphics
     , m_VerifyGraphicsCalls(false)
     {
 
+    }
+
+
+    TextureFormatToBPP::TextureFormatToBPP()
+    {
+        memset(m_FormatToBPP, 0x0, sizeof(m_FormatToBPP));
+        m_FormatToBPP[TEXTURE_FORMAT_LUMINANCE]          = 8;
+        m_FormatToBPP[TEXTURE_FORMAT_LUMINANCE_ALPHA]    = 16;
+        m_FormatToBPP[TEXTURE_FORMAT_RGB]                = 24;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA]               = 32;
+        m_FormatToBPP[TEXTURE_FORMAT_RGB_16BPP]          = 16;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA_16BPP]         = 16;
+        m_FormatToBPP[TEXTURE_FORMAT_RGB_DXT1]           = 4;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT1]          = 4;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT3]          = 8;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA_DXT5]          = 8;
+        m_FormatToBPP[TEXTURE_FORMAT_DEPTH]              = 24;
+        m_FormatToBPP[TEXTURE_FORMAT_STENCIL]            = 8;
+        m_FormatToBPP[TEXTURE_FORMAT_RGB_PVRTC_2BPPV1]   = 2;
+        m_FormatToBPP[TEXTURE_FORMAT_RGB_PVRTC_4BPPV1]   = 4;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1]  = 2;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1]  = 4;
+        m_FormatToBPP[TEXTURE_FORMAT_RGB_ETC1]           = 4;
+        m_FormatToBPP[TEXTURE_FORMAT_RGB16F]             = 48;
+        m_FormatToBPP[TEXTURE_FORMAT_RGB32F]             = 96;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA16F]            = 64;
+        m_FormatToBPP[TEXTURE_FORMAT_RGBA32F]            = 128;
+        m_FormatToBPP[TEXTURE_FORMAT_R16F]               = 16;
+        m_FormatToBPP[TEXTURE_FORMAT_RG16F]              = 32;
+        m_FormatToBPP[TEXTURE_FORMAT_R32F]               = 32;
+        m_FormatToBPP[TEXTURE_FORMAT_RG32F]              = 64;
     }
 }
