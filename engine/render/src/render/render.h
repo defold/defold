@@ -174,6 +174,7 @@ namespace dmRender
         uint32_t m_BatchKey;
         uint32_t m_TagMask;
         uintptr_t m_UserData;
+        uint32_t m_MinorOrder:4;
         uint32_t m_MajorOrder:2;
         uint32_t m_Dispatch:8;
     };
