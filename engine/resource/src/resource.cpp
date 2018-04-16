@@ -59,63 +59,6 @@ const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
 const char SHARED_NAME_CHARACTER = ':';
 
-struct ResourceReloadedCallbackPair
-{
-    ResourceReloadedCallback    m_Callback;
-    void*                       m_UserData;
-};
-
-struct SResourceFactory
-{
-    // TODO: Arg... budget. Two hash-maps. Really necessary?
-    dmHashTable<uint64_t, SResourceDescriptor>*  m_Resources;
-    dmHashTable<uintptr_t, uint64_t>*            m_ResourceToHash;
-    // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
-    // Used for reloading of resources
-    dmHashTable<uint64_t, const char*>*          m_ResourceHashToFilename;
-    // Only valid if RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT is set
-    dmArray<ResourceReloadedCallbackPair>*       m_ResourceReloadedCallbacks;
-    SResourceType                                m_ResourceTypes[MAX_RESOURCE_TYPES];
-    uint32_t                                     m_ResourceTypesCount;
-
-    // Guard for anything that touches anything that could be shared
-    // with GetRaw (used for async threaded loading). Liveupdate, HttpClient, m_Buffer
-    // m_BuiltinsArchive and m_Archive
-    dmMutex::Mutex                               m_LoadMutex;
-
-    // dmResource::Get recursion depth
-    uint32_t                                     m_RecursionDepth;
-    // List of resources currently in dmResource::Get call-stack
-    dmArray<const char*>                         m_GetResourceStack;
-
-    dmMessage::HSocket                           m_Socket;
-
-    dmURI::Parts                                 m_UriParts;
-    dmHttpClient::HClient                        m_HttpClient;
-    dmHttpCache::HCache                          m_HttpCache;
-    LoadBufferType*                              m_HttpBuffer;
-
-    dmArray<char>                                m_Buffer;
-
-    // HTTP related state
-    // Total number bytes loaded in current GET-request
-    int32_t                                      m_HttpContentLength;
-    uint32_t                                     m_HttpTotalBytesStreamed;
-    int                                          m_HttpStatus;
-    Result                                       m_HttpFactoryResult;
-
-    // Manifest and archive for builtin resources
-    dmLiveUpdateDDF::ManifestFile*               m_BuiltinsManifest;
-    dmResourceArchive::HArchiveIndexContainer    m_BuiltinsArchiveContainer;
-
-    // Resource manifest
-    Manifest*                                    m_Manifest;
-    void*                                        m_ArchiveMountInfo;
-
-    // Shared resources
-    uint32_t                                    m_NonSharedCount; // a running number, helping id the potentially non shared assets
-};
-
 SResourceType* FindResourceType(SResourceFactory* factory, const char* extension)
 {
     for (uint32_t i = 0; i < factory->m_ResourceTypesCount; ++i)
@@ -1020,6 +963,9 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
 
         if (create_error == RESULT_OK)
         {
+            tmp_resource.m_ResourceSizeOnDisc = file_size;
+            tmp_resource.m_ResourceSize = 0; // Not everything will report a size (but instead rely on the disc size, sinze it's close enough)
+
             ResourceCreateParams params;
             params.m_Factory = factory;
             params.m_Context = resource_type->m_Context;
@@ -1240,6 +1186,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
+        params.m_Resource->m_ResourceSizeOnDisc = file_size;
         if (factory->m_ResourceReloadedCallbacks)
         {
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)

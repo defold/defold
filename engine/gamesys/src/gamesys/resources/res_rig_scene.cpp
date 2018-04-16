@@ -98,6 +98,18 @@ namespace dmGameSystem
 
     }
 
+#ifndef NDEBUG
+    static uint32_t GetResourceSize(RigSceneResource* res, uint32_t ddf_size)
+    {
+        uint32_t size = sizeof(RigSceneResource);
+        size += ddf_size;
+        size += res->m_BindPose.Capacity()*sizeof(dmRig::RigBone);
+        size += res->m_PoseIdxToInfluence.Capacity()*sizeof(uint32_t);
+        size += res->m_TrackIdxToPose.Capacity()*sizeof(uint32_t);
+        return size;
+    }
+#endif
+
     dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams& params)
     {
         dmRigDDF::RigScene* rig_scene;
@@ -128,6 +140,9 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) ss_resource;
+#ifndef NDEBUG
+            params.m_Resource->m_ResourceSize = GetResourceSize(ss_resource, params.m_BufferSize);
+#endif
         }
         else
         {
@@ -157,6 +172,14 @@ namespace dmGameSystem
         RigSceneResource* ss_resource = (RigSceneResource*)params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, ss_resource);
         ss_resource->m_RigScene = rig_scene;
-        return AcquireResources(params.m_Factory, ss_resource, params.m_Filename, true);
+        dmResource::Result r = AcquireResources(params.m_Factory, ss_resource, params.m_Filename, true);
+        if(r != dmResource::RESULT_OK)
+        {
+            return r;
+        }
+#ifndef NDEBUG
+        params.m_Resource->m_ResourceSize = GetResourceSize(ss_resource, params.m_BufferSize);
+#endif
+        return dmResource::RESULT_OK;
     }
 }

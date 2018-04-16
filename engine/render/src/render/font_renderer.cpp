@@ -820,4 +820,12 @@ namespace dmRender
         metrics->m_Width = layout_width;
         metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
     }
+
+    uint32_t GetFontMapResourceSize(HFontMap font_map)
+    {
+        uint32_t size = sizeof(FontMap);
+        size += font_map->m_Glyphs.Capacity()*(sizeof(Glyph)+sizeof(uint32_t));
+        size += dmGraphics::GetTextureResourceSize(font_map->m_Texture);
+        return size;
+    }
 }
