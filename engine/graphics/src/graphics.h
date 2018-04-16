@@ -131,6 +131,15 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG16F                = 22,
         TEXTURE_FORMAT_R32F                 = 23,
         TEXTURE_FORMAT_RG32F                = 24,
+
+        TEXTURE_FORMAT_COUNT
+    };
+
+    // Translation table to translate TextureFormat texture to BPP
+    struct TextureFormatToBPP
+    {
+        uint8_t m_FormatToBPP[TEXTURE_FORMAT_COUNT];
+        TextureFormatToBPP();
     };
 
     // Texture type
@@ -612,6 +621,7 @@ namespace dmGraphics
 
     uint8_t* GetTextureData(HTexture texture);
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
+    uint32_t GetTextureResourceSize(HTexture texture);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);
