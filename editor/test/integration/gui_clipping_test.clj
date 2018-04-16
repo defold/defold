@@ -42,7 +42,7 @@
    (add-clipper! project scene parent true visible?)))
 
 (defn- make-counter []
-  (let [n (atom 1)]
+  (let [n (atom 0)]
     #(swap! n inc)))
 
 (defn- add-layers! [project scene layers]

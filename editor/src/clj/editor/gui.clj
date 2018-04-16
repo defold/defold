@@ -2682,18 +2682,15 @@
   (g/override-root (handler/adapt-single selection LayerNode)))
 
 (handler/defhandler :move-up :workbench
-  (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
+  (active? [selection] (or (selection->gui-node selection)
+                           (selection->layer-node selection)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
-                     (if (selection->gui-node selection)
-                       (move-child-node! selected -1)
-                       (move-child-node! selected -1)))))
+                     (move-child-node! selected -1))))
 
 (handler/defhandler :move-down :workbench
   (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
-                     (if (selection->gui-node selection)
-                       (move-child-node! selected 1)
-                       (move-child-node! selected 1)))))
+                     (move-child-node! selected 1))))
 
 (defn- resource->gui-scene [project resource]
   (let [res-node (some->> resource
