@@ -1116,8 +1116,9 @@
             (dynamic edit-type (g/constantly (properties/quat->euler))))
   (property scale types/Vec3 (default [1.0 1.0 1.0])
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (g/set-property self :scale (mapv non-zeroify-scale new-value)))))
+            (set (fn [_evaluation-context self _old-value new-value]
+                   (when (some? new-value)
+                     (g/set-property self :scale (mapv non-zeroify-scale new-value))))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)
