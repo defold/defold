@@ -255,6 +255,7 @@ TEST_F(dmRenderTest, TestRenderListDraw)
         dmRender::RenderListEntry & entry = out[i];
         entry.m_WorldPosition = Point3(0,0,orders[i]);
         entry.m_MajorOrder = majors[i % 3];
+        entry.m_MinorOrder = 0;
         entry.m_TagMask = 0;
         entry.m_Order = orders[i];
         entry.m_BatchKey = i & 3; // no particular system
@@ -273,6 +274,126 @@ TEST_F(dmRenderTest, TestRenderListDraw)
     ASSERT_EQ(ctx.m_EndCalls, 1);
     ASSERT_EQ(ctx.m_Order, orders[2]); // highest after world entry
     ASSERT_EQ(ctx.m_Z, orders[1]);
+}
+
+struct TestRenderListOrderDispatchCtx
+{
+    int m_BeginCalls;
+    int m_BatchCalls;
+    int m_EndCalls;
+    int m_EntriesRendered;
+    int m_Order;
+    int m_MajorOrder;
+    float m_Z;
+};
+
+static void TestRenderListOrderDispatch(dmRender::RenderListDispatchParams const & params)
+{
+    TestRenderListOrderDispatchCtx *ctx = (TestRenderListOrderDispatchCtx*) params.m_UserData;
+    uint32_t* i;
+    switch (params.m_Operation)
+    {
+        case dmRender::RENDER_LIST_OPERATION_BEGIN:
+            ASSERT_EQ(ctx->m_BatchCalls, 0);
+            ASSERT_EQ(ctx->m_EndCalls, 0);
+            ctx->m_BeginCalls++;
+            break;
+        case dmRender::RENDER_LIST_OPERATION_BATCH:
+            ASSERT_EQ(ctx->m_BeginCalls, 1);
+            ASSERT_EQ(ctx->m_EndCalls, 0);
+            ctx->m_BatchCalls++;
+
+            for ( i=params.m_Begin; i != params.m_End; ++i, ++ctx->m_MajorOrder)
+            {
+                // major order, sequential (world before, world, after) indpenendent of minor order
+                ASSERT_EQ(ctx->m_MajorOrder, params.m_Buf[*i].m_MajorOrder);
+                 // verify strictly increasing z for world entries.
+                 ASSERT_GT(params.m_Buf[*i].m_WorldPosition.getZ(), ctx->m_Z);
+                 ctx->m_Z = params.m_Buf[*i].m_WorldPosition.getZ();
+                 ctx->m_Order = params.m_Buf[*i].m_Order;
+             }
+             ctx->m_EntriesRendered++;
+            break;
+        default:
+            ASSERT_EQ(params.m_Operation, dmRender::RENDER_LIST_OPERATION_END);
+            ASSERT_EQ(ctx->m_BeginCalls, 1);
+            ASSERT_EQ(ctx->m_EndCalls, 0);
+            ctx->m_EndCalls++;
+            break;
+    }
+}
+
+TEST_F(dmRenderTest, TestRenderListOrder)
+{
+    // Test order (sort), major order and minor order integrity and minor order breaking batching
+    TestRenderListOrderDispatchCtx ctx;
+    memset(&ctx, 0x00, sizeof(TestRenderListOrderDispatchCtx));
+
+    Vectormath::Aos::Matrix4 view = Vectormath::Aos::Matrix4::identity();
+    Vectormath::Aos::Matrix4 proj = Vectormath::Aos::Matrix4::orthographic(0.0f, WIDTH, HEIGHT, 0.0f, 0.1f, 1.0f);
+    dmRender::SetViewMatrix(m_Context, view);
+    dmRender::SetProjectionMatrix(m_Context, proj);
+
+    dmRender::RenderListBegin(m_Context);
+    uint8_t dispatch = dmRender::RenderListMakeDispatch(m_Context, TestRenderListOrderDispatch, &ctx);
+
+    const uint32_t n = 3;
+    const uint32_t orders[n] = {  99997,99998,99999 };
+    const uint32_t major_orders[n] = {
+        dmRender::RENDER_ORDER_BEFORE_WORLD,
+        dmRender::RENDER_ORDER_WORLD,
+        dmRender::RENDER_ORDER_AFTER_WORLD
+    };
+    const uint32_t minor_orders[n] = { 0,1,1 };
+
+    dmRender::RenderListEntry* out = dmRender::RenderListAlloc(m_Context, n);
+    for (uint32_t i=0;i!=n;i++)
+    {
+        dmRender::RenderListEntry & entry = out[i];
+        entry.m_WorldPosition = Point3(0,0,orders[i]);
+        entry.m_MajorOrder = major_orders[i];
+        entry.m_MinorOrder = 0;
+        entry.m_TagMask = 0;
+        entry.m_Order = orders[i];
+        entry.m_BatchKey = 0;
+        entry.m_Dispatch = dispatch;
+        entry.m_UserData = 0;
+    }
+    dmRender::RenderListSubmit(m_Context, out, out + n);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0);
+    ASSERT_EQ(ctx.m_BeginCalls, 1);
+    ASSERT_EQ(ctx.m_BatchCalls, 1);
+    ASSERT_EQ(ctx.m_EntriesRendered, 1);
+    ASSERT_EQ(ctx.m_EndCalls, 1);
+    ASSERT_EQ(ctx.m_Order, orders[2]); // highest after world entry
+    ASSERT_EQ(ctx.m_Z, orders[2]);
+
+    dmRender::RenderListBegin(m_Context);
+    memset(&ctx, 0x00, sizeof(TestRenderListOrderDispatchCtx));
+    dispatch = dmRender::RenderListMakeDispatch(m_Context, TestRenderListOrderDispatch, &ctx);
+    out = dmRender::RenderListAlloc(m_Context, n);
+    for (uint32_t i=0;i!=n;i++)
+    {
+        dmRender::RenderListEntry & entry = out[i];
+        entry.m_WorldPosition = Point3(0,0,orders[i]);
+        entry.m_MajorOrder = major_orders[i];
+        entry.m_MinorOrder = minor_orders[i];
+        entry.m_TagMask = 0;
+        entry.m_Order = orders[i];
+        entry.m_BatchKey = 0;
+        entry.m_Dispatch = dispatch;
+        entry.m_UserData = 0;
+    }
+    dmRender::RenderListSubmit(m_Context, out, out + n);
+    dmRender::RenderListEnd(m_Context);
+    dmRender::DrawRenderList(m_Context, 0, 0);
+    ASSERT_EQ(ctx.m_BeginCalls, 1);
+    ASSERT_EQ(ctx.m_BatchCalls, 2);
+    ASSERT_EQ(ctx.m_EntriesRendered, 2);
+    ASSERT_EQ(ctx.m_EndCalls, 1);
+    ASSERT_EQ(ctx.m_Order, orders[2]);
+    ASSERT_EQ(ctx.m_Z, orders[2]);
 }
 
 TEST_F(dmRenderTest, TestRenderListDebug)
