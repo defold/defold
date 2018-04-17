@@ -1931,13 +1931,16 @@ command."
                         (unregister-toolbar scene context-node toolbar-css-selector))))))
 
 (defn parent-tab-pane
+  "Returns the closest TabPane above the Node in the scene hierarchy, or nil if
+  the Node is not under a TabPane."
   ^TabPane [^Node node]
   (closest-node-of-type TabPane node))
 
 (defn tab-pane-parent
+  "Returns the parent Node of a TabPane, or nil if the TabPane is not in a scene.
+  TabPanes are wrapped in a skin Node, so its parent is one additional step up."
   ^Node [^TabPane tab-pane]
-  ;; TabPanes are wrapped in a skin node.
-  (some-> tab-pane (.getParent) (.getParent)))
+  (some-> (.getParent tab-pane) .getParent))
 
 (defn selected-tab
   ^Tab [^TabPane tab-pane]

@@ -683,6 +683,8 @@ If you do not specifically require different script states, consider changing th
         (remove-tab! tab-pane tab)))))
 
 (defn- editor-tab-pane
+  "Returns the editor TabPane that is above the Node in the scene hierarchy, or
+  nil if the Node does not reside under an editor TabPane."
   ^TabPane [node]
   (when-some [parent-tab-pane (ui/parent-tab-pane node)]
     (when (= "editor-tabs-split" (some-> (ui/tab-pane-parent parent-tab-pane) (.getId)))
