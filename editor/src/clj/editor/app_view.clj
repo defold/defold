@@ -86,12 +86,104 @@
         (fire-tab-closed-event! tab))
       (.removeAll (.getTabs tab-pane) ^Collection closed-tabs))))
 
+(defn- local-url [target web-server]
+  (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
+
+
+(def ^:private app-task-progress
+  {:main (ref progress/done)
+   :build (ref progress/done)
+   :resource-sync (ref progress/done)
+   :save-all (ref progress/done)
+   :fetch-libraries (ref progress/done)})
+
+(def ^:private app-task-ui-priority
+  [:save-all :resource-sync :fetch-libraries :build :main])
+
+(def ^:private render-task-progress-ui-inflight (ref false))
+
+(defonce ^:private progress-controls [(Label.)
+                                      (doto (ProgressBar.)
+                                        (ui/add-style! "really-small-progress-bar"))])
+
+(defonce progress-hbox (doto (HBox.)
+                         (ui/visible! false)
+                         (ui/children! progress-controls)
+                         (ui/add-style! "progress-hbox")))
+
+(defn- task-progress-controls [key]
+  (case key
+    :build (reverse progress-controls)
+    [nil nil]))
+
+(defn- render-task-progress-ui! []
+  (let [task-progress-snapshot (ref nil)]
+    (dosync
+      (ref-set render-task-progress-ui-inflight false)
+      (ref-set task-progress-snapshot
+               (into {} (map (juxt first (comp deref second))) app-task-progress)))
+    (let [[key progress] (first (filter (comp (complement progress/done?) second)
+                                        (map (juxt identity @task-progress-snapshot)
+                                             app-task-ui-priority)))]
+      (when key
+        (let [[bar percentage-label] (task-progress-controls key)]
+          (when bar (ui/render-progress-bar! progress bar))
+          (when percentage-label (ui/render-progress-percentage! progress percentage-label))))
+      ;; app-view uses first visible of progress-hbox and update-status-label to determine
+      ;; what to show in bottom right corner status pane
+      (let [show-progress-hbox? (boolean (and (not= key :main)
+                                              progress
+                                              (not (progress/done? progress))))]
+        (ui/visible! progress-hbox show-progress-hbox?))
+
+      (ui/render-progress-message!
+        (if key progress (@task-progress-snapshot :main))
+        (.lookup (.. (ui/main-stage) (getScene) (getRoot)) "#status-label")))))
+
+(defn- render-task-progress! [key progress]
+  (let [schedule-render-task-progress-ui (ref false)]
+    (dosync
+      (ref-set (get app-task-progress key) progress)
+      (ref-set schedule-render-task-progress-ui (not @render-task-progress-ui-inflight))
+      (ref-set render-task-progress-ui-inflight true))
+    (when @schedule-render-task-progress-ui
+      (ui/run-later (render-task-progress-ui!)))))
+
+(defn make-render-task-progress [key]
+  (assert (contains? app-task-progress key))
+  (fn [progress] (render-task-progress! key progress)))
+
+(defn- future-hot-reload [project resource prefs build-errors-view]
+  (ui/->future 0.01
+    (fn []
+      (let [evaluation-context (g/make-evaluation-context)
+            workspace (project/workspace project)
+            old-artifact-map (workspace/artifact-map workspace)
+            {:keys [error artifacts artifact-map etags]} (project/build-project! project
+                                                           evaluation-context
+                                                           nil
+                                                           old-artifact-map
+                                                           (make-render-task-progress :build))]
+        (g/update-cache-from-evaluation-context! evaluation-context)
+        (if (and (some? error) build-errors-view)
+          (build-errors-view/update-build-errors build-errors-view error)
+          (do
+            (workspace/artifact-map! workspace artifact-map)
+            (workspace/etags! workspace etags)
+            (try
+              (when build-errors-view
+                (build-errors-view/clear-build-errors build-errors-view))
+              (engine/reload-resource (targets/selected-target prefs) resource)
+              (catch Exception e
+                (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))
+
 (g/defnode AppView
   (property stage Stage)
   (property tab-pane TabPane)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
+  (property prefs g/Any)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -122,11 +214,14 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views open-dirty-views]
+  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views open-dirty-views project-id prefs active-resource]
                                            (remove-invalid-tabs! tab-pane open-views)
+                                           (when active-resource
+                                             (future-hot-reload project-id active-resource prefs nil))
                                            (doseq [^Tab tab (.getTabs tab-pane)
                                                    :let [view (ui/user-data tab ::view)
-                                                         resource-name (resource/resource-name (:resource (get open-views view)))
+                                                         resource (:resource (get open-views view))
+                                                         resource-name (resource/resource-name resource)
                                                          title (if (contains? open-dirty-views view)
                                                                  (str "*" resource-name)
                                                                  resource-name)]]
@@ -615,7 +710,7 @@ If you do not specifically require different script states, consider changing th
                        (when-not (handle-bob-error! render-error! project result)
                          (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))
 
-(def ^:private unreloadable-resource-build-exts #{"goc" "tilemapc"})
+(def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view debug-view selection prefs]
@@ -627,27 +722,7 @@ If you do not specifically require different script states, consider changing th
                    (not (debug-view/suspended? debug-view)))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (context-resource-file app-view selection)]
-      (ui/->future 0.01
-                   (fn []
-                     (let [evaluation-context (g/make-evaluation-context)
-                           workspace (project/workspace project)
-                           old-artifact-map (workspace/artifact-map workspace)
-                           {:keys [error artifacts artifact-map etags]} (project/build-project! project
-                                                                                                evaluation-context
-                                                                                                nil
-                                                                                                old-artifact-map
-                                                                                                (make-render-task-progress :build))]
-                       (g/update-cache-from-evaluation-context! evaluation-context)
-                       (if (some? error)
-                         (build-errors-view/update-build-errors build-errors-view error)
-                         (do
-                           (workspace/artifact-map! workspace artifact-map)
-                           (workspace/etags! workspace etags)
-                           (try
-                             (build-errors-view/clear-build-errors build-errors-view)
-                             (engine/reload-resource (targets/selected-target prefs) resource)
-                             (catch Exception e
-                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))))
+      (future-hot-reload project resource prefs build-errors-view))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-tabs app-view)))
@@ -901,12 +976,12 @@ If you do not specifically require different script states, consider changing th
     second
     :resource-node))
 
-(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane ^TabPane tool-tab-pane]
+(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane ^TabPane tool-tab-pane prefs]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
-    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
+    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :tool-tab-pane tool-tab-pane :active-tool :move :prefs prefs))))]
       (-> tab-pane
           (.getSelectionModel)
           (.selectedItemProperty)
