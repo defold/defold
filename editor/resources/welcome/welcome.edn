@@ -34,11 +34,19 @@
                              :skip-root? true}
 
                              {:name "War battles tutorial"
-                             :description "In this tutorial you build the foundation for a top down shooter game based on the \"War Battles\" RTS asset pack."
+                             :description "In this medium difficulty tutorial you build the foundation for a top down shooter game based on the \"War Battles\" RTS asset pack."
                              :image "war-battles.png"
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/tutorial-war-battles/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "Colorslide tutorial"
+                             :description "In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game."
+                             :image "colorslide.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/tutorial-colorslide/archive/master.zip"
                              :skip-root? true}]}
 
                {:label "From Sample"

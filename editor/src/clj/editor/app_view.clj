@@ -563,7 +563,8 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :attach-debugger :global
   (enabled? [debug-view prefs]
-            (and (nil? (debug-view/current-session debug-view))
+            (and (not @build-in-progress?)
+                 (nil? (debug-view/current-session debug-view))
                  (let [target (targets/selected-target prefs)]
                    (and target (targets/controllable-target? target)))))
   (run [project workspace build-errors-view debug-view prefs]
