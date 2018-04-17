@@ -83,7 +83,7 @@ namespace dmGameSystem
  * Load a texture and set it to a model:
  *
  * ```lua
- * go.property("my_texture", resource.font("/texture.png"))
+ * go.property("my_texture", resource.texture("/texture.png"))
  * function init(self)
  *   go.set("#model", "texture0", self.my_texture)
  * end

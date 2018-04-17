@@ -177,9 +177,7 @@ namespace dmGameSystem
     }
 
     static inline dmGraphics::HTexture GetTexture(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
-        if (index >= MAX_TEXTURE_COUNT) {
-            return 0;
-        }
+        assert(index < MAX_TEXTURE_COUNT);
         return component->m_Textures[index] ? component->m_Textures[index] : resource->m_Textures[index];
     }
 
