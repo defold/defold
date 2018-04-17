@@ -5,8 +5,14 @@
 
 #include <resource/resource.h>
 
+#include "../proto/gameobject/gameobject_ddf.h"
+
 namespace dmGameObject
 {
+    struct CollectionResource {
+        dmGameObjectDDF::CollectionDesc* m_DDF;
+    };
+
     dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams& params);
 
     dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams& params);
