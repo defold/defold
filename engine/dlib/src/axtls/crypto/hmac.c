@@ -38,6 +38,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
 
+namespace dmAxTls {
+
 /**
  * Perform HMAC-MD5
  * NOTE: does not handle keys larger than the block size.
@@ -136,3 +138,5 @@ void hmac_sha256(const uint8_t *msg, int length, const uint8_t *key,
     SHA256_Update(&context, digest, SHA256_SIZE);
     SHA256_Final(digest, &context);
 }
+
+} // namespace

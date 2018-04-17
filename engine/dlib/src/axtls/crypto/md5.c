@@ -36,6 +36,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
 
+namespace dmAxTls {
+
 /* Constants for MD5Transform routine.
  */
 #define S11 7
@@ -292,3 +294,5 @@ static void Decode(uint32_t *output, const uint8_t *input, uint32_t len)
         output[i] = ((uint32_t)input[j]) | (((uint32_t)input[j+1]) << 8) |
             (((uint32_t)input[j+2]) << 16) | (((uint32_t)input[j+3]) << 24);
 }
+
+} // namespace
