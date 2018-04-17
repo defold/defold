@@ -655,7 +655,8 @@
                                                 (g/connect camera :camera rulers :camera)
                                                 (g/connect rulers :renderables view-id :aux-renderables)
                                                 (g/connect view-id :viewport rulers :viewport)
-                                                (g/connect view-id :cursor-pos rulers :cursor-pos))))]
+                                                (g/connect view-id :cursor-pos rulers :cursor-pos)
+                                                (g/connect view-id :refresh-fn app-view :scene-view-refresh-fns))))]
       (when parent
         (let [^Node pane (scene/make-gl-pane! node-id opts)]
           (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
