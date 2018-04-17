@@ -39,11 +39,14 @@ namespace dmGameSystem
         dmObjectPool<ModelComponent*>   m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        dmGraphics::HVertexBuffer       m_VertexBuffer;
-        dmArray<dmRig::RigModelVertex>  m_VertexBufferData;
+        dmGraphics::HVertexBuffer*      m_VertexBuffers;
+        dmArray<dmRig::RigModelVertex>* m_VertexBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmRig::HRigContext              m_RigContext;
+        uint32_t                        m_MaxElementsVertices;
+        uint32_t                        m_VertexBufferSwapChainIndex;
+        uint32_t                        m_VertexBufferSwapChainSize;
     };
 
     dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);

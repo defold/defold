@@ -9,8 +9,7 @@
             [editor.settings-core :as settings-core]
             [util.text-util :as text-util]
             [editor.workspace :as workspace]
-            [editor.outline :as outline]
-            [util.digest :as digest])
+            [editor.outline :as outline])
   (:import [org.apache.commons.codec.digest DigestUtils]
            [java.io StringReader]))
 
@@ -47,16 +46,17 @@
                                               (resource-dependencies resource save-value)))
   
   (output save-value g/Any (g/constantly nil))
-  (output cleaned-save-value g/Any :cached (g/fnk [resource save-value]
-                                             (when resource
-                                               (let [resource-type (resource/resource-type resource)
-                                                     read-fn (:read-fn resource-type)
-                                                     write-fn (:write-fn resource-type)]
-                                                 (if (and read-fn write-fn)
-                                                   (with-open [reader (StringReader. (write-fn save-value))]
-                                                     (read-fn reader))
-                                                   save-value)))))
-  (output dirty? g/Bool :cached (g/fnk [cleaned-save-value source-value]
+
+  (output cleaned-save-value g/Any (g/fnk [resource save-value]
+                                          (when resource
+                                            (let [resource-type (resource/resource-type resource)
+                                                  read-fn (:read-fn resource-type)
+                                                  write-fn (:write-fn resource-type)]
+                                              (if (and read-fn write-fn)
+                                                (with-open [reader (StringReader. (write-fn save-value))]
+                                                  (read-fn reader))
+                                                save-value)))))
+  (output dirty? g/Bool (g/fnk [cleaned-save-value source-value]
                                   (and cleaned-save-value (not= cleaned-save-value source-value))))
   (output node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource]))
   (output own-build-errors g/Any (g/constantly nil))

@@ -4,12 +4,12 @@
 namespace dmExtension
 {
 
-    void RegisterUIApplicationDelegate(void* delegate)
+    void RegisteriOSUIApplicationDelegate(void* delegate)
     {
         glfwRegisterUIApplicationDelegate(delegate);
     }
 
-    void UnregisterUIApplicationDelegate(void* delegate)
+    void UnregisteriOSUIApplicationDelegate(void* delegate)
     {
         glfwUnregisterUIApplicationDelegate(delegate);
     }

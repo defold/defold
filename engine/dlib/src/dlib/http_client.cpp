@@ -111,7 +111,7 @@ namespace dmHttpClient
         dmConnectionPool::HPool         m_Pool;
         dmConnectionPool::HConnection   m_Connection;
         dmSocket::Socket                m_Socket;
-        SSL*                            m_SSLConnection;
+        dmAxTls::SSL*                   m_SSLConnection;
 
         Response(HClient client)
         {
@@ -181,7 +181,7 @@ namespace dmHttpClient
         if (r == dmConnectionPool::RESULT_OK) {
 
             m_Socket = dmConnectionPool::GetSocket(m_Pool, m_Connection);
-            m_SSLConnection = (SSL*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
+            m_SSLConnection = (dmAxTls::SSL*) dmConnectionPool::GetSSLConnection(m_Pool, m_Connection);
 
             dmSocket::SetSendTimeout(m_Socket, SOCKET_TIMEOUT);
             dmSocket::SetReceiveTimeout(m_Socket, SOCKET_TIMEOUT);
@@ -315,7 +315,7 @@ namespace dmHttpClient
     static dmSocket::Result SendAll(Response* response, const char* buffer, int length)
     {
         if (response->m_SSLConnection != 0) {
-            int r = ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length);
+            int r = dmAxTls::ssl_write(response->m_SSLConnection, (const uint8_t*) buffer, length);
 
             // In order to mimic the http code path, we return the same error number
             if( (r == length) && HasRequestTimedOut(response->m_Client) )
@@ -370,7 +370,7 @@ namespace dmHttpClient
                 // Instead of changing axTLS we measure actual time here.
                 // ssl_read should return a code that represents EAGAIN (EWOULDBLOCK)
                 uint64_t start = dmTime::GetTime();
-                r = ssl_read(response->m_SSLConnection, &buf);
+                r = dmAxTls::ssl_read(response->m_SSLConnection, &buf);
                 uint64_t end = dmTime::GetTime();
 
                 int timeout = response->m_Client->m_RequestTimeout;
@@ -907,6 +907,12 @@ bail:
         {
             response.m_CloseConnection = 1;
             return r;
+        }
+
+        if (response.m_Status == 204 /* No Content*/)
+        {
+            assert(response.m_ContentLength == -1);
+            response.m_ContentLength = 0;
         }
 
         if (response.m_Chunked)

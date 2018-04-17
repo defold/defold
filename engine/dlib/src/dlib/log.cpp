@@ -460,7 +460,13 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
 #ifdef ANDROID
     __android_log_print(ToAndroidPriority(severity), "defold", str_buf);
-#else
+
+// iOS
+#elif defined(__MACH__) && (defined(__arm__) || defined(__arm64__))
+    __ios_log_print(severity, str_buf);
+#endif
+
+#if !defined(ANDROID)
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
     va_end(lst);

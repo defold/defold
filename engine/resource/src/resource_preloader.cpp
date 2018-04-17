@@ -524,7 +524,7 @@ namespace dmResource
             if (!req->m_CanonicalPathHash)
             {
                 char canonical_path[RESOURCE_PATH_MAX];
-                GetCanonicalPath(preloader->m_Factory, req->m_Path, canonical_path);
+                GetCanonicalPath(req->m_Path, canonical_path);
                 req->m_CanonicalPathHash = dmHashBuffer64(canonical_path, strlen(canonical_path));
             }
 

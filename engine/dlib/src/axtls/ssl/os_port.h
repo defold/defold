@@ -76,6 +76,7 @@ extern "C" {
 
 #include <winsock.h>
 #include <direct.h>
+#include <malloc.h>
 #undef getpid
 #undef open
 #undef close

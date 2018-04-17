@@ -38,13 +38,13 @@ function init(self)
 end
 
 local function fail_set_size(self)
-    print "Attempting improper set operation"
+    print "EXPECTED ERROR: Attempting improper set operation"
     go.set("#sprite", "size.x", 1)
     go.set("#sprite", "size", vmath.vector3(8,8,8))
 end
 
 local function fail_animate_size(self)
-    print "Attempting improper animation operation"
+    print "EXPECTED ERROR: Attempting improper animation operation"
     go.animate("#sprite", "size.x", go.PLAYBACK_ONCE_FORWARD, 20, go.EASING_LINEAR, 1)
 end
 

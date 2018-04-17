@@ -143,7 +143,7 @@
       (is main-dir)
       (let [evaluation-context (g/make-evaluation-context)
             old-artifact-map (workspace/artifact-map workspace)
-            build-results (project/build project game-project evaluation-context nil old-artifact-map progress/null-render-progress!)]
+            build-results (project/build! project game-project evaluation-context nil old-artifact-map progress/null-render-progress!)]
         (g/update-cache-from-evaluation-context! evaluation-context)
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
@@ -152,7 +152,7 @@
       (is (nil? (workspace/find-resource workspace "/main")))
       (is (workspace/find-resource workspace "/blahonga"))
       (let [old-artifact-map (workspace/artifact-map workspace)
-            build-results (project/build project game-project (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)]
+            build-results (project/build! project game-project (g/make-evaluation-context) nil old-artifact-map progress/null-render-progress!)]
         (is (seq (:artifacts build-results)))
         (is (not (g/error? (:error build-results))))
         (workspace/artifact-map! workspace (:artifact-map build-results))))))

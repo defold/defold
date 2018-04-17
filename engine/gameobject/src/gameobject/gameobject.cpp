@@ -1486,8 +1486,11 @@ namespace dmGameObject
             prev_index = *prev_index_ptr;
         }
         *prev_index_ptr = instance->m_NextToAdd;
+        if (prev_index_ptr == &collection->m_InstancesToAddHead && *prev_index_ptr == INVALID_INSTANCE_INDEX) { // If we unlinked the last item
+            collection->m_InstancesToAddTail = INVALID_INSTANCE_INDEX;
+        }
         instance->m_NextToAdd = INVALID_INSTANCE_INDEX;
-        instance->m_ToBeAdded = false;
+        instance->m_ToBeAdded = 0;
     }
 
     void DoDelete(HCollection collection, HInstance instance)
@@ -1724,7 +1727,7 @@ namespace dmGameObject
         return instance->m_Bone;
     }
 
-    static uint32_t DoSetBoneTransforms(HCollection collection, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
+    static uint32_t DoSetBoneTransforms(HCollection collection, dmTransform::Transform* component_transform, uint16_t first_index, dmTransform::Transform* transforms, uint32_t transform_count)
     {
         if (transform_count == 0)
             return 0;
@@ -1736,9 +1739,12 @@ namespace dmGameObject
             if (instance->m_Bone)
             {
                 instance->m_Transform = transforms[count++];
+                if (component_transform && count == 1) {
+                    instance->m_Transform = dmTransform::Mul(*component_transform, instance->m_Transform);
+                }
                 if (count < transform_count)
                 {
-                    count += DoSetBoneTransforms(collection, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
+                    count += DoSetBoneTransforms(collection, 0x0, instance->m_FirstChildIndex, &transforms[count], transform_count - count);
                 }
                 if (transform_count == count)
                 {
@@ -1750,10 +1756,10 @@ namespace dmGameObject
         return count;
     }
 
-    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform* transforms, uint32_t transform_count)
+    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count)
     {
         HCollection collection = instance->m_Collection;
-        return DoSetBoneTransforms(collection, instance->m_Index, transforms, transform_count);
+        return DoSetBoneTransforms(collection, &component_transform, instance->m_Index, transforms, transform_count);
     }
 
     static void DoDeleteBones(HCollection collection, uint16_t first_index) {
@@ -3136,4 +3142,31 @@ namespace dmGameObject
         }
     }
 
+#if !defined(NDEBUG)
+    // Unit test functions
+
+    uint32_t GetAddToUpdateCount(HCollection collection)
+    {
+        uint32_t count = 0;
+        uint16_t index = collection->m_InstancesToAddHead;
+        while (index != INVALID_INSTANCE_INDEX) {
+            index = collection->m_Instances[index]->m_NextToAdd;
+            ++count;
+        }
+        return count;
+    }
+
+    uint32_t GetRemoveFromUpdateCount(HCollection collection)
+    {
+        uint32_t count = 0;
+        uint16_t index = collection->m_InstancesToDeleteHead;
+        while (index != INVALID_INSTANCE_INDEX) {
+            index = collection->m_Instances[index]->m_NextToDelete;
+            ++count;
+        }
+        return count;
+    }
+
+
+#endif // NDEBUG
 }

@@ -753,6 +753,7 @@ namespace dmRender
                 {
                     TextEntry& te = text_context.m_TextEntries[text_context.m_TextEntriesFlushed + i];
                     write_ptr->m_WorldPosition = Point3(te.m_Transform.getTranslation());
+                    write_ptr->m_MinorOrder = 0;
                     write_ptr->m_MajorOrder = major_order;
                     write_ptr->m_Order = render_order;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
