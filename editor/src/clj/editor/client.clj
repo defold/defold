@@ -74,8 +74,9 @@
             (throw (ex-info msg {:message msg})))))
       (with-open [^ClientResponse resp (-> builder
                                          (.post ClientResponse stream))]
-        (let [resp (resp->clj resp)]
-          (when (not= 200 (:status resp))
+        (let [resp (resp->clj resp)
+              status (:status resp)]
+          (when (or (< status 200) (<= 300 status))
             (throw (ex-info (:message resp) resp))))))))
 
 (defn- cr-post-pb [client paths ^Class pb-class pb-map ^Class pb-resp-class]
@@ -88,7 +89,7 @@
 
 (defn upload-engine [client user-id cr-project-id ^String platform ^InputStream stream]
   (try
-    (cr-post client ["projects" user-id cr-project-id "engine" platform] [] stream MediaType/APPLICATION_OCTET_STREAM_TYPE nil)
+    (cr-post client ["projects" user-id cr-project-id "engine" platform] stream MediaType/APPLICATION_OCTET_STREAM_TYPE nil)
     (catch ExceptionInfo e
       (let [resp (ex-data e)]
         (throw (ex-info (format "Could not upload engine %d: %s" (:status resp) (:message resp)) resp))))))
