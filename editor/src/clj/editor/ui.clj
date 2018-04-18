@@ -35,7 +35,7 @@
    [javafx.fxml FXMLLoader]
    [javafx.geometry Orientation]
    [javafx.scene Parent Node Scene Group ImageCursor]
-   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeTableView TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TableView TabPane Tab TextField Tooltip SelectionMode SelectionModel]
+   [javafx.scene.control ButtonBase Cell CheckBox ChoiceBox ColorPicker ComboBox ComboBoxBase Control ContextMenu Separator SeparatorMenuItem Label Labeled ListView ToggleButton TextInputControl TreeTableView TreeView TreeItem Toggle Menu MenuBar MenuItem MultipleSelectionModel CheckMenuItem ProgressBar TableView TabPane Tab TextField Tooltip SelectionMode SelectionModel SplitPane]
    [javafx.scene.input Clipboard KeyCombination ContextMenuEvent MouseEvent DragEvent KeyEvent]
    [javafx.scene.image Image ImageView]
    [javafx.scene.layout AnchorPane Pane HBox]
@@ -122,6 +122,13 @@
 
 (defn- ^MenuBar main-menu-id []
   (:menu-id (user-data (main-root) ::menubar)))
+
+(defn node-with-id
+  ^Node [id nodes]
+  (some (fn [^Node node]
+          (when (= id (.getId node))
+            node))
+        nodes))
 
 (defn closest-node-where
   ^Node [pred ^Node leaf-node]
@@ -388,15 +395,6 @@
                      max-width))
                  0.0
                  items))))
-
-(defn restyle-tabs! [^TabPane tab-pane]
-  (let [tabs (seq (.getTabs tab-pane))]
-    (doseq [tab tabs]
-      (remove-styles! tab ["first-tab" "last-tab"]))
-    (when-let [first-tab (first tabs)]
-      (add-style! first-tab "first-tab"))
-    (when-let [last-tab (last tabs)]
-      (add-style! last-tab "last-tab"))))
 
 (defn reload-root-styles! []
   (when-let [scene (.getScene ^Stage (main-stage))]
@@ -1241,6 +1239,35 @@
                                                    [binding {}])]
                          (run-command node command user-data true (fn [] (.consume event)))))))))
 
+(defn bind-key-commands!
+  "A more flexible version of bind-keys! that supports modifier keys. Accelerators are specified as strings, which are
+  resolved into KeyCombinations. Bindings can be either command keywords or a two-element vector of command-keyword
+  and user-data map."
+  [^Node node bindings-by-acc]
+  (let [bindings-by-combo (into []
+                                (map (fn [[^String acc binding]]
+                                       (let [combo (KeyCombination/keyCombination acc)]
+                                         (assert (= acc (.getName combo))
+                                                 (str "Invalid key combination: " (pr-str acc)))
+                                         (assert (or (keyword? binding)
+                                                     (and (vector? binding)
+                                                          (= 2 (count binding))
+                                                          (keyword? (first binding))
+                                                          (map? (second binding))))
+                                                 (str "Invalid binding: " (pr-str binding)))
+                                         [combo binding])))
+                                bindings-by-acc)]
+    (.addEventFilter node KeyEvent/KEY_PRESSED
+                     (event-handler event
+                                    (when-some [binding (some (fn [[^KeyCombination combo binding]]
+                                                                (when (.match combo event)
+                                                                  binding))
+                                                              bindings-by-combo)]
+                                      (let [[command user-data] (if (vector? binding)
+                                                                  binding
+                                                                  [binding {}])]
+                                        (run-command node command user-data true #(.consume event))))))))
+
 (defn bind-presence!
   "Make the nodes presence in the scene dependent on an ObservableValue.
   If the ObservableValue evaluates to false, the node is both hidden and
@@ -1904,8 +1931,20 @@ command."
                         (unregister-toolbar scene context-node toolbar-css-selector))))))
 
 (defn parent-tab-pane
-  [^Node node]
+  "Returns the closest TabPane above the Node in the scene hierarchy, or nil if
+  the Node is not under a TabPane."
+  ^TabPane [^Node node]
   (closest-node-of-type TabPane node))
+
+(defn tab-pane-parent
+  "Returns the parent Node of a TabPane, or nil if the TabPane is not in a scene.
+  TabPanes are wrapped in a skin Node, so its parent is one additional step up."
+  ^Node [^TabPane tab-pane]
+  (some-> (.getParent tab-pane) .getParent))
+
+(defn selected-tab
+  ^Tab [^TabPane tab-pane]
+  (.. tab-pane getSelectionModel getSelectedItem))
 
 (defn select-tab!
   [^TabPane tab-pane tab-id]
@@ -1913,6 +1952,16 @@ command."
                        (filter (fn [^Tab tab] (= tab-id (.getId tab))))
                        first)]
     (.. tab-pane getSelectionModel (select tab))))
+
+(defn inside-hidden-tab? [^Node node]
+  (let [tab-content-area (closest-node-with-style "tab-content-area" node)]
+    (and (some? tab-content-area)
+         (not= tab-content-area
+               (some-> tab-content-area
+                       .getParent
+                       selected-tab
+                       .getContent
+                       .getParent)))))
 
 ;; NOTE: Running Desktop methods on JavaFX application thread locks
 ;; application on Linux, so we do it on a new thread.

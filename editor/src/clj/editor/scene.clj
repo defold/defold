@@ -414,6 +414,7 @@
 (g/defnode SceneRenderer
   (property frame-version g/Any)
 
+  (input active-view g/NodeID)
   (input scene g/Any :substitute substitute-scene)
   (input selection g/Any)
   (input camera Camera)
@@ -539,8 +540,9 @@
                   pass/selection-passes))))
       []))
 
-(g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer]
+(g/defnk produce-tool-selection [tool-renderables ^GLAutoDrawable drawable viewport camera ^Rect tool-picking-rect ^IntBuffer select-buffer inactive?]
   (or (and tool-picking-rect
+        (not inactive?)
         (with-drawable-as-current drawable
           (let [render-args (generic-render-args viewport camera)
                 tool-renderables (apply merge-with into tool-renderables)
@@ -558,6 +560,8 @@
 
 (g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:selection-data %)]}) tool-selection)))
+
+(declare update-image-view!)
 
 (g/defnode SceneView
   (inherits view/WorkbenchView)
@@ -582,13 +586,22 @@
   (input active-tool g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
+  (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
                                                  (into [] (keep updatables) active-updatable-ids)))
 
   (output selection g/Any (gu/passthrough selection))
-  (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables]
-                                                       (reduce (partial merge-with into) renderables tool-renderables)))
+  (output all-renderables pass/RenderData :cached (g/fnk [renderables tool-renderables inactive?]
+                                                         (if inactive?
+                                                           renderables
+                                                           (reduce (partial merge-with into)
+                                                                   renderables
+                                                                   tool-renderables))))
+  (output refresh-fn g/Any :cached (g/fnk [image-view drawable async-copier]
+                                     (fn []
+                                       (when-not (ui/inside-hidden-tab? image-view)
+                                         (update-image-view! image-view drawable async-copier)))))
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
@@ -600,7 +613,7 @@
         (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
           (.dispose copier gl)
           (g/set-property! node-id :async-copier nil))
-      (scene-cache/drop-context! gl false)
+      (scene-cache/drop-context! gl)
       (.destroy drawable)
       (g/set-property! node-id :drawable nil)))))
 
@@ -752,21 +765,19 @@
             {}
             active-updatables)))
 
-(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable ^AsyncCopier async-copier main-frame?]
-  (when main-frame?
-    (profiler/begin-frame))
+(defn update-image-view! [^ImageView image-view ^GLAutoDrawable drawable ^AsyncCopier async-copier]
   (when-let [view-id (ui/user-data image-view ::view-id)]
-    (let [play-mode (g/node-value view-id :play-mode)
-          tool-user-data (g/node-value view-id :tool-user-data)
-          action-queue (g/node-value view-id :input-action-queue)
-          active-updatables (g/node-value view-id :active-updatables)
-          {:keys [frame-version] :as render-args} (g/node-value view-id :render-args)]
+    (let [evaluation-context (g/make-evaluation-context)
+          play-mode (g/node-value view-id :play-mode evaluation-context)
+          tool-user-data (g/node-value view-id :tool-user-data evaluation-context)
+          action-queue (g/node-value view-id :input-action-queue evaluation-context)
+          active-updatables (g/node-value view-id :active-updatables evaluation-context)
+          {:keys [frame-version] :as render-args} (g/node-value view-id :render-args evaluation-context)]
+      (g/update-cache-from-evaluation-context! evaluation-context)
       (when (seq action-queue)
         (g/set-property! view-id :input-action-queue []))
       (when (seq active-updatables)
         (g/invalidate-outputs! [[view-id :render-args]]))
-      (when main-frame?
-        (scene-cache/prune-object-caches! nil))
       (profiler/profile "input-dispatch" -1
         (let [input-handlers (g/sources-of view-id :input-handlers)]
           (doseq [action action-queue]
@@ -780,7 +791,7 @@
             (when (not= current-frame-version frame-version)
               (render! render-args gl-context (g/node-value view-id :updatable-states))
               (ui/user-data! image-view ::current-frame-version frame-version)
-              (scene-cache/prune-object-caches! gl))
+              (scene-cache/prune-context! gl))
             (when-let [^WritableImage image (.flip async-copier gl frame-version)]
               (.setImage image-view image))))))))
 
@@ -878,7 +889,7 @@
                                (when @process-events?
                                  (handle-key-pressed! e))))))
 
-(defn make-gl-pane! [view-id parent opts timer-name main-frame?]
+(defn make-gl-pane! [view-id opts]
   (let [image-view (doto (ImageView.)
                      (.setScaleY -1.0)
                      (.setFocusTraversable true)
@@ -905,23 +916,8 @@
                            (let [drawable (make-drawable w h)]
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this view-id)
-                             (let [async-copier (make-copier viewport)
-                                   ^Tab tab      (:tab opts)
-                                   repainter     (ui/->timer timer-name
-                                                             (fn [^AnimationTimer timer _]
-                                                               (when (.isSelected tab)
-                                                                 (try
-                                                                   (update-image-view! image-view drawable async-copier main-frame?)
-                                                                   (catch Throwable error
-                                                                     (.stop timer)
-                                                                     (error-reporting/report-exception! error))))))]
-                               (ui/on-closed! tab
-                                              (fn [e]
-                                                (ui/timer-stop! repainter)
-                                                (scene-view-dispose view-id)
-                                                (scene-cache/drop-context! nil true)))
-                               (ui/timer-start! repainter)
-                               (g/set-property! view-id :drawable drawable :async-copier async-copier))
+                             (ui/on-closed! (:tab opts) (fn [_] (scene-view-dispose view-id)))
+                             (g/set-property! view-id :drawable drawable :async-copier (make-copier viewport))
                              (frame-selection view-id false)))))
                      (catch Throwable error
                        (error-reporting/report-exception! error)))
@@ -935,7 +931,7 @@
   (let [scene-view-pane ^Pane (ui/load-fxml "scene-view.fxml")]
     (ui/fill-control scene-view-pane)
     (ui/with-controls scene-view-pane [^AnchorPane gl-view-anchor-pane]
-      (let [gl-pane (make-gl-pane! view-id gl-view-anchor-pane opts "update-scene-view" true)]
+      (let [gl-pane (make-gl-pane! view-id opts)]
         (ui/fill-control gl-pane)
         (.add (.getChildren scene-view-pane) 0 gl-pane)))
     scene-view-pane))
@@ -951,7 +947,7 @@
     (render! render-args gl-context nil)
     (let [[w h] (vp-dims (:viewport render-args))
           buf-image (read-to-buffered-image w h)]
-      (scene-cache/prune-object-caches! gl)
+      (scene-cache/prune-context! gl)
       buf-image)))
 
 (g/defnode PreviewView
@@ -973,13 +969,14 @@
   (input picking-rect Rect)
   (input tool-renderables pass/RenderData :array)
 
+  (output inactive? g/Bool (g/constantly false))
   (output active-tool g/Keyword (gu/passthrough active-tool))
   (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
   (output selection g/Any (gu/passthrough selection))
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables)
-  (output frame BufferedImage :cached produce-frame)
+  (output frame BufferedImage produce-frame)
   (output image WritableImage :cached (g/fnk [frame] (when frame (SwingFXUtils/toFXImage frame nil))))
   (output all-renderables g/Any (gu/passthrough renderables)))
 
@@ -1005,15 +1002,16 @@
   [_ tool-node view-id resource-node])
 
 (defn setup-view [view-id resource-node opts]
-  (let [view-graph  (g/node-id->graph-id view-id)
-        app-view-id (:app-view opts)
-        select-fn   (:select-fn opts)
-        prefs       (:prefs opts)
-        project     (:project opts)
-        grid-type   (cond
-                      (true? (:grid opts)) grid/Grid
-                      (:grid opts) (:grid opts)
-                      :else grid/Grid)
+  (let [view-graph           (g/node-id->graph-id view-id)
+        view-outputs         (g/output-labels (g/node-type* view-id))
+        app-view-id          (:app-view opts)
+        select-fn            (:select-fn opts)
+        prefs                (:prefs opts)
+        project              (:project opts)
+        grid-type            (cond
+                               (true? (:grid opts)) grid/Grid
+                               (:grid opts) (:grid opts)
+                               :else grid/Grid)
         tool-controller-type (get opts :tool-controller scene-tools/ToolController)]
     (concat
       (g/make-nodes view-graph
@@ -1038,7 +1036,7 @@
                     (g/connect view-id              :viewport                  camera           :viewport)
 
                     (g/connect app-view-id          :selected-node-ids         view-id          :selection)
-
+                    (g/connect app-view-id          :active-view               view-id          :active-view)
                     (g/connect app-view-id          :active-tool               view-id          :active-tool)
 
                     (g/connect tool-controller      :input-handler             view-id          :input-handlers)
@@ -1063,7 +1061,10 @@
                     (g/connect camera :camera rulers :camera)
                     (g/connect rulers :renderables view-id :aux-renderables)
                     (g/connect view-id :viewport rulers :viewport)
-                    (g/connect view-id :cursor-pos rulers :cursor-pos))
+                    (g/connect view-id :cursor-pos rulers :cursor-pos)
+
+                    (when (contains? view-outputs :refresh-fn)
+                      (g/connect view-id :refresh-fn app-view-id :scene-view-refresh-fns)))
       (when-let [node-id (:select-node opts)]
         (select-fn [node-id])))))
 
@@ -1116,8 +1117,9 @@
             (dynamic edit-type (g/constantly (properties/quat->euler))))
   (property scale types/Vec3 (default [1.0 1.0 1.0])
             (dynamic visible (g/fnk [transform-properties] (contains? transform-properties :scale)))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (g/set-property self :scale (mapv non-zeroify-scale new-value)))))
+            (set (fn [_evaluation-context self _old-value new-value]
+                   (when (some? new-value)
+                     (g/set-property self :scale (mapv non-zeroify-scale new-value))))))
 
   (output transform-properties g/Any :abstract)
   (output transform Matrix4d :cached produce-transform)

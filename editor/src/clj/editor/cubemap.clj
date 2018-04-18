@@ -79,8 +79,7 @@
 
 (g/defnk produce-gpu-texture
   [_node-id gpu-texture-generator]
-  (let [{:keys [generate-fn user-data]} gpu-texture-generator]
-    (generate-fn user-data _node-id texture/default-cubemap-texture-params 0)))
+  ((:f gpu-texture-generator) (:args gpu-texture-generator) _node-id texture/default-cubemap-texture-params 0))
 
 (g/defnk produce-save-value [right left top bottom front back]
   {:right (resource/resource->proj-path right)
@@ -244,9 +243,9 @@
                                                      (g/precluding-errors
                                                        [(cubemap-images-missing-error _node-id cubemap-image-resources)
                                                         (cubemap-image-sizes-error _node-id cubemap-image-sizes)]
-                                                       {:generate-fn generate-gpu-texture
-                                                        :user-data {:cubemap-images cubemap-images
-                                                                    :texture-profile texture-profile}})))
+                                                       {:f    generate-gpu-texture
+                                                        :args {:cubemap-images  cubemap-images
+                                                               :texture-profile texture-profile}})))
 
   (output build-targets g/Any :cached produce-build-targets)
 

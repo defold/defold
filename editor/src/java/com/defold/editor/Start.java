@@ -100,9 +100,15 @@ public class Start extends Application {
             @Override
             public Object call() throws Exception {
                 // Arbitrary sleep in order to reduce the CPU load while loading the project
-                Thread.sleep(delay);
-                Object editorApplication = makeEditor();
-                pool.add(editorApplication);
+                try {
+                    Thread.sleep(delay);
+                    Object editorApplication = makeEditor();
+                    pool.add(editorApplication);
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    logger.error("failed to make editor", t);
+                    throw t;
+                }
                 return null;
             }
 
@@ -120,7 +126,7 @@ public class Start extends Application {
         run.invoke(editorApplication, new Object[] { args });
     }
 
-    private void kickLoading(Splash splash) {
+    private void kickLoading(Splash splash) throws Exception {
         threadPool.submit(() -> {
             try {
                 // A terrible hack as an attempt to avoid a deadlock when loading native libraries
@@ -135,6 +141,7 @@ public class Start extends Application {
                 Method init = glprofile.getMethod("initSingleton");
                 init.invoke(null);
             } catch (Throwable t) {
+                t.printStackTrace();
                 logger.error("failed to extract native libs", t);
             }
             try {
@@ -148,12 +155,14 @@ public class Start extends Application {
                             splash.close();
                         } catch (Throwable t) {
                             t.printStackTrace();
+                            logger.error("failed to open editor", t);
                         }
                     }
                 });
             } catch (Throwable t) {
                 t.printStackTrace();
                 String message = (t instanceof InvocationTargetException) ? t.getCause().getMessage() : t.getMessage();
+                logger.error(message, t);
                 javafx.application.Platform.runLater(() -> {
                     splash.setLaunchError(message);
                     splash.setErrorShowing(true);
@@ -178,6 +187,7 @@ public class Start extends Application {
                     }
                 }
             } catch (Throwable t) {
+                t.printStackTrace();
                 logger.error("could not prune packages", t);
             }
         }
@@ -185,36 +195,47 @@ public class Start extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        /*
-          Note
-          Don't remove
+        try {
+            /*
+              Note
+              Don't remove
 
-          Background
-          Before the mysterious line below Command-H on OSX would open a generic Java about dialog instead of hiding the application.
-          The hypothosis is that awt must be initialized before JavaFX and in particular on the main thread as we're pooling stuff using
-          a threadpool.
-          Something even more mysterious is that if the construction of the buffered image is moved to "static void main(.." we get a null pointer in
-          clojure.java.io/resource..
-        */
+              Background
+              Before the mysterious line below Command-H on OSX would open a generic Java about dialog instead of hiding the application.
+              The hypothosis is that awt must be initialized before JavaFX and in particular on the main thread as we're pooling stuff using
+              a threadpool.
+              Something even more mysterious is that if the construction of the buffered image is moved to "static void main(.." we get a null pointer in
+              clojure.java.io/resource..
+            */
 
-        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
+            BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR);
 
-        // Clean up old packages as they consume a lot of hard drive space.
-        // NOTE! This is a temp hack to give some hard drive space back to users.
-        // The proper fix would be an upgrade feature where users can upgrade and downgrade as desired.
-        prunePackages();
+            // Clean up old packages as they consume a lot of hard drive space.
+            // NOTE! This is a temp hack to give some hard drive space back to users.
+            // The proper fix would be an upgrade feature where users can upgrade and downgrade as desired.
+            prunePackages();
 
-        final Splash splash = new Splash();
-        splash.shownProperty().addListener(new ChangeListener<Boolean>() {
-            @Override
-            public void changed(ObservableValue<? extends Boolean> observable,
-                    Boolean oldValue, Boolean newValue) {
-                if (newValue.booleanValue()) {
-                    kickLoading(splash);
-                }
-            }
-        });
-        splash.show();
+            final Splash splash = new Splash();
+            splash.shownProperty().addListener(new ChangeListener<Boolean>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Boolean> observable,
+                                        Boolean oldValue, Boolean newValue) {
+                        if (newValue.booleanValue()) {
+                            try {
+                                kickLoading(splash);
+                            } catch (Throwable t) {
+                                t.printStackTrace();
+                                logger.error("failed to kick loading", t);
+                            }
+                        }
+                    }
+                });
+            splash.show();
+        } catch (Throwable t) {
+            t.printStackTrace();
+            logger.error("failed start", t);
+            throw t;
+        }
     }
 
     @Override

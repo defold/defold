@@ -40,7 +40,8 @@
             [service.log :as log]
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
-            [util.http-server :as http-server])
+            [util.http-server :as http-server]
+            [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
@@ -54,7 +55,7 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Insets Pos]
            [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button ColorPicker Label TextField TitledPane TextArea TreeItem Menu MenuItem MenuBar TabPane Tab ProgressBar Tooltip SplitPane]
+           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy ProgressBar Tooltip]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent]
            [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
@@ -76,25 +77,32 @@
   (fire-tab-closed-event! tab)
   (.remove (.getTabs tab-pane) tab))
 
-(defn remove-invalid-tabs! [^TabPane tab-pane open-views]
+(defn remove-invalid-tabs! [tab-panes open-views]
   (let [invalid-tab? (fn [tab] (nil? (get open-views (ui/user-data tab ::view))))
-        closed-tabs (filterv invalid-tab? (.getTabs tab-pane))]
-    ;; We must remove all invalid tabs in one go to ensure the selected
-    ;; tab change event does not trigger onto an invalid tab.
-    (when (seq closed-tabs)
-      (doseq [tab closed-tabs]
-        (fire-tab-closed-event! tab))
-      (.removeAll (.getTabs tab-pane) ^Collection closed-tabs))))
+        closed-tabs-by-tab-pane (into []
+                                      (keep (fn [^TabPane tab-pane]
+                                              (when-some [closed-tabs (not-empty (filterv invalid-tab? (.getTabs tab-pane)))]
+                                                [tab-pane closed-tabs])))
+                                      tab-panes)]
+    ;; We must remove all invalid tabs from a TabPane in one go to ensure
+    ;; the selected tab change event does not trigger onto an invalid tab.
+    (when (seq closed-tabs-by-tab-pane)
+      (doseq [[^TabPane tab-pane ^Collection closed-tabs] closed-tabs-by-tab-pane]
+        (doseq [tab closed-tabs]
+          (fire-tab-closed-event! tab))
+        (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
 (g/defnode AppView
   (property stage Stage)
-  (property tab-pane TabPane)
+  (property editor-tabs-split SplitPane)
+  (property active-tab-pane TabPane)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
+  (input scene-view-refresh-fns g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
@@ -104,7 +112,7 @@
 
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
-  (output active-tab Tab (g/fnk [^TabPane tab-pane] (some-> tab-pane (.getSelectionModel) (.getSelectedItem))))
+  (output active-tab Tab (g/fnk [^TabPane active-tab-pane] (some-> active-tab-pane ui/selected-tab)))
   (output active-outline g/Any (gu/passthrough outline))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
                                    (when active-tab
@@ -122,15 +130,17 @@
                                            (get selected-node-properties-by-resource-node active-resource-node)))
   (output sub-selection g/Any (g/fnk [sub-selections-by-resource-node active-resource-node]
                                 (get sub-selections-by-resource-node active-resource-node)))
-  (output refresh-tab-pane g/Any :cached (g/fnk [^TabPane tab-pane open-views open-dirty-views]
-                                           (remove-invalid-tabs! tab-pane open-views)
-                                           (doseq [^Tab tab (.getTabs tab-pane)
-                                                   :let [view (ui/user-data tab ::view)
-                                                         resource-name (resource/resource-name (:resource (get open-views view)))
-                                                         title (if (contains? open-dirty-views view)
-                                                                 (str "*" resource-name)
-                                                                 resource-name)]]
-                                             (ui/text! tab title))))
+  (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views]
+                                            (let [tab-panes (.getItems editor-tabs-split)]
+                                              (remove-invalid-tabs! tab-panes open-views)
+                                              (doseq [^TabPane tab-pane tab-panes
+                                                      ^Tab tab (.getTabs tab-pane)
+                                                      :let [view (ui/user-data tab ::view)
+                                                            resource-name (resource/resource-name (:resource (get open-views view)))
+                                                            title (if (contains? open-dirty-views view)
+                                                                    (str "*" resource-name)
+                                                                    resource-name)]]
+                                                (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk []
                                  (keymap/make-keymap keymap/default-key-bindings {:valid-command? (set (handler/available-commands))})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
@@ -166,7 +176,7 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed [app-view resource-node]
+(defn- on-selected-tab-changed! [app-view resource-node]
   (g/transact
     (replace-connection resource-node :node-outline app-view :outline))
   (g/invalidate-outputs! [[app-view :active-tab]]))
@@ -287,8 +297,8 @@
     #{resource}
     (set (concat [resource] (mapcat collect-resources children)))))
 
-(defn- get-tabs [app-view]
-  (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+(defn- get-active-tabs [app-view]
+  (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
     (.getTabs tab-pane)))
 
 (defn- make-render-build-error
@@ -504,7 +514,7 @@
                 extra-build-targets (when debug?
                                       (debug-view/build-targets project evaluation-context))
                 build-results       (ui/with-progress [_ render-build-progress!]
-                                      (project/build-and-write-project project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
+                                      (project/build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))]
             (ui/run-later
               (try
                 (g/update-cache-from-evaluation-context! evaluation-context)
@@ -563,7 +573,8 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :attach-debugger :global
   (enabled? [debug-view prefs]
-            (and (nil? (debug-view/current-session debug-view))
+            (and (not @build-in-progress?)
+                 (nil? (debug-view/current-session debug-view))
                  (let [target (targets/selected-target prefs)]
                    (and target (targets/controllable-target? target)))))
   (run [project workspace build-errors-view debug-view prefs]
@@ -632,11 +643,11 @@ If you do not specifically require different script states, consider changing th
                      (let [evaluation-context (g/make-evaluation-context)
                            workspace (project/workspace project)
                            old-artifact-map (workspace/artifact-map workspace)
-                           {:keys [error artifacts artifact-map etags]} (project/build-and-write-project project
-                                                                                                         evaluation-context
-                                                                                                         nil
-                                                                                                         old-artifact-map
-                                                                                                         (make-render-task-progress :build))]
+                           {:keys [error artifacts artifact-map etags]} (project/build-project! project
+                                                                                                evaluation-context
+                                                                                                nil
+                                                                                                old-artifact-map
+                                                                                                (make-render-task-progress :build))]
                        (g/update-cache-from-evaluation-context! evaluation-context)
                        (if (some? error)
                          (build-errors-view/update-build-errors build-errors-view error)
@@ -650,27 +661,118 @@ If you do not specifically require different script states, consider changing th
                                (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))))
 
 (handler/defhandler :close :global
-  (enabled? [app-view] (not-empty (get-tabs app-view)))
+  (enabled? [app-view] (not-empty (get-active-tabs app-view)))
   (run [app-view]
-    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
-      (when-let [tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+    (let [tab-pane (g/node-value app-view :active-tab-pane)]
+      (when-let [tab (ui/selected-tab tab-pane)]
         (remove-tab! tab-pane tab)))))
 
 (handler/defhandler :close-other :global
-  (enabled? [app-view] (not-empty (next (get-tabs app-view))))
+  (enabled? [app-view] (not-empty (next (get-active-tabs app-view))))
   (run [app-view]
-    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
-      (when-let [selected-tab (-> tab-pane (.getSelectionModel) (.getSelectedItem))]
+    (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
+      (when-let [selected-tab (ui/selected-tab tab-pane)]
         (doseq [tab (.getTabs tab-pane)]
           (when (not= tab selected-tab)
             (remove-tab! tab-pane tab)))))))
 
 (handler/defhandler :close-all :global
-  (enabled? [app-view] (not-empty (get-tabs app-view)))
+  (enabled? [app-view] (not-empty (get-active-tabs app-view)))
   (run [app-view]
-    (let [tab-pane ^TabPane (g/node-value app-view :tab-pane)]
+    (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
       (doseq [tab (.getTabs tab-pane)]
         (remove-tab! tab-pane tab)))))
+
+(defn- editor-tab-pane
+  "Returns the editor TabPane that is above the Node in the scene hierarchy, or
+  nil if the Node does not reside under an editor TabPane."
+  ^TabPane [node]
+  (when-some [parent-tab-pane (ui/parent-tab-pane node)]
+    (when (= "editor-tabs-split" (some-> (ui/tab-pane-parent parent-tab-pane) (.getId)))
+      parent-tab-pane)))
+
+(declare ^:private configure-editor-tab-pane!)
+
+(defn- find-other-tab-pane
+  ^TabPane [^SplitPane editor-tabs-split ^TabPane current-tab-pane]
+  (first-where #(not (identical? current-tab-pane %))
+               (.getItems editor-tabs-split)))
+
+(defn- add-other-tab-pane!
+  ^TabPane [^SplitPane editor-tabs-split app-view]
+  (let [tab-panes (.getItems editor-tabs-split)
+        app-stage ^Stage (g/node-value app-view :stage)
+        app-scene (.getScene app-stage)
+        new-tab-pane (TabPane.)]
+    (assert (= 1 (count tab-panes)))
+    (.add tab-panes new-tab-pane)
+    (configure-editor-tab-pane! new-tab-pane app-scene app-view)
+    new-tab-pane))
+
+(defn open-tab-count
+  ^long [app-view]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+    (loop [tab-panes (.getItems editor-tabs-split)
+           tab-count 0]
+      (if-some [^TabPane tab-pane (first tab-panes)]
+        (recur (next tab-panes)
+               (+ tab-count (.size (.getTabs tab-pane))))
+        tab-count))))
+
+(defn open-tab-pane-count
+  ^long [app-view]
+  (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)]
+    (.size (.getItems editor-tabs-split))))
+
+(handler/defhandler :move-tab :global
+  (enabled? [app-view] (< 1 (open-tab-count app-view)))
+  (run [app-view user-data]
+       (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+             source-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
+             selected-tab (ui/selected-tab source-tab-pane)
+             dest-tab-pane (or (find-other-tab-pane editor-tabs-split source-tab-pane)
+                               (add-other-tab-pane! editor-tabs-split app-view))]
+         (.remove (.getTabs source-tab-pane) selected-tab)
+         (.add (.getTabs dest-tab-pane) selected-tab)
+         (.select (.getSelectionModel dest-tab-pane) selected-tab)
+         (.requestFocus dest-tab-pane))))
+
+(handler/defhandler :swap-tabs :global
+  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (run [app-view user-data]
+       (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+             active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
+             other-tab-pane (find-other-tab-pane editor-tabs-split active-tab-pane)
+             active-tab-pane-selection (.getSelectionModel active-tab-pane)
+             other-tab-pane-selection (.getSelectionModel other-tab-pane)
+             active-tab-index (.getSelectedIndex active-tab-pane-selection)
+             other-tab-index (.getSelectedIndex other-tab-pane-selection)
+             active-tabs (.getTabs active-tab-pane)
+             other-tabs (.getTabs other-tab-pane)
+             active-tab (.get active-tabs active-tab-index)
+             other-tab (.get other-tabs other-tab-index)]
+         (.set active-tabs active-tab-index other-tab)
+         (.set other-tabs other-tab-index active-tab)
+         (.select active-tab-pane-selection other-tab)
+         (.select other-tab-pane-selection active-tab)
+         (.requestFocus other-tab-pane))))
+
+(handler/defhandler :join-tab-panes :global
+  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (run [app-view user-data]
+       (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+             active-tab-pane ^TabPane (g/node-value app-view :active-tab-pane)
+             selected-tab (ui/selected-tab active-tab-pane)
+             tab-panes (.getItems editor-tabs-split)
+             first-tab-pane ^TabPane (.get tab-panes 0)
+             second-tab-pane ^TabPane (.get tab-panes 1)
+             first-tabs (.getTabs first-tab-pane)
+             second-tabs (.getTabs second-tab-pane)
+             moved-tabs (vec second-tabs)]
+         (.clear second-tabs)
+         (.addAll first-tabs ^Collection moved-tabs)
+         (.select (.getSelectionModel first-tab-pane) selected-tab)
+         (.requestFocus first-tab-pane))))
 
 (defn make-about-dialog []
   (let [root ^Parent (ui/load-fxml "about.fxml")
@@ -801,10 +903,24 @@ If you do not specifically require different script states, consider changing th
                               :command :about}]}])
 
 (ui/extend-menu ::tab-menu nil
-                [{:label "Show In Asset Browser"
+                [{:label "Close"
+                  :command :close}
+                 {:label "Close Others"
+                  :command :close-other}
+                 {:label "Close All"
+                  :command :close-all}
+                 {:label :separator}
+                 {:label "Move to Other Tab Pane"
+                  :command :move-tab}
+                 {:label "Swap With Other Tab Pane"
+                  :command :swap-tabs}
+                 {:label "Join Tab Panes"
+                  :command :join-tab-panes}
+                 {:label :separator}
+                 {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-asset-browser}
-                 {:label "Show In Desktop"
+                 {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
                  {:label "Copy Project Path"
@@ -816,14 +932,7 @@ If you do not specifically require different script states, consider changing th
                  {:label "Dependencies..."
                   :command :dependencies}
                  {:label "Hot Reload"
-                  :command :hot-reload}
-                 {:label :separator}
-                 {:label "Close"
-                  :command :close}
-                 {:label "Close Others"
-                  :command :close-other}
-                 {:label "Close All"
-                  :command :close-all}])
+                  :command :hot-reload}])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
@@ -894,6 +1003,15 @@ If you do not specifically require different script states, consider changing th
         (profiler/profile "view" (:name @(g/node-type* node))
                           (g/node-value node label))))))
 
+(defn- refresh-scene-views! [app-view]
+  (profiler/begin-frame)
+  (doseq [refresh-fn (g/node-value app-view :scene-view-refresh-fns)]
+    (try
+      (refresh-fn)
+      (catch Throwable error
+        (error-reporting/report-exception! error))))
+  (scene-cache/prune-context! nil))
+
 (defn- tab->resource-node [^Tab tab]
   (some-> tab
     (ui/user-data ::view)
@@ -901,46 +1019,75 @@ If you do not specifically require different script states, consider changing th
     second
     :resource-node))
 
-(defn make-app-view [view-graph workspace project ^Stage stage ^MenuBar menu-bar ^TabPane tab-pane ^TabPane tool-tab-pane]
+(defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
+  (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
+  (-> tab-pane
+      (.getSelectionModel)
+      (.selectedItemProperty)
+      (.addListener
+        (reify ChangeListener
+          (changed [_this _observable _old-val new-val]
+            (on-selected-tab-changed! app-view (tab->resource-node new-val))
+            (ui/refresh app-scene)))))
+  (-> tab-pane
+      (.getTabs)
+      (.addListener
+        (reify ListChangeListener
+          (onChanged [_this _change]
+            ;; Check if we've ended up with an empty TabPane.
+            ;; Unless we are the only one left, we should get rid of it to make room for the other TabPane.
+            (when (empty? (.getTabs tab-pane))
+              (let [editor-tabs-split ^SplitPane (ui/tab-pane-parent tab-pane)
+                    tab-panes (.getItems editor-tabs-split)]
+                (when (< 1 (count tab-panes))
+                  (.remove tab-panes tab-pane)
+                  (.requestFocus ^TabPane (.get tab-panes 0)))))))))
+
+  (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
+
+  ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
+  ;; Consume key events that would select non-existing tabs in case we have none.
+  (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
+                                                   (when (and (empty? (.getTabs tab-pane))
+                                                              (TabPaneBehavior/isTraversalEvent event))
+                                                     (.consume event)))))
+
+(defn- handle-focus-owner-change! [app-view new-focus-owner]
+  (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
+        new-editor-tab-pane (editor-tab-pane new-focus-owner)]
+    (when (and (some? new-editor-tab-pane)
+               (not (identical? old-editor-tab-pane new-editor-tab-pane)))
+      (let [selected-tab (ui/selected-tab new-editor-tab-pane)
+            resource-node (tab->resource-node selected-tab)]
+        (ui/add-style! old-editor-tab-pane "inactive")
+        (ui/remove-style! new-editor-tab-pane "inactive")
+        (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
+        (on-selected-tab-changed! app-view resource-node)))))
+
+(defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
-    (let [app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :tab-pane tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
-      (-> tab-pane
-          (.getSelectionModel)
-          (.selectedItemProperty)
-          (.addListener
-            (reify ChangeListener
-              (changed [this observable old-val new-val]
-                (->> (tab->resource-node new-val)
-                     (on-selected-tab-changed app-view))
-                (ui/refresh app-scene)))))
-      (-> tab-pane
-          (.getTabs)
-          (.addListener
-            (reify ListChangeListener
-              (onChanged [this change]
-                (ui/restyle-tabs! tab-pane)))))
-
-      (ui/register-tab-pane-context-menu tab-pane ::tab-menu)
-
-      ;; Workaround for JavaFX bug: https://bugs.openjdk.java.net/browse/JDK-8167282
-      ;; Consume key events that would select non-existing tabs in case we have none.
-      (.addEventFilter tab-pane KeyEvent/KEY_PRESSED (ui/event-handler event
-                                                                       (when (and (empty? (.getTabs tab-pane))
-                                                                                  (TabPaneBehavior/isTraversalEvent event))
-                                                                         (.consume event))))
+    (let [editor-tab-pane (TabPane.)
+          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane editor-tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
+      (.add (.getItems editor-tabs-split) editor-tab-pane)
+      (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
+      (ui/observe (.focusOwnerProperty app-scene)
+                  (fn [_ _ new-focus-owner]
+                    (handle-focus-owner-change! app-view new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
       (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ _] (refresh-ui! app-view stage project)))
-                            (ui/->timer 13 "refresh-views" (fn [_ _] (refresh-views! app-view)))]]
+                            (ui/->timer 13 "refresh-views" (fn [_ _] (refresh-views! app-view)))
+                            (ui/->timer "refresh-scene-views" (fn [_ _] (refresh-scene-views! app-view)))]]
         (doseq [timer refresh-timers]
           (ui/timer-stop-on-closed! stage timer)
           (ui/timer-start! timer)))
+      (ui/on-closed! stage (fn [_] (scene-cache/drop-all!)))
       app-view)))
 
 (defn- make-tab! [app-view prefs workspace project resource resource-node
@@ -1024,15 +1171,18 @@ If you do not specifically require different script states, consider changing th
              (.start))
            false)
          (if-let [make-view-fn (:make-view-fn view-type)]
-           (let [^TabPane tab-pane (g/node-value app-view :tab-pane)
-                 tabs              (.getTabs tab-pane)
-                 tab               (or (some #(when (and (= (tab->resource-node %) resource-node)
-                                                         (= view-type (ui/user-data % ::view-type)))
-                                                %)
-                                             tabs)
-                                       (make-tab! app-view prefs workspace project resource resource-node
-                                                  resource-type view-type make-view-fn tabs opts))]
-             (.select (.getSelectionModel tab-pane) tab)
+           (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
+                 tab-panes (.getItems editor-tabs-split)
+                 open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
+                 ^Tab tab (or (some #(when (and (= (tab->resource-node %) resource-node)
+                                                (= view-type (ui/user-data % ::view-type)))
+                                       %)
+                                    open-tabs)
+                              (let [^TabPane active-tab-pane (g/node-value app-view :active-tab-pane)
+                                    active-tab-pane-tabs (.getTabs active-tab-pane)]
+                                (make-tab! app-view prefs workspace project resource resource-node
+                                           resource-type view-type make-view-fn active-tab-pane-tabs opts)))]
+             (.select (.getSelectionModel (.getTabPane tab)) tab)
              (when-let [focus (:focus-fn view-type)]
                (ui/run-later
                  ;; We run-later so javafx has time to squeeze in a

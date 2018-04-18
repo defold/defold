@@ -26,7 +26,7 @@
    :scope-name "source.lua"
    ;; indent patterns shamelessly stolen from textmate:
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
-   :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b).)*)|(\{\s*))$"
+   :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
@@ -66,7 +66,7 @@
                :name "comment.line.double-dash.lua"}
               {:match #"\b(and|or|not|break|do|else|for|if|elseif|return|then|repeat|while|until|end|function|local|in|goto)\b"
                :name "keyword.control.lua"}
-              {:match #"(?<![^.]\.|:)\b([A-Z_]+|false|nil|true|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)"
+              {:match #"(?<![^.]\.|:)\b([A-Z_][0-9A-Z_]*|false|nil|true|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)"
                :name "constant.language.lua"}
               {:match #"(?<![^.]\.|:)\b(self)\b"
                :name "variable.language.self.lua"}
@@ -134,40 +134,41 @@
               (update :properties into (:properties user-properties))
               (update :display-order into (:display-order user-properties)))))
 
-(g/defnk produce-bytecode
-  [_node-id lines resource]
+(defn- script->bytecode [lines proj-path]
   (try
-    (luajit/bytecode (data/lines-reader lines) (resource/proj-path resource))
+    (luajit/bytecode (data/lines-reader lines) proj-path)
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error _node-id :lines :fatal e (.getMessage e)
+        (g/->error nil :lines :fatal e (.getMessage e)
                    {:filename filename
                     :line     line
                     :message  message})))))
 
 (defn- build-script [resource _dep-resources user-data]
   (let [user-properties (:user-properties user-data)
-        properties (mapv (fn [[k v]] (let [type (:go-prop-type v)]
-                                       {:id (properties/key->user-name k)
-                                        :value (properties/go-prop->str (:value v) type)
-                                        :type type}))
-                         (:properties user-properties))
-        modules (:modules user-data)
-        bytecode (:bytecode user-data)]
-    {:resource resource :content (protobuf/map->bytes Lua$LuaModule
-                                                      {:source {:script (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
-                                                                :filename (resource/proj-path (:resource resource))
-                                                                :bytecode (when-not (g/error? bytecode)
-                                                                            (ByteString/copyFrom ^bytes bytecode))}
-                                                       :modules modules
-                                                       :resources (mapv lua/lua-module->build-path modules)
-                                                       :properties (properties/properties->decls properties true)})}))
+        properties      (mapv (fn [[k v]] (let [type (:go-prop-type v)]
+                                            {:id    (properties/key->user-name k)
+                                             :value (properties/go-prop->str (:value v) type)
+                                             :type  type}))
+                              (:properties user-properties))
+        modules         (:modules user-data)
+        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data))]
+    (g/precluding-errors
+      [bytecode]
+      {:resource resource
+       :content  (protobuf/map->bytes Lua$LuaModule
+                                      {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
+                                                    :filename (resource/proj-path (:resource resource))
+                                                    :bytecode (ByteString/copyFrom ^bytes bytecode)}
+                                       :modules    modules
+                                       :resources  (mapv lua/lua-module->build-path modules)
+                                       :properties (properties/properties->decls properties true)})})))
 
-(g/defnk produce-build-targets [_node-id resource lines bytecode user-properties modules dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource lines user-properties modules dep-build-targets]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
-    :user-data {:lines lines :user-properties user-properties :modules modules :bytecode bytecode}
+    :user-data {:lines lines :user-properties user-properties :modules modules :proj-path (resource/proj-path resource)}
     :deps dep-build-targets}])
 
 (g/defnk produce-completions [completion-info module-completion-infos]
@@ -236,7 +237,6 @@
             (dynamic visible (g/constantly false)))
 
   (output _properties g/Properties :cached produce-properties)
-  (output bytecode g/Any :cached produce-bytecode)
   (output build-targets g/Any :cached produce-build-targets)
   (output completions g/Any :cached produce-completions)
   (output user-properties g/Properties produce-user-properties))

@@ -9,7 +9,7 @@
             [util.thread-util :refer [preset!]])
   (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
            (javafx.beans.property SimpleStringProperty)
-           (javafx.scene Parent)
+           (javafx.scene Parent Scene)
            (javafx.scene.canvas Canvas GraphicsContext)
            (javafx.scene.control Button Tab TabPane TextField)
            (javafx.scene.input Clipboard KeyCode KeyEvent MouseEvent ScrollEvent)
@@ -351,20 +351,22 @@
                :name "console.debug"}]})
 
 (def ^:private console-color-scheme
-  (view/make-color-scheme
-    [["console.error" (Color/valueOf "#FF6161")]
-     ["console.warning" (Color/valueOf "#FF9A34")]
-     ["console.info" (Color/valueOf "#CCCFD3")]
-     ["console.debug" (Color/valueOf "#3B8CF8")]
-     ["console.reload.successful" (Color/valueOf "#33CC33")]
-     ["editor.foreground" (Color/valueOf "#A2B0BE")]
-     ["editor.background" (Color/valueOf "#27292D")]
-     ["editor.cursor" Color/TRANSPARENT]
-     ["editor.gutter.eval.expression" (Color/valueOf "#DDDDDD")]
-     ["editor.gutter.eval.result" (Color/valueOf "#52575C")]
-     ["editor.selection.background" (Color/valueOf "#264A8B")]
-     ["editor.selection.background.inactive" (Color/valueOf "#264A8B")]
-     ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]]))
+  (let [^Color background-color (Color/valueOf "#27292D")
+        ^Color selection-background-color (Color/valueOf "#264A8B")]
+    (view/make-color-scheme
+      [["console.error" (Color/valueOf "#FF6161")]
+       ["console.warning" (Color/valueOf "#FF9A34")]
+       ["console.info" (Color/valueOf "#CCCFD3")]
+       ["console.debug" (Color/valueOf "#3B8CF8")]
+       ["console.reload.successful" (Color/valueOf "#33CC33")]
+       ["editor.foreground" (Color/valueOf "#A2B0BE")]
+       ["editor.background" background-color]
+       ["editor.cursor" Color/TRANSPARENT]
+       ["editor.gutter.eval.expression" (Color/valueOf "#DDDDDD")]
+       ["editor.gutter.eval.result" (Color/valueOf "#52575C")]
+       ["editor.selection.background" selection-background-color]
+       ["editor.selection.background.inactive" (.interpolate selection-background-color background-color 0.25)]
+       ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]])))
 
 (defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
@@ -394,7 +396,6 @@
     (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
-    (ui/observe (.focusedProperty canvas) (fn [_ _ focused?] (g/set-property! view-node :focused? focused?)))
 
     ;; Configure canvas.
     (doto canvas
@@ -415,11 +416,18 @@
     (let [find-term-setter (view/make-property-change-setter view-node :highlighted-find-term)]
       (.addListener find-term-property find-term-setter)
 
-      ;; Remove callbacks if the console tab is closed.
-      (ui/on-closed! console-tab (fn [_]
-                                   (ui/timer-stop! repainter)
-                                   (dispose-tool-bar! tool-bar)
-                                   (.removeListener find-term-property find-term-setter))))
+      ;; Ensure the focus-state property reflects the current input focus state.
+      (let [^Scene scene (.getScene console-grid-pane)
+            focus-owner-property (.focusOwnerProperty scene)
+            focus-change-listener (view/make-focus-change-listener view-node console-grid-pane canvas)]
+        (.addListener focus-owner-property focus-change-listener)
+
+        ;; Remove callbacks if the console tab is closed.
+        (ui/on-closed! console-tab (fn [_]
+                                     (ui/timer-stop! repainter)
+                                     (dispose-tool-bar! tool-bar)
+                                     (.removeListener find-term-property find-term-setter)
+                                     (.removeListener focus-owner-property focus-change-listener)))))
 
     ;; Start repaint timer.
     (ui/timer-start! repainter)

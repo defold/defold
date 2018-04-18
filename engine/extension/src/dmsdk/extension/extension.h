@@ -211,6 +211,61 @@ namespace dmExtension
     #define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
         uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[dmExtension::m_ExtensionDescBufferSize]; \
         DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
+
+
+    /** Register application delegate
+     *
+     * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
+     * @note Only available on iOS
+     * @param delegate an id<UIApplicationDelegate> See https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
+     *
+     * @examples
+     * ```cpp
+     * // myextension_ios.mm
+     *
+     * id<UIApplicationDelegate> g_MyApplicationDelegate;
+     *
+     * @interface MyApplicationDelegate : NSObject <UIApplicationDelegate>
+     *
+     * - (void) applicationDidBecomeActive:(UIApplication *) application;
+     *
+     * @end
+     *
+     * @implementation MyApplicationDelegate
+     *
+     * - (void) applicationDidBecomeActive:(UIApplication *) application {
+     *     dmLogWarning("applicationDidBecomeActive - MyAppDelegate");
+     * }
+     *
+     * @end
+     *
+     * void ExtensionAppInitializeiOS(dmExtension::AppParams* params)
+     * {
+     *     g_MyApplicationDelegate = [[MyApplicationDelegate alloc] init];
+     *     dmExtension::RegisteriOSUIApplicationDelegate(g_MyApplicationDelegate);
+     * }
+     *
+     * ```
+     */
+    void RegisteriOSUIApplicationDelegate(void* delegate);
+
+    /** Unregister an application delegate
+     *
+     * Deregister a previously registered iOS application delegate
+     * @note Only available on iOS
+     * @param delegate an id<UIApplicationDelegate>
+     * @examples
+     * ```cpp
+     * // myextension_ios.mm
+     * void ExtensionAppFinalizeiOS(dmExtension::AppParams* params)
+     * {
+     *     dmExtension::UnregisteriOSUIApplicationDelegate(g_MyApplicationDelegate);
+     *     [g_MyApplicationDelegate release];
+     *     g_MyApplicationDelegate = 0;
+     * }
+     *
+     */
+    void UnregisteriOSUIApplicationDelegate(void* delegate);
 }
 
 #endif // #ifndef DMSDK_EXTENSION
