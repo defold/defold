@@ -30,7 +30,7 @@ Important: *Make sure your branches are up to date!*
  
     This will trigger the beta channel to be built on build bot.
 
- 1. Wait for [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) to finish, make sure autobuilders are green.
+ 1. Wait for [sign-editor-beta]http://ci.defold.com/builders/sign-editor-beta) to finish, make sure autobuilders are green.
  1. Write release beta release notes.
  1. (Optional) Download and run beta:
  
