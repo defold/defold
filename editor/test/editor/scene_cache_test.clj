@@ -1,6 +1,5 @@
 (ns editor.scene-cache-test
   (:require [clojure.test :refer :all]
-            [clojure.core.cache :as cache]
             [editor.scene-cache :as scene-cache]))
 
 (defn- make-fn [context data]
@@ -28,10 +27,10 @@
   (scene-cache/lookup-object ::test request-id context))
 
 (defn- prune! []
-  (scene-cache/prune-object-caches! context))
+  (scene-cache/prune-context! context))
 
 (defn- drop-context! []
-  (scene-cache/drop-context! context true))
+  (scene-cache/drop-context! context))
 
 (defn- retained? [key]
     (contains? @context key))
