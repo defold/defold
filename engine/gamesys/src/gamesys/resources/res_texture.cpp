@@ -378,9 +378,7 @@ namespace dmGameSystem
         ImageDesc* image_desc = (ImageDesc*) params.m_PreloadData;
         dmDDF::FreeMessage(image_desc->m_DDFImage);
         DestroyImage(image_desc);
-#ifndef NDEBUG
         params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
-#endif
         return dmResource::RESULT_OK;
     }
 
@@ -433,12 +431,10 @@ namespace dmGameSystem
         {
             dmDDF::FreeMessage(texture_image);
         }
-#ifndef NDEBUG
         if(r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_ResourceSize = dmGraphics::GetTextureResourceSize(texture);
         }
-#endif
         return r;
     }
 }

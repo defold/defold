@@ -98,7 +98,6 @@ namespace dmGameSystem
 
     }
 
-#ifndef NDEBUG
     static uint32_t GetResourceSize(RigSceneResource* res, uint32_t ddf_size)
     {
         uint32_t size = sizeof(RigSceneResource);
@@ -108,7 +107,6 @@ namespace dmGameSystem
         size += res->m_TrackIdxToPose.Capacity()*sizeof(uint32_t);
         return size;
     }
-#endif
 
     dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams& params)
     {
@@ -140,9 +138,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) ss_resource;
-#ifndef NDEBUG
             params.m_Resource->m_ResourceSize = GetResourceSize(ss_resource, params.m_BufferSize);
-#endif
         }
         else
         {
@@ -177,9 +173,7 @@ namespace dmGameSystem
         {
             return r;
         }
-#ifndef NDEBUG
         params.m_Resource->m_ResourceSize = GetResourceSize(ss_resource, params.m_BufferSize);
-#endif
         return dmResource::RESULT_OK;
     }
 }

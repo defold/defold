@@ -44,9 +44,7 @@ namespace dmGameSystem
         if (result == dmGui::RESULT_OK)
         {
             params.m_Resource->m_Resource = script;
-#ifndef NDEBUG
             params.m_Resource->m_ResourceSize = params.m_BufferSize - lua_module->m_Source.m_Script.m_Count;
-#endif
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
         }
@@ -97,9 +95,7 @@ namespace dmGameSystem
                     }
                 }
             }
-#ifndef NDEBUG
             params.m_Resource->m_ResourceSize = params.m_BufferSize - lua_module->m_Source.m_Script.m_Count;
-#endif
             dmDDF::FreeMessage(lua_module);
             return dmResource::RESULT_OK;
         }
@@ -198,7 +194,6 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-#ifndef NDEBUG
     static uint32_t GetResourceSize(GuiSceneResource* res, uint32_t ddf_size)
     {
         uint32_t size = sizeof(GuiSceneResource);
@@ -209,7 +204,6 @@ namespace dmGameSystem
         size += res->m_ParticlePrototypes.Capacity()*sizeof(dmParticle::HPrototype);
         return size;
     }
-#endif
 
     void ReleaseResources(dmResource::HFactory factory, GuiSceneResource* resource)
     {
@@ -271,9 +265,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*)scene_resource;
-#ifndef NDEBUG
             params.m_Resource->m_ResourceSize = GetResourceSize(scene_resource, params.m_BufferSize);
-#endif
         }
         else
         {
@@ -314,9 +306,7 @@ namespace dmGameSystem
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
             scene_resource->m_Material = tmp_scene_resource.m_Material;
-#ifndef NDEBUG
             params.m_Resource->m_ResourceSize = GetResourceSize(scene_resource, params.m_BufferSize);
-#endif
         }
         else
         {

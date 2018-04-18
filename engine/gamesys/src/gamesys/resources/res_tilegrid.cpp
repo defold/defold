@@ -93,7 +93,6 @@ namespace dmGameSystem
         }
     }
 
-#ifndef NDEBUG
     static uint32_t GetResourceSize(TileGridResource* res, uint32_t ddf_size)
     {
         uint32_t size = sizeof(TileGridResource);
@@ -101,7 +100,6 @@ namespace dmGameSystem
         size += res->m_GridShapes.Capacity() * sizeof(dmPhysics::HCollisionShape2D);    // TODO: Get size of CollisionShape2D
         return size;
     }
-#endif
 
     dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams& params)
     {
@@ -128,9 +126,7 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) tile_grid;
-#ifndef NDEBUG
             params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
-#endif
         }
         else
         {
@@ -150,25 +146,6 @@ namespace dmGameSystem
 
     dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        // TODO: Reload is temporarily disabled until issue 678 is fixed
-//        TileGridResource* tile_grid = (TileGridResource*)params.m_Resource->m_Resource;
-//        TileGridResource tmp_tile_grid;
-//        dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, factory, buffer, buffer_size, &tmp_tile_grid, filename);
-//        if (r == dmResource::RESULT_OK)
-//        {
-//            ReleaseResources(factory, tile_grid);
-//            tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
-//            tile_grid->m_TileSet = tmp_tile_grid.m_TileSet;
-//            tile_grid->m_GridShape = tmp_tile_grid.m_GridShape;
-//#ifndef NDEBUG
-//            params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
-//#endif
-//        }
-//        else
-//        {
-//            ReleaseResources(factory, &tmp_tile_grid);
-//        }
-//        return r;
         return dmResource::RESULT_OK;
     }
 }

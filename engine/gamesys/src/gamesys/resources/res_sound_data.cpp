@@ -23,9 +23,7 @@ namespace dmGameSystem
         }
 
         params.m_Resource->m_Resource = (void*) sound_data;
-#ifndef NDEBUG
         params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
-#endif
         return dmResource::RESULT_OK;
     }
 
@@ -48,9 +46,7 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_INVAL;
         }
-#ifndef NDEBUG
         params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
-#endif
         return dmResource::RESULT_OK;
     }
 }

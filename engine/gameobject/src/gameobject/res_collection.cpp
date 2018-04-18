@@ -202,7 +202,6 @@ namespace dmGameObject
             dmLogError("Sub collections must be merged before loading.");
 
         params.m_Resource->m_Resource = (void*) collection;
-#ifndef NDEBUG
         {
             uint32_t size = sizeof(Collection);
             size += collection->m_InstanceIndices.Capacity()*sizeof(uint16_t);
@@ -212,7 +211,6 @@ namespace dmGameObject
             size += collection->m_Instances.Capacity()*sizeof(Instance*);
             params.m_Resource->m_ResourceSize = size;
         }
-#endif
 bail:
         dmDDF::FreeMessage(collection_desc);
 
