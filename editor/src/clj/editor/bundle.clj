@@ -201,7 +201,9 @@
 (g/defnk upload-ipa [^File ipa cr-project-id prefs]
   (try
     (let [client (client/make-client prefs)]
-      (when-let [user-id (client/user-id client)]
+      (when-let [user-id (some-> client
+                           (client/user-info)
+                           (:id))]
         (with-open [in (io/input-stream ipa)]
           (try
             (client/upload-engine client user-id cr-project-id "ios" in)

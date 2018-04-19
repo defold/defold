@@ -271,7 +271,9 @@
     (try
       (when (login/login prefs)
         (let [client (client/make-client prefs)]
-          (when-let [user-id (client/user-id client)]
+          (when-let [user-id (some-> client
+                               (client/user-info)
+                               (:id))]
             (render-progress! (:create-remote msgs) -1)
             (let [project-info (try
                                  (client/new-project client user-id {:name project-title})
