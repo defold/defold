@@ -23,6 +23,7 @@ namespace dmGameSystem
         }
 
         params.m_Resource->m_Resource = (void*) sound_data;
+        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
         return dmResource::RESULT_OK;
     }
 
@@ -45,6 +46,7 @@ namespace dmGameSystem
         {
             return dmResource::RESULT_INVAL;
         }
+        params.m_Resource->m_ResourceSize = dmSound::GetSoundResourceSize(sound_data);
         return dmResource::RESULT_OK;
     }
 }
