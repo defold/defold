@@ -4773,6 +4773,43 @@ TEST_F(dmGuiTest, SpineNodeGetSkin)
     ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
 }
 
+TEST_F(dmGuiTest, SpineNodeGetAnimation)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // get animation id when no animation playing
+    ASSERT_EQ(0, dmGui::GetNodeSpineAnimation(m_Scene, node));
+
+    // play invalid animation
+    ASSERT_EQ(dmGui::RESULT_INVAL_ERROR, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("non_existant"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
+    ASSERT_EQ(0, dmGui::GetNodeSpineAnimation(m_Scene, node));
+
+    // play valid animation
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
+    ASSERT_EQ(dmHashString64("valid"), dmGui::GetNodeSpineAnimation(m_Scene, node));
+
+    // play invalid animation
+    ASSERT_EQ(dmGui::RESULT_INVAL_ERROR, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("non_existant"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
+    ASSERT_EQ(dmHashString64("valid"), dmGui::GetNodeSpineAnimation(m_Scene, node));
+}
+
 uint32_t SpineAnimationCompleteCount = 0;
 void SpineAnimationComplete(dmGui::HScene scene,
                          dmGui::HNode node,
