@@ -115,6 +115,8 @@ namespace dmResource
 
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
+        /// Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
+        void*    m_PrevResource;
 
         /// For internal use only
         void*    m_ResourceType;        // For internal use.
