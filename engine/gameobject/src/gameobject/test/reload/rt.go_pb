@@ -1,0 +1,4 @@
+components {
+  id: "rt"
+  component: "/reload_target.rt"
+}
