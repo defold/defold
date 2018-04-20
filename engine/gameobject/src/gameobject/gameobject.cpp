@@ -3119,6 +3119,10 @@ namespace dmGameObject
     }
 
     // Recreate the instance at the given index with a new prototype.
+    // Specifically:
+    //  - recreate components and call init/final functions
+    //  - patch data structures for identification and input stack
+    //  - copy the rest of the fields
     // The old instance is destroyed.
     static void RecreateInstance(Collection* collection, uint16_t index, Prototype* old_proto, Prototype* new_proto, const char* new_proto_name) {
         HInstance instance = collection->m_Instances[index];
