@@ -1,130 +1,213 @@
 (ns editor.fuzzy-text
-  (:require [clojure.string :as string]))
+  (:require [clojure.string :as string])
+  (:import (clojure.lang MapEntry)))
 
-;; Sublime Text-style fuzzy text matching. Based on this blog post by Forrest Smith:
-;; https://blog.forrestthewoods.com/reverse-engineering-sublime-text-s-fuzzy-match-4cffeed33fdb
+;; Sublime Text-style fuzzy text matching.
+;;
+;; Based on the "Selecta" ranking algorithm by Gary Bernhardt:
+;; https://github.com/garybernhardt/selecta
+;;
+;; The original "Selecta" ranking algorithm is:
+;; - Select each input string that contains all of the characters in the query.
+;;   They must be in order, but don't have to be sequential. Case is ignored.
+;; - The score is the length of the matching substring. Lower is better.
+;; - If a character is on a word boundary, it only contributes 1 to the length,
+;;   rather than the actual number of characters since the previous matching
+;;   character. Querying "app/models" for "am" gives a score of 2, not 5.
+;; - Bonus for exact queries: when several adjacent characters match
+;;   sequentially, only the first two score. Querying "search_spec.rb" for
+;;   "spec" gives a score of 2, not 4.
+;; - Bonus for acronyms: when several sequential query characters exist on word
+;;   boundaries, only the first two score. Querying the string
+;;   "app/models/user.rb" for "amu" gives a score of 2, not 3.
+;;
+;; Some concrete examples of the original "Selecta" ranking algorithm:
+;; - "ct" will match "cat" and "Crate", but not "tack".
+;; - "le" will match "lend" and "ladder". "lend" will appear higher in the
+;;   results because the matching substring is shorter ("le" vs. "ladde").
+;;
+;; Differences from the original "Selecta" ranking algorithm:
+;; - A match of the first character in the string does not count towards the
+;;   score. We do this to prioritize matches against the start of the string.
+;; - Our algorithm treats camel humps similar to word boundaries so that they
+;;   can be matched using acronyms.
+;; - If the first matching character is not on a camel hump or a word boundary,
+;;   our algorithm scores it by its distance from the previous word boundary.
+;; - Our algorithm penalizes acronyms that skip over a camel hump or word
+;;   boundary in the input string.
+;;
+;; Some concrete examples of the differences with our algorithm:
+;; - "sp" will give "game/specs" a score of 2, but "aspect" a score of 3 since
+;;   you pay for every unmatched character before a word boundary.
+;; - "at" will give "abstract_tree" an ideal score, since the acronym matches
+;;   every word boundary.
+;; - "at" will give "abstract_syntax_tree" a lesser score than "abstract_tree",
+;;   since the acronym missed the 's' on the middle word boundary.
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private adjacency-bonus "Bonus for adjacent matches." 15)
-(def ^:private separator-bonus "Bonus if match occurs after a separator." 15)
-(def ^:private camel-bonus "Bonus if match is uppercase and previous character is lowercase." 15)
-(def ^:private first-letter-bonus "Bonus if the first letter is matched." 15)
-(def ^:private filename-bonus "Bonus for matches to the filename part when using match-path." 20)
-(def ^:private leading-letter-penalty "Penalty applied for every letter in str before the first match." -5)
-(def ^:private max-leading-letter-penalty "Maximum penalty for leading letters." -15)
-(def ^:private unmatched-letter-penalty "Penalty for every letter that doesn't matter." -1)
-(def ^:private separator-chars #{\space \/ \_ \-})
+(defn- pair [a b]
+  (MapEntry. a b))
 
-(defn- char-blank? [ch]
-  (Character/isWhitespace ^char ch))
+(defn- case-insensitive-character-indices
+  [^String string ^long ch ^long from-index]
+  (assert (not (Character/isWhitespace ch)))
+  (loop [from-index from-index
+         indices (transient [])]
+    (let [upper (.indexOf string (Character/toUpperCase ch) from-index)
+          lower (.indexOf string (Character/toLowerCase ch) from-index)]
+      (if (and (neg? upper) (neg? lower))
+        (persistent! indices)
+        (let [index (cond (neg? upper) lower
+                          (neg? lower) upper
+                          :else (min upper lower))]
+          (recur (inc ^long index)
+                 (conj! indices index)))))))
 
-(defn- char->upper ^Character [ch]
-  (Character/toUpperCase ^char ch))
+(defn- whitespace-length
+  ^long [^String string ^long string-length ^long from-index]
+  (loop [index from-index
+         whitespace-length 0]
+    (if (or (= string-length index)
+            (not (Character/isWhitespace (.codePointAt string index))))
+      whitespace-length
+      (recur (inc index)
+             (inc whitespace-length)))))
 
-(defn- char->lower ^Character [ch]
-  (Character/toLowerCase ^char ch))
+(defn- matching-index-permutations
+  [^String pattern ^String string ^long from-index]
+  (when-not (or (empty? string)
+                (string/blank? pattern))
+    (let [pattern (string/trim pattern)
+          pattern-length (.length pattern)
+          string-length (.length string)]
+      (loop [pattern-index 1
+             matching-index-permutations (map vector (case-insensitive-character-indices string (.codePointAt pattern 0) from-index))]
+        (if (= pattern-length pattern-index)
+          matching-index-permutations
+          (let [pattern-whitespace-length (whitespace-length pattern pattern-length pattern-index)
+                pattern-index (+ pattern-index pattern-whitespace-length)]
+            (recur (inc pattern-index)
+                   (into []
+                         (mapcat (fn [matching-indices]
+                                   (let [^long prev-matching-index (peek matching-indices)
+                                         from-index (if (pos? pattern-whitespace-length)
+                                                      (+ 2 prev-matching-index)
+                                                      (inc prev-matching-index))]
+                                     (when (not= string-length from-index)
+                                       (map (partial conj matching-indices)
+                                            (case-insensitive-character-indices string (.codePointAt pattern pattern-index) from-index))))))
+                         matching-index-permutations))))))))
 
-(defn- add ^long [^long a ^long b]
-  (unchecked-add a b))
+(defn- every-character-is-letter-or-digit?
+  [^String string ^long from-index ^long to-index]
+  (cond (= to-index from-index) true
+        (not (Character/isLetterOrDigit (.codePointAt string from-index))) false
+        :else (recur string (inc from-index) to-index)))
 
-(defn- sub ^long [^long a ^long b]
-  (unchecked-subtract a b))
+(defn- any-character-is-upper-case?
+  [^String string ^long from-index ^long to-index]
+  (cond (= to-index from-index) false
+        (Character/isUpperCase (.codePointAt string from-index)) true
+        :else (recur string (inc from-index) to-index)))
 
-(defn- mul ^long [^long a ^long b]
-  (unchecked-multiply a b))
+(defn- prev-boundary-index
+  ^long [^String string ^long range-start ^long range-end]
+  (let [index (dec range-end)]
+    (cond (< index range-start) index
+          (Character/isLetterOrDigit (.codePointAt string index)) (recur string range-start index)
+          :else index)))
 
-(defn- match-impl [^String pattern ^String str ^long start-index ^long offset]
-  (let [pattern-length (count pattern)
-        str-length (count str)
-        best-letter (volatile! nil)
-        best-lower (volatile! nil)
-        best-letter-idx (volatile! nil)
-        best-letter-score (volatile! 0)
-        matched-indices (volatile! [])
-        score (volatile! 0)]
-    (loop [str-idx (+ start-index offset)
-           pattern-idx 0
-           prev-matched-idx nil
-           prev-lower? false
-           prev-separator? true]
-      (if (= str-length str-idx)
-        (do (when (some? @best-letter)
-              (vswap! score add @best-letter-score)
-              (vswap! matched-indices conj @best-letter-idx))
-            (let [final-matched-indices @matched-indices]
-              (when (and (= pattern-length pattern-idx) (seq final-matched-indices))
-                [@score final-matched-indices])))
-        (let [pattern-char (when (not= pattern-length pattern-idx) (.charAt pattern pattern-idx))]
-          (if (and pattern-char (char-blank? pattern-char))
-            (recur str-idx
-                   (inc pattern-idx)
-                   prev-matched-idx
-                   prev-lower?
-                   prev-separator?)
-            (let [pattern-lower (some-> pattern-char char->lower)
-                  str-char (.charAt str str-idx)
-                  str-lower (char->lower str-char)
-                  str-upper (char->upper str-char)
-                  next-match? (and pattern-char (= str-lower pattern-lower))
-                  rematch? (boolean (some-> @best-letter (= str-lower)))
-                  advanced? (and next-match? @best-letter)
-                  pattern-repeat? (and @best-letter pattern-char (= pattern-lower @best-lower))]
-              (when (or advanced? pattern-repeat?)
-                (vswap! score add @best-letter-score)
-                (vswap! matched-indices conj @best-letter-idx)
-                (vreset! best-letter nil)
-                (vreset! best-lower nil)
-                (vreset! best-letter-idx nil)
-                (vreset! best-letter-score 0))
-              (if (or next-match? rematch?)
-                (do (when (zero? pattern-idx)
-                      ;; NOTE: Penalties are negative. Use max to find the lowest penalty.
-                      (let [penalty (max (mul (sub str-idx start-index) leading-letter-penalty) ^long max-leading-letter-penalty)]
-                        (vswap! score add penalty)))
-                    (let [camel-boundary? (and prev-lower? (= str-upper str-char) (not= str-upper str-lower))
-                          first-letter? (= start-index str-idx)
-                          new-score (cond-> 0
-                                            (= prev-matched-idx (dec str-idx)) (add adjacency-bonus)
-                                            prev-separator? (add separator-bonus)
-                                            camel-boundary? (add camel-bonus)
-                                            first-letter? (add first-letter-bonus))]
-                      (when (>= new-score ^long @best-letter-score)
-                        (when (nil? @best-letter)
-                          (vswap! score add unmatched-letter-penalty))
-                        (vreset! best-letter str-char)
-                        (vreset! best-lower (char->lower str-char))
-                        (vreset! best-letter-idx str-idx)
-                        (vreset! best-letter-score new-score)))
-                    (recur (inc str-idx)
-                           (if next-match? (inc pattern-idx) pattern-idx)
-                           (when-not rematch? str-idx)
-                           (and (= str-lower str-char) (not= str-upper str-lower))
-                           (contains? separator-chars str-char)))
-                (recur (inc str-idx)
-                       pattern-idx
-                       prev-matched-idx
-                       (and (= str-lower str-char) (not= str-upper str-lower))
-                       (contains? separator-chars str-char))))))))))
+(defn- score
+  ^long [^String string ^long from-index matching-indices]
+  (assert (not (empty? matching-indices)))
+  (loop [prev-matching-index Long/MIN_VALUE
+         prev-match-type nil
+         same-match-type-score-iterations 1
+         matching-indices matching-indices
+         score 0]
+    (if (empty? matching-indices)
+      score
+      (let [matching-index (long (first matching-indices))]
+        (if (= from-index matching-index)
+          (recur matching-index
+                 (if (Character/isUpperCase (.codePointAt string from-index))
+                   :camel-hump
+                   :word-boundary)
+                 1
+                 (next matching-indices)
+                 score) ; Don't count the first character in the string towards the score - prioritizes first-letter matches.
+          (let [ch (.codePointAt string matching-index)
+                before-matching-index (dec matching-index)
+                after-prev-match-index (if (neg? prev-matching-index)
+                                         from-index
+                                         (inc prev-matching-index))
+                sequential-match? (= prev-matching-index before-matching-index)
+                match-type (cond
+                             (and (Character/isUpperCase ch)
+                                  (not (Character/isUpperCase (.codePointAt string before-matching-index))))
+                             :camel-hump
+
+                             (and (Character/isLetterOrDigit ch)
+                                  (not (Character/isLetterOrDigit (.codePointAt string before-matching-index))))
+                             :word-boundary
+
+                             :else
+                             nil)
+                same-match-type? (and (= prev-match-type match-type)
+                                      (case match-type
+                                        nil
+                                        sequential-match?
+
+                                        :word-boundary
+                                        (and (= :word-boundary prev-match-type)
+                                             (every-character-is-letter-or-digit? string after-prev-match-index before-matching-index))
+
+                                        :camel-hump
+                                        (and (= :camel-hump prev-match-type)
+                                             (not (any-character-is-upper-case? string after-prev-match-index before-matching-index)))))]
+            (recur matching-index
+                   match-type
+                   (if sequential-match?
+                     0
+                     (if same-match-type?
+                       (max 0 (dec same-match-type-score-iterations))
+                       1))
+                   (next matching-indices)
+                   (if same-match-type?
+                     (if (pos? same-match-type-score-iterations)
+                       (inc score)
+                       score)
+                     (+ score (- matching-index
+                                 (if (neg? prev-matching-index)
+                                   (prev-boundary-index string from-index matching-index)
+                                   prev-matching-index)))))))))))
+
+(defn- best-match [match-a [^long score-b :as match-b]]
+  (let [^long score-a (if match-a (first match-a) Long/MAX_VALUE)]
+    (if (<= score-a score-b)
+      match-a
+      match-b)))
 
 (defn match
-  "Performs a fuzzy text match against str using the specified pattern.
-  Returns a two-element vector of [score, matching-indices], or nil if there
-  is no match. The matching-indices vector will contain the character indices
-  in str that matched the pattern in sequential order."
-  ([^String pattern ^String str]
-   (match pattern str 0))
-  ([^String pattern ^String str ^long start-index]
-   (loop [[best-score :as best-match] nil
-          offset 0]
-     (if-some [[score matching-indices :as match] (match-impl pattern str start-index offset)]
-       (recur (if (or (nil? best-score) (>= ^long score ^long best-score)) match best-match)
-              (inc (sub (first matching-indices) start-index)))
-       best-match))))
+  "Performs a fuzzy text match against a string using the specified pattern.
+  Returns a two-element vector of [score, matching-indices], or nil if the
+  pattern is empty or there is no match. The matching-indices vector will
+  contain the character indices in string that matched the pattern in sequential
+  order. A lower score represents a better match."
+  ([^String pattern ^String string]
+   (match pattern string 0))
+  ([^String pattern ^String string ^long from-index]
+   (transduce (map (fn [matching-indices]
+                     (pair (score string from-index matching-indices)
+                           matching-indices)))
+              (completing best-match)
+              nil
+              (matching-index-permutations pattern string from-index))))
 
-(defn- add-filename-bonus [[^long score matched-indices]]
-  [(+ score ^long filename-bonus) matched-indices])
+(defn- apply-filename-bonus [[^long score matched-indices]]
+  [(- score 5) matched-indices])
 
 (defn match-path
   "Convenience function for matching against paths. The match function is
@@ -134,8 +217,8 @@
   (when-some [path-match (match pattern path)]
     (if-some [last-slash-index (string/last-index-of path \/)]
       (let [name-index (inc ^long last-slash-index)]
-        (if-some [name-match (some-> (match pattern path name-index) add-filename-bonus)]
-          (max-key first name-match path-match)
+        (if-some [name-match (some-> (match pattern path name-index) apply-filename-bonus)]
+          (best-match name-match path-match)
           path-match))
       path-match)))
 
