@@ -51,6 +51,8 @@
   (MapEntry. a b))
 
 (defn- case-insensitive-character-indices
+  "Returns a vector of indices where the specified code point exists in the
+  string. Both upper- and lower-case matches are returned."
   [^String string ^long ch ^long from-index]
   (assert (not (Character/isWhitespace ch)))
   (loop [from-index from-index
@@ -66,6 +68,9 @@
                  (conj! indices index)))))))
 
 (defn- whitespace-length
+  "Counts the number of code points that represent whitespace in a string,
+  starting at from-index and counting until the next non-whitespace code point
+  or until it reaches string-length."
   ^long [^String string ^long string-length ^long from-index]
   (loop [index from-index
          whitespace-length 0]
@@ -76,6 +81,10 @@
              (inc whitespace-length)))))
 
 (defn- matching-index-permutations
+  "Returns a sequence of all permutations of indices inside the string where the
+  pattern characters appear in order. I.e. 'abc' appears in 'abbc' as [0 1 3]
+  and [0 2 3]. The from-index parameter can be used to limit the starting point
+  in the string."
   [^String pattern ^String string ^long from-index]
   (when-not (or (empty? string)
                 (string/blank? pattern))
@@ -101,18 +110,26 @@
                          matching-index-permutations))))))))
 
 (defn- every-character-is-letter-or-digit?
+  "Returns true if every code point within the specified half-open range
+  represent either a letter or digit."
   [^String string ^long from-index ^long to-index]
   (cond (= to-index from-index) true
         (not (Character/isLetterOrDigit (.codePointAt string from-index))) false
         :else (recur string (inc from-index) to-index)))
 
 (defn- any-character-is-upper-case?
+  "Returns true if any code point within the specified half-open range represent
+  an upper-case character."
   [^String string ^long from-index ^long to-index]
   (cond (= to-index from-index) false
         (Character/isUpperCase (.codePointAt string from-index)) true
         :else (recur string (inc from-index) to-index)))
 
 (defn- prev-boundary-index
+  "Finds the previous boundary in a string. Starts at range-end (exclusive) and
+  iterates over each code point until it reaches a boundary character or
+  just past range-start. This means -1 is returned for no match if range-start
+  is zero. Used for scoring."
   ^long [^String string ^long range-start ^long range-end]
   (let [index (dec range-end)]
     (cond (< index range-start) index
@@ -120,71 +137,79 @@
           :else index)))
 
 (defn- score
+  "Scores the matching indices against the string that produced them. A lower
+  score is better. The from-index parameter can be used to limit the starting
+  point in the string. Typically several sequences of matching indices are
+  obtained with the matching-index-permutations function, then scored here."
   ^long [^String string ^long from-index matching-indices]
   (assert (not (empty? matching-indices)))
-  (loop [prev-matching-index Long/MIN_VALUE
+  (loop [matching-indices matching-indices
+         prev-matching-index Long/MIN_VALUE
          prev-match-type nil
-         same-match-type-score-iterations 1
-         matching-indices matching-indices
+         streak-length 0
          score 0]
     (if (empty? matching-indices)
       score
       (let [matching-index (long (first matching-indices))]
         (if (= from-index matching-index)
-          (recur matching-index
-                 (if (Character/isUpperCase (.codePointAt string from-index))
-                   :camel-hump
-                   :word-boundary)
-                 1
-                 (next matching-indices)
-                 score) ; Don't count the first character in the string towards the score - prioritizes first-letter matches.
-          (let [ch (.codePointAt string matching-index)
-                before-matching-index (dec matching-index)
-                after-prev-match-index (if (neg? prev-matching-index)
-                                         from-index
-                                         (inc prev-matching-index))
-                sequential-match? (= prev-matching-index before-matching-index)
+
+          ;; We're matching the very first character in the considered string.
+          ;; It does not count towards the score. This gives a very slight
+          ;; scoring edge matches that include the start of the string.
+          (recur (next matching-indices)
+                 matching-index
+                 :string-start
+                 0
+                 0)
+
+          ;; The first matching character is at least one character in.
+          ;; This means we can safely examine the character before the match.
+          (let [before-matching-index (dec matching-index)
+                after-prev-match-index (if (= Long/MIN_VALUE prev-matching-index) from-index (inc prev-matching-index))
+                ch (.codePointAt string matching-index)
+                prev-ch (.codePointAt string before-matching-index)
                 match-type (cond
                              (and (Character/isUpperCase ch)
-                                  (not (Character/isUpperCase (.codePointAt string before-matching-index))))
+                                  (Character/isLetterOrDigit prev-ch)
+                                  (not (Character/isUpperCase prev-ch)))
                              :camel-hump
 
                              (and (Character/isLetterOrDigit ch)
-                                  (not (Character/isLetterOrDigit (.codePointAt string before-matching-index))))
-                             :word-boundary
+                                  (not (Character/isLetterOrDigit prev-ch)))
+                             :word-boundary)
+                streak? (or (= prev-matching-index before-matching-index)
+                            (case match-type
+                              nil false
 
-                             :else
-                             nil)
-                same-match-type? (and (= prev-match-type match-type)
-                                      (case match-type
-                                        nil
-                                        sequential-match?
+                              :camel-hump
+                              (and (case prev-match-type
+                                     :string-start (Character/isUpperCase (.codePointAt string from-index))
+                                     :camel-hump true
+                                     false)
+                                   (not (any-character-is-upper-case? string after-prev-match-index before-matching-index)))
 
-                                        :word-boundary
-                                        (and (= :word-boundary prev-match-type)
-                                             (every-character-is-letter-or-digit? string after-prev-match-index before-matching-index))
-
-                                        :camel-hump
-                                        (and (= :camel-hump prev-match-type)
-                                             (not (any-character-is-upper-case? string after-prev-match-index before-matching-index)))))]
-            (recur matching-index
+                              :word-boundary
+                              (case prev-match-type
+                                (:string-start :word-boundary)
+                                (every-character-is-letter-or-digit? string after-prev-match-index before-matching-index)
+                                false)))
+                streak-length (if streak? (inc streak-length) 0)]
+            (recur (next matching-indices)
+                   matching-index
                    match-type
-                   (if sequential-match?
-                     0
-                     (if same-match-type?
-                       (max 0 (dec same-match-type-score-iterations))
-                       1))
-                   (next matching-indices)
-                   (if same-match-type?
-                     (if (pos? same-match-type-score-iterations)
-                       (inc score)
-                       score)
-                     (+ score (- matching-index
-                                 (if (neg? prev-matching-index)
-                                   (prev-boundary-index string from-index matching-index)
-                                   prev-matching-index)))))))))))
+                   streak-length
+                   (if streak?
+                     (if (< streak-length 2) (inc score) score)
+                     (let [scored-range-start (if (= Long/MIN_VALUE prev-matching-index)
+                                                (prev-boundary-index string from-index matching-index)
+                                                prev-matching-index)
+                           added-score (- matching-index scored-range-start)]
+                       (+ score added-score))))))))))
 
-(defn- best-match [match-a [^long score-b :as match-b]]
+(defn- best-match
+  "Takes two matches returned from the match function and returns the one that
+  is best match. Returns the second match if given nil as the first argument."
+  [match-a [^long score-b :as match-b]]
   (let [^long score-a (if match-a (first match-a) Long/MAX_VALUE)]
     (if (<= score-a score-b)
       match-a
