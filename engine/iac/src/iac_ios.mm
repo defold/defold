@@ -2,7 +2,7 @@
 #include <dlib/log.h>
 #include <dlib/json.h>
 #include <script/script.h>
-#include <extension/extension.h>
+#include <dmsdk/extension/extension.h>
 
 #include "iac.h"
 
@@ -208,14 +208,14 @@ dmExtension::Result AppInitializeIAC(dmExtension::AppParams* params)
 {
     g_IAC.Clear();
     g_IAC.m_AppDelegate = [[IACAppDelegate alloc] init];
-    dmExtension::RegisterUIApplicationDelegate(g_IAC.m_AppDelegate);
+    dmExtension::RegisteriOSUIApplicationDelegate(g_IAC.m_AppDelegate);
     return dmExtension::RESULT_OK;
 }
 
 
 dmExtension::Result AppFinalizeIAC(dmExtension::AppParams* params)
 {
-    dmExtension::UnregisterUIApplicationDelegate(g_IAC.m_AppDelegate);
+    dmExtension::UnregisteriOSUIApplicationDelegate(g_IAC.m_AppDelegate);
     [g_IAC.m_AppDelegate release];
     g_IAC.m_AppDelegate = 0;
     g_IAC.Clear();

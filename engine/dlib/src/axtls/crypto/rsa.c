@@ -40,6 +40,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/crypto/crypto.h>
 
+namespace dmAxTls {
+
 void RSA_priv_key_new(RSA_CTX **ctx,
         const uint8_t *modulus, int mod_len,
         const uint8_t *pub_exp, int pub_len,
@@ -282,3 +284,5 @@ int RSA_encrypt(const RSA_CTX *ctx, const uint8_t *in_data, uint16_t in_len,
 }
 
 #endif  /* CONFIG_SSL_CERT_VERIFICATION */
+
+} // namespace

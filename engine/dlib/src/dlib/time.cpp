@@ -10,15 +10,6 @@
 
 namespace dmTime
 {
-#if defined(_WIN32)
-    static uint64_t GetQueryPerformanceFrequency()
-    {
-        uint64_t f;
-        QueryPerformanceFrequency((LARGE_INTEGER*) &f);
-        return f / 1000000;
-    }
-#endif
-
     void Sleep(uint32_t useconds)
     {
     #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
@@ -39,10 +30,17 @@ namespace dmTime
 #else
   #define DELTA_EPOCH_IN_MICROSECS  11644473600000000ULL
 #endif
-        static uint64_t f = GetQueryPerformanceFrequency();
+        FILETIME ft;
         uint64_t t;
-        QueryPerformanceCounter((LARGE_INTEGER*) &t);
-        return t / f;
+        GetSystemTimeAsFileTime(&ft);
+
+        t = ft.dwHighDateTime;
+        t <<= 32;
+        t |= ft.dwLowDateTime;
+
+        t /= 10;
+        t -= DELTA_EPOCH_IN_MICROSECS;
+        return t;
 #else
         timeval tv;
         gettimeofday(&tv, 0);
