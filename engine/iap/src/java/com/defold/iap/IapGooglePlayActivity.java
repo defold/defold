@@ -66,12 +66,12 @@ public class IapGooglePlayActivity extends Activity {
         this.finish();
     }
 
-    private void buy(String product) {
+    private void buy(String product, boolean productType) {
     	// Flush any pending items, in order to be able to buy the same (new) product again
     	processPendingConsumables();
 
         try {
-            Bundle buyIntentBundle = service.getBuyIntent(3, getPackageName(), product, "inapp", "");
+            Bundle buyIntentBundle = service.getBuyIntent(3, getPackageName(), product, productType, "");
             int response = getResponseCodeFromBundle(buyIntentBundle);
             if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
                 hasPendingPurchases = true;
@@ -145,6 +145,8 @@ public class IapGooglePlayActivity extends Activity {
     // Make buy response codes for all consumables not yet processed.
     private void processPendingConsumables() {
         try {
+            // Note: subscriptions cannot be consumed
+            // https://developer.android.com/google/play/billing/api.html#subs
             Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
             int response = getResponseCodeFromBundle(items);
             if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
@@ -170,11 +172,20 @@ public class IapGooglePlayActivity extends Activity {
         bundle.putString("action", Action.RESTORE.toString());
 
         try {
-            Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
-            response = getResponseCodeFromBundle(items);
+            Bundle allItems = new Bundle();
 
-            if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
-                bundle.putBundle("items", items);
+            Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
+            if (getResponseCodeFromBundle(items) == IapJNI.BILLING_RESPONSE_RESULT_OK) {
+                allItems.putAll(items);
+            }
+
+            Bundle subscriptions = service.getPurchases(3, getPackageName(), "subs", null);
+            if (getResponseCodeFromBundle(subscriptions) == IapJNI.BILLING_RESPONSE_RESULT_OK) {
+                allItems.putAll(subscriptions);
+            }
+
+            if (!allItems.isEmpty()) {
+                bundle.putBundle("items", allItems);
             }
         } catch (RemoteException e) {
             Log.e(IapGooglePlay.TAG, "Failed to restore purchases", e);
@@ -215,7 +226,7 @@ public class IapGooglePlayActivity extends Activity {
             public void onServiceConnected(ComponentName name, IBinder serviceBinder) {
                 service = IInAppBillingService.Stub.asInterface(serviceBinder);
                 if (action == Action.BUY) {
-                    buy(extras.getString(IapGooglePlay.PARAM_PRODUCT));
+                    buy(extras.getString(IapGooglePlay.PARAM_PRODUCT), extras.getBoolean(IapGooglePlay.PARAM_SUBSCRIPTION));
                 } else if (action == Action.RESTORE) {
                     restore();
                 } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {
@@ -271,7 +282,7 @@ public class IapGooglePlayActivity extends Activity {
         if( !isDone )
         {
             Intent intent = getIntent();
-            
+
             if( intent != null && intent.getComponent().getClassName().equals( getClass().getName() ) )
             {
                 Log.v(IapGooglePlay.TAG, "There's still an intent left: " + intent.getAction() );
