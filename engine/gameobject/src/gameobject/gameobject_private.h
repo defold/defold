@@ -319,6 +319,12 @@ namespace dmGameObject
     void UndoNewInstance(HCollection collection, HInstance instance);
     bool CreateComponents(HCollection collection, HInstance instance);
     void UpdateTransforms(HCollection collection);
+
+#if !defined(NDEBUG)
+    // Unit test functions
+    uint32_t GetAddToUpdateCount(HCollection collection); // Returns the number of items scheduled to be added to update
+    uint32_t GetRemoveFromUpdateCount(HCollection collection); // Returns the number of items scheduled to be removed from update
+#endif // NDEBUG
 }
 
 #endif // GAMEOBJECT_COMMON_H

@@ -577,6 +577,47 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti)
     Delete(go);
 }
 
+
+// DEF-3218: Removing the objects out of order caused an assert
+TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti2)
+{
+    Init();
+
+    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/a.goc", 2, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+
+    Update();
+
+    ASSERT_EQ(0u, dmGameObject::GetAddToUpdateCount(m_Collection));
+    ASSERT_EQ(0u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
+
+    dmGameObject::HInstance go9 = Spawn(m_Factory, m_Collection, "/a.goc", 9, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/a.goc", 3, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go4 = Spawn(m_Factory, m_Collection, "/a.goc", 4, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go6 = Spawn(m_Factory, m_Collection, "/a.goc", 6, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+
+    Delete(go4);
+    Delete(go2);
+    Delete(go6);
+    Delete(go3);
+    Delete(go9);
+
+    ASSERT_EQ(4u, dmGameObject::GetAddToUpdateCount(m_Collection));
+    ASSERT_EQ(5u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
+
+    PostUpdate();
+    // The linked list should now have been corrupted
+    // and the next spawned object won't get added to the AddToUpdate list
+    dmGameObject::HInstance go10 = Spawn(m_Factory, m_Collection, "/a.goc", 10, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+
+    ASSERT_EQ(1u, dmGameObject::GetAddToUpdateCount(m_Collection));
+    ASSERT_EQ(0u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
+
+    Delete(go10);
+    Update();
+    PostUpdate();
+}
+
+
 #undef ASSERT_INIT
 #undef ASSERT_ADD_TO_UPDATE
 #undef ASSERT_UPDATE
