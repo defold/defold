@@ -39,6 +39,8 @@
 #include <axtls/ssl/os_port.h>
 #include <axtls/ssl/ssl.h>
 
+namespace dmAxTls {
+
 /* The session expiry time */
 #define SSL_EXPIRY_TIME     (CONFIG_SSL_EXPIRY_TIME*3600)
 
@@ -1058,7 +1060,7 @@ static int send_raw_packet(SSL *ssl, uint8_t protocol)
     while (sent < pkt_size)
     {
         ret = SOCKET_WRITE(ssl->client_fd,
-                        &ssl->bm_all_data[sent], pkt_size-sent);
+                        (const char*)&ssl->bm_all_data[sent], pkt_size-sent);
 
         if (ret >= 0)
             sent += ret;
@@ -1173,7 +1175,7 @@ int send_packet(SSL *ssl, uint8_t protocol, const uint8_t *in, int length)
         if (ssl->version >= SSL_PROTOCOL_VERSION_TLS1_1)
         {
             uint8_t iv_size = ssl->cipher_info->iv_size;
-            uint8_t *t_buf = alloca(msg_length + iv_size);
+            uint8_t *t_buf = (uint8_t*)alloca(msg_length + iv_size);
             memcpy(t_buf + iv_size, ssl->bm_data, msg_length);
             if (get_random(iv_size, t_buf) < 0)
                 return SSL_NOT_OK;
@@ -1302,7 +1304,7 @@ int basic_read(SSL *ssl, uint8_t **in_data)
     if (IS_SET_SSL_FLAG(SSL_SENT_CLOSE_NOTIFY))
         return SSL_CLOSE_NOTIFY;
 
-    read_len = SOCKET_READ(ssl->client_fd, &buf[ssl->bm_read_index],
+    read_len = SOCKET_READ(ssl->client_fd, (char*)&buf[ssl->bm_read_index],
                             ssl->need_bytes-ssl->got_bytes);
 
     if (read_len < 0)
@@ -2459,3 +2461,5 @@ EXP_FUNC const char * STDCALL ssl_get_cert_subject_alt_dnsname(const SSL *ssl, i
 #endif  /* CONFIG_SSL_CERT_VERIFICATION */
 
 #endif /* CONFIG_BINDINGS */
+
+} // namespace

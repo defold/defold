@@ -35,10 +35,6 @@
 #ifndef HEADER_CRYPTO_MISC_H
 #define HEADER_CRYPTO_MISC_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdbool.h>
 #include <axtls/crypto/crypto.h>
 #include <axtls/crypto/bigint.h>
@@ -84,6 +80,8 @@ extern "C" {
 #define KEY_USAGE_CRL_SIGN                  0x0002
 #define KEY_USAGE_ENCIPHER_ONLY             0x0001
 #define KEY_USAGE_DECIPHER_ONLY             0x8000
+
+namespace dmAxTls {
 
 struct _x509_ctx
 {
@@ -206,8 +204,6 @@ EXP_FUNC void STDCALL print_blob(const char *format, const uint8_t *data, int si
 EXP_FUNC int STDCALL base64_decode(const char *in,  int len,
                     uint8_t *out, int *outlen);
 
-#ifdef __cplusplus
-}
-#endif
+} //namespace
 
 #endif

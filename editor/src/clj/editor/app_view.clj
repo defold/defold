@@ -789,7 +789,7 @@ If you do not specifically require different script states, consider changing th
     (ui/show! stage)))
 
 (handler/defhandler :documentation :global
-  (run [] (ui/open-url "http://www.defold.com/learn/")))
+  (run [] (ui/open-url "https://www.defold.com/learn/")))
 
 (handler/defhandler :report-issue :global
   (run [] (ui/open-url (github/new-issue-link))))
