@@ -405,7 +405,7 @@
      (core/scope basis node))))
 
 (defn- next-child-index [child-indices]
-  (if (seq child-indices) (inc (apply max (map second child-indices))) 0))
+  (inc (reduce max -1 (map second child-indices))))
 
 (defn- gen-gui-node-attach-fn [type]
   (fn [target source]
@@ -2688,7 +2688,8 @@
                      (move-child-node! selected -1))))
 
 (handler/defhandler :move-down :workbench
-  (active? [selection] (or (selection->gui-node selection) (selection->layer-node selection)))
+  (active? [selection] (or (selection->gui-node selection)
+                           (selection->layer-node selection)))
   (run [selection] (let [selected (g/override-root (handler/selection->node-id selection))]
                      (move-child-node! selected 1))))
 
