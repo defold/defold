@@ -100,6 +100,10 @@ public class IapGooglePlayActivity extends Activity {
             }
 
             JSONObject pd = new JSONObject(purchaseData);
+            if (!pd.isNull("autoRenewing")) {
+                Log.i(IapGooglePlay.TAG, "Will not consume purchase since it is a subscription.");
+                return true;
+            }
             String token = pd.getString("purchaseToken");
             int consumeResponse = service.consumePurchase(3, getPackageName(), token);
             if (consumeResponse == IapJNI.BILLING_RESPONSE_RESULT_OK) {
