@@ -1336,6 +1336,7 @@ If you do not specifically require different script states, consider changing th
 (defn- query-and-open! [workspace project app-view prefs term]
   (doseq [resource (dialogs/make-resource-dialog workspace project
                                                  (cond-> {:title "Open Assets"
+                                                          :accept-fn resource/editable-resource?
                                                           :selection :multiple
                                                           :ok-label "Open"
                                                           :tooltip-gen (partial gen-tooltip workspace project app-view)}
