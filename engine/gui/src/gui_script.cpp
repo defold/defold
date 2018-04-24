@@ -3819,7 +3819,7 @@ namespace dmGui
 
         if (dmGui::GetNodeIsBone(scene, node))
         {
-            return luaL_error(L, "cannot get animation for bone, did you mean to get skin for the spine model?");
+            return DM_LUA_ERROR("cannot get animation for bone, did you mean to get animation for the spine model?");
         }
 
         dmhash_t spine_anim_id = dmGui::GetNodeSpineAnimation(scene, node);
