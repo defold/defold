@@ -554,7 +554,7 @@
   (or (not-empty (:name dashboard-project))
       "Unnamed"))
 
-(def ^:private filter-dashboard-projects (partial fuzzy-choices/filter-options dashboard-project-name dashboard-project-name))
+(def ^:private filter-dashboard-projects (partial fuzzy-choices/filter-options fuzzy-choices/no-bonus dashboard-project-name dashboard-project-name))
 
 (defn- make-dashboard-project-entry
   ^Node [dashboard-project]

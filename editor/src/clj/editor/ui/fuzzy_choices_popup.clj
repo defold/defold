@@ -37,7 +37,7 @@
             height (max min-height (min pref-height max-height))]
         [width height]))))
 
-(def fuzzy-option-filter-fn fuzzy-choices/filter-options)
+(def fuzzy-option-filter-fn (partial fuzzy-choices/filter-options fuzzy-choices/no-bonus))
 
 (defn make-choices-list-view-cell [option->text option]
   (let [text (option->text option)

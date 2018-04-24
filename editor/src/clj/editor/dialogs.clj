@@ -296,7 +296,11 @@
 
     (ui/user-data stage ::selected-items)))
 
-(def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
+(defn- editable-resource-bonus
+  ^long [resource]
+  (if (resource/editable-resource? resource) -5 0))
+
+(def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options editable-resource-bonus resource/proj-path resource/proj-path))
 
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))

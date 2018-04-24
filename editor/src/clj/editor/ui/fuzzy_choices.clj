@@ -6,10 +6,10 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn- option->fuzzy-matched-option [option->text pattern option]
-  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
+(defn- option->fuzzy-matched-option [option->bonus option->text pattern option]
+  (when-some [[^long score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
     (with-meta option
-               {:score score
+               {:score (+ score ^long (option->bonus option))
                 :matching-indices matching-indices})))
 
 (defn- option-order [option->text a b]
@@ -35,12 +35,16 @@
                 (catch ClassCastException _ ; since value part of option may contain non-Comparable values (f.i. PersistentHashMap)
                   (compare (System/identityHashCode a) (System/identityHashCode b)))))))))))
 
-(defn filter-options [option->matched-text option->label-text filter-text options]
+(defn no-bonus
+  ^long [_option]
+  0)
+
+(defn filter-options [option->bonus option->matched-text option->label-text filter-text options]
   (if (empty? filter-text)
     options
     (sort (partial option-order option->label-text)
           (seq (r/foldcat (r/filter some?
-                                    (r/map (partial option->fuzzy-matched-option option->matched-text filter-text)
+                                    (r/map (partial option->fuzzy-matched-option option->bonus option->matched-text filter-text)
                                            options)))))))
 
 (defn- make-text-run [text style-class]
