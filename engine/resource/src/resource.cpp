@@ -1638,4 +1638,32 @@ void ReleaseBuiltinsManifest(HFactory factory)
     factory->m_BuiltinsManifest = 0;
 }
 
+struct ResourceIteratorCallbackInfo
+{
+    FResourceIterator   m_Callback;
+    void*               m_Context;
+    bool                m_ShouldContinue;
+};
+
+static void ResourceIteratorCallback(ResourceIteratorCallbackInfo* callback, const dmhash_t* id, SResourceDescriptor* resource)
+{
+    IteratorResource info;
+    info.m_Id           = resource->m_OriginalNameHash ? resource->m_OriginalNameHash : resource->m_NameHash;
+    info.m_SizeOnDisc   = resource->m_ResourceSizeOnDisc;
+    info.m_Size         = resource->m_ResourceSize ? resource->m_ResourceSize : resource->m_ResourceSizeOnDisc; // default to the size on disc if no in memory size was specified
+    info.m_RefCount     = resource->m_ReferenceCount;
+
+    if (callback->m_ShouldContinue)
+    {
+        callback->m_ShouldContinue = callback->m_Callback(info, callback->m_Context);
+    }
+}
+
+void IterateResources(HFactory factory, FResourceIterator callback, void* user_ctx)
+{
+    DM_MUTEX_SCOPED_LOCK(factory->m_LoadMutex);
+    ResourceIteratorCallbackInfo callback_info = {callback, user_ctx, true};
+    factory->m_Resources->Iterate<>(&ResourceIteratorCallback, &callback_info);
+}
+
 }

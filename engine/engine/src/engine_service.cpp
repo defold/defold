@@ -11,8 +11,12 @@
 #include <dlib/template.h>
 #include <dlib/profile.h>
 #include <ddf/ddf.h>
+#include <resource/resource.h>
 #include "engine_service.h"
 #include "engine_version.h"
+
+extern unsigned char PROFILER_HTML[];
+extern uint32_t PROFILER_HTML_SIZE;
 
 namespace dmEngineService
 {
@@ -477,5 +481,80 @@ namespace dmEngineService
 
         return engine_port;
     }
+
+    #define CHECK_RESULT_BOOL(_RESULT) \
+        if (r != dmWebServer::RESULT_OK)\
+        {\
+            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
+            return false; \
+        }
+
+    static dmWebServer::Result SendString(dmWebServer::Request* request, const char* str)
+    {
+        uint16_t len = (uint16_t)strlen(str);
+        dmWebServer::Result r = dmWebServer::Send(request, &len, 2);
+        if (r != dmWebServer::RESULT_OK)
+        {
+            return r;
+        }
+        r = dmWebServer::Send(request, str, len);
+        return r;
+    }
+
+    static bool ResourceIteratorFunction(const dmResource::IteratorResource& resource, void* user_ctx)
+    {
+        dmWebServer::Request* request = (dmWebServer::Request*)user_ctx;
+
+        const char* name = dmHashReverseSafe64(resource.m_Id);
+        const char* extension = strrchr(name, '.');
+        if (!extension)
+            extension = "";
+
+        dmWebServer::Result r;
+        r = SendString(request, name); CHECK_RESULT_BOOL(r);
+        r = SendString(request, extension); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &resource.m_Size, 4); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &resource.m_SizeOnDisc, 4); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &resource.m_RefCount, 4); CHECK_RESULT_BOOL(r);
+        return true;
+    }
+
+    static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
+    {
+        const char* FOURCC = "RESS";
+        dmWebServer::Result r = SendString(request, FOURCC);
+        if (r != dmWebServer::RESULT_OK)
+        {
+            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
+            return;
+        }
+
+        dmResource::HFactory factory = (dmResource::HFactory)context;
+        dmResource::IterateResources(factory, ResourceIteratorFunction, (void*)request);
+    }
+
+#undef CHECK_RESULT_BOOL
+
+    static void ProfileHandler(void* user_data, dmWebServer::Request* request)
+    {
+        dmWebServer::SetStatusCode(request, 200);
+        dmWebServer::Send(request, PROFILER_HTML, PROFILER_HTML_SIZE);
+    }
+
+    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory)
+    {
+        dmWebServer::HandlerParams params;
+        params.m_Handler = HttpResourceRequestCallback;
+        params.m_Userdata = factory;
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/resources_impl", &params);
+
+
+        // The entry point to the engine service profiler
+        dmWebServer::HandlerParams profile_params;
+        profile_params.m_Handler = ProfileHandler;
+        profile_params.m_Userdata = 0;
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/", &profile_params);
+    }
+
 }
 

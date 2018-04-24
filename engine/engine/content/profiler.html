@@ -112,17 +112,112 @@
               background-color: rgb(233, 233, 233);
             }
 
+            /* Resource tab specifics */
+
+            #tab_resources table > thead {
+                background-color: #aaaaaa;
+            }
+
+            #tab_resources td, #tab_resources th {
+                padding: 5px 10px;
+            }
+
+            #tab_resources td {
+                border: solid 1px #aaa;
+            }
+
+            #tab_resources table {
+                border-collapse: collapse;
+                border: 2px solid #888;
+            }
+
+            #res_tables {
+                margin-top: 16px;
+            }
+
+            .human-readable {
+                white-space: pre;
+                text-align: right;
+            }
+
+            /* Collection table tree specifics */
+
+            #collection_table {
+                float: left;
+                margin-right: 16px;
+                margin-bottom: 16px;
+            }
+
+
+            #collection_table .leaf {
+                color: #666;
+            }
+
+            #collection_table .leaf label {
+                margin-left: 32px;
+            }
+
+            #collection_table .collapsed {
+                display: none;
+            }
+
+            #collection_table input[type="checkbox"] {
+                display: none;
+            }
+
+            #collection_table input[type="checkbox"] + label::before {
+                content: "\25B8 ";
+                display: inline-block;
+                margin-right: 4px;
+                padding-left: 16px;
+                color: #444;
+            }
+
+            #collection_table input[type="checkbox"]:checked + label::before {
+                content: "\25BE ";
+            }
+
+            #collection_table .go_bone {
+                color: #bbbbbb;
+                font-style: italic;
+            }
+
+            #collection_table .go_generated {
+                color: #4444aa;
+            }
+
+            div.resource-table-sort {
+                float: left;
+                color: #777;
+                user-select: none;
+            }
+
+            div.resource-table-sort-none {
+                float: left;
+                visibility: hidden;
+                user-select: none;
+            }
+
+            div.resource-table-label {
+                display: inline;
+                user-select: none;
+            }
+
         </style>
         <script type="text/javascript">
 
             var ticksPerSecond = 1.0;
             var stringTable = {};
-            var frames = [];
+            var framesCpu = [];
+            var framesResources = [];
+            var framesGameObjects = [];
 
             // If running another server change base_url to value below, eg when testing
-            //var base_url = 'http://localhost:8002/'
+            // var base_url = 'http://localhost:8002/'
             var base_url = '/'
-            var request = new XMLHttpRequest();
+            var requestCpu = new XMLHttpRequest();
+            var requestGameObjects = new XMLHttpRequest();
+            var requestResources = new XMLHttpRequest();
 
             var capturedFrameCount = 0;
             var capturedSamplesData = [];
@@ -133,40 +228,152 @@
             var plotSamples = {};
             var plotCounters = {};
 
-            function capture(){
-                frames = [];
+            var sortResorcesSettings = { id : "resources_size_label", descending : true };
+            var resourceItems = [];
+
+            // Global vars to help with expand/collapse collection table functionality
+            var goRootsList = [];
+            var goList = {};
+
+            // Keep track of current profiler tab, always start with CPU
+            var currentTab = "tab_resources";
+
+            function switchTab()
+            {
+                var profilerTabs = document.getElementsByName('tab_selection');
+
+                var newTab = currentTab;
+                for (var i = 0, length = profilerTabs.length; i < length; i++)
+                {
+                    if (profilerTabs[i].checked)
+                    {
+                        newTab = profilerTabs[i].value;
+                        break;
+                    }
+                }
+
+                var currentTabElem = document.getElementById(currentTab);
+                var newTabElem = document.getElementById(newTab);
+                currentTabElem.style.display = "none";
+                newTabElem.style.display = "block";
+                currentTab = newTab;
+
+                capture();
+            }
+
+            function capture() {
+                if (currentTab == "tab_resources") {
+                    //captureGameObjects();
+                    captureResources();
+                } else {
+                    captureCpu();
+                }
+            }
+
+            function captureCpu() {
+                framesCpu = [];
                 capturedFrameCount = 0;
                 capturedSamplesData = [];
-                request.open('GET', base_url + 'strings', true);
-                request.overrideMimeType('text/plain; charset=x-user-defined');
-                request.onreadystatechange = handler;
-                request.send();
+                requestCpu.open('GET', base_url + 'strings', true);
+                requestCpu.overrideMimeType('text/plain; charset=x-user-defined');
+                requestCpu.onreadystatechange = handlerCpu;
+                requestCpu.send();
             }
 
-            function getChunk(url){
-                request.open('GET', base_url + url, true);
-                request.overrideMimeType('text/plain; charset=x-user-defined');
-                request.onreadystatechange = handler;
-                request.send();
+            function getChunkCpu(url){
+                requestCpu.open('GET', base_url + url, true);
+                requestCpu.overrideMimeType('text/plain; charset=x-user-defined');
+                requestCpu.onreadystatechange = handlerCpu;
+                requestCpu.send();
             }
 
-            readUInt32 = function(data, offset){
-                var a1 = data.charCodeAt(offset + 3) & 0xff;
-                var a2 = data.charCodeAt(offset + 2) & 0xff;
-                var a3 = data.charCodeAt(offset + 1) & 0xff;
-                var a4 = data.charCodeAt(offset + 0) & 0xff;
-                return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+            function captureGameObjects() {
+                framesGameObjects = [];
+                requestGameObjects.open('GET', base_url + 'gameobjects', true);
+                requestGameObjects.overrideMimeType('text/plain; charset=x-user-defined');
+                requestGameObjects.onreadystatechange = handlerGameObjects;
+                requestGameObjects.send();
             }
 
-            readUInt16 = function(data, offset){
-                var a1 = data.charCodeAt(offset + 1) & 0xff;
-                var a2 = data.charCodeAt(offset + 0) & 0xff;
-                return (a1 << 8) + a2;
+            function captureResources() {
+                framesResources = [];
+                requestResources.open('GET', base_url + 'resources_impl', true);
+                requestResources.overrideMimeType('text/plain; charset=x-user-defined');
+                requestResources.onreadystatechange = handlerResources;
+                requestResources.send();
             }
 
             readPtr = function(data, offset, size) {
                 // no support for pointer arithmetic here anyway, so just use the string.
                 return data.substring(offset, offset + size);
+            }
+
+            class MemoryFile {
+                constructor(data, size) {
+                    this.data = data;
+                    this.size = size;
+                    this.offset = 0;
+                }
+                eof() {
+                    return this.offset >= this.size;
+                }
+                readUInt16() {
+                    if (this.eof()) {
+                        return null;
+                    }
+                    var a1 = this.data.charCodeAt(this.offset + 1) & 0xff;
+                    var a2 = this.data.charCodeAt(this.offset + 0) & 0xff;
+                    this.offset += 2;
+                    return (a1 << 8) + a2;
+                }
+                readUInt32() {
+                    if (this.eof()) {
+                        return null;
+                    }
+                    var a1 = this.data.charCodeAt(this.offset + 3) & 0xff;
+                    var a2 = this.data.charCodeAt(this.offset + 2) & 0xff;
+                    var a3 = this.data.charCodeAt(this.offset + 1) & 0xff;
+                    var a4 = this.data.charCodeAt(this.offset + 0) & 0xff;
+                    this.offset += 4;
+                    return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+                }
+                readUInt64() {
+                    if (this.eof()) {
+                        return null;
+                    }
+                    var a1 = this.data.charCodeAt(this.offset + 7) & 0xff;
+                    var a2 = this.data.charCodeAt(this.offset + 6) & 0xff;
+                    var a3 = this.data.charCodeAt(this.offset + 5) & 0xff;
+                    var a4 = this.data.charCodeAt(this.offset + 4) & 0xff;
+                    var a5 = this.data.charCodeAt(this.offset + 3) & 0xff;
+                    var a6 = this.data.charCodeAt(this.offset + 2) & 0xff;
+                    var a7 = this.data.charCodeAt(this.offset + 1) & 0xff;
+                    var a8 = this.data.charCodeAt(this.offset + 0) & 0xff;
+                    this.offset += 8;
+                    return (a1 << 56) + (a2 << 48) + (a3 << 40) + (a4 << 32) + (a5 << 24) + (a6 << 16) + (a7 << 8) + a8;
+                }
+                readString() {
+                    var size = this.readUInt16();
+                    if (this.eof()) {
+                        return null;
+                    }
+                    if (this.eof()) {
+                        return null;
+                    }
+                    var s = this.data.substring(this.offset, this.offset + size)
+                    this.offset += size;
+                    return s;
+                }
+            }
+
+            class Resource {
+                constructor(name, type, size, sizeOnDisc, refCount) {
+                    this.name = name;
+                    this.type = type;
+                    this.size = size;
+                    this.sizeOnDisc = sizeOnDisc;
+                    this.refCount = refCount;
+                }
             }
 
             function loadProfile(d, table) {
@@ -257,34 +464,160 @@
                 }
             }
 
-            function handler(evtXHR){
-                if (request.readyState == 4) {
-                    if (request.status == 200) {
-                        var d = request.responseText;
+            function loadGameObjects(d) {
+                var size;
+                var offset = 0
+                var count = readUInt32(d, offset);
+                offset += 4;
+
+                for (var i = 0; i < count; ++i) {
+
+                    var index = readUInt32(d, offset);
+                    offset += 4;
+                    size = readUInt16(d, offset);
+                    offset += 2;
+                    var tag = readPtr(d, offset, size);
+                    offset += size;
+
+                    var nameCount = readUInt32(d, offset);
+                    offset += 4;
+                    var nameStrings = new Array(nameCount);
+                    for (var j = 0; j < nameCount; ++j) {
+                        size = readUInt16(d, offset);
+                        offset += 2;
+                        nameStrings[j] = readPtr(d, offset, size);
+                        offset += size;
+                    }
+
+                    var typeNameCount = readUInt32(d, offset);
+                    offset += 4;
+                    var typeNameStrings = new Array(typeNameCount);
+                    for (var j = 0; j < typeNameCount; ++j) {
+                        size = readUInt16(d, offset);
+                        offset += 2;
+                        typeNameStrings[j] = readPtr(d, offset, size);
+                        offset += size;
+                    }
+
+                    var snapshotCount = readUInt32(d, offset);
+                    offset += 4;
+                    var snapshots = new Array(snapshotCount);
+                    for (var j = 0; j < snapshotCount; ++j) {
+                        var resourceId = readUInt64(d, offset);
+                        offset += 8;
+                        var id = readUInt64(d, offset);
+                        offset += 8;
+                        var parent = readUInt32(d, offset);
+                        offset += 4;
+                        var flags = readUInt32(d, offset);              // Flags are bit field flags corresponding to SnapshotDataTypeFlags in gameobject_profiler.cpp
+                        offset += 4;
+                        var typeStringIndex = readUInt16(d, offset);
+                        offset += 2;
+                        var snapshot = {
+                            resourceId: resourceId,
+                            id: id,
+                            parent: parent,
+                            flags: flags,
+                            typeStringIndex: typeStringIndex
+                        };
+                        snapshots[j] = snapshot;
+                    }
+
+                    var prof = {
+                        index: index,
+                        tag: tag,
+                        nameStrings: nameStrings,
+                        typeNameStrings: typeNameStrings,
+                        snapshots: snapshots
+                    };
+                    framesGameObjects.push(prof);
+                }
+            }
+
+            function loadResources(d) {
+                var file = new MemoryFile(d, d.length);
+
+                while(!file.eof())
+                {
+                    var resourceName        = file.readString();
+                    var resourceType        = file.readString();
+                    var resourceSize        = file.readUInt32();
+                    var resourceSizeOnDisc  = file.readUInt32();
+                    var resourceRefCount    = file.readUInt32();
+
+                    var res = new Resource(resourceName, resourceType, resourceSize, resourceSizeOnDisc, resourceRefCount);
+                    framesResources.push(res);
+                }
+            }
+
+            function handlerCpu(evtXHR){
+                if (requestCpu.readyState == 4) {
+                    if (requestCpu.status == 200) {
+                        var d = requestCpu.responseText;
 
                         var type = d.substring(0, 4);
                         if (type == "PROF") {
                             capturedFrameCount += 1;
 
                             if (capturedFrameCount % 10 == 0)
-                                console.log("Capturing..." + capturedFrameCount);
+                                console.log("Capturing CPU..." + capturedFrameCount);
 
                             capturedSamplesData.push(d.substring(4));
                             if (capturedFrameCount < 20) {
-                                getChunk('profile')
+                                getChunkCpu('profile')
                             }
                             else {
 
                                 for (var i in capturedSamplesData) {
                                     var prof = loadProfile(capturedSamplesData[i], stringTable);
-                                    frames.push(prof);
+                                    framesCpu.push(prof);
                                 }
-                                captureDone();
+                                captureCpuDone();
                             }
                         }
                         else if (type == "STRS") {
                             loadStrings(d, stringTable);
-                            getChunk('profile');
+                            getChunkCpu('profile');
+                        }
+                        else {
+                            alert("Unknown chunk type: " + type);
+                        }
+                    }
+                    else {
+                        alert("Failed to load data");
+                    }
+                }
+            }
+
+            function handlerGameObjects(evtXHR){
+                if (requestGameObjects.readyState == 4) {
+                    if (requestGameObjects.status == 200) {
+                        var d = requestGameObjects.responseText;
+                        var type = d.substring(0, 4);
+                        if (type == "GOBJ") {
+                            console.log("Capturing gameobjects...");
+                            loadGameObjects(d.substring(4));
+                            captureGameObjectsDone();
+                        }
+                        else {
+                            alert("Unknown chunk type: " + type);
+                        }
+                    }
+                    else {
+                        alert("Failed to load data");
+                    }
+                }
+            }
+
+            function handlerResources(evtXHR){
+                if (requestResources.readyState == 4) {
+                    if (requestResources.status == 200) {
+                        var d = requestResources.responseText;
+                        var type = d.substring(2, 6); // skip the size of the string (uint16)
+                        if (type == "RESS") {
+                            console.log("Capturing resources...");
+                            loadResources(d.substring(6));
+                            captureResourcesDone();
                         }
                         else {
                             alert("Unknown chunk type: " + type);
@@ -323,8 +656,8 @@
 
                     var max_sample = 1;
                     var max_counter = 0;
-                    for (var i in frames) {
-                        var f = frames[i];
+                    for (var i in framesCpu) {
+                        var f = framesCpu[i];
                         for (var j in f.samples) {
                             var s = f.samples[j];
                             if (plotSamples[s.name]) {
@@ -376,13 +709,13 @@
                     w -= margin * 2;
                     var xstep = 1;
                     var min_xstep_px = 40;
-                    while (w / (frames.length / xstep) < min_xstep_px) {
+                    while (w / (framesCpu.length / xstep) < min_xstep_px) {
                         xstep = Math.round(xstep / 5 + 1) * 5;
                     }
 
                     var i = 0;
-                    while (i < frames.length) {
-                        x = w * i / (frames.length - 1)
+                    while (i < framesCpu.length) {
+                        x = w * i / (framesCpu.length - 1)
                         ctx.fillStyle = "rgb(190, 190, 190)";
                         ctx.fillRect(x, 0, 1, h);
                         ctx.fillStyle = "rgb(60, 60, 60)";
@@ -399,8 +732,8 @@
                         ctx.beginPath();
                         var x = 0;
                         var first = true;
-                        for (var i in frames) {
-                            var f = frames[i];
+                        for (var i in framesCpu) {
+                            var f = framesCpu[i];
                             var sum = 0;
                             for (var j in f.samples) {
                                 var s = f.samples[j];
@@ -409,7 +742,7 @@
                                 }
                             }
 
-                            var x = w * i / (frames.length - 1);
+                            var x = w * i / (framesCpu.length - 1);
                             var y = h - h * sum / max_sample;
                             if (first)
                                 ctx.moveTo(x, y);
@@ -428,13 +761,13 @@
                         ctx.beginPath();
                         var x = 0;
                         var first = true;
-                        for (var i in frames) {
-                            var f = frames[i];
+                        for (var i in framesCpu) {
+                            var f = framesCpu[i];
                             var cd = f.counters_data[name];
                             if (cd == undefined)
                                 continue;
 
-                            var x = w * i / (frames.length - 1);
+                            var x = w * i / (framesCpu.length - 1);
                             var y = h - h * cd.value / max_counter;
                             if (first)
                                 ctx.moveTo(x, y);
@@ -614,7 +947,7 @@
                 instance.onframe = function(){
                 }
 
-                instance.draw = function(frames){
+                instance.draw = function(framesCpu){
                     while (instance.placeholder.hasChildNodes()) {
                         instance.placeholder.removeChild(instance.placeholder.firstChild);
                     }
@@ -642,27 +975,27 @@
                     instance.placeholder.appendChild(boxes_div)
 
                     var max_frame = 0;
-                    for (var i in frames) {
-                        max_frame = Math.max(max_frame, frames[i].frame_time);
+                    for (var i in framesCpu) {
+                        max_frame = Math.max(max_frame, framesCpu[i].frame_time);
                     }
 
                     max_frame = Math.round(max_frame + 0.5);
                     time_div.innerHTML = max_frame + "ms";
 
                     var total_used = 0;
-                    for (var i in frames) {
+                    for (var i in framesCpu) {
                         var node = document.createElement("div");
                         node.frameNumber = i;
                         node.onmousedown = function(evt){
                             instance.onframe(evt.target.frameNumber);
                         };
-                        var frameTime = frames[i].frame_time;
+                        var frameTime = framesCpu[i].frame_time;
                         var class_ = "frameblock_green";
                         if (frameTime > 1000.0 / 60.0)
                             class_ = "frameblock_red";
 
-                        var box_w = Math.round(boxes_div.offsetWidth / frames.length);
-                        if (i == frames.length - 1)
+                        var box_w = Math.round(boxes_div.offsetWidth / framesCpu.length);
+                        if (i == framesCpu.length - 1)
                             box_w = boxes_div.offsetWidth - total_used
                         total_used += box_w;
 
@@ -779,8 +1112,8 @@
 
                 var color_index1 = 0;
                 var color_index2 = 0;
-                for (var i in frames) {
-                    var f = frames[i];
+                for (var i in framesCpu) {
+                    var f = framesCpu[i];
                     for (var name in f.scopes_data) {
                         var sd = f.scopes_data[name];
                         if (scopeColors[name] == undefined) {
@@ -805,28 +1138,314 @@
                 }
             }
 
-            function captureDone(){
+            function captureCpuDone(){
                 calculatePalette();
 
-                framesGraph.draw(frames);
-                samplesGraph.draw(frames[0]);
+                framesGraph.draw(framesCpu);
+                samplesGraph.draw(framesCpu[0]);
                 plotGraph.draw();
-                updateScopesTable(frames[0]);
-                updateSamplesTable(frames[0]);
-                updateCountersTable(frames[0]);
+                updateScopesTable(framesCpu[0]);
+                updateSamplesTable(framesCpu[0]);
+                updateCountersTable(framesCpu[0]);
             }
 
-            function clickFrame(i){
-                samplesGraph.draw(frames[i]);
-                updateScopesTable(frames[i]);
-                updateSamplesTable(frames[i]);
-                updateCountersTable(frames[i]);
+            function clickCpuFrame(i){
+                samplesGraph.draw(framesCpu[i]);
+                updateScopesTable(framesCpu[i]);
+                updateSamplesTable(framesCpu[i]);
+                updateCountersTable(framesCpu[i]);
+            }
+
+            function expandRecursive(node) {
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    expandRecursive(child);
+                    child.rowElement.classList.remove('collapsed');
+                    if (child.expandElem != undefined) {
+                        child.expandElem.checked = true;
+                    }
+                }
+            }
+
+            function collapseRecursive(node) {
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    collapseRecursive(child);
+                    child.rowElement.classList.add('collapsed');
+                    if (child.expandElem != undefined) {
+                        child.expandElem.checked = false;
+                    }
+                }
+            }
+
+            function toggleExpand(event)
+            {
+                // Get row
+                var row = event.srcElement.parentElement.parentElement;
+
+                // Get node obj from row
+                var nodeId = row.getAttribute("data-node-id");
+                var node = goList[nodeId];
+
+                var expanded = event.srcElement.checked;
+
+                // Toggle class on child elems
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    if (expanded) {
+                        child.rowElement.classList.remove('collapsed');
+                    } else {
+                        collapseRecursive(child);
+                        if (child.expandElem != undefined) {
+                            child.expandElem.checked = false;
+                        }
+                        child.rowElement.classList.add('collapsed');
+                    }
+                }
+            }
+
+            function collectionTreeExpand() {
+                for (var i = 0; i < goRootsList.length; i++) {
+                    var node = goRootsList[i];
+                    expandRecursive(node);
+                    if (node.expandElem != undefined) {
+                        node.expandElem.checked = true;
+                    }
+                }
+            }
+
+            function collectionTreeCollapse() {
+                for (var i = 0; i < goRootsList.length; i++) {
+                    var node = goRootsList[i];
+                    collapseRecursive(node);
+                    if (node.expandElem != undefined) {
+                        node.expandElem.checked = false;
+                    }
+                }
+            }
+
+            function addCollectionView(tableElem, depth, node) {
+
+                var rowElement = document.createElement("tr");
+                rowElement.setAttribute("data-tree-level", depth);
+                rowElement.setAttribute("data-node-id", node.id);
+                if (node.children.length == 0) {
+                    rowElement.classList = ["leaf"];
+                }
+                if (depth > 0) {
+                    rowElement.classList.add("collapsed");
+                }
+                tableElem.appendChild(rowElement);
+                node.rowElement = rowElement;
+
+                // Name column
+                var nameElement = document.createElement("td");
+                nameElement.style.paddingLeft = depth * 12 + "px";
+                rowElement.appendChild(nameElement);
+
+                // Expand elem
+                if (node.children.length > 0) {
+                    var expandElem = document.createElement("input");
+                    expandElem.type = "checkbox";
+                    expandElem.id = "checkbox" + node.id;
+                    expandElem.onchange = toggleExpand;
+                    nameElement.appendChild(expandElem);
+                    node.expandElem = expandElem;
+                }
+
+                // Name label element
+                var nameSpanElem = document.createElement("label");
+                nameSpanElem.innerText = node.name;
+                nameSpanElem.htmlFor = "checkbox" + node.id;
+
+                // Style by flags
+                if(node.flags & 1<<0) {
+                    nameSpanElem.classList.add("go_bone");
+                }
+                if(node.flags & 1<<1) {
+                    nameSpanElem.classList.add("go_generated");
+                }
+
+                nameElement.appendChild(nameSpanElem);
+
+                // // Size column
+                // var sizeElement = document.createElement("td");
+                // sizeElement.innerText = "0";
+                // rowElement.appendChild(sizeElement);
+
+                // Type column
+                var typeElement = document.createElement("td");
+                typeElement.innerText = node.type;
+                rowElement.appendChild(typeElement);
+
+                for (var i = 0; i < node.children.length; i++) {
+                    addCollectionView(tableElem, depth+1, node.children[i]);
+                }
+
+                goList[node.id] = node;
+            }
+
+            function rebuildGameObjectHTML(event) {
+                goList = {};
+                goRootsList = [];
+                var currentFrame = framesGameObjects[0];
+
+                // Clear visual view
+                var collectionTreeElem = document.getElementById("collection_table_body");
+                collectionTreeElem.innerHTML = "";
+
+                // Build collection hierarchy
+                var nodes = [];
+                var currentSnapshots = currentFrame.snapshots
+                for (var i = 0; i < currentSnapshots.length; i++) {
+                    var nodeId = i;
+                    var nodeName = currentFrame.nameStrings[i];
+                    var nodeType = currentFrame.typeNameStrings[currentSnapshots[i].typeStringIndex];
+                    var nodeFlags = currentSnapshots[i].flags;
+
+                    var newNode = { id: nodeId, name: nodeName, type: nodeType, flags : nodeFlags, children: [] };
+
+                    // Find parent and attach node as child
+                    var parentNode = undefined;
+                    if (currentSnapshots[i].parent != -1) {
+                        parentNode = nodes[currentSnapshots[i].parent];
+                        parentNode.children[parentNode.children.length] = newNode;
+                    } else {
+                        goRootsList[goRootsList.length] = newNode;
+                    }
+
+                    newNode.parent = parentNode;
+                    nodes[i] = newNode;
+                }
+
+                // Build visual view of hierarchy
+                for (var i = 0; i < goRootsList.length; i++) {
+                    addCollectionView(collectionTreeElem, 0, goRootsList[i]);
+                }
+
+            }
+
+            function captureGameObjectsDone(){
+                console.log("Capturing gameobjects done.");
+                rebuildGameObjectHTML();
+            }
+
+            function humanReadableSize(bytes) {
+                var unit = 0;
+                while (bytes >= 1024) {
+                    bytes /= 1024;
+                    unit++;
+                }
+                return (unit ? bytes.toFixed(1) + ' ' : bytes) + ' KMGTPEZY'[unit] + 'B';
+            }
+
+            function rebuildResourceItems(event) {
+                // Build resource table
+                resourceItems = [];
+                for (var i = 0; i < framesResources.length; i++) {
+                    var res = framesResources[i];
+                    resourceItems[i] = {    name: res.name,
+                                            type: res.type,
+                                            size: res.size,
+                                            sizeOnDisc: res.sizeOnDisc,
+                                            humanReadableSize: humanReadableSize(res.size),
+                                            humanReadableSizeOnDisc: humanReadableSize(res.sizeOnDisc),
+                                            referenceCount: res.refCount };
+                }
+            }
+
+            var setResourceSortPredicate = function(object) {
+                var typeToName = {
+                    resources_resource_label: "Resource",
+                    resources_size_label: "Size",
+                    resources_size_on_disc_label: "Size on Disc",
+                    resources_type_label: "Type",
+                    resources_refcount_label: "RefCount"
+                };
+
+                if(sortResorcesSettings.id == object.id) {
+                    sortResorcesSettings.descending = !sortResorcesSettings.descending;
+                } else {
+                    var e = document.getElementById(sortResorcesSettings.id);
+                    e.innerHTML = '<div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">' + typeToName[sortResorcesSettings.id] + '</div>';
+                    sortResorcesSettings.id = object.id;
+                    sortResorcesSettings.descending = true;
+                }
+
+                object.innerHTML = '<div class="resource-table-sort">' + (sortResorcesSettings.descending ? '&#x25BC' : '&#x25B2') + '</div><div class="resource-table-label">' + typeToName[sortResorcesSettings.id]  + '</div>';
+                rebuildResourceView();
+            }
+
+            function rebuildResourceView() {
+
+                // Sort items on predicate
+                var typeToKey = {
+                    resources_resource_label: "name",
+                    resources_size_label: "size",
+                    resources_size_on_disc_label: "sizeOnDisc",
+                    resources_type_label: "type",
+                    resources_refcount_label: "referenceCount"
+                };
+                var typeKey = typeToKey[sortResorcesSettings.id];
+                switch( typeKey ) {
+                    case "name":
+                    case "type":
+                        resourceItems.sort( sortResorcesSettings.descending ? function(a, b) { return a[typeKey] < b[typeKey] ? -1 : (a[typeKey] > b[typeKey] ? 1 : 0) }  :  function(a, b) { return a[typeKey] < b[typeKey] ? 1 : (a[typeKey] > b[typeKey] ? -1 : 0) } );
+                        break;
+
+                    default:
+                        resourceItems.sort( sortResorcesSettings.descending ? function(a, b) { return b[typeKey] - a[typeKey]; } : function(b, a) { return b[typeKey] - a[typeKey]; } );
+                        break;
+                }
+
+                // Clear visual view
+                var resourceTableElem = document.getElementById("resource_table_body");
+                resourceTableElem.innerHTML = "";
+
+                // Build visual view of resources
+                for (var i = 0; i < resourceItems.length; i++) {
+                    var rowElem = document.createElement("tr");
+                    resourceTableElem.appendChild(rowElem);
+
+                    var nameElem = document.createElement("td");
+                    nameElem.innerText = resourceItems[i].name;
+                    rowElem.appendChild(nameElem);
+
+                    var sizeElem = document.createElement("td");
+                    sizeElem.classList = ["human-readable"];
+                    sizeElem.innerHTML = '<span title="' + resourceItems[i].size + ' bytes">' + resourceItems[i].humanReadableSize + "</span>";
+                    rowElem.appendChild(sizeElem);
+
+                    var sizeOnDiscElem = document.createElement("td");
+                    sizeOnDiscElem.classList = ["human-readable"];
+                    sizeOnDiscElem.innerHTML = '<span title="' + resourceItems[i].sizeOnDisc + ' bytes">' + resourceItems[i].humanReadableSizeOnDisc + "</span>";
+                    rowElem.appendChild(sizeOnDiscElem);
+
+                    var typeElem = document.createElement("td");
+                    typeElem.innerText = resourceItems[i].type;
+                    rowElem.appendChild(typeElem);
+
+                    var refcountElem = document.createElement("td");
+                    refcountElem.innerText = resourceItems[i].referenceCount;
+                    rowElem.appendChild(refcountElem);
+                }
+
+            }
+
+            function rebuildResourceHTML(event) {
+                rebuildResourceItems(event);
+                rebuildResourceView();
+            }
+
+            function captureResourcesDone(){
+                console.log("Capturing resources done.");
+                rebuildResourceHTML();
             }
 
             function init(){
                 var frames_node = document.getElementById("frames");
                 framesGraph = newFramesGraph(frames_node);
-                framesGraph.onframe = clickFrame;
+                framesGraph.onframe = clickCpuFrame;
 
                 var frame_canvas_node = document.getElementById("frame-canvas");
                 samplesGraph = newSamplesGraph(frame_canvas_node);
@@ -834,7 +1453,8 @@
                 var plot_canvas_node = document.getElementById("plot-canvas");
                 plotGraph = newPlotGraph(plot_canvas_node);
 
-                capture();
+                //captureCpu();
+                captureResources();
             }
         </script>
     </head>
@@ -842,65 +1462,103 @@
         <div style="margin-bottom: 8px;">
             <input type="button" value="Capture" onclick="capture();">
             </input>
+            Profiler: <input type="radio" onchange="switchTab()" value="tab_cpu" name="tab_selection" id="tab_selection_cpu" checked></input>
+            <label for="tab_selection_cpu">CPU</label>
+            <input type="radio" onchange="switchTab()" value="tab_resources" name="tab_selection" id="tab_selection_resources"></input>
+            <label for="tab_selection_resources">Resources</label>
         </div>
-        <div id="frames" style="height: 60px;">
+        <div id="tab_resources" style="display: none;">
+            <input type="button" value="Expand All" onclick="collectionTreeExpand();">
+            </input><input type="button" value="Collapse All" onclick="collectionTreeCollapse();">
+            </input>
+            <div id="res_tables">
+                <table id="collection_table">
+                    <thead>
+                        <tr>
+                            <th>Collection</th>
+                            <!-- <th>Total Size</th> -->
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody id="collection_table_body">
+                    </tbody>
+                </table>
+                <table id="resource_table">
+                    <thead>
+                        <tr>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_resource_label"><div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">Resource</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_label"><div class="resource-table-sort">&#x25BC</div><div class="resource-table-label">Size</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_on_disc_label"><div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">Size On Disc</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_type_label"><div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">Type</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_refcount_label"><div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">RefCount</div></th>
+                        </tr>
+                    </thead>
+                    <tbody id="resource_table_body">
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <br/>
-        <table border="0" style="border-spacing: 0px; _width: 1000px;">
-            <tr>
-                <td valign="top">
-                    <table id="scopes-table" class="prof-table">
-                        <th class="prof-table">
-                            Scope
-                        </th>
-                        <th class="prof-table">
-                            Time(ms)
-                        </th>
-                        <th class="prof-table">
-                            Average(ms)
-                        </th>
-                        <tr/>
-                    </table>
-                </td>
-                <td style="width: 20px">
-                </td>
-                <td valign="top" align="center">
-                    <table id="samples-table" class="prof-table">
-                        <th class="prof-table">
-                            Sample
-                        </th>
-                        <th class="prof-table">
-                            Time(ms)
-                        </th>
-                        <th class="prof-table">
-                            Average(ms)
-                        </th>
-                    </table>
-                </td>
-                <td style="width: 20px">
-                </td>
-                <td valign="top" align="right">
-                    <table id="counters-table" class="prof-table">
-                        <th class="prof-table">
-                            Counter
-                        </th>
-                        <th class="prof-table">
-                            Amount
-                        </th>
-                        <th class="prof-table">
-                        </th>
-                    </table>
-                </td>
-            </tr>
-        </table>
-        <br/>
-        <div id="plot">
-            <canvas id="plot-canvas" style="float: left;" width="1000px" height="400px">
-            </canvas>
-        </div>
-        <div id="frame" style="height: 1500px;">
-            <canvas id="frame-canvas" style="float: left;" width="1000px" height="1500px">
-            </canvas>
+        <div id="tab_cpu">
+            <div id="frames" style="height: 60px;">
+            </div>
+            <br/>
+            <table border="0" style="border-spacing: 0px; _width: 1000px;">
+                <tr>
+                    <td valign="top">
+                        <table id="scopes-table" class="prof-table">
+                            <th class="prof-table">
+                                Scope
+                            </th>
+                            <th class="prof-table">
+                                Time(ms)
+                            </th>
+                            <th class="prof-table">
+                                Average(ms)
+                            </th>
+                            <tr/>
+                        </table>
+                    </td>
+                    <td style="width: 20px">
+                    </td>
+                    <td valign="top" align="center">
+                        <table id="samples-table" class="prof-table">
+                            <th class="prof-table">
+                                Sample
+                            </th>
+                            <th class="prof-table">
+                                Time(ms)
+                            </th>
+                            <th class="prof-table">
+                                Average(ms)
+                            </th>
+                        </table>
+                    </td>
+                    <td style="width: 20px">
+                    </td>
+                    <td valign="top" align="right">
+                        <table id="counters-table" class="prof-table">
+                            <th class="prof-table">
+                                Counter
+                            </th>
+                            <th class="prof-table">
+                                Amount
+                            </th>
+                            <th class="prof-table">
+                            </th>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <br/>
+            <div id="plot">
+                <canvas id="plot-canvas" style="float: left;" width="1000px" height="400px">
+                </canvas>
+            </div>
+            <div id="frame" style="height: 1500px;">
+                <canvas id="frame-canvas" style="float: left;" width="1000px" height="1500px">
+                </canvas>
+            </div>
+
         </div>
     </body>
 </html>
