@@ -255,6 +255,8 @@
                                   {} timelines)]
     (sort-by :bone-index (vals tracks-by-bone))))
 
+(def slot-signal-unchanged 0x10CCED)
+
 (defn- build-mesh-tracks [slot-timelines do-timelines duration sample-rate spf base-slots]
   (let [; Reshape do-timelines into slot-timelines
         do-by-slot (into {} (map (fn [[slot timeline]]
@@ -267,7 +269,7 @@
                                                  ; Supply implicit slots with 0 in offset
                                                  all (reduce (fn [m slot]
                                                                (if (not (contains? m slot))
-                                                                 (assoc m slot [{"time" t "offset" 0}])
+                                                                 (assoc m slot [{"time" t "offset" slot-signal-unchanged}])
                                                                  m))
                                                              explicit (keys m))]
                                              (merge-with into m all)))
@@ -539,7 +541,7 @@
           (map-indexed (fn [i slot]
                          (let [slot-name (get slot "name")
                                attachment-points (into [] (get attachment-points-by-slot-name slot-name))
-                               attachment-points-v (into [] (zipmap attachment-points (repeat (count attachment-points) -1)))
+                               attachment-points-v (into {} (zipmap attachment-points (repeat (count attachment-points) -1)))
                                bone-index (bone-id->index (murmur/hash64 (get slot "bone")))
                                default-attachment (get slot "attachment")]
                            [slot-name
@@ -577,12 +579,12 @@
 
 (defn- update-slot-attachment-indices
   [slot-name slot-attachments-x slot-attachments-j meshes]
-  (reduce-kv (fn [attachment attachment-point-index [attachment-name attachment-indx]]
-               (let [mesh-entry (attachment-entry->named-attachment [attachment-name (get slot-attachments-j attachment-name) slot-name])
+  (reduce-kv (fn [attachment attachment-id attachment-indx]
+               (let [mesh-entry (attachment-entry->named-attachment [attachment-id (get slot-attachments-j attachment-id) slot-name])
                      mesh-index (mesh-value->mesh-index meshes mesh-entry)
                      mesh-index (if (not= mesh-index -1) mesh-index attachment-indx)]
-                   (assoc attachment attachment-point-index [attachment-name mesh-index])))
-             []
+                   (assoc attachment attachment-id mesh-index)))
+             {}
              slot-attachments-x))
 
 (defn- update-skin-attachment-indices
@@ -699,10 +701,11 @@
                                                         {:id         (murmur/hash64 skin-name)
                                                          :mesh-slots (mapv (fn [slot]
                                                                              (let [slot-name (key slot)
-                                                                                   slot-data (val slot)]
-                                                                               {:mesh-attachments (mapv (fn [[_ attachment-index]]
-                                                                                                          attachment-index)
-                                                                                                        (get slot-data :attachment-points))
+                                                                                   slot-data (val slot)
+                                                                                   attachment-points (get slot-data :attachment-points)]
+                                                                               {:mesh-attachments (mapv (fn [attachment-name]
+                                                                                                          (get attachment-points attachment-name))
+                                                                                                        (get slot-data :attachment-names))
                                                                                 :active-index     (get slot-data :active-attachment -1)
                                                                                 :skin-color       (get slot-data :skin-color)}))
                                                                            (sort-by (fn [[_ slot-data]]
