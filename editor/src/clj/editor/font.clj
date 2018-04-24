@@ -1,5 +1,6 @@
 (ns editor.font
   (:require [clojure.string :as s]
+            [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.graph-util :as gu]
@@ -19,13 +20,16 @@
             [editor.gl.pass :as pass]
             [schema.core :as schema])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
+           [com.defold.editor.pipeline BMFont]
            [editor.types AABB]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.vertex2 VertexBuffer]
            [java.nio ByteBuffer]
+           [java.nio.file Paths]
            [com.jogamp.opengl GL GL2]
            [javax.vecmath Matrix4d Point3d Vector3d]
-           [com.google.protobuf ByteString]))
+           [com.google.protobuf ByteString]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -373,24 +377,25 @@
           (g/->error _node-id :font :fatal font (str "Failed to generate bitmap from Font. " (.getMessage error)))))))
 
 
-(defn- make-font-resource-resolver [resource-map]
-  ;; Note: We only resolve absolute paths, and only to existing resources.
-  resource-map)
+(defn- make-font-resource-resolver [font resource-map]
+  (let [base-path (resource/parent-proj-path (resource/proj-path font))]
+    (fn [path]
+      (let [proj-path (str base-path "/" path)]
+        (resource-map proj-path)))))
 
-(g/defnk produce-font-map [_node-id font type pb-msg]
-  (let [resource-map (g/node-value (:workspace font) :resource-map)]
-    (make-font-map _node-id font type pb-msg (make-font-resource-resolver resource-map))))
+(g/defnk produce-font-map [_node-id font type font-resource-map pb-msg]
+  (make-font-map _node-id font type pb-msg (make-font-resource-resolver font font-resource-map)))
 
 (defn- build-font [resource dep-resources user-data]
-  (let [{:keys [font type resource-map pb-msg]} user-data
-        font-resource-resolver (make-font-resource-resolver resource-map)
+  (let [{:keys [font type font-resource-map pb-msg]} user-data
+        font-resource-resolver (make-font-resource-resolver font font-resource-map)
         font-map (make-font-map nil font type pb-msg font-resource-resolver)]
     (g/precluding-errors
       [font-map]
       (let [font-map (assoc font-map :textures [(resource/proj-path (second (first dep-resources)))])]
         {:resource resource :content (protobuf/map->bytes Font$FontMap font-map)}))))
 
-(g/defnk produce-build-targets [_node-id resource font type pb-msg #_font-map material dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource font type font-resource-map font-resource-hashes pb-msg material dep-build-targets]
   (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
                               (validation/prop-error :fatal _node-id :material validation/prop-resource-not-exists? material "Material")]
                              (remove nil?)
@@ -402,11 +407,34 @@
         :user-data {:font font
                     :type type
                     :pb-msg pb-msg
-                    :resource-map (g/node-value (:workspace font) :resource-map)}
+                    :font-resource-map font-resource-map
+                    :font-resource-hashes font-resource-hashes}
         :deps (flatten dep-build-targets)}]))
 
 (g/defnode FontSourceNode
-  (inherits resource-node/ResourceNode))
+  (inherits resource-node/ResourceNode)
+  (input texture-resource resource/Resource)
+  (input texture-size g/Any) ; we pipe in size to provoke errors, for instance if the texture node is defective / non-existant
+  (output font-resource-map g/Any (g/fnk [texture-resource texture-size]
+                                         (if texture-resource
+                                           {(resource/proj-path texture-resource) texture-resource}
+                                           {}))))
+
+(defn load-font-source [project self resource]
+  (when (= (resource/ext resource) "fnt")
+    (let [bm-font (BMFont.)]
+      (with-open [bm-stream (io/input-stream resource)]
+        (.parse bm-font bm-stream))
+      (let [;; this weird dance stolen from Fontc.java
+            texture-file-name (.. (-> (.. bm-font page (get 0))
+                                      FilenameUtils/normalize
+                                      (Paths/get (into-array String [])))
+                                  getFileName
+                                  toString)
+            texture-resource (workspace/resolve-resource resource texture-file-name)]
+        (when texture-resource
+          (project/connect-resource-node project texture-resource self [[:resource :texture-resource]
+                                                                        [:size :texture-size]]))))))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))
@@ -461,7 +489,8 @@
     (value (gu/passthrough font-resource))
     (set (fn [_evaluation-context self old-value new-value]
            (project/resource-setter self old-value new-value
-                                    [:resource :font-resource])))
+                                    [:resource :font-resource]
+                                    [:font-resource-map :font-resource-map])))
     (dynamic error (g/fnk [_node-id font-resource]
                           (or (validation/prop-error :fatal _node-id :font validation/prop-nil? font-resource "Font")
                               (validation/prop-error :fatal _node-id :font validation/prop-resource-not-exists? font-resource "Font"))))
@@ -535,10 +564,12 @@
   (input material-resource resource/Resource)
   (input material-samplers [g/KeywordMap])
   (input material-shader ShaderLifecycle)
+  (input font-resource-map g/Any)
 
   (output outline g/Any :cached (g/fnk [_node-id] {:node-id _node-id :label "Font" :icon font-icon}))
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
+  (output font-resource-hashes g/Any (g/fnk [font-resource-map] (map resource/resource->sha1-hex (vals font-resource-map))))
   (output build-targets g/Any :cached produce-build-targets)
   (output font-map g/Any :cached produce-font-map)
   (output scene g/Any :cached produce-scene)
@@ -590,6 +621,8 @@
       :ext font-file-extensions
       :label "Font"
       :node-type FontSourceNode
+      :load-fn load-font-source
+      :stateless? true
       :icon font-icon
       :view-types [:default])))
 
