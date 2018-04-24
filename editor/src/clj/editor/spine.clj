@@ -34,7 +34,8 @@
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [com.jogamp.opengl GL GL2]
            [javax.vecmath Matrix4d Point2d Point3d Quat4d Vector2d Vector3d Vector4d Tuple3d Tuple4d]
-           [editor.gl.shader ShaderLifecycle]))
+           [editor.gl.shader ShaderLifecycle]
+           (java.util List)))
 
 (set! *warn-on-reflection* true)
 
@@ -279,7 +280,7 @@
                                     (let [slot-data (get base-slots slot)
                                           default-attachment-name (:default-attachment slot-data)
                                           default-attachment-index (:active-attachment slot-data)
-                                          attachment-names (:attachment-names slot-data)
+                                          ^List attachment-names (:attachment-names slot-data)
                                           tracks (reduce-kv (fn [track type keys]
                                                               (let [interpolate? (= type "color")
                                                                     val-fn (when (= type "attachment")
@@ -540,7 +541,7 @@
     (into {}
           (map-indexed (fn [i slot]
                          (let [slot-name (get slot "name")
-                               attachment-points (into [] (get attachment-points-by-slot-name slot-name))
+                               ^List attachment-points (into [] (get attachment-points-by-slot-name slot-name))
                                attachment-points-v (into {} (zipmap attachment-points (repeat (count attachment-points) -1)))
                                bone-index (bone-id->index (murmur/hash64 (get slot "bone")))
                                default-attachment (get slot "attachment")]
@@ -562,7 +563,7 @@
     "slot-name" slot-name))
 
 (defn- mesh-value->mesh-index
-  [meshes mesh-value]
+  [^List meshes mesh-value]
   (.indexOf meshes mesh-value))
 
 (defn- read-distinct-meshes
