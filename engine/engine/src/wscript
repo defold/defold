@@ -6,13 +6,23 @@ def set_options(opt):
     pass
 
 def build(bld):
+    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = '. ..',
+                           source = 'engine_service.cpp',
+                           target = 'engine_service')
+
+    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = '. ..',
+                           source = 'engine_service_null.cpp',
+                           target = 'engine_service_null')
+
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
                           includes = '../proto . ..',
                           target = 'engine',
                           proto_gen_py = True,
                           protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                          source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
+                          source='engine.cpp engine_main.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
 
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
                           includes = '../proto . ..',
@@ -90,7 +100,7 @@ def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
         uselib = 'WEBVIEWEXT ADTRUTHEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
-        uselib_local = 'engine',
+        uselib_local = 'engine engine_service',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -115,7 +125,7 @@ def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
         uselib = 'WEBVIEWEXT ADTRUTHEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
-        uselib_local = 'engine_release',
+        uselib_local = 'engine_release engine_service_null',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -146,7 +156,7 @@ def build(bld):
         features = 'cc cxx cprogram apk web',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
-        uselib_local = 'engine',
+        uselib_local = 'engine engine_service',
         includes = '../build ../proto . ..',
         proto_gen_py = True,
         protoc_includes = '../proto',
