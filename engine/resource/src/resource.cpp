@@ -1020,6 +1020,9 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
 
         if (create_error == RESULT_OK)
         {
+            tmp_resource.m_ResourceSizeOnDisc = file_size;
+            tmp_resource.m_ResourceSize = 0; // Not everything will report a size (but instead rely on the disc size, sinze it's close enough)
+
             ResourceCreateParams params;
             params.m_Factory = factory;
             params.m_Context = resource_type->m_Context;
@@ -1240,6 +1243,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
+        params.m_Resource->m_ResourceSizeOnDisc = file_size;
         if (factory->m_ResourceReloadedCallbacks)
         {
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)

@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
+            [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.handler :as handler]
             [editor.core :as core]
             [editor.fuzzy-text :as fuzzy-text]
@@ -295,23 +296,7 @@
 
     (ui/user-data stage ::selected-items)))
 
-(defn- resource->fuzzy-matched-resource [pattern resource]
-  (when-some [[score matching-indices] (fuzzy-text/match-path pattern (resource/proj-path resource))]
-    (with-meta resource
-               {:score score
-                :matching-indices matching-indices})))
-
-(defn- descending-order [a b]
-  (compare b a))
-
-(defn- fuzzy-resource-filter-fn [filter-value resources]
-  (if (empty? filter-value)
-    resources
-    (sort-by (comp :score meta)
-             descending-order
-             (seq (r/foldcat (r/filter some?
-                                       (r/map (partial resource->fuzzy-matched-resource filter-value)
-                                              resources)))))))
+(def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
 
 (defn- override-seq [node-id]
   (tree-seq g/overrides g/overrides node-id))
