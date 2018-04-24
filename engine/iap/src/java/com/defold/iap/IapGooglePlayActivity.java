@@ -66,7 +66,7 @@ public class IapGooglePlayActivity extends Activity {
         this.finish();
     }
 
-    private void buy(String product, boolean productType) {
+    private void buy(String product, String productType) {
     	// Flush any pending items, in order to be able to buy the same (new) product again
     	processPendingConsumables();
 
@@ -226,7 +226,7 @@ public class IapGooglePlayActivity extends Activity {
             public void onServiceConnected(ComponentName name, IBinder serviceBinder) {
                 service = IInAppBillingService.Stub.asInterface(serviceBinder);
                 if (action == Action.BUY) {
-                    buy(extras.getString(IapGooglePlay.PARAM_PRODUCT), extras.getBoolean(IapGooglePlay.PARAM_SUBSCRIPTION));
+                    buy(extras.getString(IapGooglePlay.PARAM_PRODUCT), extras.getString(IapGooglePlay.PARAM_PRODUCT_TYPE));
                 } else if (action == Action.RESTORE) {
                     restore();
                 } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {

@@ -3,6 +3,7 @@ package com.defold.iap;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -80,16 +81,14 @@ public class IapGooglePlay implements Handler.Callback {
     private class SkuDetailsThread extends Thread {
         public boolean stop = false;
 
-        private JSONObject addProductsFromBundle(Bundle skuDetails, JSONObject products) {
+        private void addProductsFromBundle(Bundle skuDetails, JSONObject products) throws JSONException {
             int response = skuDetails.getInt("RESPONSE_CODE");
             if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
                 ArrayList<String> responseList = skuDetails.getStringArrayList("DETAILS_LIST");
 
                 for (String r : responseList) {
-                    JSONObject product = convertProduct(r);
-                    if (product != null) {
-                        products.put((String)product.get("ident"), product);
-                    }
+                    JSONObject product = new JSONObject(r);
+                    products.put(product.getString("productId"), product);
                 }
             }
             else {
@@ -104,12 +103,12 @@ public class IapGooglePlay implements Handler.Callback {
                     SkuRequest sr = skuRequestQueue.take();
                     if (service == null) {
                         Log.wtf(TAG,  "service is null");
-                        sr.listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProducts(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
                         continue;
                     }
                     if (activity == null) {
                         Log.wtf(TAG,  "activity is null");
-                        sr.listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProducts(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
                         continue;
                     }
 
@@ -125,14 +124,14 @@ public class IapGooglePlay implements Handler.Callback {
                         Bundle subscriptionSkuDetails = service.getSkuDetails(3, activity.getPackageName(), "subs", querySkus);
                         addProductsFromBundle(subscriptionSkuDetails, products);
 
-                        sr.listener.onProductsResult(response, products);
+                        sr.listener.onProducts(IapJNI.BILLING_RESPONSE_RESULT_OK, products);
 
                     } catch (RemoteException e) {
                         Log.e(TAG, "Failed to fetch product list", e);
-                        sr.listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProducts(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
                     } catch (JSONException e) {
                         Log.e(TAG, "Failed to fetch product list", e);
-                        sr.listener.onProductsResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
+                        sr.listener.onProducts(IapJNI.BILLING_RESPONSE_RESULT_ERROR, null);
                     }
                 } catch (InterruptedException e) {
                     continue;
@@ -238,9 +237,25 @@ public class IapGooglePlay implements Handler.Callback {
 
         queueSkuRequest(new SkuRequest(skuList, new ISkuRequestListener() {
             @Override
-            public void onSkuResult(int resultCode, JSONObject products) {
+            public void onProducts(int resultCode, JSONObject products) {
                 if (products != null && products.length() > 0) {
-                    listener.onProductsResult(resultCode, products.toString());
+                    try {
+                        // go through all of the products and convert them into
+                        // the generic product format used for all IAP implementations
+                        Iterator<String> keys = products.keys();
+                        while(keys.hasNext()) {
+                            String key = keys.next();
+                            if (products.get(key) instanceof JSONObject ) {
+                                JSONObject product = products.getJSONObject(key);
+                                products.put(key, convertProduct(product));
+                            }
+                        }
+                        listener.onProductsResult(resultCode, products.toString());
+                    }
+                    catch(JSONException e) {
+                        Log.wtf(TAG, "Failed to convert products", e);
+                        listener.onProductsResult(resultCode, null);
+                    }
                 }
                 else {
                     listener.onProductsResult(resultCode, null);
@@ -249,9 +264,11 @@ public class IapGooglePlay implements Handler.Callback {
         }));
     }
 
-    private static JSONObject convertProduct(String purchase) {
+    // Convert the product data into the generic format shared between all Defold IAP implementations
+    private static JSONObject convertProduct(JSONObject product) {
         try {
-            JSONObject p = new JSONObject(purchase);
+            // Deep copy and modify
+            JSONObject p = new JSONObject(product.toString());
             p.put("price_string", p.get("price"));
             p.put("ident", p.get("productId"));
             // It is not yet possible to obtain the price (num) and currency code on Android for the correct locale/region.
@@ -280,7 +297,7 @@ public class IapGooglePlay implements Handler.Callback {
         return null;
     }
 
-    private void buyProduct(final String product, final boolean type, final IPurchaseListener listener) {
+    private void buyProduct(final String product, final String type, final IPurchaseListener listener) {
         this.activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -302,7 +319,7 @@ public class IapGooglePlay implements Handler.Callback {
         skuList.add(product);
         queueSkuRequest(new SkuRequest(skuList, new ISkuRequestListener() {
             @Override
-            public void onSkuResult(int resultCode, JSONObject products) {
+            public void onProducts(int resultCode, JSONObject products) {
                 String type = "inapp";
                 if (resultCode == IapJNI.BILLING_RESPONSE_RESULT_OK && products != null) {
                     try {
@@ -314,7 +331,7 @@ public class IapGooglePlay implements Handler.Callback {
                     }
                 }
                 else {
-                    Log.wtf(TAG, "Failed to list product before buying, assuming type 'inapp'", e);
+                    Log.wtf(TAG, "Failed to list product before buying, assuming type 'inapp'");
                 }
                 buyProduct(product, type, listener);
             }
