@@ -622,7 +622,6 @@
       :label "Font"
       :node-type FontSourceNode
       :load-fn load-font-source
-      :stateless? true
       :icon font-icon
       :view-types [:default])))
 
