@@ -458,5 +458,24 @@ namespace dmEngineService
         return engine_service->m_Port;
     }
 
+    uint16_t GetServicePort(uint16_t default_port)
+    {
+        uint16_t engine_port = default_port;
+
+        char* service_port_env = getenv("DM_SERVICE_PORT");
+
+        // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
+        if (service_port_env) {
+            unsigned int env_port = 0;
+            if (sscanf(service_port_env, "%u", &env_port) == 1) {
+                engine_port = (uint16_t) env_port;
+            }
+            else if (strcmp(service_port_env, "dynamic") == 0) {
+                engine_port = 0;
+            }
+        }
+
+        return engine_port;
+    }
 }
 
