@@ -231,8 +231,22 @@
               nil
               (matching-index-permutations pattern string from-index))))
 
-(defn- apply-filename-bonus [[^long score matched-indices]]
-  [(- score 5) matched-indices])
+(defn- apply-filename-bonus
+  "Applies a bonus for a match on the filename part of a path."
+  [^String path ^long basename-start [^long score matched-indices]]
+  (let [basename-end (.lastIndexOf path ".")
+        basename-end (if (neg? basename-end) (.length path) basename-end)
+        basename-length (- basename-end basename-start)
+        ^long basename-streak (loop [count 0]
+                                (let [matched-index (get matched-indices count)]
+                                  (if (and (not= matched-index basename-end)
+                                           (= matched-index (+ count basename-start)))
+                                    (recur (inc count))
+                                    count)))
+        basename-match-adjustment (if (pos? basename-streak)
+                                    (quot (* 10 basename-streak) basename-length)
+                                    0)]
+    [(- score basename-match-adjustment 2) matched-indices]))
 
 (defn match-path
   "Convenience function for matching against paths. The match function is
@@ -242,7 +256,7 @@
   (when-some [path-match (match pattern path)]
     (if-some [last-slash-index (string/last-index-of path \/)]
       (let [name-index (inc ^long last-slash-index)]
-        (if-some [name-match (some-> (match pattern path name-index) apply-filename-bonus)]
+        (if-some [name-match (some->> (match pattern path name-index) (apply-filename-bonus path name-index))]
           (best-match name-match path-match)
           path-match))
       path-match)))
