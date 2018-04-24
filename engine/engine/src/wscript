@@ -156,7 +156,7 @@ def build(bld):
         features = 'cc cxx cprogram apk web',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
-        uselib_local = 'engine engine_service_null',
+        uselib_local = 'engine engine_service',
         includes = '../build ../proto . ..',
         proto_gen_py = True,
         protoc_includes = '../proto',
