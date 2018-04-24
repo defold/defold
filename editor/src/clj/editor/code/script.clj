@@ -164,24 +164,21 @@
                                        :resources  (mapv lua/lua-module->build-path modules)
                                        :properties (properties/properties->decls properties true)})})))
 
-(defn strip-user-property-node-ids [user-properties]
+(defn clean-user-properties [user-properties]
   (-> user-properties
       (update :properties
               (fn [properties]
                 (into {}
-                      (map (fn [[prop-kw v]]
-                             [prop-kw (into {}
-                                            (remove (fn [[k _]] (= k :node-id)))
-                                            v)]))
-                      properties)))))
+                      (map (fn [[prop-kw prop-data]]
+                             [prop-kw (select-keys prop-data [:go-prop-type :value])])
+                           properties))))))
 
 (g/defnk produce-build-targets [_node-id resource lines user-properties modules dep-build-targets]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
-    ;; strip away node-id's, otherwise we unnecessarily create one
-    ;; build-target per use (override) of the script...
-    :user-data {:lines lines :user-properties (strip-user-property-node-ids user-properties) :modules modules :proj-path (resource/proj-path resource)}
+    ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
+    :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
     :deps dep-build-targets}])
 
 (g/defnk produce-completions [completion-info module-completion-infos]

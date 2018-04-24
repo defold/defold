@@ -151,7 +151,8 @@
 (defn- batched-pmap [f batches]
   (->> batches
        (pmap (fn [batch] (doall (map f batch))))
-       (apply concat)))
+       (reduce concat)
+       doall))
 
 (def ^:private cheap-batch-size 500)
 (def ^:private expensive-batch-size 5)
@@ -165,22 +166,22 @@
     (let [{cheap-build-targets false expensive-build-targets true} (group-by expensive? (vals build-targets-by-key))
           build-target-batches (into (partition-all cheap-batch-size cheap-build-targets)
                                      (partition-all expensive-batch-size expensive-build-targets))
-          results (doall (batched-pmap
-                           (fn [build-target]
-                             (let [{:keys [key node-id resource deps build-fn user-data]} build-target
-                                   cached-artifact (when-let [artifact (get pruned-old-artifacts resource)]
-                                                     (and (valid? artifact) artifact))
-                                   message (str "Building " (resource/proj-path resource))]
-                               (render-progress! (swap! progress progress/with-message message))
-                               (let [result (or cached-artifact
-                                                (let [dep-resources (make-dep-resources deps build-targets-by-key)
-                                                      build-result (build-fn resource dep-resources user-data)]
-                                                  (if (g/error? build-result)
-                                                    (assoc build-result :_node-id node-id)
-                                                    (to-disk! build-result key))))]
-                                 (render-progress! (swap! progress progress/advance))
-                                 result)))
-                           build-target-batches))
+          results (batched-pmap
+                    (fn [build-target]
+                      (let [{:keys [key node-id resource deps build-fn user-data]} build-target
+                            cached-artifact (when-let [artifact (get pruned-old-artifacts resource)]
+                                              (and (valid? artifact) artifact))
+                            message (str "Building " (resource/proj-path resource))]
+                        (render-progress! (swap! progress progress/with-message message))
+                        (let [result (or cached-artifact
+                                         (let [dep-resources (make-dep-resources deps build-targets-by-key)
+                                               build-result (build-fn resource dep-resources user-data)]
+                                           (if (g/error? build-result)
+                                             (assoc build-result :_node-id node-id)
+                                             (to-disk! build-result key))))]
+                          (render-progress! (swap! progress progress/advance))
+                          result)))
+                    build-target-batches)
           {successful-results false error-results true} (group-by #(boolean (g/error? %)) results)
           new-artifact-map (into {} (map (fn [a] [(:resource a) a])) successful-results)
           etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) successful-results)]
