@@ -43,6 +43,12 @@
   (and (satisfies? Resource value)
        (openable? value)))
 
+(defn editable-resource? [value]
+  ;; A resource is considered editable if the Defold Editor can edit it. Before
+  ;; opening, you must also make sure the resource exists.
+  (and (openable-resource? value)
+       (true? (:editable? (resource-type value)))))
+
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
 
