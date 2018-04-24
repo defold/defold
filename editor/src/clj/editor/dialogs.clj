@@ -384,10 +384,12 @@
 (defn make-resource-dialog [workspace project options]
   (let [exts         (let [ext (:ext options)] (if (string? ext) (list ext) (seq ext)))
         accepted-ext (if (seq exts) (set exts) (constantly true))
+        accept-fn    (or (:accept-fn options) (constantly true))
         items        (into []
                            (filter #(and (= :file (resource/source-type %))
                                          (accepted-ext (resource/ext %))
-                                         (not (resource/internal? %))))
+                                         (not (resource/internal? %))
+                                         (accept-fn %)))
                            (g/node-value workspace :resource-list))
         options (-> {:title "Select Resource"
                      :prompt "Type to filter"

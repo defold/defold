@@ -85,8 +85,14 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
+(defn- editable-view-type? [view-type]
+  (case view-type
+    (:default :text) false
+    true))
+
 (defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
   (let [resource-type {:textual? (true? textual?)
+                       :editable? (some? (some editable-view-type? view-types))
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
