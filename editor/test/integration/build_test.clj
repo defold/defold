@@ -192,7 +192,7 @@
                                         (murmur/hash64 "treasure_chest_sub_animation/treasure_chest_anim_out")}
                                       (set (map :id animations)))))
 
-                             (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                             (let [mesh (-> mesh-set :mesh-attachments first)]
                                (is (< 2 (-> mesh :indices count))))
 
                              ;; TODO - id must be 0 currently because of the runtime
@@ -228,7 +228,7 @@
                               (is (= "" (:texture-set rig-scene)))
                               (is (= [""] (:textures pb)))
 
-                              (let [mesh (-> mesh-set :mesh-entries first :meshes first)]
+                              (let [mesh (-> mesh-set :mesh-attachments first)]
                                 (is (< 2 (-> mesh :indices count))))))}]})
 
 (defn- run-pb-case [case content-by-source content-by-target]
