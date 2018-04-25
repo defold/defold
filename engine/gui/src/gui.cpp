@@ -2949,6 +2949,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return playback_rate;
     }
 
+    dmhash_t GetNodeSpineAnimation(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            dmLogError("Can only get animation for spine node");
+            return 0;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        dmhash_t animation_id = dmRig::GetAnimation(rig_instance);
+        return animation_id;
+    }
+
     Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2)
     {
         InternalNode* n = GetNode(scene, node);
