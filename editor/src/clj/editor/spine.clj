@@ -876,8 +876,7 @@
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output scene g/Any :cached produce-scene)
-  (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
-                                                      (reduce mesh->aabb (geom/null-aabb) meshes))))
+  (output aabb AABB :cached (g/fnk [spine-scene-pb] (reduce mesh->aabb (geom/null-aabb) (get-in spine-scene-pb [:mesh-set :mesh-attachments]))))
   (output anim-data g/Any (gu/passthrough anim-data))
   (output scene-structure g/Any (gu/passthrough scene-structure))
   (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations")))))
