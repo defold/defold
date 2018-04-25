@@ -577,7 +577,7 @@
   (let [game-project  (get-resource-node project "/game.project" evaluation-context)
         render-progress! (progress/throttle-render-progress render-progress!)]
     (try
-      (ui/with-progress [render-progress! (progress/throttle-render-progress render-progress!)]
+      (ui/with-progress [render-progress! render-progress!]
         (build! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
       (catch Throwable error
         (error-reporting/report-exception! error)

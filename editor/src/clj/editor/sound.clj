@@ -41,7 +41,7 @@
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-sound-source
-      :user-data {:content-hash (vec (digest/sha1 (resource->bytes resource)))}}]
+      :user-data {:content-hash (resource/resource->sha1-hex resource)}}]
     (catch IOException e
       (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
