@@ -3,6 +3,17 @@
 
 #include <stdint.h>
 
+namespace dmResource
+{
+	struct SResourceFactory;
+	typedef struct SResourceFactory* HFactory;
+}
+
+namespace dmGameObject
+{
+    typedef struct Register* HRegister;
+}
+
 namespace dmEngineService
 {
     typedef struct EngineService* HEngineService;
@@ -15,6 +26,7 @@ namespace dmEngineService
     void Update(HEngineService engine_service);
     uint16_t GetPort(HEngineService engine_service);
 
+    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist);
 }
 
 #endif // DM_ENGINE_SERVICE

@@ -11,8 +11,13 @@
 #include <dlib/template.h>
 #include <dlib/profile.h>
 #include <ddf/ddf.h>
+#include <resource/resource.h>
+#include <gameobject/gameobject.h>
 #include "engine_service.h"
 #include "engine_version.h"
+
+extern unsigned char PROFILER_HTML[];
+extern uint32_t PROFILER_HTML_SIZE;
 
 namespace dmEngineService
 {
@@ -36,6 +41,8 @@ namespace dmEngineService
 
     static const char INFO_TEMPLATE[] =
     "{\"version\": \"${ENGINE_VERSION}\"}";
+
+    static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
 
     struct EngineService
     {
@@ -157,7 +164,7 @@ namespace dmEngineService
             else
             {
                 dmLogError("Error while reading message post data (%d)", r);
-                error_msg = "Internal error";
+                error_msg = INTERNAL_SERVER_ERROR;
                 goto bail;
             }
 
@@ -226,8 +233,7 @@ namespace dmEngineService
             {
                 dmLogError("Error formating http response (%d)", tr);
                 dmWebServer::SetStatusCode(request, 500);
-                const char *s = "Internal error";
-                dmWebServer::Send(request, s, strlen(s));
+                dmWebServer::Send(request, INTERNAL_SERVER_ERROR, sizeof(INTERNAL_SERVER_ERROR));
             }
             else
             {
@@ -477,5 +483,191 @@ namespace dmEngineService
 
         return engine_port;
     }
+
+    #define CHECK_RESULT_BOOL(_RESULT) \
+        if (r != dmWebServer::RESULT_OK)\
+        {\
+            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
+            return false; \
+        }
+
+    static dmWebServer::Result SendString(dmWebServer::Request* request, const char* str)
+    {
+        uint16_t len = (uint16_t)strlen(str);
+        dmWebServer::Result r = dmWebServer::Send(request, &len, 2);
+        if (r != dmWebServer::RESULT_OK)
+        {
+            return r;
+        }
+        r = dmWebServer::Send(request, str, len);
+        return r;
+    }
+
+    //
+    // Resource profiler
+    //
+
+    static bool ResourceIteratorFunction(const dmResource::IteratorResource& resource, void* user_ctx)
+    {
+        dmWebServer::Request* request = (dmWebServer::Request*)user_ctx;
+
+        const char* name = dmHashReverseSafe64(resource.m_Id);
+        const char* extension = strrchr(name, '.');
+        if (!extension)
+            extension = "";
+
+        dmWebServer::Result r;
+        r = SendString(request, name); CHECK_RESULT_BOOL(r);
+        r = SendString(request, extension); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &resource.m_Size, 4); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &resource.m_SizeOnDisc, 4); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &resource.m_RefCount, 4); CHECK_RESULT_BOOL(r);
+        return true;
+    }
+
+    static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
+    {
+        const char* FOURCC = "RESS";
+        dmWebServer::Result r = SendString(request, FOURCC);
+        if (r != dmWebServer::RESULT_OK)
+        {
+            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
+            return;
+        }
+
+        dmResource::HFactory factory = (dmResource::HFactory)context;
+        dmResource::IterateResources(factory, ResourceIteratorFunction, (void*)request);
+    }
+
+    //
+    // GameObject profiler
+    //
+
+    struct GameObjectProfilerCtx
+    {
+        dmWebServer::Request*   m_Request;
+        // we need these variables to recreate the tree structure
+        dmArray<uint32_t>       m_Stack; // A stack of indices to keep track of the traversal tree (i.e. parents)
+        uint32_t                m_Index;
+    };
+
+    static bool SendGameObjectData(GameObjectProfilerCtx* ctx, dmhash_t id, dmhash_t resource_id, uint32_t index, uint32_t parent, uint32_t flags, const char* type)
+    {
+        // See profiler.html, loadGameObjects() for the receiving end of this code
+        dmWebServer::Request* request = ctx->m_Request;
+        dmWebServer::Result r;
+        r = SendString(request, dmHashReverseSafe64(id)); CHECK_RESULT_BOOL(r);
+        r = SendString(request, dmHashReverseSafe64(resource_id)); CHECK_RESULT_BOOL(r);
+        r = SendString(request, type); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &index, 4); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &parent, 4); CHECK_RESULT_BOOL(r);
+        r = dmWebServer::Send(request, &flags, 4); CHECK_RESULT_BOOL(r);
+        return true;
+    }
+
+    static bool ComponentIteratorFunction(const dmGameObject::IteratorComponent* iterator, void* user_ctx)
+    {
+        GameObjectProfilerCtx* ctx = (GameObjectProfilerCtx*)user_ctx;
+        uint32_t parent = ctx->m_Stack.Back();
+        SendGameObjectData(ctx, iterator->m_NameHash, iterator->m_Resource, ctx->m_Index++, parent, 0, iterator->m_Type);
+        return true;
+    }
+
+    static bool GameObjectIteratorFunction(const dmGameObject::IteratorGameObject* iterator, void* user_ctx)
+    {
+        GameObjectProfilerCtx* ctx = (GameObjectProfilerCtx*)user_ctx;
+        uint32_t parent = ctx->m_Stack.Back();
+        uint32_t index = ctx->m_Index++;
+        ctx->m_Stack.Push(index);
+
+        SendGameObjectData(ctx, dmGameObject::GetIdentifier(iterator->m_Instance), iterator->m_Resource, index, parent, 0, "goc");
+
+        bool result = dmGameObject::IterateComponents(iterator->m_Instance, ComponentIteratorFunction, user_ctx);
+
+        uint32_t lastindex = ctx->m_Stack.Back();
+        ctx->m_Stack.Pop();
+        assert(lastindex == index);
+
+        return result;
+    }
+
+    static bool CollectionIteratorFunction(const dmGameObject::IteratorCollection* iterator, void* user_ctx)
+    {
+        GameObjectProfilerCtx* ctx = (GameObjectProfilerCtx*)user_ctx;
+
+        uint32_t parent = ctx->m_Stack.Back();
+        uint32_t index = ctx->m_Index++;
+        ctx->m_Stack.Push(index);
+
+        SendGameObjectData(ctx, iterator->m_NameHash, iterator->m_Resource, index, parent, 0, "collectionc");
+
+        bool result = dmGameObject::IterateGameObjects(iterator->m_Collection, GameObjectIteratorFunction, user_ctx);
+
+        uint32_t lastindex = ctx->m_Stack.Back();
+        ctx->m_Stack.Pop();
+        assert(lastindex == index);
+
+        return result;
+    }
+
+    static void HttpGameObjectRequestCallback(void* context, dmWebServer::Request* request)
+    {
+        dmWebServer::Result r = SendString(request, "GOBJ");
+        if (r != dmWebServer::RESULT_OK)
+        {
+            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
+            dmWebServer::SetStatusCode(request, 500);
+            dmWebServer::Send(request, INTERNAL_SERVER_ERROR, sizeof(INTERNAL_SERVER_ERROR));
+            return;
+        }
+
+        GameObjectProfilerCtx ctx;
+        ctx.m_Request = request;
+        ctx.m_Index = 0;
+        ctx.m_Stack.SetCapacity(1024); // This is the depth of the tree!
+        ctx.m_Stack.Push(ctx.m_Index);
+        ctx.m_Index++;
+
+        dmGameObject::HRegister regist = (dmGameObject::HRegister)context;
+        bool result = dmGameObject::IterateCollections(regist, CollectionIteratorFunction, &ctx);
+
+        uint32_t lastindex = ctx.m_Stack.Back();
+        ctx.m_Stack.Pop();
+        assert(lastindex == 0);
+
+        dmWebServer::SetStatusCode(request, result ? 200 : 500);
+    }
+
+#undef CHECK_RESULT_BOOL
+
+    //
+    // All profilers' setup
+    //
+
+    static void ProfileHandler(void* user_data, dmWebServer::Request* request)
+    {
+        dmWebServer::SetStatusCode(request, 200);
+        dmWebServer::Send(request, PROFILER_HTML, PROFILER_HTML_SIZE);
+    }
+
+    void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
+    {
+        dmWebServer::HandlerParams resource_params;
+        resource_params.m_Handler = HttpResourceRequestCallback;
+        resource_params.m_Userdata = factory;
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/resources_impl", &resource_params);
+
+        dmWebServer::HandlerParams gameobject_params;
+        gameobject_params.m_Handler = HttpGameObjectRequestCallback;
+        gameobject_params.m_Userdata = regist;
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/gameobjects_impl", &gameobject_params);
+
+        // The entry point to the engine service profiler
+        dmWebServer::HandlerParams profile_params;
+        profile_params.m_Handler = ProfileHandler;
+        profile_params.m_Userdata = 0;
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/", &profile_params);
+    }
+
 }
 
