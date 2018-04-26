@@ -263,7 +263,7 @@
 
             function capture() {
                 if (currentTab == "tab_resources") {
-                    //captureGameObjects();
+                    captureGameObjects();
                     captureResources();
                 } else {
                     captureCpu();
@@ -289,7 +289,7 @@
 
             function captureGameObjects() {
                 framesGameObjects = [];
-                requestGameObjects.open('GET', base_url + 'gameobjects', true);
+                requestGameObjects.open('GET', base_url + 'gameobjects_impl', true);
                 requestGameObjects.overrideMimeType('text/plain; charset=x-user-defined');
                 requestGameObjects.onreadystatechange = handlerGameObjects;
                 requestGameObjects.send();
@@ -373,6 +373,17 @@
                     this.size = size;
                     this.sizeOnDisc = sizeOnDisc;
                     this.refCount = refCount;
+                }
+            }
+
+            class GameObjectItem {
+                constructor(name, resource, type, index, parent, flags) {
+                    this.name = name;
+                    this.resource = resource;
+                    this.type = type;
+                    this.index = index;
+                    this.parent = parent;
+                    this.flags = flags;
                 }
             }
 
@@ -465,72 +476,19 @@
             }
 
             function loadGameObjects(d) {
-                var size;
-                var offset = 0
-                var count = readUInt32(d, offset);
-                offset += 4;
+                var file = new MemoryFile(d, d.length);
 
-                for (var i = 0; i < count; ++i) {
+                while(!file.eof())
+                {
+                    var name        = file.readString();
+                    var resource    = file.readString();
+                    var type        = file.readString();
+                    var index       = file.readUInt32();
+                    var parent      = file.readUInt32();
+                    var flags       = file.readUInt32();
 
-                    var index = readUInt32(d, offset);
-                    offset += 4;
-                    size = readUInt16(d, offset);
-                    offset += 2;
-                    var tag = readPtr(d, offset, size);
-                    offset += size;
-
-                    var nameCount = readUInt32(d, offset);
-                    offset += 4;
-                    var nameStrings = new Array(nameCount);
-                    for (var j = 0; j < nameCount; ++j) {
-                        size = readUInt16(d, offset);
-                        offset += 2;
-                        nameStrings[j] = readPtr(d, offset, size);
-                        offset += size;
-                    }
-
-                    var typeNameCount = readUInt32(d, offset);
-                    offset += 4;
-                    var typeNameStrings = new Array(typeNameCount);
-                    for (var j = 0; j < typeNameCount; ++j) {
-                        size = readUInt16(d, offset);
-                        offset += 2;
-                        typeNameStrings[j] = readPtr(d, offset, size);
-                        offset += size;
-                    }
-
-                    var snapshotCount = readUInt32(d, offset);
-                    offset += 4;
-                    var snapshots = new Array(snapshotCount);
-                    for (var j = 0; j < snapshotCount; ++j) {
-                        var resourceId = readUInt64(d, offset);
-                        offset += 8;
-                        var id = readUInt64(d, offset);
-                        offset += 8;
-                        var parent = readUInt32(d, offset);
-                        offset += 4;
-                        var flags = readUInt32(d, offset);              // Flags are bit field flags corresponding to SnapshotDataTypeFlags in gameobject_profiler.cpp
-                        offset += 4;
-                        var typeStringIndex = readUInt16(d, offset);
-                        offset += 2;
-                        var snapshot = {
-                            resourceId: resourceId,
-                            id: id,
-                            parent: parent,
-                            flags: flags,
-                            typeStringIndex: typeStringIndex
-                        };
-                        snapshots[j] = snapshot;
-                    }
-
-                    var prof = {
-                        index: index,
-                        tag: tag,
-                        nameStrings: nameStrings,
-                        typeNameStrings: typeNameStrings,
-                        snapshots: snapshots
-                    };
-                    framesGameObjects.push(prof);
+                    var res = new GameObjectItem(name, resource, type, index, parent, flags);
+                    framesGameObjects.push(res);
                 }
             }
 
@@ -593,10 +551,10 @@
                 if (requestGameObjects.readyState == 4) {
                     if (requestGameObjects.status == 200) {
                         var d = requestGameObjects.responseText;
-                        var type = d.substring(0, 4);
+                        var type = d.substring(2, 6);
                         if (type == "GOBJ") {
                             console.log("Capturing gameobjects...");
-                            loadGameObjects(d.substring(4));
+                            loadGameObjects(d.substring(6)); // skip the size (uint16) of the pascal string
                             captureGameObjectsDone();
                         }
                         else {
@@ -613,7 +571,7 @@
                 if (requestResources.readyState == 4) {
                     if (requestResources.status == 200) {
                         var d = requestResources.responseText;
-                        var type = d.substring(2, 6); // skip the size of the string (uint16)
+                        var type = d.substring(2, 6); // skip the size (uint16) of the pascal string (uint16)
                         if (type == "RESS") {
                             console.log("Capturing resources...");
                             loadResources(d.substring(6));
@@ -1268,15 +1226,15 @@
 
                 nameElement.appendChild(nameSpanElem);
 
-                // // Size column
-                // var sizeElement = document.createElement("td");
-                // sizeElement.innerText = "0";
-                // rowElement.appendChild(sizeElement);
-
                 // Type column
                 var typeElement = document.createElement("td");
                 typeElement.innerText = node.type;
                 rowElement.appendChild(typeElement);
+
+                // Resource column
+                var resourceElement = document.createElement("td");
+                resourceElement.innerText = node.resource;
+                rowElement.appendChild(resourceElement);
 
                 for (var i = 0; i < node.children.length; i++) {
                     addCollectionView(tableElem, depth+1, node.children[i]);
@@ -1288,7 +1246,6 @@
             function rebuildGameObjectHTML(event) {
                 goList = {};
                 goRootsList = [];
-                var currentFrame = framesGameObjects[0];
 
                 // Clear visual view
                 var collectionTreeElem = document.getElementById("collection_table_body");
@@ -1296,33 +1253,28 @@
 
                 // Build collection hierarchy
                 var nodes = [];
-                var currentSnapshots = currentFrame.snapshots
-                for (var i = 0; i < currentSnapshots.length; i++) {
-                    var nodeId = i;
-                    var nodeName = currentFrame.nameStrings[i];
-                    var nodeType = currentFrame.typeNameStrings[currentSnapshots[i].typeStringIndex];
-                    var nodeFlags = currentSnapshots[i].flags;
+                for (var i = 0; i < framesGameObjects.length; i++) {
+                    var item = framesGameObjects[i];
 
-                    var newNode = { id: nodeId, name: nodeName, type: nodeType, flags : nodeFlags, children: [] };
+                    var newNode = { id: item.index, name: item.name, resource: item.resource, type: item.type, flags : item.flags, children: [] };
 
                     // Find parent and attach node as child
                     var parentNode = undefined;
-                    if (currentSnapshots[i].parent != -1) {
-                        parentNode = nodes[currentSnapshots[i].parent];
+                    if (item.parent != 0) {
+                        parentNode = nodes[item.parent];
                         parentNode.children[parentNode.children.length] = newNode;
                     } else {
                         goRootsList[goRootsList.length] = newNode;
                     }
 
                     newNode.parent = parentNode;
-                    nodes[i] = newNode;
+                    nodes[item.index] = newNode;
                 }
 
                 // Build visual view of hierarchy
                 for (var i = 0; i < goRootsList.length; i++) {
                     addCollectionView(collectionTreeElem, 0, goRootsList[i]);
                 }
-
             }
 
             function captureGameObjectsDone(){
@@ -1453,8 +1405,7 @@
                 var plot_canvas_node = document.getElementById("plot-canvas");
                 plotGraph = newPlotGraph(plot_canvas_node);
 
-                //captureCpu();
-                captureResources();
+                captureCpu();
             }
         </script>
     </head>
@@ -1476,8 +1427,8 @@
                     <thead>
                         <tr>
                             <th>Collection</th>
-                            <!-- <th>Total Size</th> -->
                             <th>Type</th>
+                            <th>Resource</th>
                         </tr>
                     </thead>
                     <tbody id="collection_table_body">
