@@ -776,6 +776,9 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
 {
     int* recreate_resource = (int*) params.m_Resource->m_Resource;
     assert(recreate_resource);
+    int* old_resource = new int();
+    *old_resource = *recreate_resource;
+    params.m_Resource->m_PrevResource = (void*)old_resource;
 
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
@@ -862,6 +865,18 @@ TEST(dmResource, Builtins)
     dmResource::DeleteFactory(factory);
 }
 
+struct ReloadData {
+    ReloadData(): m_Old(0), m_New(0) {}
+    int m_Old;
+    int m_New;
+};
+
+static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params) {
+    ReloadData* data = (ReloadData*)params.m_UserData;
+    data->m_Old = *((int*)params.m_Resource->m_PrevResource);
+    data->m_New = *((int*)params.m_Resource->m_Resource);
+}
+
 TEST(RecreateTest, RecreateTest)
 {
     const char* tmp_dir = 0;
@@ -876,6 +891,9 @@ TEST(RecreateTest, RecreateTest)
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
     ASSERT_NE((void*) 0, factory);
+
+    ReloadData reload_data;
+    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
 
     dmResource::Result e;
     e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
@@ -910,10 +928,14 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
     ASSERT_EQ(456, *resource);
 
+    ASSERT_EQ(123, reload_data.m_Old);
+    ASSERT_EQ(456, reload_data.m_New);
+
     unlink(file_name);
     rr = dmResource::ReloadResource(factory, resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);
 
+    dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
 }

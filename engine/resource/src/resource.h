@@ -118,6 +118,14 @@ namespace dmResource
 
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
+        /// Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
+        void*    m_PrevResource;
+
+        /// Resource size in memory. The payload of m_Resource
+        uint32_t m_ResourceSize;
+
+        /// Resource size on disc
+        uint32_t m_ResourceSizeOnDisc;
 
         /// For internal use only
         void*    m_ResourceType;        // For internal use.

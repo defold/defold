@@ -39,13 +39,18 @@
   ([project scene parent]
     (add-inv-clipper! project scene parent false))
   ([project scene parent visible?]
-    (add-clipper! project scene parent true visible?)))
+   (add-clipper! project scene parent true visible?)))
+
+(defn- make-counter []
+  (let [n (atom -1)]
+    #(swap! n inc)))
 
 (defn- add-layers! [project scene layers]
-  (let [parent (g/node-value scene :layers-node)]
+  (let [parent (g/node-value scene :layers-node)
+        counter (make-counter)]
     (g/transact
       (for [layer layers]
-        (gui/add-layer project scene parent layer nil)))))
+        (gui/add-layer project scene parent layer (counter) nil)))))
 
 (defn- set-layer! [node-id layer]
   (g/set-property! node-id :layer layer))

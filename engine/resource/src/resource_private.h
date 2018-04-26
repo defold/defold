@@ -2,6 +2,10 @@
 #define RESOURCE_PRIVATE_H
 
 #include <ddf/ddf.h>
+#include <dlib/hashtable.h>
+#include <dlib/message.h>
+#include <dlib/uri.h>
+#include <dlib/http_client.h>
 #include "resource_archive.h"
 #include "resource.h"
 
