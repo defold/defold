@@ -258,6 +258,7 @@
                        (update-ui-fn values message read-only?)
                        (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
                          (.setSelected toggle-button curved?)
+                         (ui/editable! toggle-button (some? (first values)))
                          (ui/disable! text-field curved?)))]
     [box update-ui-fn]))
 
@@ -272,6 +273,7 @@
                          (update-ui-fn values message read-only?)
                          (let [curved? (boolean (< 1 (count (properties/curve-vals (first values)))))]
                            (.setSelected toggle-button curved?)
+                           (ui/editable! toggle-button (some? (first values)))
                            (ui/disable! text-field curved?)))]
     [box update-ui-fn]))
 
