@@ -382,6 +382,13 @@ static const luaL_reg Module_methods[] =
  * @name resource.LIVEUPDATE_SIGNATURE_MISMATCH
  * @variable
  */
+
+ /*# LIVEUPDATE_SCHEME_MISMATCH
+ * Mismatch between scheme used to load resources. Resources are loaded with a different scheme than from manifest, for example over HTTP or directly from file. This is typically the case when running the game directly from the editor instead of from a bundle.
+ * 
+ * @name resource.LIVEUPDATE_SCHEME_MISMATCH
+ * @variable
+ */
 static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -422,6 +429,7 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(LIVEUPDATE_VERSION_MISMATCH, dmLiveUpdate::RESULT_VERSION_MISMATCH);
     SETCONSTANT(LIVEUPDATE_ENGINE_VERSION_MISMATCH, dmLiveUpdate::RESULT_ENGINE_VERSION_MISMATCH);
     SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
+    SETCONSTANT(LIVEUPDATE_SCHEME_MISMATCH, dmLiveUpdate::RESULT_SCHEME_MISMATCH);
 
 #undef SETCONSTANT
 

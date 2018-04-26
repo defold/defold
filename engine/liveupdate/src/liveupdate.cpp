@@ -30,6 +30,9 @@ namespace dmLiveUpdate
             case dmResource::RESULT_SIGNATURE_MISMATCH:
                 result = RESULT_SIGNATURE_MISMATCH;
                 break;
+            case dmResource::RESULT_NOT_SUPPORTED:
+                result = RESULT_SCHEME_MISMATCH;
+                break;
             default:
                 result = RESULT_INVALID_RESOURCE;
                 break;

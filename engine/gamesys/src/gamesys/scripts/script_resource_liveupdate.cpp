@@ -162,6 +162,10 @@ namespace dmLiveUpdate
         {
             // Verify
             result = dmLiveUpdate::VerifyManifest(manifest);
+            if (result == RESULT_SCHEME_MISMATCH)
+            {
+                dmLogWarning("Scheme mismatch, manifest storage is only supported for bundled package. Manifest was not stored.");
+            }
             if (result != RESULT_OK)
             {
                 dmLogError("Manifest verification failed. Manifest was not stored");
