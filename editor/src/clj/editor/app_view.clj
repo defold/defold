@@ -626,7 +626,7 @@ If you do not specifically require different script states, consider changing th
                        (when-not (handle-bob-error! render-error! project result)
                          (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))
 
-(def ^:private unreloadable-resource-build-exts #{"collectionc" "goc"})
+(def ^:private unreloadable-resource-build-exts #{"collectionc" "tilemapc"})
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view debug-view selection prefs]
@@ -1336,6 +1336,7 @@ If you do not specifically require different script states, consider changing th
 (defn- query-and-open! [workspace project app-view prefs term]
   (doseq [resource (dialogs/make-resource-dialog workspace project
                                                  (cond-> {:title "Open Assets"
+                                                          :accept-fn resource/editable-resource?
                                                           :selection :multiple
                                                           :ok-label "Open"
                                                           :tooltip-gen (partial gen-tooltip workspace project app-view)}
