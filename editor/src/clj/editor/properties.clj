@@ -164,10 +164,6 @@
     {:points (curve-vals c)
      :spread (:spread c)})))
 
-(def default-curve (map->Curve {:points [{:x 0 :y 0 :t-x 1 :t-y 0}]}))
-
-(def default-curve-spread (map->CurveSpread {:points [{:x 0 :y 0 :t-x 1 :t-y 0}] :spread 0}))
-
 (defn- q-round [v]
   (let [f 10e6]
     (/ (Math/round (* v f)) f)))
