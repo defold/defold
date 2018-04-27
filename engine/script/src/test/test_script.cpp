@@ -633,6 +633,8 @@ TEST_F(ScriptTest, TestInstanceContextReference)
     ASSERT_EQ(LUA_TNIL, lua_type(L, -1));
     lua_pop(L, 1);
 
+    lua_pop(L, 1);
+
     dmScript::DeleteInstanceContext(L, instance_context_ref);
 
     ASSERT_EQ(top, lua_gettop(L));
