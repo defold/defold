@@ -43,6 +43,8 @@ namespace dmScript
     extern const char* META_TABLE_GET_URL;
     extern const char* META_TABLE_GET_USER_DATA;
     extern const char* META_TABLE_IS_VALID;
+    extern const char* META_TABLE_SET_CONTEXT_VALUE;
+    extern const char* META_TABLE_GET_CONTEXT_VALUE;
 
     /**
      * Create and return a new context.
@@ -362,6 +364,82 @@ namespace dmScript
      * @return true if the user data could be found
      */
     bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type);
+
+    /**
+     * Set value by key using the META_TABLE_SET_CONTEXT_VALUE meta table function
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_TABLE_SET_CONTEXT_VALUE method.
+     *
+     * @param L Lua state
+     * @return true if the value could be store under the key
+     * 
+     * Lua stack on entry
+     *  [-2] key
+     *  [-1] value
+     * 
+     * Lua stack on exit
+    */
+    bool SetInstanceContextValue(lua_State* L);
+
+    /**
+     * Get value by key using the META_TABLE_GET_CONTEXT_VALUE meta table function
+     *
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_TABLE_GET_CONTEXT_VALUE method.
+     * 
+     * @param L Lua state
+     * 
+     * Lua stack on entry
+     *  [-1] key
+     * 
+     * Lua stack on exit
+     *  [-1] value or LUA_NIL
+    */
+    bool GetInstanceContextValue(lua_State* L);
+
+    /**
+     * Set value by key in the table at location table_stack_index
+     *
+     * Stack indexes can be either relative or absolute. The stack is
+     * unchanged by the operation.
+     * 
+     * @param L Lua state
+     * @param table_stack_index index into Lua stack for the table
+     * @param key_stack_index index into Lua stack for the key
+     * @param value_stack_index index into Lua stack for the value
+     * 
+     * Lua stack on entry
+     *  [table_stack_index] table
+     *  [key_stack_index] key
+     *  [value_stack_index] value
+     * 
+     * Lua stack on exit
+     *  [table_stack_index] table
+     *  [key_stack_index] key
+     *  [value_stack_index] value
+    */
+    void SetValueToTable(lua_State* L, int table_stack_index, int key_stack_index, int value_stack_index);
+
+    /**
+     * Get value by key in the table at location table_stack_index
+     *
+     * Stack indexes can be either relative or absolute.
+     * 
+     * @param L Lua state
+     * @param table_stack_index index into Lua stack for the table
+     * @param key_stack_index index into Lua stack for the key
+     * 
+     * Lua stack on entry
+     *  [table_stack_index] table
+     *  [key_stack_index] key
+     * 
+     * Lua stack on exit
+     *  [table_stack_index] table
+     *  [key_stack_index] key
+     *  [-1] value or LUA_NIL
+    */
+    void GetValueFromTable(lua_State* L, int table_stack_index, int key_stack_index);
 
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 
