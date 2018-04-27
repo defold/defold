@@ -533,7 +533,118 @@ namespace dmScript
      * @return String value at key, or the default value if not found or invalid value type.
      */
     const char* GetTableStringValue(lua_State* L, int table_index, const char* key, const char* default_value);
-}
 
+    /**
+     * Push a Lua "Instance Context" table and attach the (optional) meta table to it
+     * and create an auxilary "Instance Context Table" Lua table where sub-system specific
+     * data can be added.
+     *
+     * The Lua table gets one key locked pointing to up the "Instance Context Table"
+     *
+     * A ref to the Lua table is added in the global LUA_REGISTRYINDEX and returned
+     * by the function.
+     * 
+     * @param L Lua state
+     * @param optional_instance_type Class name of the meta table, or null
+     * @return The ref index to the Lua table
+     *
+     * Lua stack on entry
+     * 
+     * Lua stack on exit
+     *  [-1] Lua table - "Instance Context"
+     */
+    int CreateInstanceContext(lua_State* L, const char* optional_instance_type);
+
+    /**
+     * Delete the Lua "Instance Context" table created by CreateInstanceContext() by unref'ing it
+     * 
+     * @param L Lua state
+     * @param self_ref Lua ref returned by CreateInstanceContext
+     * 
+     * Lua stack on entry
+     * 
+     * Lua stack on exit
+     */
+    void DeleteInstanceContext(lua_State* L, int self_ref);
+
+    /**
+     * Set value by key in the Lua "Instance Context" table's auxilary "Instance Context Table"
+     *
+     * @param L Lua state
+     * @param self_stack_index The index of the Lua table
+     * 
+     * Lua stack on entry
+     *  [self_stack_index] Lua table - "Instance Context"
+     *  [-2] key
+     *  [-1] value
+     * 
+     * Lua stack on exit
+     *  [self_stack_index] Lua table - "Instance Context"
+    */
+    void SetInstanceContextValue(lua_State* L, int self_stack_index);
+
+    /**
+     * Get value by key in the Lua "Instance Context" table's auxilary "Instance Context Table"
+     *
+     * @param L Lua state
+     * @param self_stack_index The index of the Lua table
+     * 
+     * Lua stack on entry
+     *  [self_stack_index] Lua table "Instance Context"
+     *  [-1] key
+     * 
+     * Lua stack on exit
+     *  [self_stack_index] Lua table "Instance Context"
+     *  [-1] value
+    */
+    void GetInstanceContextValue(lua_State* L, int self_stack_index);
+
+    /**
+     * Ref a Lua stack value to a Lua table located at specific position in Lua stack 
+     * 
+     * @param L Lua state
+     * @param self_stack_index The index of the Lua table
+     * @return The ref index to value
+     *
+     * Lua stack on entry
+     *  [self_stack_index] Lua table - "Instance Context"
+     *  [-1] value
+     * 
+     * Lua stack on exit
+     *  [self_stack_index] Lua table - "Instance Context"
+    */
+    int RefInstanceContext(lua_State* L, int self_stack_index);
+
+    /**
+     * Unref a value in the Lua table located at a specific poistion in the Lua stack 
+     * 
+     * @param L Lua state
+     * @param self_stack_index The index of the Lua table
+     * @param ref The ref to unreference
+     *
+     * Lua stack on entry
+     *  [self_stack_index] Lua table - "Instance Context"
+     * 
+     * Lua stack on exit
+     *  [self_stack_index] Lua table - "Instance Context"
+    */
+    void UnRefInstanceContext(lua_State* L, int self_stack_index, int ref);
+
+    /**
+     * Resolve the value of a ref in the Lua table located at a specific poistion in the Lua stack 
+     * 
+     * @param L Lua state
+     * @param self_stack_index The index of the Lua table
+     * @param ref The ref to resolve
+     *
+     * Lua stack on entry
+     *  [self_stack_index] Lua table - "Instance Context"
+     * 
+     * Lua stack on exit
+     *  [self_stack_index] Lua table - "Instance Context"
+     *  [-1] value
+    */
+    void ResolveInstanceContextRef(lua_State* L, int self_stack_index, int ref);
+}
 
 #endif // DM_SCRIPT_H
