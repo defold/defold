@@ -38,6 +38,7 @@ namespace dmScript
      */
 
     const char* INSTANCE_NAME = "__dm_script_instance__";
+    const char* INSTANCE_CONTEXT_TABLE_NAME = "__dm_script_instance_context__";
     const int MAX_PPRINT_TABLE_CALL_DEPTH = 32;
 
     const char* META_TABLE_RESOLVE_PATH     = "__resolve_path";
@@ -840,6 +841,182 @@ namespace dmScript
 
         assert(top == lua_gettop(L));
         return r;
+    }
+
+    int CreateInstanceContext(lua_State* L, const char* optional_instance_type)
+    {
+        assert(L != 0x0);
+        int top = lua_gettop(L);
+
+        lua_newtable(L);
+        // [-1] self_table
+
+        lua_pushvalue(L, -1);
+        // [-1] self_table
+        // [-2] self_table
+
+        int self_table_ref = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        assert(self_table_ref != LUA_REFNIL);
+        assert(self_table_ref != LUA_NOREF);
+        // [-1] self_table
+
+        lua_pushstring(L, INSTANCE_CONTEXT_TABLE_NAME);
+        // [-1] self_table
+        // [-2] INSTANCE_CONTEXT_TABLE_NAME
+
+        lua_newtable(L);
+        // [-3] self_table
+        // [-2] INSTANCE_CONTEXT_TABLE_NAME
+        // [-1] context_table
+
+        lua_settable(L, -3);
+        // [-1] self_table
+
+        if (optional_instance_type != 0x0)
+        {
+            luaL_getmetatable(L, optional_instance_type);
+            // [-2] self_table
+            // [-1] metatable
+
+            lua_setmetatable(L, -2);
+            // [-1] self_table
+        }
+
+        assert(lua_type(L, -1) == LUA_TTABLE);
+        assert(top + 1 == lua_gettop(L));
+        return self_table_ref;
+    }
+
+    void DeleteInstanceContext(lua_State* L, int self_ref)
+    {
+        assert(L != 0x0);
+
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, self_ref);
+        // [-1] self_table
+
+        if (lua_type(L, -1) == LUA_TTABLE)
+        {
+            lua_pushnil(L);
+            // [-2] self_table
+            // [-1] LUA_NIL
+
+            lua_setmetatable(L, -2);
+            // [-1] self_table
+
+            lua_pop(L, 1);
+        }
+        dmScript::Unref(L, LUA_REGISTRYINDEX, self_ref);
+
+        assert(top == lua_gettop(L));
+    }
+
+    void SetInstanceContextValue(lua_State* L, int self_stack_index)
+    {
+        assert(L != 0x0);
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+
+        int top = lua_gettop(L);
+
+        lua_pushstring(L, INSTANCE_CONTEXT_TABLE_NAME);
+        // [-3] key
+        // [-2] value
+        // [-1] INSTANCE_CONTEXT_TABLE_NAME
+
+        lua_gettable(L, self_stack_index);
+        // [-3] key
+        // [-2] value
+        // [-1] context_table
+
+        lua_insert(L, -3);
+        // [-3] context_table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] context_table
+
+        lua_pop(L, 1);
+
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+        assert(top - 2 == lua_gettop(L));
+    }
+
+    void GetInstanceContextValue(lua_State* L, int self_stack_index)
+    {
+        assert(L != 0x0);
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+
+        int top = lua_gettop(L);
+
+        lua_pushstring(L, INSTANCE_CONTEXT_TABLE_NAME);
+        // [-2] key
+        // [-1] INSTANCE_CONTEXT_TABLE_NAME
+
+        lua_gettable(L, self_stack_index);
+        // [-2] key
+        // [-1] context_table
+
+        lua_insert(L, -2);
+        // [-2] context_table
+        // [-1] key
+
+        lua_gettable(L, -2);
+        // [-2] context_table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] context_table
+
+        lua_pop(L, 1);
+        // [-1] value
+
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+        assert(top == lua_gettop(L));
+    }
+
+    int RefInstanceContext(lua_State* L, int self_stack_index)
+    {
+        assert(L != 0x0);
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+
+        int top = lua_gettop(L);
+        // [-1] value to reference
+
+        int value_ref = luaL_ref(L, self_stack_index);
+
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+        assert(top - 1 == lua_gettop(L));
+        return value_ref;
+    }
+
+    void UnRefInstanceContext(lua_State* L, int self_stack_index, int ref)
+    {
+        assert(L != 0x0);
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+
+        int top = lua_gettop(L);
+
+        luaL_unref(L, self_stack_index, ref);
+
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+        assert(top == lua_gettop(L));
+    }
+
+    void ResolveInstanceContextRef(lua_State* L, int self_stack_index, int ref)
+    {
+        assert(L != 0x0);
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+
+        int top = lua_gettop(L);
+
+        lua_rawgeti(L, self_stack_index, ref);
+        // [-1] dereferenced value (or LUA_NIL)
+
+        assert(lua_type(L, self_stack_index) == LUA_TTABLE);
+        assert(top + 1 == lua_gettop(L));
     }
 
 }

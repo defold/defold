@@ -470,6 +470,174 @@ TEST_F(ScriptTest, GetTableValues)
     lua_pop(L, 1);
 }
 
+TEST_F(ScriptTest, CreateDeleteInstanceContext)
+{
+    int top = lua_gettop(L);
+    int instance_context_ref = dmScript::CreateInstanceContext(L, 0x0);
+    ASSERT_NE(LUA_NOREF, instance_context_ref);
+    ASSERT_NE(LUA_REFNIL, instance_context_ref);
+    ASSERT_NE(lua_type(L, -1), LUA_TNIL);
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instance_context_ref);
+    ASSERT_NE(lua_type(L, -1), LUA_TNIL);
+    lua_pop(L, 1);
+
+    dmScript::DeleteInstanceContext(L, instance_context_ref);
+    ASSERT_EQ(top, lua_gettop(L));       
+}
+
+TEST_F(ScriptTest, TestIsInstanceValidInstanceContext)
+{
+    int top = lua_gettop(L);
+    static const char* SCRIPT_INSTANCE_NAME = "__script_instance__";
+
+    struct ScriptInstance
+    {
+        lua_State* m_LuaState;
+        int m_Self;
+
+        static ScriptInstance* CheckGetScriptInstance(lua_State* L, int self_stack_index)
+        {
+            lua_pushstring(L, SCRIPT_INSTANCE_NAME);
+            dmScript::GetInstanceContextValue(L, self_stack_index);
+            if (lua_type(L, -1) != LUA_TUSERDATA)
+            {
+                return 0x0;
+            }
+            return (ScriptInstance*) lua_touserdata(L, -1);
+        }
+
+        static int ScriptInstanceIsValid(lua_State* L)
+        {
+            ScriptInstance* test_script_instance = CheckGetScriptInstance(L, lua_gettop(L));
+            lua_pushboolean(L, test_script_instance != 0x0 && test_script_instance->m_Self != 0x0);
+            return 1;
+        }
+    };
+
+    static const luaL_reg ScriptInstance_methods[] =
+    {
+        {0,0}
+    };
+
+    static const luaL_reg ScriptInstance_meta[] =
+    {
+        {dmScript::META_TABLE_IS_VALID,     ScriptInstance::ScriptInstanceIsValid},
+        {0, 0}
+    };
+
+    static const char* SCRIPTINSTANCE = "GOScriptInstance";
+
+    dmScript::RegisterUserType(L, SCRIPTINSTANCE, ScriptInstance_methods, ScriptInstance_meta);
+
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+
+    int instance_context_ref = dmScript::CreateInstanceContext(L, SCRIPTINSTANCE);
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+
+    dmScript::SetInstance(L);
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+
+    dmScript::GetInstance(L);
+    int self_stack_index = lua_gettop(L);
+
+    lua_pushstring(L, SCRIPT_INSTANCE_NAME);
+    ScriptInstance* script_instance = (ScriptInstance*)lua_newuserdata(L, sizeof(ScriptInstance));
+    script_instance->m_Self = instance_context_ref;
+    script_instance->m_LuaState = L;
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+    dmScript::SetInstanceContextValue(L, self_stack_index);
+
+    lua_pop(L, 1);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    dmScript::DeleteInstanceContext(L, instance_context_ref);
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+
+    ASSERT_EQ(top, lua_gettop(L));       
+}
+
+TEST_F(ScriptTest, TestInstanceContextTableValue)
+{
+    int top = lua_gettop(L);
+
+    int instance_context_ref = dmScript::CreateInstanceContext(L, 0x0);
+    int self_stack_index = lua_gettop(L);
+
+    lua_pushstring(L, "__the_prime_number");
+    lua_pushinteger(L, 4711);
+    dmScript::SetInstanceContextValue(L, self_stack_index);
+
+    lua_pushstring(L, "__the_negative_number");
+    lua_pushinteger(L, -666);
+    dmScript::SetInstanceContextValue(L, self_stack_index);
+
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instance_context_ref);
+    self_stack_index = lua_gettop(L);
+
+    lua_pushstring(L, "__the_prime_number");
+    dmScript::GetInstanceContextValue(L, self_stack_index);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(4711, lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_pushstring(L, "__the_negative_number");
+    dmScript::GetInstanceContextValue(L, self_stack_index);
+    ASSERT_EQ(LUA_TNUMBER, lua_type(L, -1));
+    ASSERT_EQ(-666, lua_tointeger(L, -1));
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+
+    dmScript::DeleteInstanceContext(L, instance_context_ref);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+TEST_F(ScriptTest, TestInstanceContextReference)
+{
+    int top = lua_gettop(L);
+
+    int instance_context_ref = dmScript::CreateInstanceContext(L, 0x0);
+    int self_stack_index = lua_gettop(L);
+
+    struct MyData
+    {
+        int m_instance;
+    };
+
+    MyData* my_data = (MyData*)lua_newuserdata(L, sizeof(MyData));
+    my_data->m_instance = dmScript::RefInstanceContext(L, self_stack_index);
+    lua_pop(L, 1);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instance_context_ref);
+    self_stack_index = lua_gettop(L);
+
+    dmScript::ResolveInstanceContextRef(L, self_stack_index, my_data->m_instance);
+    ASSERT_EQ(LUA_TUSERDATA, lua_type(L, -1));
+    MyData* my_data_verify = (MyData*)lua_touserdata(L, -1);
+    ASSERT_EQ((uintptr_t)my_data, (uintptr_t)my_data_verify);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
+    dmScript::UnRefInstanceContext(L, self_stack_index, my_data->m_instance);
+
+    dmScript::ResolveInstanceContextRef(L, self_stack_index, my_data->m_instance);
+    ASSERT_EQ(LUA_TNIL, lua_type(L, -1));
+    lua_pop(L, 1);
+
+    dmScript::DeleteInstanceContext(L, instance_context_ref);
+
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 int main(int argc, char **argv)
 {
     testing::InitGoogleTest(&argc, argv);
