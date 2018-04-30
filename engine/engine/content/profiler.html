@@ -263,7 +263,6 @@
 
             function capture() {
                 if (currentTab == "tab_resources") {
-                    //captureGameObjects();
                     captureResources();
                 } else {
                     captureCpu();
@@ -1268,11 +1267,6 @@
 
                 nameElement.appendChild(nameSpanElem);
 
-                // // Size column
-                // var sizeElement = document.createElement("td");
-                // sizeElement.innerText = "0";
-                // rowElement.appendChild(sizeElement);
-
                 // Type column
                 var typeElement = document.createElement("td");
                 typeElement.innerText = node.type;
@@ -1453,7 +1447,6 @@
                 var plot_canvas_node = document.getElementById("plot-canvas");
                 plotGraph = newPlotGraph(plot_canvas_node);
 
-                //captureCpu();
                 captureResources();
             }
         </script>

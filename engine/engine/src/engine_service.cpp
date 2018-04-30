@@ -41,6 +41,8 @@ namespace dmEngineService
     static const char INFO_TEMPLATE[] =
     "{\"version\": \"${ENGINE_VERSION}\"}";
 
+    const char* const FOURCC_RESOURCES = "RESS";
+
     struct EngineService
     {
         static void HttpServerHeader(void* user_data, const char* key, const char* value)
@@ -521,8 +523,7 @@ namespace dmEngineService
 
     static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
     {
-        const char* FOURCC = "RESS";
-        dmWebServer::Result r = SendString(request, FOURCC);
+        dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
             dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
