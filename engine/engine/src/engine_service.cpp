@@ -43,6 +43,7 @@ namespace dmEngineService
     "{\"version\": \"${ENGINE_VERSION}\"}";
 
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
+    const char* const FOURCC_RESOURCES = "RESS";
 
     struct EngineService
     {
@@ -527,8 +528,7 @@ namespace dmEngineService
 
     static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
     {
-        const char* FOURCC = "RESS";
-        dmWebServer::Result r = SendString(request, FOURCC);
+        dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
             dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
