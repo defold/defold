@@ -40,10 +40,12 @@ namespace dmScript
     const char* INSTANCE_NAME = "__dm_script_instance__";
     const int MAX_PPRINT_TABLE_CALL_DEPTH = 32;
 
-    const char* META_TABLE_RESOLVE_PATH     = "__resolve_path";
-    const char* META_TABLE_GET_URL          = "__get_url";
-    const char* META_TABLE_GET_USER_DATA    = "__get_user_data";
-    const char* META_TABLE_IS_VALID         = "__is_valid";
+    const char* META_TABLE_RESOLVE_PATH         = "__resolve_path";
+    const char* META_TABLE_GET_URL              = "__get_url";
+    const char* META_TABLE_GET_USER_DATA        = "__get_user_data";
+    const char* META_TABLE_IS_VALID             = "__is_valid";
+    const char* META_TABLE_SET_CONTEXT_VALUE    = "__set_context_value";
+    const char* META_TABLE_GET_CONTEXT_VALUE    = "__get_context_value";
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
@@ -571,6 +573,161 @@ namespace dmScript
         lua_pop(L, 1);
         assert(top == lua_gettop(L));
         return false;
+    }
+
+    bool SetInstanceContextValue(lua_State* L)
+    {
+        // [-2] key
+        // [-1] value
+
+        int top = lua_gettop(L);
+        (void)top;
+
+        GetInstance(L);
+        // [-3] key
+        // [-2] value
+        // [-1] instance
+
+        if (GetMetaFunction(L, -1, META_TABLE_SET_CONTEXT_VALUE)) {
+            // [-4] key
+            // [-3] value
+            // [-2] instance
+            // [-1] META_TABLE_SET_CONTEXT_VALUE()
+
+            lua_pushvalue(L, -2);
+            // [-5] key
+            // [-4] value
+            // [-3] instance
+            // [-2] META_TABLE_SET_CONTEXT_VALUE()
+            // [-1] instance
+
+            lua_pushvalue(L, -5);
+            // [-6] key
+            // [-5] value
+            // [-4] instance
+            // [-3] META_TABLE_SET_CONTEXT_VALUE()
+            // [-2] instance
+            // [-1] key
+
+            lua_pushvalue(L, -5);
+            // [-7] key
+            // [-6] value
+            // [-5] instance
+            // [-4] META_TABLE_SET_CONTEXT_VALUE()
+            // [-3] instance
+            // [-2] key
+            // [-1] value
+
+            lua_call(L, 3, 0);
+            // [-3] key
+            // [-2] value
+            // [-1] instance
+
+            lua_pop(L, 3);
+            assert(top - 2 == lua_gettop(L));
+            return true;
+        }
+        lua_pop(L, 3);
+
+        assert(top - 2 == lua_gettop(L));
+        return false;
+    }
+
+    bool GetInstanceContextValue(lua_State* L)
+    {
+        // [-1] key
+
+        int top = lua_gettop(L);
+        (void)top;
+
+        GetInstance(L);
+        // [-2] key
+        // [-1] instance
+
+        if (GetMetaFunction(L, -1, META_TABLE_GET_CONTEXT_VALUE)) {
+            // [-3] key
+            // [-2] instance
+            // [-1] META_TABLE_GET_CONTEXT_VALUE()
+
+            lua_pushvalue(L, -2);
+            // [-4] key
+            // [-3] instance
+            // [-2] META_TABLE_GET_CONTEXT_VALUE()
+            // [-1] instance
+
+            lua_pushvalue(L, -4);
+            // [-5] key
+            // [-4] instance
+            // [-3] META_TABLE_GET_CONTEXT_VALUE()
+            // [-2] instance
+            // [-1] key
+
+            lua_call(L, 2, 1);
+            // [-3] key
+            // [-2] instance
+            // [-1] value
+
+            lua_insert(L, -3);
+            // [-3] value
+            // [-2] key
+            // [-1] instance
+
+            lua_pop(L, 2);
+            // [-1] value
+
+            assert(top == lua_gettop(L));
+            return true;
+        }
+        lua_pop(L, 2);
+        assert(top - 1 == lua_gettop(L));
+        return false;
+    }
+
+    void SetValueToTable(lua_State* L, int table_stack_index, int key_stack_index, int value_stack_index)
+    {
+        int top = lua_gettop(L);
+        int abs_table_index = table_stack_index > 0 ? table_stack_index : top + table_stack_index + 1;
+        int abs_key_index = key_stack_index > 0 ? key_stack_index : top + key_stack_index + 1;
+        int abs_value_index = value_stack_index > 0 ? value_stack_index : top + value_stack_index + 1;
+
+        // [-1] context table or NIL
+        assert(lua_type(L, abs_table_index) == LUA_TTABLE);
+
+        lua_pushvalue(L, abs_key_index);
+        // [-2] context table
+        // [-1] key
+
+        lua_pushvalue(L, abs_value_index);
+        // [-3] context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, abs_table_index);
+        // [-1] context table
+
+        assert(top == lua_gettop(L));
+    }
+
+    void GetValueFromTable(lua_State* L, int table_stack_index, int key_stack_index)
+    {
+        int top = lua_gettop(L);
+
+        int abs_table_index = table_stack_index > 0 ? table_stack_index : top + table_stack_index + 1;
+        int abs_key_index = key_stack_index > 0 ? key_stack_index : top + key_stack_index + 1;
+
+        // [-1] context table
+
+        assert(lua_type(L, abs_table_index) == LUA_TTABLE);
+
+        lua_pushvalue(L, abs_key_index);
+        // [-2] context table
+        // [-1] key
+
+        lua_gettable(L, abs_table_index);
+        // [-2] context table
+        // [-1] value
+
+        assert(top + 1 == lua_gettop(L));
     }
 
     static int BacktraceErrorHandler(lua_State *m_state) {
