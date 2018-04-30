@@ -1240,6 +1240,7 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
     params.m_BufferSize = file_size;
     params.m_Resource = rd;
     params.m_Filename = name;
+    rd->m_PrevResource = 0;
     Result create_result = resource_type->m_RecreateFunction(params);
     if (create_result == RESULT_OK)
     {
@@ -1249,12 +1250,23 @@ static Result DoReloadResource(HFactory factory, const char* name, SResourceDesc
             for (uint32_t i = 0; i < factory->m_ResourceReloadedCallbacks->Size(); ++i)
             {
                 ResourceReloadedCallbackPair& pair = (*factory->m_ResourceReloadedCallbacks)[i];
-                ResourceReloadedParams params;
-                params.m_UserData = pair.m_UserData;
-                params.m_Resource = rd;
-                params.m_Name = name;
-                pair.m_Callback(params);
+                ResourceReloadedParams reload_params;
+                reload_params.m_UserData = pair.m_UserData;
+                reload_params.m_Resource = rd;
+                reload_params.m_Name = name;
+                pair.m_Callback(reload_params);
             }
+        }
+        if (rd->m_PrevResource) {
+            SResourceDescriptor tmp_resource = *rd;
+            tmp_resource.m_Resource = rd->m_PrevResource;
+            ResourceDestroyParams params;
+            params.m_Factory = factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_Resource = &tmp_resource;
+            dmResource::Result res = resource_type->m_DestroyFunction(params);
+            rd->m_PrevResource = 0x0;
+            return res;
         }
         return RESULT_OK;
     }
