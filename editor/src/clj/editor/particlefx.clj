@@ -901,7 +901,7 @@
         (make-modifier self self modifier)))))
 
 (defn- add-default-properties-to-modifier [mod-pb]
-  (update mod-pb :properties #(or (and (seq %) %) (get-in mod-types [(:type mod-pb) :template :properties]))))
+  (update mod-pb :properties #(or (not-empty %) (get-in mod-types [(:type mod-pb) :template :properties]))))
 
 (defn- add-default-properties-to-modifiers [pb]
   (update pb :modifiers (partial mapv add-default-properties-to-modifier)))
