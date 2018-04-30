@@ -63,9 +63,9 @@ namespace dmGui
 
     static const luaL_reg GuiScript_meta[] =
     {
-        {dmScript::META_TABLE_GET_URL,      GuiScriptGetURL},
-        {dmScript::META_TABLE_RESOLVE_PATH, GuiScriptResolvePath},
-        {dmScript::META_TABLE_IS_VALID,     GuiScriptIsValid},
+        {dmScript::META_TABLE_GET_URL,              GuiScriptGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH,         GuiScriptResolvePath},
+        {dmScript::META_TABLE_IS_VALID,             GuiScriptIsValid},
         {0, 0}
     };
 
@@ -165,6 +165,53 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptInstanceSetContextValue(lua_State* L)
+    {
+        const int self_index = 1;
+        const int key_index = 2;
+        const int value_index = 3;
+
+        int top = lua_gettop(L);
+
+        Scene* i = (Scene*)lua_touserdata(L, self_index);
+        if (i != 0x0 && i->m_Context != 0x0 && i->m_ContextTableReference != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+            dmScript::SetValueToTable(L, -1, key_index, value_index);
+        }
+
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+
+        return 0;
+    }
+
+    static int GuiScriptInstanceGetContextValue(lua_State* L)
+    {
+        const int self_index = 1;
+        const int key_index = 2;
+
+        int top = lua_gettop(L);
+
+        Scene* i = (Scene*)lua_touserdata(L, self_index);
+        if (i != 0x0 && i->m_Context != 0x0 && i->m_ContextTableReference != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+            dmScript::GetValueFromTable(L, -1, key_index);
+
+            lua_insert(L, -2);
+            lua_pop(L, 1);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -172,13 +219,15 @@ namespace dmGui
 
     static const luaL_reg GuiScriptInstance_meta[] =
     {
-        {"__gc",        GuiScriptInstance_gc},
-        {"__tostring",  GuiScriptInstance_tostring},
-        {"__index",     GuiScriptInstance_index},
-        {"__newindex",  GuiScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL,      GuiScriptInstanceGetURL},
-        {dmScript::META_TABLE_RESOLVE_PATH, GuiScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID,     GuiScriptInstanceIsValid},
+        {"__gc",                                    GuiScriptInstance_gc},
+        {"__tostring",                              GuiScriptInstance_tostring},
+        {"__index",                                 GuiScriptInstance_index},
+        {"__newindex",                              GuiScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,              GuiScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH,         GuiScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,             GuiScriptInstanceIsValid},
+        {dmScript::META_TABLE_SET_CONTEXT_VALUE,    GuiScriptInstanceSetContextValue},
+        {dmScript::META_TABLE_GET_CONTEXT_VALUE,    GuiScriptInstanceGetContextValue},
         {0, 0}
     };
 

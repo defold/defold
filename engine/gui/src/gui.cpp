@@ -299,6 +299,7 @@ namespace dmGui
         scene->m_InstanceReference = LUA_NOREF;
         scene->m_DataReference = LUA_NOREF;
         scene->m_RefTableReference = LUA_NOREF;
+        scene->m_ContextTableReference = LUA_NOREF;
     }
 
     HScene NewScene(HContext context, const NewSceneParams* params)
@@ -327,6 +328,9 @@ namespace dmGui
 
         lua_newtable(L);
         scene->m_DataReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        lua_newtable(L);
+        scene->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         scene->m_Context = context;
         scene->m_Script = 0x0;
@@ -401,6 +405,7 @@ namespace dmGui
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
 
         dmArray<HScene>& scenes = scene->m_Context->m_Scenes;
         uint32_t scene_count = scenes.Size();

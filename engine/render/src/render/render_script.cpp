@@ -287,6 +287,53 @@ namespace dmRender
         return 1;
     }
 
+    static int RenderScriptInstanceSetContextValue(lua_State* L)
+    {
+        const int self_index = 1;
+        const int key_index = 2;
+        const int value_index = 3;
+
+        int top = lua_gettop(L);
+
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, self_index);
+        if (i != 0x0 && i->m_RenderContext != 0x0 && i->m_ContextTableReference != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+            dmScript::SetValueToTable(L, -1, key_index, value_index);
+        }
+
+        lua_pop(L, 1);
+
+        assert(top == lua_gettop(L));
+
+        return 0;
+    }
+
+    static int RenderScriptInstanceGetContextValue(lua_State* L)
+    {
+        const int self_index = 1;
+        const int key_index = 2;
+
+        int top = lua_gettop(L);
+
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, self_index);
+        if (i != 0x0 && i->m_RenderContext != 0x0 && i->m_ContextTableReference != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+            dmScript::GetValueFromTable(L, -1, key_index);
+
+            lua_insert(L, -2);
+            lua_pop(L, 1);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     static const luaL_reg RenderScriptInstance_methods[] =
     {
         {0,0}
@@ -294,13 +341,15 @@ namespace dmRender
 
     static const luaL_reg RenderScriptInstance_meta[] =
     {
-        {"__gc",        RenderScriptInstance_gc},
-        {"__tostring",  RenderScriptInstance_tostring},
-        {"__index",     RenderScriptInstance_index},
-        {"__newindex",  RenderScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL, RenderScriptInstanceGetURL},
-        {dmScript::META_TABLE_RESOLVE_PATH, RenderScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID, RenderScriptInstanceIsValid},
+        {"__gc",                                    RenderScriptInstance_gc},
+        {"__tostring",                              RenderScriptInstance_tostring},
+        {"__index",                                 RenderScriptInstance_index},
+        {"__newindex",                              RenderScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,              RenderScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH,         RenderScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,             RenderScriptInstanceIsValid},
+        {dmScript::META_TABLE_SET_CONTEXT_VALUE,    RenderScriptInstanceSetContextValue},
+        {dmScript::META_TABLE_GET_CONTEXT_VALUE,    RenderScriptInstanceGetContextValue},
         {0, 0}
     };
 
@@ -2548,6 +2597,7 @@ bail:
         memset(render_script_instance, 0, sizeof(RenderScriptInstance));
         render_script_instance->m_InstanceReference = LUA_NOREF;
         render_script_instance->m_RenderScriptDataReference = LUA_NOREF;
+        render_script_instance->m_ContextTableReference = LUA_NOREF;
     }
 
     HRenderScriptInstance NewRenderScriptInstance(dmRender::HRenderContext render_context, HRenderScript render_script)
@@ -2571,6 +2621,9 @@ bail:
         lua_newtable(L);
         i->m_RenderScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
+        lua_newtable(L);
+        i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+
         luaL_getmetatable(L, RENDER_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
 
@@ -2590,6 +2643,7 @@ bail:
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
 
         assert(top == lua_gettop(L));
 
