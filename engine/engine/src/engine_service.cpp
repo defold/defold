@@ -43,6 +43,7 @@ namespace dmEngineService
     "{\"version\": \"${ENGINE_VERSION}\"}";
 
     static const char INTERNAL_SERVER_ERROR[] = "(500) Internal server error";
+    const char* const FOURCC_RESOURCES = "RESS";
 
     struct EngineService
     {
@@ -527,8 +528,7 @@ namespace dmEngineService
 
     static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
     {
-        const char* FOURCC = "RESS";
-        dmWebServer::Result r = SendString(request, FOURCC);
+        dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
             dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
@@ -551,7 +551,7 @@ namespace dmEngineService
         uint32_t                m_Index;
     };
 
-    static bool SendGameObjectData(GameObjectProfilerCtx* ctx, dmhash_t id, dmhash_t resource_id, uint32_t index, uint32_t parent, uint32_t flags, const char* type)
+    static bool SendGameObjectData(GameObjectProfilerCtx* ctx, dmhash_t id, dmhash_t resource_id, uint32_t index, uint32_t parent, const char* type)
     {
         // See profiler.html, loadGameObjects() for the receiving end of this code
         dmWebServer::Request* request = ctx->m_Request;
@@ -561,7 +561,6 @@ namespace dmEngineService
         r = SendString(request, type); CHECK_RESULT_BOOL(r);
         r = dmWebServer::Send(request, &index, 4); CHECK_RESULT_BOOL(r);
         r = dmWebServer::Send(request, &parent, 4); CHECK_RESULT_BOOL(r);
-        r = dmWebServer::Send(request, &flags, 4); CHECK_RESULT_BOOL(r);
         return true;
     }
 
@@ -569,7 +568,7 @@ namespace dmEngineService
     {
         GameObjectProfilerCtx* ctx = (GameObjectProfilerCtx*)user_ctx;
         uint32_t parent = ctx->m_Stack.Back();
-        SendGameObjectData(ctx, iterator->m_NameHash, iterator->m_Resource, ctx->m_Index++, parent, 0, iterator->m_Type);
+        SendGameObjectData(ctx, iterator->m_NameHash, iterator->m_Resource, ctx->m_Index++, parent, iterator->m_Type);
         return true;
     }
 
@@ -580,7 +579,7 @@ namespace dmEngineService
         uint32_t index = ctx->m_Index++;
         ctx->m_Stack.Push(index);
 
-        SendGameObjectData(ctx, dmGameObject::GetIdentifier(iterator->m_Instance), iterator->m_Resource, index, parent, 0, "goc");
+        SendGameObjectData(ctx, dmGameObject::GetIdentifier(iterator->m_Instance), iterator->m_Resource, index, parent, "goc");
 
         bool result = dmGameObject::IterateComponents(iterator->m_Instance, ComponentIteratorFunction, user_ctx);
 
@@ -599,7 +598,7 @@ namespace dmEngineService
         uint32_t index = ctx->m_Index++;
         ctx->m_Stack.Push(index);
 
-        SendGameObjectData(ctx, iterator->m_NameHash, iterator->m_Resource, index, parent, 0, "collectionc");
+        SendGameObjectData(ctx, iterator->m_NameHash, iterator->m_Resource, index, parent, "collectionc");
 
         bool result = dmGameObject::IterateGameObjects(iterator->m_Collection, GameObjectIteratorFunction, user_ctx);
 
@@ -624,7 +623,7 @@ namespace dmEngineService
         GameObjectProfilerCtx ctx;
         ctx.m_Request = request;
         ctx.m_Index = 0;
-        ctx.m_Stack.SetCapacity(1024); // This is the depth of the tree!
+        ctx.m_Stack.SetCapacity(1024); // This is the depth of the tree. We don't expect the tree to ever be this big
         ctx.m_Stack.Push(ctx.m_Index);
         ctx.m_Index++;
 
@@ -655,12 +654,12 @@ namespace dmEngineService
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
         resource_params.m_Userdata = factory;
-        dmWebServer::AddHandler(engine_service->m_WebServer, "/resources_impl", &resource_params);
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/resources_data", &resource_params);
 
         dmWebServer::HandlerParams gameobject_params;
         gameobject_params.m_Handler = HttpGameObjectRequestCallback;
         gameobject_params.m_Userdata = regist;
-        dmWebServer::AddHandler(engine_service->m_WebServer, "/gameobjects_impl", &gameobject_params);
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/gameobjects_data", &gameobject_params);
 
         // The entry point to the engine service profiler
         dmWebServer::HandlerParams profile_params;
