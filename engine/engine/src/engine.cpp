@@ -1018,7 +1018,7 @@ namespace dmEngine
 
         if (engine->m_EngineService)
         {
-            dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory);
+            dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
         }
 
         return true;
