@@ -23,6 +23,6 @@ uint16_t dmEngineService::GetServicePort(uint16_t default_port)
 	return default_port;
 }
 
-void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HFactory factory)
+void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
 {
 }
