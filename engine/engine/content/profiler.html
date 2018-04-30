@@ -289,7 +289,7 @@
 
             function captureGameObjects() {
                 framesGameObjects = [];
-                requestGameObjects.open('GET', base_url + 'gameobjects_impl', true);
+                requestGameObjects.open('GET', base_url + 'gameobjects_data', true);
                 requestGameObjects.overrideMimeType('text/plain; charset=x-user-defined');
                 requestGameObjects.onreadystatechange = handlerGameObjects;
                 requestGameObjects.send();
@@ -297,7 +297,7 @@
 
             function captureResources() {
                 framesResources = [];
-                requestResources.open('GET', base_url + 'resources_impl', true);
+                requestResources.open('GET', base_url + 'resources_data', true);
                 requestResources.overrideMimeType('text/plain; charset=x-user-defined');
                 requestResources.onreadystatechange = handlerResources;
                 requestResources.send();
@@ -377,13 +377,12 @@
             }
 
             class GameObjectItem {
-                constructor(name, resource, type, index, parent, flags) {
+                constructor(name, resource, type, index, parent) {
                     this.name = name;
                     this.resource = resource;
                     this.type = type;
                     this.index = index;
                     this.parent = parent;
-                    this.flags = flags;
                 }
             }
 
@@ -485,9 +484,8 @@
                     var type        = file.readString();
                     var index       = file.readUInt32();
                     var parent      = file.readUInt32();
-                    var flags       = file.readUInt32();
 
-                    var res = new GameObjectItem(name, resource, type, index, parent, flags);
+                    var res = new GameObjectItem(name, resource, type, index, parent);
                     framesGameObjects.push(res);
                 }
             }
