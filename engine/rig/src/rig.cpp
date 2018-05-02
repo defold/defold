@@ -87,28 +87,13 @@ namespace dmRig
                 MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
                 mesh_slot_pose->m_ActiveAttachment = mesh_slot->m_ActiveIndex;
 
-                mesh_slot_pose->m_SlotColor[0] = 1.0f;
-                mesh_slot_pose->m_SlotColor[1] = 1.0f;
-                mesh_slot_pose->m_SlotColor[2] = 1.0f;
-                mesh_slot_pose->m_SlotColor[3] = 1.0f;
+                // Get color for slot
+                const float* slot_color = mesh_slot->m_SlotColor.m_Count ? mesh_slot->m_SlotColor.m_Data : white;
 
-                // Check if there is an active attachment on this slot
-                if (mesh_slot_pose->m_ActiveAttachment >= 0) {
-
-                    // Check if the attachment has a valid mesh attachment
-                    int mesh_attachment_index = mesh_slot->m_MeshAttachments[mesh_slot_pose->m_ActiveAttachment];
-                    if (mesh_attachment_index >= 0) {
-                        const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
-
-                        // Get color for both slot and attachment
-                        const float* slot_color = mesh_slot->m_SlotColor.m_Count ? mesh_slot->m_SlotColor.m_Data : white;
-
-                        mesh_slot_pose->m_SlotColor[0] = slot_color[0];
-                        mesh_slot_pose->m_SlotColor[1] = slot_color[1];
-                        mesh_slot_pose->m_SlotColor[2] = slot_color[2];
-                        mesh_slot_pose->m_SlotColor[3] = slot_color[3];
-                    }
-                }
+                mesh_slot_pose->m_SlotColor[0] = slot_color[0];
+                mesh_slot_pose->m_SlotColor[1] = slot_color[1];
+                mesh_slot_pose->m_SlotColor[2] = slot_color[2];
+                mesh_slot_pose->m_SlotColor[3] = slot_color[3];
             }
             instance->m_DoRender = 1;
         }
@@ -1401,6 +1386,7 @@ namespace dmRig
                         slot_color[1] = mesh_color[1] * slot_color[1];
                         slot_color[2] = mesh_color[2] * slot_color[2];
                         slot_color[3] = mesh_color[3] * slot_color[3];
+                        slot_color = mulPerElem(color, slot_color);
                         slot_color = slot_color * 255.0f;
 
                         uint32_t rgba = (((uint32_t) slot_color.getW()) << 24) | (((uint32_t) slot_color.getZ()) << 16) |
