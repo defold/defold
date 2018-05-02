@@ -284,6 +284,7 @@ namespace dmEngineService
             DM_SNPRINTF(redirect, sizeof(redirect), "http://%s:%d%s", engine_service->m_LocalAddress, engine_service->m_Port, request->m_Resource);
             dmWebServer::SetStatusCode(request, 302);
             dmWebServer::SendAttribute(request, "Location", redirect);
+            dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
         }
 
         bool Init(uint16_t port)
@@ -577,6 +578,7 @@ namespace dmEngineService
         }
 
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
         dmResource::HFactory factory = (dmResource::HFactory)context;
         dmResource::IterateResources(factory, ResourceIteratorFunction, (void*)request);
     }
@@ -670,6 +672,7 @@ namespace dmEngineService
         ctx.m_Index++;
 
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
 
         dmGameObject::HRegister regist = (dmGameObject::HRegister)context;
         bool result = dmGameObject::IterateCollections(regist, CollectionIteratorFunction, &ctx);
@@ -761,6 +764,7 @@ namespace dmEngineService
         dmProfile::Pause(true);
 
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
 
         dmWebServer::Result r;
         r = SendString(request, "STRS"); CHECK_RESULT(r);
@@ -783,6 +787,7 @@ namespace dmEngineService
         }
 
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
 
         dmWebServer::Result r;
         r = SendString(request, "PROF"); CHECK_RESULT(r);
@@ -811,6 +816,7 @@ namespace dmEngineService
     {
         dmWebServer::SetStatusCode(request, 200);
         dmWebServer::SendAttribute(request, "Content-Type", "text/html");
+        dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
         dmWebServer::Send(request, PROFILER_HTML, PROFILER_HTML_SIZE);
     }
 
