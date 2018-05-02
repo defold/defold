@@ -253,7 +253,6 @@ namespace dmGui
     {
         int                     m_InstanceReference;
         int                     m_DataReference;
-        int                     m_RefTableReference;
         int                     m_ContextTableReference;
         Context*                m_Context;
         Script*                 m_Script;

@@ -595,7 +595,7 @@ namespace dmGui
 
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
         dmScript::Unref(L, -1, ref);
         lua_pop(L, 1);
 
@@ -615,7 +615,7 @@ namespace dmGui
         int callback_ref = (int) ((uintptr_t) userdata1 & 0xffffffff);
         int node_ref = (int) ((uintptr_t) userdata2 & 0xffffffff);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
 
         if( finished )
         {
@@ -1030,7 +1030,7 @@ namespace dmGui
             curve.type = dmEasing::TYPE_FLOAT_VECTOR;
             curve.vector = dmScript::CheckVector(L, 4);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
             lua_pushvalue(L, 4);
 
             curve.release_callback = LuaCurveRelease;
@@ -1052,7 +1052,7 @@ namespace dmGui
             delay = (float) lua_tonumber(L, 6);
             if (lua_isfunction(L, 7))
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
                 lua_pushvalue(L, 7);
                 animation_complete_ref = dmScript::Ref(L, -2);
                 lua_pushvalue(L, 1);
@@ -1563,7 +1563,7 @@ namespace dmGui
         int animation_complete_ref = LUA_NOREF;
         if (lua_isfunction(L, 3))
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
             lua_pushvalue(L, 3);
             animation_complete_ref = dmScript::Ref(L, -2);
             lua_pushvalue(L, 1);
@@ -3581,7 +3581,7 @@ namespace dmGui
         {
             if (lua_isfunction(L, 5))
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
                 lua_pushvalue(L, 5);
                 animation_complete_ref = dmScript::Ref(L, -2);
                 lua_pushvalue(L, 1);
@@ -3680,7 +3680,7 @@ namespace dmGui
         {
             if (lua_isfunction(L, 5))
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
                 lua_pushvalue(L, 5);
                 animation_complete_ref = dmScript::Ref(L, -2);
                 lua_pushvalue(L, 1);
