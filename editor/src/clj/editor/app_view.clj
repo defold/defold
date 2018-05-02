@@ -41,6 +41,7 @@
             [internal.util :refer [first-where]]
             [util.profiler :as profiler]
             [util.http-server :as http-server]
+            [editor.scene :as scene]
             [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
@@ -102,7 +103,7 @@
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
-  (input scene-view-refresh-fns g/Any :array)
+  (input scene-view-ids g/Any :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
@@ -1005,12 +1006,20 @@ If you do not specifically require different script states, consider changing th
 
 (defn- refresh-scene-views! [app-view]
   (profiler/begin-frame)
-  (doseq [refresh-fn (g/node-value app-view :scene-view-refresh-fns)]
+  (doseq [view-id (g/node-value app-view :scene-view-ids)]
     (try
-      (refresh-fn)
+      (scene/refresh-scene-view! view-id)
       (catch Throwable error
         (error-reporting/report-exception! error))))
   (scene-cache/prune-context! nil))
+
+(defn- dispose-scene-views! [app-view]
+  (doseq [view-id (g/node-value app-view :scene-view-ids)]
+    (try
+      (scene/dispose-scene-view! view-id)
+      (catch Throwable error
+        (error-reporting/report-exception! error))))
+  (scene-cache/drop-context! nil))
 
 (defn- tab->resource-node [^Tab tab]
   (some-> tab
@@ -1087,7 +1096,7 @@ If you do not specifically require different script states, consider changing th
         (doseq [timer refresh-timers]
           (ui/timer-stop-on-closed! stage timer)
           (ui/timer-start! timer)))
-      (ui/on-closed! stage (fn [_] (scene-cache/drop-all!)))
+      (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
       app-view)))
 
 (defn- make-tab! [app-view prefs workspace project resource resource-node
@@ -1326,12 +1335,9 @@ If you do not specifically require different script states, consider changing th
                                             :workspace workspace)
                                      preview (make-preview-fn view-graph resource-node opts 256 256)]
                                  (.setImage image-view ^Image (g/node-value preview :image))
-                                 (ui/user-data! image-view :graph view-graph))))))
-          (.setOnHiding (ui/event-handler
-                          e
-                          (let [image-view ^ImageView (.getGraphic tooltip)]
-                            (when-let [graph (ui/user-data image-view :graph)]
-                              (g/delete-graph! graph))))))))))
+                                 (when-some [dispose-preview-fn (:dispose-preview-fn view-type)]
+                                   (dispose-preview-fn preview))
+                                 (g/delete-graph! view-graph)))))))))))
 
 (defn- query-and-open! [workspace project app-view prefs term]
   (doseq [resource (dialogs/make-resource-dialog workspace project
