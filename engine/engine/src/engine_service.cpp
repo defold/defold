@@ -277,10 +277,13 @@ namespace dmEngineService
             }
         }
 
-        static void RedirectHandler(void*, dmWebServer::Request* request)
+        static void RedirectHandler(void* ctx, dmWebServer::Request* request)
         {
+            HEngineService engine_service = (HEngineService)ctx;
+            char redirect[256];
+            DM_SNPRINTF(redirect, sizeof(redirect), "http://%s:8001%s", engine_service->m_LocalAddress, request->m_Resource);
             dmWebServer::SetStatusCode(request, 302);
-            dmWebServer::SendAttribute(request, "Location", "http://localhost:8001");
+            dmWebServer::SendAttribute(request, "Location", redirect);
         }
 
         bool Init(uint16_t port)
