@@ -127,12 +127,12 @@
 (defn ->curve [control-points]
   (Curve. (iv/iv-vec control-points)))
 
-(def default-curve (->curve [[0 0 1 0]]))
+(def default-curve (->curve [[0.0 0.0 1.0 0.0]]))
 
 (defn ->curve-spread [control-points spread]
   (CurveSpread. (iv/iv-vec control-points) spread))
 
-(def default-curve-spread (->curve-spread [[0 0 1 0]] 0))
+(def default-curve-spread (->curve-spread [[0.0 0.0 1.0 0.0]] 0.0))
 
 (defn curve-vals [curve]
   (iv/iv-vals (:points curve)))
@@ -163,10 +163,6 @@
   (fn [^CurveSpread c]
     {:points (curve-vals c)
      :spread (:spread c)})))
-
-(def default-curve (map->Curve {:points [{:x 0 :y 0 :t-x 1 :t-y 0}]}))
-
-(def default-curve-spread (map->CurveSpread {:points [{:x 0 :y 0 :t-x 1 :t-y 0}] :spread 0}))
 
 (defn- q-round [v]
   (let [f 10e6]

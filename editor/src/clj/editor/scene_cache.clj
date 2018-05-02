@@ -1,7 +1,6 @@
 (ns editor.scene-cache
   (:require [clojure.core.cache :as cache]
-            [editor.volatile-cache :as vcache]
-            [util.thread-util :refer [preset!]]))
+            [editor.volatile-cache :as vcache]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,7 +45,7 @@
                                           (let [pruned-cache (vcache/prune cache)
                                                 dead-entries (filter (fn [[request-id _]] (not (contains? pruned-cache request-id))) cache)
                                                 dead-objects (mapv (fn [[_ object]] object) dead-entries)]
-                                            (when (not (empty? dead-objects))
+                                            (when (seq dead-objects)
                                               (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
                                             pruned-cache))))])))
         caches))
@@ -62,19 +61,10 @@
                  [cache-id (if (nil? cache)
                              meta
                              (let [dead-objects (map second cache)]
-                               (destroy-batch-fn context (map first dead-objects) (map second dead-objects))
+                               (when (seq dead-objects)
+                                 (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
                                (update meta :caches dissoc context)))])))
         caches))
 
 (defn drop-context! [context]
   (swap! object-caches drop-context context))
-
-(defn drop-all! []
-  (let [snapshot (preset! object-caches {})]
-    (doseq [meta (vals snapshot)]
-      (let [cache-by-context (:caches meta)
-            destroy-batch-fn (:destroy-batch-fn meta)]
-        (doseq [[context cache] cache-by-context]
-          (let [objects (map second cache)]
-            (when (seq objects)
-              (destroy-batch-fn context (map first objects) (map second objects)))))))))
