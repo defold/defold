@@ -281,7 +281,7 @@ namespace dmEngineService
         {
             HEngineService engine_service = (HEngineService)ctx;
             char redirect[256];
-            DM_SNPRINTF(redirect, sizeof(redirect), "http://%s:8001%s", engine_service->m_LocalAddress, request->m_Resource);
+            DM_SNPRINTF(redirect, sizeof(redirect), "http://%s:%d%s", engine_service->m_LocalAddress, engine_service->m_Port, request->m_Resource);
             dmWebServer::SetStatusCode(request, 302);
             dmWebServer::SendAttribute(request, "Location", redirect);
         }
