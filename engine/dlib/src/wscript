@@ -136,12 +136,11 @@ def build(bld):
     else:
         source_dirs.extend(webp_source_dirs)
 
-    dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed',
+    dlib = bld.new_task_gen(features = 'cc cxx cstaticlib',
                             includes = '.',
                             add_objects = local_objs,
                             target = 'dlib',
-                            defines= ['VALGRIND'] + extra_defines,
-                            embed_source = '../data/profiler.html')
+                            defines= ['VALGRIND'] + extra_defines)
     dlib.find_sources_in_dirs(source_dirs)
     dlib.source.extend(webp_source_no_neon)
 
@@ -165,13 +164,12 @@ def build(bld):
 
 
     if bld.env['PLATFORM'] != 'as3-web':
-        dlib = bld.new_task_gen(features = 'cc cxx cshlib embed',
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib',
                                 includes = '.',
                                 add_objects = local_objs,
                                 uselib_local = 'axtls',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                embed_source = '../data/profiler.html',
                                 uselib = 'UUID PLATFORM_SOCKET')
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
