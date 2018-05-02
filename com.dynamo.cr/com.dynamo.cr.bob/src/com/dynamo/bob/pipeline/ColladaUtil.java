@@ -712,10 +712,10 @@ public class ColladaUtil {
         MeshSlot.Builder meshSlotBuilder = MeshSlot.newBuilder();
         meshSlotBuilder.addMeshAttachments(0);
         meshSlotBuilder.setActiveIndex(0);
-        meshSlotBuilder.addSkinColor(1.0f);
-        meshSlotBuilder.addSkinColor(1.0f);
-        meshSlotBuilder.addSkinColor(1.0f);
-        meshSlotBuilder.addSkinColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
 
         MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
         meshEntryBuilder.addMeshSlots(meshSlotBuilder);

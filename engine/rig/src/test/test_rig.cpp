@@ -42,8 +42,8 @@ static void DeleteRigAnimation(dmRigDDF::RigAnimation& anim)
         if (anim_meshtrack.m_MeshAttachment.m_Count) {
             delete [] anim_meshtrack.m_MeshAttachment.m_Data;
         }
-        if (anim_meshtrack.m_Colors.m_Count) {
-            delete [] anim_meshtrack.m_Colors.m_Data;
+        if (anim_meshtrack.m_SlotColors.m_Count) {
+            delete [] anim_meshtrack.m_SlotColors.m_Data;
         }
     }
 
@@ -91,7 +91,7 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
             if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
             if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
             if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
-            if (mesh.m_Color.m_Count > 0)            { delete [] mesh.m_Color.m_Data; }
+            if (mesh.m_MeshColor.m_Count > 0)        { delete [] mesh.m_MeshColor.m_Data; }
             if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
             if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
             if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
@@ -107,7 +107,7 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
             for (int j = 0; j < mesh_slot_count; j++) {
                 dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
                 if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
-                if (mesh_slot.m_SkinColor.m_Count > 0) { delete [] mesh_slot.m_SkinColor.m_Data; }
+                if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
             }
             delete [] mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
 
@@ -141,12 +141,12 @@ static void CreateDrawOrderMeshes(dmRigDDF::MeshSet* mesh_set, int mesh_entry_in
         mesh.m_Texcoord0.m_Data[1]    = 0.0f;
         mesh.m_Texcoord0Indices.m_Count = 0;
 
-        mesh.m_Color.m_Data           = new float[4];
-        mesh.m_Color.m_Count          = 4;
-        mesh.m_Color.m_Data[0]        = 0.0f;
-        mesh.m_Color.m_Data[1]        = 0.0f;
-        mesh.m_Color.m_Data[2]        = 0.0f;
-        mesh.m_Color.m_Data[3]        = 0.0f;
+        mesh.m_MeshColor.m_Data           = new float[4];
+        mesh.m_MeshColor.m_Count          = 4;
+        mesh.m_MeshColor.m_Data[0]        = 0.0f;
+        mesh.m_MeshColor.m_Data[1]        = 0.0f;
+        mesh.m_MeshColor.m_Data[2]        = 0.0f;
+        mesh.m_MeshColor.m_Data[3]        = 0.0f;
 
         mesh.m_Indices.m_Data         = new uint32_t[1];
         mesh.m_Indices.m_Count        = 1;
@@ -177,12 +177,12 @@ static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dm
 
     mesh_entry.m_MeshSlots[0].m_MeshAttachments[0] = mesh_attachment_index;
     mesh_entry.m_MeshSlots[0].m_ActiveIndex = 0;
-    mesh_entry.m_MeshSlots[0].m_SkinColor.m_Data = new float[4];
-    mesh_entry.m_MeshSlots[0].m_SkinColor.m_Data[0] = slot_color.getX();
-    mesh_entry.m_MeshSlots[0].m_SkinColor.m_Data[1] = slot_color.getY();
-    mesh_entry.m_MeshSlots[0].m_SkinColor.m_Data[2] = slot_color.getZ();
-    mesh_entry.m_MeshSlots[0].m_SkinColor.m_Data[3] = slot_color.getW();
-    mesh_entry.m_MeshSlots[0].m_SkinColor.m_Count = 4;
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data = new float[4];
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[0] = slot_color.getX();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[1] = slot_color.getY();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[2] = slot_color.getZ();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[3] = slot_color.getW();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Count = 4;
 
     mesh_entry.m_Id = id;
 
@@ -240,24 +240,24 @@ static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dm
     mesh.m_NormalsIndices.m_Data[2] = 2;
     mesh.m_NormalsIndices.m_Data[3] = 3;
 
-    mesh.m_Color.m_Data           = new float[vert_count*4];
-    mesh.m_Color.m_Count          = vert_count*4;
-    mesh.m_Color[0]               = color.getX();
-    mesh.m_Color[1]               = color.getY();
-    mesh.m_Color[2]               = color.getZ();
-    mesh.m_Color[3]               = color.getW();
-    mesh.m_Color[4]               = color.getX();
-    mesh.m_Color[5]               = color.getY();
-    mesh.m_Color[6]               = color.getZ();
-    mesh.m_Color[7]               = color.getW();
-    mesh.m_Color[8]               = color.getX();
-    mesh.m_Color[9]               = color.getY();
-    mesh.m_Color[10]              = color.getZ();
-    mesh.m_Color[11]              = color.getW();
-    mesh.m_Color[12]              = color.getX();
-    mesh.m_Color[13]              = color.getY();
-    mesh.m_Color[14]              = color.getZ();
-    mesh.m_Color[15]              = color.getW();
+    mesh.m_MeshColor.m_Data       = new float[vert_count*4];
+    mesh.m_MeshColor.m_Count      = vert_count*4;
+    mesh.m_MeshColor[0]           = color.getX();
+    mesh.m_MeshColor[1]           = color.getY();
+    mesh.m_MeshColor[2]           = color.getZ();
+    mesh.m_MeshColor[3]           = color.getW();
+    mesh.m_MeshColor[4]           = color.getX();
+    mesh.m_MeshColor[5]           = color.getY();
+    mesh.m_MeshColor[6]           = color.getZ();
+    mesh.m_MeshColor[7]           = color.getW();
+    mesh.m_MeshColor[8]           = color.getX();
+    mesh.m_MeshColor[9]           = color.getY();
+    mesh.m_MeshColor[10]          = color.getZ();
+    mesh.m_MeshColor[11]          = color.getW();
+    mesh.m_MeshColor[12]          = color.getX();
+    mesh.m_MeshColor[13]          = color.getY();
+    mesh.m_MeshColor[14]          = color.getZ();
+    mesh.m_MeshColor[15]          = color.getW();
     mesh.m_Indices.m_Data         = new uint32_t[vert_count];
     mesh.m_Indices.m_Count        = vert_count;
     mesh.m_Indices.m_Data[0]      = 0;
@@ -804,24 +804,24 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim_track0.m_MeshAttachment.m_Count = 0;
 
             uint32_t samples = 4;
-            anim_track0.m_Colors.m_Data = new float[samples*4];
-            anim_track0.m_Colors.m_Count = samples*4;
-            anim_track0.m_Colors.m_Data[0] = 1.0f;
-            anim_track0.m_Colors.m_Data[1] = 0.5f;
-            anim_track0.m_Colors.m_Data[2] = 0.0f;
-            anim_track0.m_Colors.m_Data[3] = 1.0f;
-            anim_track0.m_Colors.m_Data[4] = 0.0f;
-            anim_track0.m_Colors.m_Data[5] = 0.5f;
-            anim_track0.m_Colors.m_Data[6] = 1.0f;
-            anim_track0.m_Colors.m_Data[7] = 0.5f;
-            anim_track0.m_Colors.m_Data[8] = 0.0f;
-            anim_track0.m_Colors.m_Data[9] = 0.5f;
-            anim_track0.m_Colors.m_Data[10] = 1.0f;
-            anim_track0.m_Colors.m_Data[11] = 0.5f;
-            anim_track0.m_Colors.m_Data[12] = 0.0f;
-            anim_track0.m_Colors.m_Data[13] = 0.5f;
-            anim_track0.m_Colors.m_Data[14] = 1.0f;
-            anim_track0.m_Colors.m_Data[15] = 0.5f;
+            anim_track0.m_SlotColors.m_Data = new float[samples*4];
+            anim_track0.m_SlotColors.m_Count = samples*4;
+            anim_track0.m_SlotColors.m_Data[0] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[1] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[2] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[3] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[4] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[5] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[6] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[7] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[8] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[9] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[10] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[11] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[12] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[13] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[14] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[15] = 0.5f;
         }
 
         // Animation 8: "draw_order_anim"
@@ -850,7 +850,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             {
                 dmRigDDF::MeshAnimationTrack& anim_track = anim8.m_MeshTracks.m_Data[i];
                 anim_track.m_MeshSlot               = i;
-                anim_track.m_Colors.m_Count         = 0;
+                anim_track.m_SlotColors.m_Count     = 0;
                 anim_track.m_MeshAttachment.m_Count = 0;
 
                 anim_track.m_OrderOffset.m_Data = new int32_t[samples];
@@ -874,24 +874,24 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim_track0.m_MeshAttachment.m_Count = 0;
 
             uint32_t samples = 4;
-            anim_track0.m_Colors.m_Data = new float[samples*4];
-            anim_track0.m_Colors.m_Count = samples*4;
-            anim_track0.m_Colors.m_Data[0] = 1.0f;
-            anim_track0.m_Colors.m_Data[1] = 0.5f;
-            anim_track0.m_Colors.m_Data[2] = 0.0f;
-            anim_track0.m_Colors.m_Data[3] = 1.0f;
-            anim_track0.m_Colors.m_Data[4] = 0.0f;
-            anim_track0.m_Colors.m_Data[5] = 0.5f;
-            anim_track0.m_Colors.m_Data[6] = 1.0f;
-            anim_track0.m_Colors.m_Data[7] = 0.5f;
-            anim_track0.m_Colors.m_Data[8] = 0.0f;
-            anim_track0.m_Colors.m_Data[9] = 0.5f;
-            anim_track0.m_Colors.m_Data[10] = 1.0f;
-            anim_track0.m_Colors.m_Data[11] = 0.5f;
-            anim_track0.m_Colors.m_Data[12] = 0.0f;
-            anim_track0.m_Colors.m_Data[13] = 0.5f;
-            anim_track0.m_Colors.m_Data[14] = 1.0f;
-            anim_track0.m_Colors.m_Data[15] = 0.5f;
+            anim_track0.m_SlotColors.m_Data = new float[samples*4];
+            anim_track0.m_SlotColors.m_Count = samples*4;
+            anim_track0.m_SlotColors.m_Data[0] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[1] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[2] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[3] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[4] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[5] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[6] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[7] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[8] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[9] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[10] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[11] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[12] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[13] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[14] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[15] = 0.5f;
         }
 
         // Meshes / skins
@@ -911,7 +911,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[1] = -1;
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_ActiveIndex = -1;
-                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_SkinColor.m_Count = 0;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_SlotColor.m_Count = 0;
             }
         }
         mesh_set->m_MaxBoneCount = bone_count + 1;
@@ -924,7 +924,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         // Create mesh data for skins
         CreateTestSkin(mesh_set, 0, dmHashString64("test"), Vector4(0.0f));
         CreateTestSkin(mesh_set, 1, dmHashString64("secondary_skin"), Vector4(1.0f));
-        CreateTestSkin(mesh_set, 2, dmHashString64("skin_color"), Vector4(1.0f), Vector4(0.5f, 0.4f, 0.3f, 0.2f));
+        CreateTestSkin(mesh_set, 2, dmHashString64("skin_color"), Vector4(0.5f, 0.4f, 0.3f, 0.2f), Vector4(1.0f));
         CreateDrawOrderMeshes(mesh_set, 3, dmHashString64("draw_order_skin"));
 
         // For sanity, check that all the expected meshes were added.
