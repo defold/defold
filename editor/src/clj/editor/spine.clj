@@ -47,6 +47,12 @@
 
 (def slot-signal-unchanged 0x10CCED)
 
+; Helper to do an .indexOf with a type checked first arg.
+(defn- index-of
+  [^java.util.List list value]
+  (.indexOf list value))
+
+
 ; Node defs
 
 (g/defnk produce-save-value [spine-json-resource atlas-resource sample-rate]
@@ -88,7 +94,7 @@
 (defn- interpolatable-> [pb-field interpolatable]
   (case pb-field
     (:positions :rotations :scale :slot-colors) (math/vecmath->clj interpolatable)
-    :mix                                   interpolatable))
+    :mix                                        interpolatable))
 
 (def default-vals {:positions [0 0 0]
                    :rotations [0 0 0 1]
@@ -267,6 +273,10 @@
                                                                (assoc m (get offset "slot") [{"time" t "offset" (get offset "offset")}]))
                                                              {} (get timeline "offsets"))
                                             ; Supply implicit slots with 0 in offset
+                                            ; We set them to the constant slot-signal-unchanged which signal
+                                            ; to the runtime that these slots were not changed.
+                                            ; (We can't set them to 0 here, since this would mean that they
+                                            ;  MUST not change/move at runtime.)
                                             all (reduce (fn [m slot]
                                                           (if (not (contains? m slot))
                                                             (assoc m slot [{"time" t "offset" slot-signal-unchanged}])
@@ -279,14 +289,19 @@
                                     (let [slot-data (get base-slots slot)
                                           default-attachment-name (:default-attachment slot-data)
                                           ^java.util.List attachment-names (:attachment-names slot-data)
+                                          default-attachment-index (index-of attachment-names default-attachment-name)
                                           tracks (reduce-kv (fn [track type keys]
                                                               (let [interpolate? (= type "color")
                                                                     val-fn (when (= type "attachment")
                                                                              (fn [_ key]
-                                                                               (.indexOf attachment-names (get key "name"))))
+                                                                               (index-of attachment-names (get key "name"))))
                                                                     default-val (when (= type "attachment")
-                                                                                  (.indexOf attachment-names default-attachment-name))
+                                                                                  default-attachment-index)
                                                                     field (timeline-type->pb-field type)
+                                                                    ; Below :mesh-slot should point to the slot index that the track will change,
+                                                                    ; this is stored in the :draw-order of a slot. The :draw-order is essentially
+                                                                    ; just an increasing integer from 0 created when we read the base slots from
+                                                                    ; the input file.
                                                                     pb-track {:mesh-slot (:draw-order slot-data)
                                                                               field (sample type keys duration sample-rate spf val-fn default-val interpolate?)}]
                                                                 (merge track pb-track)))
@@ -540,7 +555,7 @@
           (map-indexed (fn [i slot]
                          (let [slot-name (get slot "name")
                                ^java.util.List attachment-names (into [] (get attachment-points-by-slot-name slot-name))
-                               attachment-points (into {} (zipmap attachment-names (repeat (count attachment-names) -1)))
+                               attachment-points (zipmap attachment-names (repeat (count attachment-names) -1))
                                bone-index (bone-id->index (murmur/hash64 (get slot "bone")))
                                default-attachment (get slot "attachment")]
                            [slot-name
@@ -551,7 +566,7 @@
                              :attachment-points attachment-points
                              :attachment-names attachment-names
                              :default-attachment default-attachment
-                             :active-attachment (.indexOf attachment-names default-attachment)}])))
+                             :active-attachment (index-of attachment-names default-attachment)}])))
 
           (get spine-scene "slots"))))
 
@@ -559,10 +574,6 @@
   (assoc attachment
     "name" (get attachment "name" attachment-name)
     "slot-name" slot-name))
-
-(defn- mesh-value->mesh-index
-  [^java.util.List meshes mesh-value]
-  (.indexOf meshes mesh-value))
 
 (defn- read-distinct-meshes
   [skins]
@@ -577,11 +588,11 @@
                       skins))))
 
 (defn- update-slot-attachment-indices
-  [slot-name slot-attachments-x slot-attachments-j meshes]
-  (reduce-kv (fn [attachment attachment-id attachment-indx]
+  [slot-attachments-x slot-name slot-attachments-j meshes]
+  (reduce-kv (fn [attachment attachment-id attachment-index]
                (let [mesh-entry (attachment-entry->named-attachment [attachment-id (get slot-attachments-j attachment-id) slot-name])
-                     mesh-index (mesh-value->mesh-index meshes mesh-entry)
-                     mesh-index (if (not= mesh-index -1) mesh-index attachment-indx)]
+                     mesh-index (index-of meshes mesh-entry)
+                     mesh-index (if (not= mesh-index -1) mesh-index attachment-index)]
                    (assoc attachment attachment-id mesh-index)))
              {}
              slot-attachments-x))
@@ -591,9 +602,7 @@
   (reduce-kv (fn [skin slot-name slot]
                (assoc skin
                  slot-name
-                 (assoc slot
-                   :attachment-points
-                   (update-slot-attachment-indices slot-name (get slot :attachment-points) (get skin-j slot-name {}) meshes))))
+                 (update slot :attachment-points update-slot-attachment-indices slot-name (get skin-j slot-name {}) meshes)))
              {}
              skin-x))
 
@@ -677,16 +686,16 @@
                                                  meshes)
                          :mesh-entries (mapv (fn [[skin-name slots]]
                                                {:id (murmur/hash64 skin-name)
-                                               :mesh-slots (mapv (fn [slot]
-                                                                   (let [slot-data (val slot)
-                                                                         attachment-points (get slot-data :attachment-points)]
-                                                                     {:mesh-attachments (mapv (fn [attachment-name] (get attachment-points attachment-name))
-                                                                                              (get slot-data :attachment-names))
-                                                                      :active-index (get slot-data :active-attachment -1)
-                                                                      :slot-color (get slot-data :slot-color)}))
-                                                                 (sort-by (fn [[_ slot-data]]
-                                                                            (get slot-data :draw-order))
-                                                                          slots))})
+                                                :mesh-slots (mapv (fn [slot]
+                                                                    (let [slot-data (val slot)
+                                                                          attachment-points (get slot-data :attachment-points)]
+                                                                      {:mesh-attachments (mapv (fn [attachment-name] (get attachment-points attachment-name))
+                                                                                               (:attachment-names slot-data))
+                                                                       :active-index (get slot-data :active-attachment -1)
+                                                                       :slot-color (:slot-color slot-data)}))
+                                                                  (sort-by (fn [[_ slot-data]]
+                                                                             (:draw-order slot-data))
+                                                                           slots))})
                                              all-skins)}}
              (catch Exception e
                (log/error :exception e)
@@ -714,11 +723,11 @@
                 (map (partial transform-positions (:world-transform renderable)))
                 (map (fn [mesh]
                        (let [tint-color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])
-                             skin-color (get mesh :slot-color)
-                             mesh-color (get mesh :mesh-color)
+                             skin-color (:slot-color mesh)
+                             mesh-color (:mesh-color mesh)
                              final-color (mapv * skin-color tint-color mesh-color)
                              alpha (nth final-color 3)
-                             final-color (map #(* % alpha) final-color)]
+                             final-color (assoc (mapv #(* % alpha) final-color) 1 alpha)]
                          (assoc mesh :color final-color)))))
           (:mesh-slots skin))))
 
