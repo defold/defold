@@ -277,6 +277,12 @@ namespace dmEngineService
             }
         }
 
+        static void RedirectHandler(void*, dmWebServer::Request* request)
+        {
+            dmWebServer::SetStatusCode(request, 302);
+            dmWebServer::SendAttribute(request, "Location", "http://localhost:8001");
+        }
+
         bool Init(uint16_t port)
         {
             dmTemplate::Format(this, m_InfoJson, sizeof(m_InfoJson), INFO_TEMPLATE, ReplaceCallback);
@@ -316,6 +322,17 @@ namespace dmEngineService
                 dmLogError("Unable to create engine web-server (%d)", r);
                 return false;
             }
+
+            // The redirect server
+            params.m_Port = 8002;
+            dmWebServer::HServer web_server_redirect;
+            r = dmWebServer::New(&params, &web_server_redirect);
+            if (r != dmWebServer::RESULT_OK)
+            {
+                dmLogError("Unable to create engine (redirect) web-server (%d)", r);
+                return false;
+            }
+
             dmSocket::Address address;
             dmWebServer::GetName(web_server, &address, &m_Port);
             DM_SNPRINTF(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
@@ -393,14 +410,23 @@ namespace dmEngineService
             upnp_params.m_Userdata = this;
             dmWebServer::AddHandler(web_server, "/upnp", &upnp_params);
 
+            // Redirects from old profiler to the new
+            dmWebServer::HandlerParams redirect_params;
+            redirect_params.m_Handler = RedirectHandler;
+            redirect_params.m_Userdata = this;
+            dmWebServer::AddHandler(web_server_redirect, "/", &redirect_params);
+
             m_WebServer = web_server;
+            m_WebServerRedirect = web_server_redirect;
             m_SSDP = ssdp;
+            m_Profile = 0; // Set during the update
             return true;
         }
 
         void Final()
         {
             dmWebServer::Delete(m_WebServer);
+            dmWebServer::Delete(m_WebServerRedirect);
 
             if (m_SSDP)
             {
@@ -411,6 +437,7 @@ namespace dmEngineService
 
 
         dmWebServer::HServer m_WebServer;
+        dmWebServer::HServer m_WebServerRedirect; // A redirect from 8002 to the engine service
         uint16_t             m_Port;
         char                 m_PortText[16];
         char                 m_LogPortText[16];
@@ -422,6 +449,8 @@ namespace dmEngineService
         dmSSDP::HSSDP        m_SSDP;
 
         char                 m_InfoJson[sizeof(INFO_TEMPLATE) + 512]; // 512 is rather arbitrary :-)
+
+        dmProfile::HProfile  m_Profile;
     };
 
     HEngineService New(uint16_t port)
@@ -449,10 +478,13 @@ namespace dmEngineService
         delete engine_service;
     }
 
-    void Update(HEngineService engine_service)
+    void Update(HEngineService engine_service, dmProfile::HProfile profile)
     {
         DM_PROFILE(Engine, "Service");
+        engine_service->m_Profile = profile;
         dmWebServer::Update(engine_service->m_WebServer);
+        dmWebServer::Update(engine_service->m_WebServerRedirect);
+        engine_service->m_Profile = 0; // Don't leave a dangling pointer
 
         if (engine_service->m_SSDP)
         {
@@ -490,6 +522,12 @@ namespace dmEngineService
         {\
             dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
             return false; \
+        }
+
+    #define CHECK_RESULT(_RESULT) \
+        if (r != dmWebServer::RESULT_OK)\
+        {\
+            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
         }
 
     static dmWebServer::Result SendString(dmWebServer::Request* request, const char* str)
@@ -535,6 +573,7 @@ namespace dmEngineService
             return;
         }
 
+        dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
         dmResource::HFactory factory = (dmResource::HFactory)context;
         dmResource::IterateResources(factory, ResourceIteratorFunction, (void*)request);
     }
@@ -627,6 +666,8 @@ namespace dmEngineService
         ctx.m_Stack.Push(ctx.m_Index);
         ctx.m_Index++;
 
+        dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+
         dmGameObject::HRegister regist = (dmGameObject::HRegister)context;
         bool result = dmGameObject::IterateCollections(regist, CollectionIteratorFunction, &ctx);
 
@@ -637,6 +678,126 @@ namespace dmEngineService
         dmWebServer::SetStatusCode(request, result ? 200 : 500);
     }
 
+    //
+    // DLIB Profiler
+    //
+
+    // Profile strings handling
+
+    static void SendProfileString(dmWebServer::Request* request, uint64_t id, const char* str)
+    {
+        dmWebServer::Send(request, &id, sizeof(id));
+        SendString(request, str);
+    }
+
+    static void ProfileSendScopes(void* context, const dmProfile::Scope* scope)
+    {
+        SendProfileString((dmWebServer::Request*)context, (uint64_t)scope, scope->m_Name);
+    }
+
+    static void ProfileSendCounters(void* context, const dmProfile::Counter* counter)
+    {
+        SendProfileString((dmWebServer::Request*)context, (uint64_t)counter, counter->m_Name);
+    }
+
+    static void ProfileSendStringCallback(void* context, const uintptr_t* key, const char** value)
+    {
+        SendProfileString((dmWebServer::Request*)context, (uint64_t)*key, *value);
+    }
+
+
+    // The actual payload (elapsed time, count etc)
+    static void ProfileSendSamples(void* context, const dmProfile::Sample* sample)
+    {
+        dmWebServer::Request* request = (dmWebServer::Request*)context;
+        dmWebServer::Result r;
+
+        uint64_t name = (uint64_t)sample->m_Name;
+        r = dmWebServer::Send(request, &name, 8); CHECK_RESULT(r);
+        uint64_t scope = (uint64_t)sample->m_Scope;
+        r = dmWebServer::Send(request, &scope, 8); CHECK_RESULT(r);
+
+        r = dmWebServer::Send(request, &sample->m_Start, 4); CHECK_RESULT(r);
+        r = dmWebServer::Send(request, &sample->m_Elapsed, 4); CHECK_RESULT(r);
+        r = dmWebServer::Send(request, &sample->m_ThreadId, 2); CHECK_RESULT(r);
+    }
+
+    static void ProfileSendScopesData(void* context, const dmProfile::ScopeData* scope_data)
+    {
+        dmWebServer::Request* request = (dmWebServer::Request*)context;
+        dmWebServer::Result r;
+
+        uint64_t ptr = (uint64_t)scope_data->m_Scope;
+        r = dmWebServer::Send(request, &ptr, 8); CHECK_RESULT(r);
+        r = dmWebServer::Send(request, &scope_data->m_Elapsed, 4); CHECK_RESULT(r);
+        r = dmWebServer::Send(request, &scope_data->m_Count, 4); CHECK_RESULT(r);
+    }
+
+    static void ProfileSendCountersData(void* context, const dmProfile::CounterData* counter_data)
+    {
+        dmWebServer::Request* request = (dmWebServer::Request*)context;
+        dmWebServer::Result r;
+
+        uint64_t ptr = (uint64_t)counter_data->m_Counter;
+        r = dmWebServer::Send(request, &ptr, 8); CHECK_RESULT(r);
+        r = dmWebServer::Send(request, (void*)&counter_data->m_Value, 4); CHECK_RESULT(r);
+    }
+
+
+    static void HttpProfileSendStrings(void* user_ctx, dmWebServer::Request* request)
+    {
+        HEngineService engine_service = (HEngineService)user_ctx;
+        if (!engine_service->m_Profile)
+        {
+            dmWebServer::SetStatusCode(request, 500);
+            const char* msg = "Error. The profiler was not active!";
+            dmWebServer::Send(request, msg, strlen(msg));
+            return;
+        }
+
+        dmProfile::Pause(true);
+
+        dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+
+        dmWebServer::Result r;
+        r = SendString(request, "STRS"); CHECK_RESULT(r);
+        dmProfile::IterateStrings(engine_service->m_Profile, request, ProfileSendStringCallback);
+        dmProfile::IterateScopes(engine_service->m_Profile, request, ProfileSendScopes);
+        dmProfile::IterateCounters(engine_service->m_Profile, request, ProfileSendCounters);
+
+        dmProfile::Pause(false);
+    }
+
+    static void HttpProfileSendFrame(void* user_ctx, dmWebServer::Request* request)
+    {
+        HEngineService engine_service = (HEngineService)user_ctx;
+        if (!engine_service->m_Profile)
+        {
+            dmWebServer::SetStatusCode(request, 500);
+            const char* msg = "Error. The profiler was not active!";
+            dmWebServer::Send(request, msg, strlen(msg));
+            return;
+        }
+
+        dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+
+        dmWebServer::Result r;
+        r = SendString(request, "PROF"); CHECK_RESULT(r);
+
+        const uint32_t tps = 1000000;//g_TicksPerSecond;
+        r = dmWebServer::Send(request, &tps, 4); CHECK_RESULT(r);
+
+        dmProfile::IterateSamples(engine_service->m_Profile, request, ProfileSendSamples);
+        r = SendString(request, "ENDD"); CHECK_RESULT(r);
+
+        dmProfile::IterateScopeData(engine_service->m_Profile, request, ProfileSendScopesData);
+        r = SendString(request, "ENDD"); CHECK_RESULT(r);
+
+        dmProfile::IterateCounterData(engine_service->m_Profile, request, ProfileSendCountersData);
+        r = SendString(request, "ENDD"); CHECK_RESULT(r);
+    }
+
+
 #undef CHECK_RESULT_BOOL
 
     //
@@ -646,6 +807,7 @@ namespace dmEngineService
     static void ProfileHandler(void* user_data, dmWebServer::Request* request)
     {
         dmWebServer::SetStatusCode(request, 200);
+        dmWebServer::SendAttribute(request, "Content-Type", "text/html");
         dmWebServer::Send(request, PROFILER_HTML, PROFILER_HTML_SIZE);
     }
 
@@ -660,6 +822,16 @@ namespace dmEngineService
         gameobject_params.m_Handler = HttpGameObjectRequestCallback;
         gameobject_params.m_Userdata = regist;
         dmWebServer::AddHandler(engine_service->m_WebServer, "/gameobjects_data", &gameobject_params);
+
+        dmWebServer::HandlerParams strings_params;
+        strings_params.m_Handler = HttpProfileSendStrings;
+        strings_params.m_Userdata = engine_service;
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/profile_strings", &strings_params);
+
+        dmWebServer::HandlerParams frame_params;
+        frame_params.m_Handler = HttpProfileSendFrame;
+        frame_params.m_Userdata = engine_service;
+        dmWebServer::AddHandler(engine_service->m_WebServer, "/profile_frame", &frame_params);
 
         // The entry point to the engine service profiler
         dmWebServer::HandlerParams profile_params;

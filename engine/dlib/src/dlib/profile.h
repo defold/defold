@@ -179,12 +179,29 @@ namespace dmProfile
     uint64_t GetTicksPerSecond();
 
     /**
+     * Iterate over all registered strings
+     * @param profile Profile snapshot to iterate over
+     * @param context User context
+     * @param call_back Call-back function pointer
+     */
+    void IterateStrings(HProfile profile, void* context, void (*call_back)(void* context, const uintptr_t* key, const char** value));
+
+    /**
      * Iterate over all scopes
      * @param profile Profile snapshot to iterate over
      * @param context User context
      * @param call_back Call-back function pointer
      */
-    void IterateScopes(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data));
+    void IterateScopes(HProfile profile, void* context, void (*call_back)(void* context, const Scope* scope_data));
+
+
+    /**
+     * Iterate over all scopes
+     * @param profile Profile snapshot to iterate over
+     * @param context User context
+     * @param call_back Call-back function pointer
+     */
+    void IterateScopeData(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data));
 
     /**
      * Iterate over all samples
@@ -200,7 +217,15 @@ namespace dmProfile
      * @param context User context
      * @param call_back Call-back function pointer
      */
-    void IterateCounters(HProfile profile, void* context, void (*call_back)(void* context, const CounterData* counter));
+    void IterateCounters(HProfile profile, void* context, void (*call_back)(void* context, const Counter* counter));
+
+    /**
+     * Iterate over all counters
+     * @param profile Profile snapshot to iterate over
+     * @param context User context
+     * @param call_back Call-back function pointer
+     */
+    void IterateCounterData(HProfile profile, void* context, void (*call_back)(void* context, const CounterData* counter));
 
     /**
      * Internal function
