@@ -598,24 +598,30 @@
                                                            (reduce (partial merge-with into)
                                                                    renderables
                                                                    tool-renderables))))
-  (output refresh-fn g/Any :cached (g/fnk [image-view drawable async-copier]
-                                     (fn []
-                                       (when-not (ui/inside-hidden-tab? image-view)
-                                         (update-image-view! image-view drawable async-copier)))))
   (output picking-selection g/Any :cached produce-selection)
   (output tool-selection g/Any :cached produce-tool-selection)
   (output selected-tool-renderables g/Any :cached produce-selected-tool-renderables))
 
-(defn scene-view-dispose [node-id]
+(defn refresh-scene-view! [node-id]
+  (let [image-view (g/node-value node-id :image-view)]
+    (when-not (ui/inside-hidden-tab? image-view)
+      (let [drawable (g/node-value node-id :drawable)
+            async-copier (g/node-value node-id :async-copier)]
+        (when (and (some? drawable) (some? async-copier))
+          (update-image-view! image-view drawable async-copier))))))
+
+(defn dispose-scene-view! [node-id]
   (when-let [scene (g/node-by-id node-id)]
     (when-let [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
-      (let [gl (.getGL drawable)]
+      (with-drawable-as-current drawable
+        (scene-cache/drop-context! gl)
         (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
-          (.dispose copier gl)
-          (g/set-property! node-id :async-copier nil))
-      (scene-cache/drop-context! gl)
+          (.dispose copier gl)))
       (.destroy drawable)
-      (g/set-property! node-id :drawable nil)))))
+      (g/transact
+        (concat
+          (g/set-property node-id :drawable nil)
+          (g/set-property node-id :async-copier nil))))))
 
 (defn- ^Vector3d screen->world [camera viewport ^Vector3d screen-pos] ^Vector3d
   (let [w4 (c/camera-unproject camera viewport (.x screen-pos) (.y screen-pos) (.z screen-pos))]
@@ -916,7 +922,7 @@
                            (let [drawable (make-drawable w h)]
                              (ui/user-data! image-view ::view-id view-id)
                              (register-event-handler! this view-id)
-                             (ui/on-closed! (:tab opts) (fn [_] (scene-view-dispose view-id)))
+                             (ui/on-closed! (:tab opts) (fn [_] (dispose-scene-view! view-id)))
                              (g/set-property! view-id :drawable drawable :async-copier (make-copier viewport))
                              (frame-selection view-id false)))))
                      (catch Throwable error
@@ -1003,7 +1009,6 @@
 
 (defn setup-view [view-id resource-node opts]
   (let [view-graph           (g/node-id->graph-id view-id)
-        view-outputs         (g/output-labels (g/node-type* view-id))
         app-view-id          (:app-view opts)
         select-fn            (:select-fn opts)
         prefs                (:prefs opts)
@@ -1063,8 +1068,8 @@
                     (g/connect view-id :viewport rulers :viewport)
                     (g/connect view-id :cursor-pos rulers :cursor-pos)
 
-                    (when (contains? view-outputs :refresh-fn)
-                      (g/connect view-id :refresh-fn app-view-id :scene-view-refresh-fns)))
+                    (when-not (:manual-refresh? opts)
+                      (g/connect view-id :_node-id app-view-id :scene-view-ids)))
       (when-let [node-id (:select-node opts)]
         (select-fn [node-id])))))
 
@@ -1075,11 +1080,21 @@
     view-id))
 
 (defn make-preview [graph resource-node opts width height]
-  (let [view-id (make-preview-view graph width height)]
+  (let [view-id (make-preview-view graph width height)
+        opts (-> opts
+                 (assoc :manual-refresh? true)
+                 (dissoc :grid))]
     (g/transact
-      (setup-view view-id resource-node (dissoc opts :grid)))
+      (setup-view view-id resource-node opts))
     (frame-selection view-id false)
     view-id))
+
+(defn dispose-preview [node-id]
+  (when-some [^GLAutoDrawable drawable (g/node-value node-id :drawable)]
+    (with-drawable-as-current drawable
+      (scene-cache/drop-context! gl))
+    (.destroy drawable)
+    (g/set-property! node-id :drawable nil)))
 
 (defn- focus-view [view-id opts]
   (when-let [image-view ^ImageView (g/node-value view-id :image-view)]
@@ -1091,6 +1106,7 @@
                                 :label "Scene"
                                 :make-view-fn make-view
                                 :make-preview-fn make-preview
+                                :dispose-preview-fn dispose-preview
                                 :focus-fn focus-view))
 
 (g/defnk produce-transform [position rotation scale]
