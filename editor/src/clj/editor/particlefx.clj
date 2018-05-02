@@ -900,6 +900,12 @@
       (for [modifier (:modifiers pb)]
         (make-modifier self self modifier)))))
 
+(defn- add-default-properties-to-modifier [mod-pb]
+  (update mod-pb :properties #(or (not-empty %) (get-in mod-types [(:type mod-pb) :template :properties]))))
+
+(defn- add-default-properties-to-modifiers [pb]
+  (update pb :modifiers (partial mapv add-default-properties-to-modifier)))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext particlefx-ext
@@ -907,6 +913,7 @@
     :node-type ParticleFXNode
     :ddf-type Particle$ParticleFX
     :load-fn load-particle-fx
+    :sanitize-fn add-default-properties-to-modifiers
     :icon particle-fx-icon
     :tags #{:component :non-embeddable}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}
