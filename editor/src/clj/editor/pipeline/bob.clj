@@ -193,9 +193,9 @@
                           "bundle-output" (str output-path)
                           "build-server" build-server-url
                           "defoldsdk" defold-sdk-sha1
-                          "local-launch" "true"}
-                         email (assoc "email" email)
-                         auth (assoc "auth" auth)
+                          "local-launch" "true"
+                          "email" (or email "")
+                          "auth" (or auth "")}
                          compress-archive? (assoc "compress" "true"))]
     (bob-build! project bob-commands bob-args)))
 
