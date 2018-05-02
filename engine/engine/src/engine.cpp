@@ -1186,11 +1186,6 @@ bail:
             {
                 DM_PROFILE(Engine, "Frame");
 
-                if (engine->m_EngineService)
-                {
-                    dmEngineService::Update(engine->m_EngineService);
-                }
-
                 {
                     DM_PROFILE(Engine, "Sim");
 
@@ -1300,6 +1295,11 @@ bail:
                     // Flushing stdout/stderr solves this problem.
                     fflush(stdout);
                     fflush(stderr);
+                }
+
+                if (engine->m_EngineService)
+                {
+                    dmEngineService::Update(engine->m_EngineService, profile);
                 }
 
 #if !defined(DM_RELEASE)

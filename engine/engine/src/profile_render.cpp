@@ -319,7 +319,7 @@ namespace dmProfileRender
             dmProfile::IterateSamples(profile, &ctx, &ProfileSampleCallback);
 
             ctx.m_Index = 0;
-            dmProfile::IterateScopes(profile, &ctx, &ProfileScopeCallback);
+            dmProfile::IterateScopeData(profile, &ctx, &ProfileScopeCallback);
 
             ctx.m_Index = 0;
             if (ctx.m_SampleStats.Size() > 0)
@@ -350,7 +350,7 @@ namespace dmProfileRender
             ctx.m_RenderContext = render_context;
             ctx.m_FontMap = font_map;
 
-            dmProfile::IterateCounters(profile, &ctx, &ProfileCounterCallback);
+            dmProfile::IterateCounterData(profile, &ctx, &ProfileCounterCallback);
         }
     }
 }
