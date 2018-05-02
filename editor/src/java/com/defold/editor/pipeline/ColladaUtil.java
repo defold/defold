@@ -53,12 +53,8 @@ import org.jagatoo.loaders.models.collada.stax.XMLVisualScene;
 import org.jagatoo.loaders.models.collada.stax.XMLAsset.UpAxis;
 import org.jagatoo.loaders.models.collada.stax.XMLVisualSceneExtra;
 
-import com.dynamo.bob.util.MathUtil;
-import com.dynamo.bob.util.RigUtil;
-
-import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.RigUtil.AnimationKey;
-import com.dynamo.bob.util.RigUtil.Weight;
+import com.defold.editor.pipeline.RigUtil.AnimationKey;
+import com.defold.editor.pipeline.RigUtil.Weight;
 import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
@@ -712,10 +708,10 @@ public class ColladaUtil {
         MeshSlot.Builder meshSlotBuilder = MeshSlot.newBuilder();
         meshSlotBuilder.addMeshAttachments(0);
         meshSlotBuilder.setActiveIndex(0);
-        meshSlotBuilder.addSkinColor(1.0f);
-        meshSlotBuilder.addSkinColor(1.0f);
-        meshSlotBuilder.addSkinColor(1.0f);
-        meshSlotBuilder.addSkinColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
 
         MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
         meshEntryBuilder.addMeshSlots(meshSlotBuilder);

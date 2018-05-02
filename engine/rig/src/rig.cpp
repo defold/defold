@@ -11,6 +11,8 @@ namespace dmRig
     static const float CURSOR_EPSILON = 0.0001f;
     static const int SIGNAL_DELTA_UNCHANGED = 0x10cced; // Used to indicate if a draw order was unchanged for a certain slot
 
+    static const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
+
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt);
     static bool DoPostUpdate(RigInstance* instance);
     static void UpdateSlotDrawOrder(dmArray<int32_t>& draw_order, dmArray<int32_t>& deltas, int changed, dmArray<int32_t>& unchanged);
@@ -73,7 +75,6 @@ namespace dmRig
     {
         instance->m_DoRender = 0;
         if (instance->m_MeshEntry != 0x0) {
-            const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
 
             int32_t slot_count = instance->m_MeshSet->m_SlotCount;
             for (int32_t slot_index = 0; slot_index < slot_count; slot_index++)
@@ -86,10 +87,10 @@ namespace dmRig
                 MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
                 mesh_slot_pose->m_ActiveAttachment = mesh_slot->m_ActiveIndex;
 
-                mesh_slot_pose->m_Color[0] = 1.0f;
-                mesh_slot_pose->m_Color[1] = 1.0f;
-                mesh_slot_pose->m_Color[2] = 1.0f;
-                mesh_slot_pose->m_Color[3] = 1.0f;
+                mesh_slot_pose->m_SlotColor[0] = 1.0f;
+                mesh_slot_pose->m_SlotColor[1] = 1.0f;
+                mesh_slot_pose->m_SlotColor[2] = 1.0f;
+                mesh_slot_pose->m_SlotColor[3] = 1.0f;
 
                 // Check if there is an active attachment on this slot
                 if (mesh_slot_pose->m_ActiveAttachment >= 0) {
@@ -100,13 +101,12 @@ namespace dmRig
                         const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
 
                         // Get color for both slot and attachment
-                        const float* attachment_color = mesh_attachment->m_Color.m_Count ? mesh_attachment->m_Color.m_Data : white;
-                        const float* slot_color = mesh_slot->m_SkinColor.m_Count ? mesh_slot->m_SkinColor.m_Data : white;
+                        const float* slot_color = mesh_slot->m_SlotColor.m_Count ? mesh_slot->m_SlotColor.m_Data : white;
 
-                        mesh_slot_pose->m_Color[0] = attachment_color[0] * slot_color[0];
-                        mesh_slot_pose->m_Color[1] = attachment_color[1] * slot_color[1];
-                        mesh_slot_pose->m_Color[2] = attachment_color[2] * slot_color[2];
-                        mesh_slot_pose->m_Color[3] = attachment_color[3] * slot_color[3];
+                        mesh_slot_pose->m_SlotColor[0] = slot_color[0];
+                        mesh_slot_pose->m_SlotColor[1] = slot_color[1];
+                        mesh_slot_pose->m_SlotColor[2] = slot_color[2];
+                        mesh_slot_pose->m_SlotColor[3] = slot_color[3];
                     }
                 }
             }
@@ -520,21 +520,14 @@ namespace dmRig
         for (uint32_t ti = 0; ti < track_count; ++ti) {
             const dmRigDDF::MeshAnimationTrack* track = &animation->m_MeshTracks[ti];
 
-            if (track->m_Colors.m_Count > 0) {
+            if (track->m_SlotColors.m_Count > 0) {
                 MeshSlotPose& mesh_slot = mesh_slot_pose[track->m_MeshSlot];
-                Vector4 color(mesh_slot.m_Color[0], mesh_slot.m_Color[1], mesh_slot.m_Color[2], mesh_slot.m_Color[3]);
-                color = lerp(blend_weight, color, SampleVec4(sample, fraction, track->m_Colors.m_Data));
-                mesh_slot.m_Color[0] = color[0];
-                mesh_slot.m_Color[1] = color[1];
-                mesh_slot.m_Color[2] = color[2];
-                mesh_slot.m_Color[3] = color[3];
-
-                if (mesh_entry->m_MeshSlots[track->m_MeshSlot].m_SkinColor.m_Count > 0) {
-                    mesh_slot.m_Color[0] *= mesh_entry->m_MeshSlots[track->m_MeshSlot].m_SkinColor.m_Data[0];
-                    mesh_slot.m_Color[1] *= mesh_entry->m_MeshSlots[track->m_MeshSlot].m_SkinColor.m_Data[1];
-                    mesh_slot.m_Color[2] *= mesh_entry->m_MeshSlots[track->m_MeshSlot].m_SkinColor.m_Data[2];
-                    mesh_slot.m_Color[3] *= mesh_entry->m_MeshSlots[track->m_MeshSlot].m_SkinColor.m_Data[3];
-                }
+                Vector4 color(mesh_slot.m_SlotColor[0], mesh_slot.m_SlotColor[1], mesh_slot.m_SlotColor[2], mesh_slot.m_SlotColor[3]);
+                color = lerp(blend_weight, color, SampleVec4(sample, fraction, track->m_SlotColors.m_Data));
+                mesh_slot.m_SlotColor[0] = color[0];
+                mesh_slot.m_SlotColor[1] = color[1];
+                mesh_slot.m_SlotColor[2] = color[2];
+                mesh_slot.m_SlotColor[3] = color[3];
             }
 
             if (track->m_MeshAttachment.m_Count > 0) {
@@ -1404,11 +1397,17 @@ namespace dmRig
                     if (vertex_format == RIG_VERTEX_FORMAT_MODEL) {
                         vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, normals_buffer, (RigModelVertex*)vertex_data_out);
                     } else {
-                        Vector4 mesh_color = Vector4(mesh_slot_pose->m_Color[0], mesh_slot_pose->m_Color[1], mesh_slot_pose->m_Color[2], mesh_slot_pose->m_Color[3]);
-                        mesh_color = mulPerElem(color, mesh_color);
+                        Vector4 slot_color = Vector4(mesh_slot_pose->m_SlotColor[0], mesh_slot_pose->m_SlotColor[1], mesh_slot_pose->m_SlotColor[2], mesh_slot_pose->m_SlotColor[3]);
+                        const float* mesh_color = mesh_attachment->m_MeshColor.m_Count ? mesh_attachment->m_MeshColor.m_Data : white;
+                        slot_color[0] = mesh_color[0] * slot_color[0];
+                        slot_color[1] = mesh_color[1] * slot_color[1];
+                        slot_color[2] = mesh_color[2] * slot_color[2];
+                        slot_color[3] = mesh_color[3] * slot_color[3];
 
-                        uint32_t rgba = (((uint32_t) (mesh_color.getW() * 255.0f)) << 24) | (((uint32_t) (mesh_color.getZ() * 255.0f)) << 16) |
-                                (((uint32_t) (mesh_color.getY() * 255.0f)) << 8) | ((uint32_t) (mesh_color.getX() * 255.0f));
+                        slot_color = mulPerElem(color, slot_color);
+
+                        uint32_t rgba = (((uint32_t) (slot_color.getW() * 255.0f)) << 24) | (((uint32_t) (slot_color.getZ() * 255.0f)) << 16) |
+                                (((uint32_t) (slot_color.getY() * 255.0f)) << 8) | ((uint32_t) (slot_color.getX() * 255.0f));
 
                         vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, rgba, (RigSpineModelVertex*)vertex_data_out);
                     }

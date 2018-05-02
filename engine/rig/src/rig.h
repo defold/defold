@@ -92,7 +92,7 @@ namespace dmRig
 
     struct MeshSlotPose
     {
-       float m_Color[4];
+       float m_SlotColor[4];
        int32_t m_ActiveAttachment;
     };
 

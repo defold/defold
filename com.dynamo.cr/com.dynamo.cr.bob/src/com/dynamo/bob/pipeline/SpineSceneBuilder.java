@@ -157,7 +157,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             }
         }
         for (int ci = 0; ci < 4; ++ci) {
-            meshBuilder.addColor(mesh.color[ci]);
+            meshBuilder.addMeshColor(mesh.color[ci]);
         }
         if (mesh.boneIndices != null) {
             for (int boneIndex : mesh.boneIndices) {
@@ -196,7 +196,7 @@ public class SpineSceneBuilder extends Builder<Void> {
             }
 
             for (int ci = 0; ci < 4; ++ci) {
-                meshSlotBuilder.addSkinColor(skinSlot.color[ci]);
+                meshSlotBuilder.addSlotColor(skinSlot.color[ci]);
             }
 
             meshEntryBuilder.addMeshSlots(meshSlotBuilder);

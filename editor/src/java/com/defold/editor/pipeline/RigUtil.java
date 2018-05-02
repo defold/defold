@@ -525,12 +525,12 @@ public class RigUtil {
 
         @Override
         public void addComposite(float[] c) {
-            builder.addColors(c[0]).addColors(c[1]).addColors(c[2]).addColors(c[3]);
+            builder.addSlotColors(c[0]).addSlotColors(c[1]).addSlotColors(c[2]).addSlotColors(c[3]);
         }
 
         @Override
         public void add(double v) {
-            builder.addColors((float)v);
+            builder.addSlotColors((float)v);
         }
 
         @Override
