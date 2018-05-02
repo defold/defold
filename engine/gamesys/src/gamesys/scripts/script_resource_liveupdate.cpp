@@ -166,9 +166,9 @@ namespace dmLiveUpdate
             {
                 dmLogWarning("Scheme mismatch, manifest storage is only supported for bundled package. Manifest was not stored.");
             }
-            if (result != RESULT_OK)
+            else if (result != RESULT_OK)
             {
-                dmLogError("Manifest verification failed. Manifest was not stored");
+                dmLogError("Manifest verification failed. Manifest was not stored.");
             }
         }
         else
@@ -180,10 +180,10 @@ namespace dmLiveUpdate
         if (result == RESULT_OK)
             result = dmLiveUpdate::StoreManifest(manifest);
 
+        delete manifest;
+
         cb.m_Status = result;
         Callback_StoreManifest(&cb);
-
-        delete manifest;
 
         assert(top == lua_gettop(L));
         return 0;
