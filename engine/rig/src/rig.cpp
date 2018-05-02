@@ -9,11 +9,13 @@ namespace dmRig
     static const dmhash_t NULL_ANIMATION = dmHashString64("");
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
-    static const uint32_t SIGNAL_ORDER_LOCKED = 0x10cced; // "locked" indicates that draw order offset should not be modified
-    static const int SIGNAL_SLOT_UNUSED = -1; // Used to indicate if a draw order slot is unused
+    static const int SIGNAL_DELTA_UNCHANGED = 0x10cced; // Used to indicate if a draw order was unchanged for a certain slot
 
-    static void DoAnimate(RigInstance* instance, float dt);
+    static const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
+
+    static void DoAnimate(HRigContext context, RigInstance* instance, float dt);
     static bool DoPostUpdate(RigInstance* instance);
+    static void UpdateSlotDrawOrder(dmArray<int32_t>& draw_order, dmArray<int32_t>& deltas, int changed, dmArray<int32_t>& unchanged);
 
     Result NewContext(const NewContextParams& params)
     {
@@ -69,34 +71,32 @@ namespace dmRig
         return &instance->m_Players[instance->m_CurrentPlayer];
     }
 
-    static void UpdateMeshProperties(HRigInstance instance)
+    static void ResetMeshSlotPose(HRigInstance instance)
     {
         instance->m_DoRender = 0;
         if (instance->m_MeshEntry != 0x0) {
-            uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
-            instance->m_MeshProperties.SetSize(mesh_count);
-            const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
-            for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
-                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[mesh_index];
-                const float* color = mesh->m_Color.m_Count ? mesh->m_Color.m_Data : white;
-                const float* skin_color = mesh->m_SkinColor.m_Count ? mesh->m_SkinColor.m_Data : white;
-                MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-                properties->m_Color[0] = color[0] * skin_color[0];
-                properties->m_Color[1] = color[1] * skin_color[1];
-                properties->m_Color[2] = color[2] * skin_color[2];
-                properties->m_Color[3] = color[3] * skin_color[3];
-                properties->m_Order = mesh->m_DrawOrder;
-                properties->m_Visible = mesh->m_Visible;
-                properties->m_OrderOffset = 0;
+
+            int32_t slot_count = instance->m_MeshSet->m_SlotCount;
+            for (int32_t slot_index = 0; slot_index < slot_count; slot_index++)
+            {
+                // Reset draw order list
+                instance->m_DrawOrder[slot_index] = slot_index;
+
+                // Update mesh pose
+                const dmRigDDF::MeshSlot* mesh_slot = &instance->m_MeshEntry->m_MeshSlots[slot_index];
+                MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
+                mesh_slot_pose->m_ActiveAttachment = mesh_slot->m_ActiveIndex;
+
+                // Get color for slot
+                const float* slot_color = mesh_slot->m_SlotColor.m_Count ? mesh_slot->m_SlotColor.m_Data : white;
+
+                mesh_slot_pose->m_SlotColor[0] = slot_color[0];
+                mesh_slot_pose->m_SlotColor[1] = slot_color[1];
+                mesh_slot_pose->m_SlotColor[2] = slot_color[2];
+                mesh_slot_pose->m_SlotColor[3] = slot_color[3];
             }
             instance->m_DoRender = 1;
-        } else {
-            instance->m_MeshProperties.SetSize(0);
         }
-
-        // Make sure we recalculate the draw order next frame.
-        instance->m_DrawOrderToMesh.SetCapacity(0);
-        instance->m_DrawOrderToMesh.SetSize(0);
     }
 
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate)
@@ -168,7 +168,7 @@ namespace dmRig
                 instance->m_MeshEntry = &mesh_set->m_MeshEntries[i];
                 instance->m_MeshId = mesh_id;
 
-                UpdateMeshProperties(instance);
+                ResetMeshSlotPose(instance);
                 return dmRig::RESULT_OK;
             }
         }
@@ -445,8 +445,7 @@ namespace dmRig
         child_t.SetRotation( dmVMath::QuatFromAngle(2, childRotation) );
     }
 
-
-    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, const dmArray<uint32_t>& track_idx_to_pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshProperties>& properties, float blend_weight, dmhash_t mesh_id, bool draw_order, bool& updated_draw_order)
+    static void ApplyAnimation(RigPlayer* player, dmArray<dmTransform::Transform>& pose, const dmArray<uint32_t>& track_idx_to_pose, dmArray<IKAnimation>& ik_animation, dmArray<MeshSlotPose>& mesh_slot_pose, bool update_draw_order, const dmRigDDF::MeshEntry* mesh_entry, dmArray<int32_t>& draw_order, int& slot_changed, float blend_weight)
     {
         const dmRigDDF::RigAnimation* animation = player->m_Animation;
         if (animation == 0x0)
@@ -505,33 +504,29 @@ namespace dmRig
         track_count = animation->m_MeshTracks.m_Count;
         for (uint32_t ti = 0; ti < track_count; ++ti) {
             const dmRigDDF::MeshAnimationTrack* track = &animation->m_MeshTracks[ti];
-            if (mesh_id == track->m_MeshId) {
-                MeshProperties& props = properties[track->m_MeshIndex];
-                if (track->m_Colors.m_Count > 0) {
-                    Vector4 color(props.m_Color[0], props.m_Color[1], props.m_Color[2], props.m_Color[3]);
-                    color = lerp(blend_weight, color, SampleVec4(sample, fraction, track->m_Colors.m_Data));
-                    props.m_Color[0] = color[0];
-                    props.m_Color[1] = color[1];
-                    props.m_Color[2] = color[2];
-                    props.m_Color[3] = color[3];
-                    props.m_ColorFromTrack = true;
-                }
-                if (track->m_Visible.m_Count > 0) {
-                    if (blend_weight >= 0.5f) {
-                        if (props.m_Visible != track->m_Visible[rounded_sample]) {
-                            updated_draw_order = true;
-                            props.m_Visible = track->m_Visible[rounded_sample];
-                        }
-                        props.m_VisibleFromTrack = true;
-                    }
-                }
 
-                if (track->m_OrderOffset.m_Count > 0 && draw_order) {
-                    if (props.m_OrderOffset != track->m_OrderOffset[rounded_sample]) {
-                        updated_draw_order = true;
-                        props.m_OrderOffset = track->m_OrderOffset[rounded_sample];
-                    }
-                    props.m_OffsetFromTrack = true;
+            if (track->m_SlotColors.m_Count > 0) {
+                MeshSlotPose& mesh_slot = mesh_slot_pose[track->m_MeshSlot];
+                Vector4 color(mesh_slot.m_SlotColor[0], mesh_slot.m_SlotColor[1], mesh_slot.m_SlotColor[2], mesh_slot.m_SlotColor[3]);
+                color = lerp(blend_weight, color, SampleVec4(sample, fraction, track->m_SlotColors.m_Data));
+                mesh_slot.m_SlotColor[0] = color[0];
+                mesh_slot.m_SlotColor[1] = color[1];
+                mesh_slot.m_SlotColor[2] = color[2];
+                mesh_slot.m_SlotColor[3] = color[3];
+            }
+
+            if (track->m_MeshAttachment.m_Count > 0) {
+                if (update_draw_order) {
+                    MeshSlotPose& mesh_slot = mesh_slot_pose[track->m_MeshSlot];
+                    mesh_slot.m_ActiveAttachment = track->m_MeshAttachment[rounded_sample];
+                }
+            }
+
+            if (track->m_OrderOffset.m_Count > 0) {
+                if (update_draw_order) {
+                    int32_t* order = &draw_order[track->m_MeshSlot];
+                    *order = track->m_OrderOffset[rounded_sample];
+                    slot_changed++;
                 }
             }
         }
@@ -546,11 +541,11 @@ namespace dmRig
         for (uint32_t i = 0; i < n; ++i)
         {
             RigInstance* instance = instances[i];
-            DoAnimate(instance, dt);
+            DoAnimate(context, instance, dt);
         }
     }
 
-    static void DoAnimate(RigInstance* instance, float dt)
+    static void DoAnimate(HRigContext context, RigInstance* instance, float dt)
     {
             // NOTE we previously checked for (!instance->m_Enabled || !instance->m_AddedToUpdate) here also
             if (instance->m_Pose.Empty() || !instance->m_Enabled)
@@ -566,7 +561,6 @@ namespace dmRig
             {
                 pose[bi].SetIdentity();
             }
-            dmArray<MeshProperties>& properties = instance->m_MeshProperties;
             // Reset IK animation
             dmArray<IKAnimation>& ik_animation = instance->m_IKAnimation;
             uint32_t ik_animation_count = ik_animation.Size();
@@ -579,24 +573,26 @@ namespace dmRig
 
             UpdateBlend(instance, dt);
 
-            // Clear visible, color and offset updated flags.
-            // We do this to keep track of which properties were updated during
-            // during the ApplyAnimation step.
-            for (uint32_t pi = 0; pi < properties.Size(); ++pi)
-            {
-                MeshProperties* prop = &properties[pi];
-                prop->m_VisibleFromTrack = false;
-                prop->m_ColorFromTrack = false;
-                prop->m_OffsetFromTrack = false;
-            }
-
-            bool updated_draw_order = false;
             RigPlayer* player = GetPlayer(instance);
 
             // If the animation has just started, we reset mesh properties (color, draw order etc)
             if (player->m_Initial) {
-                UpdateMeshProperties(instance);
+                ResetMeshSlotPose(instance);
                 player->m_Initial = 0;
+            }
+
+            // Make sure we have enough space in the draw order deltas scratch buffer.
+            int slot_count = instance->m_MeshSet->m_SlotCount;
+            int slot_changed = 0;
+            if (context->m_ScratchDrawOrderDeltas.Capacity() < slot_count) {
+                context->m_ScratchDrawOrderDeltas.OffsetCapacity(slot_count - context->m_ScratchDrawOrderDeltas.Capacity());
+            }
+            context->m_ScratchDrawOrderDeltas.SetSize(slot_count);
+
+            // Reset draw order deltas to "unchanged" constant.
+            for (int i = 0; i < slot_count; i++) {
+                instance->m_DrawOrder[i] = i;
+                context->m_ScratchDrawOrderDeltas[i] = SIGNAL_DELTA_UNCHANGED;
             }
 
             if (instance->m_Blending)
@@ -612,9 +608,10 @@ namespace dmRig
                     if (player != p) {
                         blend_weight = 1.0f - fade_rate;
                     }
+
                     UpdatePlayer(instance, p, dt, blend_weight);
                     bool draw_order = player == p ? fade_rate >= 0.5f : fade_rate < 0.5f;
-                    ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, properties, alpha, instance->m_MeshId, draw_order, updated_draw_order);
+                    ApplyAnimation(p, pose, track_idx_to_pose, ik_animation, instance->m_MeshSlotPose, draw_order, instance->m_MeshEntry, context->m_ScratchDrawOrderDeltas, slot_changed, alpha);
                     if (player == p)
                     {
                         alpha = 1.0f - fade_rate;
@@ -628,44 +625,12 @@ namespace dmRig
             else
             {
                 UpdatePlayer(instance, player, dt, 1.0f);
-                ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, properties, 1.0f, instance->m_MeshId, true, updated_draw_order);
+                ApplyAnimation(player, pose, track_idx_to_pose, ik_animation, instance->m_MeshSlotPose, true, instance->m_MeshEntry, context->m_ScratchDrawOrderDeltas, slot_changed, 1.0f);
             }
 
-            // Fill in properties (from bind pose) if they were not updated in the ApplyAnimation step.
-            // Do this so we don't need to reset all properties to their bind pose properties each frame.
-            // Doing so would mean we would not be able to keep track if the applied animation needs to
-            // rebuild the draw order array.
-            for (uint32_t pi = 0; pi < properties.Size(); ++pi)
-            {
-                MeshProperties* prop = &properties[pi];
-                const dmRigDDF::Mesh* mesh = &instance->m_MeshEntry->m_Meshes[pi];
-                if (!prop->m_VisibleFromTrack) {
-                    if (prop->m_Visible != mesh->m_Visible) {
-                        updated_draw_order = true;
-                    }
-                    prop->m_Visible = mesh->m_Visible;
-                }
-
-                if (prop->m_ColorFromTrack)
-                {
-                    float* skin_color = mesh->m_SkinColor.m_Data;
-                    prop->m_Color[0] *= skin_color[0];
-                    prop->m_Color[1] *= skin_color[1];
-                    prop->m_Color[2] *= skin_color[2];
-                    prop->m_Color[3] *= skin_color[3];
-                }
-                if (!prop->m_OffsetFromTrack) {
-                    if (prop->m_OrderOffset != 0) {
-                        updated_draw_order = true;
-                    }
-                    prop->m_OrderOffset = 0;
-                }
-            }
-
-            // If the draw order was changed during animation, we reset the size of the m_DrawOrderToMesh
-            // so that it is recalculated during render.
-            if (updated_draw_order) {
-                instance->m_DrawOrderToMesh.SetCapacity(0);
+            // Update draw order after animation
+            if (slot_changed > 0) {
+                UpdateSlotDrawOrder(instance->m_DrawOrder, context->m_ScratchDrawOrderDeltas, slot_changed, context->m_ScratchDrawOrderUnchanged);
             }
 
             for (uint32_t bi = 0; bi < bone_count; ++bi)
@@ -781,17 +746,11 @@ namespace dmRig
         return PostUpdate(context);
     }
 
-
-    static void AllocateMeshProperties(const dmRig::MeshSet* mesh_set, dmArray<MeshProperties>& mesh_properties) {
-        uint32_t max_mesh_count = 0;
-        uint32_t count = mesh_set->m_MeshEntries.m_Count;
-        for (uint32_t i = 0; i < count; ++i) {
-            uint32_t mesh_count = mesh_set->m_MeshEntries[i].m_Meshes.m_Count;
-            if (mesh_count > max_mesh_count) {
-                max_mesh_count = mesh_count;
-            }
-        }
-        mesh_properties.SetCapacity(max_mesh_count);
+    static void AllocateMeshSlotPose(const dmRig::MeshSet* mesh_set, dmArray<MeshSlotPose>& mesh_slot_pose, dmArray<int32_t>& draw_order) {
+        mesh_slot_pose.SetCapacity(mesh_set->m_SlotCount);
+        mesh_slot_pose.SetSize(mesh_set->m_SlotCount);
+        draw_order.SetCapacity(mesh_set->m_SlotCount);
+        draw_order.SetSize(mesh_set->m_SlotCount);
     }
 
     static const dmRigDDF::MeshEntry* FindMeshEntry(const dmRigDDF::MeshSet* mesh_set, dmhash_t mesh_id)
@@ -948,129 +907,48 @@ namespace dmRig
         return dmRig::RESULT_OK;
     }
 
-	static void UpdateMeshDrawOrder(const HRigInstance instance, uint32_t mesh_count, dmArray<uint32_t>& out_order_to_mesh, dmArray<int32_t>& slots_scratch_buffer)
+    // Slot ordering is based on the official Spine runtime
+    // https://github.com/EsotericSoftware/spine-runtimes/blob/387b0afb80a775970c48099042be769e50258440/spine-c/spine-c/src/spine/SkeletonJson.c#L430
+    static void UpdateSlotDrawOrder(dmArray<int32_t>& draw_order, dmArray<int32_t>& deltas, int changed, dmArray<int32_t>& unchanged)
     {
-        // Make sure output array has zero to begin with
-        out_order_to_mesh.SetSize(0);
+        int slot_count = draw_order.Size();
 
-        // We resolve draw order and offsets in these two steps:
-        //   I. Add entries with changed draw order (has explicit offset)
-        //  II. Add untouched entries (those with no explicit offset)
-        //
-        // E.g.:
-        // Bind draw order: [0, 1, 2]
-        // Keyframe has entry 1 with offset -1, results in:
-        //   (I) Entry 1 is placed first => [1, _, _]
-        //   (II) Entry 0 has no offset. Entry 0 can't be placed at index 0, so look for next empty space,
-        //        which is index 1:
-        //        => [1, 0, _]
-        //        Entry 2 also has no offset, and index 2 is empty so it can be placed directly:
-        //        => [1, 0, 2]
-        //
-        // An exception is made if there is an explicit entry with offset "0". This means that previous order should
-        // be conserved. These entries are marked as SIGNAL_ORDER_LOCKED. In that case the order should be unchanged,
-        // so they will be placed in step (I) as those with explicit offset.
+        // Make sure we have enough capacity to store our unchanged slots list.
+        if (unchanged.Capacity() < slot_count) {
+            unchanged.OffsetCapacity(slot_count - unchanged.Capacity());
+        }
+        unchanged.SetSize(slot_count);
 
-        // No need to reorder instances with only one, or none, meshes.
-        if (mesh_count <= 1) {
-            if (mesh_count == 1 && instance->m_MeshProperties[0].m_Visible) {
-                out_order_to_mesh.Push(0);
-            }
-            return;
+        for (int i = 0; i < slot_count; i++) {
+            draw_order[i] = -1;
         }
 
-        uint32_t slot_count = instance->m_MeshSet->m_SlotCount;
-        out_order_to_mesh.SetCapacity(slot_count);
-
-        // We use the scratch buffer to temporaraly keep track of slots and "unchanged" entries.
-        // Unchanged entries will be used if there are some slot order changes, using the
-        // algorithm from the official Spine C runtime.
-        if (slots_scratch_buffer.Capacity() < slot_count*2) {
-            slots_scratch_buffer.SetCapacity(slot_count*2);
-            slots_scratch_buffer.SetSize(slot_count*2);
-        }
-
-        // Get pointers to slots and unchanged arrays from the scratch buffer.
-        int32_t* slots = slots_scratch_buffer.Begin();
-        int32_t* unchanged = &slots[slot_count];
-
-        // Fill slot list with values indicating all slots are currently unused.
-        for (int32_t i = 0; i < slot_count; ++i) {
-            slots[i] = SIGNAL_SLOT_UNUSED;
-        }
-
-        int32_t changed_count = 0; // Keep track of how many slots have changed (needs to be reordered).
-        for (int32_t i = 0; i < mesh_count; ++i)
+        int original_index = 0;
+        int unchanged_index = 0;
+        for (int slot_index = 0; slot_index < slot_count; slot_index++)
         {
-            dmRig::MeshProperties *props = &instance->m_MeshProperties[i];
-            uint32_t slot_index = props->m_Order;
-            int32_t offset      = props->m_OrderOffset;
-            props->m_Slot       = slot_index;
-            props->m_MeshId     = i;
-
-            if (props->m_Visible) {
-                // If this mesh entry is visible, we will always add/overwrite the slot
-                // since there can only be one visible entry in each slot.
-                slots[slot_index] = i;
-
-                // We try to output the mesh directly to the output array
-                // in case we don't find any changed slots.
-                out_order_to_mesh.Push(i);
-            } else if (slots[slot_index] == SIGNAL_SLOT_UNUSED) {
-                slots[slot_index] = i;
-            }
-
-            // If this entry has an offset, this means it will need to be reordered.
-            if (offset != 0) {
-                changed_count++;
-
-                // Apply slot order offset, but ignore entries that have a "locked" offset.
-                if (props->m_OrderOffset != SIGNAL_ORDER_LOCKED) {
-                    props->m_Slot = slot_index + offset;
+            int32_t delta = deltas[slot_index];
+            if (delta != SIGNAL_DELTA_UNCHANGED) {
+                while (original_index != slot_index) {
+                    unchanged[unchanged_index++] = original_index++;
                 }
+
+                draw_order[original_index + delta] = original_index;
+                original_index++;
             }
         }
 
-        // Slot reordering code should work similar to how the official spine-c implementation works:
-        // https://github.com/EsotericSoftware/spine-runtimes/blob/387b0afb80a775970c48099042be769e50258440/spine-c/spine-c/src/spine/SkeletonJson.c#L430
-        if (changed_count > 0) {
+        while (original_index < slot_count) {
+            unchanged[unchanged_index++] = original_index++;
+        }
 
-            out_order_to_mesh.SetSize(slot_count);
-            for (int32_t i = 0; i < slot_count; ++i) {
-                out_order_to_mesh[i] = SIGNAL_SLOT_UNUSED;
-            }
-
-            int32_t original_index = 0;
-            int32_t unchanged_index = 0;
-            for (int32_t slot_index = 0; slot_index < slot_count; ++slot_index)
-            {
-
-                if (slots[slot_index] != SIGNAL_SLOT_UNUSED) {
-                    dmRig::MeshProperties* slot = &instance->m_MeshProperties[slots[slot_index]];
-                    if (slot->m_OrderOffset != 0)
-                    {
-                        while (original_index != slot_index) {
-                            unchanged[unchanged_index++] = original_index++;
-                        }
-
-                        out_order_to_mesh[slot->m_Slot] = slot->m_MeshId;
-                        original_index++;
-                    }
-                }
-            }
-
-            // Collect remaining unchanged items.
-            while (original_index < slot_count) {
-                unchanged[unchanged_index++] = original_index++;
-            }
-
-            // Fill in unchanged items.
-            for (int32_t i = slot_count - 1; i >= 0; i--) {
-                if (out_order_to_mesh[i] == SIGNAL_SLOT_UNUSED) {
-                    out_order_to_mesh[i] = slots[unchanged[--unchanged_index]];
-                }
+        for (int i = slot_count - 1; i >= 0; i--)
+        {
+            if (draw_order[i] == -1) {
+                draw_order[i] = unchanged[--unchanged_index];
             }
         }
+
     }
 
     uint32_t GetVertexCount(HRigInstance instance)
@@ -1080,10 +958,22 @@ namespace dmRig
         }
 
         uint32_t vertex_count = 0;
-        uint32_t mesh_count = instance->m_MeshEntry->m_Meshes.m_Count;
-        for (uint32_t mesh_index = 0; mesh_index < mesh_count; ++mesh_index) {
-            if (instance->m_MeshProperties[mesh_index].m_Visible) {
-                vertex_count += instance->m_MeshEntry->m_Meshes[mesh_index].m_Indices.m_Count;
+
+        int32_t slot_count = instance->m_MeshSet->m_SlotCount;
+        for (int32_t slot_index = 0; slot_index < slot_count; slot_index++)
+        {
+            MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
+
+            // Get attachment index for current slot
+            int active_attachment = mesh_slot_pose->m_ActiveAttachment;
+            if (active_attachment >= 0) {
+
+                // Check if there is any mesh on current attachment
+                int mesh_attachment_index = instance->m_MeshEntry->m_MeshSlots[slot_index].m_MeshAttachments[active_attachment];
+                if (mesh_attachment_index >= 0) {
+                    const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
+                    vertex_count += mesh_attachment->m_Indices.m_Count;
+                }
             }
         }
 
@@ -1368,11 +1258,16 @@ namespace dmRig
             return vertex_data_out;
         }
 
-        uint32_t mesh_count = mesh_entry->m_Meshes.m_Count;
-
         // Early exit for rigs that has no mesh or only one mesh that is not visible.
-        if (mesh_count == 0 || (mesh_count == 1 && !instance->m_MeshProperties[0].m_Visible)) {
+        int mesh_slot_count = mesh_entry->m_MeshSlots.m_Count;
+        if (mesh_slot_count == 0) {
             return vertex_data_out;
+
+        } else if (mesh_slot_count == 1) {
+            int active_attachment = instance->m_MeshSlotPose[0].m_ActiveAttachment;
+            if (active_attachment == -1 || mesh_entry->m_MeshSlots[0].m_MeshAttachments[active_attachment] == -1) {
+                return vertex_data_out;
+            }
         }
 
         dmArray<Matrix4>& pose_matrices      = context->m_ScratchPoseMatrixBuffer;
@@ -1434,57 +1329,72 @@ namespace dmRig
             PoseToInfluence(*instance->m_PoseIdxToInfluence, pose_matrices, influence_matrices);
         }
 
-        dmArray<uint32_t>& draw_order = instance->m_DrawOrderToMesh;
-        if (draw_order.Capacity() < mesh_count) {
-            draw_order.SetCapacity(mesh_count);
-            dmRig::UpdateMeshDrawOrder(instance, mesh_count, draw_order, context->m_ScratchSlotsBuffer);
-        }
-        uint32_t visible_mesh_count = draw_order.Size();
-        for (uint32_t draw_index = 0; draw_index < visible_mesh_count; ++draw_index) {
-            uint32_t mesh_index = draw_order[draw_index];
-            if (mesh_index == SIGNAL_SLOT_UNUSED) {
-                continue;
-            }
-            const dmRig::MeshProperties* properties = &instance->m_MeshProperties[mesh_index];
-            if (!properties->m_Visible) {
-                continue;
-            }
-            const dmRigDDF::Mesh* mesh = &mesh_entry->m_Meshes[mesh_index];
+        // Loop that generates actual vertex data for current mesh entry.
+        // We loop over the slots in the mesh entry, check which attachment point is active,
+        // then locate the actual mesh that has been assigned to that attatchment point.
+        // (Instead of looping over the default slot orders directly, we go through the
+        // draw order array to render the slots in the correct order.)
+        int32_t slot_count = instance->m_MeshSet->m_SlotCount;
+        for (int32_t i = 0; i < slot_count; i++)
+        {
+            int32_t slot_index = instance->m_DrawOrder[i];
 
-            // Bump scratch buffer capacity to handle current vertex count
-            uint32_t index_count = mesh->m_Indices.m_Count;
-            if (positions.Capacity() < index_count) {
-                positions.OffsetCapacity(index_count - positions.Capacity());
-            }
-            positions.SetSize(index_count);
+            const dmRigDDF::MeshSlot* mesh_slot = &instance->m_MeshEntry->m_MeshSlots[slot_index];
+            MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
 
-            if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh->m_NormalsIndices.m_Count) {
-                if (normals.Capacity() < index_count) {
-                    normals.OffsetCapacity(index_count - normals.Capacity());
+            // Get active attachment in the current slot.
+            int active_attachment = mesh_slot_pose->m_ActiveAttachment;
+            if (active_attachment >= 0) {
+
+                // Check if the attachment point has a mesh assigned
+                int mesh_attachment_index = mesh_slot->m_MeshAttachments[active_attachment];
+                if (mesh_attachment_index >= 0)
+                {
+                    // Lookup the mesh from the list of all the available meshes.
+                    const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
+
+                    // Bump scratch buffer capacity to handle current vertex count
+                    uint32_t index_count = mesh_attachment->m_Indices.m_Count;
+                    if (positions.Capacity() < index_count) {
+                        positions.OffsetCapacity(index_count - positions.Capacity());
+                    }
+                    positions.SetSize(index_count);
+
+                    if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh_attachment->m_NormalsIndices.m_Count) {
+                        if (normals.Capacity() < index_count) {
+                            normals.OffsetCapacity(index_count - normals.Capacity());
+                        }
+                        normals.SetSize(index_count);
+                    }
+
+                    // Fill scratch buffers for positions, and normals if applicable, using pose matrices.
+                    float* positions_buffer = (float*)positions.Begin();
+                    float* normals_buffer = (float*)normals.Begin();
+                    dmRig::GeneratePositionData(mesh_attachment, model_matrix, influence_matrices, positions_buffer);
+                    if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh_attachment->m_NormalsIndices.m_Count) {
+                        dmRig::GenerateNormalData(mesh_attachment, normal_matrix, influence_matrices, normals_buffer);
+                    }
+
+                    // NOTE: We expose two different vertex format that GenerateVertexData can output.
+                    // This is a temporary fix until we have better support for custom vertex formats.
+                    if (vertex_format == RIG_VERTEX_FORMAT_MODEL) {
+                        vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, normals_buffer, (RigModelVertex*)vertex_data_out);
+                    } else {
+                        Vector4 slot_color = Vector4(mesh_slot_pose->m_SlotColor[0], mesh_slot_pose->m_SlotColor[1], mesh_slot_pose->m_SlotColor[2], mesh_slot_pose->m_SlotColor[3]);
+                        const float* mesh_color = mesh_attachment->m_MeshColor.m_Count ? mesh_attachment->m_MeshColor.m_Data : white;
+                        slot_color[0] = mesh_color[0] * slot_color[0];
+                        slot_color[1] = mesh_color[1] * slot_color[1];
+                        slot_color[2] = mesh_color[2] * slot_color[2];
+                        slot_color[3] = mesh_color[3] * slot_color[3];
+                        slot_color = mulPerElem(color, slot_color);
+                        slot_color = slot_color * 255.0f;
+
+                        uint32_t rgba = (((uint32_t) slot_color.getW()) << 24) | (((uint32_t) slot_color.getZ()) << 16) |
+                                (((uint32_t) slot_color.getY()) << 8) | ((uint32_t) slot_color.getX());
+
+                        vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, rgba, (RigSpineModelVertex*)vertex_data_out);
+                    }
                 }
-                normals.SetSize(index_count);
-            }
-
-            // Fill scratch buffers for positions, and normals if applicable, using pose matrices.
-            float* positions_buffer = (float*)positions.Begin();
-            float* normals_buffer = (float*)normals.Begin();
-            dmRig::GeneratePositionData(mesh, model_matrix, influence_matrices, positions_buffer);
-            if (vertex_format == RIG_VERTEX_FORMAT_MODEL && mesh->m_NormalsIndices.m_Count) {
-                dmRig::GenerateNormalData(mesh, normal_matrix, influence_matrices, normals_buffer);
-            }
-
-            // NOTE: We expose two different vertex format that GenerateVertexData can output.
-            // This is a temporary fix until we have better support for custom vertex formats.
-            if (vertex_format == RIG_VERTEX_FORMAT_MODEL) {
-                vertex_data_out = (void*)WriteVertexData(mesh, positions_buffer, normals_buffer, (RigModelVertex*)vertex_data_out);
-            } else {
-                Vector4 mesh_color = Vector4(properties->m_Color[0], properties->m_Color[1], properties->m_Color[2], properties->m_Color[3]);
-                mesh_color = mulPerElem(color, mesh_color);
-
-                uint32_t rgba = (((uint32_t) (mesh_color.getW() * 255.0f)) << 24) | (((uint32_t) (mesh_color.getZ() * 255.0f)) << 16) |
-                        (((uint32_t) (mesh_color.getY() * 255.0f)) << 8) | ((uint32_t) (mesh_color.getX() * 255.0f));
-
-                vertex_data_out = (void*)WriteVertexData(mesh, positions_buffer, rgba, (RigSpineModelVertex*)vertex_data_out);
             }
         }
 
@@ -1570,7 +1480,7 @@ namespace dmRig
         // If we're going to use memset, then we should explicitly clear pose and instance arrays.
         instance->m_Pose.SetCapacity(0);
         instance->m_IKTargets.SetCapacity(0);
-        instance->m_MeshProperties.SetCapacity(0);
+        instance->m_MeshSlotPose.SetCapacity(0);
         delete instance;
         context->m_Instances.Free(index, true);
     }
@@ -1610,7 +1520,7 @@ namespace dmRig
 
         instance->m_Enabled = 1;
 
-        AllocateMeshProperties(params.m_MeshSet, instance->m_MeshProperties);
+        AllocateMeshSlotPose(params.m_MeshSet, instance->m_MeshSlotPose, instance->m_DrawOrder);
         instance->m_MeshEntry = FindMeshEntry(params.m_MeshSet, instance->m_MeshId);
 
         instance->m_MaxBoneCount = dmMath::Max(instance->m_MeshSet->m_MaxBoneCount, instance->m_Skeleton == 0x0 ? 0 : instance->m_Skeleton->m_Bones.m_Count);
@@ -1626,7 +1536,7 @@ namespace dmRig
             (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f);
         }
 
-        UpdateMeshProperties(instance);
+        ResetMeshSlotPose(instance);
 
         return dmRig::RESULT_OK;
     }
