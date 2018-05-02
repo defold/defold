@@ -644,7 +644,9 @@ namespace dmRig
             }
 
             // Update draw order after animation
-            UpdateSlotDrawOrder(instance->m_DrawOrder, context->m_ScratchDrawOrderDeltas, slot_changed, context->m_ScratchDrawOrderUnchanged);
+            if (slot_changed > 0) {
+                UpdateSlotDrawOrder(instance->m_DrawOrder, context->m_ScratchDrawOrderDeltas, slot_changed, context->m_ScratchDrawOrderUnchanged);
+            }
 
             for (uint32_t bi = 0; bi < bone_count; ++bi)
             {
@@ -924,10 +926,6 @@ namespace dmRig
     // https://github.com/EsotericSoftware/spine-runtimes/blob/387b0afb80a775970c48099042be769e50258440/spine-c/spine-c/src/spine/SkeletonJson.c#L430
     static void UpdateSlotDrawOrder(dmArray<int32_t>& draw_order, dmArray<int32_t>& deltas, int changed, dmArray<int32_t>& unchanged)
     {
-        if (changed == 0) {
-            return;
-        }
-
         int slot_count = draw_order.Size();
 
         // Make sure we have enough capacity to store our unchanged slots list.
@@ -1403,11 +1401,10 @@ namespace dmRig
                         slot_color[1] = mesh_color[1] * slot_color[1];
                         slot_color[2] = mesh_color[2] * slot_color[2];
                         slot_color[3] = mesh_color[3] * slot_color[3];
+                        slot_color = slot_color * 255.0f;
 
-                        slot_color = mulPerElem(color, slot_color);
-
-                        uint32_t rgba = (((uint32_t) (slot_color.getW() * 255.0f)) << 24) | (((uint32_t) (slot_color.getZ() * 255.0f)) << 16) |
-                                (((uint32_t) (slot_color.getY() * 255.0f)) << 8) | ((uint32_t) (slot_color.getX() * 255.0f));
+                        uint32_t rgba = (((uint32_t) slot_color.getW()) << 24) | (((uint32_t) slot_color.getZ()) << 16) |
+                                (((uint32_t) slot_color.getY()) << 8) | ((uint32_t) slot_color.getX());
 
                         vertex_data_out = (void*)WriteVertexData(mesh_attachment, positions_buffer, rgba, (RigSpineModelVertex*)vertex_data_out);
                     }
