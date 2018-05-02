@@ -313,117 +313,116 @@
                 return data.substring(offset, offset + size);
             }
 
-            class MemoryFile {
-                constructor(data, size) {
-                    this.data = data;
-                    this.size = size;
-                    this.offset = 0;
+            function memFileCreate(data, size) {
+                return {data: data, size: size, offset: 0}
+            }
+
+            function memFileEof(f) {
+                return f.offset >= f.size;
+            }
+
+            function memFileTell(f) {
+                return f.offset;
+            }
+
+            function memFileReadUInt16(f) {
+                if (memFileEof(f)) {
+                    return null;
                 }
-                eof() {
-                    return this.offset >= this.size;
+                var a1 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 2;
+                return (a1 << 8) + a2;
+            }
+
+            function memFileReadUInt32(f) {
+                if (memFileEof(f)) {
+                    return null;
                 }
-                tell() {
-                    return this.offset;
+                var a1 = f.data.charCodeAt(f.offset + 3) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 2) & 0xff;
+                var a3 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a4 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 4;
+                return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+            }
+
+            function memFileReadUInt64(f) {
+                if (memFileEof(f)) {
+                    return null;
                 }
-                seek(pos) {
-                    this.offset = pos;
+                var a1 = f.data.charCodeAt(f.offset + 7) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 6) & 0xff;
+                var a3 = f.data.charCodeAt(f.offset + 5) & 0xff;
+                var a4 = f.data.charCodeAt(f.offset + 4) & 0xff;
+                var a5 = f.data.charCodeAt(f.offset + 3) & 0xff;
+                var a6 = f.data.charCodeAt(f.offset + 2) & 0xff;
+                var a7 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a8 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 8;
+                return (a1 << 56) + (a2 << 48) + (a3 << 40) + (a4 << 32) + (a5 << 24) + (a6 << 16) + (a7 << 8) + a8;
+            }
+
+            function memFileReadString(f) {
+                var size = memFileReadUInt16(f);
+                if (memFileEof(f)) {
+                    return null;
                 }
-                readUInt16() {
-                    if (this.eof()) {
-                        return null;
-                    }
-                    var a1 = this.data.charCodeAt(this.offset + 1) & 0xff;
-                    var a2 = this.data.charCodeAt(this.offset + 0) & 0xff;
-                    this.offset += 2;
-                    return (a1 << 8) + a2;
+                if (memFileEof(f)) {
+                    return null;
                 }
-                readUInt32() {
-                    if (this.eof()) {
-                        return null;
-                    }
-                    var a1 = this.data.charCodeAt(this.offset + 3) & 0xff;
-                    var a2 = this.data.charCodeAt(this.offset + 2) & 0xff;
-                    var a3 = this.data.charCodeAt(this.offset + 1) & 0xff;
-                    var a4 = this.data.charCodeAt(this.offset + 0) & 0xff;
-                    this.offset += 4;
-                    return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
-                }
-                readUInt64() {
-                    if (this.eof()) {
-                        return null;
-                    }
-                    var a1 = this.data.charCodeAt(this.offset + 7) & 0xff;
-                    var a2 = this.data.charCodeAt(this.offset + 6) & 0xff;
-                    var a3 = this.data.charCodeAt(this.offset + 5) & 0xff;
-                    var a4 = this.data.charCodeAt(this.offset + 4) & 0xff;
-                    var a5 = this.data.charCodeAt(this.offset + 3) & 0xff;
-                    var a6 = this.data.charCodeAt(this.offset + 2) & 0xff;
-                    var a7 = this.data.charCodeAt(this.offset + 1) & 0xff;
-                    var a8 = this.data.charCodeAt(this.offset + 0) & 0xff;
-                    this.offset += 8;
-                    return (a1 << 56) + (a2 << 48) + (a3 << 40) + (a4 << 32) + (a5 << 24) + (a6 << 16) + (a7 << 8) + a8;
-                }
-                readString() {
-                    var size = this.readUInt16();
-                    if (this.eof()) {
-                        return null;
-                    }
-                    if (this.eof()) {
-                        return null;
-                    }
-                    var s = this.data.substring(this.offset, this.offset + size)
-                    this.offset += size;
-                    return s;
+                var s = f.data.substring(f.offset, f.offset + size)
+                f.offset += size;
+                return s;
+            }
+
+            function resourceCreate(name, type, size, sizeOnDisc, refCount) {
+                return {
+                    name: name,
+                    type: type,
+                    size: size,
+                    sizeOnDisc: sizeOnDisc,
+                    refCount: refCount
                 }
             }
 
-            class Resource {
-                constructor(name, type, size, sizeOnDisc, refCount) {
-                    this.name = name;
-                    this.type = type;
-                    this.size = size;
-                    this.sizeOnDisc = sizeOnDisc;
-                    this.refCount = refCount;
-                }
-            }
-
-            class GameObjectItem {
-                constructor(name, resource, type, index, parent) {
-                    this.name = name;
-                    this.resource = resource;
-                    this.type = type;
-                    this.index = index;
-                    this.parent = parent;
+            function gameObjectCreate(name, resource, type, index, parent) {
+                return {
+                    name: name,
+                    resource: resource,
+                    type: type,
+                    index: index,
+                    parent: parent
                 }
             }
 
             function isStreamEnd(file) {
-                var file_pos = file.tell();
+                var file_pos = memFileTell(file);
                 var s = file.data.substring(file_pos+2, file_pos+6);
                 return s == 'ENDD';
             }
 
             function loadProfile(d, table) {
-                var file = new MemoryFile(d, d.length);
+                var file = memFileCreate(d, d.length);
 
-                ticksPerSecond = file.readUInt32() / 1000.0; // NOTE: We use ms internally
+                ticksPerSecond = memFileReadUInt32(file) / 1000.0; // NOTE: We use ms internally
                 var frameTime = 0;
 
                 var samples = [];
-                while(!file.eof())
+                while(!memFileEof(file))
                 {
                     if (isStreamEnd(file))
                     {
                         break;
                     }
 
-                    var offset = file.tell()
+                    var offset = memFileTell(file)
 
-                    var nameId      = file.readUInt64();
-                    var scopeId     = file.readUInt64();
-                    var start       = file.readUInt32();
-                    var elapsed     = file.readUInt32();
-                    var threadId    = file.readUInt16();
+                    var nameId      = memFileReadUInt64(file);
+                    var scopeId     = memFileReadUInt64(file);
+                    var start       = memFileReadUInt32(file);
+                    var elapsed     = memFileReadUInt32(file);
+                    var threadId    = memFileReadUInt16(file);
 
                     var name = table[nameId];
                     var scope_name = table[scopeId];
@@ -440,19 +439,19 @@
                 }
 
                 // Forward to next segment
-                file.readString(); // ENDD
+                memFileReadString(file); // ENDD
 
                 var scopes_data = [];
-                while(!file.eof())
+                while(!memFileEof(file))
                 {
                     if (isStreamEnd(file))
                     {
                         break;
                     }
 
-                    var nameId      = file.readUInt64();
-                    var elapsed     = file.readUInt32();
-                    var count       = file.readUInt32();
+                    var nameId      = memFileReadUInt64(file);
+                    var elapsed     = memFileReadUInt32(file);
+                    var count       = memFileReadUInt32(file);
 
                     var name = table[nameId];
                     scopes_data[name] = {
@@ -462,18 +461,18 @@
                 }
 
                 // Forward to next segment
-                file.readString(); // ENDD
+                memFileReadString(file); // ENDD
 
                 var counters_data = [];
-                while(!file.eof())
+                while(!memFileEof(file))
                 {
                     if (isStreamEnd(file))
                     {
                         break;
                     }
 
-                    var nameId  = file.readUInt64();
-                    var value   = file.readUInt32();
+                    var nameId  = memFileReadUInt64(file);
+                    var value   = memFileReadUInt32(file);
 
                     var name = table[nameId];
                     counters_data[name] = {
@@ -490,44 +489,44 @@
             }
 
             function loadStrings(d, table){
-                var file = new MemoryFile(d, d.length);
+                var file = memFileCreate(d, d.length);
 
-                while(!file.eof())
+                while(!memFileEof(file))
                 {
-                    var id    = file.readUInt64();
-                    var str   = file.readString();
+                    var id    = memFileReadUInt64(file);
+                    var str   = memFileReadString(file);
                     table[id] = str;
                 }
             }
 
             function loadGameObjects(d) {
-                var file = new MemoryFile(d, d.length);
+                var file = memFileCreate(d, d.length);
 
-                while(!file.eof())
+                while(!memFileEof(file))
                 {
-                    var name        = file.readString();
-                    var resource    = file.readString();
-                    var type        = file.readString();
-                    var index       = file.readUInt32();
-                    var parent      = file.readUInt32();
+                    var name        = memFileReadString(file);
+                    var resource    = memFileReadString(file);
+                    var type        = memFileReadString(file);
+                    var index       = memFileReadUInt32(file);
+                    var parent      = memFileReadUInt32(file);
 
-                    var res = new GameObjectItem(name, resource, type, index, parent);
+                    var res = gameObjectCreate(name, resource, type, index, parent);
                     framesGameObjects.push(res);
                 }
             }
 
             function loadResources(d) {
-                var file = new MemoryFile(d, d.length);
+                var file = memFileCreate(d, d.length);
 
-                while(!file.eof())
+                while(!memFileEof(file))
                 {
-                    var resourceName        = file.readString();
-                    var resourceType        = file.readString();
-                    var resourceSize        = file.readUInt32();
-                    var resourceSizeOnDisc  = file.readUInt32();
-                    var resourceRefCount    = file.readUInt32();
+                    var resourceName        = memFileReadString(file);
+                    var resourceType        = memFileReadString(file);
+                    var resourceSize        = memFileReadUInt32(file);
+                    var resourceSizeOnDisc  = memFileReadUInt32(file);
+                    var resourceRefCount    = memFileReadUInt32(file);
 
-                    var res = new Resource(resourceName, resourceType, resourceSize, resourceSizeOnDisc, resourceRefCount);
+                    var res = resourceCreate(resourceName, resourceType, resourceSize, resourceSizeOnDisc, resourceRefCount);
                     framesResources.push(res);
                 }
             }
