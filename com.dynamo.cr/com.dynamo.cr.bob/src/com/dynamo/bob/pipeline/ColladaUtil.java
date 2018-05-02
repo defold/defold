@@ -67,6 +67,7 @@ import com.dynamo.rig.proto.Rig;
 import com.dynamo.rig.proto.Rig.AnimationInstanceDesc;
 import com.dynamo.rig.proto.Rig.AnimationSetDesc;
 import com.dynamo.rig.proto.Rig.MeshEntry;
+import com.dynamo.rig.proto.Rig.MeshSlot;
 import com.google.protobuf.TextFormat;
 
 public class ColladaUtil {
@@ -691,6 +692,11 @@ public class ColladaUtil {
         List<Float> bone_weights_list = new ArrayList<Float>(position_list.size()*4);
         int max_bone_count = loadVertexWeights(collada, bone_weights_list, bone_indices_list);
 
+        // We currently only support one mesh per collada file
+        // This result in one dmRigDDF::Mesh, one dmRigDDF::MeshEntry with only one MeshSlot.
+        // The MeshSlot will only contain one "mesh attachment" pointing to the Mesh (index: 0),
+        // the active index should be 0 to indicate the one and only attachment.
+
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
         if(normals != null) {
             meshBuilder.addAllNormals(normal_list);
@@ -703,12 +709,22 @@ public class ColladaUtil {
         meshBuilder.addAllWeights(bone_weights_list);
         meshBuilder.addAllBoneIndices(bone_indices_list);
 
-        // We currently only support one mesh per collada file
+        MeshSlot.Builder meshSlotBuilder = MeshSlot.newBuilder();
+        meshSlotBuilder.addMeshAttachments(0);
+        meshSlotBuilder.setActiveIndex(0);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+        meshSlotBuilder.addSlotColor(1.0f);
+
         MeshEntry.Builder meshEntryBuilder = MeshEntry.newBuilder();
-        meshEntryBuilder.addMeshes(meshBuilder);
+        meshEntryBuilder.addMeshSlots(meshSlotBuilder);
         meshEntryBuilder.setId(0);
+
+        meshSetBuilder.addMeshAttachments(meshBuilder);
         meshSetBuilder.addMeshEntries(meshEntryBuilder);
         meshSetBuilder.setMaxBoneCount(max_bone_count);
+        meshSetBuilder.setSlotCount(1);
 
         List<String> boneRefArray = createBoneReferenceList(collada);
         if (boneRefArray != null && !boneRefArray.isEmpty()) {
