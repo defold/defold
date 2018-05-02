@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
     <head>
         <title>Dynamo Profiler</title>
@@ -13,6 +14,10 @@
                 font-family: Arial, Helvetica, Helvetica Neue, Verdana, sans-serif;
                 font-size: 12px;
                 line-height: 18px;
+            }
+
+            table td {
+                vertical-align: top;
             }
 
             #frames {
@@ -40,8 +45,8 @@
             }
 
             div.frameblock_green {
-                background: -webkit-gradient(linear, left top, left bottom, from(hsl(130, 60%, 50%)), to(hsl(130, 20%, 50%)));
-
+                background: -ms-linear-gradient(top, hsl(130, 60%, 50%) 50%, hsl(130, 20%, 50%) 100%);
+                background: -webkit-linear-gradient(top, hsl(130, 60%, 50%) 50%, hsl(130, 20%, 50%) 100%);
                 float: left;
                 border-color: rgb(100,100,100);
                 border-style: solid;
@@ -51,8 +56,8 @@
             }
 
             div.frameblock_red {
-                background: -webkit-gradient(linear, left top, left bottom, from(hsl(0, 60%, 50%)), to(hsl(0, 20%, 50%)));
-
+                background: -ms-linear-gradient(top, hsl(0, 60%, 50%) 50%, hsl(0, 20%, 50%) 100%);
+                background: -webkit-linear-gradient(top, hsl(0, 60%, 50%) 50%, hsl(0, 20%, 50%) 100%);
                 float: left;
                 border-color: rgb(100,100,100);
                 border-style: solid;
@@ -69,7 +74,7 @@
             }
 
             table.prof-table {
-              border: 1;
+              border: 1px;
               border-width: 1px;
               border-color: #888;
               border-style: solid;
@@ -213,7 +218,7 @@
             var framesGameObjects = [];
 
             // If running another server change base_url to value below, eg when testing
-            // var base_url = 'http://localhost:8002/'
+            //var base_url = 'http://localhost:8001/'
             var base_url = '/'
             var requestCpu = new XMLHttpRequest();
             var requestGameObjects = new XMLHttpRequest();
@@ -236,7 +241,7 @@
             var goList = {};
 
             // Keep track of current profiler tab, always start with CPU
-            var currentTab = "tab_resources";
+            var currentTab = "tab_cpu";
 
             function switchTab()
             {
@@ -274,7 +279,7 @@
                 framesCpu = [];
                 capturedFrameCount = 0;
                 capturedSamplesData = [];
-                requestCpu.open('GET', base_url + 'strings', true);
+                requestCpu.open('GET', base_url + 'profile_strings', true);
                 requestCpu.overrideMimeType('text/plain; charset=x-user-defined');
                 requestCpu.onreadystatechange = handlerCpu;
                 requestCpu.send();
@@ -308,104 +313,119 @@
                 return data.substring(offset, offset + size);
             }
 
-            class MemoryFile {
-                constructor(data, size) {
-                    this.data = data;
-                    this.size = size;
-                    this.offset = 0;
+            function memFileCreate(data, size) {
+                return {data: data, size: size, offset: 0}
+            }
+
+            function memFileEof(f) {
+                return f.offset >= f.size;
+            }
+
+            function memFileTell(f) {
+                return f.offset;
+            }
+
+            function memFileReadUInt16(f) {
+                if (memFileEof(f)) {
+                    return null;
                 }
-                eof() {
-                    return this.offset >= this.size;
+                var a1 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 2;
+                return (a1 << 8) + a2;
+            }
+
+            function memFileReadUInt32(f) {
+                if (memFileEof(f)) {
+                    return null;
                 }
-                readUInt16() {
-                    if (this.eof()) {
-                        return null;
-                    }
-                    var a1 = this.data.charCodeAt(this.offset + 1) & 0xff;
-                    var a2 = this.data.charCodeAt(this.offset + 0) & 0xff;
-                    this.offset += 2;
-                    return (a1 << 8) + a2;
+                var a1 = f.data.charCodeAt(f.offset + 3) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 2) & 0xff;
+                var a3 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a4 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 4;
+                return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+            }
+
+            function memFileReadUInt64(f) {
+                if (memFileEof(f)) {
+                    return null;
                 }
-                readUInt32() {
-                    if (this.eof()) {
-                        return null;
-                    }
-                    var a1 = this.data.charCodeAt(this.offset + 3) & 0xff;
-                    var a2 = this.data.charCodeAt(this.offset + 2) & 0xff;
-                    var a3 = this.data.charCodeAt(this.offset + 1) & 0xff;
-                    var a4 = this.data.charCodeAt(this.offset + 0) & 0xff;
-                    this.offset += 4;
-                    return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+                var a1 = f.data.charCodeAt(f.offset + 7) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 6) & 0xff;
+                var a3 = f.data.charCodeAt(f.offset + 5) & 0xff;
+                var a4 = f.data.charCodeAt(f.offset + 4) & 0xff;
+                var a5 = f.data.charCodeAt(f.offset + 3) & 0xff;
+                var a6 = f.data.charCodeAt(f.offset + 2) & 0xff;
+                var a7 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a8 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 8;
+                return (a1 << 56) + (a2 << 48) + (a3 << 40) + (a4 << 32) + (a5 << 24) + (a6 << 16) + (a7 << 8) + a8;
+            }
+
+            function memFileReadString(f) {
+                var size = memFileReadUInt16(f);
+                if (memFileEof(f)) {
+                    return null;
                 }
-                readUInt64() {
-                    if (this.eof()) {
-                        return null;
-                    }
-                    var a1 = this.data.charCodeAt(this.offset + 7) & 0xff;
-                    var a2 = this.data.charCodeAt(this.offset + 6) & 0xff;
-                    var a3 = this.data.charCodeAt(this.offset + 5) & 0xff;
-                    var a4 = this.data.charCodeAt(this.offset + 4) & 0xff;
-                    var a5 = this.data.charCodeAt(this.offset + 3) & 0xff;
-                    var a6 = this.data.charCodeAt(this.offset + 2) & 0xff;
-                    var a7 = this.data.charCodeAt(this.offset + 1) & 0xff;
-                    var a8 = this.data.charCodeAt(this.offset + 0) & 0xff;
-                    this.offset += 8;
-                    return (a1 << 56) + (a2 << 48) + (a3 << 40) + (a4 << 32) + (a5 << 24) + (a6 << 16) + (a7 << 8) + a8;
+                if (memFileEof(f)) {
+                    return null;
                 }
-                readString() {
-                    var size = this.readUInt16();
-                    if (this.eof()) {
-                        return null;
-                    }
-                    if (this.eof()) {
-                        return null;
-                    }
-                    var s = this.data.substring(this.offset, this.offset + size)
-                    this.offset += size;
-                    return s;
+                var s = f.data.substring(f.offset, f.offset + size)
+                f.offset += size;
+                return s;
+            }
+
+            function resourceCreate(name, type, size, sizeOnDisc, refCount) {
+                return {
+                    name: name,
+                    type: type,
+                    size: size,
+                    sizeOnDisc: sizeOnDisc,
+                    refCount: refCount
                 }
             }
 
-            class Resource {
-                constructor(name, type, size, sizeOnDisc, refCount) {
-                    this.name = name;
-                    this.type = type;
-                    this.size = size;
-                    this.sizeOnDisc = sizeOnDisc;
-                    this.refCount = refCount;
+            function gameObjectCreate(name, resource, type, index, parent) {
+                return {
+                    name: name,
+                    resource: resource,
+                    type: type,
+                    index: index,
+                    parent: parent
                 }
             }
 
-            class GameObjectItem {
-                constructor(name, resource, type, index, parent) {
-                    this.name = name;
-                    this.resource = resource;
-                    this.type = type;
-                    this.index = index;
-                    this.parent = parent;
-                }
+            function isStreamEnd(file) {
+                var file_pos = memFileTell(file);
+                var s = file.data.substring(file_pos+2, file_pos+6);
+                return s == 'ENDD';
             }
 
             function loadProfile(d, table) {
-                var ptrSize = readUInt16(d, 0);
-                ticksPerSecond = readUInt32(d, 2) / 1000.0;  // NOTE: We use ms internally
-                var samples = [];
-                var sample_count = readUInt32(d, 6);
-                var offset = 10;
+                var file = memFileCreate(d, d.length);
+
+                ticksPerSecond = memFileReadUInt32(file) / 1000.0; // NOTE: We use ms internally
                 var frameTime = 0;
-                for (var i = 0; i < sample_count; ++i) {
-                    var name_id = readPtr(d, offset, ptrSize);
-                    var scope = readPtr(d, offset + ptrSize, ptrSize);
-                    offset += 2 * ptrSize;
-                    var start = readUInt32(d, offset + 0);
-                    var elapsed = readUInt32(d, offset + 4);
-                    var thread_id = readUInt16(d, offset + 8);
-                    var name = table[name_id];
 
-                    var scope_name = table[scope];
-                    offset += 4 * 4;
+                var samples = [];
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
+                    }
 
-                    frameTime = Math.max(frameTime, elapsed / ticksPerSecond);
+                    var offset = memFileTell(file)
+
+                    var nameId      = memFileReadUInt64(file);
+                    var scopeId     = memFileReadUInt64(file);
+                    var start       = memFileReadUInt32(file);
+                    var elapsed     = memFileReadUInt32(file);
+                    var threadId    = memFileReadUInt16(file);
+
+                    var name = table[nameId];
+                    var scope_name = table[scopeId];
 
                     var s = {
                         scope_name: scope_name,
@@ -414,37 +434,47 @@
                         elapsed: elapsed / ticksPerSecond
                     };
                     samples.push(s);
+
+                    frameTime = Math.max(frameTime, elapsed / ticksPerSecond);
                 }
 
-                var scopes_data = [];
-                var scope_count = readUInt32(d, offset);
-                offset += 4;
-                for (var i = 0; i < scope_count; ++i) {
-                    var name_id = readPtr(d, offset, ptrSize);
-                    var elapsed = readUInt32(d, offset + ptrSize);
-                    var count = readUInt32(d, offset + ptrSize + 4);
-                    offset += ptrSize + 2 * 4;
-                    var name = table[name_id];
+                // Forward to next segment
+                memFileReadString(file); // ENDD
 
+                var scopes_data = [];
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
+                    }
+
+                    var nameId      = memFileReadUInt64(file);
+                    var elapsed     = memFileReadUInt32(file);
+                    var count       = memFileReadUInt32(file);
+
+                    var name = table[nameId];
                     scopes_data[name] = {
                         elapsed: elapsed,
                         count: count
                     };
                 }
 
+                // Forward to next segment
+                memFileReadString(file); // ENDD
+
                 var counters_data = [];
-                var counter_count = readUInt32(d, offset);
-                offset += 4;
-                for (var i = 0; i < counter_count; ++i) {
-                    var name_id = readPtr(d, offset, ptrSize);
-                    var value = readUInt32(d, offset + ptrSize);
-                    offset += (4 + ptrSize);
-                    // if the pointer size is 8 bytes (eg on iOS 64 bit) the
-                    // counters data struct gets padded with 4 additional bytes
-                    if (ptrSize == 8) {
-                      offset += 4;
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
                     }
-                    var name = table[name_id];
+
+                    var nameId  = memFileReadUInt64(file);
+                    var value   = memFileReadUInt32(file);
+
+                    var name = table[nameId];
                     counters_data[name] = {
                         value: value
                     };
@@ -459,49 +489,44 @@
             }
 
             function loadStrings(d, table){
-                var ptrSize = readUInt16(d, 4);
-                var string_count = readUInt32(d, 6);
-                var offset = 10;
-                for (var i = 0; i < string_count; ++i) {
-                    var id = readPtr(d, offset, ptrSize);
-                    offset += ptrSize;
-                    var len = readUInt16(d, offset);
-                    var str = d.substring(offset + 2, offset + 2 + len);
+                var file = memFileCreate(d, d.length);
 
+                while(!memFileEof(file))
+                {
+                    var id    = memFileReadUInt64(file);
+                    var str   = memFileReadString(file);
                     table[id] = str;
-
-                    offset += (len + 2);
                 }
             }
 
             function loadGameObjects(d) {
-                var file = new MemoryFile(d, d.length);
+                var file = memFileCreate(d, d.length);
 
-                while(!file.eof())
+                while(!memFileEof(file))
                 {
-                    var name        = file.readString();
-                    var resource    = file.readString();
-                    var type        = file.readString();
-                    var index       = file.readUInt32();
-                    var parent      = file.readUInt32();
+                    var name        = memFileReadString(file);
+                    var resource    = memFileReadString(file);
+                    var type        = memFileReadString(file);
+                    var index       = memFileReadUInt32(file);
+                    var parent      = memFileReadUInt32(file);
 
-                    var res = new GameObjectItem(name, resource, type, index, parent);
+                    var res = gameObjectCreate(name, resource, type, index, parent);
                     framesGameObjects.push(res);
                 }
             }
 
             function loadResources(d) {
-                var file = new MemoryFile(d, d.length);
+                var file = memFileCreate(d, d.length);
 
-                while(!file.eof())
+                while(!memFileEof(file))
                 {
-                    var resourceName        = file.readString();
-                    var resourceType        = file.readString();
-                    var resourceSize        = file.readUInt32();
-                    var resourceSizeOnDisc  = file.readUInt32();
-                    var resourceRefCount    = file.readUInt32();
+                    var resourceName        = memFileReadString(file);
+                    var resourceType        = memFileReadString(file);
+                    var resourceSize        = memFileReadUInt32(file);
+                    var resourceSizeOnDisc  = memFileReadUInt32(file);
+                    var resourceRefCount    = memFileReadUInt32(file);
 
-                    var res = new Resource(resourceName, resourceType, resourceSize, resourceSizeOnDisc, resourceRefCount);
+                    var res = resourceCreate(resourceName, resourceType, resourceSize, resourceSizeOnDisc, resourceRefCount);
                     framesResources.push(res);
                 }
             }
@@ -511,16 +536,16 @@
                     if (requestCpu.status == 200) {
                         var d = requestCpu.responseText;
 
-                        var type = d.substring(0, 4);
+                        var type = d.substring(2, 6);
                         if (type == "PROF") {
                             capturedFrameCount += 1;
 
                             if (capturedFrameCount % 10 == 0)
                                 console.log("Capturing CPU..." + capturedFrameCount);
 
-                            capturedSamplesData.push(d.substring(4));
+                            capturedSamplesData.push(d.substring(6));
                             if (capturedFrameCount < 20) {
-                                getChunkCpu('profile')
+                                getChunkCpu('profile_frame')
                             }
                             else {
 
@@ -532,8 +557,8 @@
                             }
                         }
                         else if (type == "STRS") {
-                            loadStrings(d, stringTable);
-                            getChunkCpu('profile');
+                            loadStrings(d.substring(6), stringTable);
+                            getChunkCpu('profile_frame');
                         }
                         else {
                             alert("Unknown chunk type: " + type);
@@ -808,10 +833,7 @@
                         ctx.clearRect(0, 0, w, h);
 
                         // Reset
-                        ctx.shadowOffsetX = 0;
-                        ctx.shadowOffsetY = 0;
-                        ctx.shadowBlur = 0;
-                        ctx.shadowColor = 'rgba(0, 0, 0, 0)';
+                        // Note: removed shadow&blur since the performance on Firefox was too bad
 
                         y0 = 30;
                         var index = 0;
@@ -859,11 +881,6 @@
                         ctx.fillStyle = "rgb(0,0,200)";
                         ctx.strokeStyle = "rgb(50, 50, 50)";
 
-                        ctx.shadowOffsetX = 2;
-                        ctx.shadowOffsetY = 2;
-                        ctx.shadowBlur = 2;
-                        ctx.shadowColor = 'rgba(20, 20, 20, 0.55)';
-
                         var lasth = -1;
                         var last_style = "";
                         for (var i in frame.samples) {
@@ -877,11 +894,8 @@
                             ctx.fillRect(x0 + w * sample.start / frameLen, y0 + sampleNames[sample.name].index * dy + 0, w * sample.elapsed / frameLen, 14);
                         }
 
+                        ctx.closePath()
                         ctx.restore();
-                        ctx.shadowOffsetX = 0;
-                        ctx.shadowOffsetY = 0;
-                        ctx.shadowBlur = 0;
-                        ctx.shadowColor = 'rgba(0, 0, 0, 0)';
                         ctx.fillStyle = "rgb(50,50,50)";
                         ctx.font = "11px Arial;"
 
@@ -924,11 +938,11 @@
                     boxes_div.style.float = "left";
                     boxes_div.style.position = "absolute";
                     boxes_div.style.left = 60;
-                    boxes_div.style.width = w - 60;
+                    boxes_div.style.width = (w - 60) + "px";
                     boxes_div.style.height = h;
 
-                    instance.placeholder.appendChild(time_div)
                     instance.placeholder.appendChild(boxes_div)
+                    instance.placeholder.appendChild(time_div)
 
                     var max_frame = 0;
                     for (var i in framesCpu) {
@@ -1029,8 +1043,10 @@
                     var tmp = sum[name];
                     var e = Math.round(100.0 * tmp[0]) / 100.0;
                     // Skip "small" samples (sum of)
-                    if (e < 0.03)
+
+                    if (e < 0.03) {
                         continue;
+                    }
                     var eo = even_odd[i % 2];
                     var checked = "";
                     if (plotSamples[name] == true)
@@ -1098,11 +1114,8 @@
                 calculatePalette();
 
                 framesGraph.draw(framesCpu);
-                samplesGraph.draw(framesCpu[0]);
                 plotGraph.draw();
-                updateScopesTable(framesCpu[0]);
-                updateSamplesTable(framesCpu[0]);
-                updateCountersTable(framesCpu[0]);
+                clickCpuFrame(0);
             }
 
             function clickCpuFrame(i){
@@ -1410,16 +1423,14 @@
     <body onload="init();">
         <div style="margin-bottom: 8px;">
             <input type="button" value="Capture" onclick="capture();">
-            </input>
-            Profiler: <input type="radio" onchange="switchTab()" value="tab_cpu" name="tab_selection" id="tab_selection_cpu" checked></input>
+            Profiler: <input type="radio" onchange="switchTab()" value="tab_cpu" name="tab_selection" id="tab_selection_cpu" checked>
             <label for="tab_selection_cpu">CPU</label>
-            <input type="radio" onchange="switchTab()" value="tab_resources" name="tab_selection" id="tab_selection_resources"></input>
+            <input type="radio" onchange="switchTab()" value="tab_resources" name="tab_selection" id="tab_selection_resources">
             <label for="tab_selection_resources">Resources</label>
         </div>
         <div id="tab_resources" style="display: none;">
             <input type="button" value="Expand All" onclick="collectionTreeExpand();">
-            </input><input type="button" value="Collapse All" onclick="collectionTreeCollapse();">
-            </input>
+            <input type="button" value="Collapse All" onclick="collectionTreeCollapse();">
             <div id="res_tables">
                 <table id="collection_table">
                     <thead>
@@ -1435,11 +1446,11 @@
                 <table id="resource_table">
                     <thead>
                         <tr>
-                            <th onClick="setResourceSortPredicate(this);" id="resources_resource_label"><div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">Resource</div></th>
-                            <th onClick="setResourceSortPredicate(this);" id="resources_size_label"><div class="resource-table-sort">&#x25BC</div><div class="resource-table-label">Size</div></th>
-                            <th onClick="setResourceSortPredicate(this);" id="resources_size_on_disc_label"><div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">Size On Disc</div></th>
-                            <th onClick="setResourceSortPredicate(this);" id="resources_type_label"><div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">Type</div></th>
-                            <th onClick="setResourceSortPredicate(this);" id="resources_refcount_label"><div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">RefCount</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_resource_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Resource</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_label"><div class="resource-table-sort">&#x25BC;</div><div class="resource-table-label">Size</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_on_disc_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Size On Disc</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_type_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Type</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_refcount_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">RefCount</div></th>
                         </tr>
                     </thead>
                     <tbody id="resource_table_body">
@@ -1451,60 +1462,71 @@
             <div id="frames" style="height: 60px;">
             </div>
             <br/>
-            <table border="0" style="border-spacing: 0px; _width: 1000px;">
+            <table style="border-spacing: 0px;">
                 <tr>
-                    <td valign="top">
+                    <td>
                         <table id="scopes-table" class="prof-table">
-                            <th class="prof-table">
-                                Scope
-                            </th>
-                            <th class="prof-table">
-                                Time(ms)
-                            </th>
-                            <th class="prof-table">
-                                Average(ms)
-                            </th>
-                            <tr/>
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Scope
+                                </th>
+                                <th class="prof-table">
+                                    Time(ms)
+                                </th>
+                                <th class="prof-table">
+                                    Average(ms)
+                                </th>
+                                </tr>
+                            </thead>
                         </table>
                     </td>
                     <td style="width: 20px">
                     </td>
-                    <td valign="top" align="center">
+                    <td>
                         <table id="samples-table" class="prof-table">
-                            <th class="prof-table">
-                                Sample
-                            </th>
-                            <th class="prof-table">
-                                Time(ms)
-                            </th>
-                            <th class="prof-table">
-                                Average(ms)
-                            </th>
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Sample
+                                </th>
+                                <th class="prof-table">
+                                    Time(ms)
+                                </th>
+                                <th class="prof-table">
+                                    Average(ms)
+                                </th>
+                                </tr>
+                            </thead>
                         </table>
                     </td>
                     <td style="width: 20px">
                     </td>
-                    <td valign="top" align="right">
+                    <td>
                         <table id="counters-table" class="prof-table">
-                            <th class="prof-table">
-                                Counter
-                            </th>
-                            <th class="prof-table">
-                                Amount
-                            </th>
-                            <th class="prof-table">
-                            </th>
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Counter
+                                </th>
+                                <th class="prof-table">
+                                    Amount
+                                </th>
+                                <th class="prof-table">
+                                </th>
+                                </tr>
+                            </thead>
                         </table>
                     </td>
                 </tr>
             </table>
             <br/>
             <div id="plot">
-                <canvas id="plot-canvas" style="float: left;" width="1000px" height="400px">
+                <canvas id="plot-canvas" style="float: left;" width="1000" height="400">
                 </canvas>
             </div>
             <div id="frame" style="height: 1500px;">
-                <canvas id="frame-canvas" style="float: left;" width="1000px" height="1500px">
+                <canvas id="frame-canvas" style="float: left;" width="1000" height="1500">
                 </canvas>
             </div>
 

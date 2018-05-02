@@ -174,6 +174,14 @@ namespace dmWebServer
      */
     void GetName(HServer server, dmSocket::Address* address, uint16_t* port);
 
+    /**
+     * Sends a header attribute
+     * @param request Request
+     * @param key the header name
+     * @param value the header value
+     */
+    Result SendAttribute(Request* request, const char* key, const char* value);
+
 }
 
 #endif // DM_WEB_SERVER_H
