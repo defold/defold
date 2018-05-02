@@ -263,3 +263,10 @@
   [coll]
   (when (nil? (next coll))
     (first coll)))
+
+(defn map->sort-key
+  "Given any map, returns a vector that can be used to order it relative to any other map in a deterministic order."
+  [m]
+  (into []
+        (mapcat (juxt identity (partial get m)))
+        (sort (keys m))))
