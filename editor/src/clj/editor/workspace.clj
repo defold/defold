@@ -360,13 +360,15 @@ ordinary paths."
                 :resource-listeners (atom [])
                 :build-settings build-settings))
 
-(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn text-selection-fn]}]
+(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn dispose-preview-fn focus-fn text-selection-fn]}]
   (let [view-type (merge {:id    id
                           :label label}
                          (when make-view-fn
                            {:make-view-fn make-view-fn})
                          (when make-preview-fn
                            {:make-preview-fn make-preview-fn})
+                         (when dispose-preview-fn
+                           {:dispose-preview-fn dispose-preview-fn})
                          (when focus-fn
                            {:focus-fn focus-fn})
                          (when text-selection-fn
