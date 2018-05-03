@@ -46,6 +46,13 @@ EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VE
 PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
+
+class ExecException(Exception):
+    def __init__(self, retcode, output):
+        self.retcode = retcode
+        self.output = output
+
+
 def is_64bit_machine():
     return platform.machine().endswith('64')
 
@@ -1427,7 +1434,21 @@ instructions.configure=\
                 certificate = 'Developer ID Application: Midasplayer Technology AB (ATT58V7T33)'
                 self.exec_command(['codesign', '--deep', '-s', certificate, fp_defold_app])
                 self.exec_command(['hdiutil', 'create', '-volname', 'Defold', '-srcfolder', builddir, fp_defold_dmg])
-                self.exec_command(['codesign', '-s', certificate, fp_defold_dmg])
+
+                # This step is intermittently failing. In such cases, we retry a few more times
+                # E.g. "/var/folders/6l/p6nhw59s2ns2x9chznhy9k1r0000gp/T/defsign.MamsrV/Defold-macosx.cocoa.x86_64.dmg: The timestamp service is not available."
+                max_tries = 5
+
+                for i in range(max_tries):
+                    try:
+                        self.exec_command_no_quit(['codesign', '-s', certificate, fp_defold_dmg])
+                        break # it went ok, let's continue the process
+                    except ExecException, e:
+                        self._log("Failed attempt %d/%d" % (i+1, max_tries))
+                        if i == max_tries-1:
+                            sys.exit(e.retcode)
+                    time.sleep(10) # seconds
+
                 self._log('Signed %s' % (fp_defold_dmg))
 
                 # Upload the signed container to S3
@@ -1705,7 +1726,6 @@ instructions.configure=\
             f()
         self.futures = []
 
-
     def _exec_command(self, arg_list, **kwargs):
         arg_str = arg_list
         if not isinstance(arg_str, basestring):
@@ -1724,15 +1744,27 @@ instructions.configure=\
                 break
 
         if process.wait() != 0:
-            sys.exit(process.returncode)
+            raise ExecException(process.returncode, output)
 
         return output
 
-    def exec_command(self, args):
+    def exec_command_no_quit(self, args):
+        # Executes a command and raises an ExecException if it fails
         return self._exec_command(args, shell = False)
 
+    def exec_command(self, args):
+        # Executes a command, and exits if it fails
+        try:
+            return self._exec_command(args, shell = False)
+        except ExecException, e:
+            sys.exit(e.returncode)
+
     def exec_shell_command(self, args):
-        return self._exec_command(args, shell = True)
+        # Executes a command, and exits if it fails
+        try:
+            return self._exec_command(args, shell = True)
+        except ExecException, e:
+            sys.exit(e.returncode)
 
     def _form_env(self):
         env = dict(os.environ)
