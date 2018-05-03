@@ -418,15 +418,20 @@
   (make-project-entry title (.getParent project-file) last-opened nil))
 
 (defn- make-home-pane
-  ^Parent [last-opened-project-directory close-dialog-and-open-project! recent-projects]
-  (doto (ui/load-fxml "welcome/home-pane.fxml")
-    (ui/with-controls [^ListView recent-projects-list ^Node empty-recent-projects-list-overlay ^ButtonBase open-from-disk-button ^ButtonBase open-selected-project-button]
+  ^Parent [last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! recent-projects]
+  (let [home-pane (ui/load-fxml "welcome/home-pane.fxml")
+        open-from-disk-buttons (.lookupAll home-pane "#open-from-disk-button")
+        show-open-from-disk-dialog! (partial show-open-from-disk-dialog! last-opened-project-directory close-dialog-and-open-project!)]
+    (ui/with-controls home-pane [^ListView recent-projects-list ^Node state-empty-recent-projects-list ^Node state-non-empty-recent-projects-list ^ButtonBase open-selected-project-button ^ButtonBase show-new-project-pane-button]
       (let [open-selected-project! (fn []
                                      (when-some [recent-project (first (ui/selection recent-projects-list))]
                                        (close-dialog-and-open-project! (:project-file recent-project) false)))]
-        (ui/on-action! open-from-disk-button (partial show-open-from-disk-dialog! last-opened-project-directory close-dialog-and-open-project!))
+        (doseq [open-from-disk-button open-from-disk-buttons]
+          (ui/on-action! open-from-disk-button show-open-from-disk-dialog!))
+        (ui/on-action! show-new-project-pane-button (fn [_] (show-new-project-pane!)))
         (ui/on-action! open-selected-project-button (fn [_] (open-selected-project!)))
-        (ui/bind-presence! empty-recent-projects-list-overlay (Bindings/isEmpty (.getItems recent-projects-list)))
+        (ui/bind-presence! state-empty-recent-projects-list (Bindings/isEmpty (.getItems recent-projects-list)))
+        (ui/bind-presence! state-non-empty-recent-projects-list (Bindings/isNotEmpty (.getItems recent-projects-list)))
         (ui/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
         (doto recent-projects-list
           (.setFixedCellSize 56.0)
@@ -435,7 +440,8 @@
                               {:graphic (make-recent-project-entry recent-project)}))
           (.setOnMouseClicked (ui/event-handler event
                                 (when (= 2 (.getClickCount ^MouseEvent event))
-                                  (open-selected-project!)))))))))
+                                  (open-selected-project!)))))))
+    home-pane))
 
 ;; -----------------------------------------------------------------------------
 ;; New project pane
@@ -814,9 +820,11 @@
          sign-out-button (.lookup left-pane "#sign-out-button")
          update-link (.lookup left-pane "#update-link")
          pane-buttons-toggle-group (ToggleGroup.)
-         pane-buttons [(make-pane-button "HOME" (make-home-pane last-opened-project-directory close-dialog-and-open-project! recent-projects))
-                       (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings))
-                       (make-pane-button "IMPORT PROJECT" (make-import-project-pane new-project-location-directory clone-project! dashboard-client))]]
+         new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings))
+         show-new-project-pane! (fn [] (.selectToggle pane-buttons-toggle-group new-project-pane-button))
+         home-pane-button (make-pane-button "HOME" (make-home-pane last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! recent-projects))
+         import-project-button (make-pane-button "IMPORT PROJECT" (make-import-project-pane new-project-location-directory clone-project! dashboard-client))
+         pane-buttons [home-pane-button new-project-pane-button import-project-button]]
 
      ;; Add Defold logo SVG paths.
      (doseq [pane (map pane-button->pane pane-buttons)]
@@ -844,7 +852,7 @@
                        (ui/children! dialog-contents [left-pane pane])))))
 
      ;; Select the home pane button.
-     (.selectToggle pane-buttons-toggle-group (first pane-buttons))
+     (.selectToggle pane-buttons-toggle-group home-pane-button)
 
      ;; Configure the sign-out button.
      (doto sign-out-button
