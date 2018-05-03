@@ -683,53 +683,6 @@ namespace dmScript
         return false;
     }
 
-    void SetValueToTable(lua_State* L, int table_stack_index, int key_stack_index, int value_stack_index)
-    {
-        int top = lua_gettop(L);
-        int abs_table_index = table_stack_index > 0 ? table_stack_index : top + table_stack_index + 1;
-        int abs_key_index = key_stack_index > 0 ? key_stack_index : top + key_stack_index + 1;
-        int abs_value_index = value_stack_index > 0 ? value_stack_index : top + value_stack_index + 1;
-
-        // [-1] context table or NIL
-        assert(lua_type(L, abs_table_index) == LUA_TTABLE);
-
-        lua_pushvalue(L, abs_key_index);
-        // [-2] context table
-        // [-1] key
-
-        lua_pushvalue(L, abs_value_index);
-        // [-3] context table
-        // [-2] key
-        // [-1] value
-
-        lua_settable(L, abs_table_index);
-        // [-1] context table
-
-        assert(top == lua_gettop(L));
-    }
-
-    void GetValueFromTable(lua_State* L, int table_stack_index, int key_stack_index)
-    {
-        int top = lua_gettop(L);
-
-        int abs_table_index = table_stack_index > 0 ? table_stack_index : top + table_stack_index + 1;
-        int abs_key_index = key_stack_index > 0 ? key_stack_index : top + key_stack_index + 1;
-
-        // [-1] context table
-
-        assert(lua_type(L, abs_table_index) == LUA_TTABLE);
-
-        lua_pushvalue(L, abs_key_index);
-        // [-2] context table
-        // [-1] key
-
-        lua_gettable(L, abs_table_index);
-        // [-2] context table
-        // [-1] value
-
-        assert(top + 1 == lua_gettop(L));
-    }
-
     static int BacktraceErrorHandler(lua_State *m_state) {
         if (!lua_isstring(m_state, 1))
             return 1;

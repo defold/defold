@@ -398,49 +398,6 @@ namespace dmScript
     */
     bool GetInstanceContextValue(lua_State* L);
 
-    /**
-     * Set value by key in the table at location table_stack_index
-     *
-     * Stack indexes can be either relative or absolute. The stack is
-     * unchanged by the operation.
-     * 
-     * @param L Lua state
-     * @param table_stack_index index into Lua stack for the table
-     * @param key_stack_index index into Lua stack for the key
-     * @param value_stack_index index into Lua stack for the value
-     * 
-     * Lua stack on entry
-     *  [table_stack_index] table
-     *  [key_stack_index] key
-     *  [value_stack_index] value
-     * 
-     * Lua stack on exit
-     *  [table_stack_index] table
-     *  [key_stack_index] key
-     *  [value_stack_index] value
-    */
-    void SetValueToTable(lua_State* L, int table_stack_index, int key_stack_index, int value_stack_index);
-
-    /**
-     * Get value by key in the table at location table_stack_index
-     *
-     * Stack indexes can be either relative or absolute.
-     * 
-     * @param L Lua state
-     * @param table_stack_index index into Lua stack for the table
-     * @param key_stack_index index into Lua stack for the key
-     * 
-     * Lua stack on entry
-     *  [table_stack_index] table
-     *  [key_stack_index] key
-     * 
-     * Lua stack on exit
-     *  [table_stack_index] table
-     *  [key_stack_index] key
-     *  [-1] value or LUA_NIL
-    */
-    void GetValueFromTable(lua_State* L, int table_stack_index, int key_stack_index);
-
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 
     /**

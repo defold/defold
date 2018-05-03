@@ -137,7 +137,7 @@ struct TestDummy {
     uint32_t        m_Dummy;
     dmMessage::URL  m_URL;
     int             m_InstanceReference;
-    int             m_ContextTable;
+    int             m_ContextTableReference;
 };
 
 static int TestGetURL(lua_State* L) {
@@ -172,12 +172,15 @@ static int TestSetContextValue(lua_State* L)
 
     int top = lua_gettop(L);
 
-    TestDummy* dummy = (TestDummy*)lua_touserdata(L, self_index);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, dummy->m_ContextTable);
-
-    dmScript::SetValueToTable(L, -1, key_index, value_index);
-
-    lua_pop(L, 1);
+    TestDummy* i = (TestDummy*)lua_touserdata(L, self_index);
+    if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
+    {
+        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+        lua_pushvalue(L, key_index);
+        lua_pushvalue(L, value_index);
+        lua_settable(L, -3);
+        lua_pop(L, 1);
+    }
 
     assert(top == lua_gettop(L));
 
@@ -191,18 +194,18 @@ static int TestGetContextValue(lua_State* L)
 
     int top = lua_gettop(L);
 
-    TestDummy* dummy = (TestDummy*)lua_touserdata(L, self_index);
-    if (dummy->m_ContextTable == 0)
+    TestDummy* i = (TestDummy*)lua_touserdata(L, self_index);
+    if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
     {
-        lua_pushnil(L);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+        lua_pushvalue(L, key_index);
+        lua_gettable(L, -2);
+        lua_insert(L, -2);
+        lua_pop(L, 1);
     }
     else
     {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, dummy->m_ContextTable);
-        dmScript::GetValueFromTable(L, -1, key_index);
-
-        lua_insert(L, -2);
-        lua_pop(L, 1);
+        lua_pushnil(L);
     }
 
     assert(top + 1 == lua_gettop(L));
@@ -255,7 +258,7 @@ TEST_F(ScriptTest, TestUserType) {
     lua_setmetatable(L, -2);
     dummy->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_newtable(L);
-    dummy->m_ContextTable = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    dummy->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     // Invalid
     ASSERT_FALSE(dmScript::IsInstanceValid(L));
@@ -324,8 +327,8 @@ TEST_F(ScriptTest, TestUserType) {
     ASSERT_EQ(LUA_TNIL, lua_type(L, -1));
     lua_pop(L, 1);
 
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTable);
-    dummy->m_ContextTable = 0;
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+    dummy->m_ContextTableReference = LUA_NOREF;
 
     lua_pushstring(L, "__context_value_4711_");
     ASSERT_TRUE(dmScript::GetInstanceContextValue(L));
@@ -445,7 +448,7 @@ static int CreateAndPushInstance(lua_State* L)
     lua_setmetatable(L, -2);
     int instanceref = dmScript::Ref(L, LUA_REGISTRYINDEX);
     lua_newtable(L);
-    dummy->m_ContextTable = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    dummy->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
     dmScript::SetInstance(L);
@@ -506,7 +509,7 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     ASSERT_EQ(0, cbk.m_L);
 
     ASSERT_EQ(top, lua_gettop(L));
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTable);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
 }
 
@@ -560,7 +563,7 @@ TEST_F(ScriptTest, GetTableValues)
     ASSERT_STREQ(NULL, dmScript::GetTableStringValue(L, table_index, "a", NULL));
     lua_pop(L, 1);
 
-    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTable);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
 }
 

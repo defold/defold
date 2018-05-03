@@ -177,10 +177,11 @@ namespace dmGui
         if (i != 0x0 && i->m_Context != 0x0 && i->m_ContextTableReference != LUA_NOREF)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
-            dmScript::SetValueToTable(L, -1, key_index, value_index);
+            lua_pushvalue(L, key_index);
+            lua_pushvalue(L, value_index);
+            lua_settable(L, -3);
+            lua_pop(L, 1);
         }
-
-        lua_pop(L, 1);
 
         assert(top == lua_gettop(L));
 
@@ -198,8 +199,8 @@ namespace dmGui
         if (i != 0x0 && i->m_Context != 0x0 && i->m_ContextTableReference != LUA_NOREF)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
-            dmScript::GetValueFromTable(L, -1, key_index);
-
+            lua_pushvalue(L, key_index);
+            lua_gettable(L, -2);
             lua_insert(L, -2);
             lua_pop(L, 1);
         }
