@@ -17,11 +17,14 @@ namespace dmScript
         void*       m_Resource;
     };
 
+    typedef struct TimerContext* HTimerContext;
+    
     #define DM_SCRIPT_MAX_EXTENSIONS (sizeof(uint32_t) * 8 * 16)
     struct Context
     {
         dmConfigFile::HConfig   m_ConfigFile;
         dmResource::HFactory    m_ResourceFactory;
+        HTimerContext           m_TimerContext;
         dmHashTable64<Module>   m_Modules;
         dmHashTable64<Module*>  m_PathToModule;
         dmHashTable64<int>      m_HashInstances;
@@ -47,6 +50,7 @@ namespace dmScript
     // Exposed here for tests in test_script_module.cpp
     const char* FindSuitableChunkname(const char* input);
     const char* PrefixFilename(const char *input, char prefix, char *buf, uint32_t size);
+
 }
 
 #endif // SCRIPT_PRIVATE_H

@@ -20,6 +20,7 @@
 #include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
+#include "script_timer.h"
 
 extern "C"
 {
@@ -56,6 +57,7 @@ namespace dmScript
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
+        context->m_TimerContext = NewTimerContext(config_file ? dmConfigFile::GetInt(config_file, "timer.max_context_count", 256u) : 256u);
         context->m_EnableExtensions = enable_extensions;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
@@ -64,6 +66,7 @@ namespace dmScript
 
     void DeleteContext(HContext context)
     {
+        DeleteTimerContext(context->m_TimerContext);
         ClearModules(context);
         lua_close(context->m_LuaState);
         delete context;
@@ -146,6 +149,7 @@ namespace dmScript
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
+        InitializeTimer(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
