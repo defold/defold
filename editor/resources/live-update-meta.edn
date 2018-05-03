@@ -23,9 +23,29 @@
    :help "Zip directory"
    :default ""
    :presentation-category "Zip"
-   :path ["liveupdate" "zip-filepath"]}]
+   :path ["liveupdate" "zip-filepath"]}
+  {:type :file,
+   :title "Select Manifest Public Key"
+   :filter [["Public key (*.der)" "*.der"]]
+   :help "Public key for manifest signing",
+   :default "",
+   :presentation-category "Manifest"
+   :path ["liveupdate" "publickey"]}
+  {:type :file,
+   :title "Select Manifest Private Key"
+   :filter [["Private key (*.der)" "*.der"]]
+   :help "Private key for manifest signing",
+   :default "",
+   :presentation-category "Manifest"
+   :path ["liveupdate" "privatekey"]}
+   {:type :string,
+   :help "Supported engine versions",
+   :default "",
+   :presentation-category "Manifest"
+   :path ["liveupdate" "supported-versions"]}]
  :categories
  {"liveupdate" {:title "Live Update"}
   "Amazon" {}
-  "Zip" {}}}
+  "Zip" {}
+  "Manifest" {}}}
 

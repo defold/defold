@@ -69,12 +69,16 @@
 (defmethod parse-setting-value :resource [_ raw]
   raw)
 
+(defmethod parse-setting-value :file [_ raw]
+  raw)
+
 (def ^:private type-defaults
   {:string ""
    :boolean false
    :integer 0
    :number 0.0
-   :resource nil})
+   :resource nil
+   :file nil})
 
 (defn- add-type-defaults [meta-info]
   (update-in meta-info [:settings]

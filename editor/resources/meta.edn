@@ -686,16 +686,6 @@
    :help "auto-finish transactions",
    :default true,
    :path ["iap" "auto_finish_transactions"]}
-  {:type :resource
-   :help "private key"
-   :default nil
-   :label "Private key"
-   :path ["liveupdate" "privatekey"]}
-  {:type :resource
-   :help "public key"
-   :default nil
-   :label "Public key"
-   :path ["liveupdate" "publickey"]}
   {:type :resource,
    :filter "appmanifest",
    :preserve-extension true,

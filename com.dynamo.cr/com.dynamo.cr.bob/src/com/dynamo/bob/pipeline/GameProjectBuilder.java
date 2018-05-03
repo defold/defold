@@ -430,8 +430,8 @@ public class GameProjectBuilder extends Builder<Void> {
     private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
         String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
-        String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
-        String publicKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "publickey", null);
+        String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
+        String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setDependencies(rootNode);
@@ -442,12 +442,12 @@ public class GameProjectBuilder extends Builder<Void> {
 
 
         // If manifest signing keys are specified, use them instead of generating them.
-        if (privateKeyFilepath != null && publicKeyFilepath != null ) {
+        if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
             if (!Files.exists(Paths.get(privateKeyFilepath))) {
                 privateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
                 if (!Files.exists(Paths.get(privateKeyFilepath))) {
                     System.out.println("Warning: Failed to load private key for manifest signing, generating keys instead.");
-                    privateKeyFilepath = null;
+                    privateKeyFilepath = "";
                 }
             }
 
@@ -455,13 +455,13 @@ public class GameProjectBuilder extends Builder<Void> {
                 publicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
                 if (!Files.exists(Paths.get(publicKeyFilepath))) {
                     System.out.println("Warning: Failed to load public key for manifest signing, generating keys instead.");
-                    publicKeyFilepath = null;
+                    publicKeyFilepath = "";
                 }
             }
         }
 
-        // If loading supplied keys fail or no were supplied, generate them instead
-        if (privateKeyFilepath == null || publicKeyFilepath == null) {
+        // If loading supplied keys failed or none were supplied, generate them instead
+        if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
 
