@@ -44,8 +44,7 @@ namespace dmScript
     const char* META_TABLE_GET_URL              = "__get_url";
     const char* META_TABLE_GET_USER_DATA        = "__get_user_data";
     const char* META_TABLE_IS_VALID             = "__is_valid";
-    const char* META_TABLE_SET_CONTEXT_VALUE    = "__set_context_value";
-    const char* META_TABLE_GET_CONTEXT_VALUE    = "__get_context_value";
+    const char* META_GET_INSTANCE_CONTEXT_TABLE = "__get_instance_context_table";
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
@@ -588,42 +587,48 @@ namespace dmScript
         // [-2] value
         // [-1] instance
 
-        if (GetMetaFunction(L, -1, META_TABLE_SET_CONTEXT_VALUE)) {
+        if (GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE)) {
             // [-4] key
             // [-3] value
             // [-2] instance
-            // [-1] META_TABLE_SET_CONTEXT_VALUE()
+            // [-1] META_GET_INSTANCE_CONTEXT_TABLE()
 
             lua_pushvalue(L, -2);
             // [-5] key
             // [-4] value
             // [-3] instance
-            // [-2] META_TABLE_SET_CONTEXT_VALUE()
+            // [-2] META_GET_INSTANCE_CONTEXT_TABLE()
             // [-1] instance
 
-            lua_pushvalue(L, -5);
+            lua_call(L, 1, 1);
+            // [-4] key
+            // [-3] value
+            // [-2] instance
+            // [-1] instance context table
+            assert(lua_type(L, -1) == LUA_TTABLE);
+
+            lua_pushvalue(L, -4);
+            // [-5] key
+            // [-4] value
+            // [-3] instance
+            // [-2] instance context table
+            // [-1] key
+
+            lua_pushvalue(L, -4);
             // [-6] key
             // [-5] value
             // [-4] instance
-            // [-3] META_TABLE_SET_CONTEXT_VALUE()
-            // [-2] instance
-            // [-1] key
-
-            lua_pushvalue(L, -5);
-            // [-7] key
-            // [-6] value
-            // [-5] instance
-            // [-4] META_TABLE_SET_CONTEXT_VALUE()
-            // [-3] instance
+            // [-3] instance context table
             // [-2] key
             // [-1] value
 
-            lua_call(L, 3, 0);
-            // [-3] key
-            // [-2] value
-            // [-1] instance
+            lua_settable(L, -3);
+            // [-4] key
+            // [-3] value
+            // [-2] instance
+            // [-1] instance context table
 
-            lua_pop(L, 3);
+            lua_pop(L, 4);
             assert(top - 2 == lua_gettop(L));
             return true;
         }
@@ -644,40 +649,56 @@ namespace dmScript
         // [-2] key
         // [-1] instance
 
-        if (GetMetaFunction(L, -1, META_TABLE_GET_CONTEXT_VALUE)) {
+        if (GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE)) {
             // [-3] key
             // [-2] instance
-            // [-1] META_TABLE_GET_CONTEXT_VALUE()
+            // [-1] META_GET_INSTANCE_CONTEXT_TABLE()
 
             lua_pushvalue(L, -2);
             // [-4] key
             // [-3] instance
-            // [-2] META_TABLE_GET_CONTEXT_VALUE()
+            // [-2] META_GET_INSTANCE_CONTEXT_TABLE()
             // [-1] instance
 
-            lua_pushvalue(L, -4);
-            // [-5] key
-            // [-4] instance
-            // [-3] META_TABLE_GET_CONTEXT_VALUE()
-            // [-2] instance
-            // [-1] key
-
-            lua_call(L, 2, 1);
+            lua_call(L, 1, 1);
             // [-3] key
             // [-2] instance
-            // [-1] value
+            // [-1] instance context table
+            if(lua_type(L, -1) == LUA_TTABLE)
+            {
+                lua_pushvalue(L, -3);
+                // [-4] key
+                // [-3] instance
+                // [-2] instance context table
+                // [-1] key
 
-            lua_insert(L, -3);
-            // [-3] value
-            // [-2] key
-            // [-1] instance
+                lua_gettable(L, -2);
+                // [-4] key
+                // [-3] instance
+                // [-2] instance context table
+                // [-1] value
 
-            lua_pop(L, 2);
-            // [-1] value
+                lua_insert(L, -4);
+                // [-4] value
+                // [-3] key
+                // [-2] instance
+                // [-1] instance context table
 
-            assert(top == lua_gettop(L));
-            return true;
+                lua_pop(L, 3);
+                // [-1] value
+
+                assert(top == lua_gettop(L));
+                return true;
+            }
+            else
+            {
+                lua_pop(L, 3);
+
+                assert(top - 1 == lua_gettop(L));
+                return false;
+            }
         }
+
         lua_pop(L, 2);
         assert(top - 1 == lua_gettop(L));
         return false;

@@ -164,11 +164,9 @@ static int TestIsValid(lua_State* L)
     return 1;
 }
 
-static int TestSetContextValue(lua_State* L)
+static int TestGetContextTable(lua_State* L)
 {
     const int self_index = 1;
-    const int key_index = 2;
-    const int value_index = 3;
 
     int top = lua_gettop(L);
 
@@ -176,32 +174,7 @@ static int TestSetContextValue(lua_State* L)
     if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
     {
         lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
-        lua_pushvalue(L, key_index);
-        lua_pushvalue(L, value_index);
-        lua_settable(L, -3);
-        lua_pop(L, 1);
-    }
-
-    assert(top == lua_gettop(L));
-
-    return 0;
-}
-
-static int TestGetContextValue(lua_State* L)
-{
-    const int self_index = 1;
-    const int key_index = 2;
-
-    int top = lua_gettop(L);
-
-    TestDummy* i = (TestDummy*)lua_touserdata(L, self_index);
-    if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
-    {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
-        lua_pushvalue(L, key_index);
-        lua_gettable(L, -2);
-        lua_insert(L, -2);
-        lua_pop(L, 1);
+        assert(lua_type(L, -1) == LUA_TTABLE);
     }
     else
     {
@@ -209,6 +182,7 @@ static int TestGetContextValue(lua_State* L)
     }
 
     assert(top + 1 == lua_gettop(L));
+
     return 1;
 }
 
@@ -229,8 +203,7 @@ static const luaL_reg Test_meta[] =
     {dmScript::META_TABLE_GET_USER_DATA,        TestGetUserData},
     {dmScript::META_TABLE_RESOLVE_PATH,         TestResolvePath},
     {dmScript::META_TABLE_IS_VALID,             TestIsValid},
-    {dmScript::META_TABLE_SET_CONTEXT_VALUE,    TestSetContextValue},
-    {dmScript::META_TABLE_GET_CONTEXT_VALUE,    TestGetContextValue},
+    {dmScript::META_GET_INSTANCE_CONTEXT_TABLE, TestGetContextTable},
     {"__tostring",                              TestToString},
     {0, 0}
 };
@@ -331,7 +304,7 @@ TEST_F(ScriptTest, TestUserType) {
     dummy->m_ContextTableReference = LUA_NOREF;
 
     lua_pushstring(L, "__context_value_4711_");
-    ASSERT_TRUE(dmScript::GetInstanceContextValue(L));
+    ASSERT_FALSE(dmScript::GetInstanceContextValue(L));
     ASSERT_EQ(LUA_TNIL, lua_type(L, -1));
     lua_pop(L, 1);
 

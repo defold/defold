@@ -43,8 +43,7 @@ namespace dmScript
     extern const char* META_TABLE_GET_URL;
     extern const char* META_TABLE_GET_USER_DATA;
     extern const char* META_TABLE_IS_VALID;
-    extern const char* META_TABLE_SET_CONTEXT_VALUE;
-    extern const char* META_TABLE_GET_CONTEXT_VALUE;
+    extern const char* META_GET_INSTANCE_CONTEXT_TABLE;
 
     /**
      * Create and return a new context.
