@@ -158,29 +158,6 @@ function start(save_directory, engine_version)
         evt.time_stamp = os.time()
         insert_event(evt);
     end
-
-    -- Also need to submit device IDs on startup, regardless of if it is a new install or not.
-    local dev_info = {}
-    if sys_info.system_name == "Android" then
-        insert_event({
-        type = "@AndroidDeviceIds",
-        time_stamp = os.time(),
-        metrics = {},
-            attributes =  { { key="android_id", value=sys_info.device_ident },
-                                { key="aaid", value=sys_info.ad_ident },
-                                { key="tracking_limited", value=tostring(not sys_info.ad_tracking_enabled) } }
-
-        })
-    elseif sys_info.system_name == "iPhone OS" then
-        insert_event({
-        type = "@IosDeviceIds",
-        time_stamp = os.time(),
-        metrics = {},
-            attributes =  { { key="idfv", value=sys_info.device_ident },
-                                { key="idfa", value=sys_info.ad_ident },
-                                { key="tracking_enabled", value=tostring(sys_info.ad_tracking_enabled) } }
-        })
-    end
 end
 
 function insert_event(event)
