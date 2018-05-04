@@ -1016,6 +1016,11 @@ namespace dmEngine
         }
 #endif
 
+        if (engine->m_EngineService)
+        {
+            dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
+        }
+
         return true;
 
 bail:
@@ -1081,13 +1086,10 @@ bail:
 
     uint16_t GetHttpPort(HEngine engine)
     {
-
-#if !defined(DM_RELEASE)
         if (engine->m_EngineService)
         {
             return dmEngineService::GetPort(engine->m_EngineService);
         }
-#endif
         return 0;
     }
 
@@ -1183,14 +1185,6 @@ bail:
             dmProfile::HProfile profile = dmProfile::Begin();
             {
                 DM_PROFILE(Engine, "Frame");
-
-
-#if !defined(DM_RELEASE)
-                if (engine->m_EngineService)
-                {
-                    dmEngineService::Update(engine->m_EngineService);
-                }
-#endif
 
                 {
                     DM_PROFILE(Engine, "Sim");
@@ -1301,6 +1295,11 @@ bail:
                     // Flushing stdout/stderr solves this problem.
                     fflush(stdout);
                     fflush(stderr);
+                }
+
+                if (engine->m_EngineService)
+                {
+                    dmEngineService::Update(engine->m_EngineService, profile);
                 }
 
 #if !defined(DM_RELEASE)
@@ -1460,27 +1459,11 @@ bail:
     {
         dmEngineService::HEngineService engine_service = 0;
 
-#if !defined(DM_RELEASE)
         if (dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP | DM_FEATURE_BIT_SOCKET_SERVER_UDP))
         {
-            uint16_t engine_port = 8001;
-
-            char* service_port_env = getenv("DM_SERVICE_PORT");
-
-            // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
-            if (service_port_env) {
-                unsigned int env_port = 0;
-                if (sscanf(service_port_env, "%u", &env_port) == 1) {
-                    engine_port = (uint16_t) env_port;
-                }
-                else if (strcmp(service_port_env, "dynamic") == 0) {
-                    engine_port = 0;
-                }
-            }
-
+            uint16_t engine_port = dmEngineService::GetServicePort(8001);
             engine_service = dmEngineService::New(engine_port);
         }
-#endif
 
         dmEngine::RunResult run_result = InitRun(engine_service, argc, argv, pre_run, post_run, context);
         while (run_result.m_Action == dmEngine::RunResult::REBOOT)
@@ -1491,12 +1474,10 @@ bail:
         }
         run_result.Free();
 
-#if !defined(DM_RELEASE)
         if (engine_service)
         {
             dmEngineService::Delete(engine_service);
         }
-#endif
         return run_result.m_ExitCode;
     }
 
