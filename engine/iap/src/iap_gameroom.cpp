@@ -44,13 +44,17 @@ struct PendingTransaction
 struct IAP
 {
     IAP()
+     : m_ListCallback(0x0)
+     : m_PremiumCallback(0x0)
+     : m_Listener(0x0)
+     , m_PendingTransactions()
     {
         m_PendingTransactions.SetCapacity(4);
     }
 
-    dmScript::LuaCallbackInfo    m_ListCallback;
-    dmScript::LuaCallbackInfo    m_PremiumCallback;
-    dmScript::LuaCallbackInfo    m_Listener;
+    dmScript::LuaCallbackInfo*    m_ListCallback;
+    dmScript::LuaCallbackInfo*    m_PremiumCallback;
+    dmScript::LuaCallbackInfo*    m_Listener;
 
     dmArray<PendingTransaction*> m_PendingTransactions;
 
@@ -133,7 +137,7 @@ static void PutProcessTransactionArguments(lua_State* L, void* user_context)
 
 static void ProcessTransaction(PendingTransaction* transaction)
 {
-    dmScript::InvokeCallback(&g_IAP.m_Listener, PutProcessTransactionArguments, (void*)transaction);
+    dmScript::InvokeCallback(g_IAP.m_Listener, PutProcessTransactionArguments, (void*)transaction);
 }
 
 static void PutPremiumArguments(lua_State* L, void* user_context)
@@ -144,14 +148,15 @@ static void PutPremiumArguments(lua_State* L, void* user_context)
 
 static void RunPremiumCallback(bool has_premium)
 {
-    if (!dmScript::IsValidCallback(&g_IAP.m_PremiumCallback)) {
+    if (!dmScript::IsValidCallback(g_IAP.m_PremiumCallback)) {
         dmLogError("No callback set for has premium callback.");
         return;
     }
 
-    dmScript::InvokeCallback(&g_IAP.m_PremiumCallback, PutPremiumArguments, (void*)&has_premium);
+    dmScript::InvokeCallback(g_IAP.m_PremiumCallback, PutPremiumArguments, (void*)&has_premium);
 
-    dmScript::UnregisterCallback(&g_IAP.m_PremiumCallback);
+    dmScript::UnregisterCallback(g_IAP.m_PremiumCallback);
+    g_IAP.m_PremiumCallback = 0x0;
 }
 
 // Does a shallow copy of a Lua table where the values needs to be strings.
@@ -194,7 +199,7 @@ static int IAP_List_WrapperCB(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!dmScript::IsValidCallback(&g_IAP.m_ListCallback)) {
+    if (!dmScript::IsValidCallback(g_IAP.m_ListCallback)) {
         dmLogError("Got iap.list result but no callback set.");
         return 0;
     }
@@ -202,16 +207,17 @@ static int IAP_List_WrapperCB(lua_State* L)
     // Check if there was no result, then call callback with an error instead.
     int top = lua_gettop(L);
     if (top < 2) {
-        dmScript::InvokeCallback(&g_IAP.m_ListCallback, PutListWrapperErrorArguments, NULL);
-        dmScript::UnregisterCallback(&g_IAP.m_ListCallback);
+        dmScript::InvokeCallback(g_IAP.m_ListCallback, PutListWrapperErrorArguments, NULL);
+        dmScript::UnregisterCallback(g_IAP.m_ListCallback);
         return 0;
     }
 
     // Invoke callback with result
-    dmScript::InvokeCallback(&g_IAP.m_ListCallback, PutListWrapperResultArguments, NULL);
+    dmScript::InvokeCallback(g_IAP.m_ListCallback, PutListWrapperResultArguments, NULL);
 
     // Clear IAP callback info so iap.list can be called once again.
-    dmScript::UnregisterCallback(&g_IAP.m_ListCallback);
+    dmScript::UnregisterCallback(g_IAP.m_ListCallback);
+    g_IAP.m_ListCallback = 0x0;
 
     return 0;
 }
@@ -228,7 +234,7 @@ static int IAP_List(lua_State* L)
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
-    if (dmScript::IsValidCallback(&g_IAP.m_ListCallback))
+    if (dmScript::IsValidCallback(g_IAP.m_ListCallback))
     {
         dmLogError("List callback previously set");
         return 0;
@@ -249,7 +255,7 @@ static int IAP_List(lua_State* L)
         return 0;
     }
 
-    dmScript::RegisterCallback(L, 2, &g_IAP.m_ListCallback);
+    g_IAP.m_ListCallback = dmScript::RegisterCallback(L, 2);
 
     // Push wrapper callback
     lua_pushcfunction(L, IAP_List_WrapperCB);
@@ -342,13 +348,13 @@ static int IAP_HasPremium(lua_State* L)
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
-    if (dmScript::IsValidCallback(&g_IAP.m_PremiumCallback)) {
+    if (dmScript::IsValidCallback(g_IAP.m_PremiumCallback)) {
         dmLogError("Previous iap.has_premium callback set.");
         return 0;
     }
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
-    dmScript::RegisterCallback(L, 1, &g_IAP.m_PremiumCallback);
+    g_IAP.m_PremiumCallback = dmScript::RegisterCallback(L, 1);
 
     fbg_HasLicense();
 
@@ -426,7 +432,7 @@ static int IAP_SetListener(lua_State* L)
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
 
-    dmScript::RegisterCallback(L, 1, &g_IAP.m_Listener);
+    g_IAP.m_Listener = dmScript::RegisterCallback(L, 1);
 
     // On first set listener, trigger process old ones.
     if (!g_IAP.m_PendingTransactions.Empty()) {
@@ -539,7 +545,7 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
                 transaction->m_Quantity = fbg_Purchase_GetQuantity(purchase_handle);
                 transaction->m_ErrorCode = fbg_Purchase_GetErrorCode(purchase_handle);
 
-                if (dmScript::IsValidCallback(&g_IAP.m_Listener))
+                if (dmScript::IsValidCallback(g_IAP.m_Listener))
                 {
                     ProcessTransaction(transaction);
                     delete transaction;

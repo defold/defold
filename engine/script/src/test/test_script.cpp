@@ -164,7 +164,7 @@ static int TestIsValid(lua_State* L)
     return 1;
 }
 
-static int TestGetContextTable(lua_State* L)
+static int TestGetContextTableRef(lua_State* L)
 {
     const int self_index = 1;
 
@@ -173,8 +173,7 @@ static int TestGetContextTable(lua_State* L)
     TestDummy* i = (TestDummy*)lua_touserdata(L, self_index);
     if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
     {
-        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
-        assert(lua_type(L, -1) == LUA_TTABLE);
+        lua_pushnumber(L, i->m_ContextTableReference);
     }
     else
     {
@@ -199,12 +198,12 @@ static const luaL_reg Test_methods[] =
 
 static const luaL_reg Test_meta[] =
 {
-    {dmScript::META_TABLE_GET_URL,              TestGetURL},
-    {dmScript::META_TABLE_GET_USER_DATA,        TestGetUserData},
-    {dmScript::META_TABLE_RESOLVE_PATH,         TestResolvePath},
-    {dmScript::META_TABLE_IS_VALID,             TestIsValid},
-    {dmScript::META_GET_INSTANCE_CONTEXT_TABLE, TestGetContextTable},
-    {"__tostring",                              TestToString},
+    {dmScript::META_TABLE_GET_URL,                  TestGetURL},
+    {dmScript::META_TABLE_GET_USER_DATA,            TestGetUserData},
+    {dmScript::META_TABLE_RESOLVE_PATH,             TestResolvePath},
+    {dmScript::META_TABLE_IS_VALID,                 TestIsValid},
+    {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, TestGetContextTableRef},
+    {"__tostring",                                  TestToString},
     {0, 0}
 };
 
@@ -455,31 +454,25 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
 
     int top = lua_gettop(L);
 
-    dmScript::LuaCallbackInfo cbk;
-    ASSERT_FALSE(IsValidCallback(&cbk));
+    dmScript::LuaCallbackInfo* cbk = dmScript::CreateCallback(L, -1);
+    ASSERT_TRUE(IsValidCallback(cbk));
 
-    dmScript::RegisterCallback(L, -1, &cbk);
-    ASSERT_TRUE(IsValidCallback(&cbk));
-
-    dmScript::InvokeCallback(&cbk, 0, 0); // no custom arguments, means the callback gets called with nil args
+    dmScript::InvokeCallback(cbk, 0, 0); // no custom arguments, means the callback gets called with nil args
 
     ASSERT_TRUE(RunString(L, "assert(tostring(_self) == \"TestDummy\")"));
     ASSERT_TRUE(RunString(L, "assert(_a == nil)"));
     ASSERT_TRUE(RunString(L, "assert(_b == nil)"));
 
     CallbackArgs args = { dmHashString64("hello"), 42.0f };
-    dmScript::InvokeCallback(&cbk, LuaCallbackCustomArgs, (void*)&args);
+    dmScript::InvokeCallback(cbk, LuaCallbackCustomArgs, (void*)&args);
 
     ASSERT_TRUE(RunString(L, "assert(tostring(_self) == \"TestDummy\")"));
     ASSERT_TRUE(RunString(L, "assert(_a == hash(\"hello\"))"));
     ASSERT_TRUE(RunString(L, "assert(_b == 42)"));
 
-    ASSERT_TRUE(IsValidCallback(&cbk));
-    dmScript::UnregisterCallback(&cbk);
-    ASSERT_FALSE(IsValidCallback(&cbk));
-    ASSERT_EQ(LUA_NOREF, cbk.m_Callback);
-    ASSERT_EQ(LUA_NOREF, cbk.m_Self);
-    ASSERT_EQ(0, cbk.m_L);
+    ASSERT_TRUE(IsValidCallback(cbk));
+    dmScript::DeleteCallback(cbk);
+    ASSERT_FALSE(IsValidCallback(cbk));
 
     ASSERT_EQ(top, lua_gettop(L));
     dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);

@@ -43,7 +43,7 @@ namespace dmScript
     extern const char* META_TABLE_GET_URL;
     extern const char* META_TABLE_GET_USER_DATA;
     extern const char* META_TABLE_IS_VALID;
-    extern const char* META_GET_INSTANCE_CONTEXT_TABLE;
+    extern const char* META_GET_INSTANCE_CONTEXT_TABLE_REF;
 
     /**
      * Create and return a new context.
@@ -365,10 +365,10 @@ namespace dmScript
     bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type);
 
     /**
-     * Set value by key using the META_GET_INSTANCE_CONTEXT_TABLE meta table function
+     * Set value by key using the META_GET_INSTANCE_CONTEXT_TABLE_REF meta table function
      * 
      * Expects SetInstance() to have been set with an value that has a meta table
-     * with META_GET_INSTANCE_CONTEXT_TABLE method.
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
      *
      * @param L Lua state
      * @return true if the value could be store under the key
@@ -382,10 +382,10 @@ namespace dmScript
     bool SetInstanceContextValue(lua_State* L);
 
     /**
-     * Get value by key using the META_GET_INSTANCE_CONTEXT_TABLE meta table function
+     * Get value by key using the META_GET_INSTANCE_CONTEXT_TABLE_REF meta table function
      *
      * Expects SetInstance() to have been set with an value that has a meta table
-     * with META_GET_INSTANCE_CONTEXT_TABLE method.
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
      * 
      * @param L Lua state
      * 
@@ -521,15 +521,18 @@ namespace dmScript
 
     struct LuaCallbackInfo
     {
-        LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+        LuaCallbackInfo() : m_L(0), m_ContextTableRef(LUA_NOREF), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
         lua_State* m_L;
+        int        m_ContextTableRef;
+        int        m_CallbackInfoRef;
         int        m_Callback;
         int        m_Self;
     };
 
     /** Register a Lua callback. Stores the current Lua state plus references to the script instance (self) and the callback
+     * Expects SetInstance() to have been called prior to using this method
     */
-    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk);
+    LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index);
 
     /** Check if Lua callback is valid.
     */
@@ -537,7 +540,7 @@ namespace dmScript
 
     /** Unregisters a Lua callback
     */
-    void UnregisterCallback(LuaCallbackInfo* cbk);
+    void DeleteCallback(LuaCallbackInfo* cbk);
 
     /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
     */

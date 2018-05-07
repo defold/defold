@@ -334,7 +334,7 @@ namespace dmGameObject
         return 1;
     }
 
-    static int ScriptGetInstanceContextTable(lua_State* L)
+    static int ScriptGetInstanceContextTableRef(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -343,7 +343,7 @@ namespace dmGameObject
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
         if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+            lua_pushnumber(L, i->m_ContextTableReference);
         }
         else
         {
@@ -360,15 +360,15 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",                                    ScriptInstance_gc},
-        {"__tostring",                              ScriptInstance_tostring},
-        {"__index",                                 ScriptInstance_index},
-        {"__newindex",                              ScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL,              ScriptInstanceGetURL},
-        {dmScript::META_TABLE_GET_USER_DATA,        ScriptInstanceGetUserData},
-        {dmScript::META_TABLE_RESOLVE_PATH,         ScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID,             ScriptInstanceIsValid},
-        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE, ScriptGetInstanceContextTable},
+        {"__gc",                                        ScriptInstance_gc},
+        {"__tostring",                                  ScriptInstance_tostring},
+        {"__index",                                     ScriptInstance_index},
+        {"__newindex",                                  ScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,                  ScriptInstanceGetURL},
+        {dmScript::META_TABLE_GET_USER_DATA,            ScriptInstanceGetUserData},
+        {dmScript::META_TABLE_RESOLVE_PATH,             ScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
+        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
         {0, 0}
     };
 

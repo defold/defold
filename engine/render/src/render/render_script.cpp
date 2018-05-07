@@ -287,7 +287,7 @@ namespace dmRender
         return 1;
     }
 
-    static int RenderScriptGetInstanceContextTable(lua_State* L)
+    static int RenderScriptGetInstanceContextTableRef(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
 
@@ -296,7 +296,7 @@ namespace dmRender
         RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, self_index);
         if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
+            lua_pushnumber(L, i->m_ContextTableReference);
         }
         else
         {
@@ -313,14 +313,14 @@ namespace dmRender
 
     static const luaL_reg RenderScriptInstance_meta[] =
     {
-        {"__gc",                                    RenderScriptInstance_gc},
-        {"__tostring",                              RenderScriptInstance_tostring},
-        {"__index",                                 RenderScriptInstance_index},
-        {"__newindex",                              RenderScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL,              RenderScriptInstanceGetURL},
-        {dmScript::META_TABLE_RESOLVE_PATH,         RenderScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID,             RenderScriptInstanceIsValid},
-        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE, RenderScriptGetInstanceContextTable},
+        {"__gc",                                        RenderScriptInstance_gc},
+        {"__tostring",                                  RenderScriptInstance_tostring},
+        {"__index",                                     RenderScriptInstance_index},
+        {"__newindex",                                  RenderScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,                  RenderScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH,             RenderScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,                 RenderScriptInstanceIsValid},
+        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, RenderScriptGetInstanceContextTableRef},
         {0, 0}
     };
 
