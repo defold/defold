@@ -445,11 +445,6 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
     }
 
     Result result = ParseManifestDDF(manifest_buf, manifest_len, factory->m_Manifest);
-    if (result == RESULT_OK)
-    {
-        dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
-        factory->m_Manifest->m_DDF = 0x0;
-    }
     UnmountManifest((void*&)manifest_buf, manifest_len);
 
     return result;
@@ -467,7 +462,7 @@ Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_
     {
         if (expected_digest[i] != digest[i])
         {
-            dmLogError("Byte mismatch in decrypted manifest signature.");
+            dmLogError("Byte mismatch in decrypted manifest signature. Different keys used for signing?");
             return RESULT_FORMAT_ERROR;
         }
     }
