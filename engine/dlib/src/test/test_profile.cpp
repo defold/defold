@@ -82,7 +82,7 @@ TEST(dmProfile, Profile)
         std::map<std::string, const dmProfile::ScopeData*> scopes;
 
         dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-        dmProfile::IterateScopes(profile, &scopes, &ProfileScopeCallback);
+        dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
         dmProfile::Release(profile);
 
         ASSERT_EQ(7U, samples.size());
@@ -151,7 +151,7 @@ TEST(dmProfile, Nested)
         std::map<std::string, const dmProfile::ScopeData*> scopes;
 
         dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-        dmProfile::IterateScopes(profile, &scopes, &ProfileScopeCallback);
+        dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
         dmProfile::Release(profile);
 
         ASSERT_EQ(2U, samples.size());
@@ -229,7 +229,7 @@ TEST(dmProfile, Counter1)
 
             profile = dmProfile::Begin();
             std::map<std::string, dmProfile::CounterData*> counters;
-            dmProfile::IterateCounters(profile, &counters, ProfileCounterCallback);
+            dmProfile::IterateCounterData(profile, &counters, ProfileCounterCallback);
             dmProfile::Release(profile);
 
             ASSERT_EQ(7, counters["c1"]->m_Value);
@@ -264,7 +264,7 @@ TEST(dmProfile, Counter2)
 
     std::map<std::string, dmProfile::CounterData*> counters;
     profile = dmProfile::Begin();
-    dmProfile::IterateCounters(profile, &counters, ProfileCounterCallback);
+    dmProfile::IterateCounterData(profile, &counters, ProfileCounterCallback);
     dmProfile::Release(profile);
 
     ASSERT_EQ(2000 * 2, counters["c1"]->m_Value);
@@ -301,7 +301,7 @@ TEST(dmProfile, ThreadProfile)
 
     profile = dmProfile::Begin();
     dmProfile::IterateSamples(profile, &samples, &ProfileSampleCallback);
-    dmProfile::IterateScopes(profile, &scopes, &ProfileScopeCallback);
+    dmProfile::IterateScopeData(profile, &scopes, &ProfileScopeCallback);
     dmProfile::Release(profile);
 
     ASSERT_EQ(20000U * 2U, samples.size());
