@@ -365,10 +365,10 @@ namespace dmScript
     bool GetUserData(lua_State* L, uintptr_t* out_user_data, const char* user_type);
 
     /**
-     * Set value by key using the META_TABLE_SET_CONTEXT_VALUE meta table function
+     * Set value by key using the META_GET_INSTANCE_CONTEXT_TABLE meta table function
      * 
      * Expects SetInstance() to have been set with an value that has a meta table
-     * with META_TABLE_SET_CONTEXT_VALUE method.
+     * with META_GET_INSTANCE_CONTEXT_TABLE method.
      *
      * @param L Lua state
      * @return true if the value could be store under the key
@@ -382,10 +382,10 @@ namespace dmScript
     bool SetInstanceContextValue(lua_State* L);
 
     /**
-     * Get value by key using the META_TABLE_GET_CONTEXT_VALUE meta table function
+     * Get value by key using the META_GET_INSTANCE_CONTEXT_TABLE meta table function
      *
      * Expects SetInstance() to have been set with an value that has a meta table
-     * with META_TABLE_GET_CONTEXT_VALUE method.
+     * with META_GET_INSTANCE_CONTEXT_TABLE method.
      * 
      * @param L Lua state
      * 

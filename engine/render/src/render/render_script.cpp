@@ -289,12 +289,12 @@ namespace dmRender
 
     static int RenderScriptGetInstanceContextTable(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 1);
+
         const int self_index = 1;
 
-        int top = lua_gettop(L);
-
         RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, self_index);
-        if (i != 0x0 && i->m_RenderContext != 0x0 && i->m_ContextTableReference != LUA_NOREF)
+        if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
         {
             lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_ContextTableReference);
         }
@@ -303,7 +303,6 @@ namespace dmRender
             lua_pushnil(L);
         }
 
-        assert(top + 1 == lua_gettop(L));
         return 1;
     }
 

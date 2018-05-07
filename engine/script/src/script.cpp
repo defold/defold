@@ -576,11 +576,10 @@ namespace dmScript
 
     bool SetInstanceContextValue(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, -2);
+
         // [-2] key
         // [-1] value
-
-        int top = lua_gettop(L);
-        (void)top;
 
         GetInstance(L);
         // [-3] key
@@ -629,12 +628,10 @@ namespace dmScript
             // [-1] instance context table
 
             lua_pop(L, 4);
-            assert(top - 2 == lua_gettop(L));
             return true;
         }
         lua_pop(L, 3);
 
-        assert(top - 2 == lua_gettop(L));
         return false;
     }
 
