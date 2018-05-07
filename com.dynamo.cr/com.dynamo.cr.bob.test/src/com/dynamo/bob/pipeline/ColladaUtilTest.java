@@ -189,7 +189,7 @@ public class ColladaUtilTest {
     public void testMayaQuad() throws Exception {
         Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("maya_quad.dae"), meshSet);
-        Rig.Mesh mesh = meshSet.getMeshEntries(0).getMeshes(0);
+        Rig.Mesh mesh = meshSet.getMeshAttachments(0);
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
         List<Float> uvs = bake(mesh.getTexcoord0IndicesList(), mesh.getTexcoord0List(), 2);
@@ -222,7 +222,7 @@ public class ColladaUtilTest {
     public void testBlenderPolylistQuad() throws Exception {
         Rig.MeshSet.Builder meshSet = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("blender_polylist_quad.dae"), meshSet);
-        Rig.Mesh mesh = meshSet.getMeshEntries(0).getMeshes(0);
+        Rig.Mesh mesh = meshSet.getMeshAttachments(0);
 
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
@@ -263,7 +263,7 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(getClass().getResourceAsStream("quad_normals.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
-        Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
+        Rig.Mesh mesh = meshSetBuilder.getMeshAttachments(0);
 
         List<Float> pos = bake(mesh.getIndicesList(), mesh.getPositionsList(), 3);
         List<Float> nrm = bake(mesh.getNormalsIndicesList(), mesh.getNormalsList(), 3);
@@ -294,8 +294,8 @@ public class ColladaUtilTest {
         ColladaUtil.loadMesh(load("chest_model.dae"), mesh);
         Rig.MeshSet.Builder meshNoSkin = Rig.MeshSet.newBuilder();
         ColladaUtil.loadMesh(load("chest_model_noskin.dae"), meshNoSkin);
-        List<Float> pos = mesh.getMeshEntries(0).getMeshes(0).getPositionsList();
-        List<Float> posNoSkin = meshNoSkin.getMeshEntries(0).getMeshes(0).getPositionsList();
+        List<Float> pos = mesh.getMeshAttachments(0).getPositionsList();
+        List<Float> posNoSkin = meshNoSkin.getMeshAttachments(0).getPositionsList();
         for(int i = 0; i < pos.size(); ++i) {
             assertEquals(pos.get(i), posNoSkin.get(i));
         }
@@ -310,7 +310,7 @@ public class ColladaUtilTest {
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
         ColladaUtil.load(load("bone_influences.dae"), meshSetBuilder, animSetBuilder, skeletonBuilder);
-        Rig.Mesh mesh = meshSetBuilder.getMeshEntries(0).getMeshes(0);
+        Rig.Mesh mesh = meshSetBuilder.getMeshAttachments(0);
 
         // Should have exactly 4 influences per vertex
         int vertCount = mesh.getIndicesCount();
@@ -843,7 +843,7 @@ public class ColladaUtilTest {
 
                     // Position changes only in negative Z
                     float lastZ = track.getPositions(2);
-                    int posCount = track.getPositionsCount() / 3;
+                    int posCount = track.getPositionsCount() / 3 - 1;
                     for (int i = 1; i < posCount; i++) {
                         assertEquals(0.0f, track.getPositions(i*3), EPSILON);
                         assertEquals(0.0f, track.getPositions(i*3+1), EPSILON);
@@ -981,9 +981,9 @@ public class ColladaUtilTest {
         assertEquals(0.0, bonePosition.getZ(), EPSILON);
 
         // Mesh vertex position should also be scaled with unit
-        float vertPosX = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(0);
-        float vertPosY = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(1);
-        float vertPosZ = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(2);
+        float vertPosX = meshSetBuilder.getMeshAttachments(0).getPositions(0);
+        float vertPosY = meshSetBuilder.getMeshAttachments(0).getPositions(1);
+        float vertPosZ = meshSetBuilder.getMeshAttachments(0).getPositions(2);
         assertEquals(0.0, vertPosX, EPSILON);
         assertEquals(1.0 * expectedUnit, vertPosY, EPSILON);
         assertEquals(0.0, vertPosZ, EPSILON);
@@ -1002,12 +1002,12 @@ public class ColladaUtilTest {
         // Check that we get all the positions, since some have the "-1.#IND00" value in the Collada file.
         // Invalid <float_array> values will be replaced with 0.0.
         // (Without the fix in XMLFloatArray.java this would have thrown an exception.)
-        int positionsCount = meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositionsCount();
+        int positionsCount = meshSetBuilder.getMeshAttachments(0).getPositionsCount();
         assertEquals(414, positionsCount);
 
         // The test file has the first Z component of the positions array set to "-1.#IND00",
         // make sure it was parsed as 0.0 instead.
-        assertEquals(0.0, meshSetBuilder.getMeshEntries(0).getMeshes(0).getPositions(2), EPSILON);
+        assertEquals(0.0, meshSetBuilder.getMeshAttachments(0).getPositions(2), EPSILON);
     }
 
     /*

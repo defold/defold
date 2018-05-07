@@ -170,7 +170,11 @@ void LogGLError(GLint err)
 #define CLEAR_GL_ERROR \
     { \
         if(g_Context->m_VerifyGraphicsCalls) { \
-            glGetError(); \
+            GLint err = glGetError(); \
+            while (err != 0) \
+            { \
+                err = glGetError(); \
+            } \
         } \
     }\
 
@@ -615,9 +619,9 @@ static void LogFrameBufferError(GLenum status)
         context->m_DepthBufferBits = (uint32_t) depth_buffer_bits;
 #endif
 
-        GLint gl_int_result;
-        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_int_result);
-        context->m_MaxTextureSize = gl_int_result;
+        GLint gl_max_texture_size = 1024;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_max_texture_size);
+        context->m_MaxTextureSize = gl_max_texture_size;
         CLEAR_GL_ERROR
 
 #if (defined(__arm__) || defined(__arm64__)) || (defined(ANDROID))
@@ -627,11 +631,14 @@ static void LogFrameBufferError(GLenum status)
         context->m_MaxElementIndices = 1024*1024;
 #else
         // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
-        glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_int_result);
-        context->m_MaxElementVertices = dmMath::Max(65536, gl_int_result);
+        GLint gl_max_elem_verts = 65536;
+        glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
+        context->m_MaxElementVertices = dmMath::Max(65536, gl_max_elem_verts);
         CLEAR_GL_ERROR
-        glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_int_result);
-        context->m_MaxElementIndices = dmMath::Max(65536, gl_int_result);
+
+        GLint gl_max_elem_indices = 65536;
+        glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
+        context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
         CLEAR_GL_ERROR
 #endif
 

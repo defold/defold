@@ -282,6 +282,7 @@ namespace dmResource
             if (!buffer)
             {
                 assert(req->m_Buffer);
+                tmp_resource.m_ResourceSizeOnDisc = req->m_BufferSize;
                 params.m_Buffer = req->m_Buffer;
                 params.m_BufferSize = req->m_BufferSize;
                 req->m_LoadResult = resource_type->m_CreateFunction(params);
@@ -296,6 +297,7 @@ namespace dmResource
             }
             else
             {
+                tmp_resource.m_ResourceSizeOnDisc = buffer_size;
                 params.m_Buffer = buffer;
                 params.m_BufferSize = buffer_size;
                 req->m_LoadResult = resource_type->m_CreateFunction(params);
