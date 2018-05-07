@@ -446,7 +446,6 @@ public class GameProjectBuilder extends Builder<Void> {
             if (!Files.exists(Paths.get(privateKeyFilepath))) {
                 privateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
                 if (!Files.exists(Paths.get(privateKeyFilepath))) {
-                    System.out.println("Warning: Failed to load private key for manifest signing, generating keys instead.");
                     privateKeyFilepath = "";
                 }
             }
@@ -454,7 +453,6 @@ public class GameProjectBuilder extends Builder<Void> {
             if (!Files.exists(Paths.get(publicKeyFilepath))) {
                 publicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
                 if (!Files.exists(Paths.get(publicKeyFilepath))) {
-                    System.out.println("Warning: Failed to load public key for manifest signing, generating keys instead.");
                     publicKeyFilepath = "";
                 }
             }
@@ -462,6 +460,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         // If loading supplied keys failed or none were supplied, generate them instead
         if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
+            System.out.println("Warning: Failed to load public or private key for manifest signing, generating keys instead.");
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
 
