@@ -314,7 +314,7 @@ public class Bob {
         }
 
         boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-        project.createPublisher(shouldPublish);
+        project.setOption("liveupdate", shouldPublish ? "true" : "false");
 
         Option[] options = cmd.getOptions();
         for (Option o : options) {

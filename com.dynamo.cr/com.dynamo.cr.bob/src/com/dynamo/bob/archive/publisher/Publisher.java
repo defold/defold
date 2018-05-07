@@ -27,6 +27,10 @@ public abstract class Publisher {
         return this.settings.getManifestPrivateKey();
     }
 
+    public String getSupportedVersions() {
+        return this.settings.getSupportedVersions();
+    }
+
     protected final PublisherSettings getPublisherSettings() {
         return this.settings;
     }

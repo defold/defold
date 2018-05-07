@@ -136,6 +136,8 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        boolean shouldPublish = project.option("liveupdate", "false").equals("true");
+        project.createPublisher(shouldPublish);
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
@@ -429,7 +431,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
-        String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
+        String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
         String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
         String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
@@ -460,7 +462,9 @@ public class GameProjectBuilder extends Builder<Void> {
 
         // If loading supplied keys failed or none were supplied, generate them instead
         if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
-            System.out.println("Warning: Failed to load public or private key for manifest signing, generating keys instead.");
+            if (project.option("liveupdate", "false").equals("true")) {
+                System.out.println("Warning: No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
+            }
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
 

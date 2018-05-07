@@ -284,7 +284,8 @@ public class Project {
 
     public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
         try {
-            IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
+            String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "");
+            IResource publisherSettings = this.fileSystem.get(settingsPath);
             if (!publisherSettings.exists()) {
                 if (shouldPublish) {
                     throw new CompileExceptionError("There is no liveupdate.settings file", null);
