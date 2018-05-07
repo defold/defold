@@ -17,10 +17,30 @@ struct ReloadTargetComponent
     char m_Byte;
 };
 
+static const uint32_t MAX_COMP_COUNT = 2;
+
 struct ReloadTargetWorld
 {
-    ReloadTargetComponent* m_Component;
+    ReloadTargetWorld() {
+        memset(this, 0, sizeof(*this));
+    }
+    ReloadTargetComponent* m_Components[MAX_COMP_COUNT];
+    int m_CreateCount;
+    int m_DestroyCount;
+    int m_InitCount;
+    int m_FinalCount;
+    int m_AddToUpdateCount;
+    int m_ReloadCount;
 };
+
+static void ResetWorldCounters(ReloadTargetWorld* world) {
+    world->m_CreateCount = 0;
+    world->m_DestroyCount = 0;
+    world->m_InitCount = 0;
+    world->m_FinalCount = 0;
+    world->m_AddToUpdateCount = 0;
+    world->m_ReloadCount = 0;
+}
 
 class ReloadTest : public ::testing::Test
 {
@@ -56,6 +76,9 @@ protected:
         rt_type.m_DeleteWorldFunction = CompReloadTargetDeleteWorld;
         rt_type.m_CreateFunction = CompReloadTargetCreate;
         rt_type.m_DestroyFunction = CompReloadTargetDestroy;
+        rt_type.m_InitFunction = CompReloadTargetInit;
+        rt_type.m_FinalFunction = CompReloadTargetFinal;
+        rt_type.m_AddToUpdateFunction = CompReloadTargetAddToUpdate;
         rt_type.m_OnReloadFunction = CompReloadTargetOnReload;
         rt_type.m_InstanceHasUserData = true;
         dmGameObject::Result result = dmGameObject::RegisterComponentType(m_Register, rt_type);
@@ -84,6 +107,9 @@ protected:
     static dmGameObject::CreateResult CompReloadTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     static dmGameObject::CreateResult CompReloadTargetCreate(const dmGameObject::ComponentCreateParams& params);
     static dmGameObject::CreateResult CompReloadTargetDestroy(const dmGameObject::ComponentDestroyParams& params);
+    static dmGameObject::CreateResult CompReloadTargetInit(const dmGameObject::ComponentInitParams& params);
+    static dmGameObject::CreateResult CompReloadTargetFinal(const dmGameObject::ComponentFinalParams& params);
+    static dmGameObject::CreateResult CompReloadTargetAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
     static void CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
 public:
@@ -140,7 +166,6 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetNewWorld(const dmGameObje
 {
     ReloadTest* test = (ReloadTest*)params.m_Context;
     test->m_World = new ReloadTargetWorld();
-    test->m_World->m_Component = 0x0;
     *params.m_World = test->m_World;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -157,16 +182,54 @@ dmGameObject::CreateResult ReloadTest::CompReloadTargetDeleteWorld(const dmGameO
 dmGameObject::CreateResult ReloadTest::CompReloadTargetCreate(const dmGameObject::ComponentCreateParams& params)
 {
     ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
-    rt_world->m_Component = new ReloadTargetComponent();
-    *params.m_UserData = (uintptr_t)rt_world->m_Component;
+    rt_world->m_CreateCount++;
+    ReloadTargetComponent* comp = 0;
+    for (uint32_t i = 0; i < MAX_COMP_COUNT; ++i) {
+        if (!rt_world->m_Components[i]) {
+            comp = new ReloadTargetComponent();
+            rt_world->m_Components[i] = comp;
+            break;
+        }
+    }
+    if (!comp) {
+        return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+    }
+    *params.m_UserData = (uintptr_t)comp;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
 dmGameObject::CreateResult ReloadTest::CompReloadTargetDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
     ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
-    delete rt_world->m_Component;
-    rt_world->m_Component = 0x0;
+    rt_world->m_DestroyCount++;
+    ReloadTargetComponent* comp = (ReloadTargetComponent*)(*params.m_UserData);
+    for (uint32_t i = 0; i < MAX_COMP_COUNT; ++i) {
+        if (rt_world->m_Components[i] == comp) {
+            rt_world->m_Components[i] = 0;
+        }
+    }
+    delete comp;
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+dmGameObject::CreateResult ReloadTest::CompReloadTargetInit(const dmGameObject::ComponentInitParams& params)
+{
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
+    rt_world->m_InitCount++;
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+dmGameObject::CreateResult ReloadTest::CompReloadTargetFinal(const dmGameObject::ComponentFinalParams& params)
+{
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
+    rt_world->m_FinalCount++;
+    return dmGameObject::CREATE_RESULT_OK;
+}
+
+dmGameObject::CreateResult ReloadTest::CompReloadTargetAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
+{
+    ReloadTargetWorld* rt_world = (ReloadTargetWorld*)params.m_World;
+    rt_world->m_AddToUpdateCount++;
     return dmGameObject::CREATE_RESULT_OK;
 }
 
@@ -175,7 +238,7 @@ void ReloadTest::CompReloadTargetOnReload(const dmGameObject::ComponentOnReloadP
     ReloadTest* self = (ReloadTest*) params.m_Context;
     self->m_NewResource = params.m_Resource;
     self->m_World = (ReloadTargetWorld*)params.m_World;
-    self->m_World->m_Component = (ReloadTargetComponent*)*params.m_UserData;
+    self->m_World->m_ReloadCount++;
 }
 
 TEST_F(ReloadTest, TestComponentReload)
@@ -184,7 +247,7 @@ TEST_F(ReloadTest, TestComponentReload)
     ASSERT_NE((void*) 0, (void*) go);
 
     ReloadTargetWorld* world = m_World;
-    ReloadTargetComponent* component = m_World->m_Component;
+    ReloadTargetComponent* component = m_World->m_Components[0];
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
@@ -198,7 +261,7 @@ TEST_F(ReloadTest, TestComponentReload)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     ASSERT_EQ(world, m_World);
-    ASSERT_EQ(component, m_World->m_Component);
+    ASSERT_EQ(component, m_World->m_Components[0]);
 
     ASSERT_NE((void*)0, m_NewResource);
     TestGameObjectDDF::ReloadTarget* rt = (TestGameObjectDDF::ReloadTarget*)m_NewResource;
@@ -223,6 +286,43 @@ TEST_F(ReloadTest, TestComponentReloadScriptFail)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
 
     dmGameObject::Delete(m_Collection, go, false);
+}
+
+TEST_F(ReloadTest, TestGameObjectReload)
+{
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/rt.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+    dmGameObject::SetIdentifier(m_Collection, go, 1);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    bool r = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(r);
+    r = dmGameObject::PostUpdate(m_Collection);
+    ASSERT_TRUE(r);
+
+    ResetWorldCounters(m_World);
+
+    ASSERT_EQ(0, m_World->m_CreateCount);
+    ASSERT_EQ(0, m_World->m_DestroyCount);
+    ASSERT_EQ(0, m_World->m_InitCount);
+    ASSERT_EQ(0, m_World->m_FinalCount);
+    ASSERT_EQ(0, m_World->m_AddToUpdateCount);
+    ASSERT_EQ(0, m_World->m_ReloadCount);
+
+    dmResource::Result rr = dmResource::ReloadResource(m_Factory, "/rt.goc", 0);
+    ASSERT_EQ(dmResource::RESULT_OK, rr);
+
+    r = dmGameObject::Update(m_Collection, &m_UpdateContext);
+    ASSERT_TRUE(r);
+    r = dmGameObject::PostUpdate(m_Collection);
+    ASSERT_TRUE(r);
+
+    ASSERT_EQ(1, m_World->m_CreateCount);
+    ASSERT_EQ(1, m_World->m_DestroyCount);
+    ASSERT_EQ(1, m_World->m_InitCount);
+    ASSERT_EQ(1, m_World->m_FinalCount);
+    ASSERT_EQ(1, m_World->m_AddToUpdateCount);
+    ASSERT_EQ(0, m_World->m_ReloadCount);
 }
 
 int main(int argc, char **argv)

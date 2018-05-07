@@ -3802,6 +3802,32 @@ namespace dmGui
         return 0;
     }
 
+    /*# gets the playing animation on a spine node
+     * Gets the playing animation on a spine node
+     *
+     * @name gui.get_spine_animation
+     * @param node [type:node] node to get spine skin from
+     * @return id [type:hash] spine animation id, 0 if no animation is playing
+     */
+    int LuaGetSpineAnimation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1); // hash pushed onto state will increase stack by 1
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot get animation for bone, did you mean to get animation for the spine model?");
+        }
+
+        dmhash_t spine_anim_id = dmGui::GetNodeSpineAnimation(scene, node);
+        dmScript::PushHash(L, spine_anim_id);
+
+        return 1;
+    }
+
     /*# gets the skin of a spine node
      * Gets the spine skin of a spine node
      *
@@ -4322,6 +4348,7 @@ namespace dmGui
         {"get_spine_scene", LuaGetSpineScene},
         {"set_spine_skin",  LuaSetSpineSkin},
         {"get_spine_skin",  LuaGetSpineSkin},
+        {"get_spine_animation",  LuaGetSpineAnimation},
         {"set_spine_cursor", LuaSetSpineCursor},
         {"get_spine_cursor", LuaGetSpineCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},

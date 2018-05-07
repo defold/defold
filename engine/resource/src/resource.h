@@ -115,6 +115,14 @@ namespace dmResource
 
         /// Resource pointer. Must be unique and not NULL.
         void*    m_Resource;
+        /// Resource pointer to a previous version of the resource, iff it exists. Only used when recreating resources.
+        void*    m_PrevResource;
+
+        /// Resource size in memory. The payload of m_Resource
+        uint32_t m_ResourceSize;
+
+        /// Resource size on disc
+        uint32_t m_ResourceSizeOnDisc;
 
         /// For internal use only
         void*    m_ResourceType;        // For internal use.
@@ -646,6 +654,28 @@ namespace dmResource
     // Files mapped with this function should be unmapped with UnmapFile(...)
     Result MapFile(const char* filename, void*& map, uint32_t& size);
     Result UnmapFile(void*& map, uint32_t size);
+
+    /**
+     * Struct returned from the resource iterator api
+     */
+    struct IteratorResource
+    {
+        dmhash_t m_Id;          // The name of the resource
+        uint32_t m_SizeOnDisc;  // The size on disc (i.e. in the .darc file)
+        uint32_t m_Size;        // in memory size, may be 0
+        uint32_t m_RefCount;    // The current ref count
+    };
+
+    typedef bool (*FResourceIterator)(const IteratorResource& resource, void* user_ctx);
+
+    /**
+     * Iterates over all loaded resources, and invokes the callback function with the resource informations
+     * @param factory   The resource factory holding all resources
+     * @param callback  The callback function which is invoked for each resources.
+                        It should return true if the iteration should continue, and false otherwise.
+     * @param user_ctx  The user defined context which is passed along with each callback
+     */
+    void IterateResources(HFactory factory, FResourceIterator callback, void* user_ctx);
 }
 
 #endif // RESOURCE_H
