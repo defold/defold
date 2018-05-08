@@ -521,31 +521,36 @@ namespace dmScript
 
     struct LuaCallbackInfo;
 
-    /** Register a Lua callback. Stores the current Lua state plus references to the script instance (self) and the callback
-     * Expects SetInstance() to have been called prior to using this method
+    /** Register a Lua callback. Stores the current Lua state plus references to the
+     * script instance (self) and the callback Expects SetInstance() to have been called
+     * prior to using this method.
      * 
-     * The allocated data is created on the stack and references to the instances own context table.
+     * The allocated data is created on the Lua stack and references are made against the
+     * instances own context table.
      * 
-     * If the callback is not explicitly deleted with DeleteCallback the references and data will stay around until
-     * the instance set with SetInstance() prior to the call is deleted.
-    */
+     * If the callback is not explicitly deleted with DeleteCallback() the references and
+     * data will stay around until the script instance is deleted.
+     */
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index);
 
     /** Check if Lua callback is valid.
-    */
+     */
     bool IsValidCallback(LuaCallbackInfo* cbk);
 
     /** Deletes the Lua callback
-    */
+     */
     void DeleteCallback(LuaCallbackInfo* cbk);
 
     /** A helper function for the user to easily push Lua stack arguments prior to invoking the callback
-    */
+     */
     typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
 
-    /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments to the stack, prior to the call
-    * Returns true on success and false on failure. In case of failure, an error will be logged.
-    */
+    /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments
+     * to the stack, prior to the call
+     * Returns true on success and false on failure. In case of failure, an error will be logged.
+     * 
+     * The function takes care of setting up and restoring the current instance.
+     */
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
 
     /**
