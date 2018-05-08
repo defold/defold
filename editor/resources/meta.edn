@@ -697,6 +697,7 @@
    :path ["profiler" "track_cpu"]}
   {:type :resource
    :filter "settings"
+   :default "/liveupdate.settings"
    :help "liveupdate settings"
    :preserve-extension true,
    :path ["liveupdate" "settings"]}]

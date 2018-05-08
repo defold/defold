@@ -19,7 +19,8 @@
    :default "",
    :presentation-category "Amazon"
    :path ["liveupdate" "amazon-prefix"]}
-  {:type :string
+  {:type :directory
+   :title "Select Zip output directory"
    :help "Zip directory"
    :default ""
    :presentation-category "Zip"
@@ -38,8 +39,8 @@
    :default "",
    :presentation-category "Manifest"
    :path ["liveupdate" "privatekey"]}
-   {:type :string,
-   :help "Supported engine versions",
+   {:type :comma-separated-list,
+   :help "List of supported engine versions",
    :default "",
    :presentation-category "Manifest"
    :path ["liveupdate" "supported-versions"]}]

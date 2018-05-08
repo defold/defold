@@ -69,6 +69,7 @@
    :string 300
    :resource 300
    :file 326
+   :directory 326
    :list 200})
 
 (defn- field-width [field-info]
@@ -154,6 +155,48 @@
          :edit (fn []
                  (ui/request-focus! cb)
                  (.show cb))}]))
+
+(defmethod create-field-control :directory [{:keys [path help title] :as field-info} {:keys [set cancel]} {:keys [workspace project]}]
+  (let [box (GridPane.)
+        browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
+                        (.setPrefWidth 26)
+                        (ui/add-style! "button-small"))
+        text (let [tf (TextField.)]
+               (.setPrefWidth tf (field-width field-info))
+               (GridPane/setFillWidth tf true)
+               tf)
+        content (atom nil)
+        update-fn (fn [value]
+                    (reset! content value)
+                    (ui/text! text  value))
+        commit-fn (fn [_] (let [resource-path (ui/text text)
+                                file (some->> (when-not (string/blank? resource-path) resource-path))]
+                            (set path file)
+                            (update-fn file)))]
+    (ui/add-style! box "composite-property-control-container")
+    (ui/on-action! browse-button (fn [_] (when-let [file (ui/choose-directory (or title "Select Directory") nil )]
+                                           (set path file))))
+    (ui/on-action! text commit-fn)
+    (ui/auto-commit! text commit-fn)
+    (install-escape-handler! text cancel)
+    (ui/children! box [text browse-button])
+    (GridPane/setConstraints text 0 0)
+    (GridPane/setConstraints browse-button 1 0)
+
+    ;; Merge the facing borders of the open and browse buttons.
+    (.setOnMousePressed browse-button (ui/event-handler _ (.toFront browse-button)))
+
+    (doto (.. box getColumnConstraints)
+      (.add (doto (ColumnConstraints.)
+              (.setHgrow Priority/ALWAYS)))
+      (.add (doto (ColumnConstraints.)
+              (.setMinWidth ColumnConstraints/CONSTRAIN_TO_PREF)
+              (.setHgrow Priority/NEVER))))
+
+    (ui/tooltip! text help)
+
+    [box {:update update-fn
+          :edit #(ui/request-focus! text)}]))
 
 (defmethod create-field-control :file [{:keys [filter path help title] :as field-info} {:keys [set cancel]} {:keys [workspace project]}]
   (let [box (GridPane.)
@@ -329,6 +372,9 @@
   resource/resource->proj-path)
 
 (defmethod get-value-string-fn :file [_]
+  str)
+
+(defmethod get-value-string-fn :directory [_]
   str)
 
 (defn- create-cell-field-control [^Cell cell column-info ctxt]

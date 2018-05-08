@@ -223,8 +223,7 @@
     (ui/value! release-mode-check-box (:release-mode? options))
     (ui/value! generate-build-report-check-box (:generate-build-report? options))
     (doto publish-live-update-content-check-box
-      (ui/value! (:publish-live-update-content? options))
-      (ui/editable! (has-live-update-settings? workspace)))))
+      (ui/value! (:publish-live-update-content? options)))))
 
 (deftype GenericBundleOptionsPresenter [workspace view title platform]
   BundleOptionsPresenter

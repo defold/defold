@@ -79,7 +79,10 @@
     (assoc :type :choicebox)
 
     (= :library-list (:type setting))
-    (assoc :type :list :element {:type :url :default "http://url.to/library"})))
+    (assoc :type :list :element {:type :url :default "http://url.to/library"})
+
+    (= :comma-separated-list (:type setting))
+    (assoc :type :list :element {:type :string :default "0.0.0"})))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)

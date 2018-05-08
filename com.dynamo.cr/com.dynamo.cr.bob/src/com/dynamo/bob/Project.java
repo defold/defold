@@ -288,7 +288,8 @@ public class Project {
             IResource publisherSettings = this.fileSystem.get(settingsPath);
             if (!publisherSettings.exists()) {
                 if (shouldPublish) {
-                    throw new CompileExceptionError("There is no liveupdate.settings file specified in game.project", null);
+                    IResource gameProject = this.fileSystem.get("/game.project");
+                    throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from diskuruuuu.");
                 } else {
                     this.publisher = new NullPublisher(new PublisherSettings());
                 }
