@@ -167,7 +167,7 @@ namespace dmGameSystem
                 {
                     return;
                 }
-                receiver.m_Function = 0;
+                receiver.m_FunctionRef = 0;
 
                 if (!dmMessage::IsSocketValid(receiver.m_Socket))
                 {

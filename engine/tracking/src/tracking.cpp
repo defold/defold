@@ -145,10 +145,11 @@ namespace dmTracking
     static void DispatchCallback(dmMessage::Message *message, void* user_ptr)
     {
         HContext context = (HContext) user_ptr;
-        if (message->m_Receiver.m_Function)
+        if (message->m_Receiver.m_FunctionRef)
         {
             lua_State* L = dmScript::GetLuaState(context->m_ScriptCtx);
-            const int ref = message->m_Receiver.m_Function - 2;
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            const int ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
 
             lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
             assert(lua_isfunction(L, -1));

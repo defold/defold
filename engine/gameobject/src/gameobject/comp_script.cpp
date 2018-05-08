@@ -224,9 +224,9 @@ namespace dmGameObject
 
         int function_ref;
         bool is_callback = false;
-        if (params.m_Message->m_Receiver.m_Function) {
-            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
-            function_ref = params.m_Message->m_Receiver.m_Function - 2;
+        if (params.m_Message->m_Receiver.m_FunctionRef) {
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            function_ref = params.m_Message->m_Receiver.m_FunctionRef + LUA_NOREF;
             is_callback = true;
         } else {
             function_ref = script_instance->m_Script->m_FunctionReferences[SCRIPT_FUNCTION_ONMESSAGE];
