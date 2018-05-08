@@ -45,8 +45,8 @@ struct IAP
 {
     IAP()
      : m_ListCallback(0x0)
-     : m_PremiumCallback(0x0)
-     : m_Listener(0x0)
+     , m_PremiumCallback(0x0)
+     , m_Listener(0x0)
      , m_PendingTransactions()
     {
         m_PendingTransactions.SetCapacity(4);
