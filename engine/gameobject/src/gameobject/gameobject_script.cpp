@@ -1145,9 +1145,6 @@ namespace dmGameObject
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
         if (dmScript::IsValidCallback(cbk))
         {
-            lua_State* L = cbk->m_L;
-            DM_LUA_STACK_CHECK(L, 0);
-
             dmMessage::URL url;
             url.m_Socket = instance->m_Collection->m_ComponentSocket;
             url.m_Path = instance->m_Identifier;

@@ -69,8 +69,6 @@ namespace dmGameSystem
 
         if (data.m_CallbackInfo)
         {
-            DM_LUA_STACK_CHECK(data.m_CallbackInfo->m_L, 0);
-
             if (!dmScript::IsValidCallback(data.m_CallbackInfo))
             {
                 dmLogError("Could not run particlefx callback because the instance has been deleted.");
