@@ -63,9 +63,9 @@ namespace dmGui
 
     static const luaL_reg GuiScript_meta[] =
     {
-        {dmScript::META_TABLE_GET_URL,              GuiScriptGetURL},
-        {dmScript::META_TABLE_RESOLVE_PATH,         GuiScriptResolvePath},
-        {dmScript::META_TABLE_IS_VALID,             GuiScriptIsValid},
+        {dmScript::META_TABLE_GET_URL,      GuiScriptGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH, GuiScriptResolvePath},
+        {dmScript::META_TABLE_IS_VALID,     GuiScriptIsValid},
         {0, 0}
     };
 
