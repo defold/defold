@@ -155,7 +155,7 @@ static void RunPremiumCallback(bool has_premium)
 
     dmScript::InvokeCallback(g_IAP.m_PremiumCallback, PutPremiumArguments, (void*)&has_premium);
 
-    dmScript::UnregisterCallback(g_IAP.m_PremiumCallback);
+    dmScript::DeleteCallback(g_IAP.m_PremiumCallback);
     g_IAP.m_PremiumCallback = 0x0;
 }
 
@@ -208,7 +208,8 @@ static int IAP_List_WrapperCB(lua_State* L)
     int top = lua_gettop(L);
     if (top < 2) {
         dmScript::InvokeCallback(g_IAP.m_ListCallback, PutListWrapperErrorArguments, NULL);
-        dmScript::UnregisterCallback(g_IAP.m_ListCallback);
+        dmScript::DeleteCallback(g_IAP.m_ListCallback);
+        g_IAP.m_ListCallback = 0x0;
         return 0;
     }
 
@@ -216,7 +217,7 @@ static int IAP_List_WrapperCB(lua_State* L)
     dmScript::InvokeCallback(g_IAP.m_ListCallback, PutListWrapperResultArguments, NULL);
 
     // Clear IAP callback info so iap.list can be called once again.
-    dmScript::UnregisterCallback(g_IAP.m_ListCallback);
+    dmScript::DeleteCallback(g_IAP.m_ListCallback);
     g_IAP.m_ListCallback = 0x0;
 
     return 0;
@@ -255,7 +256,7 @@ static int IAP_List(lua_State* L)
         return 0;
     }
 
-    g_IAP.m_ListCallback = dmScript::RegisterCallback(L, 2);
+    g_IAP.m_ListCallback = dmScript::CreateCallback(L, 2);
 
     // Push wrapper callback
     lua_pushcfunction(L, IAP_List_WrapperCB);
@@ -354,7 +355,7 @@ static int IAP_HasPremium(lua_State* L)
     }
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
-    g_IAP.m_PremiumCallback = dmScript::RegisterCallback(L, 1);
+    g_IAP.m_PremiumCallback = dmScript::CreateCallback(L, 1);
 
     fbg_HasLicense();
 
@@ -432,7 +433,7 @@ static int IAP_SetListener(lua_State* L)
 
     luaL_checktype(L, 1, LUA_TFUNCTION);
 
-    g_IAP.m_Listener = dmScript::RegisterCallback(L, 1);
+    g_IAP.m_Listener = dmScript::CreateCallback(L, 1);
 
     // On first set listener, trigger process old ones.
     if (!g_IAP.m_PendingTransactions.Empty()) {
