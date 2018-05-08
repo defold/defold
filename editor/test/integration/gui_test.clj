@@ -748,7 +748,7 @@
 
 (defn- outline-order [parent]
   ;; tree-seq does a pre-order traversal of the nodes. Sibling nodes will get mapped to
-  ;; increasing indices/orinals.
+  ;; increasing indices/ordinals.
   (zipmap (map :label (tree-seq :children :children (g/node-value parent :node-outline)))
           (range)))
 
