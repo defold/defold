@@ -808,6 +808,7 @@ namespace dmScript
 
     void Unref(lua_State* L, int table, int reference)
     {
+        assert(g_LuaReferenceCount > 0);
         --g_LuaReferenceCount;
         luaL_unref(L, table, reference);
     }
@@ -958,9 +959,9 @@ namespace dmScript
             lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
             if (lua_type(L, -1) == LUA_TTABLE)
             {
-                dmScript::Unref(L, -1, cbk->m_Self);
-                dmScript::Unref(L, -1, cbk->m_Callback);
-                dmScript::Unref(L, -1, cbk->m_CallbackInfoRef);
+                luaL_unref(L, -1, cbk->m_Self);
+                luaL_unref(L, -1, cbk->m_Callback);
+                luaL_unref(L, -1, cbk->m_CallbackInfoRef);
             }
             cbk->m_Self = LUA_NOREF;
             cbk->m_Callback = LUA_NOREF;
