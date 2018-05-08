@@ -519,18 +519,15 @@ namespace dmScript
     */
     uint32_t GetLuaGCCount(lua_State* L);
 
-    struct LuaCallbackInfo
-    {
-        LuaCallbackInfo() : m_L(0), m_ContextTableRef(LUA_NOREF), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
-        lua_State* m_L;
-        int        m_ContextTableRef;
-        int        m_CallbackInfoRef;
-        int        m_Callback;
-        int        m_Self;
-    };
+    struct LuaCallbackInfo;
 
     /** Register a Lua callback. Stores the current Lua state plus references to the script instance (self) and the callback
      * Expects SetInstance() to have been called prior to using this method
+     * 
+     * The allocated data is created on the stack and references to the instances own context table.
+     * 
+     * If the callback is not explicitly deleted with DeleteCallback the references and data will stay around until
+     * the instance set with SetInstance() prior to the call is deleted.
     */
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index);
 
@@ -538,7 +535,7 @@ namespace dmScript
     */
     bool IsValidCallback(LuaCallbackInfo* cbk);
 
-    /** Unregisters a Lua callback
+    /** Deletes the Lua callback
     */
     void DeleteCallback(LuaCallbackInfo* cbk);
 
@@ -547,7 +544,7 @@ namespace dmScript
     typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
 
     /** Invokes a Lua callback. User can pass a custom function for pushing extra Lua arguments to the stack, prior to the call
-    * Returns true on success and false on failure. In case of failure, and error will be logged.
+    * Returns true on success and false on failure. In case of failure, an error will be logged.
     */
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context);
 

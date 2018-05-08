@@ -802,12 +802,20 @@ namespace dmScript
 
     int Ref(lua_State* L, int table)
     {
-        ++g_LuaReferenceCount;
-        return luaL_ref(L, table);
+        int ref = luaL_ref(L, table);
+        if (ref != LUA_NOREF)
+        {
+            ++g_LuaReferenceCount;
+        }
+        return ref;
     }
 
     void Unref(lua_State* L, int table, int reference)
     {
+        if (reference == LUA_NOREF)
+        {
+            return;
+        }
         assert(g_LuaReferenceCount > 0);
         --g_LuaReferenceCount;
         luaL_unref(L, table, reference);
@@ -864,6 +872,16 @@ namespace dmScript
         }
     }
 
+    struct LuaCallbackInfo
+    {
+        LuaCallbackInfo() : m_L(0), m_ContextTableRef(LUA_NOREF), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+        lua_State* m_L;
+        int        m_ContextTableRef;
+        int        m_CallbackInfoRef;
+        int        m_Callback;
+        int        m_Self;
+    };
+    
     LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
     {
         luaL_checktype(L, callback_stack_index, LUA_TFUNCTION);
@@ -914,7 +932,7 @@ namespace dmScript
         // [-2] callback
         // [-1] LuaCallbackInfo
 
-        cbk->m_L = dmScript::GetMainThread(L);
+        cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
         
         cbk->m_CallbackInfoRef = luaL_ref(L, -3);
@@ -924,7 +942,7 @@ namespace dmScript
         cbk->m_Callback = luaL_ref(L, -2);
         // [-1] context table
 
-        dmScript::GetInstance(L);
+        GetInstance(L);
         // [-1] context table
         // [-2] instance
 
@@ -1037,18 +1055,18 @@ namespace dmScript
         // [-2] self
         // [-1] self
 
-        dmScript::SetInstance(L);
+        SetInstance(L);
         // [-4] old instance
         // [-3] context table
         // [-2] callback
         // [-1] self
 
-        if (!dmScript::IsInstanceValid(L))
+        if (!IsInstanceValid(L))
         {
             lua_pop(L, 3);
-
             // [-1] old instance
-            dmScript::SetInstance(L);
+
+            SetInstance(L);
 
             DM_LUA_ERROR("Could not run callback because the instance has been deleted");
 
@@ -1063,7 +1081,7 @@ namespace dmScript
         int user_args_end = lua_gettop(L);
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
-        int ret = dmScript::PCall(L, number_of_arguments, 0);
+        int ret = PCall(L, number_of_arguments, 0);
         if (ret != 0) {
             // [-3] old instance
             // [-2] context table
@@ -1073,14 +1091,14 @@ namespace dmScript
             lua_pop(L, 2);
             // [-1] old instance
 
-            dmScript::SetInstance(L);
+            SetInstance(L);
             return false;
         }
         // [-2] old instance
         // [-1] context table
         lua_pop(L, 1);
 
-        dmScript::SetInstance(L);
+        SetInstance(L);
         return true;
     }
 
