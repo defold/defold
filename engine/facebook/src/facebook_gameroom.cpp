@@ -18,15 +18,15 @@
  * in separate PR. 
  */ 
 
-struct LegacyLuaCallbackInfo
+struct LuaCallbackInfo
 {
-    LegacyLuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+    LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
     lua_State* m_L;
     int        m_Callback;
     int        m_Self;
 };
 
-void LegacyRegisterCallback(lua_State* L, int index, LegacyLuaCallbackInfo* cbk)
+void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
 {
     if(cbk->m_Callback != LUA_NOREF)
     {
@@ -44,7 +44,9 @@ void LegacyRegisterCallback(lua_State* L, int index, LegacyLuaCallbackInfo* cbk)
     cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
 }
 
-bool LegacyIsValidCallback(LegacyLuaCallbackInfo* cbk)
+typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
+
+bool IsValidCallback(LuaCallbackInfo* cbk)
 {
     if (cbk->m_Callback == LUA_NOREF ||
         cbk->m_Self == LUA_NOREF ||
@@ -54,7 +56,7 @@ bool LegacyIsValidCallback(LegacyLuaCallbackInfo* cbk)
     return true;
 }
 
-void LegacyUnregisterCallback(LegacyLuaCallbackInfo* cbk)
+void UnregisterCallback(LuaCallbackInfo* cbk)
 {
     if(cbk->m_Callback != LUA_NOREF)
     {
@@ -73,7 +75,7 @@ void LegacyUnregisterCallback(LegacyLuaCallbackInfo* cbk)
     }
 }
 
-bool LegacyInvokeCallback(LegacyLuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
 {
     if(cbk->m_Callback == LUA_NOREF)
     {
@@ -116,7 +118,7 @@ bool LegacyInvokeCallback(LegacyLuaCallbackInfo* cbk, LuaCallbackUserFn fn, void
 
 struct GameroomFB
 {
-    LegacyLuaCallbackInfo m_Callback;
+    LuaCallbackInfo m_Callback;
 } g_GameroomFB;
 
 static const dmhash_t g_DialogFeed = dmHashBufferNoReverse64("feed", 4);
@@ -151,7 +153,7 @@ static void RunLoginResultCallback(lua_State* L, int result, const char* error)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!LegacyIsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for login result.");
         return;
     }
@@ -160,9 +162,9 @@ static void RunLoginResultCallback(lua_State* L, int result, const char* error)
     args.m_Result = result;
     args.m_Error = error;
 
-    LegacyInvokeCallback(&g_GameroomFB.m_Callback, PutLoginResultArguments, (void*)&args);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutLoginResultArguments, (void*)&args);
 
-    LegacyUnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 struct AppRequestArguments
@@ -196,7 +198,7 @@ static void PutAppRequestArguments(lua_State* L, void* user_context)
 
 static void RunAppRequestCallback(const char* request_id, const char* to)
 {
-    if (!LegacyIsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
@@ -205,9 +207,9 @@ static void RunAppRequestCallback(const char* request_id, const char* to)
     args.m_RequestId = request_id;
     args.m_To = to;
 
-    LegacyInvokeCallback(&g_GameroomFB.m_Callback, PutAppRequestArguments, (void*)&args);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutAppRequestArguments, (void*)&args);
 
-    LegacyUnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 static void PutFeedArguments(lua_State* L, void* user_context)
@@ -223,14 +225,14 @@ static void PutFeedArguments(lua_State* L, void* user_context)
 
 static void RunFeedCallback(const char* post_id)
 {
-    if (!LegacyIsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
 
-    LegacyInvokeCallback(&g_GameroomFB.m_Callback, PutFeedArguments, (void*)post_id);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutFeedArguments, (void*)post_id);
 
-    LegacyUnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 static void PutDialogErrorArguments(lua_State* L, void* user_context)
@@ -244,14 +246,14 @@ static void PutDialogErrorArguments(lua_State* L, void* user_context)
 
 static void RunDialogErrorCallback(const char* error_str)
 {
-    if (!LegacyIsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
 
-    LegacyInvokeCallback(&g_GameroomFB.m_Callback, PutDialogErrorArguments, (void*)error_str);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutDialogErrorArguments, (void*)error_str);
 
-    LegacyUnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 
@@ -312,8 +314,8 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
     }
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (LegacyIsValidCallback(&g_GameroomFB.m_Callback)) {
-        LegacyUnregisterCallback(&g_GameroomFB.m_Callback);
+    if (IsValidCallback(&g_GameroomFB.m_Callback)) {
+        UnregisterCallback(&g_GameroomFB.m_Callback);
     }
 
     g_GameroomFB.m_Callback.m_Callback = callback;
@@ -330,8 +332,8 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
     }
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (LegacyIsValidCallback(&g_GameroomFB.m_Callback)) {
-        LegacyUnregisterCallback(&g_GameroomFB.m_Callback);
+    if (IsValidCallback(&g_GameroomFB.m_Callback)) {
+        UnregisterCallback(&g_GameroomFB.m_Callback);
     }
 
     g_GameroomFB.m_Callback.m_Callback = callback;
