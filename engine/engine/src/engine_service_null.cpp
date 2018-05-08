@@ -9,11 +9,11 @@ void dmEngineService::Delete(dmEngineService::HEngineService)
 {
 }
 
-void dmEngineService::Update(dmEngineService::HEngineService)
+void dmEngineService::Update(dmEngineService::HEngineService, dmProfile::HProfile)
 {
 }
 
-uint16_t dmEngineService::GetPort(dmEngineService::HEngineService engine_service)
+uint16_t dmEngineService::GetPort(dmEngineService::HEngineService)
 {
 	return 0;
 }
@@ -21,4 +21,8 @@ uint16_t dmEngineService::GetPort(dmEngineService::HEngineService engine_service
 uint16_t dmEngineService::GetServicePort(uint16_t default_port)
 {
 	return default_port;
+}
+
+void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
+{
 }

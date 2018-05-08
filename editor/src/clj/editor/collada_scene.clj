@@ -194,10 +194,9 @@
 
 (g/defnk produce-meshes [mesh-set]
   (into []
-    (comp (mapcat :meshes)
-      (remove (comp :positions empty?))
-      (map arrayify))
-    (:mesh-entries mesh-set)))
+        (comp (remove (comp :positions empty?))
+              (map arrayify))
+        (:mesh-attachments mesh-set)))
 
 (g/defnk produce-mesh-set-build-target [_node-id resource mesh-set]
   (rig/make-mesh-set-build-target (resource/workspace resource) _node-id mesh-set))

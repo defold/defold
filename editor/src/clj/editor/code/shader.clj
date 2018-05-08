@@ -64,20 +64,23 @@
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn- build-shader [resource _dep-resources ^String user-data]
-  ;; user-data is full-source
-  {:resource resource :content (.getBytes user-data "UTF-8")})
+(defn- make-full-source ^String [resource-ext lines]
+  (string/join "\n" (if-some [compat-directive-lines (get shader/compat-directives resource-ext)]
+                      (shader/insert-directives lines compat-directive-lines)
+                      lines)))
 
-(g/defnk produce-build-targets [_node-id resource ^String full-source]
+(defn- build-shader [resource _dep-resources user-data]
+  (let [{:keys [resource-ext lines]} user-data]
+    {:resource resource :content (.getBytes (make-full-source resource-ext lines) "UTF-8")}))
+
+(g/defnk produce-build-targets [_node-id resource lines]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-shader
-    :user-data full-source}])
+    :user-data {:lines lines :resource-ext (resource/ext resource)}}])
 
 (g/defnk produce-full-source [resource lines]
-  (string/join "\n" (if-some [compat-directive-lines (get shader/compat-directives (resource/ext resource))]
-                      (shader/insert-directives lines compat-directive-lines)
-                      lines)))
+  (make-full-source (resource/ext resource) lines))
 
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)

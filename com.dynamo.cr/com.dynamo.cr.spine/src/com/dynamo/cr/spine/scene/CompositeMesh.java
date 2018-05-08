@@ -7,7 +7,7 @@ import java.util.List;
 import javax.media.opengl.GL;
 import javax.media.opengl.GL2;
 
-import com.dynamo.bob.util.RigUtil.Mesh;
+import com.dynamo.bob.util.RigUtil.MeshAttachment;
 import com.dynamo.cr.sceneed.ui.RenderUtil;
 import com.dynamo.cr.sceneed.ui.util.IndexBufferObject;
 import com.dynamo.cr.sceneed.ui.util.Shader;
@@ -31,10 +31,10 @@ public class CompositeMesh {
         this.ibo.dispose(gl);
     }
 
-    public void update(List<Mesh> meshes) {
+    public void update(List<MeshAttachment> meshes) {
         int vertexCount = 0;
         int indexCount = 0;
-        for (Mesh mesh : meshes) {
+        for (MeshAttachment mesh : meshes) {
             vertexCount += mesh.vertices.length / 5;
             indexCount += mesh.triangles.length;
         }
@@ -44,7 +44,7 @@ public class CompositeMesh {
         ByteBuffer ib = ByteBuffer.allocateDirect(indexCount * 2).order(ByteOrder.nativeOrder());
         int indexOffset = 0;
 
-        for (Mesh mesh : meshes) {
+        for (MeshAttachment mesh : meshes) {
             vertexCount = mesh.vertices.length / 5;
             float[] v = mesh.vertices;
             for (int i = 0; i < vertexCount; ++i) {

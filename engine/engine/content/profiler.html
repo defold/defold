@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
     <head>
         <title>Dynamo Profiler</title>
@@ -13,6 +14,10 @@
                 font-family: Arial, Helvetica, Helvetica Neue, Verdana, sans-serif;
                 font-size: 12px;
                 line-height: 18px;
+            }
+
+            table td {
+                vertical-align: top;
             }
 
             #frames {
@@ -40,8 +45,8 @@
             }
 
             div.frameblock_green {
-                background: -webkit-gradient(linear, left top, left bottom, from(hsl(130, 60%, 50%)), to(hsl(130, 20%, 50%)));
-
+                background: -ms-linear-gradient(top, hsl(130, 60%, 50%) 50%, hsl(130, 20%, 50%) 100%);
+                background: -webkit-linear-gradient(top, hsl(130, 60%, 50%) 50%, hsl(130, 20%, 50%) 100%);
                 float: left;
                 border-color: rgb(100,100,100);
                 border-style: solid;
@@ -51,8 +56,8 @@
             }
 
             div.frameblock_red {
-                background: -webkit-gradient(linear, left top, left bottom, from(hsl(0, 60%, 50%)), to(hsl(0, 20%, 50%)));
-
+                background: -ms-linear-gradient(top, hsl(0, 60%, 50%) 50%, hsl(0, 20%, 50%) 100%);
+                background: -webkit-linear-gradient(top, hsl(0, 60%, 50%) 50%, hsl(0, 20%, 50%) 100%);
                 float: left;
                 border-color: rgb(100,100,100);
                 border-style: solid;
@@ -69,7 +74,7 @@
             }
 
             table.prof-table {
-              border: 1;
+              border: 1px;
               border-width: 1px;
               border-color: #888;
               border-style: solid;
@@ -112,17 +117,112 @@
               background-color: rgb(233, 233, 233);
             }
 
+            /* Resource tab specifics */
+
+            #tab_resources table > thead {
+                background-color: #aaaaaa;
+            }
+
+            #tab_resources td, #tab_resources th {
+                padding: 5px 10px;
+            }
+
+            #tab_resources td {
+                border: solid 1px #aaa;
+            }
+
+            #tab_resources table {
+                border-collapse: collapse;
+                border: 2px solid #888;
+            }
+
+            #res_tables {
+                margin-top: 16px;
+            }
+
+            .human-readable {
+                white-space: pre;
+                text-align: right;
+            }
+
+            /* Collection table tree specifics */
+
+            #collection_table {
+                float: left;
+                margin-right: 16px;
+                margin-bottom: 16px;
+            }
+
+
+            #collection_table .leaf {
+                color: #666;
+            }
+
+            #collection_table .leaf label {
+                margin-left: 32px;
+            }
+
+            #collection_table .collapsed {
+                display: none;
+            }
+
+            #collection_table input[type="checkbox"] {
+                display: none;
+            }
+
+            #collection_table input[type="checkbox"] + label::before {
+                content: "\25B8 ";
+                display: inline-block;
+                margin-right: 4px;
+                padding-left: 16px;
+                color: #444;
+            }
+
+            #collection_table input[type="checkbox"]:checked + label::before {
+                content: "\25BE ";
+            }
+
+            #collection_table .go_bone {
+                color: #bbbbbb;
+                font-style: italic;
+            }
+
+            #collection_table .go_generated {
+                color: #4444aa;
+            }
+
+            div.resource-table-sort {
+                float: left;
+                color: #777;
+                user-select: none;
+            }
+
+            div.resource-table-sort-none {
+                float: left;
+                visibility: hidden;
+                user-select: none;
+            }
+
+            div.resource-table-label {
+                display: inline;
+                user-select: none;
+            }
+
         </style>
         <script type="text/javascript">
 
             var ticksPerSecond = 1.0;
             var stringTable = {};
-            var frames = [];
+            var framesCpu = [];
+            var framesResources = [];
+            var framesGameObjects = [];
 
             // If running another server change base_url to value below, eg when testing
-            //var base_url = 'http://localhost:8002/'
+            //var base_url = 'http://localhost:8001/'
             var base_url = '/'
-            var request = new XMLHttpRequest();
+            var requestCpu = new XMLHttpRequest();
+            var requestGameObjects = new XMLHttpRequest();
+            var requestResources = new XMLHttpRequest();
 
             var capturedFrameCount = 0;
             var capturedSamplesData = [];
@@ -133,35 +233,79 @@
             var plotSamples = {};
             var plotCounters = {};
 
-            function capture(){
-                frames = [];
+            var sortResorcesSettings = { id : "resources_size_label", descending : true };
+            var resourceItems = [];
+
+            // Global vars to help with expand/collapse collection table functionality
+            var goRootsList = [];
+            var goList = {};
+
+            // Keep track of current profiler tab, always start with CPU
+            var currentTab = "tab_cpu";
+
+            function switchTab()
+            {
+                var profilerTabs = document.getElementsByName('tab_selection');
+
+                var newTab = currentTab;
+                for (var i = 0, length = profilerTabs.length; i < length; i++)
+                {
+                    if (profilerTabs[i].checked)
+                    {
+                        newTab = profilerTabs[i].value;
+                        break;
+                    }
+                }
+
+                var currentTabElem = document.getElementById(currentTab);
+                var newTabElem = document.getElementById(newTab);
+                currentTabElem.style.display = "none";
+                newTabElem.style.display = "block";
+                currentTab = newTab;
+
+                capture();
+            }
+
+            function capture() {
+                if (currentTab == "tab_resources") {
+                    captureGameObjects();
+                    captureResources();
+                } else {
+                    captureCpu();
+                }
+            }
+
+            function captureCpu() {
+                framesCpu = [];
                 capturedFrameCount = 0;
                 capturedSamplesData = [];
-                request.open('GET', base_url + 'strings', true);
-                request.overrideMimeType('text/plain; charset=x-user-defined');
-                request.onreadystatechange = handler;
-                request.send();
+                requestCpu.open('GET', base_url + 'profile_strings', true);
+                requestCpu.overrideMimeType('text/plain; charset=x-user-defined');
+                requestCpu.onreadystatechange = handlerCpu;
+                requestCpu.send();
             }
 
-            function getChunk(url){
-                request.open('GET', base_url + url, true);
-                request.overrideMimeType('text/plain; charset=x-user-defined');
-                request.onreadystatechange = handler;
-                request.send();
+            function getChunkCpu(url){
+                requestCpu.open('GET', base_url + url, true);
+                requestCpu.overrideMimeType('text/plain; charset=x-user-defined');
+                requestCpu.onreadystatechange = handlerCpu;
+                requestCpu.send();
             }
 
-            readUInt32 = function(data, offset){
-                var a1 = data.charCodeAt(offset + 3) & 0xff;
-                var a2 = data.charCodeAt(offset + 2) & 0xff;
-                var a3 = data.charCodeAt(offset + 1) & 0xff;
-                var a4 = data.charCodeAt(offset + 0) & 0xff;
-                return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+            function captureGameObjects() {
+                framesGameObjects = [];
+                requestGameObjects.open('GET', base_url + 'gameobjects_data', true);
+                requestGameObjects.overrideMimeType('text/plain; charset=x-user-defined');
+                requestGameObjects.onreadystatechange = handlerGameObjects;
+                requestGameObjects.send();
             }
 
-            readUInt16 = function(data, offset){
-                var a1 = data.charCodeAt(offset + 1) & 0xff;
-                var a2 = data.charCodeAt(offset + 0) & 0xff;
-                return (a1 << 8) + a2;
+            function captureResources() {
+                framesResources = [];
+                requestResources.open('GET', base_url + 'resources_data', true);
+                requestResources.overrideMimeType('text/plain; charset=x-user-defined');
+                requestResources.onreadystatechange = handlerResources;
+                requestResources.send();
             }
 
             readPtr = function(data, offset, size) {
@@ -169,26 +313,119 @@
                 return data.substring(offset, offset + size);
             }
 
+            function memFileCreate(data, size) {
+                return {data: data, size: size, offset: 0}
+            }
+
+            function memFileEof(f) {
+                return f.offset >= f.size;
+            }
+
+            function memFileTell(f) {
+                return f.offset;
+            }
+
+            function memFileReadUInt16(f) {
+                if (memFileEof(f)) {
+                    return null;
+                }
+                var a1 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 2;
+                return (a1 << 8) + a2;
+            }
+
+            function memFileReadUInt32(f) {
+                if (memFileEof(f)) {
+                    return null;
+                }
+                var a1 = f.data.charCodeAt(f.offset + 3) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 2) & 0xff;
+                var a3 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a4 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 4;
+                return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+            }
+
+            function memFileReadUInt64(f) {
+                if (memFileEof(f)) {
+                    return null;
+                }
+                var a1 = f.data.charCodeAt(f.offset + 7) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 6) & 0xff;
+                var a3 = f.data.charCodeAt(f.offset + 5) & 0xff;
+                var a4 = f.data.charCodeAt(f.offset + 4) & 0xff;
+                var a5 = f.data.charCodeAt(f.offset + 3) & 0xff;
+                var a6 = f.data.charCodeAt(f.offset + 2) & 0xff;
+                var a7 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a8 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 8;
+                return (a1 << 56) + (a2 << 48) + (a3 << 40) + (a4 << 32) + (a5 << 24) + (a6 << 16) + (a7 << 8) + a8;
+            }
+
+            function memFileReadString(f) {
+                var size = memFileReadUInt16(f);
+                if (memFileEof(f)) {
+                    return null;
+                }
+                if (memFileEof(f)) {
+                    return null;
+                }
+                var s = f.data.substring(f.offset, f.offset + size)
+                f.offset += size;
+                return s;
+            }
+
+            function resourceCreate(name, type, size, sizeOnDisc, refCount) {
+                return {
+                    name: name,
+                    type: type,
+                    size: size,
+                    sizeOnDisc: sizeOnDisc,
+                    refCount: refCount
+                }
+            }
+
+            function gameObjectCreate(name, resource, type, index, parent) {
+                return {
+                    name: name,
+                    resource: resource,
+                    type: type,
+                    index: index,
+                    parent: parent
+                }
+            }
+
+            function isStreamEnd(file) {
+                var file_pos = memFileTell(file);
+                var s = file.data.substring(file_pos+2, file_pos+6);
+                return s == 'ENDD';
+            }
+
             function loadProfile(d, table) {
-                var ptrSize = readUInt16(d, 0);
-                ticksPerSecond = readUInt32(d, 2) / 1000.0;  // NOTE: We use ms internally
-                var samples = [];
-                var sample_count = readUInt32(d, 6);
-                var offset = 10;
+                var file = memFileCreate(d, d.length);
+
+                ticksPerSecond = memFileReadUInt32(file) / 1000.0; // NOTE: We use ms internally
                 var frameTime = 0;
-                for (var i = 0; i < sample_count; ++i) {
-                    var name_id = readPtr(d, offset, ptrSize);
-                    var scope = readPtr(d, offset + ptrSize, ptrSize);
-                    offset += 2 * ptrSize;
-                    var start = readUInt32(d, offset + 0);
-                    var elapsed = readUInt32(d, offset + 4);
-                    var thread_id = readUInt16(d, offset + 8);
-                    var name = table[name_id];
 
-                    var scope_name = table[scope];
-                    offset += 4 * 4;
+                var samples = [];
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
+                    }
 
-                    frameTime = Math.max(frameTime, elapsed / ticksPerSecond);
+                    var offset = memFileTell(file)
+
+                    var nameId      = memFileReadUInt64(file);
+                    var scopeId     = memFileReadUInt64(file);
+                    var start       = memFileReadUInt32(file);
+                    var elapsed     = memFileReadUInt32(file);
+                    var threadId    = memFileReadUInt16(file);
+
+                    var name = table[nameId];
+                    var scope_name = table[scopeId];
 
                     var s = {
                         scope_name: scope_name,
@@ -197,37 +434,47 @@
                         elapsed: elapsed / ticksPerSecond
                     };
                     samples.push(s);
+
+                    frameTime = Math.max(frameTime, elapsed / ticksPerSecond);
                 }
 
-                var scopes_data = [];
-                var scope_count = readUInt32(d, offset);
-                offset += 4;
-                for (var i = 0; i < scope_count; ++i) {
-                    var name_id = readPtr(d, offset, ptrSize);
-                    var elapsed = readUInt32(d, offset + ptrSize);
-                    var count = readUInt32(d, offset + ptrSize + 4);
-                    offset += ptrSize + 2 * 4;
-                    var name = table[name_id];
+                // Forward to next segment
+                memFileReadString(file); // ENDD
 
+                var scopes_data = [];
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
+                    }
+
+                    var nameId      = memFileReadUInt64(file);
+                    var elapsed     = memFileReadUInt32(file);
+                    var count       = memFileReadUInt32(file);
+
+                    var name = table[nameId];
                     scopes_data[name] = {
                         elapsed: elapsed,
                         count: count
                     };
                 }
 
+                // Forward to next segment
+                memFileReadString(file); // ENDD
+
                 var counters_data = [];
-                var counter_count = readUInt32(d, offset);
-                offset += 4;
-                for (var i = 0; i < counter_count; ++i) {
-                    var name_id = readPtr(d, offset, ptrSize);
-                    var value = readUInt32(d, offset + ptrSize);
-                    offset += (4 + ptrSize);
-                    // if the pointer size is 8 bytes (eg on iOS 64 bit) the
-                    // counters data struct gets padded with 4 additional bytes
-                    if (ptrSize == 8) {
-                      offset += 4;
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
                     }
-                    var name = table[name_id];
+
+                    var nameId  = memFileReadUInt64(file);
+                    var value   = memFileReadUInt32(file);
+
+                    var name = table[nameId];
                     counters_data[name] = {
                         value: value
                     };
@@ -242,49 +489,116 @@
             }
 
             function loadStrings(d, table){
-                var ptrSize = readUInt16(d, 4);
-                var string_count = readUInt32(d, 6);
-                var offset = 10;
-                for (var i = 0; i < string_count; ++i) {
-                    var id = readPtr(d, offset, ptrSize);
-                    offset += ptrSize;
-                    var len = readUInt16(d, offset);
-                    var str = d.substring(offset + 2, offset + 2 + len);
+                var file = memFileCreate(d, d.length);
 
+                while(!memFileEof(file))
+                {
+                    var id    = memFileReadUInt64(file);
+                    var str   = memFileReadString(file);
                     table[id] = str;
-
-                    offset += (len + 2);
                 }
             }
 
-            function handler(evtXHR){
-                if (request.readyState == 4) {
-                    if (request.status == 200) {
-                        var d = request.responseText;
+            function loadGameObjects(d) {
+                var file = memFileCreate(d, d.length);
 
-                        var type = d.substring(0, 4);
+                while(!memFileEof(file))
+                {
+                    var name        = memFileReadString(file);
+                    var resource    = memFileReadString(file);
+                    var type        = memFileReadString(file);
+                    var index       = memFileReadUInt32(file);
+                    var parent      = memFileReadUInt32(file);
+
+                    var res = gameObjectCreate(name, resource, type, index, parent);
+                    framesGameObjects.push(res);
+                }
+            }
+
+            function loadResources(d) {
+                var file = memFileCreate(d, d.length);
+
+                while(!memFileEof(file))
+                {
+                    var resourceName        = memFileReadString(file);
+                    var resourceType        = memFileReadString(file);
+                    var resourceSize        = memFileReadUInt32(file);
+                    var resourceSizeOnDisc  = memFileReadUInt32(file);
+                    var resourceRefCount    = memFileReadUInt32(file);
+
+                    var res = resourceCreate(resourceName, resourceType, resourceSize, resourceSizeOnDisc, resourceRefCount);
+                    framesResources.push(res);
+                }
+            }
+
+            function handlerCpu(evtXHR){
+                if (requestCpu.readyState == 4) {
+                    if (requestCpu.status == 200) {
+                        var d = requestCpu.responseText;
+
+                        var type = d.substring(2, 6);
                         if (type == "PROF") {
                             capturedFrameCount += 1;
 
                             if (capturedFrameCount % 10 == 0)
-                                console.log("Capturing..." + capturedFrameCount);
+                                console.log("Capturing CPU..." + capturedFrameCount);
 
-                            capturedSamplesData.push(d.substring(4));
+                            capturedSamplesData.push(d.substring(6));
                             if (capturedFrameCount < 20) {
-                                getChunk('profile')
+                                getChunkCpu('profile_frame')
                             }
                             else {
 
                                 for (var i in capturedSamplesData) {
                                     var prof = loadProfile(capturedSamplesData[i], stringTable);
-                                    frames.push(prof);
+                                    framesCpu.push(prof);
                                 }
-                                captureDone();
+                                captureCpuDone();
                             }
                         }
                         else if (type == "STRS") {
-                            loadStrings(d, stringTable);
-                            getChunk('profile');
+                            loadStrings(d.substring(6), stringTable);
+                            getChunkCpu('profile_frame');
+                        }
+                        else {
+                            alert("Unknown chunk type: " + type);
+                        }
+                    }
+                    else {
+                        alert("Failed to load data");
+                    }
+                }
+            }
+
+            function handlerGameObjects(evtXHR){
+                if (requestGameObjects.readyState == 4) {
+                    if (requestGameObjects.status == 200) {
+                        var d = requestGameObjects.responseText;
+                        var type = d.substring(2, 6);
+                        if (type == "GOBJ") {
+                            console.log("Capturing gameobjects...");
+                            loadGameObjects(d.substring(6)); // skip the size (uint16) of the pascal string
+                            captureGameObjectsDone();
+                        }
+                        else {
+                            alert("Unknown chunk type: " + type);
+                        }
+                    }
+                    else {
+                        alert("Failed to load data");
+                    }
+                }
+            }
+
+            function handlerResources(evtXHR){
+                if (requestResources.readyState == 4) {
+                    if (requestResources.status == 200) {
+                        var d = requestResources.responseText;
+                        var type = d.substring(2, 6); // skip the size (uint16) of the pascal string (uint16)
+                        if (type == "RESS") {
+                            console.log("Capturing resources...");
+                            loadResources(d.substring(6));
+                            captureResourcesDone();
                         }
                         else {
                             alert("Unknown chunk type: " + type);
@@ -323,8 +637,8 @@
 
                     var max_sample = 1;
                     var max_counter = 0;
-                    for (var i in frames) {
-                        var f = frames[i];
+                    for (var i in framesCpu) {
+                        var f = framesCpu[i];
                         for (var j in f.samples) {
                             var s = f.samples[j];
                             if (plotSamples[s.name]) {
@@ -376,13 +690,13 @@
                     w -= margin * 2;
                     var xstep = 1;
                     var min_xstep_px = 40;
-                    while (w / (frames.length / xstep) < min_xstep_px) {
+                    while (w / (framesCpu.length / xstep) < min_xstep_px) {
                         xstep = Math.round(xstep / 5 + 1) * 5;
                     }
 
                     var i = 0;
-                    while (i < frames.length) {
-                        x = w * i / (frames.length - 1)
+                    while (i < framesCpu.length) {
+                        x = w * i / (framesCpu.length - 1)
                         ctx.fillStyle = "rgb(190, 190, 190)";
                         ctx.fillRect(x, 0, 1, h);
                         ctx.fillStyle = "rgb(60, 60, 60)";
@@ -399,8 +713,8 @@
                         ctx.beginPath();
                         var x = 0;
                         var first = true;
-                        for (var i in frames) {
-                            var f = frames[i];
+                        for (var i in framesCpu) {
+                            var f = framesCpu[i];
                             var sum = 0;
                             for (var j in f.samples) {
                                 var s = f.samples[j];
@@ -409,7 +723,7 @@
                                 }
                             }
 
-                            var x = w * i / (frames.length - 1);
+                            var x = w * i / (framesCpu.length - 1);
                             var y = h - h * sum / max_sample;
                             if (first)
                                 ctx.moveTo(x, y);
@@ -428,13 +742,13 @@
                         ctx.beginPath();
                         var x = 0;
                         var first = true;
-                        for (var i in frames) {
-                            var f = frames[i];
+                        for (var i in framesCpu) {
+                            var f = framesCpu[i];
                             var cd = f.counters_data[name];
                             if (cd == undefined)
                                 continue;
 
-                            var x = w * i / (frames.length - 1);
+                            var x = w * i / (framesCpu.length - 1);
                             var y = h - h * cd.value / max_counter;
                             if (first)
                                 ctx.moveTo(x, y);
@@ -519,10 +833,7 @@
                         ctx.clearRect(0, 0, w, h);
 
                         // Reset
-                        ctx.shadowOffsetX = 0;
-                        ctx.shadowOffsetY = 0;
-                        ctx.shadowBlur = 0;
-                        ctx.shadowColor = 'rgba(0, 0, 0, 0)';
+                        // Note: removed shadow&blur since the performance on Firefox was too bad
 
                         y0 = 30;
                         var index = 0;
@@ -570,11 +881,6 @@
                         ctx.fillStyle = "rgb(0,0,200)";
                         ctx.strokeStyle = "rgb(50, 50, 50)";
 
-                        ctx.shadowOffsetX = 2;
-                        ctx.shadowOffsetY = 2;
-                        ctx.shadowBlur = 2;
-                        ctx.shadowColor = 'rgba(20, 20, 20, 0.55)';
-
                         var lasth = -1;
                         var last_style = "";
                         for (var i in frame.samples) {
@@ -588,11 +894,8 @@
                             ctx.fillRect(x0 + w * sample.start / frameLen, y0 + sampleNames[sample.name].index * dy + 0, w * sample.elapsed / frameLen, 14);
                         }
 
+                        ctx.closePath()
                         ctx.restore();
-                        ctx.shadowOffsetX = 0;
-                        ctx.shadowOffsetY = 0;
-                        ctx.shadowBlur = 0;
-                        ctx.shadowColor = 'rgba(0, 0, 0, 0)';
                         ctx.fillStyle = "rgb(50,50,50)";
                         ctx.font = "11px Arial;"
 
@@ -614,7 +917,7 @@
                 instance.onframe = function(){
                 }
 
-                instance.draw = function(frames){
+                instance.draw = function(framesCpu){
                     while (instance.placeholder.hasChildNodes()) {
                         instance.placeholder.removeChild(instance.placeholder.firstChild);
                     }
@@ -635,34 +938,34 @@
                     boxes_div.style.float = "left";
                     boxes_div.style.position = "absolute";
                     boxes_div.style.left = 60;
-                    boxes_div.style.width = w - 60;
+                    boxes_div.style.width = (w - 60) + "px";
                     boxes_div.style.height = h;
 
-                    instance.placeholder.appendChild(time_div)
                     instance.placeholder.appendChild(boxes_div)
+                    instance.placeholder.appendChild(time_div)
 
                     var max_frame = 0;
-                    for (var i in frames) {
-                        max_frame = Math.max(max_frame, frames[i].frame_time);
+                    for (var i in framesCpu) {
+                        max_frame = Math.max(max_frame, framesCpu[i].frame_time);
                     }
 
                     max_frame = Math.round(max_frame + 0.5);
                     time_div.innerHTML = max_frame + "ms";
 
                     var total_used = 0;
-                    for (var i in frames) {
+                    for (var i in framesCpu) {
                         var node = document.createElement("div");
                         node.frameNumber = i;
                         node.onmousedown = function(evt){
                             instance.onframe(evt.target.frameNumber);
                         };
-                        var frameTime = frames[i].frame_time;
+                        var frameTime = framesCpu[i].frame_time;
                         var class_ = "frameblock_green";
                         if (frameTime > 1000.0 / 60.0)
                             class_ = "frameblock_red";
 
-                        var box_w = Math.round(boxes_div.offsetWidth / frames.length);
-                        if (i == frames.length - 1)
+                        var box_w = Math.round(boxes_div.offsetWidth / framesCpu.length);
+                        if (i == framesCpu.length - 1)
                             box_w = boxes_div.offsetWidth - total_used
                         total_used += box_w;
 
@@ -740,8 +1043,10 @@
                     var tmp = sum[name];
                     var e = Math.round(100.0 * tmp[0]) / 100.0;
                     // Skip "small" samples (sum of)
-                    if (e < 0.03)
+
+                    if (e < 0.03) {
                         continue;
+                    }
                     var eo = even_odd[i % 2];
                     var checked = "";
                     if (plotSamples[name] == true)
@@ -779,8 +1084,8 @@
 
                 var color_index1 = 0;
                 var color_index2 = 0;
-                for (var i in frames) {
-                    var f = frames[i];
+                for (var i in framesCpu) {
+                    var f = framesCpu[i];
                     for (var name in f.scopes_data) {
                         var sd = f.scopes_data[name];
                         if (scopeColors[name] == undefined) {
@@ -805,28 +1110,305 @@
                 }
             }
 
-            function captureDone(){
+            function captureCpuDone(){
                 calculatePalette();
 
-                framesGraph.draw(frames);
-                samplesGraph.draw(frames[0]);
+                framesGraph.draw(framesCpu);
                 plotGraph.draw();
-                updateScopesTable(frames[0]);
-                updateSamplesTable(frames[0]);
-                updateCountersTable(frames[0]);
+                clickCpuFrame(0);
             }
 
-            function clickFrame(i){
-                samplesGraph.draw(frames[i]);
-                updateScopesTable(frames[i]);
-                updateSamplesTable(frames[i]);
-                updateCountersTable(frames[i]);
+            function clickCpuFrame(i){
+                samplesGraph.draw(framesCpu[i]);
+                updateScopesTable(framesCpu[i]);
+                updateSamplesTable(framesCpu[i]);
+                updateCountersTable(framesCpu[i]);
+            }
+
+            function expandRecursive(node) {
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    expandRecursive(child);
+                    child.rowElement.classList.remove('collapsed');
+                    if (child.expandElem != undefined) {
+                        child.expandElem.checked = true;
+                    }
+                }
+            }
+
+            function collapseRecursive(node) {
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    collapseRecursive(child);
+                    child.rowElement.classList.add('collapsed');
+                    if (child.expandElem != undefined) {
+                        child.expandElem.checked = false;
+                    }
+                }
+            }
+
+            function toggleExpand(event)
+            {
+                // Get row
+                var row = event.srcElement.parentElement.parentElement;
+
+                // Get node obj from row
+                var nodeId = row.getAttribute("data-node-id");
+                var node = goList[nodeId];
+
+                var expanded = event.srcElement.checked;
+
+                // Toggle class on child elems
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    if (expanded) {
+                        child.rowElement.classList.remove('collapsed');
+                    } else {
+                        collapseRecursive(child);
+                        if (child.expandElem != undefined) {
+                            child.expandElem.checked = false;
+                        }
+                        child.rowElement.classList.add('collapsed');
+                    }
+                }
+            }
+
+            function collectionTreeExpand() {
+                for (var i = 0; i < goRootsList.length; i++) {
+                    var node = goRootsList[i];
+                    expandRecursive(node);
+                    if (node.expandElem != undefined) {
+                        node.expandElem.checked = true;
+                    }
+                }
+            }
+
+            function collectionTreeCollapse() {
+                for (var i = 0; i < goRootsList.length; i++) {
+                    var node = goRootsList[i];
+                    collapseRecursive(node);
+                    if (node.expandElem != undefined) {
+                        node.expandElem.checked = false;
+                    }
+                }
+            }
+
+            function addCollectionView(tableElem, depth, node) {
+
+                var rowElement = document.createElement("tr");
+                rowElement.setAttribute("data-tree-level", depth);
+                rowElement.setAttribute("data-node-id", node.id);
+                if (node.children.length == 0) {
+                    rowElement.classList = ["leaf"];
+                }
+                if (depth > 0) {
+                    rowElement.classList.add("collapsed");
+                }
+                tableElem.appendChild(rowElement);
+                node.rowElement = rowElement;
+
+                // Name column
+                var nameElement = document.createElement("td");
+                nameElement.style.paddingLeft = depth * 12 + "px";
+                rowElement.appendChild(nameElement);
+
+                // Expand elem
+                if (node.children.length > 0) {
+                    var expandElem = document.createElement("input");
+                    expandElem.type = "checkbox";
+                    expandElem.id = "checkbox" + node.id;
+                    expandElem.onchange = toggleExpand;
+                    nameElement.appendChild(expandElem);
+                    node.expandElem = expandElem;
+                }
+
+                // Name label element
+                var nameSpanElem = document.createElement("label");
+                nameSpanElem.innerText = node.name;
+                nameSpanElem.htmlFor = "checkbox" + node.id;
+
+                // Style by flags
+                if(node.flags & 1<<0) {
+                    nameSpanElem.classList.add("go_bone");
+                }
+                if(node.flags & 1<<1) {
+                    nameSpanElem.classList.add("go_generated");
+                }
+
+                nameElement.appendChild(nameSpanElem);
+
+                // Type column
+                var typeElement = document.createElement("td");
+                typeElement.innerText = node.type;
+                rowElement.appendChild(typeElement);
+
+                // Resource column
+                var resourceElement = document.createElement("td");
+                resourceElement.innerText = node.resource;
+                rowElement.appendChild(resourceElement);
+
+                for (var i = 0; i < node.children.length; i++) {
+                    addCollectionView(tableElem, depth+1, node.children[i]);
+                }
+
+                goList[node.id] = node;
+            }
+
+            function rebuildGameObjectHTML(event) {
+                goList = {};
+                goRootsList = [];
+
+                // Clear visual view
+                var collectionTreeElem = document.getElementById("collection_table_body");
+                collectionTreeElem.innerHTML = "";
+
+                // Build collection hierarchy
+                var nodes = [];
+                for (var i = 0; i < framesGameObjects.length; i++) {
+                    var item = framesGameObjects[i];
+
+                    var newNode = { id: item.index, name: item.name, resource: item.resource, type: item.type, flags : item.flags, children: [] };
+
+                    // Find parent and attach node as child
+                    var parentNode = undefined;
+                    if (item.parent != 0) {
+                        parentNode = nodes[item.parent];
+                        parentNode.children[parentNode.children.length] = newNode;
+                    } else {
+                        goRootsList[goRootsList.length] = newNode;
+                    }
+
+                    newNode.parent = parentNode;
+                    nodes[item.index] = newNode;
+                }
+
+                // Build visual view of hierarchy
+                for (var i = 0; i < goRootsList.length; i++) {
+                    addCollectionView(collectionTreeElem, 0, goRootsList[i]);
+                }
+            }
+
+            function captureGameObjectsDone(){
+                console.log("Capturing gameobjects done.");
+                rebuildGameObjectHTML();
+            }
+
+            function humanReadableSize(bytes) {
+                var unit = 0;
+                while (bytes >= 1024) {
+                    bytes /= 1024;
+                    unit++;
+                }
+                return (unit ? bytes.toFixed(1) + ' ' : bytes) + ' KMGTPEZY'[unit] + 'B';
+            }
+
+            function rebuildResourceItems(event) {
+                // Build resource table
+                resourceItems = [];
+                for (var i = 0; i < framesResources.length; i++) {
+                    var res = framesResources[i];
+                    resourceItems[i] = {    name: res.name,
+                                            type: res.type,
+                                            size: res.size,
+                                            sizeOnDisc: res.sizeOnDisc,
+                                            humanReadableSize: humanReadableSize(res.size),
+                                            humanReadableSizeOnDisc: humanReadableSize(res.sizeOnDisc),
+                                            referenceCount: res.refCount };
+                }
+            }
+
+            var setResourceSortPredicate = function(object) {
+                var typeToName = {
+                    resources_resource_label: "Resource",
+                    resources_size_label: "Size",
+                    resources_size_on_disc_label: "Size on Disc",
+                    resources_type_label: "Type",
+                    resources_refcount_label: "RefCount"
+                };
+
+                if(sortResorcesSettings.id == object.id) {
+                    sortResorcesSettings.descending = !sortResorcesSettings.descending;
+                } else {
+                    var e = document.getElementById(sortResorcesSettings.id);
+                    e.innerHTML = '<div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">' + typeToName[sortResorcesSettings.id] + '</div>';
+                    sortResorcesSettings.id = object.id;
+                    sortResorcesSettings.descending = true;
+                }
+
+                object.innerHTML = '<div class="resource-table-sort">' + (sortResorcesSettings.descending ? '&#x25BC' : '&#x25B2') + '</div><div class="resource-table-label">' + typeToName[sortResorcesSettings.id]  + '</div>';
+                rebuildResourceView();
+            }
+
+            function rebuildResourceView() {
+
+                // Sort items on predicate
+                var typeToKey = {
+                    resources_resource_label: "name",
+                    resources_size_label: "size",
+                    resources_size_on_disc_label: "sizeOnDisc",
+                    resources_type_label: "type",
+                    resources_refcount_label: "referenceCount"
+                };
+                var typeKey = typeToKey[sortResorcesSettings.id];
+                switch( typeKey ) {
+                    case "name":
+                    case "type":
+                        resourceItems.sort( sortResorcesSettings.descending ? function(a, b) { return a[typeKey] < b[typeKey] ? -1 : (a[typeKey] > b[typeKey] ? 1 : 0) }  :  function(a, b) { return a[typeKey] < b[typeKey] ? 1 : (a[typeKey] > b[typeKey] ? -1 : 0) } );
+                        break;
+
+                    default:
+                        resourceItems.sort( sortResorcesSettings.descending ? function(a, b) { return b[typeKey] - a[typeKey]; } : function(b, a) { return b[typeKey] - a[typeKey]; } );
+                        break;
+                }
+
+                // Clear visual view
+                var resourceTableElem = document.getElementById("resource_table_body");
+                resourceTableElem.innerHTML = "";
+
+                // Build visual view of resources
+                for (var i = 0; i < resourceItems.length; i++) {
+                    var rowElem = document.createElement("tr");
+                    resourceTableElem.appendChild(rowElem);
+
+                    var nameElem = document.createElement("td");
+                    nameElem.innerText = resourceItems[i].name;
+                    rowElem.appendChild(nameElem);
+
+                    var sizeElem = document.createElement("td");
+                    sizeElem.classList = ["human-readable"];
+                    sizeElem.innerHTML = '<span title="' + resourceItems[i].size + ' bytes">' + resourceItems[i].humanReadableSize + "</span>";
+                    rowElem.appendChild(sizeElem);
+
+                    var sizeOnDiscElem = document.createElement("td");
+                    sizeOnDiscElem.classList = ["human-readable"];
+                    sizeOnDiscElem.innerHTML = '<span title="' + resourceItems[i].sizeOnDisc + ' bytes">' + resourceItems[i].humanReadableSizeOnDisc + "</span>";
+                    rowElem.appendChild(sizeOnDiscElem);
+
+                    var typeElem = document.createElement("td");
+                    typeElem.innerText = resourceItems[i].type;
+                    rowElem.appendChild(typeElem);
+
+                    var refcountElem = document.createElement("td");
+                    refcountElem.innerText = resourceItems[i].referenceCount;
+                    rowElem.appendChild(refcountElem);
+                }
+
+            }
+
+            function rebuildResourceHTML(event) {
+                rebuildResourceItems(event);
+                rebuildResourceView();
+            }
+
+            function captureResourcesDone(){
+                console.log("Capturing resources done.");
+                rebuildResourceHTML();
             }
 
             function init(){
                 var frames_node = document.getElementById("frames");
                 framesGraph = newFramesGraph(frames_node);
-                framesGraph.onframe = clickFrame;
+                framesGraph.onframe = clickCpuFrame;
 
                 var frame_canvas_node = document.getElementById("frame-canvas");
                 samplesGraph = newSamplesGraph(frame_canvas_node);
@@ -834,73 +1416,120 @@
                 var plot_canvas_node = document.getElementById("plot-canvas");
                 plotGraph = newPlotGraph(plot_canvas_node);
 
-                capture();
+                captureCpu();
             }
         </script>
     </head>
     <body onload="init();">
         <div style="margin-bottom: 8px;">
             <input type="button" value="Capture" onclick="capture();">
-            </input>
+            Profiler: <input type="radio" onchange="switchTab()" value="tab_cpu" name="tab_selection" id="tab_selection_cpu" checked>
+            <label for="tab_selection_cpu">CPU</label>
+            <input type="radio" onchange="switchTab()" value="tab_resources" name="tab_selection" id="tab_selection_resources">
+            <label for="tab_selection_resources">Resources</label>
         </div>
-        <div id="frames" style="height: 60px;">
+        <div id="tab_resources" style="display: none;">
+            <input type="button" value="Expand All" onclick="collectionTreeExpand();">
+            <input type="button" value="Collapse All" onclick="collectionTreeCollapse();">
+            <div id="res_tables">
+                <table id="collection_table">
+                    <thead>
+                        <tr>
+                            <th>Collection</th>
+                            <th>Type</th>
+                            <th>Resource</th>
+                        </tr>
+                    </thead>
+                    <tbody id="collection_table_body">
+                    </tbody>
+                </table>
+                <table id="resource_table">
+                    <thead>
+                        <tr>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_resource_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Resource</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_label"><div class="resource-table-sort">&#x25BC;</div><div class="resource-table-label">Size</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_on_disc_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Size On Disc</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_type_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Type</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_refcount_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">RefCount</div></th>
+                        </tr>
+                    </thead>
+                    <tbody id="resource_table_body">
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <br/>
-        <table border="0" style="border-spacing: 0px; _width: 1000px;">
-            <tr>
-                <td valign="top">
-                    <table id="scopes-table" class="prof-table">
-                        <th class="prof-table">
-                            Scope
-                        </th>
-                        <th class="prof-table">
-                            Time(ms)
-                        </th>
-                        <th class="prof-table">
-                            Average(ms)
-                        </th>
-                        <tr/>
-                    </table>
-                </td>
-                <td style="width: 20px">
-                </td>
-                <td valign="top" align="center">
-                    <table id="samples-table" class="prof-table">
-                        <th class="prof-table">
-                            Sample
-                        </th>
-                        <th class="prof-table">
-                            Time(ms)
-                        </th>
-                        <th class="prof-table">
-                            Average(ms)
-                        </th>
-                    </table>
-                </td>
-                <td style="width: 20px">
-                </td>
-                <td valign="top" align="right">
-                    <table id="counters-table" class="prof-table">
-                        <th class="prof-table">
-                            Counter
-                        </th>
-                        <th class="prof-table">
-                            Amount
-                        </th>
-                        <th class="prof-table">
-                        </th>
-                    </table>
-                </td>
-            </tr>
-        </table>
-        <br/>
-        <div id="plot">
-            <canvas id="plot-canvas" style="float: left;" width="1000px" height="400px">
-            </canvas>
-        </div>
-        <div id="frame" style="height: 1500px;">
-            <canvas id="frame-canvas" style="float: left;" width="1000px" height="1500px">
-            </canvas>
+        <div id="tab_cpu">
+            <div id="frames" style="height: 60px;">
+            </div>
+            <br/>
+            <table style="border-spacing: 0px;">
+                <tr>
+                    <td>
+                        <table id="scopes-table" class="prof-table">
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Scope
+                                </th>
+                                <th class="prof-table">
+                                    Time(ms)
+                                </th>
+                                <th class="prof-table">
+                                    Average(ms)
+                                </th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </td>
+                    <td style="width: 20px">
+                    </td>
+                    <td>
+                        <table id="samples-table" class="prof-table">
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Sample
+                                </th>
+                                <th class="prof-table">
+                                    Time(ms)
+                                </th>
+                                <th class="prof-table">
+                                    Average(ms)
+                                </th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </td>
+                    <td style="width: 20px">
+                    </td>
+                    <td>
+                        <table id="counters-table" class="prof-table">
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Counter
+                                </th>
+                                <th class="prof-table">
+                                    Amount
+                                </th>
+                                <th class="prof-table">
+                                </th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <br/>
+            <div id="plot">
+                <canvas id="plot-canvas" style="float: left;" width="1000" height="400">
+                </canvas>
+            </div>
+            <div id="frame" style="height: 1500px;">
+                <canvas id="frame-canvas" style="float: left;" width="1000" height="1500">
+                </canvas>
+            </div>
+
         </div>
     </body>
 </html>
