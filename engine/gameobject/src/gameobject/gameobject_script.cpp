@@ -1142,38 +1142,40 @@ namespace dmGameObject
     void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
-        ScriptInstance* script_instance = (ScriptInstance*)userdata1;
-        lua_State* L = GetLuaState(script_instance);
-
-        int top = lua_gettop(L);
-        (void) top;
-
-        dmMessage::URL url;
-        url.m_Socket = instance->m_Collection->m_ComponentSocket;
-        url.m_Path = instance->m_Identifier;
-        url.m_Fragment = component_id;
-
-        int ref = (int) (((uintptr_t) userdata2) & 0xffffffff);
-
-        if (finished)
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
+        if (dmScript::IsValidCallback(cbk))
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-            lua_pushvalue(L, -1);
-            dmScript::SetInstance(L);
+            lua_State* L = cbk->m_L;
+            DM_LUA_STACK_CHECK(L, 0);
 
-            dmScript::PushURL(L, url);
-            dmScript::PushHash(L, property_id);
-            assert(lua_type(L, -4) == LUA_TFUNCTION);
-            dmScript::PCall(L, 3, 0);
+            dmMessage::URL url;
+            url.m_Socket = instance->m_Collection->m_ComponentSocket;
+            url.m_Path = instance->m_Identifier;
+            url.m_Fragment = component_id;
 
-            lua_pushnil(L);
-            dmScript::SetInstance(L);
+            if (finished)
+            {
+                struct Args
+                {
+                    Args(dmMessage::URL url, dmhash_t property_id)
+                        : m_URL(url), m_PropertyId(property_id)
+                    {}
+                    dmMessage::URL m_URL;
+                    dmhash_t m_PropertyId;
+
+                    static void LuaCallbackCustomArgs(lua_State* L, void* user_args)
+                    {
+                        Args* args = (Args*)user_args;
+                        dmScript::PushURL(L, args->m_URL);
+                        dmScript::PushHash(L, args->m_PropertyId);
+                    }
+                };
+                
+                Args args(url, property_id);
+                dmScript::InvokeCallback(cbk, Args::LuaCallbackCustomArgs, &args);
+            }
         }
-
-        dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
-
-        assert(top == lua_gettop(L));
+        dmScript::DeleteCallback(cbk);
     }
 
     /*# animates a named property of the specified game object or component
@@ -1310,20 +1312,18 @@ namespace dmGameObject
         if (top > 6)
             delay = (float) luaL_checknumber(L, 7);
         AnimationStopped stopped = 0x0;
-        void* userdata1 = i;
-        void* userdata2 = 0x0;
+        dmScript::LuaCallbackInfo* cbk = 0x0;
         if (top > 7)
         {
             if (lua_isfunction(L, 8))
             {
+                cbk = dmScript::CreateCallback(L, 8);
                 stopped = LuaAnimationStopped;
-                lua_pushvalue(L, 8);
-                userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
             }
         }
 
         result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
-                (Playback)playback, property_var, curve, duration, delay, stopped, userdata1, userdata2);
+                (Playback)playback, property_var, curve, duration, delay, stopped, cbk, 0x0);
         switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:
