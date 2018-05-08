@@ -991,12 +991,16 @@ namespace dmScript
         lua_State* L = cbk->m_L;
         DM_LUA_STACK_CHECK(L, 0);
 
+        GetInstance(L);
+        // [-1] old instance
+
         lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
+        // [-2] old instance
         // [-1] context table
 
         if (lua_type(L, -1) != LUA_TTABLE)
         {
-            lua_pop(L, 1);
+            lua_pop(L, 2);
             DM_LUA_ERROR("Could not run callback because the callback has been deleted");
             return false;
         }
@@ -1004,33 +1008,37 @@ namespace dmScript
         const int context_table_stack_index = lua_gettop(L);
 
         lua_rawgeti(L, context_table_stack_index, cbk->m_Callback);
+        // [-3] old instance
         // [-2] context table
         // [-1] callback
         if (lua_type(L, -1) != LUA_TFUNCTION)
-        {
-            lua_pop(L, 2);
-            DM_LUA_ERROR("Could not run callback because the callback has been deleted");
-            return false;
-        }
-
-        lua_rawgeti(L, context_table_stack_index, cbk->m_Self); // Setup self (the script instance)
-        // [-3] context table
-        // [-2] callback
-        // [-1] self
-        if (lua_isnil(L, -1))
         {
             lua_pop(L, 3);
             DM_LUA_ERROR("Could not run callback because the callback has been deleted");
             return false;
         }
 
+        lua_rawgeti(L, context_table_stack_index, cbk->m_Self); // Setup self (the script instance)
+        // [-4] old instance
+        // [-3] context table
+        // [-2] callback
+        // [-1] self
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 4);
+            DM_LUA_ERROR("Could not run callback because the callback has been deleted");
+            return false;
+        }
+
         lua_pushvalue(L, -1);
+        // [-5] old instance
         // [-4] context table
         // [-3] callback
         // [-2] self
         // [-1] self
 
         dmScript::SetInstance(L);
+        // [-4] old instance
         // [-3] context table
         // [-2] callback
         // [-1] self
@@ -1038,7 +1046,12 @@ namespace dmScript
         if (!dmScript::IsInstanceValid(L))
         {
             lua_pop(L, 3);
+
+            // [-1] old instance
+            dmScript::SetInstance(L);
+
             DM_LUA_ERROR("Could not run callback because the instance has been deleted");
+
             return false;
         }
 
@@ -1052,19 +1065,22 @@ namespace dmScript
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
         int ret = dmScript::PCall(L, number_of_arguments, 0);
         if (ret != 0) {
+            // [-3] old instance
             // [-2] context table
             // [-1] error string
             dmLogError("Error running callback: %s", lua_tostring(L,-1));
 
-            lua_pop(L, 1);
-            // [-1] context table
+            lua_pop(L, 2);
+            // [-1] old instance
 
-            lua_pop(L, 1);
+            dmScript::SetInstance(L);
             return false;
         }
+        // [-2] old instance
         // [-1] context table
         lua_pop(L, 1);
 
+        dmScript::SetInstance(L);
         return true;
     }
 
