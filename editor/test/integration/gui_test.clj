@@ -745,3 +745,137 @@
             (add-particlefx-resource! template-scene (g/node-value (:particlefx template-shapes) :particlefx) particlefx-resource)
             (is (some? (g/node-value (:particlefx template-shapes) :source-scene)))
             (is (some? (g/node-value (:particlefx shapes) :source-scene)))))))))
+
+(defn- outline-order [parent]
+  ;; tree-seq does a pre-order traversal of the nodes. Sibling nodes will get mapped to
+  ;; increasing indices/ordinals.
+  (zipmap (map :label (tree-seq :children :children (g/node-value parent :node-outline)))
+          (range)))
+
+(defn- save-order [scene]
+  (let [save-value (g/node-value scene :save-value)]
+    (zipmap (map :id (:nodes save-value)) (range))))
+
+(defn- build-order [scene]
+  (let [pb (-> (g/node-value scene :build-targets) (get 0) :user-data :pb)]
+    (zipmap (map :id (:nodes pb)) (range))))
+
+(defmacro check-order [scene rel lhs-label rhs-label]
+  `(let [~'outline-order (outline-order (g/node-value ~scene :node-tree))
+         ~'save-order (save-order ~scene)
+         ~'build-order (build-order ~scene)]
+     (is (~rel (~'outline-order ~lhs-label) (~'outline-order ~rhs-label)))
+     (is (~rel (~'save-order ~lhs-label) (~'save-order ~rhs-label)))
+     (is (~rel (~'build-order ~lhs-label) (~'build-order ~rhs-label)))))
+
+(defn move-child-node! [node-id offset]
+  (#'gui/move-child-node! node-id offset))
+
+(defn- scene-gui-node-map [scene]
+  (into {}
+        (map (juxt :label :node-id)
+             (tree-seq :children :children (g/node-value scene :node-outline)))))
+  
+
+(deftest reorder-child-nodes
+  ;; /gui/reorder.gui
+  ;; .
+  ;; ├── box1
+  ;; │   ├── text1
+  ;; │   └── text2
+  ;; └── box2
+  (test-util/with-loaded-project
+    (let [[workspace project _] (test-util/setup! world)
+          scene (project/get-resource-node project "/gui/reorder.gui")
+          id-map (scene-gui-node-map scene)]
+
+      (check-order scene < "box1" "box2")
+      (check-order scene < "text1" "text2")
+
+      ;; move up box2
+      (move-child-node! (id-map "box2") -1)
+      (check-order scene < "box2" "box1")
+
+      ;; move up box1 (restore order)
+      (move-child-node! (id-map "box1") -1)
+      (check-order scene < "box1" "box2")
+
+
+
+      ;; move up text2
+      (move-child-node! (id-map "text2") -1)
+      (check-order scene < "text2" "text1")
+
+      ;; move up text1 (restore order)
+      (move-child-node! (id-map "text1") -1)
+      (check-order scene < "text1" "text2")
+
+
+
+      ;; move down box1
+      (move-child-node! (id-map "box1") 1)
+      (check-order scene < "box2" "box1")
+
+      ;; move down box2 (restore order)
+      (move-child-node! (id-map "box2") 1)
+      (check-order scene < "box1" "box2")
+
+
+      ;; move down text1
+      (move-child-node! (id-map "text1") 1)
+      (check-order scene < "text2" "text1")
+
+      ;; move-down text2 (restore order)
+      (move-child-node! (id-map "text2") 1)
+      (check-order scene < "text1" "text2"))))
+
+
+(defn- layout-gui-node-map [layout-node]
+  (let [layout-node-tree (ffirst (g/sources-of layout-node :layout-overrides))
+        layout-id-map (into {}
+                            (map (juxt :label :node-id)
+                                 (tree-seq :children :children (g/node-value layout-node-tree :node-outline))))]
+    layout-id-map))
+
+(deftest reordering-does-not-wipe-layout-overrides
+  (test-util/with-loaded-project
+    (let [[workspace project _] (test-util/setup! world)
+          scene (project/get-resource-node project "/gui/reorder.gui")
+          id-map (scene-gui-node-map scene)
+          [landscape portrait] (map first (g/sources-of scene :layout-scenes))
+          landscape-id-map (layout-gui-node-map landscape)
+          portrait-id-map (layout-gui-node-map portrait)
+          scene-id-map (scene-gui-node-map scene)]
+
+      ;; sanity
+      (is (= "Landscape" (g/node-value landscape :name)))
+      (is (= "Portrait" (g/node-value portrait :name)))
+      (is (= [(scene-id-map "box1") (landscape-id-map "box1")] (g/override-originals (landscape-id-map "box1"))))
+      (is (= [(scene-id-map "box2") (portrait-id-map "box2")] (g/override-originals (portrait-id-map "box2"))))
+      (is (= [0.0 0.0 0.0] (g/node-value (scene-id-map "box1") :position)))
+      (is (= [0.0 0.0 0.0] (g/node-value (scene-id-map "box2") :position)))
+      (is (= [-45.0 0.0 0.0] (g/node-value (scene-id-map "text1") :position)))
+      (is (= [45.0 0.0 0.0] (g/node-value (scene-id-map "text2") :position)))
+
+      ;; before move
+      (is (= [300.0 400.0 0.0] (g/node-value (landscape-id-map "box1") :position)))
+      (is (= [1000.0 400.0 0.0] (g/node-value (landscape-id-map "box2") :position)))
+      (is (= [360.0 900.0 0.0] (g/node-value (portrait-id-map "box1") :position)))
+      (is (= [360.0 350.0 0.0] (g/node-value (portrait-id-map "box2") :position)))
+      (is (= [45.0 0.0 0.0] (g/node-value (landscape-id-map "text1") :position))) ;; text1 & text2 swapped places in landscape vs default layout
+      (is (= [-45.0 0.0 0.0] (g/node-value (landscape-id-map "text2") :position)))
+      (is (= [0.0 -45.0 0.0] (g/node-value (portrait-id-map "text1") :position))) ;; text1 & text2 vertically stacked in portrait
+      (is (= [0.0 45.0 0.0] (g/node-value (portrait-id-map "text2") :position)))
+
+      (move-child-node! (scene-id-map "box2") -1)
+      (move-child-node! (scene-id-map "text1") 1)
+
+      ;; reordering nodes should not change overrides for the layouts at all
+      (is (= [300.0 400.0 0.0] (g/node-value (landscape-id-map "box1") :position)))
+      (is (= [1000.0 400.0 0.0] (g/node-value (landscape-id-map "box2") :position)))
+      (is (= [360.0 900.0 0.0] (g/node-value (portrait-id-map "box1") :position)))
+      (is (= [360.0 350.0 0.0] (g/node-value (portrait-id-map "box2") :position)))
+      (is (= [45.0 0.0 0.0] (g/node-value (landscape-id-map "text1") :position)))
+      (is (= [-45.0 0.0 0.0] (g/node-value (landscape-id-map "text2") :position)))
+      (is (= [0.0 -45.0 0.0] (g/node-value (portrait-id-map "text1") :position)))
+      (is (= [0.0 45.0 0.0] (g/node-value (portrait-id-map "text2") :position))))))
