@@ -30,7 +30,7 @@ public class MeshLoader implements INodeLoader<MeshNode> {
             if(meshSet.getMeshEntriesCount() == 0) {
                 return new MeshNode();
             }
-            return new MeshNode(meshSet.getMeshEntries(0).getMeshes(0));
+            return new MeshNode(meshSet.getMeshAttachments(0));
         } catch (XMLStreamException e) {
             return invalidMeshNode(e);
         } catch (LoaderException e) {

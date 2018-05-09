@@ -55,6 +55,7 @@ namespace dmGameObject
                 return res;
             }
             params.m_Resource->m_Resource = (void*) script;
+            params.m_Resource->m_ResourceSize = params.m_BufferSize - script->m_LuaModule->m_Source.m_Script.m_Count;
             return dmResource::RESULT_OK;
         }
         else
@@ -101,6 +102,7 @@ namespace dmGameObject
                 script->m_PropertyResources.Swap(tmp_res);
             }
             dmDDF::FreeMessage(old_lua_module);
+            params.m_Resource->m_ResourceSize = params.m_BufferSize - script->m_LuaModule->m_Source.m_Script.m_Count;
             return dmResource::RESULT_OK;
         }
         else

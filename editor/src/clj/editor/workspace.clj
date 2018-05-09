@@ -85,8 +85,14 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
+(defn- editable-view-type? [view-type]
+  (case view-type
+    (:default :text) false
+    true))
+
 (defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
   (let [resource-type {:textual? (true? textual?)
+                       :editable? (some? (some editable-view-type? view-types))
                        :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
@@ -354,13 +360,15 @@ ordinary paths."
                 :resource-listeners (atom [])
                 :build-settings build-settings))
 
-(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn text-selection-fn]}]
+(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn dispose-preview-fn focus-fn text-selection-fn]}]
   (let [view-type (merge {:id    id
                           :label label}
                          (when make-view-fn
                            {:make-view-fn make-view-fn})
                          (when make-preview-fn
                            {:make-preview-fn make-preview-fn})
+                         (when dispose-preview-fn
+                           {:dispose-preview-fn dispose-preview-fn})
                          (when focus-fn
                            {:focus-fn focus-fn})
                          (when text-selection-fn

@@ -215,6 +215,15 @@ namespace dmGameObject
             dmLogError("Sub collections must be merged before loading.");
 
         params.m_Resource->m_Resource = (void*) collection;
+        {
+            uint32_t size = sizeof(Collection);
+            size += collection->m_InstanceIndices.Capacity()*sizeof(uint16_t);
+            size += collection->m_WorldTransforms.Capacity()*sizeof(Matrix4);
+            size += collection->m_IDToInstance.Capacity()*(sizeof(Instance*)+sizeof(dmhash_t));
+            size += collection->m_InputFocusStack.Capacity()*sizeof(Instance*);
+            size += collection->m_Instances.Capacity()*sizeof(Instance*);
+            params.m_Resource->m_ResourceSize = size;
+        }
 bail:
         dmDDF::FreeMessage(collection_desc);
 

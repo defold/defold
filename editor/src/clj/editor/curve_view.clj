@@ -562,22 +562,6 @@
             end-camera (c/camera-orthographic-frame-aabb-y local-cam viewport aabb)]
         (scene/set-camera! camera local-cam end-camera animate?)))))
 
-(defn destroy-view! [parent ^AnchorPane view view-id ^ListView list]
-  (when-let [repainter (ui/user-data view ::repainter)]
-    (ui/timer-stop! repainter)
-    (ui/user-data! view ::repainter nil))
-  (when view-id
-    (when-let [scene (g/node-by-id view-id)]
-      (when-let [^GLAutoDrawable drawable (g/node-value view-id :drawable)]
-        (let [gl (.getGL drawable)]
-          (when-let [^AsyncCopier copier (g/node-value view-id :async-copier)]
-            (.dispose copier gl))
-          (scene-cache/drop-context! gl false)
-          (.destroy drawable))))
-    (g/transact (g/delete-node view-id))
-    (ui/children! view [])
-    (ui/remove-list-observers list (ui/selection list))))
-
 (defn- camera-filter-fn [camera]
   (let [^Point3d p (:position camera)
         y (.y p)
@@ -654,9 +638,10 @@
                                                 (g/connect camera :camera rulers :camera)
                                                 (g/connect rulers :renderables view-id :aux-renderables)
                                                 (g/connect view-id :viewport rulers :viewport)
-                                                (g/connect view-id :cursor-pos rulers :cursor-pos))))]
+                                                (g/connect view-id :cursor-pos rulers :cursor-pos)
+                                                (g/connect view-id :_node-id app-view :scene-view-ids))))]
       (when parent
-        (let [^Node pane (scene/make-gl-pane! node-id view opts "update-curve-view" false)]
+        (let [^Node pane (scene/make-gl-pane! node-id opts)]
           (ui/context! parent :curve-view {:view-id node-id} (SubSelectionProvider. app-view))
           (ui/fill-control pane)
           (ui/children! view [pane])
@@ -689,13 +674,6 @@
                           (let [[r g b] (colors/hsl->rgb (:hue item) 1.0 0.75)]
                             (proxy-super setStyle (format "-fx-text-fill: rgb(%d, %d, %d);" (int (* 255 r)) (int (* 255 g)) (int (* 255 b)))))))))))))))
       node-id)))
-
-(defn- reload-curve-view []
-  (when @view-state
-    (let [{:keys [app-view graph ^Parent parent ^ListView list ^AnchorPane view opts view-id]} @view-state]
-      (ui/run-now
-        (destroy-view! parent view view-id list)
-        (make-view! app-view graph parent list view opts true)))))
 
 (defn- delete-cps [sub-selection]
   (let [m (sub-selection->map sub-selection)]

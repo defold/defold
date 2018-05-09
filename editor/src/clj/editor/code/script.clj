@@ -26,7 +26,7 @@
    :scope-name "source.lua"
    ;; indent patterns shamelessly stolen from textmate:
    ;; https://github.com/textmate/lua.tmbundle/blob/master/Preferences/Indent.tmPreferences
-   :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b).)*)|(\{\s*))$"
+   :indent {:begin #"^([^-]|-(?!-))*((\b(else|function|then|do|repeat)\b((?!\b(end|until)\b)[^\"'])*)|(\{\s*))$"
             :end #"^\s*((\b(elseif|else|end|until)\b)|(\})|(\)))"}
    :patterns [{:captures {1 {:name "keyword.control.lua"}
                           2 {:name "entity.name.function.scope.lua"}
@@ -66,7 +66,7 @@
                :name "comment.line.double-dash.lua"}
               {:match #"\b(and|or|not|break|do|else|for|if|elseif|return|then|repeat|while|until|end|function|local|in|goto)\b"
                :name "keyword.control.lua"}
-              {:match #"(?<![^.]\.|:)\b([A-Z_]+|false|nil|true|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)"
+              {:match #"(?<![^.]\.|:)\b([A-Z_][0-9A-Z_]*|false|nil|true|math\.(pi|huge))\b|(?<![.])\.{3}(?!\.)"
                :name "constant.language.lua"}
               {:match #"(?<![^.]\.|:)\b(self)\b"
                :name "variable.language.self.lua"}
@@ -164,11 +164,21 @@
                                        :resources  (mapv lua/lua-module->build-path modules)
                                        :properties (properties/properties->decls properties true)})})))
 
+(defn clean-user-properties [user-properties]
+  (-> user-properties
+      (update :properties
+              (fn [properties]
+                (into {}
+                      (map (fn [[prop-kw prop-data]]
+                             [prop-kw (select-keys prop-data [:go-prop-type :value])])
+                           properties))))))
+
 (g/defnk produce-build-targets [_node-id resource lines user-properties modules dep-build-targets]
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-script
-    :user-data {:lines lines :user-properties user-properties :modules modules :proj-path (resource/proj-path resource)}
+    ;; Remove node-id etc from user-properties to avoid creating one build-target per use (override) of the script
+    :user-data {:lines lines :user-properties (clean-user-properties user-properties) :modules modules :proj-path (resource/proj-path resource)}
     :deps dep-build-targets}])
 
 (g/defnk produce-completions [completion-info module-completion-infos]

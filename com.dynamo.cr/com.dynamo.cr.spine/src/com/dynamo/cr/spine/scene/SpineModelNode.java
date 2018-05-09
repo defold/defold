@@ -25,7 +25,7 @@ import org.eclipse.osgi.util.NLS;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
 import com.dynamo.bob.util.SpineSceneUtil;
 import com.dynamo.bob.util.RigUtil.Bone;
-import com.dynamo.bob.util.RigUtil.Mesh;
+import com.dynamo.bob.util.RigUtil.MeshAttachment;
 import com.dynamo.bob.util.RigUtil.UVTransformProvider;
 import com.dynamo.cr.go.core.ComponentTypeNode;
 import com.dynamo.cr.properties.NotEmpty;
@@ -109,14 +109,11 @@ public class SpineModelNode extends ComponentTypeNode {
                 return new Status(IStatus.ERROR, Activator.PLUGIN_ID, Messages.SpineModelNode_atlas_INVALID_REFERENCE);
             }
             if (this.scene != null) {
-                List<Mesh> meshes = this.scene.meshes;
-                if (!this.skin.isEmpty() && this.scene.skins.containsKey(this.skin)) {
-                    meshes = this.scene.skins.get(this.skin);
-                }
+                List<MeshAttachment> meshes = this.scene.getDefaultAttachments();
                 RuntimeTextureSet runtimeTextureSet = this.textureSetNode.getRuntimeTextureSet();
                 if (runtimeTextureSet != null) {
                     Set<String> missingAnims = new HashSet<String>();
-                    for (Mesh mesh : meshes) {
+                    for (MeshAttachment mesh : meshes) {
                         if (runtimeTextureSet.getAnimation(mesh.path) == null) {
                             missingAnims.add(mesh.path);
                         }
@@ -161,7 +158,8 @@ public class SpineModelNode extends ComponentTypeNode {
         AABB aabb = new AABB();
         aabb.setIdentity();
         if (this.scene != null) {
-            for (Mesh mesh : this.scene.meshes) {
+            List<MeshAttachment> meshes = this.scene.getDefaultAttachments();
+            for (MeshAttachment mesh : meshes) {
                 float[] v = mesh.vertices;
                 int vertexCount = v.length / 5;
                 for (int i = 0; i < vertexCount; ++i) {
@@ -346,26 +344,14 @@ public class SpineModelNode extends ComponentTypeNode {
         if (ts == null) {
             return;
         }
-        List<Mesh> meshes = new ArrayList<Mesh>(this.scene.meshes.size());
-        for (Mesh mesh : this.scene.meshes) {
-            if (mesh.visible) {
-                meshes.add(mesh);
-            }
-        }
+        List<MeshAttachment> allMeshes = this.scene.getDefaultAttachments();
+        List<MeshAttachment> meshes = new ArrayList<MeshAttachment>(allMeshes.size());
+
         if (!this.skin.isEmpty() && this.scene.skins.containsKey(this.skin)) {
-            List<Mesh> source = this.scene.skins.get(this.skin);
-            for (Mesh mesh : source) {
-                if (mesh.visible) {
-                    meshes.add(mesh);
-                }
-            }
+            meshes = this.scene.getAttachmentsForSkin(this.skin);
+        } else {
+            meshes = allMeshes;
         }
-        Collections.sort(meshes, new Comparator<Mesh>() {
-            @Override
-            public int compare(Mesh o1, Mesh o2) {
-                return o1.slot.index - o2.slot.index;
-            }
-        });
         this.mesh.update(meshes);
     }
 
