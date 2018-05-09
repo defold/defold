@@ -213,7 +213,7 @@ namespace dmExtension
         DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
 
 
-    /** Register application delegate
+    /*# Register application delegate
      *
      * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
      * @note Only available on iOS
@@ -249,7 +249,7 @@ namespace dmExtension
      */
     void RegisteriOSUIApplicationDelegate(void* delegate);
 
-    /** Unregister an application delegate
+    /*# Unregister an application delegate
      *
      * Deregister a previously registered iOS application delegate
      * @note Only available on iOS
@@ -263,7 +263,7 @@ namespace dmExtension
      *     [g_MyApplicationDelegate release];
      *     g_MyApplicationDelegate = 0;
      * }
-     *
+     * ```
      */
     void UnregisteriOSUIApplicationDelegate(void* delegate);
 }

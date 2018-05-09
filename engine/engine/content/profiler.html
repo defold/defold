@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Dynamo Profiler</title>
+        <style type="text/css">
+            body {
+                background: #fff;
+                font-family: Arial, Helvetica, Helvetica Neue, Verdana, sans-serif;
+                font-size: 12px;
+                line-height: 18px;
+            }
+
+            table {
+                font-family: Arial, Helvetica, Helvetica Neue, Verdana, sans-serif;
+                font-size: 12px;
+                line-height: 18px;
+            }
+
+            table td {
+                vertical-align: top;
+            }
+
+            #frames {
+                width: 1000px;
+                border-color: rgb(100, 100, 100);
+                border-width: 1px;
+                border-style: solid;
+            }
+
+            #frame {
+                width: 1000px;
+                height: 1000px;
+                border-color: #888;
+                border-width: 1px;
+                border-style: solid;
+            }
+
+            #plot {
+                width: 1000px;
+                height: 400px;
+                border-color: #888;
+                border-width: 1px;
+                border-style: solid;
+                padding: 16px;
+            }
+
+            div.frameblock_green {
+                background: -ms-linear-gradient(top, hsl(130, 60%, 50%) 50%, hsl(130, 20%, 50%) 100%);
+                background: -webkit-linear-gradient(top, hsl(130, 60%, 50%) 50%, hsl(130, 20%, 50%) 100%);
+                float: left;
+                border-color: rgb(100,100,100);
+                border-style: solid;
+                border-width: 1px;
+                margin: -1px;
+                padding: 0;
+            }
+
+            div.frameblock_red {
+                background: -ms-linear-gradient(top, hsl(0, 60%, 50%) 50%, hsl(0, 20%, 50%) 100%);
+                background: -webkit-linear-gradient(top, hsl(0, 60%, 50%) 50%, hsl(0, 20%, 50%) 100%);
+                float: left;
+                border-color: rgb(100,100,100);
+                border-style: solid;
+                border-width: 1px;
+                margin: -1px;
+                padding: 0;
+            }
+
+            div.square {
+                width: 16px;
+                height: 16px;
+                float: left;
+                margin-right: 4px;
+            }
+
+            table.prof-table {
+              border: 1px;
+              border-width: 1px;
+              border-color: #888;
+              border-style: solid;
+              border-spacing: 0px;
+              border-collapse:collapse;
+              color: #333;
+            }
+
+            th.prof-table {
+              text-align: left;
+              border-width: 1px;
+              border-color: #888;
+              border-style: solid;
+              padding: 4px;
+            }
+
+            td.prof-table {
+              padding: 4px;
+              border-width: 1px;
+              border-color: #888;
+              border-style: solid;
+            }
+
+            td.first {
+              _width: 120px;
+              text-align: left;
+              _font-weight: bold;
+            }
+
+            td.second {
+              width: 90px;
+              text-align: left;
+            }
+
+            td.even {
+              background-color: #fff;
+            }
+
+            td.odd {
+              background-color: rgb(233, 233, 233);
+            }
+
+            /* Resource tab specifics */
+
+            #tab_resources table > thead {
+                background-color: #aaaaaa;
+            }
+
+            #tab_resources td, #tab_resources th {
+                padding: 5px 10px;
+            }
+
+            #tab_resources td {
+                border: solid 1px #aaa;
+            }
+
+            #tab_resources table {
+                border-collapse: collapse;
+                border: 2px solid #888;
+            }
+
+            #res_tables {
+                margin-top: 16px;
+            }
+
+            .human-readable {
+                white-space: pre;
+                text-align: right;
+            }
+
+            /* Collection table tree specifics */
+
+            #collection_table {
+                float: left;
+                margin-right: 16px;
+                margin-bottom: 16px;
+            }
+
+
+            #collection_table .leaf {
+                color: #666;
+            }
+
+            #collection_table .leaf label {
+                margin-left: 32px;
+            }
+
+            #collection_table .collapsed {
+                display: none;
+            }
+
+            #collection_table input[type="checkbox"] {
+                display: none;
+            }
+
+            #collection_table input[type="checkbox"] + label::before {
+                content: "\25B8 ";
+                display: inline-block;
+                margin-right: 4px;
+                padding-left: 16px;
+                color: #444;
+            }
+
+            #collection_table input[type="checkbox"]:checked + label::before {
+                content: "\25BE ";
+            }
+
+            #collection_table .go_bone {
+                color: #bbbbbb;
+                font-style: italic;
+            }
+
+            #collection_table .go_generated {
+                color: #4444aa;
+            }
+
+            div.resource-table-sort {
+                float: left;
+                color: #777;
+                user-select: none;
+            }
+
+            div.resource-table-sort-none {
+                float: left;
+                visibility: hidden;
+                user-select: none;
+            }
+
+            div.resource-table-label {
+                display: inline;
+                user-select: none;
+            }
+
+        </style>
+        <script type="text/javascript">
+
+            var ticksPerSecond = 1.0;
+            var stringTable = {};
+            var framesCpu = [];
+            var framesResources = [];
+            var framesGameObjects = [];
+
+            // If running another server change base_url to value below, eg when testing
+            //var base_url = 'http://localhost:8001/'
+            var base_url = '/'
+            var requestCpu = new XMLHttpRequest();
+            var requestGameObjects = new XMLHttpRequest();
+            var requestResources = new XMLHttpRequest();
+
+            var capturedFrameCount = 0;
+            var capturedSamplesData = [];
+
+            var scopeColors = {};
+            var counterColors = {};
+
+            var plotSamples = {};
+            var plotCounters = {};
+
+            var sortResorcesSettings = { id : "resources_size_label", descending : true };
+            var resourceItems = [];
+
+            // Global vars to help with expand/collapse collection table functionality
+            var goRootsList = [];
+            var goList = {};
+
+            // Keep track of current profiler tab, always start with CPU
+            var currentTab = "tab_cpu";
+
+            function switchTab()
+            {
+                var profilerTabs = document.getElementsByName('tab_selection');
+
+                var newTab = currentTab;
+                for (var i = 0, length = profilerTabs.length; i < length; i++)
+                {
+                    if (profilerTabs[i].checked)
+                    {
+                        newTab = profilerTabs[i].value;
+                        break;
+                    }
+                }
+
+                var currentTabElem = document.getElementById(currentTab);
+                var newTabElem = document.getElementById(newTab);
+                currentTabElem.style.display = "none";
+                newTabElem.style.display = "block";
+                currentTab = newTab;
+
+                capture();
+            }
+
+            function capture() {
+                if (currentTab == "tab_resources") {
+                    captureGameObjects();
+                    captureResources();
+                } else {
+                    captureCpu();
+                }
+            }
+
+            function captureCpu() {
+                framesCpu = [];
+                capturedFrameCount = 0;
+                capturedSamplesData = [];
+                requestCpu.open('GET', base_url + 'profile_strings', true);
+                requestCpu.overrideMimeType('text/plain; charset=x-user-defined');
+                requestCpu.onreadystatechange = handlerCpu;
+                requestCpu.send();
+            }
+
+            function getChunkCpu(url){
+                requestCpu.open('GET', base_url + url, true);
+                requestCpu.overrideMimeType('text/plain; charset=x-user-defined');
+                requestCpu.onreadystatechange = handlerCpu;
+                requestCpu.send();
+            }
+
+            function captureGameObjects() {
+                framesGameObjects = [];
+                requestGameObjects.open('GET', base_url + 'gameobjects_data', true);
+                requestGameObjects.overrideMimeType('text/plain; charset=x-user-defined');
+                requestGameObjects.onreadystatechange = handlerGameObjects;
+                requestGameObjects.send();
+            }
+
+            function captureResources() {
+                framesResources = [];
+                requestResources.open('GET', base_url + 'resources_data', true);
+                requestResources.overrideMimeType('text/plain; charset=x-user-defined');
+                requestResources.onreadystatechange = handlerResources;
+                requestResources.send();
+            }
+
+            readPtr = function(data, offset, size) {
+                // no support for pointer arithmetic here anyway, so just use the string.
+                return data.substring(offset, offset + size);
+            }
+
+            function memFileCreate(data, size) {
+                return {data: data, size: size, offset: 0}
+            }
+
+            function memFileEof(f) {
+                return f.offset >= f.size;
+            }
+
+            function memFileTell(f) {
+                return f.offset;
+            }
+
+            function memFileReadUInt16(f) {
+                if (memFileEof(f)) {
+                    return null;
+                }
+                var a1 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 2;
+                return (a1 << 8) + a2;
+            }
+
+            function memFileReadUInt32(f) {
+                if (memFileEof(f)) {
+                    return null;
+                }
+                var a1 = f.data.charCodeAt(f.offset + 3) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 2) & 0xff;
+                var a3 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a4 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 4;
+                return (a1 << 24) + (a2 << 16) + (a3 << 8) + a4;
+            }
+
+            function memFileReadUInt64(f) {
+                if (memFileEof(f)) {
+                    return null;
+                }
+                var a1 = f.data.charCodeAt(f.offset + 7) & 0xff;
+                var a2 = f.data.charCodeAt(f.offset + 6) & 0xff;
+                var a3 = f.data.charCodeAt(f.offset + 5) & 0xff;
+                var a4 = f.data.charCodeAt(f.offset + 4) & 0xff;
+                var a5 = f.data.charCodeAt(f.offset + 3) & 0xff;
+                var a6 = f.data.charCodeAt(f.offset + 2) & 0xff;
+                var a7 = f.data.charCodeAt(f.offset + 1) & 0xff;
+                var a8 = f.data.charCodeAt(f.offset + 0) & 0xff;
+                f.offset += 8;
+                return (a1 << 56) + (a2 << 48) + (a3 << 40) + (a4 << 32) + (a5 << 24) + (a6 << 16) + (a7 << 8) + a8;
+            }
+
+            function memFileReadString(f) {
+                var size = memFileReadUInt16(f);
+                if (memFileEof(f)) {
+                    return null;
+                }
+                if (memFileEof(f)) {
+                    return null;
+                }
+                var s = f.data.substring(f.offset, f.offset + size)
+                f.offset += size;
+                return s;
+            }
+
+            function resourceCreate(name, type, size, sizeOnDisc, refCount) {
+                return {
+                    name: name,
+                    type: type,
+                    size: size,
+                    sizeOnDisc: sizeOnDisc,
+                    refCount: refCount
+                }
+            }
+
+            function gameObjectCreate(name, resource, type, index, parent) {
+                return {
+                    name: name,
+                    resource: resource,
+                    type: type,
+                    index: index,
+                    parent: parent
+                }
+            }
+
+            function isStreamEnd(file) {
+                var file_pos = memFileTell(file);
+                var s = file.data.substring(file_pos+2, file_pos+6);
+                return s == 'ENDD';
+            }
+
+            function loadProfile(d, table) {
+                var file = memFileCreate(d, d.length);
+
+                ticksPerSecond = memFileReadUInt32(file) / 1000.0; // NOTE: We use ms internally
+                var frameTime = 0;
+
+                var samples = [];
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
+                    }
+
+                    var offset = memFileTell(file)
+
+                    var nameId      = memFileReadUInt64(file);
+                    var scopeId     = memFileReadUInt64(file);
+                    var start       = memFileReadUInt32(file);
+                    var elapsed     = memFileReadUInt32(file);
+                    var threadId    = memFileReadUInt16(file);
+
+                    var name = table[nameId];
+                    var scope_name = table[scopeId];
+
+                    var s = {
+                        scope_name: scope_name,
+                        name: scope_name + "." + name,
+                        start: start / ticksPerSecond,
+                        elapsed: elapsed / ticksPerSecond
+                    };
+                    samples.push(s);
+
+                    frameTime = Math.max(frameTime, elapsed / ticksPerSecond);
+                }
+
+                // Forward to next segment
+                memFileReadString(file); // ENDD
+
+                var scopes_data = [];
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
+                    }
+
+                    var nameId      = memFileReadUInt64(file);
+                    var elapsed     = memFileReadUInt32(file);
+                    var count       = memFileReadUInt32(file);
+
+                    var name = table[nameId];
+                    scopes_data[name] = {
+                        elapsed: elapsed,
+                        count: count
+                    };
+                }
+
+                // Forward to next segment
+                memFileReadString(file); // ENDD
+
+                var counters_data = [];
+                while(!memFileEof(file))
+                {
+                    if (isStreamEnd(file))
+                    {
+                        break;
+                    }
+
+                    var nameId  = memFileReadUInt64(file);
+                    var value   = memFileReadUInt32(file);
+
+                    var name = table[nameId];
+                    counters_data[name] = {
+                        value: value
+                    };
+                }
+
+                return {
+                    samples: samples,
+                    frame_time: frameTime,
+                    scopes_data: scopes_data,
+                    counters_data: counters_data
+                };
+            }
+
+            function loadStrings(d, table){
+                var file = memFileCreate(d, d.length);
+
+                while(!memFileEof(file))
+                {
+                    var id    = memFileReadUInt64(file);
+                    var str   = memFileReadString(file);
+                    table[id] = str;
+                }
+            }
+
+            function loadGameObjects(d) {
+                var file = memFileCreate(d, d.length);
+
+                while(!memFileEof(file))
+                {
+                    var name        = memFileReadString(file);
+                    var resource    = memFileReadString(file);
+                    var type        = memFileReadString(file);
+                    var index       = memFileReadUInt32(file);
+                    var parent      = memFileReadUInt32(file);
+
+                    var res = gameObjectCreate(name, resource, type, index, parent);
+                    framesGameObjects.push(res);
+                }
+            }
+
+            function loadResources(d) {
+                var file = memFileCreate(d, d.length);
+
+                while(!memFileEof(file))
+                {
+                    var resourceName        = memFileReadString(file);
+                    var resourceType        = memFileReadString(file);
+                    var resourceSize        = memFileReadUInt32(file);
+                    var resourceSizeOnDisc  = memFileReadUInt32(file);
+                    var resourceRefCount    = memFileReadUInt32(file);
+
+                    var res = resourceCreate(resourceName, resourceType, resourceSize, resourceSizeOnDisc, resourceRefCount);
+                    framesResources.push(res);
+                }
+            }
+
+            function handlerCpu(evtXHR){
+                if (requestCpu.readyState == 4) {
+                    if (requestCpu.status == 200) {
+                        var d = requestCpu.responseText;
+
+                        var type = d.substring(2, 6);
+                        if (type == "PROF") {
+                            capturedFrameCount += 1;
+
+                            if (capturedFrameCount % 10 == 0)
+                                console.log("Capturing CPU..." + capturedFrameCount);
+
+                            capturedSamplesData.push(d.substring(6));
+                            if (capturedFrameCount < 20) {
+                                getChunkCpu('profile_frame')
+                            }
+                            else {
+
+                                for (var i in capturedSamplesData) {
+                                    var prof = loadProfile(capturedSamplesData[i], stringTable);
+                                    framesCpu.push(prof);
+                                }
+                                captureCpuDone();
+                            }
+                        }
+                        else if (type == "STRS") {
+                            loadStrings(d.substring(6), stringTable);
+                            getChunkCpu('profile_frame');
+                        }
+                        else {
+                            alert("Unknown chunk type: " + type);
+                        }
+                    }
+                    else {
+                        alert("Failed to load data");
+                    }
+                }
+            }
+
+            function handlerGameObjects(evtXHR){
+                if (requestGameObjects.readyState == 4) {
+                    if (requestGameObjects.status == 200) {
+                        var d = requestGameObjects.responseText;
+                        var type = d.substring(2, 6);
+                        if (type == "GOBJ") {
+                            console.log("Capturing gameobjects...");
+                            loadGameObjects(d.substring(6)); // skip the size (uint16) of the pascal string
+                            captureGameObjectsDone();
+                        }
+                        else {
+                            alert("Unknown chunk type: " + type);
+                        }
+                    }
+                    else {
+                        alert("Failed to load data");
+                    }
+                }
+            }
+
+            function handlerResources(evtXHR){
+                if (requestResources.readyState == 4) {
+                    if (requestResources.status == 200) {
+                        var d = requestResources.responseText;
+                        var type = d.substring(2, 6); // skip the size (uint16) of the pascal string (uint16)
+                        if (type == "RESS") {
+                            console.log("Capturing resources...");
+                            loadResources(d.substring(6));
+                            captureResourcesDone();
+                        }
+                        else {
+                            alert("Unknown chunk type: " + type);
+                        }
+                    }
+                    else {
+                        alert("Failed to load data");
+                    }
+                }
+            }
+
+            function roundupAxisStep(value){
+                var mag = Math.max(1, Math.pow(10, Math.round(Math.log(value) / Math.log(10) + 0.5)));
+                var factors = [0.1, 0.25, 0.5, 1];
+                for (var i in factors) {
+                    if (value / mag <= factors[i])
+                        return factors[i] * mag;
+                }
+                return mag;
+            }
+
+            function newPlotGraph(canvas){
+                var instance = {};
+                instance.canvas = canvas;
+
+                instance.draw = function(){
+                    var canvas = instance.canvas;
+                    var ctx = canvas.getContext("2d");
+                    var w = canvas.width;
+                    var h = canvas.height;
+
+                    ctx.font = "11px Arial;"
+                    ctx.clearRect(0, 0, w, h);
+
+                    ctx.save();
+
+                    var max_sample = 1;
+                    var max_counter = 0;
+                    for (var i in framesCpu) {
+                        var f = framesCpu[i];
+                        for (var j in f.samples) {
+                            var s = f.samples[j];
+                            if (plotSamples[s.name]) {
+                                max_sample = Math.max(max_sample, s.elapsed);
+                            }
+                        }
+
+                        for (var name in f.counters_data) {
+                            var cd = f.counters_data[name];
+                            if (plotCounters[name]) {
+                                max_counter = Math.max(max_counter, cd.value);
+                            }
+                        }
+                    }
+
+                    ctx.translate(0, 16);
+                    h -= 32;
+
+                    max_counter = Math.max(10, max_counter);
+                    max_counter = Math.round(max_counter / max_sample + 0.5) * max_sample;
+
+                    var margin = 60;
+
+                    var font_height = 16;
+
+                    var preferred_ytick1 = max_sample / 7;
+                    var ytick1 = roundupAxisStep(preferred_ytick1);
+                    max_sample = Math.round(max_sample / ytick1 + 0.5) * ytick1;
+                    var nysteps1 = max_sample / ytick1 + 1;
+
+                    var preferred_ytick2 = max_counter / (nysteps1 - 1); // -1 to round up
+                    var ytick2 = roundupAxisStep(preferred_ytick2);
+                    max_counter = ytick2 * (nysteps1 - 1);
+
+                    for (var i = 0; i < nysteps1; i++) {
+                        var y_px1 = h - h * i * ytick1 / max_sample;
+                        ctx.fillStyle = "rgb(60, 60, 60)";
+                        // Floating point rounding trix: 10 * ... / 10, avoid 0.70000001...
+                        ctx.fillText((10 * i * ytick1) / 10 + "ms", 0, y_px1 + 2);
+                        ctx.fillStyle = "rgb(190, 190, 190)";
+                        ctx.fillRect(margin, y_px1 - 1, w - margin * 2, 1);
+
+                        ctx.fillStyle = "rgb(60, 60, 60)";
+                        // Floating point rounding trix: 10 * ... / 10, avoid 0.70000001...
+                        ctx.fillText((10 * i * ytick2) / 10, w - 50, y_px1 + 2);
+                    }
+
+                    ctx.translate(margin, 0);
+                    w -= margin * 2;
+                    var xstep = 1;
+                    var min_xstep_px = 40;
+                    while (w / (framesCpu.length / xstep) < min_xstep_px) {
+                        xstep = Math.round(xstep / 5 + 1) * 5;
+                    }
+
+                    var i = 0;
+                    while (i < framesCpu.length) {
+                        x = w * i / (framesCpu.length - 1)
+                        ctx.fillStyle = "rgb(190, 190, 190)";
+                        ctx.fillRect(x, 0, 1, h);
+                        ctx.fillStyle = "rgb(60, 60, 60)";
+                        ctx.fillText(i, x, h + 16);
+                        i += xstep;
+                    }
+
+                    for (var name in plotSamples) {
+                        if (plotSamples[name] != true)
+                            continue;
+
+                        var scope_name = name.substring(0, name.indexOf("."))
+                        ctx.strokeStyle = scopeColors[scope_name];
+                        ctx.beginPath();
+                        var x = 0;
+                        var first = true;
+                        for (var i in framesCpu) {
+                            var f = framesCpu[i];
+                            var sum = 0;
+                            for (var j in f.samples) {
+                                var s = f.samples[j];
+                                if (s.name == name) {
+                                    sum += s.elapsed;
+                                }
+                            }
+
+                            var x = w * i / (framesCpu.length - 1);
+                            var y = h - h * sum / max_sample;
+                            if (first)
+                                ctx.moveTo(x, y);
+                            else
+                                ctx.lineTo(x, y);
+                            first = false;
+                        }
+                        ctx.stroke();
+                    }
+
+                    for (var name in plotCounters) {
+                        if (plotCounters[name] != true)
+                            continue;
+
+                        ctx.strokeStyle = counterColors[name];
+                        ctx.beginPath();
+                        var x = 0;
+                        var first = true;
+                        for (var i in framesCpu) {
+                            var f = framesCpu[i];
+                            var cd = f.counters_data[name];
+                            if (cd == undefined)
+                                continue;
+
+                            var x = w * i / (framesCpu.length - 1);
+                            var y = h - h * cd.value / max_counter;
+                            if (first)
+                                ctx.moveTo(x, y);
+                            else
+                                ctx.lineTo(x, y);
+                            first = false;
+                        }
+                        ctx.stroke();
+                    }
+
+                    ctx.restore();
+                }
+
+                return instance;
+            }
+
+            function newSamplesGraph(canvas){
+                var instance = {};
+                var sampleNamesWidth = 200;
+                var offsetX = 0;
+                var lastX = 10;
+                var dragging = false;
+                var currentFrame = undefined;
+                var frameLen = 20;
+
+                instance.canvas = canvas;
+                canvas.onmousedown = function(evt){
+                    dragging = true;
+                    lastX = evt.clientX;
+                }
+
+                document.onmouseup = function(evt){
+                    dragging = false;
+                }
+
+                document.onmousemove = function(evt){
+                    if (!dragging)
+                        return;
+
+                    var dx = evt.clientX - lastX;
+                    offsetX += dx;
+                    offsetX = Math.min(0, offsetX);
+                    lastX = evt.clientX;
+
+                    instance.draw(currentFrame);
+                };
+
+                document.onkeydown = function(evt){
+                    if (evt.keyCode == 187)
+                        frameLen -= 0.5;
+                    else
+                        if (evt.keyCode == 189)
+                            frameLen += 0.5;
+                    frameLen = Math.max(0.5, frameLen);
+                    instance.draw(currentFrame);
+                }
+
+                instance.draw = function(frame){
+                    currentFrame = frame;
+                    var index = 0;
+                    var sampleNames = {}
+                    for (var i in frame.samples) {
+                        var sample = frame.samples[i];
+                        if (sampleNames[sample.name] == undefined) {
+                            sampleNames[sample.name] = {
+                                index: index
+                            };
+                            index += 1
+                        }
+                    }
+
+                    var y0 = 10;
+                    var dy = 20;
+
+                    var canvas = instance.canvas;
+                    if (canvas.getContext) {
+                        var ctx = canvas.getContext("2d");
+                        var w = canvas.width;
+                        var h = canvas.height;
+
+                        ctx.font = "bold 11px Arial;"
+                        ctx.clearRect(0, 0, w, h);
+
+                        // Reset
+                        // Note: removed shadow&blur since the performance on Firefox was too bad
+
+                        y0 = 30;
+                        var index = 0;
+                        ctx.fillStyle = "rgb(243, 243, 243)";
+                        for (var i in sampleNames) {
+                            var s = sampleNames[i];
+                            if (index++ % 2 == 0)
+                                ctx.fillRect(0, y0 + s.index * dy - 2, w, 20);
+                        }
+                        y0 = 12;
+
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.rect(sampleNamesWidth + 16, 0, w, h);
+                        ctx.clip();
+
+                        x0 = sampleNamesWidth + 16;
+                        w = w - sampleNamesWidth - 16;
+
+                        ctx.translate(offsetX, 0);
+
+                        ctx.fillStyle = "rgb(190, 190, 190)";
+                        ctx.strokeStyle = ctx.fillStyle;
+                        var step = 1;
+                        if (frameLen < 2) {
+                            step = Math.max(0.1, Math.round(10 * frameLen / 5.0) / 10);
+                        }
+                        else {
+                            step = Math.max(1, Math.round(frameLen / 5.0));
+                        }
+
+                        for (var i = 0; i <= 200; i += step / 2) {
+                            ctx.fillRect(x0 + w * (i) / frameLen, 0, 1, h);
+                        }
+
+                        ctx.fillStyle = "rgb(60, 60, 60)";
+                        for (var i = 0; i <= 200; i += step) {
+                            delta = 4;
+                            var x = Math.round(i * 10) / 10;
+                            ctx.fillText(x + "ms", x0 + 6 + w * i / frameLen - 6 + delta, y0);
+                        }
+
+                        y0 = 30;
+
+                        ctx.fillStyle = "rgb(0,0,200)";
+                        ctx.strokeStyle = "rgb(50, 50, 50)";
+
+                        var lasth = -1;
+                        var last_style = "";
+                        for (var i in frame.samples) {
+                            var sample = frame.samples[i];
+
+                            var style = scopeColors[sample.scope_name];
+                            if (last_style != style) {
+                                last_style = style;
+                                ctx.fillStyle = style;
+                            }
+                            ctx.fillRect(x0 + w * sample.start / frameLen, y0 + sampleNames[sample.name].index * dy + 0, w * sample.elapsed / frameLen, 14);
+                        }
+
+                        ctx.closePath()
+                        ctx.restore();
+                        ctx.fillStyle = "rgb(50,50,50)";
+                        ctx.font = "11px Arial;"
+
+                        for (var name in sampleNames) {
+                            var s = sampleNames[name];
+                            var metrics = ctx.measureText(name);
+                            ctx.fillText(name, sampleNamesWidth - metrics.width, s.index * dy + y0 + 12);
+                        }
+                    }
+                }
+                return instance;
+            }
+
+            function newFramesGraph(placeholder){
+                var instance = {};
+
+                instance.placeholder = placeholder;
+
+                instance.onframe = function(){
+                }
+
+                instance.draw = function(framesCpu){
+                    while (instance.placeholder.hasChildNodes()) {
+                        instance.placeholder.removeChild(instance.placeholder.firstChild);
+                    }
+
+                    var time_div = document.createElement("div");
+                    var w = instance.placeholder.offsetWidth;
+                    var h = instance.placeholder.offsetHeight;
+                    var client_h = instance.placeholder.clientHeight;
+
+                    time_div.style.float = "left";
+                    time_div.style.width = "60px";
+                    time_div.style.height = h;
+                    time_div.style.position = "absolute";
+                    time_div.style.top = instance.placeholder.offsetHeight - 10;
+                    time_div.innerHTML = "0ms";
+
+                    var boxes_div = document.createElement("div");
+                    boxes_div.style.float = "left";
+                    boxes_div.style.position = "absolute";
+                    boxes_div.style.left = 60;
+                    boxes_div.style.width = (w - 60) + "px";
+                    boxes_div.style.height = h;
+
+                    instance.placeholder.appendChild(boxes_div)
+                    instance.placeholder.appendChild(time_div)
+
+                    var max_frame = 0;
+                    for (var i in framesCpu) {
+                        max_frame = Math.max(max_frame, framesCpu[i].frame_time);
+                    }
+
+                    max_frame = Math.round(max_frame + 0.5);
+                    time_div.innerHTML = max_frame + "ms";
+
+                    var total_used = 0;
+                    for (var i in framesCpu) {
+                        var node = document.createElement("div");
+                        node.frameNumber = i;
+                        node.onmousedown = function(evt){
+                            instance.onframe(evt.target.frameNumber);
+                        };
+                        var frameTime = framesCpu[i].frame_time;
+                        var class_ = "frameblock_green";
+                        if (frameTime > 1000.0 / 60.0)
+                            class_ = "frameblock_red";
+
+                        var box_w = Math.round(boxes_div.offsetWidth / framesCpu.length);
+                        if (i == framesCpu.length - 1)
+                            box_w = boxes_div.offsetWidth - total_used
+                        total_used += box_w;
+
+                        node.setAttribute("class", class_);
+                        node.style.width = box_w + "px";
+                        node.style.height = client_h * frameTime / max_frame + "px";
+                        boxes_div.appendChild(node)
+                    }
+                }
+
+                return instance;
+            }
+
+            var framesGraph = undefined;
+            var samplesGraph = undefined;
+            var plotGraph = undefined;
+
+            function updateScopesTable(frame){
+                var node = document.getElementById("scopes-table");
+                var html = '<th class="prof-table">Scope</th><th class="prof-table">Time(ms)</th><tr/>';
+
+                var template = '<td class="prof-table %eo first"><div class="square" style="background-color: %color"></div>%name</td><td class="prof-table %eo second">%e</td><tr/>';
+
+                var i = 0;
+                var even_odd = ["odd", "even"];
+                for (var name in frame.scopes_data) {
+                    var sd = frame.scopes_data[name];
+                    var e = Math.round(100 * sd.elapsed / ticksPerSecond) / 100;
+                    var eo = even_odd[i % 2];
+                    html += template.replace(/%eo/g, eo).replace(/%e/g, e).replace(/%name/g, name).replace(/%color/g, scopeColors[name]);
+                    ++i;
+                }
+                node.innerHTML = html;
+            }
+
+            function onSamplesCheckbox(self){
+                plotSamples[self.id] = self.checked;
+                plotGraph.draw();
+            }
+
+            function onCountersCheckbox(self){
+                plotCounters[self.id] = self.checked;
+                plotGraph.draw();
+            }
+
+            function updateSamplesTable(frame){
+                var node = document.getElementById("samples-table");
+                var html = '<th class="prof-table">Sample</th><th class="prof-table">Time(ms)</th><th class="prof-table">#</th><th class="prof-table"></th><tr/>';
+
+                var sum = {}
+                for (var i in frame.samples) {
+                    var s = frame.samples[i];
+
+                    if (sum[s.name] == undefined) {
+                        // First sample
+                        sum[s.name] = [s.elapsed, 1, s.scope_name, s];
+                    } else {
+                        var tmp = sum[s.name];
+                        var last_sample = tmp[3];
+                        var end_last = last_sample.start + last_sample.elapsed;
+                        if (s.start >= last_sample.start && s.start < end_last) {
+                            // Probably recursion. The sample is overlapping the previous.
+                            // Ignore this sample.
+                        } else {
+                            tmp = [tmp[0] + s.elapsed, tmp[1] + 1, tmp[2], s];
+                            sum[s.name] = tmp;
+                        }
+                    }
+                }
+
+                var template = '<td class="prof-table %eo first"><div class="square" style="background-color: %color"></div>%name</td><td class="prof-table %eo second">%e</td></td><td class="prof-table %eo second"> %count</td><td class="prof-table %eo"><input %checked onchange="onSamplesCheckbox(this);" id="%name" type="checkbox"/></td><tr/>';
+                var i = 0;
+                var even_odd = ["odd", "even"];
+                for (var name in sum) {
+                    var tmp = sum[name];
+                    var e = Math.round(100.0 * tmp[0]) / 100.0;
+                    // Skip "small" samples (sum of)
+
+                    if (e < 0.03) {
+                        continue;
+                    }
+                    var eo = even_odd[i % 2];
+                    var checked = "";
+                    if (plotSamples[name] == true)
+                        checked = 'checked="true"';
+                    html += template.replace(/%eo/g, eo).replace(/%e/g, e).replace(/%name/g, name).replace(/%color/g, scopeColors[tmp[2]]).replace(/%count/g, tmp[1]).replace(/%checked/g, checked);
+                    ++i;
+                }
+                node.innerHTML = html;
+            }
+
+            function updateCountersTable(frame){
+                var node = document.getElementById("counters-table");
+                var html = '<th class="prof-table">Counter</th><th class="prof-table">Count</th><th class="prof-table"></th><tr/>';
+
+                var template = '<td class="prof-table %eo first"><div class="square" style="background-color: %color"></div>%name</td><td class="prof-table %eo second">%value</td><td class="prof-table %eo"><input %checked onchange="onCountersCheckbox(this);" id="%name" type="checkbox"/></td><tr/>';
+
+                var i = 0;
+                var even_odd = ["odd", "even"];
+                for (var name in frame.counters_data) {
+                    var cd = frame.counters_data[name];
+                    var c = cd.value;
+                    var eo = even_odd[i % 2];
+                    var checked = "";
+                    if (plotCounters[name] == true)
+                        checked = 'checked="true"';
+                    html += template.replace(/%eo/g, eo).replace(/%value/g, c).replace(/%name/g, name).replace(/%color/g, counterColors[name]).replace(/%checked/g, checked);
+                    ++i;
+                }
+                node.innerHTML = html;
+            }
+
+            function calculatePalette(){
+                scopeColors = {};
+                counterColors = {};
+
+                var color_index1 = 0;
+                var color_index2 = 0;
+                for (var i in framesCpu) {
+                    var f = framesCpu[i];
+                    for (var name in f.scopes_data) {
+                        var sd = f.scopes_data[name];
+                        if (scopeColors[name] == undefined) {
+                            scopeColors[name] = color_index1++;
+                        }
+                    }
+
+                    for (var name in f.counters_data) {
+                        var cd = f.counters_data[name];
+                        if (counterColors[name] == undefined) {
+                            counterColors[name] = color_index2++;
+                        }
+                    }
+                }
+
+                for (var name in scopeColors) {
+                    scopeColors[name] = "hsl(" + 120 * scopeColors[name] / (color_index1 - 1) + ", 35%, 50%)";
+                }
+
+                for (var name in counterColors) {
+                    counterColors[name] = "hsl(" + (180 + 120 * counterColors[name] / (color_index2 - 1)) + ", 35%, 50%)";
+                }
+            }
+
+            function captureCpuDone(){
+                calculatePalette();
+
+                framesGraph.draw(framesCpu);
+                plotGraph.draw();
+                clickCpuFrame(0);
+            }
+
+            function clickCpuFrame(i){
+                samplesGraph.draw(framesCpu[i]);
+                updateScopesTable(framesCpu[i]);
+                updateSamplesTable(framesCpu[i]);
+                updateCountersTable(framesCpu[i]);
+            }
+
+            function expandRecursive(node) {
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    expandRecursive(child);
+                    child.rowElement.classList.remove('collapsed');
+                    if (child.expandElem != undefined) {
+                        child.expandElem.checked = true;
+                    }
+                }
+            }
+
+            function collapseRecursive(node) {
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    collapseRecursive(child);
+                    child.rowElement.classList.add('collapsed');
+                    if (child.expandElem != undefined) {
+                        child.expandElem.checked = false;
+                    }
+                }
+            }
+
+            function toggleExpand(event)
+            {
+                // Get row
+                var row = event.srcElement.parentElement.parentElement;
+
+                // Get node obj from row
+                var nodeId = row.getAttribute("data-node-id");
+                var node = goList[nodeId];
+
+                var expanded = event.srcElement.checked;
+
+                // Toggle class on child elems
+                for (var i = 0; i < node.children.length; i++) {
+                    var child = node.children[i];
+                    if (expanded) {
+                        child.rowElement.classList.remove('collapsed');
+                    } else {
+                        collapseRecursive(child);
+                        if (child.expandElem != undefined) {
+                            child.expandElem.checked = false;
+                        }
+                        child.rowElement.classList.add('collapsed');
+                    }
+                }
+            }
+
+            function collectionTreeExpand() {
+                for (var i = 0; i < goRootsList.length; i++) {
+                    var node = goRootsList[i];
+                    expandRecursive(node);
+                    if (node.expandElem != undefined) {
+                        node.expandElem.checked = true;
+                    }
+                }
+            }
+
+            function collectionTreeCollapse() {
+                for (var i = 0; i < goRootsList.length; i++) {
+                    var node = goRootsList[i];
+                    collapseRecursive(node);
+                    if (node.expandElem != undefined) {
+                        node.expandElem.checked = false;
+                    }
+                }
+            }
+
+            function addCollectionView(tableElem, depth, node) {
+
+                var rowElement = document.createElement("tr");
+                rowElement.setAttribute("data-tree-level", depth);
+                rowElement.setAttribute("data-node-id", node.id);
+                if (node.children.length == 0) {
+                    rowElement.classList = ["leaf"];
+                }
+                if (depth > 0) {
+                    rowElement.classList.add("collapsed");
+                }
+                tableElem.appendChild(rowElement);
+                node.rowElement = rowElement;
+
+                // Name column
+                var nameElement = document.createElement("td");
+                nameElement.style.paddingLeft = depth * 12 + "px";
+                rowElement.appendChild(nameElement);
+
+                // Expand elem
+                if (node.children.length > 0) {
+                    var expandElem = document.createElement("input");
+                    expandElem.type = "checkbox";
+                    expandElem.id = "checkbox" + node.id;
+                    expandElem.onchange = toggleExpand;
+                    nameElement.appendChild(expandElem);
+                    node.expandElem = expandElem;
+                }
+
+                // Name label element
+                var nameSpanElem = document.createElement("label");
+                nameSpanElem.innerText = node.name;
+                nameSpanElem.htmlFor = "checkbox" + node.id;
+
+                // Style by flags
+                if(node.flags & 1<<0) {
+                    nameSpanElem.classList.add("go_bone");
+                }
+                if(node.flags & 1<<1) {
+                    nameSpanElem.classList.add("go_generated");
+                }
+
+                nameElement.appendChild(nameSpanElem);
+
+                // Type column
+                var typeElement = document.createElement("td");
+                typeElement.innerText = node.type;
+                rowElement.appendChild(typeElement);
+
+                // Resource column
+                var resourceElement = document.createElement("td");
+                resourceElement.innerText = node.resource;
+                rowElement.appendChild(resourceElement);
+
+                for (var i = 0; i < node.children.length; i++) {
+                    addCollectionView(tableElem, depth+1, node.children[i]);
+                }
+
+                goList[node.id] = node;
+            }
+
+            function rebuildGameObjectHTML(event) {
+                goList = {};
+                goRootsList = [];
+
+                // Clear visual view
+                var collectionTreeElem = document.getElementById("collection_table_body");
+                collectionTreeElem.innerHTML = "";
+
+                // Build collection hierarchy
+                var nodes = [];
+                for (var i = 0; i < framesGameObjects.length; i++) {
+                    var item = framesGameObjects[i];
+
+                    var newNode = { id: item.index, name: item.name, resource: item.resource, type: item.type, flags : item.flags, children: [] };
+
+                    // Find parent and attach node as child
+                    var parentNode = undefined;
+                    if (item.parent != 0) {
+                        parentNode = nodes[item.parent];
+                        parentNode.children[parentNode.children.length] = newNode;
+                    } else {
+                        goRootsList[goRootsList.length] = newNode;
+                    }
+
+                    newNode.parent = parentNode;
+                    nodes[item.index] = newNode;
+                }
+
+                // Build visual view of hierarchy
+                for (var i = 0; i < goRootsList.length; i++) {
+                    addCollectionView(collectionTreeElem, 0, goRootsList[i]);
+                }
+            }
+
+            function captureGameObjectsDone(){
+                console.log("Capturing gameobjects done.");
+                rebuildGameObjectHTML();
+            }
+
+            function humanReadableSize(bytes) {
+                var unit = 0;
+                while (bytes >= 1024) {
+                    bytes /= 1024;
+                    unit++;
+                }
+                return (unit ? bytes.toFixed(1) + ' ' : bytes) + ' KMGTPEZY'[unit] + 'B';
+            }
+
+            function rebuildResourceItems(event) {
+                // Build resource table
+                resourceItems = [];
+                for (var i = 0; i < framesResources.length; i++) {
+                    var res = framesResources[i];
+                    resourceItems[i] = {    name: res.name,
+                                            type: res.type,
+                                            size: res.size,
+                                            sizeOnDisc: res.sizeOnDisc,
+                                            humanReadableSize: humanReadableSize(res.size),
+                                            humanReadableSizeOnDisc: humanReadableSize(res.sizeOnDisc),
+                                            referenceCount: res.refCount };
+                }
+            }
+
+            var setResourceSortPredicate = function(object) {
+                var typeToName = {
+                    resources_resource_label: "Resource",
+                    resources_size_label: "Size",
+                    resources_size_on_disc_label: "Size on Disc",
+                    resources_type_label: "Type",
+                    resources_refcount_label: "RefCount"
+                };
+
+                if(sortResorcesSettings.id == object.id) {
+                    sortResorcesSettings.descending = !sortResorcesSettings.descending;
+                } else {
+                    var e = document.getElementById(sortResorcesSettings.id);
+                    e.innerHTML = '<div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">' + typeToName[sortResorcesSettings.id] + '</div>';
+                    sortResorcesSettings.id = object.id;
+                    sortResorcesSettings.descending = true;
+                }
+
+                object.innerHTML = '<div class="resource-table-sort">' + (sortResorcesSettings.descending ? '&#x25BC' : '&#x25B2') + '</div><div class="resource-table-label">' + typeToName[sortResorcesSettings.id]  + '</div>';
+                rebuildResourceView();
+            }
+
+            function rebuildResourceView() {
+
+                // Sort items on predicate
+                var typeToKey = {
+                    resources_resource_label: "name",
+                    resources_size_label: "size",
+                    resources_size_on_disc_label: "sizeOnDisc",
+                    resources_type_label: "type",
+                    resources_refcount_label: "referenceCount"
+                };
+                var typeKey = typeToKey[sortResorcesSettings.id];
+                switch( typeKey ) {
+                    case "name":
+                    case "type":
+                        resourceItems.sort( sortResorcesSettings.descending ? function(a, b) { return a[typeKey] < b[typeKey] ? -1 : (a[typeKey] > b[typeKey] ? 1 : 0) }  :  function(a, b) { return a[typeKey] < b[typeKey] ? 1 : (a[typeKey] > b[typeKey] ? -1 : 0) } );
+                        break;
+
+                    default:
+                        resourceItems.sort( sortResorcesSettings.descending ? function(a, b) { return b[typeKey] - a[typeKey]; } : function(b, a) { return b[typeKey] - a[typeKey]; } );
+                        break;
+                }
+
+                // Clear visual view
+                var resourceTableElem = document.getElementById("resource_table_body");
+                resourceTableElem.innerHTML = "";
+
+                // Build visual view of resources
+                for (var i = 0; i < resourceItems.length; i++) {
+                    var rowElem = document.createElement("tr");
+                    resourceTableElem.appendChild(rowElem);
+
+                    var nameElem = document.createElement("td");
+                    nameElem.innerText = resourceItems[i].name;
+                    rowElem.appendChild(nameElem);
+
+                    var sizeElem = document.createElement("td");
+                    sizeElem.classList = ["human-readable"];
+                    sizeElem.innerHTML = '<span title="' + resourceItems[i].size + ' bytes">' + resourceItems[i].humanReadableSize + "</span>";
+                    rowElem.appendChild(sizeElem);
+
+                    var sizeOnDiscElem = document.createElement("td");
+                    sizeOnDiscElem.classList = ["human-readable"];
+                    sizeOnDiscElem.innerHTML = '<span title="' + resourceItems[i].sizeOnDisc + ' bytes">' + resourceItems[i].humanReadableSizeOnDisc + "</span>";
+                    rowElem.appendChild(sizeOnDiscElem);
+
+                    var typeElem = document.createElement("td");
+                    typeElem.innerText = resourceItems[i].type;
+                    rowElem.appendChild(typeElem);
+
+                    var refcountElem = document.createElement("td");
+                    refcountElem.innerText = resourceItems[i].referenceCount;
+                    rowElem.appendChild(refcountElem);
+                }
+
+            }
+
+            function rebuildResourceHTML(event) {
+                rebuildResourceItems(event);
+                rebuildResourceView();
+            }
+
+            function captureResourcesDone(){
+                console.log("Capturing resources done.");
+                rebuildResourceHTML();
+            }
+
+            function init(){
+                var frames_node = document.getElementById("frames");
+                framesGraph = newFramesGraph(frames_node);
+                framesGraph.onframe = clickCpuFrame;
+
+                var frame_canvas_node = document.getElementById("frame-canvas");
+                samplesGraph = newSamplesGraph(frame_canvas_node);
+
+                var plot_canvas_node = document.getElementById("plot-canvas");
+                plotGraph = newPlotGraph(plot_canvas_node);
+
+                captureCpu();
+            }
+        </script>
+    </head>
+    <body onload="init();">
+        <div style="margin-bottom: 8px;">
+            <input type="button" value="Capture" onclick="capture();">
+            Profiler: <input type="radio" onchange="switchTab()" value="tab_cpu" name="tab_selection" id="tab_selection_cpu" checked>
+            <label for="tab_selection_cpu">CPU</label>
+            <input type="radio" onchange="switchTab()" value="tab_resources" name="tab_selection" id="tab_selection_resources">
+            <label for="tab_selection_resources">Resources</label>
+        </div>
+        <div id="tab_resources" style="display: none;">
+            <input type="button" value="Expand All" onclick="collectionTreeExpand();">
+            <input type="button" value="Collapse All" onclick="collectionTreeCollapse();">
+            <div id="res_tables">
+                <table id="collection_table">
+                    <thead>
+                        <tr>
+                            <th>Collection</th>
+                            <th>Type</th>
+                            <th>Resource</th>
+                        </tr>
+                    </thead>
+                    <tbody id="collection_table_body">
+                    </tbody>
+                </table>
+                <table id="resource_table">
+                    <thead>
+                        <tr>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_resource_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Resource</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_label"><div class="resource-table-sort">&#x25BC;</div><div class="resource-table-label">Size</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_on_disc_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Size On Disc</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_type_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Type</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_refcount_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">RefCount</div></th>
+                        </tr>
+                    </thead>
+                    <tbody id="resource_table_body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="tab_cpu">
+            <div id="frames" style="height: 60px;">
+            </div>
+            <br/>
+            <table style="border-spacing: 0px;">
+                <tr>
+                    <td>
+                        <table id="scopes-table" class="prof-table">
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Scope
+                                </th>
+                                <th class="prof-table">
+                                    Time(ms)
+                                </th>
+                                <th class="prof-table">
+                                    Average(ms)
+                                </th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </td>
+                    <td style="width: 20px">
+                    </td>
+                    <td>
+                        <table id="samples-table" class="prof-table">
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Sample
+                                </th>
+                                <th class="prof-table">
+                                    Time(ms)
+                                </th>
+                                <th class="prof-table">
+                                    Average(ms)
+                                </th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </td>
+                    <td style="width: 20px">
+                    </td>
+                    <td>
+                        <table id="counters-table" class="prof-table">
+                            <thead>
+                                <tr>
+                                <th class="prof-table">
+                                    Counter
+                                </th>
+                                <th class="prof-table">
+                                    Amount
+                                </th>
+                                <th class="prof-table">
+                                </th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+            <br/>
+            <div id="plot">
+                <canvas id="plot-canvas" style="float: left;" width="1000" height="400">
+                </canvas>
+            </div>
+            <div id="frame" style="height: 1500px;">
+                <canvas id="frame-canvas" style="float: left;" width="1000" height="1500">
+                </canvas>
+            </div>
+
+        </div>
+    </body>
+</html>

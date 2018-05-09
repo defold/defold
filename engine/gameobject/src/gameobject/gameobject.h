@@ -1346,6 +1346,59 @@ namespace dmGameObject
      */
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context);
 
+    /** Used in the callback from the collection object iterator
+     */
+    struct IteratorCollection
+    {
+        HCollection     m_Collection;   // The collection
+        dmhash_t        m_NameHash;     // The user specified name
+        dmhash_t        m_Resource;     // The resource path
+    };
+
+    /** Used in the callback from the game object iterator
+     */
+    struct IteratorGameObject
+    {
+        HCollection     m_Collection;   // The collection
+        HInstance       m_Instance;     // The game object
+        dmhash_t        m_NameHash;     // The user specified name
+        dmhash_t        m_Resource;     // The resource path
+    };
+
+    /** Used in the callback from the comonent iterator
+     */
+    struct IteratorComponent
+    {
+        HCollection     m_Collection;   // The collection
+        HInstance       m_Instance;     // The game object
+        dmhash_t        m_NameHash;     // The user specified name
+        dmhash_t        m_Resource;     // The resource path
+        const char*     m_Type;         // The type of the component
+    };
+
+    /** Callback function for iterating over all collection in a register
+     */
+    typedef bool (*FCollectionIterator)(const IteratorCollection* iterator, void* user_ctx);
+
+    /** Callback function for iterating over all game objects in a collection
+     */
+    typedef bool (*FGameObjectIterator)(const IteratorGameObject* iterator, void* user_ctx);
+
+    /** Callback function for iterating over all game objects in a collection
+     */
+    typedef bool (*FGameComponentIterator)(const IteratorComponent* iterator, void* user_ctx);
+
+    /** Iterate over a registry to get all collections
+     */
+    bool IterateCollections(HRegister regist, FCollectionIterator callback, void* user_ctx);
+
+    /** Iterate over a collection to get all game objects
+     */
+    bool IterateGameObjects(HCollection collection, FGameObjectIterator callback, void* user_ctx);
+
+    /** Iterate over a gameobject to get all components
+     */
+    bool IterateComponents(HInstance instance, FGameComponentIterator callback, void* user_ctx);
 }
 
 #endif // GAMEOBJECT_H

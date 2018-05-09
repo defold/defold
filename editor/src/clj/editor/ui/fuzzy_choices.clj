@@ -1,10 +1,10 @@
 (ns editor.ui.fuzzy-choices
   (:require [clojure.core.reducers :as r]
-            [clojure.string :as string]
             [editor.fuzzy-text :as fuzzy-text])
   (:import (javafx.scene.text Text TextFlow)))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defn- option->fuzzy-matched-option [option->text pattern option]
   (when-some [[score matching-indices] (fuzzy-text/match-path pattern (option->text option))]
@@ -13,15 +13,21 @@
                 :matching-indices matching-indices})))
 
 (defn- option-order [option->text a b]
-  (let [score-comparison (compare (:score (meta b)) (:score (meta a)))]
+  (let [a-meta (meta a)
+        b-meta (meta b)
+        score-comparison (compare (:score a-meta) (:score b-meta))]
     (if-not (zero? score-comparison)
       score-comparison
-      (let [a-text (option->text a)
-            b-text (option->text b)
-            text-length-comparison (compare (count a-text) (count b-text))]
-        (if-not (zero? text-length-comparison)
-          text-length-comparison
-          (let [text-comparison (compare a-text b-text)]
+      (let [a-matching-indices (:matching-indices a-meta)
+            b-matching-indices (:matching-indices b-meta)
+            a-matched-substring-length (- ^long (peek a-matching-indices) ^long (first a-matching-indices))
+            b-matched-substring-length (- ^long (peek b-matching-indices) ^long (first b-matching-indices))
+            matched-substring-length-comparison (compare a-matched-substring-length b-matched-substring-length)]
+        (if-not (zero? matched-substring-length-comparison)
+          matched-substring-length-comparison
+          (let [^String a-text (option->text a)
+                ^String b-text (option->text b)
+                text-comparison (.compareToIgnoreCase a-text b-text)]
             (if-not (zero? text-comparison)
               text-comparison
               (try
@@ -43,8 +49,8 @@
       (.add (.getStyleClass text-view) style-class))
     text-view))
 
-(defn- matched-text-runs [text matching-indices]
-  (let [/ (or (some-> text (string/last-index-of \/) inc) 0)]
+(defn- matched-text-runs [^String text matching-indices]
+  (let [/ (inc (.lastIndexOf text "/"))]
     (into []
           (mapcat (fn [[matched? start end]]
                     (cond
@@ -60,7 +66,7 @@
 
                       :else
                       [(make-text-run (subs text start end) nil)])))
-          (fuzzy-text/runs (count text) matching-indices))))
+          (fuzzy-text/runs (.length text) matching-indices))))
 
 (defn make-matched-text-flow
   ^TextFlow [text matching-indices]
