@@ -334,6 +334,25 @@ namespace dmGameObject
         return 1;
     }
 
+    static int ScriptGetInstanceContextTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int self_index = 1;
+
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
+        if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
+        {
+            lua_pushnumber(L, i->m_ContextTableReference);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        return 1;
+    }
+
     static const luaL_reg ScriptInstance_methods[] =
     {
         {0,0}
@@ -341,14 +360,15 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",                            ScriptInstance_gc},
-        {"__tostring",                      ScriptInstance_tostring},
-        {"__index",                         ScriptInstance_index},
-        {"__newindex",                      ScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL,      ScriptInstanceGetURL},
-        {dmScript::META_TABLE_GET_USER_DATA,ScriptInstanceGetUserData},
-        {dmScript::META_TABLE_RESOLVE_PATH, ScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID,     ScriptInstanceIsValid},
+        {"__gc",                                        ScriptInstance_gc},
+        {"__tostring",                                  ScriptInstance_tostring},
+        {"__index",                                     ScriptInstance_index},
+        {"__newindex",                                  ScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,                  ScriptInstanceGetURL},
+        {dmScript::META_TABLE_GET_USER_DATA,            ScriptInstanceGetUserData},
+        {dmScript::META_TABLE_RESOLVE_PATH,             ScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
+        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
         {0, 0}
     };
 
@@ -2044,6 +2064,7 @@ bail:
         memset(script_instance, 0, sizeof(ScriptInstance));
         script_instance->m_InstanceReference = LUA_NOREF;
         script_instance->m_ScriptDataReference = LUA_NOREF;
+        script_instance->m_ContextTableReference = LUA_NOREF;
     }
 
     HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index)
@@ -2062,6 +2083,9 @@ bail:
 
         lua_newtable(L);
         i->m_ScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+
+        lua_newtable(L);
+        i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         i->m_Instance = instance;
         i->m_ComponentIndex = component_index;
@@ -2091,6 +2115,7 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ContextTableReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
