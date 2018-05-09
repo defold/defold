@@ -26,7 +26,7 @@ struct LuaCallbackInfo
     int        m_Self;
 };
 
-void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+static void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
 {
     if(cbk->m_Callback != LUA_NOREF)
     {
@@ -46,7 +46,7 @@ void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
 
 typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
 
-bool IsValidCallback(LuaCallbackInfo* cbk)
+static bool IsValidCallback(LuaCallbackInfo* cbk)
 {
     if (cbk->m_Callback == LUA_NOREF ||
         cbk->m_Self == LUA_NOREF ||
@@ -56,7 +56,7 @@ bool IsValidCallback(LuaCallbackInfo* cbk)
     return true;
 }
 
-void UnregisterCallback(LuaCallbackInfo* cbk)
+static void UnregisterCallback(LuaCallbackInfo* cbk)
 {
     if(cbk->m_Callback != LUA_NOREF)
     {
@@ -75,7 +75,7 @@ void UnregisterCallback(LuaCallbackInfo* cbk)
     }
 }
 
-bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+static bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
 {
     if(cbk->m_Callback == LUA_NOREF)
     {
@@ -94,7 +94,7 @@ bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_conte
     if (!dmScript::IsInstanceValid(L))
     {
         lua_pop(L, 2);
-        DM_LUA_ERROR("Could not run callback because the instance has been deleted");
+        dmLogWarning("Invalid script instance, failed to invoke callback");
         return false;
     }
 

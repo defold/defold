@@ -802,12 +802,8 @@ namespace dmScript
 
     int Ref(lua_State* L, int table)
     {
-        int ref = luaL_ref(L, table);
-        if (ref != LUA_NOREF)
-        {
-            ++g_LuaReferenceCount;
-        }
-        return ref;
+        ++g_LuaReferenceCount;
+        return luaL_ref(L, table);
     }
 
     void Unref(lua_State* L, int table, int reference)
@@ -816,7 +812,10 @@ namespace dmScript
         {
             return;
         }
-        assert(g_LuaReferenceCount > 0);
+        if (g_LuaReferenceCount <= 0)
+        {
+            dmLogError("Unbalanced number of Lua refs - possibly double calls to dmScript::Unref");
+        }
         --g_LuaReferenceCount;
         luaL_unref(L, table, reference);
     }
@@ -1002,7 +1001,7 @@ namespace dmScript
     {
         if(cbk->m_ContextTableRef == LUA_NOREF)
         {
-            luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
+            dmLogWarning("Failed to invoke callback (it was not registered)");
             return false;
         }
 
@@ -1019,7 +1018,7 @@ namespace dmScript
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 2);
-            DM_LUA_ERROR("Could not run callback because the callback has been deleted");
+            dmLogWarning("Could not run callback because the script instance has been deleted");
             return false;
         }
 
@@ -1032,7 +1031,7 @@ namespace dmScript
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
             lua_pop(L, 3);
-            DM_LUA_ERROR("Could not run callback because the callback has been deleted");
+            dmLogWarning("Could not run callback because the callback function has been deleted");
             return false;
         }
 
@@ -1044,7 +1043,7 @@ namespace dmScript
         if (lua_isnil(L, -1))
         {
             lua_pop(L, 4);
-            DM_LUA_ERROR("Could not run callback because the callback has been deleted");
+            dmLogWarning("Could not run callback because the script instance has been deleted");
             return false;
         }
 
@@ -1067,9 +1066,7 @@ namespace dmScript
             // [-1] old instance
 
             SetInstance(L);
-
-            DM_LUA_ERROR("Could not run callback because the instance has been deleted");
-
+            dmLogWarning("Could not run callback because the script instance is invalid");
             return false;
         }
 
