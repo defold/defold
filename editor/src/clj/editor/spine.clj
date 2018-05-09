@@ -185,7 +185,7 @@
   (let [pb-field (timeline-type->pb-field type)
         val-fn (or val-fn key->value)
         default-val (if (nil? default-val) (default-vals pb-field) default-val)
-        sample-count (+ 1 (Math/ceil (* duration sample-rate)))
+        sample-count (Math/ceil (+ 1 (* duration sample-rate)))
         ; Sort keys
         keys (vec (sort-by #(get % "time") keys))
         vals (mapv #(if-some [v (val-fn type %)] v default-val) keys)
