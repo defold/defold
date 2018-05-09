@@ -942,4 +942,16 @@ namespace dmGameSystem
         return true;
     }
 
+    bool CompSpineModelSetSkin(SpineModelComponent* component, dmhash_t skin_id)
+    {
+        dmRig::Result r = dmRig::SetMesh(component->m_RigInstance, skin_id);
+        return r == dmRig::RESULT_OK;
+    }
+
+    bool CompSpineModelSetSkinSlot(SpineModelComponent* component, dmhash_t skin_id, dmhash_t slot_id)
+    {
+        dmRig::Result r = dmRig::SetMeshSlot(component->m_RigInstance, skin_id, slot_id);
+        return r == dmRig::RESULT_OK;
+    }
+
 }

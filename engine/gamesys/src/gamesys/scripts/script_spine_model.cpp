@@ -415,6 +415,67 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# sets the spine skin
+     * Sets the spine skin on a spine model.
+     *
+     * @name spine.set_skin
+     * @param url [type:string|hash|url] the spine model for which to set skin
+     * @param spine_skin [type:string|hash] spine skin id
+     * @param spine_slot [type:string|hash] optional slot id to only change a specific slot
+     * @examples
+     *
+     * The following examples assumes that the spine model has id "spinemodel".
+     *
+     * Change skin of a Spine model
+     *
+     * ```lua
+     * function init(self)
+     *   spine.set_skin("#spinemodel", "monster")
+     * end
+     * ```
+     *
+     * Change only part of the Spine model to a different skin.
+     *
+     * ```lua
+     * function monster_transform_arm(self)
+     *   -- The player is trasforming into a monster, begin with changing the arm.
+     *   spine.set_skin("#spinemodel", "monster", "left_arm_slot")
+     * end
+     * ```
+     */
+    int SpineComp_SetSkin(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        SpineModelWorld* world = 0;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
+
+        SpineModelComponent* component = world->m_Components.Get(user_data);
+
+        bool r = false;
+        dmhash_t skin_id = dmScript::CheckHashOrString(L, 2);
+        if (top > 2) {
+            dmhash_t slot_id = dmScript::CheckHashOrString(L, 3);
+            r = CompSpineModelSetSkinSlot(component, skin_id, slot_id);
+        } else {
+            r = CompSpineModelSetSkin(component, skin_id);
+        }
+
+        if (!r)
+        {
+            return luaL_error(L, "failed to set spine skin for spine component");
+        }
+
+
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     /*# set the target position of an IK constraint object
      *
      * Sets a static (vector3) target position of an inverse kinematic (IK) object.
@@ -614,6 +675,7 @@ namespace dmGameSystem
             {"play_anim", SpineComp_PlayAnim},
             {"cancel",  SpineComp_Cancel},
             {"get_go",  SpineComp_GetGO},
+            {"set_skin",  SpineComp_SetSkin},
             {"set_ik_target_position", SpineComp_SetIKTargetPosition},
             {"set_ik_target",   SpineComp_SetIKTarget},
             {"set_constant",    SpineComp_SetConstant},

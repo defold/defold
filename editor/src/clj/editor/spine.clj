@@ -559,7 +559,8 @@
                                bone-index (bone-id->index (murmur/hash64 (get slot "bone")))
                                default-attachment (get slot "attachment")]
                            [slot-name
-                            {:bone-index bone-index
+                            {:id (murmur/hash64 slot-name)
+                             :bone-index bone-index
                              :bone-world (get bone-index->world-transform bone-index)
                              :draw-order i
                              :slot-color (hex->color (get slot "color" "ffffffff"))
@@ -689,7 +690,8 @@
                                                 :mesh-slots (mapv (fn [slot]
                                                                     (let [slot-data (val slot)
                                                                           attachment-points (get slot-data :attachment-points)]
-                                                                      {:mesh-attachments (mapv (fn [attachment-name] (get attachment-points attachment-name))
+                                                                      {:id (:id slot-data)
+                                                                       :mesh-attachments (mapv (fn [attachment-name] (get attachment-points attachment-name))
                                                                                                (:attachment-names slot-data))
                                                                        :active-index (get slot-data :active-attachment -1)
                                                                        :slot-color (:slot-color slot-data)}))

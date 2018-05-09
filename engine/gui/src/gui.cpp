@@ -2691,6 +2691,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return dmRig::GetMesh(rig_instance);
     }
 
+    Result SetNodeSpineSkinSlot(HScene scene, HNode node, dmhash_t skin_id, dmhash_t slot_id)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        dmRig::Result result = dmRig::SetMeshSlot(rig_instance, skin_id, slot_id);
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
