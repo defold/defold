@@ -233,8 +233,10 @@
             var plotSamples = {};
             var plotCounters = {};
 
-            var sortResorcesSettings = { id : "resources_size_label", descending : true };
+            var sortResourcesSettings = { id : "resources_size_label", descending : true };
             var resourceItems = [];
+            var resourceSizeTotal = 0;
+            var resourceSizeOnDiscTotal = 0;
 
             // Global vars to help with expand/collapse collection table functionality
             var goRootsList = [];
@@ -1305,6 +1307,9 @@
             function rebuildResourceItems(event) {
                 // Build resource table
                 resourceItems = [];
+
+                resourceSizeTotal = 0;
+                resourceSizeOnDiscTotal = 0;
                 for (var i = 0; i < framesResources.length; i++) {
                     var res = framesResources[i];
                     resourceItems[i] = {    name: res.name,
@@ -1314,6 +1319,9 @@
                                             humanReadableSize: humanReadableSize(res.size),
                                             humanReadableSizeOnDisc: humanReadableSize(res.sizeOnDisc),
                                             referenceCount: res.refCount };
+
+                    resourceSizeTotal += res.size;
+                    resourceSizeOnDiscTotal += res.sizeOnDisc;
                 }
             }
 
@@ -1325,17 +1333,24 @@
                     resources_type_label: "Type",
                     resources_refcount_label: "RefCount"
                 };
+                var typeToExtra = {
+                    resources_resource_label: "",
+                    resources_size_label: '<div id="resources_size_total_label"></div>',
+                    resources_size_on_disc_label: '<div id="resources_size_on_disc_total_label"></div>',
+                    resources_type_label: "",
+                    resources_refcount_label: ""
+                };
 
-                if(sortResorcesSettings.id == object.id) {
-                    sortResorcesSettings.descending = !sortResorcesSettings.descending;
+                if(sortResourcesSettings.id == object.id) {
+                    sortResourcesSettings.descending = !sortResourcesSettings.descending;
                 } else {
-                    var e = document.getElementById(sortResorcesSettings.id);
-                    e.innerHTML = '<div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">' + typeToName[sortResorcesSettings.id] + '</div>';
-                    sortResorcesSettings.id = object.id;
-                    sortResorcesSettings.descending = true;
+                    var e = document.getElementById(sortResourcesSettings.id);
+                    e.innerHTML = '<div class="resource-table-sort-none">&#x25BC</div><div class="resource-table-label">' + typeToName[sortResourcesSettings.id] + '</div>' + typeToExtra[sortResourcesSettings.id];
+                    sortResourcesSettings.id = object.id;
+                    sortResourcesSettings.descending = true;
                 }
 
-                object.innerHTML = '<div class="resource-table-sort">' + (sortResorcesSettings.descending ? '&#x25BC' : '&#x25B2') + '</div><div class="resource-table-label">' + typeToName[sortResorcesSettings.id]  + '</div>';
+                object.innerHTML = '<div class="resource-table-sort">' + (sortResourcesSettings.descending ? '&#x25BC' : '&#x25B2') + '</div><div class="resource-table-label">' + typeToName[sortResourcesSettings.id]  + '</div>' + typeToExtra[sortResourcesSettings.id];
                 rebuildResourceView();
             }
 
@@ -1349,15 +1364,15 @@
                     resources_type_label: "type",
                     resources_refcount_label: "referenceCount"
                 };
-                var typeKey = typeToKey[sortResorcesSettings.id];
+                var typeKey = typeToKey[sortResourcesSettings.id];
                 switch( typeKey ) {
                     case "name":
                     case "type":
-                        resourceItems.sort( sortResorcesSettings.descending ? function(a, b) { return a[typeKey] < b[typeKey] ? -1 : (a[typeKey] > b[typeKey] ? 1 : 0) }  :  function(a, b) { return a[typeKey] < b[typeKey] ? 1 : (a[typeKey] > b[typeKey] ? -1 : 0) } );
+                        resourceItems.sort( sortResourcesSettings.descending ? function(a, b) { return a[typeKey] < b[typeKey] ? -1 : (a[typeKey] > b[typeKey] ? 1 : 0) }  :  function(a, b) { return a[typeKey] < b[typeKey] ? 1 : (a[typeKey] > b[typeKey] ? -1 : 0) } );
                         break;
 
                     default:
-                        resourceItems.sort( sortResorcesSettings.descending ? function(a, b) { return b[typeKey] - a[typeKey]; } : function(b, a) { return b[typeKey] - a[typeKey]; } );
+                        resourceItems.sort( sortResourcesSettings.descending ? function(a, b) { return b[typeKey] - a[typeKey]; } : function(b, a) { return b[typeKey] - a[typeKey]; } );
                         break;
                 }
 
@@ -1393,6 +1408,10 @@
                     rowElem.appendChild(refcountElem);
                 }
 
+                var e = document.getElementById("resources_size_total_label");
+                e.innerHTML = " (" + humanReadableSize(resourceSizeTotal) + ")";
+                var e = document.getElementById("resources_size_on_disc_total_label");
+                e.innerHTML = " (" + humanReadableSize(resourceSizeOnDiscTotal) + ")";
             }
 
             function rebuildResourceHTML(event) {
@@ -1447,8 +1466,8 @@
                     <thead>
                         <tr>
                             <th onClick="setResourceSortPredicate(this);" id="resources_resource_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Resource</div></th>
-                            <th onClick="setResourceSortPredicate(this);" id="resources_size_label"><div class="resource-table-sort">&#x25BC;</div><div class="resource-table-label">Size</div></th>
-                            <th onClick="setResourceSortPredicate(this);" id="resources_size_on_disc_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Size On Disc</div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_label"><div class="resource-table-sort">&#x25BC;</div><div class="resource-table-label">Size</div><div id="resources_size_total_label"></div></th>
+                            <th onClick="setResourceSortPredicate(this);" id="resources_size_on_disc_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Size On Disc</div><div id="resources_size_on_disc_total_label"></div></th>
                             <th onClick="setResourceSortPredicate(this);" id="resources_type_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Type</div></th>
                             <th onClick="setResourceSortPredicate(this);" id="resources_refcount_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">RefCount</div></th>
                         </tr>
