@@ -616,9 +616,17 @@
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-msg g/Any produce-node-msg)
   (input node-msgs g/Any :array)
-  (output node-msgs g/Any :cached (g/fnk [node-msgs node-msg] (into [node-msg] node-msgs)))
+  (output node-msgs g/Any :cached (g/fnk [node-msgs node-msg] (into [node-msg]
+                                                                    (->> node-msgs
+                                                                         (sort-by #(get-in % [0 :child-index]))
+                                                                         flatten
+                                                                         (map #(dissoc % :child-index))))))
   (input node-rt-msgs g/Any :array)
-  (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs node-msg] (into [node-msg] node-rt-msgs)))
+  (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs node-msg] (into [node-msg]
+                                                                          (->> node-rt-msgs
+                                                                               (sort-by #(get-in % [0 :child-index]))
+                                                                               flatten
+                                                                               (map #(dissoc % :child-index))))))
   (output aabb g/Any :abstract)
   (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
   (output scene-updatable g/Any (g/constantly nil))
@@ -1680,9 +1688,17 @@
   (input ids g/Str :array)
   (output id-counts NameCounts :cached (g/fnk [ids] (frequencies ids)))
   (input node-msgs g/Any :array)
-  (output node-msgs g/Any :cached (g/fnk [node-msgs] (map #(dissoc % :child-index) (flatten (sort-by #(get-in % [0 :child-index]) node-msgs)))))
+  (output node-msgs g/Any :cached (g/fnk [node-msgs]
+                                         (->> node-msgs
+                                              (sort-by #(get-in % [0 :child-index]))
+                                              flatten
+                                              (map #(dissoc % :child-index)))))
   (input node-rt-msgs g/Any :array)
-  (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs] (map #(dissoc % :child-index) (flatten (sort-by #(get-in % [0 :child-index]) node-rt-msgs)))))
+  (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs]
+                                            (->> node-rt-msgs
+                                                 (sort-by #(get-in % [0 :child-index]))
+                                                 flatten
+                                                 (map #(dissoc % :child-index)))))
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
@@ -1981,7 +1997,7 @@
   (input node-msgs g/Any)
   (output node-msgs g/Any (gu/passthrough node-msgs))
   (input node-rt-msgs g/Any)
-  (output node-rt-msgs g/Any (g/fnk [node-rt-msgs] (map #(dissoc % :child-index) (flatten (sort-by #(get-in % [0 :child-index]) node-rt-msgs)))))
+  (output node-rt-msgs g/Any (gu/passthrough node-rt-msgs))
   (input node-overrides g/Any)
   (output node-overrides g/Any :cached (gu/passthrough node-overrides))
   (input font-msgs g/Any :array)
