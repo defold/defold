@@ -159,6 +159,15 @@
                                  "mix" :double
                                  "bendPositive" :boolean})
 
+(def timeline-type->key-stride {"translate" 3
+                                "rotate" 4
+                                "scale" 3
+                                "color" 4
+                                "attachment" 1
+                                "drawOrder" 1
+                                "mix" 1
+                                "bendPositive" 1})
+
 (defn key->curve-data
   [key]
   ; NOTE:
@@ -176,7 +185,7 @@
   (let [pb-field (timeline-type->pb-field type)
         val-fn (or val-fn key->value)
         default-val (if (nil? default-val) (default-vals pb-field) default-val)
-        sample-count (Math/ceil (+ 1 (* duration sample-rate)))
+        sample-count (+ 1 (Math/ceil (* duration sample-rate)))
         ; Sort keys
         keys (vec (sort-by #(get % "time") keys))
         vals (mapv #(if-some [v (val-fn type %)] v default-val) keys)
@@ -229,6 +238,12 @@
             (vector-of (timeline-type->vector-type type))
             (range sample-count))))
 
+; Calls the regular sample function then duplicates the last keyframe so that
+; the linear interpolation works correctly in runtime.
+(defn- sample-with-dup-frame [type keys duration sample-rate spf val-fn default-val interpolate?]
+  (let [keyframes (sample type keys duration sample-rate spf val-fn default-val interpolate?)]
+    (into keyframes (take-last (timeline-type->key-stride type) keyframes))))
+
 ; This value is used to counter how the key values for rotations are interpreted in spine:
 ; * All values are modulated into the interval 0 <= x < 360
 ; * If keys k0 and k1 have a difference > 180, the second key is adjusted with +/- 360 to lessen the difference to < 180
@@ -255,7 +270,7 @@
                                     (let [bone-index (bone-id->index (murmur/hash64 bone-name))]
                                       (reduce-kv (fn [m type keys]
                                                    (if-let [field (timeline-type->pb-field type)]
-                                                     (let [pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
+                                                     (let [pb-track {field (sample-with-dup-frame type (wrap-angles type keys) duration sample-rate spf nil nil true)
                                                                      :bone-index bone-index}]
                                                        (update-in m [bone-index] merge pb-track))
                                                      m))
@@ -303,7 +318,7 @@
                                                                     ; just an increasing integer from 0 created when we read the base slots from
                                                                     ; the input file.
                                                                     pb-track {:mesh-slot (:draw-order slot-data)
-                                                                              field (sample type keys duration sample-rate spf val-fn default-val interpolate?)}]
+                                                                              field (sample-with-dup-frame type keys duration sample-rate spf val-fn default-val interpolate?)}]
                                                                 (merge track pb-track)))
                                                             {} timeline)]
                                       (assoc m slot tracks)))
@@ -330,8 +345,8 @@
   (->> ik-timelines
        (map (fn [[ik-name key-frames]]
               {:ik-index (ik-id->index (murmur/hash64 ik-name))
-               :mix      (sample "mix" key-frames duration sample-rate spf nil nil true)
-               :positive (sample "bendPositive" key-frames duration sample-rate spf nil nil false)}))
+               :mix      (sample-with-dup-frame "mix" key-frames duration sample-rate spf nil nil true)
+               :positive (sample-with-dup-frame "bendPositive" key-frames duration sample-rate spf nil nil false)}))
        (sort-by :ik-index)
        (vec)))
 
