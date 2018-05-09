@@ -166,7 +166,7 @@ public class ColladaUtilTest {
      */
     private void assertAnimationRotationChanges(Rig.AnimationTrack track, float changesOnX, float changesOnY, float changesOnZ) {
         // 4 floats per keyframe due to quaternions, last keyframe is a duplicate so skip it.
-        int keyframeCount = track.getRotationsCount() / 4 - 1;
+        int keyframeCount = track.getRotationsCount() / 4 - 2;
 
         String[] axisLabel = {"X", "Y", "Z"};
         double[] changes = {changesOnX, changesOnY, changesOnZ};
@@ -843,7 +843,7 @@ public class ColladaUtilTest {
 
                     // Position changes only in negative Z
                     float lastZ = track.getPositions(2);
-                    int posCount = track.getPositionsCount() / 3 - 1;
+                    int posCount = track.getPositionsCount() / 3 - 2;
                     for (int i = 1; i < posCount; i++) {
                         assertEquals(0.0f, track.getPositions(i*3), EPSILON);
                         assertEquals(0.0f, track.getPositions(i*3+1), EPSILON);
