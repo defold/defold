@@ -298,7 +298,7 @@ namespace dmGui
         memset(scene, 0, sizeof(Scene));
         scene->m_InstanceReference = LUA_NOREF;
         scene->m_DataReference = LUA_NOREF;
-        scene->m_RefTableReference = LUA_NOREF;
+        scene->m_ContextTableReference = LUA_NOREF;
     }
 
     HScene NewScene(HContext context, const NewSceneParams* params)
@@ -321,9 +321,10 @@ namespace dmGui
         scene->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         // Here we create a custom table to hold the references created by this gui scene
-        // Don't interact with this table with other functions than dmScript::Ref/dmScript::Unref
+        // It is also the "Instance Context Table" used to by META_TABLE_SET_CONTEXT_VALUE
+        // and META_TABLE_GET_CONTEXT_VALUE implementaion
         lua_newtable(L);
-        scene->m_RefTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        scene->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         lua_newtable(L);
         scene->m_DataReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
@@ -400,7 +401,7 @@ namespace dmGui
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
-        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
 
         dmArray<HScene>& scenes = scene->m_Context->m_Scenes;
         uint32_t scene_count = scenes.Size();

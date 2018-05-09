@@ -40,6 +40,7 @@ namespace dmRender
         uint32_t                    m_PredicateCount;
         int                         m_InstanceReference;
         int                         m_RenderScriptDataReference;
+        int                         m_ContextTableReference;
     };
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmScript::HContext script_context, uint32_t command_buffer_size);
