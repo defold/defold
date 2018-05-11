@@ -53,9 +53,9 @@ namespace dmTracking
 
         const int self_index = 1;
 
-        script = (Script*)lua_touserdata(L, self_index);
+        Script* script = (Script*)lua_touserdata(L, self_index);
         lua_pop(L, 1);
-        lua_pushnumber(L, script && script->m_Context, script->m_Context.m_ContextableReference);
+        lua_pushnumber(L, script && script->m_Context ? script->m_Context->m_ContextTableReference : LUA_NOREF);
         return 1;
     }
 
