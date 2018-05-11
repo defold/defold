@@ -362,7 +362,7 @@
   (run [selection workspace]
     (let [resource (first selection)
           dir? (= :folder (resource/source-type resource))
-          extension (:ext (resource/resource-type resource))
+          extension (resource/ext resource)
           name (if dir?
                  (resource/resource-name resource)
                  (if (seq extension)

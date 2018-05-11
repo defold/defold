@@ -38,7 +38,7 @@
   (if-let [node (project/get-resource-node project (:url request))]
     (let [resource      (g/node-value node :resource)
           resource-type (resource/resource-type resource)
-          resource-ext  (resource/ext resource)
+          resource-ext  (resource/type-ext resource)
           view-types    (map :id (:view-types resource-type))]
       (cond
         (some #{:html} view-types)
