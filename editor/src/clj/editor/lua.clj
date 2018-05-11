@@ -153,8 +153,9 @@
 (def control-flow-keywords #{"break" "do" "else" "for" "if" "elseif" "return" "then" "repeat" "while" "until" "end" "function"
                              "local" "goto" "in"})
 
-(def defold-keywords #{"final" "init" "on_input" "on_message" "on_reload" "update" "acquire_input_focus" "disable" "enable"
-                       "release_input_focus" "request_transform" "set_parent" "transform_response"})
+(def defold-callbacks #{"final" "init" "on_input" "on_message" "on_reload" "update"})
+
+(def defold-messages #{"acquire_input_focus" "disable" "enable" "release_input_focus" "request_transform" "set_parent" "transform_response"})
 
 (def lua-constants #{"nil" "false" "true"})
 
@@ -163,10 +164,12 @@
              logic-keywords
              self-keyword
              control-flow-keywords
-             defold-keywords))
+             defold-callbacks
+             defold-messages))
 
 (def defold-docs (atom (defold-documentation)))
 (def preinstalled-modules (into #{} (remove #{""} (keys @defold-docs))))
+(def defold-globals (into preinstalled-modules ["hash"]))
 
 (defn lua-base-documentation []
   (s/validate documentation-schema

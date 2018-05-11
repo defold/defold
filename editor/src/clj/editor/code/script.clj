@@ -116,7 +116,12 @@
                    :icon "icons/32/Icons_11-Script-general.png"
                    :view-types [:code :default]
                    :view-opts lua-code-opts
-                   :tags #{:debuggable}}])
+                   :tags #{:debuggable}}
+                  {:ext "luacheckrc"
+                   :label "Luacheck Configuration"
+                   :icon "icons/32/Icons_11-Script-general.png"
+                   :view-types [:code :default]
+                   :view-opts lua-code-opts}])
 
 (def ^:private status-errors
   {:ok nil

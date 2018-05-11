@@ -85,7 +85,8 @@
   (reserved-proj-paths path))
 
 (defn- file-resource-filter [^File root ^File f]
-  (not (or (= (.charAt (.getName f) 0) \.)
+  (not (or (and (= (.charAt (.getName f) 0) \.)
+                (not (.equalsIgnoreCase ".luacheckrc" (.getName f))))
            (reserved-proj-path? (resource/file->proj-path root f)))))
 
 (defn- make-file-tree
