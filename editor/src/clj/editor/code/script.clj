@@ -6,6 +6,7 @@
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
             [editor.lua :as lua]
+            [editor.luacheck :as luacheck]
             [editor.luajit :as luajit]
             [editor.lua-parser :as lua-parser]
             [editor.properties :as properties]
@@ -152,12 +153,17 @@
                                              :type  type}))
                               (:properties user-properties))
         modules         (:modules user-data)
-        bytecode        (script->bytecode (:lines user-data) (:proj-path user-data))]
+        project-root    (workspace/project-path (resource/workspace resource))
+        proj-path       (:proj-path user-data)
+        lines           (:lines user-data)
+        bytecode        (script->bytecode lines proj-path)
+        lint-errors     (when (resource/file-resource? (:resource resource))
+                          (luacheck/check project-root proj-path (data/lines-reader lines)))]
     (g/precluding-errors
-      [bytecode]
+      [bytecode lint-errors]
       {:resource resource
        :content  (protobuf/map->bytes Lua$LuaModule
-                                      {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader (:lines user-data))))
+                                      {:source     {:script   (ByteString/copyFromUtf8 (slurp (data/lines-reader lines)))
                                                     :filename (resource/proj-path (:resource resource))
                                                     :bytecode (ByteString/copyFrom ^bytes bytecode)}
                                        :modules    modules

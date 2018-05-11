@@ -48,7 +48,7 @@
     (pair node-id depth)))
 
 (defn- error-line [error]
-  (-> error :value ex-data :line))
+  (-> error :user-data :line))
 
 (defn- missing-resource-node? [evaluation-context node-id]
   (and (g/node-instance? (:basis evaluation-context) resource/ResourceNode node-id)
