@@ -43,6 +43,21 @@ namespace dmScript
     extern const char* META_TABLE_GET_URL;
     extern const char* META_TABLE_GET_USER_DATA;
     extern const char* META_TABLE_IS_VALID;
+
+    /**
+     * Implementor should return a Ref to the instance context table.
+     * 
+     * CAUTION! The implementation should *NOT* create a new ref, it
+     * should return an existing one. If it does not have one, it should
+     * return LUA_NOREF
+     * 
+     * Lua stack on entry
+     *  [-1] instance
+     * 
+     * Lua stack on exit
+     *  [-1] ref to instance context table or LUA_NOREF
+     * 
+     */
     extern const char* META_GET_INSTANCE_CONTEXT_TABLE_REF;
 
     /**
@@ -395,7 +410,11 @@ namespace dmScript
      * Lua stack on exit
      *  [-1] value or LUA_NIL
     */
-    bool GetInstanceContextValue(lua_State* L);
+    void GetInstanceContextValue(lua_State* L);
+
+    int RefInInstance(lua_State* L);
+    void UnrefInInstance(lua_State* L, int ref);
+    void ResolveInInstance(lua_State* L, int ref);
 
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 
