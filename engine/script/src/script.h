@@ -412,8 +412,52 @@ namespace dmScript
     */
     void GetInstanceContextValue(lua_State* L);
 
+    /**
+     * Creates a reference to the value at top of stack, the ref is done in the
+     * current instances context table.
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @return lua ref to value or LUA_NOREF
+     * 
+     * Lua stack on entry
+     *  [-1] value
+     * 
+     * Lua stack on exit
+    */
     int RefInInstance(lua_State* L);
+
+    /**
+     * Deletes the instance local lua reference
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @param ref the instance local ref
+     * 
+     * Lua stack on entry
+     * 
+     * Lua stack on exit
+     */
     void UnrefInInstance(lua_State* L, int ref);
+
+    /**
+     * Resolves the instance local ref and pushes it to top of stack
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @param ref the instance local ref
+     * 
+     * Lua stack on entry
+     * 
+     * Lua stack on exit
+     *  [-1] value or LUA_NIL
+     */
     void ResolveInInstance(lua_State* L, int ref);
 
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
