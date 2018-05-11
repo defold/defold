@@ -177,7 +177,7 @@ namespace dmEngine
     , m_MainCollection(0)
     , m_LastReloadMTime(0)
     , m_MouseSensitivity(1.0f)
-    , m_ShowProfile(false)
+    , m_RenderProfile(0x0)
     , m_GraphicsContext(0)
     , m_RenderContext(0)
     , m_SharedScriptContext(0x0)
@@ -1147,6 +1147,10 @@ bail:
             {
                 memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
             }
+//            if (engine->m_RenderContext->m_ScriptContext != 0x0)
+//            {
+//                memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_RenderContext->m_ScriptContext));
+//            }
         }
         return memcount;
     }
@@ -1319,7 +1323,7 @@ bail:
                 }
 
                 DM_COUNTER("Lua.Refs", dmScript::GetLuaRefCount());
-                DM_COUNTER("Lua.Mem", GetLuaMemCount(engine));
+                DM_COUNTER("Lua.Mem (Kb)", GetLuaMemCount(engine));
 
                 if (dLib::IsDebugMode())
                 {
@@ -1335,13 +1339,14 @@ bail:
                 }
 
 #if !defined(DM_RELEASE)
-                if(engine->m_ShowProfile)
+                if(engine->m_RenderProfile)
                 {
                     DM_PROFILE(Profile, "Draw");
                     dmProfile::Pause(true);
 
+                    dmProfileRender::UpdateRenderProfile(engine->m_RenderProfile, profile);
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmProfileRender::Draw(profile, engine->m_RenderContext, engine->m_SystemFontMap);
+                    dmProfileRender::Draw(engine->m_RenderProfile, engine->m_RenderContext, engine->m_SystemFontMap);
                     dmRender::RenderListEnd(engine->m_RenderContext);
                     dmRender::SetViewMatrix(engine->m_RenderContext, Matrix4::identity());
                     dmRender::SetProjectionMatrix(engine->m_RenderContext, Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), 0.0f, dmGraphics::GetWindowHeight(engine->m_GraphicsContext), 1.0f, -1.0f));
@@ -1534,7 +1539,17 @@ bail:
             }
             else if (descriptor == dmEngineDDF::ToggleProfile::m_DDFDescriptor)
             {
-                self->m_ShowProfile = !self->m_ShowProfile;
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile)
+                {
+                    dmProfileRender::DeleteRenderProfile(self->m_RenderProfile);
+                    self->m_RenderProfile = 0x0;
+                }
+                else
+                {
+                    self->m_RenderProfile = dmProfileRender::NewRenderProfile(self->m_UpdateFrequency);
+                }
+#endif
             }
             else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
             {

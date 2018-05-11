@@ -29,6 +29,11 @@
 #include "engine_service.h"
 #include "engine_ddf.h"
 
+namespace dmProfileRender
+{
+    typedef struct RenderProfile* HRenderProfile;
+}
+
 namespace dmEngine
 {
     const uint32_t MAX_RUN_RESULT_ARGS = 32;
@@ -107,7 +112,7 @@ namespace dmEngine
         uint32_t                                    m_LastReloadMTime;
 
         float                                       m_MouseSensitivity;
-        bool                                        m_ShowProfile;
+        dmProfileRender::HRenderProfile             m_RenderProfile;
 
         dmGraphics::HContext                        m_GraphicsContext;
         dmRender::HRenderContext                    m_RenderContext;

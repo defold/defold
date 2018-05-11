@@ -60,7 +60,7 @@ namespace dmProfile
 
     // Used when out of scopes in order to remove conditional branches
     ScopeData g_DummyScopeData;
-    Scope g_DummyScope = { "foo", 0, &g_DummyScopeData };
+    Scope g_DummyScope = { "foo", 0u, 0, &g_DummyScopeData };
 
     struct InitSpinLocks
     {
@@ -413,9 +413,10 @@ namespace dmProfile
         {
             // NOTE: Not optimal with O(n) but scopes are allocated only once
             uint32_t n = g_Scopes.Size();
+            uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
             for (uint32_t i = 0; i < n; ++i)
             {
-                if (strcmp(name, g_Scopes[i].m_Name) == 0)
+                if (g_Scopes[i].m_NameHash == name_hash)
                 {
                     dmSpinlock::Unlock(&g_ProfileLock);
                     return &g_Scopes[i];
@@ -430,6 +431,7 @@ namespace dmProfile
             sd->m_Elapsed = 0;
             sd->m_Count = 0;
             s->m_Name = name;
+            s->m_NameHash = name_hash;
             s->m_Index = i;
             dmSpinlock::Unlock(&g_ProfileLock);
             return s;
@@ -540,7 +542,7 @@ namespace dmProfile
             cd->m_Counter = c;
             cd->m_Value = 0;
 
-            g_CountersTable.Put(c->m_NameHash, new_index);
+            g_CountersTable.Put(name_hash, new_index);
 
             counter_index = g_CountersTable.Get(name_hash);
         }
@@ -624,6 +626,31 @@ namespace dmProfile
         {
             call_back(context, &profile->m_CountersData[i]);
         }
+    }
+
+    uint64_t GetNowTicks()
+    {
+        if (!g_IsInitialized)
+        {
+            return 0u;
+        }
+       uint64_t now;
+#if defined(_WIN32)
+            QueryPerformanceCounter((LARGE_INTEGER *) &end);
+#elif defined(__EMSCRIPTEN__)
+        now = (uint64_t)(emscripten_get_now() * 1000.0);
+#else
+        timeval tv;
+        gettimeofday(&tv, 0);
+        now = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
+        return now;
+    }
+
+    uint32_t GetTickSinceBegin()
+    {
+       uint64_t now = GetNowTicks();
+       return (uint32_t)(now - g_BeginTime);
     }
 }
 

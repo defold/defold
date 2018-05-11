@@ -128,6 +128,8 @@ namespace dmProfile
     {
         /// Scope name
         const char* m_Name;
+        /// Scope name hash
+        uint32_t    m_NameHash;
         /// Scope index, range [0, scopes-1]
         uint16_t    m_Index;
         /// Internal data
@@ -398,6 +400,9 @@ namespace dmProfile
             m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
         }
     };
+
+    uint64_t GetNowTicks();
+    uint32_t GetTickSinceBegin();
 
 }
 

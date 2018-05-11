@@ -103,7 +103,7 @@ static dmExtension::Result UpdateProfiler(dmExtension::Params* params)
 
     if (dLib::IsDebugMode()) {
         DM_COUNTER("CPU Usage", dmProfilerExt::GetCpuUsage()*100.0);
-        DM_COUNTER("Mem Usage", dmProfilerExt::GetMemoryUsage());
+        DM_COUNTER("Mem Usage (Kb)", dmProfilerExt::GetMemoryUsage() / 1024u);
     }
 
     return dmExtension::RESULT_OK;
