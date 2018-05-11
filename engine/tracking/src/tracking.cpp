@@ -23,6 +23,7 @@ namespace dmTracking
         dmScript::HContext m_ScriptCtx;
         dmMessage::HSocket m_Socket;
         int m_ContextReference;
+        int m_ContextTableReference;
     };
 
     struct Script
@@ -46,6 +47,18 @@ namespace dmTracking
         return 1;
     }
 
+    static int TrackingGetInstanceContextTableRef(lua_State* L)
+    {
+        dmScript::GetInstance(L);
+
+        const int self_index = 1;
+
+        script = (Script*)lua_touserdata(L, self_index);
+        lua_pop(L, 1);
+        lua_pushnumber(L, script && script->m_Context, script->m_Context.m_ContextableReference);
+        return 1;
+    }
+
     static const luaL_reg TrackingScript_methods[] =
     {
         {0,0}
@@ -53,7 +66,8 @@ namespace dmTracking
 
     static const luaL_reg TrackingScript_meta[] =
     {
-        {dmScript::META_TABLE_GET_URL,      TrackingScriptGetURL},
+        {dmScript::META_TABLE_GET_URL,                  TrackingScriptGetURL},
+        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, TrackingGetInstanceContextTableRef},
         {0, 0}
     };
 
@@ -81,6 +95,8 @@ namespace dmTracking
         luaL_getmetatable(L, TRACKING_SCRIPT);
         lua_setmetatable(L, -2);
         ctx->m_ContextReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        lua_newtable(L);
+        ctx->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         int top = lua_gettop(L);
         if (luaL_loadbuffer(L, (const char*)TRACKING_LUA, TRACKING_LUA_SIZE, "tracking.lua") != 0)
@@ -135,7 +151,10 @@ namespace dmTracking
 
     void Delete(HContext context)
     {
+        lua_State* L = dmScript::GetLuaState(context->m_ScriptCtx);
         dmScript::Finalize(context->m_ScriptCtx);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, context->m_ContextReference);
         dmScript::DeleteContext(context->m_ScriptCtx);
         dmMessage::Consume(context->m_Socket);
         dmMessage::DeleteSocket(context->m_Socket);
@@ -145,12 +164,13 @@ namespace dmTracking
     static void DispatchCallback(dmMessage::Message *message, void* user_ptr)
     {
         HContext context = (HContext) user_ptr;
-        if (message->m_Receiver.m_Function)
+        if (message->m_Receiver.m_FunctionRef)
         {
             lua_State* L = dmScript::GetLuaState(context->m_ScriptCtx);
-            const int ref = message->m_Receiver.m_Function - 2;
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            const int ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+            dmScript::ResolveInInstance(L, ref);
             assert(lua_isfunction(L, -1));
             lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextReference);
 

@@ -178,8 +178,8 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        sender.m_Function = 0;
-        receiver.m_Function = 0;
+        sender.m_FunctionRef = 0;
+        receiver.m_FunctionRef = 0;
 
         if (top > 1 && !lua_isnil(L, 2))
         {

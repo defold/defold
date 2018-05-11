@@ -273,7 +273,7 @@ namespace dmGameObject
         ScriptInstance* i = ScriptInstance_Check(L);
         lua_pop(L, 1);
         Instance* instance = i->m_Instance;
-        out_url->m_Function = 0;
+        out_url->m_FunctionRef = 0;
         out_url->m_Socket = instance->m_Collection->m_ComponentSocket;
         out_url->m_Path = instance->m_Identifier;
         out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
@@ -296,7 +296,7 @@ namespace dmGameObject
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         Instance* instance = i->m_Instance;
         dmMessage::URL url;
-        url.m_Function = 0;
+        url.m_FunctionRef = 0;
         url.m_Socket = instance->m_Collection->m_ComponentSocket;
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
@@ -2165,9 +2165,9 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
         for (uint32_t i = 0; i < count; ++i)
         {
             /*
-             * NOTE/TODO: var above is reused and URL::m_Function must
+             * NOTE/TODO: var above is reused and URL::m_FunctionRef must
              * always be zero or a valid lua-reference. By reusing a union-type here, PropertyVar,
-             * m_Function could have an invalid value. We could move PropertyVar var inside every
+             * m_FunctionRef could have an invalid value. We could move PropertyVar var inside every
              * loop but the problem and risk is illustrated here.
              */
             var = PropertyVar();
