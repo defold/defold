@@ -44,7 +44,7 @@
 
 (defn prop-resource-ext? [v ext name]
   (or (prop-resource-missing? v name)
-      (when-not (= (resource/ext v) ext)
+      (when-not (= (resource/type-ext v) ext)
         (format "%s '%s' is not of type .%s" name (resource/resource->proj-path v) ext))))
 
 (defn prop-member-of? [v val-set message]
