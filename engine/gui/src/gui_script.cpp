@@ -3514,7 +3514,9 @@ namespace dmGui
     }
 
     /*# gets the node screen position
-     * Returns the screen position of the supplied node.
+     * Returns the screen position of the supplied node. This function returns the 
+     * calculated transformed position of the node, taking into account any parent node
+     * transforms.
      *
      * @name gui.get_screen_position
      * @param node [type:node] node to get the screen position from
