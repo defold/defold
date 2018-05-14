@@ -93,7 +93,6 @@ ordinary paths."
 (defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
   (let [resource-type {:textual? (true? textual?)
                        :editable? (some? (some editable-view-type? view-types))
-                       :ext ext
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
@@ -109,8 +108,8 @@ ordinary paths."
                        :label label
                        :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)}
         resource-types (if (string? ext)
-                         [(assoc resource-type :ext ext)]
-                         (map (fn [ext] (assoc resource-type :ext ext)) ext))]
+                         [(assoc resource-type :ext (string/lower-case ext))]
+                         (map (fn [ext] (assoc resource-type :ext (string/lower-case ext))) ext))]
     (for [resource-type resource-types]
       (g/update-property workspace :resource-types assoc (:ext resource-type) resource-type))))
 
