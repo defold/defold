@@ -148,12 +148,18 @@ var LibraryGLFW = {
         }
     },
 
-    isCanvasActive: function() {
-      return (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
+    isCanvasActive: function(event) {
+      var res = (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
+
+      if (!res) {
+        res = (event.srcElement == Module["canvas"]);
+      }
+
+      return res;
     },
 
     onKeyPress: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       // charCode is only available whith onKeyPress event
       if (event.charCode) {
@@ -165,7 +171,7 @@ var LibraryGLFW = {
     },
 
     onKeyChanged: function(event, status) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       var key = GLFW.DOMToGLFWKeyCode(event.keyCode);
       if (key) {
@@ -177,7 +183,7 @@ var LibraryGLFW = {
     },
 
     onKeydown: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
       // This logic comes directly from the sdl implementation. We cannot
@@ -189,14 +195,12 @@ var LibraryGLFW = {
     },
 
     onKeyup: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.onKeyChanged(event, 0);// GLFW_RELEASE
     },
 
     onMousemove: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
-
       /* Send motion event only if the motion changed, prevents
        * spamming our app with uncessary callback call. It does happen in
        * Chrome on Windows.
@@ -214,7 +218,7 @@ var LibraryGLFW = {
     },
 
     onMouseButtonChanged: function(event, status) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       if (GLFW.mouseButtonFunc == null) {
         return;
@@ -241,7 +245,7 @@ var LibraryGLFW = {
     },
 
     onTouchEnd: function(event) {
-        if (!GLFW.isCanvasActive()) { return; }
+        if (!GLFW.isCanvasActive(event)) { return; }
 
         if (event.touches.length == 0){
             GLFW.buttons &= ~(1 << 0);
@@ -265,7 +269,7 @@ var LibraryGLFW = {
     },
 
     onTouchMove: function(event) {
-        if (!GLFW.isCanvasActive()) { return; }
+        if (!GLFW.isCanvasActive(event)) { return; }
 
         var e = event;
         var rect = Module['canvas'].getBoundingClientRect();
@@ -281,7 +285,7 @@ var LibraryGLFW = {
     },
 
     onTouchStart: function(event) {
-        if (!GLFW.isCanvasActive()) { return; }
+        if (!GLFW.isCanvasActive(event)) { return; }
 
         var e = event;
         var rect = Module['canvas'].getBoundingClientRect();
@@ -298,21 +302,26 @@ var LibraryGLFW = {
     },
 
     onMouseButtonDown: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.buttons |= (1 << event['button']);
       GLFW.onMouseButtonChanged(event, 1);// GLFW_PRESS
     },
 
     onMouseButtonUp: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
-
+      // No need to check if canvas is active, we want to make sure we
+      // catch mouse up events even if they are released outside the canvas.
+      //
+      // Otherwise we could end up in a strange state when the user clicks
+      // on the canvas (after clicking outside), not actually triggering a
+      // mouse down since the button would already be "pressed".
+      //
       GLFW.buttons &= ~(1 << event['button']);
       GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
     },
 
     onMouseWheel: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.wheelPos += Browser.getMouseWheelDelta(event);
 
