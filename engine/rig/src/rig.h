@@ -94,6 +94,7 @@ namespace dmRig
     {
        float m_SlotColor[4];
        int32_t m_ActiveAttachment;
+       const dmRigDDF::MeshSlot* m_MeshSlot;
     };
 
     struct IKAnimation
@@ -300,6 +301,8 @@ namespace dmRig
 
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
     dmhash_t GetMesh(HRigInstance instance);
+    Result SetMeshSlot(HRigInstance instance, dmhash_t mesh_id, dmhash_t slot_id);
+
     float GetCursor(HRigInstance instance, bool normalized);
     Result SetCursor(HRigInstance instance, float cursor, bool normalized);
     float GetPlaybackRate(HRigInstance instance);
