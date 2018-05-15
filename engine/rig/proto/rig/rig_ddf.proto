@@ -179,9 +179,10 @@ message Mesh
 // the current active mesh attachment.
 message MeshSlot
 {
-    repeated uint32 mesh_attachments = 1;
-    required uint32 active_index = 2;
-    repeated float slot_color = 3;
+    optional uint64 id = 1;
+    repeated uint32 mesh_attachments = 2;
+    required uint32 active_index = 3;
+    repeated float slot_color = 4;
 }
 
 message MeshEntry

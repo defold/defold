@@ -176,6 +176,7 @@ static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dm
     dmRigDDF::Mesh& mesh = mesh_set->m_MeshAttachments.m_Data[mesh_attachment_index];
 
     mesh_entry.m_MeshSlots[0].m_MeshAttachments[0] = mesh_attachment_index;
+    mesh_entry.m_MeshSlots[0].m_Id = 0;
     mesh_entry.m_MeshSlots[0].m_ActiveIndex = 0;
     mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data = new float[4];
     mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[0] = slot_color.getX();
@@ -906,6 +907,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = mesh_set->m_SlotCount;
 
             for (int j = 0; j < mesh_set->m_SlotCount; j++) {
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_Id = j;
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
                 mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
@@ -1637,6 +1639,57 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     ASSERT_VERT_NORM(n_neg_right, data[0]); // v0
     ASSERT_VERT_NORM(n_neg_right, data[1]); // v1
     ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
+}
+
+TEST_F(RigInstanceTest, SetMesh)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("test")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(4, GetVertexCount(m_Instance));
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("draw_order_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(3, GetVertexCount(m_Instance));
+}
+
+TEST_F(RigInstanceTest, SetMeshSlot)
+{
+    dmRig::RigSpineModelVertex data[4];
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("test")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+
+    // initial skin has 4 vertices on slot 0
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(4, GetVertexCount(m_Instance));
+
+    // Set specific slots from "draw_order_skin", each slot only has one vertex, with position corresponding the the mesh index.
+
+    // Set slot 0
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMeshSlot(m_Instance, dmHashString64("draw_order_skin"), 0));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(1, GetVertexCount(m_Instance));
+    ASSERT_EQ(data + 1, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+
+    // Set slot 1
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMeshSlot(m_Instance, dmHashString64("draw_order_skin"), 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(2, GetVertexCount(m_Instance));
+    ASSERT_EQ(data + 2, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]); // Mesh index = slot * 2
+
+    // Set slot 2
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMeshSlot(m_Instance, dmHashString64("draw_order_skin"), 2));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(3, GetVertexCount(m_Instance));
+    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
 }
 
 TEST_F(RigInstanceTest, SkinColor)
