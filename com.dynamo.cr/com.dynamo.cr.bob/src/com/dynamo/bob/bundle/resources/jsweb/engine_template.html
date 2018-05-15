@@ -8,6 +8,19 @@
 
 		<title>{{DEFOLD_APP_TITLE}}</title>
 		<style>
+			/* Disable user selection to avoid strange bug in Chrome on Windows:
+			 * Selecting a text outside the canvas, then clicking+draging would
+			 * drag the selected text but block mouse down/up events to the engine.
+			 */
+			body {
+				-webkit-touch-callout: none;
+				-webkit-user-select: none;
+				-khtml-user-select: none;
+				-moz-user-select: none;
+				-ms-user-select: none;
+				user-select: none;
+			}
+
 			.canvas-app-container {
 			  background: rgb(255,255,255) no-repeat center url("try_game.png");
 			  /* A positioned parent for loading visuals */
