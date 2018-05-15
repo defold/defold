@@ -3778,7 +3778,7 @@ namespace dmGui
      * @name gui.set_spine_skin
      * @param node [type:node] node to set the spine skin on
      * @param spine_skin [type:string|hash] spine skin id
-     * @param spine_slot [type:string|hash] optional slot id to only change a specific slot
+     * @param [spine_slot] [type:string|hash] optional slot id to only change a specific slot
      * @examples
      *
      * Change skin of a Spine node
@@ -3793,7 +3793,7 @@ namespace dmGui
      *
      * ```lua
      * function monster_transform_arm(self)
-     *   -- The player is trasforming into a monster, begin with changing the arm.
+     *   -- The player is transforming into a monster, begin with changing the arm.
      *   gui.set_spine_skin(gui.get_node("spine_node"), "monster", "left_arm_slot")
      * end
      * ```
@@ -3814,17 +3814,15 @@ namespace dmGui
 
         dmhash_t spine_skin_id = dmScript::CheckHashOrString(L, 2);
 
-        dmGui::Result r = dmGui::RESULT_SCRIPT_ERROR;
         if (top > 2) {
             dmhash_t slot_id = dmScript::CheckHashOrString(L, 3);
-            r = dmGui::SetNodeSpineSkinSlot(scene, node, spine_skin_id, slot_id);
+            if (RESULT_OK != dmGui::SetNodeSpineSkinSlot(scene, node, spine_skin_id, slot_id)) {
+                return luaL_error(L, "failed to set spine skin ('%s') slot '%s' for gui node", dmHashReverseSafe64(spine_skin_id), dmHashReverseSafe64(slot_id));
+            }
         } else {
-            r = dmGui::SetNodeSpineSkin(scene, node, spine_skin_id);
-        }
-
-        if (RESULT_OK != r)
-        {
-            return luaL_error(L, "failed to set spine skin for gui node");
+            if (RESULT_OK != dmGui::SetNodeSpineSkin(scene, node, spine_skin_id)) {
+                return luaL_error(L, "failed to set spine skin '%s' for gui node", dmHashReverseSafe64(spine_skin_id));
+            }
         }
 
         return 0;

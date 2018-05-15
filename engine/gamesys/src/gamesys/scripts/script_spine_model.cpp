@@ -421,7 +421,7 @@ namespace dmGameSystem
      * @name spine.set_skin
      * @param url [type:string|hash|url] the spine model for which to set skin
      * @param spine_skin [type:string|hash] spine skin id
-     * @param spine_slot [type:string|hash] optional slot id to only change a specific slot
+     * @param [spine_slot] [type:string|hash] optional slot id to only change a specific slot
      * @examples
      *
      * The following examples assumes that the spine model has id "spinemodel".
@@ -438,7 +438,7 @@ namespace dmGameSystem
      *
      * ```lua
      * function monster_transform_arm(self)
-     *   -- The player is trasforming into a monster, begin with changing the arm.
+     *   -- The player is transforming into a monster, begin with changing the arm.
      *   spine.set_skin("#spinemodel", "monster", "left_arm_slot")
      * end
      * ```
@@ -457,20 +457,19 @@ namespace dmGameSystem
 
         SpineModelComponent* component = world->m_Components.Get(user_data);
 
-        bool r = false;
         dmhash_t skin_id = dmScript::CheckHashOrString(L, 2);
         if (top > 2) {
             dmhash_t slot_id = dmScript::CheckHashOrString(L, 3);
-            r = CompSpineModelSetSkinSlot(component, skin_id, slot_id);
+            if (!CompSpineModelSetSkinSlot(component, skin_id, slot_id))
+            {
+                return luaL_error(L, "failed to set spine skin ('%s') slot '%s' for spine component", dmHashReverseSafe64(skin_id), dmHashReverseSafe64(slot_id));
+            }
         } else {
-            r = CompSpineModelSetSkin(component, skin_id);
+            if (!CompSpineModelSetSkin(component, skin_id))
+            {
+                return luaL_error(L, "failed to set spine skin '%s' for spine component", dmHashReverseSafe64(skin_id));
+            }
         }
-
-        if (!r)
-        {
-            return luaL_error(L, "failed to set spine skin for spine component");
-        }
-
 
         assert(top == lua_gettop(L));
         return 0;
