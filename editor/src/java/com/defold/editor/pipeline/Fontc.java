@@ -1,3 +1,7 @@
+/*
+ * This has been replaced by fontc.clj but is kept around for reference should we've botched up the port :)
+ */
+
 package com.defold.editor.pipeline;
 
 import java.awt.BasicStroke;
@@ -375,6 +379,13 @@ public class Fontc {
             cell_width = Math.max(cell_width, width);
             cell_height = Math.max(cell_height, height);
         }
+
+        // FROM BOB
+        // Some hardware don't like doing subimage updates on non-aligned cell positions.
+        if (channelCount == 3) {
+            cell_width = (int)Math.ceil((double)cell_width / 4.0) * 4;
+        }
+	
 
         // We do an early cache size calculation before we create the glyph bitmaps
         // This is so that we can know when we have created enough glyphs to fill
