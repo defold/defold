@@ -569,3 +569,55 @@
       (g/transact (g/set-property nid :foo 3))
       ;; (set ...) will have been called with old = (inc 1), new = 3 since it's the constructor
       (is (= 2 (g/node-value nid :old-foo))))))
+
+(def ^:private production-count (atom 0))
+
+(g/defnode Producer
+  (property val g/Str (default ""))
+  (output produce g/Str (g/fnk [val]
+                               (swap! production-count inc)
+                               val)))
+
+(g/defnode Consumer
+  (input in1 g/Str)
+  (input in2 g/Str)
+  (output result g/Str (g/fnk [in1 in2] (str in1 in2))))
+
+(deftest non-cached-produced-once
+  (with-clean-system
+    (let [[wat-producer nil-producer consumer] (tx-nodes (g/make-node world Producer :val "wat")
+                                                         (g/make-node world Producer :val nil)
+                                                         (g/make-node world Consumer))]
+
+      ;; NOTE! If we're seriously unlucky a gc could make these tests
+      ;; fail by collecting the result held in a WeakReference
+
+      ;; check "wat" is temp cached
+      (g/transact
+        (concat
+          (g/connect wat-producer :produce consumer :in1)
+          (g/connect wat-producer :produce consumer :in2)))
+
+      (reset! production-count 0)
+      (is (= (g/node-value consumer :result) "watwat"))
+      (is (= @production-count 1))
+
+      ;, check nil is temp cached
+      (g/transact
+        (concat
+          (g/connect nil-producer :produce consumer :in1)
+          (g/connect nil-producer :produce consumer :in2)))
+
+      (reset! production-count 0)
+      (is (= (g/node-value consumer :result) ""))
+      (is (= @production-count 1))
+
+
+      ;; check :no-local-temp is respected
+      (reset! production-count 0)
+      (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp true})) ""))
+      (is (= @production-count 2))
+
+      (reset! production-count 0)
+      (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp false})) ""))
+      (is (= @production-count 1)))))
