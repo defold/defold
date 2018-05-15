@@ -152,7 +152,7 @@ var LibraryGLFW = {
       var res = (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
 
       if (!res) {
-        res = (event.srcElement == Module["canvas"]);
+        res = (event.target == Module["canvas"]);
       }
 
       return res;
@@ -250,6 +250,8 @@ var LibraryGLFW = {
         if (event.touches.length == 0){
             GLFW.buttons &= ~(1 << 0);
         }
+
+        event.preventDefault();
     },
 
     convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
@@ -282,10 +284,14 @@ var LibraryGLFW = {
           Browser.mouseY = canvasY;
           break;
         }
+
+        event.preventDefault();
     },
 
     onTouchStart: function(event) {
-        if (!GLFW.isCanvasActive(event)) { return; }
+        // We don't check if canvas is active here, instead
+        // check if the target is the canvas directly.
+        if (event.target != Module["canvas"]) { return; }
 
         var e = event;
         var rect = Module['canvas'].getBoundingClientRect();
@@ -299,23 +305,22 @@ var LibraryGLFW = {
           Browser.mouseY = canvasY;
           break;
         }
+
+        event.preventDefault();
     },
 
     onMouseButtonDown: function(event) {
-      if (!GLFW.isCanvasActive(event)) { return; }
+      // We don't check if canvas is active here, instead
+      // check if the target is the canvas directly.
+      if (event.target != Module["canvas"]) { return; }
 
       GLFW.buttons |= (1 << event['button']);
       GLFW.onMouseButtonChanged(event, 1);// GLFW_PRESS
     },
 
     onMouseButtonUp: function(event) {
-      // No need to check if canvas is active, we want to make sure we
-      // catch mouse up events even if they are released outside the canvas.
-      //
-      // Otherwise we could end up in a strange state when the user clicks
-      // on the canvas (after clicking outside), not actually triggering a
-      // mouse down since the button would already be "pressed".
-      //
+      if (!GLFW.isCanvasActive(event)) { return; }
+
       GLFW.buttons &= ~(1 << event['button']);
       GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
     },
