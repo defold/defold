@@ -335,6 +335,10 @@
    :help "max number of factories, 128 by default",
    :default 128,
    :path ["factory" "max_count"]}
+  {:type :integer,
+   :help "max number of timer contexts, 256 by default",
+   :default 256,
+   :path ["timer" "max_context_count"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
