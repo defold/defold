@@ -574,158 +574,197 @@ namespace dmScript
         return false;
     }
 
+    static void GetInstanceContextTable(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        GetInstance(L);
+        // [-1] instance
+
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return;
+        }
+        // [-2] instance
+        // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+
+        lua_insert(L, -2);
+        // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+        // [-1] instance
+
+        lua_call(L, 1, 1);
+        // [-1] instance context table ref or LUA_NOREF
+        assert(lua_type(L, -1) == LUA_TNUMBER);
+
+        int context_table_ref = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        if (context_table_ref == LUA_NOREF)
+        {
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
+        assert(lua_type(L, -1) == LUA_TTABLE);
+        // [-1] instance context table
+    }
+
     bool SetInstanceContextValue(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, -2);
-
         // [-2] key
         // [-1] value
 
-        GetInstance(L);
+        DM_LUA_STACK_CHECK(L, -2);
+
+        GetInstanceContextTable(L);
         // [-3] key
         // [-2] value
-        // [-1] instance
+        // [-1] instance context table or LUA_NIL
 
-        if (GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF)) {
-            // [-4] key
-            // [-3] value
-            // [-2] instance
-            // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
-
-            lua_pushvalue(L, -2);
-            // [-5] key
-            // [-4] value
-            // [-3] instance
-            // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
-            // [-1] instance
-
-            lua_call(L, 1, 1);
-            // [-4] key
-            // [-3] value
-            // [-2] instance
-            // [-1] instance context table ref
-            assert(lua_type(L, -1) == LUA_TNUMBER);
-
-            int context_table_ref = lua_tonumber(L, -1);
-            lua_pop(L, 1);
-            // [-3] key
-            // [-2] value
-            // [-1] instance
-
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
-            assert(lua_type(L, -1) == LUA_TTABLE);
-            // [-4] key
-            // [-3] value
-            // [-2] instance
-            // [-1] instance context table
-
-            lua_pushvalue(L, -4);
-            // [-5] key
-            // [-4] value
-            // [-3] instance
-            // [-2] instance context table
-            // [-1] key
-
-            lua_pushvalue(L, -4);
-            // [-6] key
-            // [-5] value
-            // [-4] instance
-            // [-3] instance context table
-            // [-2] key
-            // [-1] value
-
-            lua_settable(L, -3);
-            // [-4] key
-            // [-3] value
-            // [-2] instance
-            // [-1] instance context table
-
-            lua_pop(L, 4);
-            return true;
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 3);
+            return false;
         }
-        lua_pop(L, 3);
+        // [-3] key
+        // [-2] value
+        // [-1] instance context table
 
-        return false;
+        lua_insert(L, -3);
+        // [-3] instance context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+        return true;
     }
 
-    bool GetInstanceContextValue(lua_State* L)
+    void GetInstanceContextValue(lua_State* L)
     {
         // [-1] key
+        DM_LUA_STACK_CHECK(L, 0);
 
-        int top = lua_gettop(L);
-        (void)top;
-
-        GetInstance(L);
+        GetInstanceContextTable(L);
         // [-2] key
-        // [-1] instance
+        // [-1] instance context table or LUA_NIL
 
-        if (GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF)) {
-            // [-3] key
-            // [-2] instance
-            // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
-
-            lua_pushvalue(L, -2);
-            // [-4] key
-            // [-3] instance
-            // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
-            // [-1] instance
-
-            lua_call(L, 1, 1);
-            // [-3] key
-            // [-2] instance
-            // [-1] instance context table ref
-            if(lua_type(L, -1) != LUA_TNUMBER)
-            {
-                lua_pop(L, 3);
-                assert(top - 1 == lua_gettop(L));
-                return false;
-            }
-
-            int context_table_ref = lua_tonumber(L, -1);
-            lua_pop(L, 1);
-            // [-3] key
-            // [-2] instance
-
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
-            // [-3] key
-            // [-2] instance
-            // [-1] instance context table
-
-            if(lua_type(L, -1) != LUA_TTABLE)
-            {
-                lua_pop(L, 3);
-                assert(top - 1 == lua_gettop(L));
-                return false;
-            }
-
-            lua_pushvalue(L, -3);
-            // [-4] key
-            // [-3] instance
-            // [-2] instance context table
+        if (lua_isnil(L, -1))
+        {
+            // [-2] key
+            // [-1] LUA_NIL
+            lua_insert(L, -2);
+            // [-2] LUA_NIL
             // [-1] key
 
-            lua_gettable(L, -2);
-            // [-4] key
-            // [-3] instance
-            // [-2] instance context table
-            // [-1] value
+            lua_pop(L, 1);
+            // [-1] LUA_NIL
 
-            lua_insert(L, -4);
-            // [-4] value
-            // [-3] key
-            // [-2] instance
-            // [-1] instance context table
-
-            lua_pop(L, 3);
-            // [-1] value
-
-            assert(top == lua_gettop(L));
-            return true;
+            return;
         }
+        // [-2] key
+        // [-1] instance context table
 
-        lua_pop(L, 2);
-        assert(top - 1 == lua_gettop(L));
-        return false;
+        lua_insert(L, -2);
+        // [-2] instance context table
+        // [-1] key
+
+        lua_gettable(L, -2);
+        // [-2] instance context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] instance context table
+        
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
+    int RefInInstance(lua_State* L)
+    {
+        // [-1] value
+        DM_LUA_STACK_CHECK(L, -1);
+
+        GetInstanceContextTable(L);
+        // [-2] value
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_isnil(L, -1))
+        {
+            // [-2] value
+            // [-1] LUA_NIL
+
+            lua_pop(L, 2);
+            return LUA_NOREF;
+        }
+        // [-2] value
+        // [-1] instance context table
+
+        lua_insert(L, -2);
+        // [-2] instance context table
+        // [-1] value
+
+        int instance_ref = luaL_ref(L, -2);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+
+        return instance_ref;
+    }
+
+    void UnrefInInstance(lua_State* L, int ref)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstanceContextTable(L);
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_isnil(L, -1))
+        {
+            // [-1] LUA_NIL
+
+            lua_pop(L, 1);
+            return;
+        }
+        // [-1] instance context table
+
+        luaL_unref(L, -1, ref);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+    }
+
+    void ResolveInInstance(lua_State* L, int ref)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        GetInstanceContextTable(L);
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_isnil(L, -1))
+        {
+            // [-1] LUA_NIL
+            return;
+        }
+        // [-1] instance context table
+
+        lua_rawgeti(L, -1, ref);
+        // [-2] instance context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+        // [-1] value
     }
 
     static int BacktraceErrorHandler(lua_State *m_state) {
@@ -1079,13 +1118,12 @@ namespace dmScript
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
         int ret = PCall(L, number_of_arguments, 0);
-        if (ret != 0) {
-            // [-3] old instance
-            // [-2] context table
-            // [-1] error string
-            dmLogError("Error running callback: %s", lua_tostring(L,-1));
 
-            lua_pop(L, 2);
+        if (ret != 0) {
+            // [-2] old instance
+            // [-1] context table
+
+            lua_pop(L, 1);
             // [-1] old instance
 
             SetInstance(L);
