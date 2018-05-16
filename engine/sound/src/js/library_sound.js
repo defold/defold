@@ -3,7 +3,7 @@ var LibrarySoundDevice =
    $DefoldSoundDevice: {
       TryResumeAudio: function() {
          var audioCtx = window._dmJSDeviceShared.audioCtx;
-         if (audioCtx.state != "running") {
+         if (audioCtx !== undefined && audioCtx.state != "running") {
              audioCtx.resume();
          }
       }
