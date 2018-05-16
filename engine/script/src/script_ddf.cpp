@@ -527,9 +527,13 @@ namespace dmScript
                         dmScriptDDF::LuaRef* lua_ref = (dmScriptDDF::LuaRef*) ptr;
                         if (lua_ref->m_Ref)
                         {
-                            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref->m_ReferenceTableRef);
+                            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref->m_ContextTableRef);
                             lua_rawgeti(L, -1, lua_ref->m_Ref);
                             lua_remove(L, -2);
+                        }
+                        else
+                        {
+                            lua_pushnil(L);
                         }
                     }
                     else
