@@ -43,6 +43,21 @@ namespace dmScript
     extern const char* META_TABLE_GET_URL;
     extern const char* META_TABLE_GET_USER_DATA;
     extern const char* META_TABLE_IS_VALID;
+
+    /**
+     * Implementor should return a Ref to the instance context table.
+     * 
+     * CAUTION! The implementation should *NOT* create a new ref, it
+     * should return an existing one. If it does not have one, it should
+     * return LUA_NOREF
+     * 
+     * Lua stack on entry
+     *  [-1] instance
+     * 
+     * Lua stack on exit
+     *  [-1] ref to instance context table or LUA_NOREF
+     * 
+     */
     extern const char* META_GET_INSTANCE_CONTEXT_TABLE_REF;
 
     /**
@@ -395,7 +410,55 @@ namespace dmScript
      * Lua stack on exit
      *  [-1] value or LUA_NIL
     */
-    bool GetInstanceContextValue(lua_State* L);
+    void GetInstanceContextValue(lua_State* L);
+
+    /**
+     * Creates a reference to the value at top of stack, the ref is done in the
+     * current instances context table.
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @return lua ref to value or LUA_NOREF
+     * 
+     * Lua stack on entry
+     *  [-1] value
+     * 
+     * Lua stack on exit
+    */
+    int RefInInstance(lua_State* L);
+
+    /**
+     * Deletes the instance local lua reference
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @param ref the instance local ref
+     * 
+     * Lua stack on entry
+     * 
+     * Lua stack on exit
+     */
+    void UnrefInInstance(lua_State* L, int ref);
+
+    /**
+     * Resolves the instance local ref and pushes it to top of stack
+     * 
+     * Expects SetInstance() to have been set with an value that has a meta table
+     * with META_GET_INSTANCE_CONTEXT_TABLE_REF method.
+     * 
+     * @param L Lua state
+     * @param ref the instance local ref
+     * 
+     * Lua stack on entry
+     * 
+     * Lua stack on exit
+     *  [-1] value or LUA_NIL
+     */
+    void ResolveInInstance(lua_State* L, int ref);
 
     dmMessage::Result ResolveURL(lua_State* L, const char* url, dmMessage::URL* out_url, dmMessage::URL* default_url);
 
