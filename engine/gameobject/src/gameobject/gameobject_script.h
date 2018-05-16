@@ -56,6 +56,7 @@ namespace dmGameObject
     {
         HScript     m_Script;
         Instance*   m_Instance;
+        dmScript::HScriptWorld m_ScriptWorld;
         int         m_InstanceReference;
         int         m_ScriptDataReference;
         int         m_ContextTableReference;
@@ -70,6 +71,7 @@ namespace dmGameObject
         ScriptWorld();
 
         dmArray<ScriptInstance*> m_Instances;
+        dmScript::HScriptWorld m_ScriptWorld;
     };
 
     void    InitializeScript(HRegister regist, dmScript::HContext context);
@@ -78,7 +80,7 @@ namespace dmGameObject
     bool    ReloadScript(HScript script, dmLuaDDF::LuaModule* lua_module);
     void    DeleteScript(HScript script);
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index);
+    HScriptInstance NewScriptInstance(ScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index);
     void            DeleteScriptInstance(HScriptInstance script_instance);
 
     PropertyResult PropertiesToLuaTable(HInstance instance, HScript script, const HProperties properties, lua_State* L, int index);
