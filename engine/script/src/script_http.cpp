@@ -223,10 +223,13 @@ namespace dmScript
         g_Timeout = timeout;
     }
 
-    void InitializeHttp(lua_State* L, dmConfigFile::HConfig config_file)
+    static void HttpInitialize(HContext context)
     {
 // TODO: Port
 #if !defined(__AVM2__)
+        lua_State* L = GetLuaState(context);
+        dmConfigFile::HConfig config_file = GetConfigFile(context);
+
         int top = lua_gettop(L);
 
         if (g_Service == 0) {
@@ -247,7 +250,7 @@ namespace dmScript
 #endif
     }
 
-    void FinalizeHttp(lua_State* L)
+    static void HttpFinalize(HContext context)
     {
 #if !defined(__AVM2__)
         assert(g_ServiceRefCount > 0);
@@ -258,4 +261,19 @@ namespace dmScript
         }
 #endif
     }
+
+    void InitializeHttp(HContext context)
+    {
+        static ScriptExtension sl;
+        sl.Initialize = HttpInitialize;
+        sl.Update = 0x0;
+        sl.Finalize = HttpFinalize;
+        sl.NewScriptWorld = 0x0;
+        sl.DeleteScriptWorld = 0x0;
+        sl.UpdateScriptWorld = 0x0;
+        sl.InitializeScriptInstance = 0x0;
+        sl.FinalizeScriptInstance = 0x0;
+        RegisterScriptExtension(context, &sl);
+    }
+
 }
