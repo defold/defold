@@ -203,6 +203,12 @@ bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::
     return true;
 }
 
+uint32_t SpineAnimationKeyEventCount = 0;
+void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
+{
+    ++SpineAnimationKeyEventCount;
+}
+
 class dmGuiTest : public ::testing::Test
 {
 public:
@@ -262,6 +268,7 @@ public:
         params.m_ParticlefxContext = dmParticle::CreateContext(MAX_PARTICLEFX, MAX_PARTICLES);
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        params.m_RigEventDataCallback = RigEventDataCallback;
         params.m_OnWindowResizeCallback = OnWindowResizeCallback;
         m_Scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneResolution(m_Scene, 1, 1);
@@ -455,9 +462,18 @@ private:
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 2.0f;
         anim0.m_SampleRate          = 1.0f;
-        anim0.m_EventTracks.m_Count = 0;
+        anim0.m_EventTracks.m_Count = 1;
         anim0.m_MeshTracks.m_Count  = 0;
         anim0.m_IkTracks.m_Count    = 0;
+        anim0.m_EventTracks.m_Data = new dmRigDDF::EventTrack[1];
+        dmRigDDF::EventTrack* event_track = &anim0.m_EventTracks.m_Data[0];
+        event_track->m_Keys.m_Count = 1;
+        event_track->m_Keys.m_Data = new dmRigDDF::EventKey[1];
+        dmRigDDF::EventKey* event_key = &event_track->m_Keys.m_Data[0];
+        event_key->m_T = 0.5f;
+        event_key->m_Integer = 0;
+        event_key->m_String = dmHashString64("a_spine_event");
+
         anim1.m_Id = dmHashString64("ik_anim");
         anim1.m_Duration            = 3.0f;
         anim1.m_SampleRate          = 1.0f;
@@ -574,6 +590,8 @@ private:
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Positive.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Mix.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_EventTracks[0].m_Keys.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_EventTracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
@@ -4888,6 +4906,36 @@ TEST_F(dmGuiTest, SpineNodeGetAnimation)
     // play invalid animation
     ASSERT_EQ(dmGui::RESULT_INVAL_ERROR, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("non_existant"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
     ASSERT_EQ(dmHashString64("valid"), dmGui::GetNodeSpineAnimation(m_Scene, node));
+}
+
+TEST_F(dmGuiTest, SpineNodeEventCallback)
+{
+    SpineAnimationKeyEventCount = 0;
+    uint32_t width = 100;
+    uint32_t height = 50;
+    float dt = 1.0f;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // duration is 3.0 seconds, event key located at 0.5 seconds
+    // play animation with event key
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0x0, (void*)m_Scene, 0));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(SpineAnimationKeyEventCount, 1);
 }
 
 uint32_t SpineAnimationCompleteCount = 0;

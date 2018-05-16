@@ -77,10 +77,10 @@
   [{:node-id _node-id
     :resource (workspace/make-build-resource resource)
     :build-fn build-shader
-    :user-data {:lines lines :resource-ext (resource/ext resource)}}])
+    :user-data {:lines lines :resource-ext (resource/type-ext resource)}}])
 
 (g/defnk produce-full-source [resource lines]
-  (make-full-source (resource/ext resource) lines))
+  (make-full-source (resource/type-ext resource) lines))
 
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)

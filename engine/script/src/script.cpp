@@ -40,10 +40,11 @@ namespace dmScript
     const char* INSTANCE_NAME = "__dm_script_instance__";
     const int MAX_PPRINT_TABLE_CALL_DEPTH = 32;
 
-    const char* META_TABLE_RESOLVE_PATH     = "__resolve_path";
-    const char* META_TABLE_GET_URL          = "__get_url";
-    const char* META_TABLE_GET_USER_DATA    = "__get_user_data";
-    const char* META_TABLE_IS_VALID         = "__is_valid";
+    const char* META_TABLE_RESOLVE_PATH             = "__resolve_path";
+    const char* META_TABLE_GET_URL                  = "__get_url";
+    const char* META_TABLE_GET_USER_DATA            = "__get_user_data";
+    const char* META_TABLE_IS_VALID                 = "__is_valid";
+    const char* META_GET_INSTANCE_CONTEXT_TABLE_REF = "__get_instance_context_table_ref";
 
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
@@ -573,6 +574,199 @@ namespace dmScript
         return false;
     }
 
+    static void GetInstanceContextTable(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        GetInstance(L);
+        // [-1] instance
+
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return;
+        }
+        // [-2] instance
+        // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+
+        lua_insert(L, -2);
+        // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+        // [-1] instance
+
+        lua_call(L, 1, 1);
+        // [-1] instance context table ref or LUA_NOREF
+        assert(lua_type(L, -1) == LUA_TNUMBER);
+
+        int context_table_ref = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        if (context_table_ref == LUA_NOREF)
+        {
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
+        assert(lua_type(L, -1) == LUA_TTABLE);
+        // [-1] instance context table
+    }
+
+    bool SetInstanceContextValue(lua_State* L)
+    {
+        // [-2] key
+        // [-1] value
+
+        DM_LUA_STACK_CHECK(L, -2);
+
+        GetInstanceContextTable(L);
+        // [-3] key
+        // [-2] value
+        // [-1] instance context table or LUA_NIL
+
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 3);
+            return false;
+        }
+        // [-3] key
+        // [-2] value
+        // [-1] instance context table
+
+        lua_insert(L, -3);
+        // [-3] instance context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+        return true;
+    }
+
+    void GetInstanceContextValue(lua_State* L)
+    {
+        // [-1] key
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstanceContextTable(L);
+        // [-2] key
+        // [-1] instance context table or LUA_NIL
+
+        if (lua_isnil(L, -1))
+        {
+            // [-2] key
+            // [-1] LUA_NIL
+            lua_insert(L, -2);
+            // [-2] LUA_NIL
+            // [-1] key
+
+            lua_pop(L, 1);
+            // [-1] LUA_NIL
+
+            return;
+        }
+        // [-2] key
+        // [-1] instance context table
+
+        lua_insert(L, -2);
+        // [-2] instance context table
+        // [-1] key
+
+        lua_gettable(L, -2);
+        // [-2] instance context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] instance context table
+        
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
+    int RefInInstance(lua_State* L)
+    {
+        // [-1] value
+        DM_LUA_STACK_CHECK(L, -1);
+
+        GetInstanceContextTable(L);
+        // [-2] value
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_isnil(L, -1))
+        {
+            // [-2] value
+            // [-1] LUA_NIL
+
+            lua_pop(L, 2);
+            return LUA_NOREF;
+        }
+        // [-2] value
+        // [-1] instance context table
+
+        lua_insert(L, -2);
+        // [-2] instance context table
+        // [-1] value
+
+        int instance_ref = luaL_ref(L, -2);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+
+        return instance_ref;
+    }
+
+    void UnrefInInstance(lua_State* L, int ref)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstanceContextTable(L);
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_isnil(L, -1))
+        {
+            // [-1] LUA_NIL
+
+            lua_pop(L, 1);
+            return;
+        }
+        // [-1] instance context table
+
+        luaL_unref(L, -1, ref);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+    }
+
+    void ResolveInInstance(lua_State* L, int ref)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        GetInstanceContextTable(L);
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_isnil(L, -1))
+        {
+            // [-1] LUA_NIL
+            return;
+        }
+        // [-1] instance context table
+
+        lua_rawgeti(L, -1, ref);
+        // [-2] instance context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
     static int BacktraceErrorHandler(lua_State *m_state) {
         if (!lua_isstring(m_state, 1))
             return 1;
@@ -653,6 +847,14 @@ namespace dmScript
 
     void Unref(lua_State* L, int table, int reference)
     {
+        if (reference == LUA_NOREF)
+        {
+            return;
+        }
+        if (g_LuaReferenceCount <= 0)
+        {
+            dmLogError("Unbalanced number of Lua refs - possibly double calls to dmScript::Unref");
+        }
         --g_LuaReferenceCount;
         luaL_unref(L, table, reference);
     }
@@ -674,7 +876,7 @@ namespace dmScript
 
     LuaStackCheck::LuaStackCheck(lua_State* L, int diff) : m_L(L), m_Top(lua_gettop(L)), m_Diff(diff)
     {
-        assert(m_Diff >= 0);
+        assert(m_Diff >= -m_Top);
     }
 
     int LuaStackCheck::Error(const char* fmt, ... )
@@ -686,14 +888,14 @@ namespace dmScript
         lua_pushvfstring(m_L, fmt, argp);
         va_end(argp);
         lua_concat(m_L, 2);
-        m_Diff = -1;
+        m_Diff = -0x800000;
         return lua_error(m_L);
     }
 
     void LuaStackCheck::Verify(int diff)
     {
-        uint32_t expected = m_Top + diff;
-        uint32_t actual = lua_gettop(m_L);
+        int32_t expected = m_Top + diff;
+        int32_t actual = lua_gettop(m_L);
         if (expected != actual)
         {
             dmLogError("Unbalanced Lua stack, expected (%d), actual (%d)", expected, actual);
@@ -703,53 +905,132 @@ namespace dmScript
 
     LuaStackCheck::~LuaStackCheck()
     {
-        if (m_Diff >= 0) {
+        if (m_Diff != -0x800000) {
             Verify(m_Diff);
         }
     }
 
-    void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+    struct LuaCallbackInfo
     {
-        if(cbk->m_Callback != LUA_NOREF)
+        LuaCallbackInfo() : m_L(0), m_ContextTableRef(LUA_NOREF), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+        lua_State* m_L;
+        int        m_ContextTableRef;
+        int        m_CallbackInfoRef;
+        int        m_Callback;
+        int        m_Self;
+    };
+    
+    LuaCallbackInfo* CreateCallback(lua_State* L, int callback_stack_index)
+    {
+        luaL_checktype(L, callback_stack_index, LUA_TFUNCTION);
+
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstance(L);
+        // [-1] instance
+
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF)) {
+            lua_pop(L, 1);
+            return 0x0;
+        }
+        // [-2] instance
+        // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+
+        lua_pushvalue(L, -2);
+        // [-3] instance
+        // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+        // [-1] instance
+
+        lua_call(L, 1, 1);
+        // [-2] instance
+        // [-1] instance context table ref
+        assert(lua_type(L, -1) == LUA_TNUMBER);
+
+        int context_table_ref = lua_tonumber(L, -1);
+        lua_pop(L, 2);
+
+        lua_pushvalue(L, callback_stack_index);
+        // [-1] callback
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
+        // [-2] callback
+        // [-1] context table
+        if (lua_type(L, -1) != LUA_TTABLE)
         {
-            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
-            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+            lua_pop(L, 2);
+            return 0x0;
         }
 
-        cbk->m_L = dmScript::GetMainThread(L);
+        lua_insert(L, -2);
+        // [-2] context table
+        // [-1] callback
 
-        luaL_checktype(L, index, LUA_TFUNCTION);
-        lua_pushvalue(L, index);
-        cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        LuaCallbackInfo* cbk = (LuaCallbackInfo*)lua_newuserdata(L, sizeof(LuaCallbackInfo));
+        // [-3] context table
+        // [-2] callback
+        // [-1] LuaCallbackInfo
 
-        dmScript::GetInstance(L);
-        cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    }
+        cbk->m_L = GetMainThread(L);
+        cbk->m_ContextTableRef = context_table_ref;
+        
+        cbk->m_CallbackInfoRef = luaL_ref(L, -3);
+        // [-2] context table
+        // [-1] callback
+
+        cbk->m_Callback = luaL_ref(L, -2);
+        // [-1] context table
+
+        GetInstance(L);
+        // [-1] context table
+        // [-2] instance
+
+        cbk->m_Self = luaL_ref(L, -2);
+        // [-1] context table
+
+        lua_pop(L, 1);
+
+        return cbk;
+     }
 
     bool IsValidCallback(LuaCallbackInfo* cbk)
     {
-        if (cbk->m_Callback == LUA_NOREF ||
-            cbk->m_Self == LUA_NOREF ||
-            cbk->m_L == NULL) {
+        if (cbk == NULL ||
+            cbk->m_L == NULL ||
+            cbk->m_ContextTableRef == LUA_NOREF ||
+            cbk->m_CallbackInfoRef == LUA_NOREF ||
+            cbk->m_Callback == LUA_NOREF ||
+            cbk->m_Self == LUA_NOREF) {
             return false;
         }
         return true;
     }
 
-    void UnregisterCallback(LuaCallbackInfo* cbk)
+    void DeleteCallback(LuaCallbackInfo* cbk)
     {
-        if(cbk->m_Callback != LUA_NOREF)
+        lua_State* L = cbk->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+
+        if(cbk->m_ContextTableRef != LUA_NOREF)
         {
-            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
-            dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
-            cbk->m_Callback = LUA_NOREF;
+            lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
+            if (lua_type(L, -1) == LUA_TTABLE)
+            {
+                luaL_unref(L, -1, cbk->m_Self);
+                luaL_unref(L, -1, cbk->m_Callback);
+                luaL_unref(L, -1, cbk->m_CallbackInfoRef);
+            }
             cbk->m_Self = LUA_NOREF;
-            cbk->m_L = 0;
+            cbk->m_Callback = LUA_NOREF;
+            cbk->m_CallbackInfoRef = LUA_NOREF;
+            cbk->m_ContextTableRef = LUA_NOREF;
+
+            lua_pop(L, 1);
+            return;
         }
         else
         {
-            if (cbk->m_L)
-                luaL_error(cbk->m_L, "Failed to unregister callback (it was not registered)");
+            if (L)
+                luaL_error(L, "Failed to unregister callback (it was not registered)");
             else
                 dmLogWarning("Failed to unregister callback (it was not registered)");
         }
@@ -757,24 +1038,74 @@ namespace dmScript
 
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
     {
-        if(cbk->m_Callback == LUA_NOREF)
+        if(cbk->m_ContextTableRef == LUA_NOREF)
         {
-            luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
+            dmLogWarning("Failed to invoke callback (it was not registered)");
             return false;
         }
 
         lua_State* L = cbk->m_L;
         DM_LUA_STACK_CHECK(L, 0);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self); // Setup self (the script instance)
-        lua_pushvalue(L, -1);
-        dmScript::SetInstance(L);
+        GetInstance(L);
+        // [-1] old instance
 
-        if (!dmScript::IsInstanceValid(L))
+        lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
+        // [-2] old instance
+        // [-1] context table
+
+        if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 2);
-            DM_LUA_ERROR("Could not run callback because the instance has been deleted");
+            dmLogWarning("Could not run callback because the script instance has been deleted");
+            return false;
+        }
+
+        const int context_table_stack_index = lua_gettop(L);
+
+        lua_rawgeti(L, context_table_stack_index, cbk->m_Callback);
+        // [-3] old instance
+        // [-2] context table
+        // [-1] callback
+        if (lua_type(L, -1) != LUA_TFUNCTION)
+        {
+            lua_pop(L, 3);
+            dmLogWarning("Could not run callback because the callback function has been deleted");
+            return false;
+        }
+
+        lua_rawgeti(L, context_table_stack_index, cbk->m_Self); // Setup self (the script instance)
+        // [-4] old instance
+        // [-3] context table
+        // [-2] callback
+        // [-1] self
+        if (lua_isnil(L, -1))
+        {
+            lua_pop(L, 4);
+            dmLogWarning("Could not run callback because the script instance has been deleted");
+            return false;
+        }
+
+        lua_pushvalue(L, -1);
+        // [-5] old instance
+        // [-4] context table
+        // [-3] callback
+        // [-2] self
+        // [-1] self
+
+        SetInstance(L);
+        // [-4] old instance
+        // [-3] context table
+        // [-2] callback
+        // [-1] self
+
+        if (!IsInstanceValid(L))
+        {
+            lua_pop(L, 3);
+            // [-1] old instance
+
+            SetInstance(L);
+            dmLogWarning("Could not run callback because the script instance is invalid");
             return false;
         }
 
@@ -786,13 +1117,24 @@ namespace dmScript
         int user_args_end = lua_gettop(L);
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
-        int ret = dmScript::PCall(L, number_of_arguments, 0);
+        int ret = PCall(L, number_of_arguments, 0);
         if (ret != 0) {
+            // [-3] old instance
+            // [-2] context table
+            // [-1] error string
             dmLogError("Error running callback: %s", lua_tostring(L,-1));
-            lua_pop(L, 1);
+
+            lua_pop(L, 2);
+            // [-1] old instance
+
+            SetInstance(L);
             return false;
         }
+        // [-2] old instance
+        // [-1] context table
+        lua_pop(L, 1);
 
+        SetInstance(L);
         return true;
     }
 

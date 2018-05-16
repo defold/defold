@@ -22,10 +22,21 @@ extern "C"
 
 #define DEFAULT_URL "__default_url"
 
+struct ScriptInstance
+{
+    int m_InstanceReference;
+    int m_ContextTableReference;
+};
+
 int ResolvePathCallback(lua_State* L)
 {
-    uint32_t* user_data = (uint32_t*)lua_touserdata(L, 1);
-    assert(*user_data == 1);
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const int self_index = 1;
+
+    ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
+    assert(i);
+    assert(i->m_ContextTableReference != LUA_NOREF);
     const char* path = luaL_checkstring(L, 2);
     dmScript::PushHash(L, dmHashString64(path));
     return 1;
@@ -33,16 +44,34 @@ int ResolvePathCallback(lua_State* L)
 
 int GetURLCallback(lua_State* L)
 {
-    uint32_t* user_data = (uint32_t*)lua_touserdata(L, 1);
-    assert(*user_data == 1);
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const int self_index = 1;
+
+    ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
+    assert(i);
+    assert(i->m_ContextTableReference != LUA_NOREF);
     lua_getglobal(L, DEFAULT_URL);
+    return 1;
+}
+
+int GetInstaceContextTableRef(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    const int self_index = 1;
+
+    ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
+    lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
+
     return 1;
 }
 
 static const luaL_reg META_TABLE[] =
 {
-    {dmScript::META_TABLE_RESOLVE_PATH, ResolvePathCallback},
-    {dmScript::META_TABLE_GET_URL,      GetURLCallback},
+    {dmScript::META_TABLE_RESOLVE_PATH,             ResolvePathCallback},
+    {dmScript::META_TABLE_GET_URL,                  GetURLCallback},
+    {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GetInstaceContextTableRef},
     {0, 0}
 };
 
@@ -79,8 +108,11 @@ protected:
 
         int top = lua_gettop(L);
         (void)top;
-        uint32_t* user_data = (uint32_t*)lua_newuserdata(L, 4);
-        *user_data = 1;
+        ScriptInstance* script_instance = (ScriptInstance*)lua_newuserdata(L, sizeof(ScriptInstance));
+        lua_pushvalue(L, -1);
+        script_instance->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        lua_newtable(L);
+        script_instance->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
         luaL_newmetatable(L, "ScriptMsgTest");
         luaL_register(L, 0, META_TABLE);
         lua_setmetatable(L, -2);
@@ -93,6 +125,12 @@ protected:
 
     virtual void TearDown()
     {
+        dmScript::GetInstance(L);
+        ScriptInstance* script_instance = (ScriptInstance*)lua_touserdata(L, -1);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ContextTableReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        lua_pop(L, 1);
+
         lua_pushnil(L);
         dmScript::SetInstance(L);
 
@@ -137,7 +175,8 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
     assert(message->m_Descriptor != 0);
     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
 
-    int ref = message->m_Receiver.m_Function - 2;
+    // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+    int ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
     lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
     dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
     lua_gc(L, LUA_GCCOLLECT, 0);

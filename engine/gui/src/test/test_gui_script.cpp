@@ -1195,6 +1195,40 @@ TEST_F(dmGuiScriptTest, SetBoneNodeProperties)
         DeleteSpineDummyData(dummy_data);
 }
 
+TEST_F(dmGuiScriptTest, TestInstanceContext)
+{
+    lua_State* L = dmGui::GetLuaState(m_Context);
+
+    dmGui::NewSceneParams params;
+    params.m_MaxNodes = 64;
+    params.m_MaxAnimations = 32;
+    params.m_UserData = this;
+    params.m_RigContext = m_RigContext;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+
+    dmGui::InitScene(scene);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+    dmScript::SetInstance(L);
+
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    lua_pushstring(L, "__my_context_value");
+    lua_pushnumber(L, 81233);
+    ASSERT_TRUE(dmScript::SetInstanceContextValue(L));
+
+    lua_pushstring(L, "__my_context_value");
+    dmScript::GetInstanceContextValue(L);
+    ASSERT_EQ(81233, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    dmGui::DeleteScene(scene);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();

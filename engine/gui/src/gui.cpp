@@ -124,16 +124,30 @@ namespace dmGui
 
     static void RigEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        if (!user_data2) {
+        if (!user_data1 || !user_data2) 
+        {
             return;
         }
 
         HScene scene = (HScene)user_data1;
         SpineAnimation* animation = (SpineAnimation*)user_data2;
 
-        // We ignore rig keyframe events for now, only completed events are handled.
-        if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
-            animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
+        switch (event_type)
+        {
+            case dmRig::RIG_EVENT_TYPE_COMPLETED:
+            {
+                if (animation->m_AnimationComplete)
+                    animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
+                break;
+            }
+            case dmRig::RIG_EVENT_TYPE_KEYFRAME:
+            {
+                scene->m_RigEventDataCallback(scene, animation->m_Userdata2, event_data);
+                break;
+            }
+            default:
+                dmLogError("Unknown rig event received (%d).", event_type);
+                break;
         }
     }
 
@@ -298,7 +312,7 @@ namespace dmGui
         memset(scene, 0, sizeof(Scene));
         scene->m_InstanceReference = LUA_NOREF;
         scene->m_DataReference = LUA_NOREF;
-        scene->m_RefTableReference = LUA_NOREF;
+        scene->m_ContextTableReference = LUA_NOREF;
     }
 
     HScene NewScene(HContext context, const NewSceneParams* params)
@@ -321,9 +335,10 @@ namespace dmGui
         scene->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         // Here we create a custom table to hold the references created by this gui scene
-        // Don't interact with this table with other functions than dmScript::Ref/dmScript::Unref
+        // It is also the "Instance Context Table" used to by META_TABLE_SET_CONTEXT_VALUE
+        // and META_TABLE_GET_CONTEXT_VALUE implementaion
         lua_newtable(L);
-        scene->m_RefTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        scene->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         lua_newtable(L);
         scene->m_DataReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
@@ -356,6 +371,7 @@ namespace dmGui
         scene->m_Height = context->m_DefaultProjectHeight;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
         scene->m_FetchRigSceneDataCallback = params->m_FetchRigSceneDataCallback;
+        scene->m_RigEventDataCallback = params->m_RigEventDataCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
@@ -399,7 +415,7 @@ namespace dmGui
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
-        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
 
         dmArray<HScene>& scenes = scene->m_Context->m_Scenes;
         uint32_t scene_count = scenes.Size();
@@ -1845,9 +1861,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         int custom_ref = LUA_NOREF;
         bool is_callback = false;
-        if (message->m_Receiver.m_Function) {
-            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
-            custom_ref = message->m_Receiver.m_Function - 2;
+        if (message->m_Receiver.m_FunctionRef) {
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            custom_ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
             is_callback = true;
         }
 
@@ -2680,6 +2696,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return dmRig::GetMesh(rig_instance);
     }
 
+    Result SetNodeSpineSkinSlot(HScene scene, HNode node, dmhash_t skin_id, dmhash_t slot_id)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        dmRig::Result result = dmRig::SetMeshSlot(rig_instance, skin_id, slot_id);
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
+    }
+
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2996,17 +3019,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             animation.m_Userdata1 = userdata1;
             animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-            SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
         }
         else
         {
             animation.m_Node = node;
             animation.m_AnimationComplete = 0;
             animation.m_Userdata1 = 0;
-            animation.m_Userdata2 = 0;
+            animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-            SetEventCallback(rig_instance, 0, 0, 0);
         }
+
+        SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
 
         return RESULT_OK;
     }
@@ -3975,6 +3998,11 @@ bail:
     lua_State* GetLuaState(HContext context)
     {
         return context->m_LuaState;
+    }
+
+    int GetContextTableRef(HScene scene)
+    {
+        return scene->m_ContextTableReference;
     }
 
 }  // namespace dmGui

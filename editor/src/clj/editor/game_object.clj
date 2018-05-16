@@ -53,7 +53,7 @@
 (defn- wrap-if-raw-sound [_node-id target]
   (let [resource (:resource (:resource target))
         source-path (resource/proj-path resource)
-        ext (resource/ext resource)]
+        ext (resource/type-ext resource)]
     (if (sound/supported-audio-formats ext)
       (let [workspace (project/workspace (project/get-project _node-id))
             res-type  (workspace/get-resource-type workspace "sound")
