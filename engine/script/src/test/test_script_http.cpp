@@ -137,7 +137,8 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
     assert(message->m_Descriptor != 0);
     dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
 
-    int ref = message->m_Receiver.m_Function - 2;
+    // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+    int ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
     lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
     dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
     lua_gc(L, LUA_GCCOLLECT, 0);
