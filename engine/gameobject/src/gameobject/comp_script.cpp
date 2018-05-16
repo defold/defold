@@ -242,9 +242,13 @@ namespace dmGameObject
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             if (is_callback) {
-                dmScript::Unref(L, LUA_REGISTRYINDEX, function_ref);
+                dmScript::ResolveInInstance(L, function_ref);
+                dmScript::UnrefInInstance(L, function_ref);
+            }
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             }
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
