@@ -63,6 +63,24 @@ namespace dmGameSystem
      * @variable
      */
 
+    struct EmitterStateChangedCallbackArgs
+    {
+        EmitterStateChangedCallbackArgs(dmhash_t component_id, dmhash_t emitter_id, dmParticle::EmitterState emitter_state)
+            : m_ComponentId(component_id), m_EmitterId(emitter_id), m_EmitterState(emitter_state)
+        {}
+        dmhash_t m_ComponentId;
+        dmhash_t m_EmitterId;
+        dmParticle::EmitterState m_EmitterState;
+    };
+
+    static void EmitterStateChangedCallbackArgsCB(lua_State* L, void* user_args)
+    {
+        EmitterStateChangedCallbackArgs* args = (EmitterStateChangedCallbackArgs*)user_args;
+        dmScript::PushHash(L, args->m_ComponentId);
+        dmScript::PushHash(L, args->m_EmitterId);
+        lua_pushnumber(L, args->m_EmitterState);
+    }
+
     void EmitterStateChangedCallback(uint32_t num_awake_emitters, dmhash_t emitter_id, dmParticle::EmitterState emitter_state, void* user_data)
     {
         EmitterStateChangedScriptData data = *(EmitterStateChangedScriptData*)(user_data);
@@ -75,27 +93,9 @@ namespace dmGameSystem
                 return;
             }
 
-            struct Args
-            {
-                Args(dmhash_t component_id, dmhash_t emitter_id, dmParticle::EmitterState emitter_state)
-                    : m_ComponentId(component_id), m_EmitterId(emitter_id), m_EmitterState(emitter_state)
-                {}
-                dmhash_t m_ComponentId;
-                dmhash_t m_EmitterId;
-                dmParticle::EmitterState m_EmitterState;
+            EmitterStateChangedCallbackArgs args(data.m_ComponentId, emitter_id, emitter_state);
 
-                static void LuaCallbackCustomArgs(lua_State* L, void* user_args)
-                {
-                    Args* args = (Args*)user_args;
-                    dmScript::PushHash(L, args->m_ComponentId);
-                    dmScript::PushHash(L, args->m_EmitterId);
-                    lua_pushnumber(L, args->m_EmitterState);
-                }
-            };
-
-            Args args(data.m_ComponentId, emitter_id, emitter_state);
-
-            if (!dmScript::InvokeCallback(data.m_CallbackInfo, Args::LuaCallbackCustomArgs, &args))
+            if (!dmScript::InvokeCallback(data.m_CallbackInfo, EmitterStateChangedCallbackArgsCB, &args))
             {
                 dmLogError("Could not run particlefx callback because the instance has been deleted.");
             }
@@ -186,8 +186,7 @@ namespace dmGameSystem
             data.m_CallbackInfo = dmScript::CreateCallback(dmScript::GetMainThread(L), -1);
             if (data.m_CallbackInfo == 0x0)
             {
-                return luaL_error(L, "particlefx.play failed to crate callback");
-                return 0;
+                return DM_LUA_ERROR("particlefx.play failed to create callback");
             }
 
             // path-only url (e.g. "/level/particlefx") has empty fragment, and relative path (e.g. "#particlefx") has non-empty fragment.

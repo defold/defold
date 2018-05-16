@@ -1148,7 +1148,7 @@ namespace dmGameObject
         dmScript::PushHash(L, args->m_PropertyId);
     }
 
-    void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+    static void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
         dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;

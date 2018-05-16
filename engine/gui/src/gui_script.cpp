@@ -568,6 +568,24 @@ namespace dmGui
         curve->userdata2 = 0x0;
     }
 
+    struct LuaAnimationCompleteArgs
+    {
+        LuaAnimationCompleteArgs(HScene scene, int node_ref)
+            : m_Scene(scene), m_NodeRef(node_ref)
+        {}
+        HScene m_Scene;
+        int m_NodeRef;
+    };
+    
+    static void LuaCallbackCustomArgsCB(lua_State* L, void* user_args)
+    {
+        LuaAnimationCompleteArgs* args = (LuaAnimationCompleteArgs*)user_args;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, args->m_Scene->m_ContextTableReference);
+        lua_rawgeti(L, -1, args->m_NodeRef);
+        lua_insert(L, -2);
+        lua_pop(L, 1);
+    }
+
     void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
@@ -578,26 +596,8 @@ namespace dmGui
 
         if( finished && dmScript::IsValidCallback(cbk))
         {
-            struct Args
-            {
-                Args(HScene scene, int node_ref)
-                    : m_Scene(scene), m_NodeRef(node_ref)
-                {}
-                HScene m_Scene;
-                int m_NodeRef;
-
-                static void LuaCallbackCustomArgs(lua_State* L, void* user_args)
-                {
-                    Args* args = (Args*)user_args;
-                    lua_rawgeti(L, LUA_REGISTRYINDEX, args->m_Scene->m_ContextTableReference);
-                    lua_rawgeti(L, -1, args->m_NodeRef);
-                    lua_insert(L, -2);
-                    lua_pop(L, 1);
-                }
-            };
-            
-            Args args(scene, node_ref);
-            dmScript::InvokeCallback(cbk, Args::LuaCallbackCustomArgs, &args);
+            LuaAnimationCompleteArgs args(scene, node_ref);
+            dmScript::InvokeCallback(cbk, LuaCallbackCustomArgsCB, &args);
         }
 
         lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
