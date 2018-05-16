@@ -482,8 +482,10 @@ int TestGetInstanceContext(lua_State* L)
     }
 
     lua_pushstring(L, "__my_context_value");
-    if(!dmScript::GetInstanceContextValue(L))
+    dmScript::GetInstanceContextValue(L);
+    if (lua_isnil(L, -1))
     {
+        lua_pop(L, 1);
         return 0;
     }
     lua_Number number = lua_tonumber(L, -1);
