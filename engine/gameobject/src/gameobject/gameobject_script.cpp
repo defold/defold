@@ -341,14 +341,7 @@ namespace dmGameObject
         const int self_index = 1;
 
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
-        if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
-        {
-            lua_pushnumber(L, i->m_ContextTableReference);
-        }
-        else
-        {
-            lua_pushnil(L);
-        }
+        lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
 
         return 1;
     }
