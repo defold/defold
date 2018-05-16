@@ -201,6 +201,7 @@ namespace dmGui
     {
         HNode    m_Node;
         AnimationComplete m_AnimationComplete;
+        RigEventDataCallback m_EventDataCallback;
         void*    m_Userdata1;
         void*    m_Userdata2;
     };
@@ -288,6 +289,7 @@ namespace dmGui
         uint32_t                m_Height;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
+        RigEventDataCallback    m_RigEventDataCallback;
         OnWindowResizeCallback   m_OnWindowResizeCallback;
     };
 
