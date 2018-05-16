@@ -124,16 +124,30 @@ namespace dmGui
 
     static void RigEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        if (!user_data2) {
+        if (!user_data1 || !user_data2) 
+        {
             return;
         }
 
         HScene scene = (HScene)user_data1;
         SpineAnimation* animation = (SpineAnimation*)user_data2;
 
-        // We ignore rig keyframe events for now, only completed events are handled.
-        if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
-            animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
+        switch (event_type)
+        {
+            case dmRig::RIG_EVENT_TYPE_COMPLETED:
+            {
+                if (animation->m_AnimationComplete)
+                    animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
+                break;
+            }
+            case dmRig::RIG_EVENT_TYPE_KEYFRAME:
+            {
+                scene->m_RigEventDataCallback(scene, animation->m_Userdata2, event_data);
+                break;
+            }
+            default:
+                dmLogError("Unknown rig event received (%d).", event_type);
+                break;
         }
     }
 
@@ -357,6 +371,7 @@ namespace dmGui
         scene->m_Height = context->m_DefaultProjectHeight;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
         scene->m_FetchRigSceneDataCallback = params->m_FetchRigSceneDataCallback;
+        scene->m_RigEventDataCallback = params->m_RigEventDataCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
@@ -3007,17 +3022,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             animation.m_Userdata1 = userdata1;
             animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-            SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
         }
         else
         {
             animation.m_Node = node;
             animation.m_AnimationComplete = 0;
             animation.m_Userdata1 = 0;
-            animation.m_Userdata2 = 0;
+            animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-            SetEventCallback(rig_instance, 0, 0, 0);
         }
+
+        SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
 
         return RESULT_OK;
     }
@@ -3986,6 +4001,11 @@ bail:
     lua_State* GetLuaState(HContext context)
     {
         return context->m_LuaState;
+    }
+
+    int GetReferenceTableRef(HScene scene)
+    {
+        return scene->m_RefTableReference;
     }
 
 }  // namespace dmGui

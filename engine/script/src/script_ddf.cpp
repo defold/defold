@@ -1,6 +1,7 @@
 #include "script.h"
 #include <dlib/hashtable.h>
 #include <dlib/align.h>
+#include <script/ddf_script.h>
 
 #include <string.h>
 extern "C"
@@ -16,6 +17,7 @@ namespace dmScript
 #define DDF_TYPE_NAME_VECTOR4   "vector4"
 #define DDF_TYPE_NAME_QUAT      "quat"
 #define DDF_TYPE_NAME_MATRIX4   "matrix4"
+#define DDF_TYPE_NAME_LUAREF    "lua_ref"
 
     dmHashTable<uintptr_t, MessageDecoder> g_Decoders;
 
@@ -519,6 +521,16 @@ namespace dmScript
                     else if (strncmp(d->m_Name, DDF_TYPE_NAME_MATRIX4, sizeof(DDF_TYPE_NAME_MATRIX4)) == 0)
                     {
                         dmScript::PushMatrix4(L, *((Vectormath::Aos::Matrix4*) ptr));
+                    }
+                    else if (strncmp(d->m_Name, DDF_TYPE_NAME_LUAREF, sizeof(DDF_TYPE_NAME_LUAREF)) == 0)
+                    {
+                        dmScriptDDF::LuaRef* lua_ref = (dmScriptDDF::LuaRef*) ptr;
+                        if (lua_ref->m_Ref)
+                        {
+                            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref->m_ReferenceTableRef);
+                            lua_rawgeti(L, -1, lua_ref->m_Ref);
+                            lua_remove(L, -2);
+                        }
                     }
                     else
                     {

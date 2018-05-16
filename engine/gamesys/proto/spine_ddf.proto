@@ -2,6 +2,7 @@ package dmGameSystemDDF;
 
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
+import "script/ddf_script.proto";
 
 option java_package = "com.dynamo.spine.proto";
 option java_outer_classname = "Spine";
@@ -129,6 +130,7 @@ message SpineEvent
     optional int32 integer = 5 [default = 0];
     optional float float = 6 [default = 0.0];
     optional uint64 string = 7 [default = 0];
+    optional dmScriptDDF.LuaRef node = 8;
 }
 
 /* Function wrapper documented in gamesys_script.cpp */

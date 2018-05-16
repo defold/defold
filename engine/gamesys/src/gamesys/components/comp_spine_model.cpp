@@ -186,6 +186,8 @@ namespace dmGameSystem
                 event.m_Integer     = keyframe_event->m_Integer;
                 event.m_Float       = keyframe_event->m_Float;
                 event.m_String      = keyframe_event->m_String;
+                event.m_Node.m_Ref  = 0;
+                event.m_Node.m_ReferenceTableRef = 0;
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
