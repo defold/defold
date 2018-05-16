@@ -1118,13 +1118,12 @@ namespace dmScript
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
         int ret = PCall(L, number_of_arguments, 0);
-        if (ret != 0) {
-            // [-3] old instance
-            // [-2] context table
-            // [-1] error string
-            dmLogError("Error running callback: %s", lua_tostring(L,-1));
 
-            lua_pop(L, 2);
+        if (ret != 0) {
+            // [-2] old instance
+            // [-1] context table
+
+            lua_pop(L, 1);
             // [-1] old instance
 
             SetInstance(L);

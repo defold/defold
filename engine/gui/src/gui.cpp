@@ -1521,8 +1521,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
+            if (custom_ref != LUA_NOREF) {
+                dmScript::ResolveInInstance(L, custom_ref);
+            }
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
+            }
+
             assert(lua_isfunction(L, -1));
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
 
             uint32_t arg_count = 1;
@@ -1758,6 +1766,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     break;
                 }
             }
+
+            if (custom_ref != LUA_NOREF)
+            {
+                dmScript::UnrefInInstance(L, custom_ref);
+            }
+
             lua_pushnil(L);
             dmScript::SetInstance(L);
             assert(top == lua_gettop(L));
@@ -1880,10 +1894,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         Result r = RunScript(scene, SCRIPT_FUNCTION_ONMESSAGE, custom_ref, (void*)message);
 
-        if (is_callback) {
-            lua_State* L = scene->m_Context->m_LuaState;
-            dmScript::Unref(L, LUA_REGISTRYINDEX, custom_ref);
-        }
         return r;
     }
 
