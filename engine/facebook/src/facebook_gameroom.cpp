@@ -6,9 +6,119 @@
 #include "facebook_private.h"
 #include "facebook_analytics.h"
 
+
+/**
+ * 20170507 Dan Engelbrecht
+ * This implementation uses knowledge of the insides of the dmScript::LuaCallbackInfo
+ * and the API has changed. To avoid to big changes on too many platforms the old
+ * lua callback utilities has been copied in to this file.
+ * 
+ * We want to move away from this but the individual platforms also relies on the
+ * specifics on the LuaCallbackInfo structs content so these changes should be done
+ * in separate PR. 
+ */ 
+
+struct LuaCallbackInfo
+{
+    LuaCallbackInfo() : m_L(0), m_Callback(LUA_NOREF), m_Self(LUA_NOREF) {}
+    lua_State* m_L;
+    int        m_Callback;
+    int        m_Self;
+};
+
+static void RegisterCallback(lua_State* L, int index, LuaCallbackInfo* cbk)
+{
+    if(cbk->m_Callback != LUA_NOREF)
+    {
+        dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+        dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+    }
+
+    cbk->m_L = dmScript::GetMainThread(L);
+
+    luaL_checktype(L, index, LUA_TFUNCTION);
+    lua_pushvalue(L, index);
+    cbk->m_Callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+    dmScript::GetInstance(L);
+    cbk->m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+}
+
+typedef void (*LuaCallbackUserFn)(lua_State* L, void* user_context);
+
+static bool IsValidCallback(LuaCallbackInfo* cbk)
+{
+    if (cbk->m_Callback == LUA_NOREF ||
+        cbk->m_Self == LUA_NOREF ||
+        cbk->m_L == NULL) {
+        return false;
+    }
+    return true;
+}
+
+static void UnregisterCallback(LuaCallbackInfo* cbk)
+{
+    if(cbk->m_Callback != LUA_NOREF)
+    {
+        dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Callback);
+        dmScript::Unref(cbk->m_L, LUA_REGISTRYINDEX, cbk->m_Self);
+        cbk->m_Callback = LUA_NOREF;
+        cbk->m_Self = LUA_NOREF;
+        cbk->m_L = 0;
+    }
+    else
+    {
+        if (cbk->m_L)
+            luaL_error(cbk->m_L, "Failed to unregister callback (it was not registered)");
+        else
+            dmLogWarning("Failed to unregister callback (it was not registered)");
+    }
+}
+
+static bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
+{
+    if(cbk->m_Callback == LUA_NOREF)
+    {
+        luaL_error(cbk->m_L, "Failed to invoke callback (it was not registered)");
+        return false;
+    }
+
+    lua_State* L = cbk->m_L;
+    DM_LUA_STACK_CHECK(L, 0);
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Callback);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_Self); // Setup self (the script instance)
+    lua_pushvalue(L, -1);
+    dmScript::SetInstance(L);
+
+    if (!dmScript::IsInstanceValid(L))
+    {
+        lua_pop(L, 2);
+        dmLogWarning("Invalid script instance, failed to invoke callback");
+        return false;
+    }
+
+    int user_args_start = lua_gettop(L);
+
+    if (fn)
+        fn(L, user_context);
+
+    int user_args_end = lua_gettop(L);
+
+    int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
+    int ret = dmScript::PCall(L, number_of_arguments, 0);
+    if (ret != 0) {
+        dmLogError("Error running callback: %s", lua_tostring(L,-1));
+        lua_pop(L, 1);
+        return false;
+    }
+
+    return true;
+}
+
 struct GameroomFB
 {
-    dmScript::LuaCallbackInfo m_Callback;
+    LuaCallbackInfo m_Callback;
 } g_GameroomFB;
 
 static const dmhash_t g_DialogFeed = dmHashBufferNoReverse64("feed", 4);
@@ -18,6 +128,7 @@ static const dmhash_t g_DialogAppRequest = dmHashBufferNoReverse64("apprequest",
 ////////////////////////////////////////////////////////////////////////////////
 // Functions for running callbacks; dialog and login results
 //
+
 
 struct LoginResultArguments
 {
@@ -42,7 +153,7 @@ static void RunLoginResultCallback(lua_State* L, int result, const char* error)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for login result.");
         return;
     }
@@ -51,9 +162,9 @@ static void RunLoginResultCallback(lua_State* L, int result, const char* error)
     args.m_Result = result;
     args.m_Error = error;
 
-    dmScript::InvokeCallback(&g_GameroomFB.m_Callback, PutLoginResultArguments, (void*)&args);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutLoginResultArguments, (void*)&args);
 
-    dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 struct AppRequestArguments
@@ -87,7 +198,7 @@ static void PutAppRequestArguments(lua_State* L, void* user_context)
 
 static void RunAppRequestCallback(const char* request_id, const char* to)
 {
-    if (!dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
@@ -96,9 +207,9 @@ static void RunAppRequestCallback(const char* request_id, const char* to)
     args.m_RequestId = request_id;
     args.m_To = to;
 
-    dmScript::InvokeCallback(&g_GameroomFB.m_Callback, PutAppRequestArguments, (void*)&args);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutAppRequestArguments, (void*)&args);
 
-    dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 static void PutFeedArguments(lua_State* L, void* user_context)
@@ -114,14 +225,14 @@ static void PutFeedArguments(lua_State* L, void* user_context)
 
 static void RunFeedCallback(const char* post_id)
 {
-    if (!dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
 
-    dmScript::InvokeCallback(&g_GameroomFB.m_Callback, PutFeedArguments, (void*)post_id);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutFeedArguments, (void*)post_id);
 
-    dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 static void PutDialogErrorArguments(lua_State* L, void* user_context)
@@ -135,14 +246,14 @@ static void PutDialogErrorArguments(lua_State* L, void* user_context)
 
 static void RunDialogErrorCallback(const char* error_str)
 {
-    if (!dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
+    if (!IsValidCallback(&g_GameroomFB.m_Callback)) {
         dmLogError("No callback set for dialog result.");
         return;
     }
 
-    dmScript::InvokeCallback(&g_GameroomFB.m_Callback, PutDialogErrorArguments, (void*)error_str);
+    InvokeCallback(&g_GameroomFB.m_Callback, PutDialogErrorArguments, (void*)error_str);
 
-    dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    UnregisterCallback(&g_GameroomFB.m_Callback);
 }
 
 
@@ -203,8 +314,8 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
     }
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
-        dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    if (IsValidCallback(&g_GameroomFB.m_Callback)) {
+        UnregisterCallback(&g_GameroomFB.m_Callback);
     }
 
     g_GameroomFB.m_Callback.m_Callback = callback;
@@ -221,8 +332,8 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
     }
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (dmScript::IsValidCallback(&g_GameroomFB.m_Callback)) {
-        dmScript::UnregisterCallback(&g_GameroomFB.m_Callback);
+    if (IsValidCallback(&g_GameroomFB.m_Callback)) {
+        UnregisterCallback(&g_GameroomFB.m_Callback);
     }
 
     g_GameroomFB.m_Callback.m_Callback = callback;
