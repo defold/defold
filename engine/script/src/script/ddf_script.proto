@@ -5,6 +5,8 @@ import "ddf/ddf_extensions.proto";
 option java_package = "com.dynamo.ddfscript.proto";
 option java_outer_classname = "DdfScript";
 
+// Field 'ref' is a local reference into lua table 'context_table_ref'. See usage in script_ddf.cpp.
+// Currently used for passing gui node reference in spine event message
 message LuaRef
 {
     required int32 ref = 1 [default = 0];

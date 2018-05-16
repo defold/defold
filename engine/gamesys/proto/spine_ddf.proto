@@ -104,6 +104,7 @@ message SpineCancelAnimation
  * @param integer [type:number] user defined integer value for the event
  * @param float [type:number] user defined floating point value for the event
  * @param string [type:hash] user defined string value (hashed) for the event
+ * @param node [type:node] the source spine gui node if the event originated from gui, otherwise nil
  * @examples
  *
  * The following example assumes that an animation sends event messages with the id `"footstep"`
