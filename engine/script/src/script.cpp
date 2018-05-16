@@ -5,7 +5,6 @@
 #include <dlib/math.h>
 #include <dlib/pprint.h>
 #include <dlib/profile.h>
-#include <extension/extension.h>
 
 #include "script_private.h"
 #include "script_hash.h"
@@ -22,6 +21,7 @@
 #include "script_luasocket.h"
 #include "script_bitop.h"
 #include "script_timer.h"
+#include "script_native_extensions.h"
 
 extern "C"
 {
@@ -50,7 +50,7 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
+    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_native_extensions)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
@@ -59,10 +59,9 @@ namespace dmScript
         context->m_ScriptExtensions.SetCapacity(8);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
-        context->m_EnableExtensions = enable_extensions;
-        memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
+        context->m_EnableNativeExtensions = enable_native_extensions;
         return context;
     }
 
@@ -182,33 +181,16 @@ namespace dmScript
 
         InitializeHttp(context);
         InitializeTimer(context);
+        if (context->m_EnableNativeExtensions)
+        {
+            InitializeNativeExtensions(context);
+        }
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
             if ((*l)->Initialize != 0x0)
             {
                 (*l)->Initialize(context);
-            }
-        }
-
-#define BIT_INDEX(b) ((b) / sizeof(uint32_t))
-#define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
-
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                dmExtension::Params p;
-                p.m_ConfigFile = context->m_ConfigFile;
-                p.m_L = L;
-                dmExtension::Result r = ed->Initialize(&p);
-                if (r == dmExtension::RESULT_OK) {
-                    context->m_InitializedExtensions[BIT_INDEX(i)] |= 1 << BIT_OFFSET(i);
-                } else {
-                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
-                }
-                ++i;
-                ed = ed->m_Next;
             }
         }
 
@@ -233,27 +215,6 @@ namespace dmScript
                 (*l)->Update(context);
             }
         }
-
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                if (ed->Update)
-                {
-                    dmExtension::Params p;
-                    p.m_ConfigFile = context->m_ConfigFile;
-                    p.m_L = context->m_LuaState;
-                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                        dmExtension::Result r = ed->Update(&p);
-                        if (r != dmExtension::RESULT_OK) {
-                            dmLogError("Failed to update extension: %s", ed->m_Name);
-                        }
-                    }
-                }
-                ++i;
-                ed = ed->m_Next;
-            }
-        }
     }
 
     void Finalize(HContext context)
@@ -268,31 +229,6 @@ namespace dmScript
             }
         }
 
-        if (context->m_EnableExtensions) {
-            const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
-            uint32_t i = 0;
-            while (ed) {
-                if (ed->Finalize)
-                {
-                    dmExtension::Params p;
-                    p.m_ConfigFile = context->m_ConfigFile;
-                    p.m_L = L;
-                    if (context->m_InitializedExtensions[BIT_INDEX(i)] & (1 << BIT_OFFSET(i))) {
-                        dmExtension::Result r = ed->Finalize(&p);
-                        if (r != dmExtension::RESULT_OK) {
-                            dmLogError("Failed to finalize extension: %s", ed->m_Name);
-                        }
-                    }
-                }
-                ++i;
-                ed = ed->m_Next;
-            }
-        }
-        if (context) {
-            // context might be NULL in tests. Should probably be forbidden though
-            memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
-        }
-
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         free(seed);
@@ -300,8 +236,6 @@ namespace dmScript
 
         Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
     }
-#undef BIT_INDEX
-#undef BIT_OFFSET
 
     lua_State* GetLuaState(HContext context) {
         if (context != 0x0) {
