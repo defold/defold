@@ -188,9 +188,7 @@ public class IapGooglePlayActivity extends Activity {
                 allItems.putAll(subscriptions);
             }
 
-            if (!allItems.isEmpty()) {
-                bundle.putBundle("items", allItems);
-            }
+            bundle.putBundle("items", allItems);
         } catch (RemoteException e) {
             Log.e(IapGooglePlay.TAG, "Failed to restore purchases", e);
         }
