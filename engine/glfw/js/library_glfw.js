@@ -251,6 +251,10 @@ var LibraryGLFW = {
             GLFW.buttons &= ~(1 << 0);
         }
 
+        // Audio is blocked by default in some browsers until a user performs an interaction,
+        // so we need to try to resume it here (on mouse button up and touch end).
+        DefoldSoundDevice.TryResumeAudio();
+
         event.preventDefault();
     },
 
@@ -323,6 +327,10 @@ var LibraryGLFW = {
 
       GLFW.buttons &= ~(1 << event['button']);
       GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
+
+      // Audio is blocked by default in some browsers until a user performs an interaction,
+      // so we need to try to resume it here (on mouse button up and touch end).
+      DefoldSoundDevice.TryResumeAudio();
     },
 
     onMouseWheel: function(event) {
