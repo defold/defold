@@ -47,4 +47,19 @@ components {
     value: "true"
     type: PROPERTY_TYPE_BOOLEAN
   }
+  properties {
+    id: "atlas"
+    value: "/script/resources/from_props_game_object.atlas"
+    type: PROPERTY_TYPE_HASH
+  }
+  properties {
+    id: "material"
+    value: "/script/resources/from_props_game_object.material"
+    type: PROPERTY_TYPE_HASH
+  }
+  properties {
+    id: "texture"
+    value: "/script/resources/from_props_game_object.png"
+    type: PROPERTY_TYPE_HASH
+  }
 }

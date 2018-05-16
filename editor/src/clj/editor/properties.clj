@@ -1,18 +1,18 @@
 (ns editor.properties
-  (:require [clojure.set :as set]
-            [clojure.string :as str]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.set :as set]
             [cognitect.transit :as transit]
-            [camel-snake-kebab :as camel]
             [dynamo.graph :as g]
-            [util.murmur :as murmur]
-            [editor.types :as t]
+            [editor.core :as core]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
-            [editor.core :as core]
-            [schema.core :as s]
-            [util.id-vec :as iv])
+            [editor.resource :as resource]
+            [editor.types :as t]
+            [editor.workspace :as workspace]
+            [util.id-vec :as iv]
+            [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
-           [javax.vecmath Quat4d Point3d Matrix4d Vector3d]))
+           [javax.vecmath Quat4d Point3d Matrix4d]))
 
 (set! *warn-on-reflection* true)
 
@@ -168,13 +168,15 @@
   (let [f 10e6]
     (/ (Math/round (* v f)) f)))
 
-(defn go-prop->str [value type]
-  (case type
-    :property-type-vector3 (apply format "%s, %s, %s" value)
-    :property-type-vector4 (apply format "%s, %s, %s, %s" value)
-    :property-type-quat (let [q (math/euler->quat value)]
-                          (apply format "%s, %s, %s, %s" (map q-round (math/vecmath->clj q))))
-    (str value)))
+(defn clj-value->go-prop-value [go-prop-type clj-value]
+  (if (resource/resource? clj-value)
+    (resource/resource->proj-path clj-value)
+    (case go-prop-type
+      :property-type-vector3 (apply format "%s, %s, %s" clj-value)
+      :property-type-vector4 (apply format "%s, %s, %s, %s" clj-value)
+      :property-type-quat (let [q (math/euler->quat clj-value)]
+                            (apply format "%s, %s, %s, %s" (map q-round (math/vecmath->clj q))))
+      (str clj-value))))
 
 (defn- parse-num [s]
   (num (Double/parseDouble s)))
@@ -191,71 +193,72 @@
                (inc counter))
         result))))
 
-(defn str->go-prop [s type]
-  (case type
-    :property-type-number (parse-num s)
-    (:property-type-hash :property-type-url) s
-    :property-type-vector3 (parse-vec s 3)
-    :property-type-vector4 (parse-vec s 4)
-    :property-type-quat (let [v (parse-vec s 4)
-                              q (Quat4d. (double-array v))]
-                          (math/quat->euler q))
-    :property-type-boolean (Boolean/parseBoolean s)))
-
 (defn- ->decl [keys]
   (into {} (map (fn [k] [k (transient [])]) keys)))
 
-(def ^:private type->entry-keys {:property-type-number [:number-entries :float-values]
-                                 :property-type-hash [:hash-entries :hash-values]
-                                 :property-type-url [:url-entries :string-values]
-                                 :property-type-vector3 [:vector3-entries :float-values]
-                                 :property-type-vector4 [:vector4-entries :float-values]
-                                 :property-type-quat [:quat-entries :float-values]
-                                 :property-type-boolean [:bool-entries :float-values]})
+(def type->entry-keys {:property-type-number [:number-entries :float-values]
+                       :property-type-hash [:hash-entries :hash-values]
+                       :property-type-url [:url-entries :string-values]
+                       :property-type-vector3 [:vector3-entries :float-values]
+                       :property-type-vector4 [:vector4-entries :float-values]
+                       :property-type-quat [:quat-entries :float-values]
+                       :property-type-boolean [:bool-entries :float-values]})
 
-(defn append-values! [values vs]
+(def ^:private go-prop-type? (partial contains? type->entry-keys))
+
+(defn- go-prop? [value]
+  (and (string? (:id value))
+       (contains? value :clj-value)
+       (contains? value :value)
+       (go-prop-type? (:type value))))
+
+(defn- append-values! [values vs]
   (loop [vs vs
          values values]
     (if-let [v (first vs)]
       (recur (rest vs) (conj! values v))
       values)))
 
-(defn properties->decls [properties include-element-ids?]
-  (loop [properties properties
+(defn go-props->decls [go-props include-element-ids?]
+  (loop [go-props go-props
          decl (->decl [:number-entries :hash-entries :url-entries :vector3-entries
                        :vector4-entries :quat-entries :bool-entries :float-values
                        :hash-values :string-values])]
-    (if-let [prop (first properties)]
-      (let [type (:type prop)
-            value (str->go-prop (:value prop) type)
-            value (case type
-                    (:property-type-number :property-type-url) [value]
-                    :property-type-hash [(murmur/hash64 value)]
-                    :property-type-boolean [(if value 1.0 0.0)]
-                    :property-type-quat (-> value (math/euler->quat) (math/vecmath->clj))
-                    value)
+    (if-some [{:keys [id type clj-value value] :as go-prop} (first go-props)]
+      (let [_ (assert (go-prop? go-prop))
+            values (case type
+                     :property-type-number [clj-value]
+                     :property-type-hash [(murmur/hash64 value)]
+                     :property-type-url [value]
+                     :property-type-vector3 clj-value
+                     :property-type-vector4 clj-value
+                     :property-type-quat (-> clj-value math/euler->quat math/vecmath->clj)
+                     :property-type-boolean [(if clj-value 1.0 0.0)])
             [entry-key values-key] (type->entry-keys type)
-            entry {:key (:id prop)
-                   :id (murmur/hash64 (:id prop))
+            entry {:key id
+                   :id (murmur/hash64 id)
                    :index (count (get decl values-key))}
             entry (cond
                     (not include-element-ids?)
                     entry
 
                     (= type :property-type-vector3)
-                    (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                    (assoc entry :element-ids (mapv #(murmur/hash64 (str id %))
                                                     [".x" ".y" ".z"]))
 
                     (or (= type :property-type-vector4)
                         (= type :property-type-quat))
-                    (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                    (assoc entry :element-ids (mapv #(murmur/hash64 (str id %))
                                                     [".x" ".y" ".z" ".w"]))
                     :else entry)]
-        (recur (rest properties)
+        (recur (rest go-props)
                (-> decl
                  (update entry-key conj! entry)
-                 (update values-key append-values! value))))
-      (into {} (map (fn [[k v]] [k (persistent! v)]) decl)))))
+                 (update values-key append-values! values))))
+      (into {}
+            (map (fn [[k v]]
+                   [k (persistent! v)]))
+            decl))))
 
 (defn- property-edit-type [property]
   (or (get property :edit-type)
@@ -419,20 +422,6 @@
             (g/operation-sequence op-seq)
             (set-values evaluation-context property values)))))))
 
-(defn- dissoc-in
-  "Dissociates an entry from a nested associative structure returning a new
-  nested structure. keys is a sequence of keys. Any empty maps that result
-  will not be present in the new structure."
-  [m [k & ks :as keys]]
-  (if ks
-    (if-let [nextmap (get m k)]
-      (let [newmap (dissoc-in nextmap ks)]
-        (if (empty? newmap)
-          (dissoc m k)
-          (assoc m k newmap)))
-      m)
-    (dissoc m k)))
-
 (defn unify-values [values]
   (loop [v0 (first values)
          values (rest values)]
@@ -446,22 +435,13 @@
 (defn overridden? [property]
   (and (contains? property :original-values) (not-every? nil? (:values property))))
 
-(defn- error-seq [e]
-  (tree-seq :causes :causes e))
-
-(defn- error-messages [e]
-  (distinct (keep :message (error-seq e))))
-
-(defn error-message [e]
-  (str/join "\n" (error-messages e)))
-
 (defn error-aggregate [vals]
   (when-let [errors (seq (remove nil? (distinct (filter g/error? vals))))]
     (g/error-aggregate errors)))
 
 (defn validation-message [property]
   (when-let [err (error-aggregate (:errors property))]
-    {:severity (:severity err) :message (error-message err)}))
+    {:severity (:severity err) :message (g/error-message err)}))
 
 (defn clear-override! [property]
   (when (overridden? property)
@@ -496,3 +476,149 @@
   {:type t/Vec3
    :from-type (fn [v] (-> v math/euler->quat math/vecmath->clj))
    :to-type (fn [v] (round-vec (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v)))))})
+
+(defn property-entry->go-prop [[key {:keys [go-prop-type value error]}]]
+  (when (some? go-prop-type)
+    (assert (keyword? key))
+    (assert (go-prop-type? go-prop-type))
+    {:id (key->user-name key)
+     :type go-prop-type
+     :clj-value value
+     :value (clj-value->go-prop-value go-prop-type value)
+     :error error}))
+
+(defmulti go-prop-value->clj-value (fn [property-type go-prop-type _go-prop-value _workspace] [go-prop-type property-type]))
+(defmethod go-prop-value->clj-value :default [property-type _ go-prop-value _]
+  (if (= g/Str property-type)
+    go-prop-value
+    ::unsupported-conversion))
+
+(defmethod go-prop-value->clj-value [:property-type-boolean g/Bool] [_ _ go-prop-value _] (Boolean/parseBoolean go-prop-value))
+(defmethod go-prop-value->clj-value [:property-type-number g/Num]   [_ _ go-prop-value _] (parse-num go-prop-value))
+(defmethod go-prop-value->clj-value [:property-type-number t/Vec3]  [_ _ go-prop-value _] [(parse-num go-prop-value) 0.0 0.0])
+(defmethod go-prop-value->clj-value [:property-type-number t/Vec4]  [_ _ go-prop-value _] [(parse-num go-prop-value) 0.0 0.0 1.0])
+(defmethod go-prop-value->clj-value [:property-type-vector3 g/Num]  [_ _ go-prop-value _] (first (parse-vec go-prop-value 1)))
+(defmethod go-prop-value->clj-value [:property-type-vector3 t/Vec3] [_ _ go-prop-value _] (parse-vec go-prop-value 3))
+(defmethod go-prop-value->clj-value [:property-type-vector3 t/Vec4] [_ _ go-prop-value _] (conj (parse-vec go-prop-value 3) 1.0))
+(defmethod go-prop-value->clj-value [:property-type-vector4 g/Num]  [_ _ go-prop-value _] (first (parse-vec go-prop-value 1)))
+(defmethod go-prop-value->clj-value [:property-type-vector4 t/Vec3] [_ _ go-prop-value _] (parse-vec go-prop-value 3))
+(defmethod go-prop-value->clj-value [:property-type-vector4 t/Vec4] [_ _ go-prop-value _] (parse-vec go-prop-value 4))
+
+(defmethod go-prop-value->clj-value [:property-type-quat t/Vec3] [_ _ go-prop-value _]
+  (let [v (parse-vec go-prop-value 4)
+        q (Quat4d. (double-array v))]
+    (math/quat->euler q)))
+
+(defmethod go-prop-value->clj-value [:property-type-hash resource/Resource] [_ _ go-prop-value workspace]
+  (workspace/resolve-workspace-resource workspace go-prop-value))
+
+(defn set-resource-property [node-id prop-kw resource]
+  ;; Nodes with resource properties must have a property-resources property that
+  ;; hooks up the resource property build targets in its setter.
+  (concat
+    (g/set-property node-id prop-kw resource)
+    (g/update-property node-id :property-resources assoc prop-kw resource)))
+
+(defn- apply-property-override [workspace node-id prop-kw prop property-desc]
+  (assert (integer? node-id))
+  (assert (keyword? prop-kw))
+  ;; This can be used with raw PropertyDescs in map format. However, we decorate
+  ;; these with a :clj-value field when they enter the graph, so if that is
+  ;; already present we don't attempt conversion here.
+  (let [clj-value-entry (find property-desc :clj-value)
+        clj-value (if (some? clj-value-entry)
+                    (val clj-value-entry)
+                    (try
+                      (go-prop-value->clj-value (:type prop) (:type property-desc) (:value property-desc) workspace)
+                      (catch Exception _
+                        ::unsupported-conversion)))]
+    (when (not= ::unsupported-conversion clj-value)
+      (if (= resource/Resource (:type prop))
+        (set-resource-property node-id prop-kw clj-value)
+        (g/set-property node-id prop-kw clj-value)))))
+
+(defn apply-property-overrides
+  "Returns transaction steps that applies the overrides from the supplied
+  PropertyDescs in map format to the specified node."
+  [workspace or-node overridable-properties property-descs]
+  (assert (integer? or-node))
+  (assert (sequential? property-descs))
+  (when (seq overridable-properties)
+    (assert (map? overridable-properties))
+    (assert (every? (comp keyword? key) overridable-properties))
+    (mapcat (fn [property-desc]
+              (let [prop-kw (user-name->key (:id property-desc))
+                    prop (get overridable-properties prop-kw)]
+                (when (some? prop)
+                  (apply-property-override workspace or-node prop-kw prop property-desc))))
+            property-descs)))
+
+(defn build-target-go-props [resource-property-build-targets go-props-with-source-resources]
+  (let [build-targets-by-source-resource (into {}
+                                               (map (juxt (comp :resource :resource) identity))
+                                               (flatten resource-property-build-targets))]
+    (loop [go-props-with-source-resources go-props-with-source-resources
+           go-props-with-build-resources (transient [])
+           dep-build-targets (transient [])
+           seen-dep-build-resource-paths #{}]
+      (if-some [go-prop (first go-props-with-source-resources)]
+        (do
+          (assert (go-prop? go-prop))
+          (let [clj-value (:clj-value go-prop)
+                dep-build-target (when (resource/resource? clj-value)
+                                   (or (build-targets-by-source-resource clj-value)
+
+                                       ;; If this fails, it is likely because resource-property-build-targets does not contain a referenced resource.
+                                       (throw (ex-info (str "unable to resolve build target from value " (pr-str clj-value))
+                                                       {:property (:id go-prop)
+                                                        :resource-reference clj-value}))))
+                build-resource (some-> dep-build-target :resource)
+                build-resource-path (some-> build-resource resource/proj-path)
+                go-prop (if (nil? build-resource)
+                          go-prop
+                          (assoc go-prop
+                            :clj-value build-resource
+                            :value build-resource-path))]
+            (recur (next go-props-with-source-resources)
+                   (conj! go-props-with-build-resources go-prop)
+                   (if (and (some? dep-build-target)
+                            (not (contains? seen-dep-build-resource-paths build-resource-path)))
+                     (conj! dep-build-targets dep-build-target)
+                     dep-build-targets)
+                   (if (some? build-resource-path)
+                     (conj seen-dep-build-resource-paths build-resource-path)
+                     seen-dep-build-resource-paths))))
+        [(persistent! go-props-with-build-resources)
+         (persistent! dep-build-targets)]))))
+
+(defn build-go-props [dep-resources go-props-with-build-resources]
+  (let [build-resource->fused-build-resource (fn [build-resource]
+                                               (when (some? build-resource)
+                                                 (when-not (workspace/build-resource? build-resource)
+                                                   (throw (ex-info (format ":clj-value field in resource go-prop \"%s\" should be a build resource, got " (pr-str build-resource))
+                                                                   {:resource-reference build-resource})))
+                                                 (or (dep-resources build-resource)
+                                                     (throw (ex-info (str "unable to resolve fused build resource from referenced " (pr-str build-resource))
+                                                                     {:resource-reference build-resource})))))
+        go-props-with-fused-build-resources (mapv (fn [{:keys [clj-value] :as go-prop}]
+                                                    (assert (go-prop? go-prop))
+                                                    (if-not (resource/resource? clj-value)
+                                                      go-prop
+                                                      (let [fused-build-resource (build-resource->fused-build-resource clj-value)]
+                                                        (assoc go-prop
+                                                          :clj-value fused-build-resource
+                                                          :value (resource/resource->proj-path fused-build-resource)))))
+                                                  go-props-with-build-resources)]
+    go-props-with-fused-build-resources))
+
+(defn try-get-go-prop-proj-path
+  "Returns a non-empty string of the assigned proj-path, or nil if no
+  resource was assigned or the go-prop is not a resource property."
+  ^String [go-prop]
+  (assert (go-prop? go-prop))
+  (let [{:keys [value clj-value]} go-prop]
+    (when (resource/resource? clj-value)
+      ;; Sanity checks to ensure our go-prop is well-formed.
+      (assert (workspace/build-resource? clj-value))
+      (assert (= value (resource/proj-path clj-value)))
+      value)))

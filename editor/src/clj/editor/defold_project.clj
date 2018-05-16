@@ -21,7 +21,6 @@
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.prefs :as prefs]
-            [editor.properties :as properties]
             [editor.system :as system]
             [editor.util :as util]
             [service.log :as log]
@@ -238,7 +237,7 @@
                                            :as opts}]
   (render-progress! (progress/make "Saving..."))
   (if (g/error? save-data)
-    (throw (Exception. ^String (properties/error-message save-data)))
+    (throw (Exception. ^String (g/error-message save-data)))
     (do
       (progress/progress-mapv
         (fn [{:keys [resource content value node-id]} _]

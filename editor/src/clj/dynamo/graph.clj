@@ -23,7 +23,7 @@
 
 (namespaces/import-vars [internal.graph.types node-id->graph-id node->graph-id sources targets connected? dependencies Node node-id produce-value node-by-id-at])
 
-(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
+(namespaces/import-vars [internal.graph.error-values error-info error-warning error-fatal ->error error? error-info? error-warning? error-fatal? error-message error-aggregate flatten-errors package-errors precluding-errors unpack-errors worse-than])
 
 (namespaces/import-vars [internal.node value-type-schema value-type? isa-node-type? value-type-dispatch-value has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes internal-property-labels declared-properties declared-property-labels externs declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels property-display-order])
 
@@ -1185,7 +1185,7 @@
    (property-overridden? (now) node-id property))
   ([basis node-id property]
    (if-let [node (node-by-id basis node-id)]
-     (and (has-property? (node-type node) property) (gt/property-overridden? node property))
+     (gt/property-overridden? node property)
      false)))
 
 (defn property-value-origin?

@@ -33,7 +33,7 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private font-file-extensions ["ttf" "otf" "fnt"])
+(def font-file-extensions ["ttf" "otf" "fnt"])
 (def ^:private font-icon "icons/32/Icons_28-AT-Font.png")
 (def ^:private resource-fields #{:font :material})
 

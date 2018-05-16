@@ -104,3 +104,22 @@
                   (when (pred x)
                     idx))
                 coll))
+
+(defn join-words
+  "Returns a string joining the elements in coll together in such a way that
+  they form valid english syntax. Examples:
+  (join-words ', ' ' or ' []) => ''
+  (join-words ', ' ' or ' ['a']) => 'a'
+  (join-words ', ' ' or ' ['a' 'b']) => 'a or b'
+  (join-words ', ' ' or ' ['a' 'b' 'b']) => 'a, b or c'"
+  ^String [separator final-separator coll]
+  (string/join final-separator
+               (concat
+                 (some->> coll
+                          butlast
+                          not-empty
+                          (string/join separator)
+                          list)
+                 (some->> coll
+                          last
+                          list))))

@@ -1315,7 +1315,7 @@
     :navigation move-cursors
     :selection extend-selection))
 
-(defn- splice-lines [lines ascending-cursor-ranges-and-replacements]
+(defn splice-lines [lines ascending-cursor-ranges-and-replacements]
   (into []
         cat
         (loop [start (->Cursor 0 0)

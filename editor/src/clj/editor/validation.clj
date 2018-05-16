@@ -1,9 +1,9 @@
 (ns editor.validation
-  (:require [dynamo.graph :as g]
+  (:require [camel-snake-kebab :as camel]
+            [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
-            [clojure.string :as str]
-            [editor.properties :as properties]
-            [editor.resource :as resource]))
+            [editor.resource :as resource]
+            [editor.util :as util]))
 
 (set! *warn-on-reflection* true)
 
@@ -14,6 +14,11 @@
              options# (zipmap (map first options#) (map (comp :display-name second) options#))]
          (format "\"%s\" has been replaced by \"%s\"",
                  (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
+
+(defn format-ext [ext]
+  (if (coll? ext)
+    (util/join-words ", " " or " (into (sorted-set) (map (partial str \.)) ext))
+    (str \. ext)))
 
 (defn prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
@@ -45,7 +50,7 @@
 (defn prop-resource-ext? [v ext name]
   (or (prop-resource-missing? v name)
       (when-not (= (resource/type-ext v) ext)
-        (format "%s '%s' is not of type .%s" name (resource/resource->proj-path v) ext))))
+        (format "%s '%s' is not of type %s" name (resource/resource->proj-path v) (format-ext ext)))))
 
 (defn prop-member-of? [v val-set message]
   (when (and val-set (not (val-set v)))
@@ -71,10 +76,17 @@
    (when-let [msg (apply f prop-value args)]
      (g/->error _node-id prop-kw severity prop-value msg {}))))
 
+(defn keyword->name [kw]
+  (-> kw
+      name
+      camel/->Camel_Snake_Case_String
+      (clojure.string/replace "_" " ")
+      clojure.string/trim))
+
 (defmacro prop-error-fnk
   [severity f property]
   (let [name-kw# (keyword property)
-        name# (properties/keyword->name name-kw#)]
+        name# (keyword->name name-kw#)]
     `(g/fnk [~'_node-id ~property]
             (prop-error ~severity ~'_node-id ~name-kw# ~f ~property ~name#))))
 

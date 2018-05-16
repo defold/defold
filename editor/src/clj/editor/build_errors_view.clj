@@ -1,6 +1,5 @@
 (ns editor.build-errors-view
   (:require [dynamo.graph :as g]
-            [editor.defold-project :as project]
             [editor.outline :as outline]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -144,36 +143,38 @@
      :icon icon
      :style style}))
 
-(defn- error-selection
-  [node-id resource]
-  (if (g/node-instance? outline/OutlineNode node-id)
-    [node-id]
-    (let [project (project/get-project node-id)]
-      (when-some [resource-node (project/get-resource-node project resource)]
-        [(g/node-value resource-node :_node-id)]))))
+(defn- find-outline-node [resource-node-id error-node-id]
+  (if-not (g/node-instance? outline/OutlineNode error-node-id)
+    resource-node-id
+    (some (fn [{:keys [node-id] :as node-outline}]
+            (when (or (= error-node-id node-id)
+                      (= error-node-id (:node-id (:alt-outline node-outline))))
+              node-id))
+          (tree-seq (comp sequential? :children)
+                    :children
+                    (g/node-value resource-node-id :node-outline)))))
 
-(defn- open-error [open-resource-fn selection]
-  (when-some [error-item (first selection)]
-    (if (= :resource (:type error-item))
-      (let [{:keys [node-id resource]} (:value error-item)]
-        (when (and (resource/openable-resource? resource) (resource/exists? resource))
-          (ui/run-later
-            (open-resource-fn resource [node-id] {}))))
-      (let [resource (-> error-item :parent :resource)
-            node-id (:node-id error-item)
-            selection (error-selection node-id resource)
-            opts (if-some [line (:line error-item)] {:line line} {})]
-        (when (and (resource/openable-resource? resource) (resource/exists? resource))
-          (ui/run-later
-            (open-resource-fn resource selection opts)))))))
+(defn error-item-open-info [error-item]
+  (if (= :resource (:type error-item))
+    (let [{resource :resource resource-node-id :node-id} (:value error-item)]
+      (when (and (resource/openable-resource? resource)
+                 (resource/exists? resource))
+        [resource resource-node-id {}]))
+    (let [{resource :resource resource-node-id :node-id} (:parent error-item)]
+      (when (and (resource/openable-resource? resource)
+                 (resource/exists? resource))
+        (let [error-node-id (:node-id error-item)
+              outline-node-id (find-outline-node resource-node-id error-node-id)
+              opts (if-some [line (:line error-item)] {:line line} {})]
+          [resource outline-node-id opts])))))
 
 (defn make-build-errors-view [^TreeView errors-tree open-resource-fn]
   (doto errors-tree
     (.setShowRoot false)
     (ui/cell-factory! make-tree-cell)
     (ui/on-double! (fn [_]
-                     (when-let [selection (ui/selection errors-tree)]
-                       (open-error open-resource-fn selection))))))
+                     (when-some [[resource selected-node-id opts] (some-> errors-tree ui/selection first error-item-open-info)]
+                       (open-resource-fn resource [selected-node-id] opts))))))
 
 (declare tree-item)
 

@@ -3,7 +3,10 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
-            [editor.math :as math]))
+            [editor.math :as math]
+            [editor.workspace :as workspace]
+            [util.murmur :as murmur])
+  (:import (org.antlr.v4.runtime BufferedTokenStream Token)))
 
 (def real-lua-parser (antlr/parser (slurp (io/resource "Lua.g4")) {:throw? false}))
 
@@ -264,7 +267,19 @@
       0 ""
       1 (parse-string-exp-node (first arg-exps))
       3 (when-some [[socket path fragment] (matching-args three-hash-or-string-args arg-exps)]
-          (str socket ":" path "#" fragment)))))
+          (str socket ":" path "#" fragment))
+      nil)))
+
+(defn- parse-resource-functioncall [node]
+  (when-some [[module-name function-name arg-exps] (parse-functioncall node)]
+    (when (= "resource" module-name)
+      (when-some [string-value (case (count arg-exps)
+                                 0 ""
+                                 1 (parse-string-exp-node (first arg-exps))
+                                 nil)]
+        ;; These calls are in the format resource.material(...), etc.
+        ;; Return the function-name as the resource-kind.
+        [function-name string-value]))))
 
 (def ^:private quat-default-value [0.0 0.0 0.0]) ;; Euler angles.
 (def ^:private four-number-args (vec (repeat 4 parse-number-exp-node)))
@@ -292,38 +307,44 @@
 
 (defn- parse-boolean-script-property-value-info [value-arg-exp]
   (when-some [boolean-value (parse-boolean-exp-node value-arg-exp)]
-    {:type :property-type-boolean
+    {:type :script-property-type-boolean
      :value boolean-value}))
 
 (defn- parse-number-script-property-value-info [value-arg-exp]
   (when-some [number-value (parse-number-exp-node value-arg-exp)]
-    {:type :property-type-number
+    {:type :script-property-type-number
      :value number-value}))
 
 (defn- parse-hash-script-property-value-info [value-arg-exp]
   (when-some [string-value (some-> value-arg-exp unpack-exp parse-hash-functioncall)]
-    {:type :property-type-hash
+    {:type :script-property-type-hash
      :value string-value}))
 
 (defn- parse-url-script-property-value-info [value-arg-exp]
   (when-some [string-value (some-> value-arg-exp unpack-exp parse-url-functioncall)]
-    {:type :property-type-url
+    {:type :script-property-type-url
      :value string-value}))
 
 (defn- parse-vector3-script-property-value-info [value-arg-exp]
   (when-some [vector-components (some-> value-arg-exp unpack-exp parse-vector3-functioncall)]
-    {:type :property-type-vector3
+    {:type :script-property-type-vector3
      :value vector-components}))
 
 (defn- parse-vector4-script-property-value-info [value-arg-exp]
   (when-some [vector-components (some-> value-arg-exp unpack-exp parse-vector4-functioncall)]
-    {:type :property-type-vector4
+    {:type :script-property-type-vector4
      :value vector-components}))
 
 (defn- parse-quat-script-property-value-info [value-arg-exp]
   (when-some [euler-angles (some-> value-arg-exp unpack-exp parse-quat-functioncall)]
-    {:type :property-type-quat
+    {:type :script-property-type-quat
      :value euler-angles}))
+
+(defn- parse-resource-script-property-value-info [value-arg-exp]
+  (when-some [[resource-kind string-value] (some-> value-arg-exp unpack-exp parse-resource-functioncall)]
+    {:type :script-property-type-resource
+     :resource-kind resource-kind
+     :value string-value}))
 
 (defn- parse-script-property-value-info [value-arg-exp]
   (when (some? value-arg-exp)
@@ -333,7 +354,8 @@
         (parse-url-script-property-value-info value-arg-exp)
         (parse-vector3-script-property-value-info value-arg-exp)
         (parse-vector4-script-property-value-info value-arg-exp)
-        (parse-quat-script-property-value-info value-arg-exp))))
+        (parse-quat-script-property-value-info value-arg-exp)
+        (parse-resource-script-property-value-info value-arg-exp))))
 
 (defn- parse-script-property-name-info [name-arg-exp]
   (when-some [name (parse-string-exp-node name-arg-exp)]
@@ -410,7 +432,7 @@
         (mapcat (partial parse-requires (cons node node-path))
                 (next node))))))
 
-(defn lua-info [code]
+(defn lua-info [workspace valid-resource-kind? code]
   (let [tree (lua-parser code)
         info (collect-info tree)
         local-vars-info (into #{} (apply concat (map :local-vars info)))
@@ -418,10 +440,25 @@
         functions-info (or (apply merge (map :functions info)) {})
         local-functions-info (or (apply merge (map :local-functions info)) {})
         requires-info (vec (distinct (parse-requires (list) tree)))
-        script-properties-info (into [] (keep :script-properties) info)]
+        resolve-resource (partial workspace/resolve-workspace-resource workspace)
+        script-properties-info (into []
+                                     (keep (fn [entry]
+                                             (when-some [property-info (:script-properties entry)]
+                                               (case (:type property-info)
+                                                 :script-property-type-resource (cond-> (update property-info :value resolve-resource)
+
+                                                                                        (not (valid-resource-kind? (:resource-kind property-info)))
+                                                                                        (assoc :status :invalid-value))
+                                                 property-info))))
+                                     info)]
     {:vars vars-info
      :local-vars local-vars-info
      :functions functions-info
      :local-functions local-functions-info
      :requires requires-info
      :script-properties script-properties-info}))
+
+(defn tokens [code]
+  (map (fn [^Token token]
+         [(.getText token) (dec (.getLine token)) (.getCharPositionInLine token)])
+       (.getTokens ^BufferedTokenStream (:tokens (antlr/parse real-lua-parser {:format :raw} code)))))

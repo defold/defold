@@ -181,7 +181,7 @@
                                            ;; target into the causes, since the build-fn will
                                            ;; not have access to the node-id.
                                            (if (g/error? build-result)
-                                             (update build-result :causes (partial map #(assoc % :_node-id node-id)))
+                                             (update build-result :causes (partial mapv #(assoc % :_node-id node-id)))
                                              (to-disk! build-result key))))]
                           (render-progress! (swap! progress progress/advance))
                           result)))
