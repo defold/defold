@@ -18,16 +18,20 @@ namespace dmScript
     };
 
     #define DM_SCRIPT_MAX_EXTENSIONS (sizeof(uint32_t) * 8 * 16)
+
+    typedef struct ScriptExtension* HScriptExtension;
+
     struct Context
     {
-        dmConfigFile::HConfig   m_ConfigFile;
-        dmResource::HFactory    m_ResourceFactory;
-        dmHashTable64<Module>   m_Modules;
-        dmHashTable64<Module*>  m_PathToModule;
-        dmHashTable64<int>      m_HashInstances;
-        lua_State*              m_LuaState;
-        bool                    m_EnableExtensions;
-        uint32_t                m_InitializedExtensions[DM_SCRIPT_MAX_EXTENSIONS / (8 * sizeof(uint32_t))];
+        dmConfigFile::HConfig       m_ConfigFile;
+        dmResource::HFactory        m_ResourceFactory;
+        dmHashTable64<Module>       m_Modules;
+        dmHashTable64<Module*>      m_PathToModule;
+        dmHashTable64<int>          m_HashInstances;
+        dmArray<HScriptExtension>   m_ScriptExtensions;
+        lua_State*                  m_LuaState;
+        uint32_t                    m_InitializedExtensions[DM_SCRIPT_MAX_EXTENSIONS / (8 * sizeof(uint32_t))];
+        bool                        m_EnableExtensions;
     };
 
     bool ResolvePath(lua_State* L, const char* path, uint32_t path_size, dmhash_t& out_hash);
