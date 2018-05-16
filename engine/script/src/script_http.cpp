@@ -105,9 +105,9 @@ namespace dmScript
             const char* method = luaL_checkstring(L, 2);
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
-            // NOTE: + 2 as LUA_NOREF is defined as - 2 and 0 is interpreted as uninitialized
-            int callback = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
-            sender.m_Function = callback;
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            int callback = dmScript::Ref(L, LUA_REGISTRYINDEX) - LUA_NOREF;
+            sender.m_FunctionRef = callback;
 
             char* headers = 0;
             int headers_length = 0;
