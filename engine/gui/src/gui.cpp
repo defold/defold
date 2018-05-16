@@ -1857,9 +1857,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         int custom_ref = LUA_NOREF;
         bool is_callback = false;
-        if (message->m_Receiver.m_Function) {
-            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
-            custom_ref = message->m_Receiver.m_Function - 2;
+        if (message->m_Receiver.m_FunctionRef) {
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            custom_ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
             is_callback = true;
         }
 
