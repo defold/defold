@@ -3562,11 +3562,18 @@ namespace dmGui
                 lua_pop(L, 1);
             }
         }
+        else
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
+            lua_pushvalue(L, 1);
+            node_ref = dmScript::Ref(L, -2);
+            lua_pop(L, 1);
+        }
 
         dmGui::Result res;
         if (animation_complete_ref == LUA_NOREF)
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, 0);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*) node_ref);
         }
         else
         {
@@ -3661,11 +3668,18 @@ namespace dmGui
                 lua_pop(L, 1);
             }
         }
+        else
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
+            lua_pushvalue(L, 1);
+            node_ref = dmScript::Ref(L, -2);
+            lua_pop(L, 1);
+        }
 
         dmGui::Result res;
         if (animation_complete_ref == LUA_NOREF)
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, 0);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*) node_ref);
         }
         else
         {
