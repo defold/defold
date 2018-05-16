@@ -273,7 +273,7 @@ namespace dmGameObject
         ScriptInstance* i = ScriptInstance_Check(L);
         lua_pop(L, 1);
         Instance* instance = i->m_Instance;
-        out_url->m_Function = 0;
+        out_url->m_FunctionRef = 0;
         out_url->m_Socket = instance->m_Collection->m_ComponentSocket;
         out_url->m_Path = instance->m_Identifier;
         out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
@@ -296,7 +296,7 @@ namespace dmGameObject
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         Instance* instance = i->m_Instance;
         dmMessage::URL url;
-        url.m_Function = 0;
+        url.m_FunctionRef = 0;
         url.m_Socket = instance->m_Collection->m_ComponentSocket;
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
@@ -341,14 +341,7 @@ namespace dmGameObject
         const int self_index = 1;
 
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
-        if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
-        {
-            lua_pushnumber(L, i->m_ContextTableReference);
-        }
-        else
-        {
-            lua_pushnil(L);
-        }
+        lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
 
         return 1;
     }
@@ -1142,38 +1135,37 @@ namespace dmGameObject
     void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
-        ScriptInstance* script_instance = (ScriptInstance*)userdata1;
-        lua_State* L = GetLuaState(script_instance);
-
-        int top = lua_gettop(L);
-        (void) top;
-
-        dmMessage::URL url;
-        url.m_Socket = instance->m_Collection->m_ComponentSocket;
-        url.m_Path = instance->m_Identifier;
-        url.m_Fragment = component_id;
-
-        int ref = (int) (((uintptr_t) userdata2) & 0xffffffff);
-
-        if (finished)
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
+        if (dmScript::IsValidCallback(cbk))
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-            lua_pushvalue(L, -1);
-            dmScript::SetInstance(L);
+            dmMessage::URL url;
+            url.m_Socket = instance->m_Collection->m_ComponentSocket;
+            url.m_Path = instance->m_Identifier;
+            url.m_Fragment = component_id;
 
-            dmScript::PushURL(L, url);
-            dmScript::PushHash(L, property_id);
-            assert(lua_type(L, -4) == LUA_TFUNCTION);
-            dmScript::PCall(L, 3, 0);
+            if (finished)
+            {
+                struct Args
+                {
+                    Args(dmMessage::URL url, dmhash_t property_id)
+                        : m_URL(url), m_PropertyId(property_id)
+                    {}
+                    dmMessage::URL m_URL;
+                    dmhash_t m_PropertyId;
 
-            lua_pushnil(L);
-            dmScript::SetInstance(L);
+                    static void LuaCallbackCustomArgs(lua_State* L, void* user_args)
+                    {
+                        Args* args = (Args*)user_args;
+                        dmScript::PushURL(L, args->m_URL);
+                        dmScript::PushHash(L, args->m_PropertyId);
+                    }
+                };
+                
+                Args args(url, property_id);
+                dmScript::InvokeCallback(cbk, Args::LuaCallbackCustomArgs, &args);
+            }
         }
-
-        dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
-
-        assert(top == lua_gettop(L));
+        dmScript::DeleteCallback(cbk);
     }
 
     /*# animates a named property of the specified game object or component
@@ -1310,20 +1302,18 @@ namespace dmGameObject
         if (top > 6)
             delay = (float) luaL_checknumber(L, 7);
         AnimationStopped stopped = 0x0;
-        void* userdata1 = i;
-        void* userdata2 = 0x0;
+        dmScript::LuaCallbackInfo* cbk = 0x0;
         if (top > 7)
         {
             if (lua_isfunction(L, 8))
             {
+                cbk = dmScript::CreateCallback(L, 8);
                 stopped = LuaAnimationStopped;
-                lua_pushvalue(L, 8);
-                userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
             }
         }
 
         result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
-                (Playback)playback, property_var, curve, duration, delay, stopped, userdata1, userdata2);
+                (Playback)playback, property_var, curve, duration, delay, stopped, cbk, 0x0);
         switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:
@@ -2175,9 +2165,9 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
         for (uint32_t i = 0; i < count; ++i)
         {
             /*
-             * NOTE/TODO: var above is reused and URL::m_Function must
+             * NOTE/TODO: var above is reused and URL::m_FunctionRef must
              * always be zero or a valid lua-reference. By reusing a union-type here, PropertyVar,
-             * m_Function could have an invalid value. We could move PropertyVar var inside every
+             * m_FunctionRef could have an invalid value. We could move PropertyVar var inside every
              * loop but the problem and risk is illustrated here.
              */
             var = PropertyVar();

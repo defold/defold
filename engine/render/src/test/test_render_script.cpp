@@ -874,7 +874,7 @@ TEST_F(dmRenderScriptTest, TestInstanceContext)
     ASSERT_TRUE(dmScript::SetInstanceContextValue(L));
 
     lua_pushstring(L, "__my_context_value");
-    ASSERT_TRUE(dmScript::GetInstanceContextValue(L));
+    dmScript::GetInstanceContextValue(L);
     ASSERT_EQ(81233, lua_tonumber(L, -1));
     lua_pop(L, 1);
 

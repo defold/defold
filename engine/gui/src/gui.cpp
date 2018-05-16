@@ -1506,8 +1506,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
+            if (custom_ref != LUA_NOREF) {
+                dmScript::ResolveInInstance(L, custom_ref);
+            }
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
+            }
+
             assert(lua_isfunction(L, -1));
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
 
             uint32_t arg_count = 1;
@@ -1743,6 +1751,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     break;
                 }
             }
+
+            if (custom_ref != LUA_NOREF)
+            {
+                dmScript::UnrefInInstance(L, custom_ref);
+            }
+
             lua_pushnil(L);
             dmScript::SetInstance(L);
             assert(top == lua_gettop(L));
@@ -1856,19 +1870,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
     {
         int custom_ref = LUA_NOREF;
-        bool is_callback = false;
-        if (message->m_Receiver.m_Function) {
-            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
-            custom_ref = message->m_Receiver.m_Function - 2;
-            is_callback = true;
+        if (message->m_Receiver.m_FunctionRef) {
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            custom_ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
+            // RunScript method will DeRef the custom_ref if it is not LUA_NOREF
         }
 
         Result r = RunScript(scene, SCRIPT_FUNCTION_ONMESSAGE, custom_ref, (void*)message);
 
-        if (is_callback) {
-            lua_State* L = scene->m_Context->m_LuaState;
-            dmScript::Unref(L, LUA_REGISTRYINDEX, custom_ref);
-        }
         return r;
     }
 
