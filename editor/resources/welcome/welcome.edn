@@ -33,6 +33,14 @@
                              :zip-url "https://github.com/defold/tutorial-side-scroller/archive/master.zip"
                              :skip-root? true}
 
+                             {:name "Movement tutorial"
+                             :description "In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra."
+                             :image "movement.png"
+                             :duration "Medium"
+                             :user-level "Beginner"
+                             :zip-url "https://github.com/defold/tutorial-movement/archive/master.zip"
+                             :skip-root? true}
+
                              {:name "War battles tutorial"
                              :description "In this medium difficulty tutorial you build the foundation for a top down shooter game based on the \"War Battles\" RTS asset pack."
                              :image "war-battles.png"

@@ -856,6 +856,36 @@ TEST_F(dmRenderScriptTest, TestURL)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestInstanceContext)
+{
+    lua_State* L = m_Context->m_RenderScriptContext.m_LuaState;
+
+    const char* script =
+        "";
+
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
+    dmScript::SetInstance(L);
+    ASSERT_TRUE(dmScript::IsInstanceValid(L));
+
+    lua_pushstring(L, "__my_context_value");
+    lua_pushnumber(L, 81233);
+    ASSERT_TRUE(dmScript::SetInstanceContextValue(L));
+
+    lua_pushstring(L, "__my_context_value");
+    dmScript::GetInstanceContextValue(L);
+    ASSERT_EQ(81233, lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    dmRender::DeleteRenderScriptInstance(render_script_instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+    ASSERT_FALSE(dmScript::IsInstanceValid(L));
+}
+
 int main(int argc, char **argv)
 {
     dmDDF::RegisterAllTypes();
