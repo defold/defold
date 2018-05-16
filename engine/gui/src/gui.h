@@ -1164,7 +1164,7 @@ namespace dmGui
     /** Gets reference to the lua reference table used for gui scripts.
      * @return lua reference table reference
      */
-    int GetReferenceTableRef(HScene scene);
+    int GetContextTableRef(HScene scene);
 
     /** Gets the gui scene currently connected to the lua state.
      * A scene is connected while any of the callbacks in the associated gui script is being run.

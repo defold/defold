@@ -8,5 +8,5 @@ option java_outer_classname = "DdfScript";
 message LuaRef
 {
     required int32 ref = 1 [default = 0];
-    required int32 reference_table_ref = 2 [default = 0];
+    required int32 context_table_ref = 2 [default = 0];
 }

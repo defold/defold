@@ -3564,7 +3564,7 @@ namespace dmGui
         }
         else
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
             lua_pushvalue(L, 1);
             node_ref = dmScript::Ref(L, -2);
             lua_pop(L, 1);
@@ -3670,7 +3670,7 @@ namespace dmGui
         }
         else
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
             lua_pushvalue(L, 1);
             node_ref = dmScript::Ref(L, -2);
             lua_pop(L, 1);

@@ -595,7 +595,7 @@ namespace dmGameSystem
         event->m_Float       = keyframe_event->m_Float;
         event->m_String      = keyframe_event->m_String;
         event->m_Node.m_Ref  = ((uintptr_t) node_ref & 0xffffffff);
-        event->m_Node.m_ReferenceTableRef = dmGui::GetReferenceTableRef(scene);
+        event->m_Node.m_ContextTableRef = dmGui::GetContextTableRef(scene);
 
         dmGui::Result dispatch_result = DispatchMessage(scene, message);
         if (dispatch_result != dmGui::RESULT_OK)

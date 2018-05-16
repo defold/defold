@@ -4004,9 +4004,9 @@ bail:
         return context->m_LuaState;
     }
 
-    int GetReferenceTableRef(HScene scene)
+    int GetContextTableRef(HScene scene)
     {
-        return scene->m_RefTableReference;
+        return scene->m_ContextTableReference;
     }
 
 }  // namespace dmGui
