@@ -55,6 +55,7 @@ namespace dmScript
         context->m_Modules.SetCapacity(127, 256);
         context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
+        context->m_ScriptExtensions.SetCapacity(8);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
         context->m_EnableExtensions = enable_extensions;
@@ -175,6 +176,14 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
 
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Initialize != 0x0)
+            {
+                (*l)->Initialize(context);
+            }
+        }
+
 #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
 #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
@@ -199,8 +208,25 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    void UpdateExtensions(HContext context)
+    void RegisterScriptExtension(HContext context, HScriptExtension script_extension)
     {
+        if (context->m_ScriptExtensions.Full())
+        {
+            context->m_ScriptExtensions.SetCapacity(context->m_ScriptExtensions.Capacity() + 8);
+        }
+        context->m_ScriptExtensions.Push(script_extension);
+    }
+
+    void Update(HContext context)
+    {
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Initialize != 0x0)
+            {
+                (*l)->Initialize(context);
+            }
+        }
+
         if (context->m_EnableExtensions) {
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
             uint32_t i = 0;
@@ -227,6 +253,14 @@ namespace dmScript
     {
         lua_State* L = context->m_LuaState;
         FinalizeHttp(L);
+
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Finalize != 0x0)
+            {
+                (*l)->Finalize(context);
+            }
+        }
 
         if (context->m_EnableExtensions) {
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
@@ -611,6 +645,157 @@ namespace dmScript
         lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
         assert(lua_type(L, -1) == LUA_TTABLE);
         // [-1] instance context table
+    }
+
+    uintptr_t GetInstanceId(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+        GetInstance(L);
+        int instance_type = lua_type(L, -1);
+        // We assume that all users of SetInstance puts some form of user data/light user data, it is an assumption that works for now
+        uintptr_t id = (instance_type == LUA_TLIGHTUSERDATA || instance_type == LUA_TUSERDATA) ? (uintptr_t)lua_touserdata(L, -1) : 0;
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return id;
+    }
+
+    struct ScriptWorld
+    {
+        HContext m_Context;
+        int      m_WorldContextTableRef;
+    };
+
+    HContext GetScriptWorldContext(HScriptWorld script_world)
+    {
+        return script_world == 0x0 ? 0x0 : script_world->m_Context;
+    }
+
+    void SetScriptWorldContextValue(HScriptWorld script_world)
+    {
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+        // [-3] key
+        // [-2] value
+        // [-1] context table
+
+        lua_insert(L, -3);
+        // [-3] context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] context table
+
+        lua_pop(L, 1);
+    }
+
+    void GetScriptWorldContextValue(HScriptWorld script_world)
+    {
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+        // [-2] key
+        // [-1] context table
+
+        lua_insert(L, -2);
+        // [-2] context table
+        // [-1] key
+
+        lua_gettable(L, -2);
+        // [-2] context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] context table
+
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
+    HScriptWorld NewScriptWorld(HContext context)
+    {
+        HScriptWorld script_world = (ScriptWorld*)malloc(sizeof(ScriptWorld));
+        script_world->m_Context = context;
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_newtable(L);
+        script_world->m_WorldContextTableRef = Ref(L, LUA_REGISTRYINDEX);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->NewScriptWorld != 0x0)
+            {
+                (*l)->NewScriptWorld(script_world);
+            }
+        }
+        return script_world;
+    }
+
+    void DeleteScriptWorld(HScriptWorld script_world)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->DeleteScriptWorld != 0x0)
+            {
+                (*l)->DeleteScriptWorld(script_world);
+            }
+        }
+        lua_State* L = script_world->m_Context->m_LuaState;
+        Unref(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+
+        free(script_world);
+    }
+
+    void UpdateScriptWorld(HScriptWorld script_world, float dt)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->DeleteScriptWorld != 0x0)
+            {
+                (*l)->UpdateScriptWorld(script_world, dt);
+            }
+        }
+    }
+
+    void InitializeInstance(lua_State* L, HScriptWorld script_world)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->InitializeScriptInstance != 0x0)
+            {
+                (*l)->InitializeScriptInstance(L, script_world);
+            }
+        }
+    }
+
+    void FinalizeInstance(lua_State* L, HScriptWorld script_world)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->FinalizeScriptInstance != 0x0)
+            {
+                (*l)->FinalizeScriptInstance(L, script_world);
+            }
+        }
     }
 
     bool SetInstanceContextValue(lua_State* L)

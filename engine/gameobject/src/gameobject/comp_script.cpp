@@ -21,7 +21,10 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            *params.m_World = new ScriptWorld();
+            ScriptWorld* w = new ScriptWorld();
+            w->m_ScriptWorld = dmScript::NewScriptWorld((dmScript::HContext)params.m_Context);
+            *params.m_World = w;
+
             return CREATE_RESULT_OK;
         }
         else
@@ -34,7 +37,9 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            delete (ScriptWorld*)params.m_World;
+            ScriptWorld* w = (ScriptWorld*)params.m_World;
+            dmScript::DeleteScriptWorld(w->m_ScriptWorld);
+            delete w;
             return CREATE_RESULT_OK;
         }
         else
@@ -53,7 +58,7 @@ namespace dmGameObject
             return CREATE_RESULT_UNKNOWN_ERROR;
         }
 
-        HScriptInstance script_instance = NewScriptInstance(script, params.m_Instance, params.m_ComponentIndex);
+        HScriptInstance script_instance = NewScriptInstance(script_world, script, params.m_Instance, params.m_ComponentIndex);
         SetPropertySet(script_instance->m_Properties, PROPERTY_LAYER_PROTOTYPE, params.m_PropertySet);
         if (script_instance == 0x0)
         {
@@ -196,6 +201,8 @@ namespace dmGameObject
         RunScriptParams run_params;
         run_params.m_UpdateContext = params.m_UpdateContext;
         ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
+
         uint32_t size = script_world->m_Instances.Size();
         for (uint32_t i = 0; i < size; ++i)
         {
