@@ -592,32 +592,32 @@
       ;; NOTE! If we're seriously unlucky a gc could make these tests
       ;; fail by collecting the result held in a WeakReference
 
-      ;; check "wat" is temp cached
-      (g/transact
-        (concat
-          (g/connect wat-producer :produce consumer :in1)
-          (g/connect wat-producer :produce consumer :in2)))
+      (testing "check non-nil value is temp cached"
+        (g/transact
+          (concat
+            (g/connect wat-producer :produce consumer :in1)
+            (g/connect wat-producer :produce consumer :in2)))
 
-      (reset! production-count 0)
-      (is (= (g/node-value consumer :result) "watwat"))
-      (is (= @production-count 1))
+        (reset! production-count 0)
+        (is (= (g/node-value consumer :result) "watwat"))
+        (is (= @production-count 1)))
 
-      ;, check nil is temp cached
-      (g/transact
-        (concat
-          (g/connect nil-producer :produce consumer :in1)
-          (g/connect nil-producer :produce consumer :in2)))
+      (testing "check nil is temp cached"
+        (g/transact
+          (concat
+            (g/connect nil-producer :produce consumer :in1)
+            (g/connect nil-producer :produce consumer :in2)))
 
-      (reset! production-count 0)
-      (is (= (g/node-value consumer :result) ""))
-      (is (= @production-count 1))
+        (reset! production-count 0)
+        (is (= (g/node-value consumer :result) ""))
+        (is (= @production-count 1)))
 
 
-      ;; check :no-local-temp is respected
-      (reset! production-count 0)
-      (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp true})) ""))
-      (is (= @production-count 2))
+      (testing "check :no-local-temp is respected"
+        (reset! production-count 0)
+        (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp true})) ""))
+        (is (= @production-count 2))
 
-      (reset! production-count 0)
-      (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp false})) ""))
-      (is (= @production-count 1)))))
+        (reset! production-count 0)
+        (is (= (g/node-value consumer :result (g/make-evaluation-context {:no-local-temp false})) ""))
+        (is (= @production-count 1))))))
