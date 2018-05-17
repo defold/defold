@@ -280,24 +280,24 @@
   (let [steps-done (atom #{})
         progress (atom (progress/make "" step-count))]
     (fn [state node output-type label]
-      (cond
-        (and (= label :build-targets) (= state :begin) (= output-type :output))
-        (let [new-message (if-let [path (node-id->resource-path node)]
-                            (str "Compiling " path)
-                            (or (progress/message @progress) ""))]
-          (swap! progress progress/with-message new-message)
-          (render-progress! @progress))
+      (when (and (= label :build-targets) (= output-type :output))
+        (case state
+          :begin
+          (let [new-path (node-id->resource-path node)]
+            (render-progress! (swap! progress
+                                     #(progress/with-message % (if new-path
+                                                                 (str "Compiling " new-path)
+                                                                 (or (progress/message %) ""))))))
 
-        (and (= label :build-targets) (= state :end) (= output-type :output))
-        (let [already-done (loop []
-                             (let [old @steps-done
-                                   new (conj old node)]
-                               (if (compare-and-set! steps-done old new)
-                                 (get old node)
-                                 (recur))))]
-          (when-not already-done
-            (swap! progress progress/advance 1)
-            (render-progress! @progress)))))))
+          :end
+          (let [already-done (loop []
+                               (let [old @steps-done
+                                     new (conj old node)]
+                                 (if (compare-and-set! steps-done old new)
+                                   (get old node)
+                                   (recur))))]
+            (when-not already-done
+              (render-progress! (swap! progress progress/advance 1)))))))))
 
 (defn- batched-pmap [f batches]
   (->> batches
