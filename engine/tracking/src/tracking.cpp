@@ -170,7 +170,7 @@ namespace dmTracking
             // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
             const int ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+            dmScript::ResolveInInstance(L, ref);
             assert(lua_isfunction(L, -1));
             lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextReference);
 
@@ -189,7 +189,7 @@ namespace dmTracking
                 lua_newtable(L);
             }
             dmScript::PCall(L, 3, LUA_MULTRET);
-            dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
+            dmScript::UnrefInInstance(L, ref);
         }
         else if (message->m_Descriptor != 0)
         {
