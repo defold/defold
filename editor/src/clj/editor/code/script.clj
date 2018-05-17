@@ -232,7 +232,7 @@
                                                                   (keep properties/try-get-go-prop-proj-path)
                                                                   go-props)})}))))
 
-(g/defnk produce-build-targets [_node-id resource lines user-properties modules module-build-targets original-resource-property-build-targets property-resources]
+(g/defnk produce-build-targets [_node-id resource lines user-properties modules module-build-targets original-resource-property-build-targets]
   (let [user-property-entries (:properties user-properties)
         go-props-with-source-resources (keep properties/property-entry->go-prop user-property-entries)]
     (g/precluding-errors
@@ -266,6 +266,7 @@
       {:type prop-type}
       {:type prop-type
        :ext (resource-kind->ext (:resource-kind script-property))
+       :clear-fn properties/clear-resource-property
        :set-fn (fn set-resource-property [_evaluation-context self _old-value new-value]
                  (properties/set-resource-property self prop-kw new-value))})))
 

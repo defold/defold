@@ -448,9 +448,12 @@
     (g/transact
       (concat
         (g/operation-label (str "Clear " (label property)))
-        (let [key (:key property)]
+        (let [key (:key property)
+              clear-fn (get-in property [:edit-type :clear-fn])]
           (for [node-id (:node-ids property)]
-            (g/clear-property node-id key)))))))
+            (if clear-fn
+              (clear-fn node-id key)
+              (g/clear-property node-id key))))))))
 
 (defn round-scalar [n]
   (math/round-with-precision n 0.001))
@@ -518,6 +521,13 @@
   (concat
     (g/set-property node-id prop-kw resource)
     (g/update-property node-id :property-resources assoc prop-kw resource)))
+
+(defn clear-resource-property [node-id prop-kw]
+  ;; Nodes with resource properties must have a property-resources property that
+  ;; hooks up the resource property build targets in its setter.
+  (concat
+    (g/clear-property node-id prop-kw)
+    (g/update-property node-id :property-resources dissoc prop-kw)))
 
 (defn- apply-property-override [workspace node-id prop-kw prop property-desc]
   (assert (integer? node-id))

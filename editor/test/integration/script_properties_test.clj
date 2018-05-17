@@ -356,22 +356,15 @@
     (fs/delete-directory! (io/file build-path) {:fail :silently})
     error))
 
+(defn- coalesced-property [node-id prop-kw]
+  (get-in (properties/coalesce [(g/node-value node-id :_properties)])
+          [:properties prop-kw]))
+
 (defn- edit-property! [node-id prop-kw value]
-  (let [evaluation-context (g/make-evaluation-context)
-        property (get-in (g/node-value node-id :_properties evaluation-context) [:properties prop-kw])
-        set-fn (get-in property [:edit-type :set-fn])
-        from-fn (get-in property [:edit-type :from-type] identity)
-        prop-node-id (:node-id property)
-        old-value (from-fn (:value property))]
-    (assert (not (:read-only? property)))
-    (g/transact
-      (if (some? set-fn)
-        (set-fn evaluation-context prop-node-id old-value value)
-        (g/set-property prop-node-id prop-kw value)))
-    (g/update-cache-from-evaluation-context! evaluation-context)))
+  (properties/set-values! (coalesced-property node-id prop-kw) [value]))
 
 (defn- reset-property! [node-id prop-kw]
-  (tu/prop-clear! (tu/prop-node-id node-id prop-kw) prop-kw))
+  (properties/clear-override! (coalesced-property node-id prop-kw)))
 
 (defn- find-corresponding [items node-with-id-property]
   (assert (vector? items))
@@ -402,9 +395,9 @@
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (edit-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
-                                                     "go.property('material', resource.material('/from-props-script.material'))"
-                                                     "go.property('texture',   resource.texture('/from-props-script.png'))"]))]
+                             (g/set-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                                                      "go.property('material', resource.material('/from-props-script.material'))"
+                                                      "go.property('texture',   resource.texture('/from-props-script.png'))"]))]
           (is (g/node-instance? script/ScriptNode props-script))
           (is (not (g/override? props-script)))
 
@@ -434,7 +427,7 @@
 
             (testing "Editing the script code affects exposed properties"
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (edit-property! props-script :lines ["go.property('other', resource.texture('/from-props-script.png'))"])
+                (g/set-property! props-script :lines ["go.property('other', resource.texture('/from-props-script.png'))"])
                 (let [properties (properties props-script)]
                   (is (not (contains? properties :__atlas)))
                   (is (not (contains? properties :__material)))
@@ -452,7 +445,7 @@
 
             (testing "Missing resource error"
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (edit-property! props-script :lines ["go.property('texture', resource.texture('/missing-resource.png'))"])
+                (g/set-property! props-script :lines ["go.property('texture', resource.texture('/missing-resource.png'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
                   (is (texture-resource-property? (:__texture properties) (resource "/missing-resource.png")))
@@ -471,7 +464,7 @@
 
             (testing "Unsupported resource error"
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (edit-property! props-script :lines ["go.property('texture', resource.texture('/unsupported-resource.txt'))"])
+                (g/set-property! props-script :lines ["go.property('texture', resource.texture('/unsupported-resource.txt'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
                   (is (texture-resource-property? (:__texture properties) (resource "/unsupported-resource.txt")))
@@ -508,9 +501,9 @@
         (make-atlas!    "/from-props-game-object.atlas")
         (make-material! "/from-props-game-object.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (edit-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
-                                                     "go.property('material', resource.material('/from-props-script.material'))"
-                                                     "go.property('texture',   resource.texture('/from-props-script.png'))"]))
+                             (g/set-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                                                      "go.property('material', resource.material('/from-props-script.material'))"
+                                                      "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (make-resource-node! "/props.go")
               props-script-component (add-component! props-game-object props-script)
               original-property-values (into {}
@@ -641,7 +634,12 @@
                     (is (= [(resource "/props.go") props-game-object]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
-                           (error-item-open-info-without-opts error-item-of-faulty-node))))))))
+                           (error-item-open-info-without-opts error-item-of-faulty-node))))))
+
+              (testing "Error goes away after clearing override"
+                (reset-property! props-script-component :__texture)
+                (is (not (g/error? (tu/prop-error props-script-component :__texture))))
+                (is (not (g/error? (build-error! props-game-object)))))))
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -660,7 +658,12 @@
                     (is (= [(resource "/props.go") props-game-object]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
-                           (error-item-open-info-without-opts error-item-of-faulty-node)))))))))))))
+                           (error-item-open-info-without-opts error-item-of-faulty-node))))))
+
+              (testing "Error goes away after clearing override"
+                (reset-property! props-script-component :__texture)
+                (is (not (g/error? (tu/prop-error props-script-component :__texture))))
+                (is (not (g/error? (build-error! props-game-object))))))))))))
 
 (deftest edit-game-object-instance-resource-properties-test
   (with-clean-system
@@ -684,9 +687,9 @@
         (make-atlas!    "/from-props-collection.atlas")
         (make-material! "/from-props-collection.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (edit-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
-                                                     "go.property('material', resource.material('/from-props-script.material'))"
-                                                     "go.property('texture',   resource.texture('/from-props-script.png'))"]))
+                             (g/set-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                                                      "go.property('material', resource.material('/from-props-script.material'))"
+                                                      "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
                                   (add-component! props-script))
               props-collection (make-resource-node! "/props.collection")
@@ -834,7 +837,12 @@
                     (is (= [(resource "/props.collection") props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.collection") ov-props-script-component]
-                           (error-item-open-info-without-opts error-item-of-faulty-node))))))))
+                           (error-item-open-info-without-opts error-item-of-faulty-node))))))
+
+              (testing "Error goes away after clearing override"
+                (reset-property! ov-props-script-component :__texture)
+                (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
+                (is (not (g/error? (build-error! props-collection)))))))
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -853,7 +861,12 @@
                     (is (= [(resource "/props.collection") props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.collection") ov-props-script-component]
-                           (error-item-open-info-without-opts error-item-of-faulty-node)))))))))))))
+                           (error-item-open-info-without-opts error-item-of-faulty-node))))))
+
+              (testing "Error goes away after clearing override"
+                (reset-property! ov-props-script-component :__texture)
+                (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
+                (is (not (g/error? (build-error! props-collection))))))))))))
 
 (deftest edit-collection-instance-resource-properties-test
   (with-clean-system
@@ -879,9 +892,9 @@
         (make-atlas!    "/from-sub-props-collection.atlas")
         (make-material! "/from-sub-props-collection.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (edit-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
-                                                     "go.property('material', resource.material('/from-props-script.material'))"
-                                                     "go.property('texture',   resource.texture('/from-props-script.png'))"]))
+                             (g/set-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                                                      "go.property('material', resource.material('/from-props-script.material'))"
+                                                      "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
                                   (add-component! props-script))
               props-collection (doto (make-resource-node! "/props.collection")
@@ -1044,7 +1057,12 @@
                     (is (= [(resource "/sub-props.collection") sub-props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/sub-props.collection") ov-props-script-component]
-                           (error-item-open-info-without-opts error-item-of-faulty-node))))))))
+                           (error-item-open-info-without-opts error-item-of-faulty-node)))))))
+
+            (testing "Error goes away after clearing override"
+              (reset-property! ov-props-script-component :__texture)
+              (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
+              (is (not (g/error? (build-error! sub-props-collection))))))
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
@@ -1063,4 +1081,9 @@
                     (is (= [(resource "/sub-props.collection") sub-props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/sub-props.collection") ov-props-script-component]
-                           (error-item-open-info-without-opts error-item-of-faulty-node)))))))))))))
+                           (error-item-open-info-without-opts error-item-of-faulty-node))))))
+
+              (testing "Error goes away after clearing override"
+                (reset-property! ov-props-script-component :__texture)
+                (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
+                (is (not (g/error? (build-error! sub-props-collection))))))))))))

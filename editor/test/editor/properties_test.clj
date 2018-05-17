@@ -226,6 +226,27 @@
       (properties/set-values! p [1])
       (is (= 1 @(g/node-value n :count))))))
 
+(g/defnode DynamicClearFn
+  (property a g/Keyword)
+  (property cleared g/Any (default (atom [])))
+
+  (output _properties g/Properties (g/fnk [_declared-properties]
+                                     (assoc-in _declared-properties [:properties :a :edit-type :clear-fn]
+                                               (fn [self prop-kw]
+                                                 (swap! (g/node-value self :cleared) conj prop-kw)
+                                                 (g/clear-property self prop-kw))))))
+
+(deftest dynamic-clear-fn
+  (with-clean-system
+    (let [override-node (last (tx-nodes (g/make-nodes world
+                                                        [original-node [DynamicClearFn :a :original-value]]
+                                                        (:tx-data (g/override original-node {})))))
+          _ (g/set-property! override-node :a :override-value)
+          p (:a (coalesce-nodes [override-node]))]
+      (is (= [] @(g/node-value override-node :cleared)))
+      (properties/clear-override! p)
+      (is (= [:a] @(g/node-value override-node :cleared))))))
+
 (g/defnode QuatAsEuler
   (property rotation t/Vec4
             (dynamic edit-type (g/constantly (properties/quat->euler)))))
