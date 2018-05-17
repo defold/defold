@@ -300,6 +300,7 @@ public class RigUtil {
     public interface PropertyBuilder<T, Key extends RigUtil.AnimationKey> {
         void addComposite(T v);
         void add(double v);
+        void duplicateLast();
         T toComposite(Key key);
         T interpolate(double t, T a, T b);
     }
@@ -341,6 +342,14 @@ public class RigUtil {
         @Override
         public void add(double v) {
             builder.addPositions((float)v);
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getPositionsCount();
+            builder.addPositions(builder.getPositions(length-3));
+            builder.addPositions(builder.getPositions(length-2));
+            builder.addPositions(builder.getPositions(length-1));
         }
 
         @Override
@@ -386,6 +395,15 @@ public class RigUtil {
         }
 
         @Override
+        public void duplicateLast() {
+            int length = builder.getRotationsCount();
+            builder.addRotations(builder.getRotations(length-4));
+            builder.addRotations(builder.getRotations(length-3));
+            builder.addRotations(builder.getRotations(length-2));
+            builder.addRotations(builder.getRotations(length-1));
+        }
+
+        @Override
         public Quat4d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return toQuat(v[0]);
@@ -413,6 +431,15 @@ public class RigUtil {
         @Override
         public void add(double v) {
             this.builder.addRotations((float)v);
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getRotationsCount();
+            builder.addRotations(builder.getRotations(length-4));
+            builder.addRotations(builder.getRotations(length-3));
+            builder.addRotations(builder.getRotations(length-2));
+            builder.addRotations(builder.getRotations(length-1));
         }
 
         @Override
@@ -446,6 +473,14 @@ public class RigUtil {
         }
 
         @Override
+        public void duplicateLast() {
+            int length = builder.getScaleCount();
+            builder.addScale(builder.getScale(length-3));
+            builder.addScale(builder.getScale(length-2));
+            builder.addScale(builder.getScale(length-1));
+        }
+
+        @Override
         public Vector3d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return new Vector3d(v[0], v[1], v[2]);
@@ -476,6 +511,12 @@ public class RigUtil {
         }
 
         @Override
+        public void duplicateLast() {
+            int length = builder.getMixCount();
+            builder.addMix(builder.getMix(length-1));
+        }
+
+        @Override
         public Float toComposite(RigUtil.IKAnimationKey key) {
             return new Float(key.mix);
         }
@@ -500,6 +541,12 @@ public class RigUtil {
         @Override
         public void add(double v) {
             throw new RuntimeException("Not supported");
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getPositiveCount();
+            builder.addPositive(builder.getPositive(length-1));
         }
 
         @Override
@@ -531,6 +578,15 @@ public class RigUtil {
         @Override
         public void add(double v) {
             builder.addSlotColors((float)v);
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getSlotColorsCount();
+            builder.addSlotColors(builder.getSlotColors(length-4));
+            builder.addSlotColors(builder.getSlotColors(length-3));
+            builder.addSlotColors(builder.getSlotColors(length-2));
+            builder.addSlotColors(builder.getSlotColors(length-1));
         }
 
         @Override
@@ -567,6 +623,13 @@ public class RigUtil {
         }
 
         @Override
+        public void duplicateLast() {
+            int length = builder.getMeshAttachmentCount();
+            builder.addMeshAttachment(builder.getMeshAttachment(length-1));
+        }
+
+
+        @Override
         public Integer toComposite(RigUtil.SlotAnimationKey key) {
             return key.attachment;
         }
@@ -595,6 +658,12 @@ public class RigUtil {
         @Override
         public void add(double v) {
             throw new RuntimeException("Not supported");
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getOrderOffsetCount();
+            builder.addOrderOffset(builder.getOrderOffset(length-1));
         }
 
         @Override
@@ -635,11 +704,11 @@ public class RigUtil {
         if (track.keys.isEmpty()) {
             return;
         }
-        // We add one extra frame at the end (+1) so that we always get a copy of a the last keyframe,
-        // in turn we can safely interpolate at end of the animation in runtime when the cursor is the same as duration.
-        // If the animation has a duration of zero (ie only one keyframe at time 0), we need to make sure
-        // we always have 2 keyframes (ie a duplicate of the last one here as well).
-        int sampleCount = Math.max(2, (int)Math.ceil(duration * sampleRate) + 1);
+
+        // We add one extra frame (+1) to have a keyframe when t == duration, we also need
+        // to duplicate the last keyframe (see end of function) so that the linear
+        // interpolation works correctly in runtime.
+        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
         double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();
@@ -683,5 +752,8 @@ public class RigUtil {
                 propertyBuilder.addComposite(defaultValue);
             }
         }
+
+        // Create duplicate of last keyframe
+        propertyBuilder.duplicateLast();
     }
 }

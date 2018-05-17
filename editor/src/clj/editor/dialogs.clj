@@ -406,7 +406,7 @@
         accept-fn    (or (:accept-fn options) (constantly true))
         items        (into []
                            (filter #(and (= :file (resource/source-type %))
-                                         (accepted-ext (resource/ext %))
+                                         (accepted-ext (resource/type-ext %))
                                          (not (resource/internal? %))
                                          (accept-fn %)))
                            (g/node-value workspace :resource-list))

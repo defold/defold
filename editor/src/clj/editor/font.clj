@@ -421,7 +421,7 @@
                                            {}))))
 
 (defn load-font-source [project self resource]
-  (when (= (resource/ext resource) "fnt")
+  (when (= (resource/type-ext resource) "fnt")
     (let [bm-font (BMFont.)]
       (with-open [bm-stream (io/input-stream resource)]
         (.parse bm-font bm-stream))

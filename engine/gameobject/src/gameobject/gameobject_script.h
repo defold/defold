@@ -58,6 +58,7 @@ namespace dmGameObject
         Instance*   m_Instance;
         int         m_InstanceReference;
         int         m_ScriptDataReference;
+        int         m_ContextTableReference;
         uint16_t    m_ComponentIndex;
         HProperties m_Properties;
         uint16_t    m_Update : 1;
