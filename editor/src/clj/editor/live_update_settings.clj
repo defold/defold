@@ -8,7 +8,8 @@
             [editor.util :as util]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
-            [service.log :as log]))
+            [service.log :as log]
+            [editor.resource :as resource]))
 
 (def live-update-icon "icons/32/Icons_04-Project-file.png")
 
@@ -92,3 +93,11 @@
     :load-fn load-live-update-settings
     :icon live-update-icon
     :view-types [:form-view :text]))
+
+(defn get-live-update-settings-path [project]
+  (let [project-settings (project/settings project)
+        file-resource (get project-settings ["liveupdate" "settings"])]
+    (if (.exists? file-resource)
+      (.proj-path file-resource)
+      "/liveupdate.settings")
+    ))

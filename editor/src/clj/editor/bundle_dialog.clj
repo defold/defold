@@ -215,9 +215,6 @@
      :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
                                         (ui/editable publish-live-update-content-check-box))}))
 
-(defn- has-live-update-settings? [workspace]
-  (some? (workspace/find-resource workspace "/liveupdate.settings")))
-
 (defn- set-generic-options! [view options workspace]
   (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
     (ui/value! release-mode-check-box (:release-mode? options))
