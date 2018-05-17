@@ -723,14 +723,29 @@
   "Creates a tree trace of the evaluation of the form
   {:node-id ... :output-type ... :label ... :state ... :dependencies [{...} ...]}
 
-  You can also pass in a function to decorate the steps. For timing for instance:
+  You can also pass in a function to decorate the steps.
 
+    Timing:
     (defn timing-decorator [step state]
       (case state
         :begin (assoc step :start-time (System/currentTimeMillis))
         (:end :fail) (-> step
                          (assoc :elapsed (- (System/currentTimeMillis) (:start-time step)))
                          (dissoc :start-time))))
+
+    Weight:
+    (defn weight-decorator [step state]
+      (case state
+        :begin step
+        :end (assoc step :weight (+ 1 (reduce + 0 (map :weight (:dependencies step)))))
+        :fail (assoc step :weight 0)))
+
+    Depth:
+    (defn- depth-decorator [step state]
+      (case state
+        :begin step
+        :end (assoc step :depth (+ 1 (or (:depth (first (:dependencies step))) 0)))
+        :fail (assoc step :depth 0)))
 
     (g/node-value node :output (g/make-evaluation-context {:tracer (g/make-tree-tracer result-atom timing-decorator)}))"
   ([result-atom]
