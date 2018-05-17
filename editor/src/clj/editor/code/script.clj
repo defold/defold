@@ -143,6 +143,50 @@
 (defn- prop->key [p]
   (-> p :name properties/user-name->key))
 
+(def resource-kind->ext
+  {"atlas"       ["atlas" "tilesource"]
+   "font"        font/font-file-extensions
+   "material"    "material"
+   "texture"     (conj image/exts "cubemap")
+   "tile_source" "tilesource"})
+
+(def ^:private valid-resource-kind? (partial contains? resource-kind->ext))
+
+(defn- script-property-edit-type [script-property]
+  (let [prop-kw (prop->key script-property)
+        prop-type (script-property-type->property-type (:type script-property))]
+    (if (not= resource/Resource prop-type)
+      {:type prop-type}
+      {:type prop-type
+       :ext (resource-kind->ext (:resource-kind script-property))
+       :clear-fn properties/clear-resource-property
+       :set-fn (fn set-resource-property [_evaluation-context self _old-value new-value]
+                 (properties/set-resource-property self prop-kw new-value))})))
+
+(defn- resource-assignment-error [node-id prop-kw resource expected-ext]
+  (when (some? resource)
+    (let [resource-ext (resource/ext resource)
+          ext-match? (if (coll? expected-ext)
+                       (some? (some (partial = resource-ext) expected-ext))
+                       (= expected-ext resource-ext))]
+      (cond
+        (not ext-match?)
+        (g/->error node-id prop-kw :fatal resource
+                   (format "%s '%s' is not of type %s"
+                           (validation/keyword->name prop-kw)
+                           (resource/proj-path resource)
+                           (validation/format-ext expected-ext)))
+
+        (not (resource/exists? resource))
+        (g/->error node-id prop-kw :fatal resource
+                   (format "%s '%s' could not be found"
+                           (validation/keyword->name prop-kw)
+                           (resource/proj-path resource)))))))
+
+(defn- validate-value-against-edit-type [node-id prop-kw value edit-type]
+  (when (= resource/Resource (:type edit-type))
+    (resource-assignment-error node-id prop-kw value (:ext edit-type))))
+
 (g/defnk produce-properties [_declared-properties user-properties]
   ;; TODO - fix this when corresponding graph issue has been fixed
   (cond
@@ -232,76 +276,41 @@
                                                                   (keep properties/try-get-go-prop-proj-path)
                                                                   go-props)})}))))
 
-(g/defnk produce-build-targets [_node-id resource lines user-properties modules module-build-targets original-resource-property-build-targets]
-  (let [user-property-entries (:properties user-properties)
-        go-props-with-source-resources (keep properties/property-entry->go-prop user-property-entries)]
-    (g/precluding-errors
-      (keep :error go-props-with-source-resources)
-      (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props original-resource-property-build-targets go-props-with-source-resources)]
-        ;; NOTE: The user-data must not contain any overridden data. If it does,
-        ;; the build targets won't be fused and the script will be recompiled
-        ;; for every instance of the script component.
-        [{:node-id _node-id
-          :resource (workspace/make-build-resource resource)
-          :build-fn build-script
-          :user-data {:lines lines :go-props go-props :modules modules :proj-path (resource/proj-path resource)}
-          :deps (into go-prop-dep-build-targets module-build-targets)}]))))
+(g/defnk produce-build-targets [_node-id resource lines script-properties modules module-build-targets original-resource-property-build-targets]
+  (g/precluding-errors
+    (keep (fn [script-property]
+            (let [prop-kw (prop->key script-property)
+                  edit-type (script-property-edit-type script-property)]
+              (validate-value-against-edit-type _node-id prop-kw (:value script-property) edit-type)))
+          script-properties)
+    (let [go-props-with-source-resources (map (fn [{:keys [name type value]}]
+                                                (let [go-prop-type (script-property-type->go-prop-type type)
+                                                      go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]
+                                                  {:id name
+                                                   :type go-prop-type
+                                                   :value go-prop-value
+                                                   :clj-value value}))
+                                              script-properties)
+          [go-props go-prop-dep-build-targets] (properties/build-target-go-props original-resource-property-build-targets go-props-with-source-resources)]
+      ;; NOTE: The user-data must not contain any overridden data. If it does,
+      ;; the build targets won't be fused and the script will be recompiled
+      ;; for every instance of the script component.
+      [{:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-script
+        :user-data {:lines lines :go-props go-props :modules modules :proj-path (resource/proj-path resource)}
+        :deps (into go-prop-dep-build-targets module-build-targets)}])))
 
 (g/defnk produce-completions [completion-info module-completion-infos]
   (code-completion/combine-completions completion-info module-completion-infos))
 
-(def resource-kind->ext
-  {"atlas"       ["atlas" "tilesource"]
-   "font"        font/font-file-extensions
-   "material"    "material"
-   "texture"     (conj image/exts "cubemap")
-   "tile_source" "tilesource"})
-
-(def ^:private valid-resource-kind? (partial contains? resource-kind->ext))
-
-(defn- script-property-edit-type [script-property]
-  (let [prop-kw (prop->key script-property)
-        prop-type (script-property-type->property-type (:type script-property))]
-    (if (not= resource/Resource prop-type)
-      {:type prop-type}
-      {:type prop-type
-       :ext (resource-kind->ext (:resource-kind script-property))
-       :clear-fn properties/clear-resource-property
-       :set-fn (fn set-resource-property [_evaluation-context self _old-value new-value]
-                 (properties/set-resource-property self prop-kw new-value))})))
-
-(defn- resource-assignment-error [node-id prop-kw resource expected-ext]
-  (when (some? resource)
-    (let [resource-ext (resource/ext resource)
-          ext-match? (if (coll? expected-ext)
-                       (some? (some (partial = resource-ext) expected-ext))
-                       (= expected-ext resource-ext))]
-      (cond
-        (not ext-match?)
-        (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' is not of type %s"
-                           (validation/keyword->name prop-kw)
-                           (resource/proj-path resource)
-                           (validation/format-ext expected-ext)))
-
-        (not (resource/exists? resource))
-        (g/->error node-id prop-kw :fatal resource
-                   (format "%s '%s' could not be found"
-                           (validation/keyword->name prop-kw)
-                           (resource/proj-path resource)))))))
-
-(defn- validate-value-against-edit-type [node-id prop-kw value edit-type]
-  (when (= resource/Resource (:type edit-type))
-    (resource-assignment-error node-id prop-kw value (:ext edit-type))))
-
-(defn- script-property->property-entry [node-id override-node? override-values-by-prop-kw {:keys [type value] :as script-property}]
+(defn- script-property->property-entry [node-id read-only? override-values-by-prop-kw {:keys [type value] :as script-property}]
   (let [prop-kw (prop->key script-property)
         prop-type (script-property-type->property-type type)
         go-prop-type (script-property-type->go-prop-type type)
         edit-type (script-property-edit-type script-property)
-        validated-value (if override-node? (override-values-by-prop-kw prop-kw) value)
-        error (validate-value-against-edit-type node-id prop-kw validated-value edit-type)
-        read-only? (not override-node?)]
+        validated-value (get override-values-by-prop-kw prop-kw value)
+        error (validate-value-against-edit-type node-id prop-kw validated-value edit-type)]
     [prop-kw {:node-id node-id
               :type prop-type
               :edit-type edit-type
@@ -311,10 +320,10 @@
               :read-only? read-only?}]))
 
 (g/defnk produce-user-properties [_node-id script-properties property-resources]
-  (let [override-node? (g/override? _node-id)]
+  (let [read-only? (nil? (g/override-original _node-id))]
     {:display-order (mapv prop->key script-properties)
      :properties (into {}
-                       (map (partial script-property->property-entry _node-id override-node? property-resources))
+                       (map (partial script-property->property-entry _node-id read-only? property-resources))
                        script-properties)}))
 
 (g/defnode ScriptNode

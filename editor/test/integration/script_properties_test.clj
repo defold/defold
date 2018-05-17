@@ -464,18 +464,18 @@
 
             (testing "Unsupported resource error"
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (g/set-property! props-script :lines ["go.property('texture', resource.texture('/unsupported-resource.txt'))"])
+                (g/set-property! props-script :lines ["go.property('texture', resource.texture('/from-props-script.material'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
-                  (is (texture-resource-property? (:__texture properties) (resource "/unsupported-resource.txt")))
+                  (is (texture-resource-property? (:__texture properties) (resource "/from-props-script.material")))
                   (is (g/error? error-value))
-                  (is (= "Texture '/unsupported-resource.txt' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                  (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
                 (let [error-value (build-error! props-script)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
                           error-item-of-parent-resource (first (:children error-tree))
                           error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                      (is (= "Texture '/unsupported-resource.txt' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                      (is (= "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
                       (is (= [(resource "/props.script") props-script]
                              (error-item-open-info-without-opts error-item-of-parent-resource)))
                       (is (= [(resource "/props.script") props-script]
@@ -643,18 +643,18 @@
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (edit-property! props-script-component :__texture (resource "/unsupported-resource.txt"))
+              (edit-property! props-script-component :__texture (resource "/from-props-game-object.material"))
               (let [properties (properties props-script-component)
                     error-value (tu/prop-error props-script-component :__texture)]
-                (is (texture-resource-property? (:__texture properties) (resource "/unsupported-resource.txt")))
+                (is (texture-resource-property? (:__texture properties) (resource "/from-props-game-object.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/unsupported-resource.txt' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
               (let [error-value (build-error! props-game-object)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/unsupported-resource.txt' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-props-game-object.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/props.go") props-game-object]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.go") props-script-component]
@@ -663,7 +663,28 @@
               (testing "Error goes away after clearing override"
                 (reset-property! props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error props-script-component :__texture))))
-                (is (not (g/error? (build-error! props-game-object))))))))))))
+                (is (not (g/error? (build-error! props-game-object)))))))
+
+          (testing "Downstream error breaks build"
+            (are [lines message]
+              (with-open [_ (tu/make-graph-reverter project-graph)]
+                (g/set-property! props-script :lines lines)
+                (let [error-value (build-error! props-game-object)]
+                  (when (is (g/error? error-value))
+                    (let [error-tree (build-errors-view/build-resource-tree error-value)
+                          error-item-of-parent-resource (first (:children error-tree))
+                          error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
+                      (is (= message (:message error-item-of-faulty-node)))
+                      (is (= [(resource "/props.script") props-script]
+                             (error-item-open-info-without-opts error-item-of-parent-resource)))
+                      (is (= [(resource "/props.script") props-script]
+                             (error-item-open-info-without-opts error-item-of-faulty-node)))))))
+
+              ["go.property('texture', resource.texture('/missing-resource.png'))"]
+              "Texture '/missing-resource.png' could not be found"
+
+              ["go.property('texture', resource.texture('/from-props-script.material'))"]
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
 
 (deftest edit-game-object-instance-resource-properties-test
   (with-clean-system
@@ -846,18 +867,18 @@
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (edit-property! ov-props-script-component :__texture (resource "/unsupported-resource.txt"))
+              (edit-property! ov-props-script-component :__texture (resource "/from-props-collection.material"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
-                (is (texture-resource-property? (:__texture properties) (resource "/unsupported-resource.txt")))
+                (is (texture-resource-property? (:__texture properties) (resource "/from-props-collection.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/unsupported-resource.txt' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
               (let [error-value (build-error! props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/unsupported-resource.txt' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/props.collection") props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/props.collection") ov-props-script-component]
@@ -866,7 +887,28 @@
               (testing "Error goes away after clearing override"
                 (reset-property! ov-props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
-                (is (not (g/error? (build-error! props-collection))))))))))))
+                (is (not (g/error? (build-error! props-collection)))))))
+
+          (testing "Downstream error breaks build"
+            (are [lines message]
+              (with-open [_ (tu/make-graph-reverter project-graph)]
+                (g/set-property! props-script :lines lines)
+                (let [error-value (build-error! props-collection)]
+                  (when (is (g/error? error-value))
+                    (let [error-tree (build-errors-view/build-resource-tree error-value)
+                          error-item-of-parent-resource (first (:children error-tree))
+                          error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
+                      (is (= message (:message error-item-of-faulty-node)))
+                      (is (= [(resource "/props.script") props-script]
+                             (error-item-open-info-without-opts error-item-of-parent-resource)))
+                      (is (= [(resource "/props.script") props-script]
+                             (error-item-open-info-without-opts error-item-of-faulty-node)))))))
+
+              ["go.property('texture', resource.texture('/missing-resource.png'))"]
+              "Texture '/missing-resource.png' could not be found"
+
+              ["go.property('texture', resource.texture('/from-props-script.material'))"]
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
 
 (deftest edit-collection-instance-resource-properties-test
   (with-clean-system
@@ -1066,18 +1108,18 @@
 
           (testing "Unsupported resource error"
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (edit-property! ov-props-script-component :__texture (resource "/unsupported-resource.txt"))
+              (edit-property! ov-props-script-component :__texture (resource "/from-sub-props-collection.material"))
               (let [properties (properties ov-props-script-component)
                     error-value (tu/prop-error ov-props-script-component :__texture)]
-                (is (texture-resource-property? (:__texture properties) (resource "/unsupported-resource.txt")))
+                (is (texture-resource-property? (:__texture properties) (resource "/from-sub-props-collection.material")))
                 (is (g/error? error-value))
-                (is (= "Texture '/unsupported-resource.txt' is not of type .cubemap, .jpg or .png" (:message error-value))))
+                (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-value))))
               (let [error-value (build-error! sub-props-collection)]
                 (when (is (g/error? error-value))
                   (let [error-tree (build-errors-view/build-resource-tree error-value)
                         error-item-of-parent-resource (first (:children error-tree))
                         error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
-                    (is (= "Texture '/unsupported-resource.txt' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= "Texture '/from-sub-props-collection.material' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
                     (is (= [(resource "/sub-props.collection") sub-props-collection]
                            (error-item-open-info-without-opts error-item-of-parent-resource)))
                     (is (= [(resource "/sub-props.collection") ov-props-script-component]
@@ -1086,4 +1128,25 @@
               (testing "Error goes away after clearing override"
                 (reset-property! ov-props-script-component :__texture)
                 (is (not (g/error? (tu/prop-error ov-props-script-component :__texture))))
-                (is (not (g/error? (build-error! sub-props-collection))))))))))))
+                (is (not (g/error? (build-error! sub-props-collection)))))))
+
+          (testing "Downstream error breaks build"
+            (are [lines message]
+              (with-open [_ (tu/make-graph-reverter project-graph)]
+                (g/set-property! props-script :lines lines)
+                (let [error-value (build-error! sub-props-collection)]
+                  (when (is (g/error? error-value))
+                    (let [error-tree (build-errors-view/build-resource-tree error-value)
+                          error-item-of-parent-resource (first (:children error-tree))
+                          error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
+                      (is (= message (:message error-item-of-faulty-node)))
+                      (is (= [(resource "/props.script") props-script]
+                             (error-item-open-info-without-opts error-item-of-parent-resource)))
+                      (is (= [(resource "/props.script") props-script]
+                             (error-item-open-info-without-opts error-item-of-faulty-node)))))))
+
+              ["go.property('texture', resource.texture('/missing-resource.png'))"]
+              "Texture '/missing-resource.png' could not be found"
+
+              ["go.property('texture', resource.texture('/from-props-script.material'))"]
+              "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
