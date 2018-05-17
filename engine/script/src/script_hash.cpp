@@ -171,6 +171,21 @@ namespace dmScript
         assert(top + 1 == lua_gettop(L));
     }
 
+    void PopHash(lua_State* L, dmhash_t hash)
+    {
+        int top = lua_gettop(L);
+        lua_getglobal(L, SCRIPT_CONTEXT);
+        Context* context = (Context*) (dmConfigFile::HConfig)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+        dmHashTable64<int>* instances = &context->m_HashInstances;
+        int* refp = instances->Get(hash);
+        if (refp != 0x0)
+        {
+            dmScript::Unref(L, LUA_REGISTRYINDEX, *refp);
+            instances->Erase(hash);
+        }
+    }
+
     dmhash_t CheckHash(lua_State* L, int index)
     {
         dmhash_t* lua_hash = 0x0;
