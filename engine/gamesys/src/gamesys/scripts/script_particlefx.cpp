@@ -89,7 +89,6 @@ namespace dmGameSystem
         {
             if (!dmScript::IsValidCallback(data.m_CallbackInfo))
             {
-                dmLogError("Could not run particlefx callback because the instance has been deleted.");
                 return;
             }
 
