@@ -973,9 +973,14 @@ namespace dmScript
         cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
         
-        cbk->m_CallbackInfoRef = dmScript::Ref(L, LUA_REGISTRYINDEX);//luaL_ref(L, -3);
+        // For the callback ref (that can actually outlive the script instance)
+        // we want to add to the lua debug count
+        cbk->m_CallbackInfoRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
         // [-2] context table
         // [-1] callback
+
+        // We do not use dmScript::Unref for refs in the context local table as we don't
+        // want to count those refs the ref debug count shown in the profiler
 
         cbk->m_Callback = luaL_ref(L, -2);
         // [-1] context table
@@ -1015,8 +1020,13 @@ namespace dmScript
             lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
             if (lua_type(L, -1) == LUA_TTABLE)
             {
+                // We do not use dmScript::Unref for refs in the context local table as we don't
+                // want to count those refs the ref debug count shown in the profiler
                 luaL_unref(L, -1, cbk->m_Self);
                 luaL_unref(L, -1, cbk->m_Callback);
+
+                // For the callback (that can actually outlive the script instance)
+                // we want to add to the lua debug count
                 dmScript::Unref(L, LUA_REGISTRYINDEX, cbk->m_CallbackInfoRef);
             }
             cbk->m_Self = LUA_NOREF;
