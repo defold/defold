@@ -973,7 +973,7 @@ namespace dmScript
         cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
         
-        cbk->m_CallbackInfoRef = luaL_ref(L, -3);
+        cbk->m_CallbackInfoRef = dmScript::Ref(L, LUA_REGISTRYINDEX);//luaL_ref(L, -3);
         // [-2] context table
         // [-1] callback
 
@@ -1017,7 +1017,7 @@ namespace dmScript
             {
                 luaL_unref(L, -1, cbk->m_Self);
                 luaL_unref(L, -1, cbk->m_Callback);
-                luaL_unref(L, -1, cbk->m_CallbackInfoRef);
+                dmScript::Unref(L, LUA_REGISTRYINDEX, cbk->m_CallbackInfoRef);
             }
             cbk->m_Self = LUA_NOREF;
             cbk->m_Callback = LUA_NOREF;
@@ -1038,7 +1038,7 @@ namespace dmScript
 
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
     {
-        if(cbk->m_ContextTableRef == LUA_NOREF)
+        if(cbk->m_CallbackInfoRef == LUA_NOREF)
         {
             dmLogWarning("Failed to invoke callback (it was not registered)");
             return false;
@@ -1057,7 +1057,6 @@ namespace dmScript
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 2);
-            dmLogWarning("Could not run callback because the script instance has been deleted");
             return false;
         }
 
@@ -1070,7 +1069,6 @@ namespace dmScript
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
             lua_pop(L, 3);
-            dmLogWarning("Could not run callback because the callback function has been deleted");
             return false;
         }
 
@@ -1082,7 +1080,6 @@ namespace dmScript
         if (lua_isnil(L, -1))
         {
             lua_pop(L, 4);
-            dmLogWarning("Could not run callback because the script instance has been deleted");
             return false;
         }
 
@@ -1105,7 +1102,6 @@ namespace dmScript
             // [-1] old instance
 
             SetInstance(L);
-            dmLogWarning("Could not run callback because the script instance is invalid");
             return false;
         }
 
