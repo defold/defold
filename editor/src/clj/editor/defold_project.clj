@@ -297,7 +297,10 @@
                                    (get old node)
                                    (recur))))]
             (when-not already-done
-              (render-progress! (swap! progress progress/advance 1)))))))))
+              (render-progress! (swap! progress progress/advance 1))))
+
+          :fail
+          nil)))))
 
 (defn- batched-pmap [f batches]
   (->> batches
