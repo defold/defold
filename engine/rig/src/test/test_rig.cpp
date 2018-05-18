@@ -934,22 +934,6 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim_track.m_MeshAttachment.m_Count = samples;
             anim_track.m_MeshAttachment.m_Data[0] = 1;
             anim_track.m_MeshAttachment.m_Data[1] = 1;
-
-            // // Loop over all tracks and pick appropriet offset entries from list above.
-            // for (int i = 0; i < track_count; ++i)
-            // {
-            //     dmRigDDF::MeshAnimationTrack& anim_track = anim10.m_MeshTracks.m_Data[i];
-            //     anim_track.m_MeshSlot               = i;
-            //     anim_track.m_SlotColors.m_Count     = 0;
-            //     anim_track.m_MeshAttachment.m_Count = 0;
-
-            //     anim_track.m_OrderOffset.m_Data = new int32_t[samples];
-            //     anim_track.m_OrderOffset.m_Count = samples;
-            //     for (int j = 0; j < samples; ++j)
-            //     {
-            //         anim_track.m_OrderOffset.m_Data[j] = track_entries[i*samples+j];
-            //     }
-            // }
         }
 
         // Meshes / skins
