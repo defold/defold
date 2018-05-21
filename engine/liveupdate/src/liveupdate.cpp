@@ -154,7 +154,7 @@ namespace dmLiveUpdate
         dmLiveUpdateDDF::HashDigest* versions = manifest->m_DDFData->m_EngineVersions.m_Data;
         uint32_t version_hex_digest_len = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1) * 2 + 1;
         char* version_hex_digest = (char*)malloc(version_hex_digest_len);
-        for (int i = 0; i < manifest->m_DDFData->m_EngineVersions.m_Count; ++i)
+        for (uint32_t i = 0; i < manifest->m_DDFData->m_EngineVersions.m_Count; ++i)
         {
             dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, versions[i].m_Data.m_Data, version_hex_digest, versions[i].m_Data.m_Count * 2 + 1);
             if (memcmp(engine_hex_digest, version_hex_digest, engine_hex_digest_len) == 0)
