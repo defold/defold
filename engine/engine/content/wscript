@@ -28,6 +28,11 @@ def build(bld):
 
     builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics builtins/scripts')
 
+    # DEF-3259 - The resource build system doesn't take into account that several builds using same source contnt
+    # may be running at the same time. And, as a fix, we add a synchronization point here for the builds,
+    # to make sure that builtins + builtins_release are built consecutively.
+    bld.add_group()
+
     builtins_release = bld.new_task_gen(features='barchive',
                                 source_root='default/content',
                                 resource_name='builtins_release',
