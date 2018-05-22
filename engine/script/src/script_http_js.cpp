@@ -97,7 +97,7 @@ namespace dmScript
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
             // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
-            int callback = dmScript::Ref(L, LUA_REGISTRYINDEX) - LUA_NOREF;
+            int callback = dmScript::RefInInstance(L) - LUA_NOREF;
             sender.m_FunctionRef = callback;
 
             dmArray<char> h;
