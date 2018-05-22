@@ -97,7 +97,7 @@
 (defn get-live-update-settings-path [project]
   (let [project-settings (project/settings project)
         file-resource (get project-settings ["liveupdate" "settings"])]
-    (if (.exists? file-resource)
-      (.proj-path file-resource)
+    (if (resource/exists? file-resource)
+      (resource/proj-path file-resource)
       "/liveupdate.settings")
     ))
