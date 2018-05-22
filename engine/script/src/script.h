@@ -203,6 +203,13 @@ namespace dmScript
     void PushHash(lua_State* L, dmhash_t hash);
 
     /**
+     * Removes a hash value from the currently known hashes.
+     * @param L Lua state
+     * @param hash Hash value to release
+     */
+    void ReleaseHash(lua_State* L, dmhash_t hash);
+
+    /**
      * Check if the value in the supplied index on the lua stack is a hash.
      * @param L Lua state
      * @param index Index of the value
