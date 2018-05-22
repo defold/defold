@@ -74,6 +74,8 @@ namespace dmRig
         uint16_t                      m_Backwards : 1;
         /// Flag used to handle initial setup, resetting pose with UpdateMeshProperties in DoAnimate
         uint16_t                      m_Initial : 1;
+        /// Flag used to handle blending players, resetting pose to avoid lingering slot attachment changes from previous animation.
+        uint16_t                      m_BlendFinished : 1;
     };
 
     struct RigBone
