@@ -116,6 +116,7 @@ namespace dmRig
 
         RigPlayer* player = SwitchPlayer(instance);
         player->m_Initial = 1;
+        player->m_BlendFinished = blend_duration > 0.0f ? 0 : 1;
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
         player->m_Playing = 1;
@@ -659,6 +660,14 @@ namespace dmRig
                     float blend_weight = fade_rate;
                     if (player != p) {
                         blend_weight = 1.0f - fade_rate;
+                    }
+
+                    // Check if we should reset the mesh slot pose.
+                    // This needs to be done once we are past 0.5 in blending, if the new player/animation
+                    // don't have a mesh animation track it would otherwise be the same from previous animation.
+                    if (p->m_BlendFinished == 0 && blend_weight > 0.5) {
+                        p->m_BlendFinished = 1;
+                        ResetMeshSlotPose(instance);
                     }
 
                     UpdatePlayer(instance, p, dt, blend_weight);
