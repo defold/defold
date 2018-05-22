@@ -148,12 +148,18 @@ var LibraryGLFW = {
         }
     },
 
-    isCanvasActive: function() {
-      return (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
+    isCanvasActive: function(event) {
+      var res = (typeof document.activeElement == 'undefined' || document.activeElement == Module["canvas"]);
+
+      if (!res) {
+        res = (event.target == Module["canvas"]);
+      }
+
+      return res;
     },
 
     onKeyPress: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       // charCode is only available whith onKeyPress event
       if (event.charCode) {
@@ -165,7 +171,7 @@ var LibraryGLFW = {
     },
 
     onKeyChanged: function(event, status) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       var key = GLFW.DOMToGLFWKeyCode(event.keyCode);
       if (key) {
@@ -177,7 +183,7 @@ var LibraryGLFW = {
     },
 
     onKeydown: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.onKeyChanged(event, 1);// GLFW_PRESS
       // This logic comes directly from the sdl implementation. We cannot
@@ -189,14 +195,12 @@ var LibraryGLFW = {
     },
 
     onKeyup: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.onKeyChanged(event, 0);// GLFW_RELEASE
     },
 
     onMousemove: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
-
       /* Send motion event only if the motion changed, prevents
        * spamming our app with uncessary callback call. It does happen in
        * Chrome on Windows.
@@ -214,7 +218,7 @@ var LibraryGLFW = {
     },
 
     onMouseButtonChanged: function(event, status) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       if (GLFW.mouseButtonFunc == null) {
         return;
@@ -241,11 +245,17 @@ var LibraryGLFW = {
     },
 
     onTouchEnd: function(event) {
-        if (!GLFW.isCanvasActive()) { return; }
+        if (!GLFW.isCanvasActive(event)) { return; }
 
         if (event.touches.length == 0){
             GLFW.buttons &= ~(1 << 0);
         }
+
+        // Audio is blocked by default in some browsers until a user performs an interaction,
+        // so we need to try to resume it here (on mouse button up and touch end).
+        DefoldSoundDevice.TryResumeAudio();
+
+        event.preventDefault();
     },
 
     convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
@@ -265,7 +275,7 @@ var LibraryGLFW = {
     },
 
     onTouchMove: function(event) {
-        if (!GLFW.isCanvasActive()) { return; }
+        if (!GLFW.isCanvasActive(event)) { return; }
 
         var e = event;
         var rect = Module['canvas'].getBoundingClientRect();
@@ -278,10 +288,14 @@ var LibraryGLFW = {
           Browser.mouseY = canvasY;
           break;
         }
+
+        event.preventDefault();
     },
 
     onTouchStart: function(event) {
-        if (!GLFW.isCanvasActive()) { return; }
+        // We don't check if canvas is active here, instead
+        // check if the target is the canvas directly.
+        if (event.target != Module["canvas"]) { return; }
 
         var e = event;
         var rect = Module['canvas'].getBoundingClientRect();
@@ -295,24 +309,32 @@ var LibraryGLFW = {
           Browser.mouseY = canvasY;
           break;
         }
+
+        event.preventDefault();
     },
 
     onMouseButtonDown: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      // We don't check if canvas is active here, instead
+      // check if the target is the canvas directly.
+      if (event.target != Module["canvas"]) { return; }
 
       GLFW.buttons |= (1 << event['button']);
       GLFW.onMouseButtonChanged(event, 1);// GLFW_PRESS
     },
 
     onMouseButtonUp: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.buttons &= ~(1 << event['button']);
       GLFW.onMouseButtonChanged(event, 0);// GLFW_RELEASE
+
+      // Audio is blocked by default in some browsers until a user performs an interaction,
+      // so we need to try to resume it here (on mouse button up and touch end).
+      DefoldSoundDevice.TryResumeAudio();
     },
 
     onMouseWheel: function(event) {
-      if (!GLFW.isCanvasActive()) { return; }
+      if (!GLFW.isCanvasActive(event)) { return; }
 
       GLFW.wheelPos += Browser.getMouseWheelDelta(event);
 

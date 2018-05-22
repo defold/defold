@@ -57,11 +57,12 @@ def build(bld):
     # ..first for python
     ddf_ext = bld.new_task_gen(
          rule   = 'echo "" > ${TGT}',
-         source = 'script/lua_source_ddf.proto',
+         source = 'script/lua_source_ddf.proto script/ddf_script.proto',
          target = '__init__.py',
          shell = True)
 
-    bld.install_files('${PREFIX}/share/script', 'script/lua_source_ddf.proto')
+    bld.install_files('${PREFIX}/share/script', 'script/lua_source_ddf.proto script/ddf_script.proto')
+    bld.install_files('${PREFIX}/share/proto/script', 'script/ddf_script.proto')
     bld.install_files('${PREFIX}/lib/python/script', '__init__.py')
 
 

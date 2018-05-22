@@ -1,5 +1,13 @@
 var LibrarySoundDevice = 
 {
+   $DefoldSoundDevice: {
+      TryResumeAudio: function() {
+         var audioCtx = window._dmJSDeviceShared.audioCtx;
+         if (audioCtx !== undefined && audioCtx.state != "running") {
+             audioCtx.resume();
+         }
+      }
+   },
    dmDeviceJSOpen: function(bufferCount) {
 
         // globally shared data        
@@ -137,4 +145,6 @@ var LibrarySoundDevice =
         return window._dmJSDeviceShared.devices[id]._freeBufferSlots();
     }
 }
+
+autoAddDeps(LibrarySoundDevice, '$DefoldSoundDevice');
 mergeInto(LibraryManager.library, LibrarySoundDevice);
