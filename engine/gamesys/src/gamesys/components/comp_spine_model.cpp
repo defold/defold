@@ -167,7 +167,7 @@ namespace dmGameSystem
                 {
                     return;
                 }
-                receiver.m_Function = 0;
+                receiver.m_FunctionRef = 0;
 
                 if (!dmMessage::IsSocketValid(receiver.m_Socket))
                 {
@@ -186,6 +186,8 @@ namespace dmGameSystem
                 event.m_Integer     = keyframe_event->m_Integer;
                 event.m_Float       = keyframe_event->m_Float;
                 event.m_String      = keyframe_event->m_String;
+                event.m_Node.m_Ref  = 0;
+                event.m_Node.m_ContextTableRef = 0;
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
@@ -940,6 +942,18 @@ namespace dmGameSystem
         target->m_UserPtr = component;
         target->m_Position = (Vector3)position;
         return true;
+    }
+
+    bool CompSpineModelSetSkin(SpineModelComponent* component, dmhash_t skin_id)
+    {
+        dmRig::Result r = dmRig::SetMesh(component->m_RigInstance, skin_id);
+        return r == dmRig::RESULT_OK;
+    }
+
+    bool CompSpineModelSetSkinSlot(SpineModelComponent* component, dmhash_t skin_id, dmhash_t slot_id)
+    {
+        dmRig::Result r = dmRig::SetMeshSlot(component->m_RigInstance, skin_id, slot_id);
+        return r == dmRig::RESULT_OK;
     }
 
 }

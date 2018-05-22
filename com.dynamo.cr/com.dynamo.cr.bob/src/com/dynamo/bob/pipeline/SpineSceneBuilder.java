@@ -189,6 +189,7 @@ public class SpineSceneBuilder extends Builder<Void> {
         for (int slotIndex = 0; slotIndex < skinSlots.size(); slotIndex++) {
             RigUtil.SkinSlot skinSlot = skinSlots.get(slotIndex);
             MeshSlot.Builder meshSlotBuilder = MeshSlot.newBuilder();
+            meshSlotBuilder.setId(MurmurHash.hash64(skinSlot.baseSlot.name));
             meshSlotBuilder.setActiveIndex(skinSlot.activeAttachment);
 
             for (int ai = 0; ai < skinSlot.meshAttachments.size(); ai++) {
