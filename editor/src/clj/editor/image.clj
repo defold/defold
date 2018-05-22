@@ -28,8 +28,8 @@
 (defn- build-texture [resource dep-resources user-data]
   (let [{:keys [content-generator texture-profile compress?]} user-data
         image ((:f content-generator) (:args content-generator))]
-    (if (g/error? image)
-      image
+    (g/precluding-errors
+      [image]
       (let [texture-image (tex-gen/make-texture-image image texture-profile compress?)]
         {:resource resource
          :content  (protobuf/pb->bytes texture-image)}))))
