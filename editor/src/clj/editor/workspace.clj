@@ -65,7 +65,7 @@ ordinary paths."
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
   (let [sorted-children (sort-by (fn [r]
-                                   [(not (resource/read-only? r))
+                                   [(resource/file-resource? r)
                                     ({:folder 0 :file 1} (resource/source-type r))
                                     (when-let [node-name (resource/resource-name r)]
                                       (string/lower-case node-name))])
