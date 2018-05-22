@@ -1459,7 +1459,7 @@ namespace dmGameObject
                 }
                 if (todelete->m_Generated)
                 {
-                    dmScript::PopHash(L, todelete->m_Identifier);
+                    dmScript::ReleaseHash(L, todelete->m_Identifier);
                 }
                 dmGameObject::HCollection collection = todelete->m_Collection;
                 dmGameObject::Delete(collection, todelete, recursive);
@@ -1576,7 +1576,7 @@ namespace dmGameObject
         }
         if (instance->m_Generated)
         {
-            dmScript::PopHash(L, instance->m_Identifier);
+            dmScript::ReleaseHash(L, instance->m_Identifier);
         }
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance, recursive);
