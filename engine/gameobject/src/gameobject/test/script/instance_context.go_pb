@@ -1,0 +1,4 @@
+components {
+  id: "script"
+  component: "/instance_context.scriptc"
+}

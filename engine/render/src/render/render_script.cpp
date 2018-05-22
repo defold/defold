@@ -287,6 +287,18 @@ namespace dmRender
         return 1;
     }
 
+    static int RenderScriptGetInstanceContextTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int self_index = 1;
+
+        RenderScriptInstance* i = (RenderScriptInstance*)lua_touserdata(L, self_index);
+        lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg RenderScriptInstance_methods[] =
     {
         {0,0}
@@ -294,13 +306,14 @@ namespace dmRender
 
     static const luaL_reg RenderScriptInstance_meta[] =
     {
-        {"__gc",        RenderScriptInstance_gc},
-        {"__tostring",  RenderScriptInstance_tostring},
-        {"__index",     RenderScriptInstance_index},
-        {"__newindex",  RenderScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL, RenderScriptInstanceGetURL},
-        {dmScript::META_TABLE_RESOLVE_PATH, RenderScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID, RenderScriptInstanceIsValid},
+        {"__gc",                                        RenderScriptInstance_gc},
+        {"__tostring",                                  RenderScriptInstance_tostring},
+        {"__index",                                     RenderScriptInstance_index},
+        {"__newindex",                                  RenderScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,                  RenderScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH,             RenderScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,                 RenderScriptInstanceIsValid},
+        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, RenderScriptGetInstanceContextTableRef},
         {0, 0}
     };
 
@@ -2548,6 +2561,7 @@ bail:
         memset(render_script_instance, 0, sizeof(RenderScriptInstance));
         render_script_instance->m_InstanceReference = LUA_NOREF;
         render_script_instance->m_RenderScriptDataReference = LUA_NOREF;
+        render_script_instance->m_ContextTableReference = LUA_NOREF;
     }
 
     HRenderScriptInstance NewRenderScriptInstance(dmRender::HRenderContext render_context, HRenderScript render_script)
@@ -2571,6 +2585,9 @@ bail:
         lua_newtable(L);
         i->m_RenderScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
+        lua_newtable(L);
+        i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+
         luaL_getmetatable(L, RENDER_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
 
@@ -2590,6 +2607,7 @@ bail:
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_ContextTableReference);
 
         assert(top == lua_gettop(L));
 

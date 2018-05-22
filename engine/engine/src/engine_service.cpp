@@ -342,12 +342,21 @@ namespace dmEngineService
             DM_SNPRINTF(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
             DM_SNPRINTF(m_LogPortText, sizeof(m_LogPortText), "%d", (int) dmLogGetPort());
 
-            char* local_address_str =  dmSocket::AddressToIPString(local_address);
-            dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
+            // Our profiler doesn't support Ipv6 addresses, so let's assume localhost if it is Ipv6
+            if (local_address.m_family == dmSocket::DOMAIN_IPV4)
+            {
+                char* local_address_str = dmSocket::AddressToIPString(local_address);
+                dmStrlCpy(m_LocalAddress, local_address_str, sizeof(m_LocalAddress));
+                free(local_address_str);
+            }
+            else
+            {
+                dmStrlCpy(m_LocalAddress, "localhost", sizeof(m_LocalAddress));
+            }
 
             // UDN must be unique and this scheme is probably unique enough
             dmStrlCpy(m_DeviceDesc.m_UDN, "defold-", sizeof(m_DeviceDesc.m_UDN));
-            dmStrlCat(m_DeviceDesc.m_UDN, local_address_str, sizeof(m_DeviceDesc.m_UDN));
+            dmStrlCat(m_DeviceDesc.m_UDN, m_LocalAddress, sizeof(m_DeviceDesc.m_UDN));
             dmStrlCat(m_DeviceDesc.m_UDN, ":", sizeof(m_DeviceDesc.m_UDN));
             /*
              * Note that we use the engine service port for
@@ -361,8 +370,6 @@ namespace dmEngineService
             dmStrlCat(m_DeviceDesc.m_UDN, m_PortText, sizeof(m_DeviceDesc.m_UDN));
             dmStrlCat(m_DeviceDesc.m_UDN, "-", sizeof(m_DeviceDesc.m_UDN));
             dmStrlCat(m_DeviceDesc.m_UDN, info.m_DeviceModel, sizeof(m_DeviceDesc.m_UDN));
-
-            free(local_address_str);
 
             dmTemplate::Format(this, m_DeviceDescXml, sizeof(m_DeviceDescXml), DEVICE_DESC_TEMPLATE, ReplaceCallback);
 
