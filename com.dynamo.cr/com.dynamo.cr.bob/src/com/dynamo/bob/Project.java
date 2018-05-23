@@ -289,7 +289,7 @@ public class Project {
             if (!publisherSettings.exists()) {
                 if (shouldPublish) {
                     IResource gameProject = this.fileSystem.get("/game.project");
-                    throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from diskuruuuu.");
+                    throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from disk.");
                 } else {
                     this.publisher = new NullPublisher(new PublisherSettings());
                 }
@@ -310,6 +310,8 @@ public class Project {
                     this.publisher = new NullPublisher(settings);
                 }
             }
+        } catch (CompileExceptionError e) {
+        	throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
         }
