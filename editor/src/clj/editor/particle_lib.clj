@@ -97,18 +97,29 @@
   (let [^Pointer instance (ParticleLibrary/Particle_CreateInstance context prototype emitter-state-callback-data)]
     (set-instance-transform context instance transform)))
 
+(defn vertex-buffer-size [format particle-count]
+  (let [native-format (case format :go 0 :gui 1)]
+    (ParticleLibrary/Particle_GetVertexBufferSize particle-count native-format)))
+
+(defn- make-byte-buffer [size]
+  (Buffers/newDirectByteBuffer ^int size))
+
+(defn- make-raw-vbufs [emitters]
+  (into []
+        (comp
+          (map :max-particle-count)
+          (map (partial vertex-buffer-size :go))
+          (map make-byte-buffer))
+        emitters))
+
 (defn make-sim [max-emitter-count max-particle-count prototype-msg instance-transforms]
   (let [context (create-context max-emitter-count max-particle-count)
         prototype (new-prototype prototype-msg)
-        instances (mapv (fn [^Matrix4d t] (create-instance context prototype nil t)) instance-transforms)
-        raw-vbuf (Buffers/newDirectByteBuffer (ParticleLibrary/Particle_GetVertexBufferSize max-particle-count 0))
-        vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
+        instances (mapv (fn [^Matrix4d t] (create-instance context prototype nil t)) instance-transforms)]
     {:context context
      :prototype prototype
-     :emitter-count (count (:emitters prototype-msg))
      :instances instances
-     :raw-vbuf raw-vbuf
-     :vbuf vbuf
+     :raw-vbufs (make-raw-vbufs (:emitters prototype-msg))
      :elapsed-time 0}))
 
 (defn destroy-sim [sim]
@@ -149,39 +160,36 @@
       (assoc :last-dt dt)
       (update :elapsed-time #(+ % dt)))))
 
-(defn gen-vertex-data [sim color]
+(defn gen-emitter-vertex-data [sim emitter-index color]
   (let [context (:context sim)
+        raw-vbuf ^ByteBuffer ((:raw-vbufs sim) emitter-index)
         dt (:last-dt sim)
-        ^ByteBuffer raw-vbuf (:raw-vbuf sim)
         out-size (IntByReference. 0)
-        [r g b a] color]
-    (doseq [instance (:instances sim)
-            emitter-index (range (:emitter-count sim))]
-      (ParticleLibrary/Particle_GenerateVertexData context dt instance emitter-index (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size 0))
+        [r g b a] color
+        instances (:instances sim)]
+    (assert (= 1 (count instances)))
+    (ParticleLibrary/Particle_GenerateVertexData context dt (first instances) emitter-index (ParticleLibrary$Vector4. r g b a) raw-vbuf (.capacity raw-vbuf) out-size 0)
     (.limit raw-vbuf (.getValue out-size))
-    (let [vbuf (vertex/vertex-overlay vertex-format raw-vbuf)]
-      (assoc sim :vbuf vbuf))))
+    sim))
 
-(defn render [sim render-fn]
+(defn get-emitter-vertex-data [sim emitter-index]
+  (vertex/vertex-overlay vertex-format ((:raw-vbufs sim) emitter-index)))
+
+(defn render-emitter [sim emitter-index]
   (let [context (:context sim)
-        render-data (atom [])
+        render-data (atom nil)
         callback (reify ParticleLibrary$RenderInstanceCallback
                    (invoke [this user-context material texture world-transform blend-mode v-index v-count constants constant-count]
-                     (swap! render-data conj {:texture (dec (int (Pointer/nativeValue texture)))
-                                              :blend-mode blend-mode
-                                              :v-index v-index
-                                              :v-count v-count})))]
-    (doseq [instance (:instances sim)
-            emitter-index (range (:emitter-count sim))]
-      (when-not (ParticleLibrary/Particle_IsSleeping context instance)
-        (ParticleLibrary/Particle_RenderEmitter context instance emitter-index (Pointer. 0) callback)))
-    (let [gpu-textures (:gpu-textures sim)]
-      (doseq [data @render-data
-              :let [texture-index (:texture data)
-                    blend-mode (:blend-mode data)
-                    v-index (:v-index data)
-                    v-count (:v-count data)]]
-        (render-fn texture-index blend-mode v-index v-count)))))
+                     (assert (not @render-data))
+                     (reset! render-data {:texture (dec (int (Pointer/nativeValue texture)))
+                                          :blend-mode blend-mode
+                                          :v-index v-index
+                                          :v-count v-count})))
+        instances (:instances sim)]
+    (assert (= 1 (count instances)))
+    (when-not (ParticleLibrary/Particle_IsSleeping context (first instances))
+      (ParticleLibrary/Particle_RenderEmitter context (first instances) emitter-index (Pointer. 0) callback)
+      @render-data)))
 
 (defn stats [sim]
   (let [context (:context sim)
@@ -193,9 +201,10 @@
      :max-particles (.maxParticles stats)
      :time (.time instance-stats)}))
 
-(defn reload [sim prototype-msg]
+(defn reload [sim prototype-msg max-particle-count]
   (reload-prototype (:prototype sim) prototype-msg)
   (let [context (:context sim)]
     (doseq [instance (:instances sim)]
-      (ParticleLibrary/Particle_ReloadInstance context instance true)))
-  (assoc sim :emitter-count (count (:emitters prototype-msg))))
+      (ParticleLibrary/Particle_ReloadInstance context instance true))
+    (ParticleLibrary/Particle_SetContextMaxParticleCount context ^int max-particle-count))
+  (assoc sim :raw-vbufs (make-raw-vbufs (:emitters prototype-msg))))
