@@ -38,6 +38,7 @@ This is the shell environment that you must have to run the project.
 Consider putting it in an alias in your bash profile.
 
 ## Setup
+* Install external packages with `scripts/build.py install_ext --platform=...` from the `defold` directory
 * Build the engine with `scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests`
   from the `defold` directory
 * Build builtins with `scripts/build.py build_builtins`
