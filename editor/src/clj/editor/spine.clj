@@ -842,7 +842,7 @@
                    (project/resource-setter self old-value new-value
                                             [:resource :spine-json-resource]
                                             [:content :spine-scene]
-                                            [:structure :scene-structure]
+                                            [:consumer-passthrough :scene-structure]
                                             [:node-outline :source-outline])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "json"}))
             (dynamic error (g/fnk [_node-id spine-json]
@@ -1127,7 +1127,7 @@
         scene-tx-data (g/make-nodes graph [scene SpineSceneJson]
                                     (g/connect scene :_node-id node-id :nodes)
                                     (g/connect scene :node-outline node-id :child-outlines)
-                                    (g/connect scene :structure node-id :structure)
+                                    (g/connect scene :structure node-id :consumer-passthrough)
                                     (g/connect node-id :content scene :content))
         scene-id (tx-first-created scene-tx-data)]
     (concat
