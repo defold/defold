@@ -615,7 +615,7 @@ namespace dmScript
         return false;
     }
 
-    bool SetContextValue(HContext context)
+    void SetContextValue(HContext context)
     {
         assert(context != 0x0);
         lua_State* L = context->m_LuaState;
@@ -627,11 +627,7 @@ namespace dmScript
         // [-2] value
         // [-1] context table
 
-        if (lua_type(L, -1) != LUA_TTABLE)
-        {
-            lua_pop(L, 3);
-            return false;
-        }
+        assert(lua_type(L, -1) == LUA_TTABLE);
 
         lua_insert(L, -3);
         // [-3] context table
@@ -642,7 +638,6 @@ namespace dmScript
         // [-1] context table
 
         lua_pop(L, 1);
-        return true;
     }
 
     void GetContextValue(HContext context)

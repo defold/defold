@@ -180,7 +180,6 @@ namespace dmScript
      * Expects Initialize(context) to have been called
      *
      * @param L Lua state
-     * @return true if the value could be store under the key
      * 
      * Lua stack on entry
      *  [-2] key
@@ -188,7 +187,7 @@ namespace dmScript
      * 
      * Lua stack on exit
     */
-    bool SetContextValue(HContext context);
+    void SetContextValue(HContext context);
 
     /**
      * Get value by key using from context table of active HContext
