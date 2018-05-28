@@ -759,6 +759,7 @@ TEST_F(ScriptTest, ScriptExtension)
         ASSERT_EQ(0u, TestScriptExtension::m_NewScriptWorldCalled);
         ASSERT_EQ(0u, TestScriptWorldContext::m_NewScriptWorldCalled);
         dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(context);
+        ASSERT_NE((dmScript::HScriptWorld)0x0, script_world);
         ASSERT_EQ(1u, TestScriptExtension::m_NewScriptWorldCalled);
         ASSERT_EQ(1u, TestScriptWorldContext::m_NewScriptWorldCalled);
 
@@ -811,6 +812,41 @@ TEST_F(ScriptTest, ScriptExtension)
     }
     dmScript::DeleteContext(context);
 }
+
+TEST_F(ScriptTest, InstanceId)
+{
+    uintptr_t instanceid0 = dmScript::GetInstanceId(L);
+    ASSERT_EQ(0, instanceid0);
+    int instanceref1 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref1);
+    dmScript::SetInstance(L);
+    uintptr_t instanceid1 = dmScript::GetInstanceId(L);
+    int instanceref2 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref2);
+    dmScript::SetInstance(L);
+    uintptr_t instanceid2 = dmScript::GetInstanceId(L);
+    int instanceref3 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref3);
+    dmScript::SetInstance(L);
+    uintptr_t instanceid3 = dmScript::GetInstanceId(L);
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+    uintptr_t instanceid0_2 = dmScript::GetInstanceId(L);
+    ASSERT_EQ(0, instanceid0_2);
+
+    ASSERT_NE(0, instanceid1);
+    ASSERT_NE(0, instanceid2);
+    ASSERT_NE(0, instanceid3);
+
+    ASSERT_NE(instanceid2, instanceid1);
+    ASSERT_NE(instanceid3, instanceid1);
+    ASSERT_NE(instanceid2, instanceid3);
+
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref2);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
+}
+
 
 int main(int argc, char **argv)
 {

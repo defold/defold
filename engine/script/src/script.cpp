@@ -782,6 +782,7 @@ namespace dmScript
     HScriptWorld NewScriptWorld(HContext context)
     {
         HScriptWorld script_world = (ScriptWorld*)malloc(sizeof(ScriptWorld));
+        assert(script_world != 0x0);
         script_world->m_Context = context;
         lua_State* L = script_world->m_Context->m_LuaState;
         lua_newtable(L);
@@ -798,10 +799,7 @@ namespace dmScript
 
     void DeleteScriptWorld(HScriptWorld script_world)
     {
-        if (script_world == 0x0)
-        {
-            return;
-        }
+        assert(script_world != 0x0);
         HContext context = GetScriptWorldContext(script_world);
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {
