@@ -29,10 +29,10 @@
 (g/deftype Regions [TRegion])
 (g/deftype RegionGrouping {s/Any [TRegion]})
 
-(defn- read-fn [resource]
+(defn read-fn [resource]
   (util/split-lines (slurp resource)))
 
-(defn- write-fn [lines]
+(defn write-fn [lines]
   (string/join "\n" lines))
 
 (defn- load-fn [project self resource]

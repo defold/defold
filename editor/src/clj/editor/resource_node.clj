@@ -7,7 +7,6 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
-            [util.text-util :as text-util]
             [editor.workspace :as workspace]
             [editor.outline :as outline])
   (:import [org.apache.commons.codec.digest DigestUtils]
@@ -29,26 +28,27 @@
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
+  (property editable? g/Bool (default true) (dynamic visible (g/constantly false)))
+
   (output save-data g/Any :cached (g/fnk [_node-id resource save-value dirty?]
                                     (let [write-fn (some-> resource
                                                      (resource/resource-type)
                                                      :write-fn)]
                                       (cond-> {:resource resource :dirty? dirty? :value save-value :node-id _node-id}
                                         (and write-fn save-value) (assoc :content (write-fn save-value))))))
-  (output source-value g/Any :cached (g/fnk [resource]
-                                       (when (and (some? resource) (resource/exists? resource))
+  (output source-value g/Any :cached (g/fnk [resource editable?]
+                                       (when (and editable? (some? resource) (resource/exists? resource))
                                          (when-some [read-fn (some-> resource
                                                                      (resource/resource-type)
                                                                      :read-fn)]
                                            (read-fn resource)))))
-  
   (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
                                               (resource-dependencies resource save-value)))
   
   (output save-value g/Any (g/constantly nil))
 
-  (output cleaned-save-value g/Any (g/fnk [resource save-value]
-                                          (when resource
+  (output cleaned-save-value g/Any (g/fnk [resource save-value editable?]
+                                          (when (and editable? (some? resource))
                                             (let [resource-type (resource/resource-type resource)
                                                   read-fn (:read-fn resource-type)
                                                   write-fn (:write-fn resource-type)]
@@ -56,8 +56,8 @@
                                                 (with-open [reader (StringReader. (write-fn save-value))]
                                                   (read-fn reader))
                                                 save-value)))))
-  (output dirty? g/Bool (g/fnk [cleaned-save-value source-value]
-                                  (and cleaned-save-value (not= cleaned-save-value source-value))))
+  (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable?]
+                          (and editable? (some? cleaned-save-value) (not= cleaned-save-value source-value))))
   (output node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource]))
   (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))
@@ -79,9 +79,6 @@
                                      (with-open [s (io/input-stream resource)]
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
-
-(defn dirty? [node-id]
-  (g/node-value node-id :dirty?))
 
 (g/defnode PlaceholderResourceNode
   (inherits ResourceNode)
