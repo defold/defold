@@ -21,7 +21,7 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            ScriptWorld* w = new ScriptWorld();
+            CompScriptWorld* w = new CompScriptWorld();
             w->m_ScriptWorld = dmScript::NewScriptWorld((dmScript::HContext)params.m_Context);
             *params.m_World = w;
 
@@ -37,7 +37,7 @@ namespace dmGameObject
     {
         if (params.m_World != 0x0)
         {
-            ScriptWorld* w = (ScriptWorld*)params.m_World;
+            CompScriptWorld* w = (CompScriptWorld*)params.m_World;
             dmScript::DeleteScriptWorld(w->m_ScriptWorld);
             delete w;
             return CREATE_RESULT_OK;
@@ -51,7 +51,7 @@ namespace dmGameObject
     CreateResult CompScriptCreate(const ComponentCreateParams& params)
     {
         HScript script = (HScript)params.m_Resource;
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         if (script_world->m_Instances.Full())
         {
             dmLogError("Could not create script component, out of resources.");
@@ -128,7 +128,7 @@ namespace dmGameObject
 
     CreateResult CompScriptDestroy(const ComponentDestroyParams& params)
     {
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         HScriptInstance script_instance = (HScriptInstance)*params.m_UserData;
         for (uint32_t i = 0; i < script_world->m_Instances.Size(); ++i)
         {
@@ -200,7 +200,7 @@ namespace dmGameObject
         UpdateResult result = UPDATE_RESULT_OK;
         RunScriptParams run_params;
         run_params.m_UpdateContext = params.m_UpdateContext;
-        ScriptWorld* script_world = (ScriptWorld*)params.m_World;
+        CompScriptWorld* script_world = (CompScriptWorld*)params.m_World;
         dmScript::UpdateScriptWorld(script_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
 
         uint32_t size = script_world->m_Instances.Size();

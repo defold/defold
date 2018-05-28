@@ -149,7 +149,7 @@ namespace dmGameObject
 
     HRegister g_Register = 0;
 
-    ScriptWorld::ScriptWorld()
+    CompScriptWorld::CompScriptWorld()
     : m_Instances()
     , m_ScriptWorld(0x0)
     {
@@ -2063,7 +2063,7 @@ bail:
         script_instance->m_ContextTableReference = LUA_NOREF;
     }
 
-    HScriptInstance NewScriptInstance(ScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index)
+    HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index)
     {
         lua_State* L = script->m_LuaState;
 
