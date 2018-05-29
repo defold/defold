@@ -74,7 +74,8 @@ namespace dmProfileRender
         uint64_t m_LastSeenTick;
         TNameHash m_NameHash;    // m_Name
         uint32_t m_Elapsed;
-        uint32_t m_PeakElapsed; // Used for sorting, highest peak since last sort
+//        uint32_t m_PeakElapsed;
+        uint32_t m_FilteredElapsed; // Used for sorting, highest peak since last sort
         uint32_t m_Count;
     };
 
@@ -84,7 +85,8 @@ namespace dmProfileRender
         TNameHash m_NameHash;   // m_Name + m_Scope->m_Name
         TNameHash m_ScopeHash;  // m_Scope->m_Name
         uint32_t m_Elapsed;
-        uint32_t m_PeakElapsed; // Used for sorting, highest peak since last sort
+//        uint32_t m_PeakElapsed;
+        uint32_t m_FilteredElapsed; // Used for sorting, highest peak since last sort
         uint32_t m_Count;
         TIndex m_LastSampleIndex;
         uint16_t m_ColorIndex;
@@ -255,7 +257,8 @@ namespace dmProfileRender
             ui_scope->m_NameHash = name_hash;
             ui_scope->m_Count = 0u;
             ui_scope->m_Elapsed = 0u;
-            ui_scope->m_PeakElapsed = 0u;
+//            ui_scope->m_PeakElapsed = 0u;
+            ui_scope->m_FilteredElapsed = 0u;
             ui_scope->m_LastSeenTick = ui_profile->m_NowTick - ui_profile->m_LifeTime;
         }
         uint32_t index = *index_ptr;
@@ -302,7 +305,8 @@ namespace dmProfileRender
             ui_sample_sum->m_NameHash = name_hash;
             ui_sample_sum->m_ScopeHash = scope_name_hash;
             ui_sample_sum->m_Elapsed = 0u;
-            ui_sample_sum->m_PeakElapsed = 0u;
+//            ui_sample_sum->m_PeakElapsed = 0u;
+            ui_sample_sum->m_FilteredElapsed = 0u;
             ui_sample_sum->m_Count = 0u;
             ui_sample_sum->m_LastSampleIndex = ui_profile->m_MaxSampleCount;
             ui_sample_sum->m_LastSeenTick = ui_profile->m_NowTick - ui_profile->m_LifeTime;
@@ -492,6 +496,8 @@ namespace dmProfileRender
         {
             UIScope* ui_scope = &out_ui_profile->m_Scopes[i];
 
+            ui_scope->m_FilteredElapsed = (ui_scope->m_FilteredElapsed * 31 + ui_scope->m_Elapsed) / 32u;
+
             if (ui_scope->m_Count == 0)
             {
                 continue;
@@ -501,7 +507,7 @@ namespace dmProfileRender
             if (e < 0.00005)   // Don't show measurements that are less than a 50 microseconds...
                 continue;
 
-            ui_scope->m_PeakElapsed = ui_scope->m_Elapsed > ui_scope->m_PeakElapsed ? ui_scope->m_Elapsed : ui_scope->m_PeakElapsed;
+//            ui_scope->m_PeakElapsed = ui_scope->m_Elapsed > ui_scope->m_PeakElapsed ? ui_scope->m_Elapsed : ui_scope->m_PeakElapsed;
 
             ui_scope->m_LastSeenTick = now_tick;
         }
@@ -509,6 +515,8 @@ namespace dmProfileRender
         for (uint32_t i = 0; i < sample_sum_count; ++i)
         {
             UISampleSum* ui_sample_sum = &out_ui_profile->m_SampleSums[i];
+
+            ui_sample_sum->m_FilteredElapsed = (ui_sample_sum->m_FilteredElapsed * 31 + ui_sample_sum->m_Elapsed) / 32u;
 
             if (ui_sample_sum->m_Count == 0u)
             {
@@ -519,7 +527,7 @@ namespace dmProfileRender
             if (e < 0.00005)   // Don't show measurements that are less than a 50 microseconds...
                 continue;
 
-            ui_sample_sum->m_PeakElapsed = ui_sample_sum->m_Elapsed > ui_sample_sum->m_PeakElapsed ? ui_sample_sum->m_Elapsed : ui_sample_sum->m_PeakElapsed;
+//            ui_sample_sum->m_PeakElapsed = ui_sample_sum->m_Elapsed > ui_sample_sum->m_PeakElapsed ? ui_sample_sum->m_Elapsed : ui_sample_sum->m_PeakElapsed;
 
             ui_sample_sum->m_LastSeenTick = now_tick;
         }
@@ -602,7 +610,7 @@ namespace dmProfileRender
     {
         bool operator ()(const UIScope& a, const UIScope& b) const
         {
-            return a.m_PeakElapsed > b.m_PeakElapsed;
+            return a.m_FilteredElapsed > b.m_FilteredElapsed;
         }
     };
 
@@ -610,7 +618,7 @@ namespace dmProfileRender
     {
         bool operator ()(const UISampleSum& a, const UISampleSum& b) const
         {
-            return a.m_PeakElapsed > b.m_PeakElapsed;
+            return a.m_FilteredElapsed > b.m_FilteredElapsed;
         }
     };
 
@@ -629,7 +637,7 @@ namespace dmProfileRender
             {
                 UIScope* ui_scope = &out_ui_profile->m_Scopes[i];
                 out_ui_profile->m_ScopeLookup.Put(ui_scope->m_NameHash, i);
-                ui_scope->m_PeakElapsed = 0u;
+//                ui_scope->m_PeakElapsed = 0u;
             }
         }
         {
@@ -641,7 +649,7 @@ namespace dmProfileRender
             {
                 UISampleSum* ui_sample_sum = &out_ui_profile->m_SampleSums[i];
                 out_ui_profile->m_SampleSumLookup.Put(ui_sample_sum->m_NameHash, i);
-                ui_sample_sum->m_PeakElapsed = 0u;
+//                ui_sample_sum->m_PeakElapsed = 0u;
             }
         }
         out_ui_profile->m_LastSortTick = out_ui_profile->m_NowTick;
