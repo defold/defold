@@ -7,6 +7,7 @@
 
 #include "script.h"
 #include "script_private.h"
+#include "script_timer_private.h"
 
 namespace dmScript
 {

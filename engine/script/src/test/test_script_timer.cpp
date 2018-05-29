@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "../script.h"
-#include "../script_timer.h"
+#include "../script_timer_private.h"
 
 
 struct TimerTestCallback
