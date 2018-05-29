@@ -1,5 +1,7 @@
 #include "hash.h"
 
+#include <stdlib.h>
+
 #include "mutex.h"
 #include "hashtable.h"
 #include "array.h"
