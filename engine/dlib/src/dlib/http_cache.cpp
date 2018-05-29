@@ -1,11 +1,10 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include "http_cache.h"
+
 #include <string.h>
 #include <errno.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+
 #include "dstrings.h"
-#include "http_cache.h"
 #include "log.h"
 #include "sys.h"
 #include "hashtable.h"

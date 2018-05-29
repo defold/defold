@@ -1,4 +1,3 @@
-#include <stdint.h>
 #include "dlib.h"
 
 namespace dLib

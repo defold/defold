@@ -1,6 +1,3 @@
-#include <assert.h>
-#include <stdio.h>
-#include <dlib/math.h>
 #include "easing.h"
 
 namespace dmEasing

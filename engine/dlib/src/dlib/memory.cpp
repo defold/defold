@@ -1,4 +1,5 @@
 #include "memory.h"
+
 #include <stdlib.h>
 #include <errno.h>
 #if defined(__ANDROID__) || defined(_MSC_VER)

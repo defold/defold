@@ -1,20 +1,16 @@
+#include "configfile.h"
+
+#include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <setjmp.h>
-#include <string.h>
-#include <ctype.h>
-#include <assert.h>
 #include <sys/stat.h>
-#include "hash.h"
-#include "log.h"
-#include "http_client.h"
-#include "uri.h"
 
-#include "configfile.h"
 #include "array.h"
-#include "dstrings.h"
+#include "hash.h"
+#include "http_client.h"
+#include "log.h"
 #include "math.h"
-#include "sys.h"
+#include "uri.h"
 
 namespace dmConfigFile
 {

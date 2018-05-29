@@ -1,13 +1,8 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include "http_cache_verify.h"
 
+#include "http_client.h"
 #include "log.h"
 #include "time.h"
-#include "math.h"
-#include "dstrings.h"
-#include "http_cache_verify.h"
 
 namespace dmHttpCacheVerify
 {

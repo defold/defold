@@ -1,13 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "http_server.h"
+
 #include "array.h"
 #include "log.h"
-#include "socket.h"
 #include "math.h"
 #include "time.h"
 #include "dstrings.h"
-#include "http_server.h"
 #include "http_server_private.h"
 #include "network_constants.h"
 

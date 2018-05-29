@@ -1,7 +1,5 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include "connection_pool.h"
-#include "hashtable.h"
+
 #include "array.h"
 #include "time.h"
 #include "log.h"
