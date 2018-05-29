@@ -74,6 +74,7 @@ namespace dmGameSystem
         uint32_t                         m_RenderedParticlesSize;
         float                            m_DT;
         dmRig::HRigContext               m_RigContext;
+        dmScript::ScriptWorld*           m_ScriptWorld;
     };
 
     typedef BoxVertex ParticleGuiVertex;
