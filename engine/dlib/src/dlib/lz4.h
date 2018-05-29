@@ -1,8 +1,9 @@
 #ifndef DM_LZ4LIB
 #define DM_LZ4LIB
 
-#include <stdint.h>
 #include "shared_library.h"
+
+#include <stdint.h>
 
 #define DMLZ4_MAX_OUTPUT_SIZE (1 << 30)
 

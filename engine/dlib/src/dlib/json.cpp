@@ -1,10 +1,11 @@
+#include "json.h"
+
+#include "math.h"
+#include "utf8.h"
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include "json.h"
-#include "math.h"
-#include "utf8.h"
 
 extern "C"
 {

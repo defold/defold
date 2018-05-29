@@ -1,7 +1,7 @@
 #ifndef DM_DSTRINGS_H
 #define DM_DSTRINGS_H
 
-#include <stdio.h>
+#include <stddef.h>
 
 /**
  * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated.

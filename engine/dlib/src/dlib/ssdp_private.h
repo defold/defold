@@ -1,15 +1,13 @@
 #ifndef DM_SSDP_PRIVATE
 #define DM_SSDP_PRIVATE
 
-#include <dlib/http_server_private.h>
-#include <dlib/http_client_private.h>
-#include <dlib/http_server.h>
-#include <dlib/socket.h>
-#include <dlib/array.h>
-#include <dlib/hash.h>
-#include <dlib/hashtable.h>
-#include <dlib/time.h>
-#include <dlib/template.h>
+#include "array.h"
+#include "hashtable.h"
+#include "http_client_private.h"
+#include "http_server.h"
+#include "http_server_private.h"
+#include "template.h"
+#include "time.h"
 
 namespace dmSSDP
 {

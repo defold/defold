@@ -1,6 +1,7 @@
 #include <dlfcn.h>
 #include <link.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include "crash_private.h"

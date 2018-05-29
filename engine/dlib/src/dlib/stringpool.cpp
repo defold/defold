@@ -1,10 +1,10 @@
+#include "stringpool.h"
+
+#include "hash.h"
+#include "hashtable.h"
+
 #include <assert.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include "../dlib/hash.h"
-#include "../dlib/hashtable.h"
-#include "stringpool.h"
 
 namespace dmStringPool
 {

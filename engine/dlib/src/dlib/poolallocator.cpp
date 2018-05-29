@@ -1,8 +1,8 @@
-#include <stdint.h>
-#include <assert.h>
-#include <string.h>
-#include <new>
 #include "poolallocator.h"
+
+#include <assert.h>
+#include <new>
+#include <string.h>
 
 namespace dmPoolAllocator
 {

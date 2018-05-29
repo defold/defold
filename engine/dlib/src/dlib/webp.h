@@ -1,7 +1,7 @@
 #ifndef DM_WEBP
 #define DM_WEBP
 
-#include <stdint.h>
+#include <stddef.h>
 
 namespace dmWebP
 {

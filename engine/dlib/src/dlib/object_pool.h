@@ -2,8 +2,7 @@
 #ifndef DM_OBJECT_POOL_H
 #define DM_OBJECT_POOL_H
 
-#include <dlib/array.h>
-#include <dlib/index_pool.h>
+#include "array.h"
 
 /**
  * Object pool data-structure with the following properties

@@ -5,7 +5,6 @@
 #define _USE_MATH_DEFINES
 #endif
 #include <math.h>
-#include <stdlib.h>
 #include <stdint.h>
 #if defined(_MSC_VER)
 #undef _USE_MATH_DEFINES

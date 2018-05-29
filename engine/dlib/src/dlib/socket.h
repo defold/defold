@@ -1,9 +1,9 @@
 #ifndef DM_SOCKET_H
 #define DM_SOCKET_H
 
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
 #include <ostream>
 
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)

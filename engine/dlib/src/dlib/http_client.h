@@ -1,9 +1,8 @@
 #ifndef DM_HTTP_CLIENT_H
 #define DM_HTTP_CLIENT_H
 
-#include <stdint.h>
-#include <dlib/socket.h>
-#include <dlib/http_cache.h>
+#include "http_cache.h"
+#include "socket.h"
 
 namespace dmHttpClient
 {

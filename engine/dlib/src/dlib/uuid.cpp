@@ -1,3 +1,10 @@
+#include "uuid.h"
+
+#include "log.h"
+
+#include <assert.h>
+#include <stdint.h>
+
 #ifdef _WIN32
 
 /*
@@ -12,12 +19,7 @@ typedef unsigned long (__stdcall* NtAllocateUuidsProto)(void* time  /* 8 bytes *
 
 #elif !defined(ANDROID) && !defined(__EMSCRIPTEN__) && !defined(__AVM2__)
 #include <uuid/uuid.h>
-#endif
-
-#include <stdint.h>
-#include <assert.h>
-#include "log.h"
-#include "uuid.h"
+#endif // _WIN32
 
 namespace dmUUID
 {

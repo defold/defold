@@ -1,9 +1,11 @@
 #include "socket.h"
-#include "math.h"
+
 #include "dstrings.h"
 #include "log.h"
-#include <assert.h>
+#include "math.h"
+#include "socket_private.h"
 
+#include <assert.h>
 #include <fcntl.h>
 #include <string.h>
 
@@ -12,20 +14,18 @@
 #endif
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
-#include <unistd.h>
-#include <sys/socket.h>
+
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #endif
 
 #if defined(_WIN32)
 #include <Winsock2.h>
 #endif
-
-#include "log.h"
-#include "socket_private.h"
 
 // Helper and utility functions
 namespace dmSocket

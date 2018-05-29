@@ -1,12 +1,13 @@
-#include <string.h>
-#include <stdint.h>
-#include "hash.h"
-#include "log.h"
-#include "hashtable.h"
+#include "web_server.h"
+
 #include "array.h"
 #include "dstrings.h"
-#include "web_server.h"
+#include "hash.h"
+#include "hashtable.h"
 #include "http_server.h"
+#include "log.h"
+
+#include <string.h>
 
 namespace dmWebServer
 {

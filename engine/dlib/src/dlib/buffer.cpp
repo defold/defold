@@ -1,19 +1,17 @@
 
-#include <dmsdk/dlib/buffer.h>
+#include "buffer.h"
 
-#include <dlib/log.h>
-#include <dlib/memory.h>
-#include <dlib/math.h>
+#include "memory.h"
+#include "log.h"
 
-#include <string.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 #if defined(_WIN32)
 #include <malloc.h>
 #define alloca(_SIZE) _alloca(_SIZE)
 #endif
-
-#include <stdio.h>
 
 namespace dmBuffer
 {

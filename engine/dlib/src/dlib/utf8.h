@@ -2,7 +2,6 @@
 #define DM_UTF8
 
 #include <stdint.h>
-#include <stdlib.h>
 
 namespace dmUtf8
 {

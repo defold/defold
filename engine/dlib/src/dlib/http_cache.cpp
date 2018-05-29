@@ -1,22 +1,20 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include "dstrings.h"
 #include "http_cache.h"
-#include "log.h"
-#include "sys.h"
-#include "hashtable.h"
-#include "hash.h"
-#include "math.h"
-#include "time.h"
-#include "mutex.h"
-#include "index_pool.h"
+
 #include "array.h"
-#include "poolallocator.h"
+#include "dstrings.h"
+#include "hash.h"
+#include "hashtable.h"
+#include "index_pool.h"
+#include "log.h"
+#include "math.h"
+#include "mutex.h"
 #include "path.h"
+#include "poolallocator.h"
+#include "sys.h"
+#include "time.h"
+
+#include <errno.h>
+#include <sys/stat.h>
 
 namespace dmHttpCache
 {

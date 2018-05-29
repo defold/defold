@@ -1,7 +1,7 @@
 #ifndef DM_HTTP_SERVER_H
 #define DM_HTTP_SERVER_H
 
-#include <dlib/socket.h>
+#include "socket.h"
 
 namespace dmHttpServer
 {

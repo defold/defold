@@ -1,7 +1,7 @@
 #ifndef DM_CONDITION_VARIABLE_H
 #define DM_CONDITION_VARIABLE_H
 
-#include <dlib/mutex.h>
+#include "mutex.h"
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <pthread.h>

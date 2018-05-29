@@ -1,6 +1,6 @@
-#include <stdint.h>
-#include <string.h>
 #include "md5.h"
+
+#include <string.h>
 
 // NOTE: Based on MD5 in axTLS. See licensing for axTLS
 

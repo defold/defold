@@ -1,6 +1,8 @@
 #ifndef DM_MD5
 #define DM_MD5
 
+#include <stdint.h>
+
 namespace dmMD5
 {
     /// Number of bytes in md5 checksum

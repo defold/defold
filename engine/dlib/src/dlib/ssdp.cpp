@@ -1,24 +1,23 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <algorithm>
-#include <string.h>
-
 #include "ssdp.h"
-#include <dlib/ssdp_private.h>
 
 #include "array.h"
 #include "dstrings.h"
-#include "socket.h"
 #include "hash.h"
 #include "hashtable.h"
-#include "time.h"
-#include "log.h"
-#include "template.h"
-#include "http_server_private.h"
 #include "http_client_private.h"
 #include "http_server.h"
+#include "http_server_private.h"
+#include "log.h"
 #include "network_constants.h"
+#include "socket.h"
+#include "ssdp_private.h"
+#include "template.h"
+#include "time.h"
+
+#include <algorithm>
+#include <ctype.h>
+#include <stdio.h>
+#include <string.h>
 
 namespace dmSSDP
 {

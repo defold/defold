@@ -1,9 +1,10 @@
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
 #include "path.h"
-#include "math.h"
+
 #include "dstrings.h"
+#include "math.h"
+
+#include <assert.h>
+#include <string.h>
 
 namespace dmPath
 {

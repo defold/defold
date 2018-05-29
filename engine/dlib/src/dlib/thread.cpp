@@ -1,5 +1,6 @@
-#include <assert.h>
 #include "thread.h"
+
+#include <assert.h>
 
 namespace dmThread
 {

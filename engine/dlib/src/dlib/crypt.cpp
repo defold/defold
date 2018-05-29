@@ -1,9 +1,10 @@
-#include <stdio.h>
-#include <string.h>
-#include <assert.h>
-#include "shared_library.h"
 #include "crypt.h"
+
+#include <assert.h>
+#include <string.h>
+
 #include "endian.h"
+#include "shared_library.h"
 
 namespace dmCrypt
 {

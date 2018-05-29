@@ -1,23 +1,23 @@
-#include <stdio.h>
-#include <assert.h>
-#include <stdint.h>
-#include <string.h>
-#include "profile.h"
 #include "memprofile.h"
 
-#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__))
 
-#include <stdlib.h>
-#include <dlfcn.h>
-#include <execinfo.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <pthread.h>
 #include "dlib.h"
 #include "profile.h"
 #include "shared_library.h"
+
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__))
+
+#include <dlfcn.h>
+#include <execinfo.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #ifdef __MACH__
 #include <malloc/malloc.h>

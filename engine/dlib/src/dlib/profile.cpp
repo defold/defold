@@ -1,17 +1,16 @@
-#include <algorithm>
-#include <string.h>
-#include "dlib.h"
+#include "profile.h"
 
-#include "hashtable.h"
+#include "array.h"
+#include "dlib.h"
+#include "dstrings.h"
 #include "hash.h"
+#include "hashtable.h"
+#include "log.h"
+#include "math.h"
 #include "spinlock.h"
 #include "stringpool.h"
-#include "math.h"
-#include "time.h"
 #include "thread.h"
-#include "dstrings.h"
-#include "array.h"
-#include "profile.h"
+#include "time.h"
 
 namespace dmProfile
 {

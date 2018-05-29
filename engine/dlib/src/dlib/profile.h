@@ -1,7 +1,10 @@
 #ifndef DM_PROFILE_H
 #define DM_PROFILE_H
 
+#include "atomic.h"
+
 #include <stdint.h>
+
 #if defined(_WIN32)
 #include "safe_windows.h"
 #elif  defined(__EMSCRIPTEN__)
@@ -9,10 +12,6 @@
 #else
 #include <sys/time.h>
 #endif
-#include <dlib/array.h>
-#include <dlib/log.h>
-#include <dlib/atomic.h>
-#include <dlib/dlib.h>
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)

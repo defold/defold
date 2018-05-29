@@ -4,8 +4,8 @@
 #include <stdint.h>
 
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
-#include <pthread.h>
 #include <limits.h>
+#include <pthread.h>
 #include <unistd.h>
 namespace dmThread
 {

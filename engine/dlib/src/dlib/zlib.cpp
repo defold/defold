@@ -1,6 +1,8 @@
-#include <assert.h>
 #include "zlib.h"
+
 #include "../zlib/zlib.h"
+
+#include <assert.h>
 
 namespace dmZlib
 {

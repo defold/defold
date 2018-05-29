@@ -1,8 +1,9 @@
 #ifndef DM_SYS_H
 #define DM_SYS_H
 
-#include <string.h>
+#include <stdint.h>
 #include <stdlib.h> // free
+#include <string.h>
 
 namespace dmSys
 {

@@ -1,26 +1,16 @@
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <ctype.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include "math.h"
-#include "./socket.h"
-#include "./socks_proxy.h"
 #include "http_client.h"
+
+#include "connection_pool.h"
+#include "dstrings.h"
 #include "http_client_private.h"
 #include "log.h"
-#include "sys.h"
-#include "dstrings.h"
-#include "uri.h"
-#include "path.h"
-#include "time.h"
-#include "connection_pool.h"
+#include "math.h"
 #include "mutex.h"
-#include "../axtls/ssl/os_port.h"
+#include "time.h"
 #include "../axtls/ssl/ssl.h"
+
+#include <assert.h>
+#include <stdlib.h>
 
 namespace dmHttpClient
 {

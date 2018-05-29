@@ -1,10 +1,10 @@
 #ifndef DM_MESSAGE_H
 #define DM_MESSAGE_H
 
-#include <stdint.h>
-#include <dlib/hash.h>
+#include "align.h"
+#include "hash.h"
+
 #include <string.h>
-#include <dlib/align.h>
 
 namespace dmMessage
 {

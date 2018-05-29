@@ -1,6 +1,8 @@
 #ifndef DM_POOL_ALLOCATOR_H
 #define DM_POOL_ALLOCATOR_H
 
+#include <stdint.h>
+
 namespace dmPoolAllocator
 {
     /**

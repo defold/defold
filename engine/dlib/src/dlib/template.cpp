@@ -1,8 +1,10 @@
-#include <string.h>
-#include "math.h"
 #include "template.h"
-#include "log.h"
+
 #include "dstrings.h"
+#include "log.h"
+#include "math.h"
+
+#include <string.h>
 
 namespace dmTemplate
 {

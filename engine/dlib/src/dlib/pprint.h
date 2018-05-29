@@ -1,8 +1,6 @@
 #ifndef DM_PPRINT_H
 #define DM_PPRINT_H
 
-#include <stdint.h>
-
 namespace dmPPrint
 {
     /**

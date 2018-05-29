@@ -1,13 +1,10 @@
-#include <stdio.h>
-#include <stddef.h>
-#include <string.h>
-#include "dlib.h"
 #include "hash.h"
-#include "mutex.h"
-#include "hashtable.h"
-#include "array.h"
-#include "index_pool.h"
+
 #include "align.h"
+#include "array.h"
+#include "hashtable.h"
+#include "index_pool.h"
+#include "mutex.h"
 
 struct ReverseHashEntry
 {

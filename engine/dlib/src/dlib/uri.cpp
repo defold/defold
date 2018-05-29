@@ -1,10 +1,12 @@
+#include "uri.h"
+
+#include "dstrings.h"
+#include "math.h"
+
 #include <assert.h>
-#include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include "dlib/dstrings.h"
-#include "dlib/math.h"
-#include "dlib/uri.h"
+#include <string.h>
 
 /*
  * TODO:

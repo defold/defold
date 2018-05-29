@@ -1,10 +1,11 @@
-#include <assert.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
+#include "pprint.h"
 
 #include "math.h"
-#include "pprint.h"
+
+#include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
 
 namespace dmPPrint
 {

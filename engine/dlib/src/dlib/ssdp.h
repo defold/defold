@@ -1,8 +1,9 @@
 #ifndef DM_SSDP
 #define DM_SSDP
 
+#include "hash.h"
+
 #include <string.h>
-#include <dlib/hash.h>
 
 /**
  * Simple Service Discovery Protocol

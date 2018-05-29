@@ -1,6 +1,8 @@
 #ifndef DM_UUID
 #define DM_UUID
 
+#include <stdint.h>
+
 namespace dmUUID
 {
     union UUID

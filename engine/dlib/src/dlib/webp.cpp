@@ -1,7 +1,9 @@
-#include <assert.h>
-#include "webp/webp/decode.h"
 #include "webp.h"
-#include <dlib/log.h>
+
+#include "log.h"
+#include "webp/webp/decode.h"
+
+#include <assert.h>
 
 namespace dmWebP
 {

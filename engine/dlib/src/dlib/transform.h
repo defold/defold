@@ -1,9 +1,11 @@
 #ifndef DM_TRANSFORM_H
 #define DM_TRANSFORM_H
 
-#include <assert.h>
-#include <vectormath/cpp/vectormath_aos.h>
 #include "math.h"
+
+#include <vectormath/cpp/vectormath_aos.h>
+
+#include <assert.h>
 
 namespace dmTransform
 {

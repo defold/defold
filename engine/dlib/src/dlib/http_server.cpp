@@ -1,15 +1,14 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "array.h"
-#include "log.h"
-#include "socket.h"
-#include "math.h"
-#include "time.h"
-#include "dstrings.h"
 #include "http_server.h"
+
+#include "array.h"
+#include "dstrings.h"
 #include "http_server_private.h"
+#include "log.h"
+#include "math.h"
 #include "network_constants.h"
+#include "time.h"
+
+#include <stdlib.h>
 
 namespace dmHttpServer
 {

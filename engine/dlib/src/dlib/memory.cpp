@@ -1,6 +1,8 @@
 #include "memory.h"
-#include <stdlib.h>
+
 #include <errno.h>
+#include <stdlib.h>
+
 #if defined(__ANDROID__) || defined(_MSC_VER)
 #include <malloc.h>
 #endif

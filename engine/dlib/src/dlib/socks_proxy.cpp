@@ -1,6 +1,8 @@
-#include <stdlib.h>
-#include "socket.h"
 #include "socks_proxy.h"
+
+#include "socket.h"
+
+#include <stdlib.h>
 
 namespace dmSocksProxy
 {

@@ -1,5 +1,6 @@
-#include <assert.h>
 #include "condition_variable.h"
+
+#include <assert.h>
 
 namespace dmConditionVariable
 {

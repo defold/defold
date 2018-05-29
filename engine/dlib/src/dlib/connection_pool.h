@@ -1,8 +1,7 @@
 #ifndef DM_CONNECTION_POOL
 #define DM_CONNECTION_POOL
 
-#include <stdint.h>
-#include <dlib/socket.h>
+#include "socket.h"
 
 /**
  * Connection pooling

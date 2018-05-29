@@ -1,11 +1,13 @@
 #ifndef DM_VMATH_H
 #define DM_VMATH_H
 
-#include <vectormath/cpp/vectormath_aos.h>
 #include "math.h"
 #include "trig_lookup.h"
 
+#include <vectormath/cpp/vectormath_aos.h>
+
 #include <assert.h>
+#include <stdlib.h>
 
 /**
  * Collection of vector math functions.

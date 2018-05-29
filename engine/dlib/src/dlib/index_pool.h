@@ -1,10 +1,8 @@
 #ifndef DM_INDEX_POOL_H
 #define DM_INDEX_POOL_H
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <assert.h>
-
+#include <stdlib.h>
 
 /**
  * Index pool class.

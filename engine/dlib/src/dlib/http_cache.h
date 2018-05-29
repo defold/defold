@@ -1,6 +1,9 @@
 #ifndef DM_HTTP_CACHE_H
 #define DM_HTTP_CACHE_H
 
+#include <stdint.h>
+#include <stdio.h>
+
 namespace dmHttpCache
 {
     /**

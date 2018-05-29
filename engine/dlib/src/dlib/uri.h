@@ -1,6 +1,8 @@
 #ifndef DM_URI_H
 #define DM_URI_H
 
+#include <stdint.h>
+
 namespace dmURI
 {
     /**

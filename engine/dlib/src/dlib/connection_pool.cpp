@@ -1,13 +1,10 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include "connection_pool.h"
-#include "hashtable.h"
+
 #include "array.h"
-#include "time.h"
+#include "hash.h"
 #include "log.h"
 #include "mutex.h"
-#include "hash.h"
-#include "../axtls/ssl/os_port.h"
+#include "time.h"
 #include "../axtls/ssl/ssl.h"
 
 namespace dmConnectionPool

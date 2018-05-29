@@ -1,32 +1,31 @@
-#include <assert.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <time.h>
 #include "sys.h"
-#include "log.h"
+
 #include "dstrings.h"
 #include "hash.h"
-#include "path.h"
+#include "log.h"
 #include "math.h"
+#include "path.h"
 #include "time.h"
 
+#include <assert.h>
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #ifdef _WIN32
+#include <direct.h>
+#include <io.h>
 #include <Shlobj.h>
 #include <Shellapi.h>
-#include <io.h>
-#include <direct.h>
 #else
-#include <unistd.h>
-#include <sys/utsname.h>
-#include <sys/mman.h>
 #include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/utsname.h>
+#include <unistd.h>
 #endif
-
-#include <sys/types.h>
-#include <sys/stat.h>
 
 #ifndef S_ISREG
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
@@ -40,10 +39,10 @@
 #endif
 
 #ifdef __ANDROID__
-#include <jni.h>
-#include <android_native_app_glue.h>
-#include <sys/types.h>
 #include <android/asset_manager.h>
+#include <android_native_app_glue.h>
+#include <jni.h>
+#include <sys/types.h>
 // By convention we have a global variable called g_AndroidApp
 // This is currently created in glfw..
 // Application life-cycle should perhaps be part of dlib instead

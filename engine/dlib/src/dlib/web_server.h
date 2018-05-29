@@ -1,7 +1,7 @@
 #ifndef DM_WEB_SERVER_H
 #define DM_WEB_SERVER_H
 
-#include <dlib/socket.h>
+#include "socket.h"
 
 namespace dmWebServer
 {

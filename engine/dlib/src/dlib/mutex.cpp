@@ -1,5 +1,6 @@
-#include <assert.h>
 #include "mutex.h"
+
+#include <assert.h>
 
 namespace dmMutex
 {
