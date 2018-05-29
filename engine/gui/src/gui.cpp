@@ -306,6 +306,8 @@ namespace dmGui
         // 16 is hard cap for the same reason as above
         params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
+
+        params->m_ScriptWorld = 0x0;
     }
 
     static void ResetScene(HScene scene) {
@@ -374,6 +376,7 @@ namespace dmGui
         scene->m_FetchRigSceneDataCallback = params->m_FetchRigSceneDataCallback;
         scene->m_RigEventDataCallback = params->m_RigEventDataCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
+        scene->m_ScriptWorld = params->m_ScriptWorld;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
 
@@ -389,7 +392,10 @@ namespace dmGui
         luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
 
-        lua_pop(L, 1);
+        dmScript::SetInstance(L);
+        dmScript::InitializeInstance(scene->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
 
@@ -399,6 +405,12 @@ namespace dmGui
     void DeleteScene(HScene scene)
     {
         lua_State*L = scene->m_Context->m_LuaState;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::FinalizeInstance(scene->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
