@@ -627,6 +627,34 @@ namespace dmScript
         return world;
     }
 
+    /*# Create a timer
+     * Adds a timer and returns a unique id
+     *
+     * You may create more timers from inside a timer callback.
+     *
+     * Using a delay of 0.0f will result in a timer that triggers at the next frame just before
+     * script update functions.
+     *
+     * If you want a timer that triggers on each frane, set delay to 0.0f and repeat to true.
+     * 
+     * Timers created within a script will automatically die when the script is deleted.
+     *
+     * @name timer.delay
+     * @param delay time intervall in seconds
+     * @param repeat true = repeat timer until cancel, false = one-shot timer
+     * @param callback [type:function(self, id, time_elapsed)] timer callback function
+     *
+     * `self`
+     * : [type:object] The current object
+     *
+     * `id`
+     * : [type:hash] The id of the timer
+     *
+     * `time_elapsed`
+     * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
+     *
+     * @return id identifier for the create timer, returns timer.INVALID_TIMER_ID if the timer can not be created
+     */
     static int TimerDelay(lua_State* L) {
         int top = lua_gettop(L);
         luaL_checktype(L, 1, LUA_TNUMBER);
@@ -655,6 +683,14 @@ namespace dmScript
         return 1;
     }
 
+    /*# Cancel a timer
+     *
+     * You may cancel a timer from inside a timer callback.
+     * Cancelling a timer that is already executed or cancelled is safe.
+     * 
+     * @param id the timer id returned by timer.delay()
+     * @return true if the timer was active, false if the timer is already cancelled / complete
+     */
     static int TimerCancel(lua_State* L)
     {
         int top = lua_gettop(L);
@@ -663,7 +699,6 @@ namespace dmScript
         dmScript::HTimerWorld timer_world = GetTimerWorld(L);
         if (timer_world == 0x0)
         {
-            // Log error!?
             lua_pushboolean(L, 0);
             return 1;
         }

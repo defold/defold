@@ -77,7 +77,7 @@ namespace dmScript
      * Using a delay of 0.0f will result in a timer that triggers at the next call to UpdateTimers
      * If you want a timer that triggers on each UpdateTimers, set delay to 0.0f and repeat to true
      * 
-     * The parameters owner, self_ref and callback_ref are just passed on to the trigger callback and are
+     * The parameters owner and userdata are just passed on to the trigger callback and are
      * not used by the timer implementation.
      * 
      * @param timer_world the timer world created with NewTimerWorld
