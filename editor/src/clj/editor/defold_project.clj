@@ -52,8 +52,9 @@
   ;; g/transact'ed) here, so we can't use (node-value node-id :...)
   ;; to inspect it. That's why we pass in node-type, resource.
   (try
-    (let [loaded? (and *load-cache* (contains? @*load-cache* node-id))
-          load-fn (some-> resource (resource/resource-type) :load-fn)]
+    (let [resource-type (some-> resource resource/resource-type)
+          loaded? (and *load-cache* (contains? @*load-cache* node-id))
+          load-fn (:load-fn resource-type)]
       (if (and load-fn (not loaded?))
         (if (resource/exists? resource)
           (try
@@ -61,7 +62,8 @@
               (swap! *load-cache* conj node-id))
             (concat
               (load-fn project node-id resource)
-              (when (instance? FileResource resource)
+              (when (and (resource/file-resource? resource)
+                         (:auto-connect-save-data? resource-type))
                 (g/connect node-id :save-data project :save-data)))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
@@ -93,14 +95,12 @@
   [node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context]
   (let [dependency-paths (if (contains? loaded-nodes node-id)
                            (try
-                             (let [node-resource (g/node-value node-id :resource evaluation-context)
-                                   source-value (g/node-value node-id :source-value evaluation-context)]
-                               (resource-node/resource-dependencies node-resource source-value))
+                             (resource-node/resource-node-dependencies node-id evaluation-context)
                              (catch Exception e
                                (log/warn :msg (format "Unable to determine dependencies for resource '%s', assuming none."
                                                       (resource/proj-path (g/node-value node-id :resource evaluation-context)))
                                          :exception e)
-                               []))
+                               nil))
                            (resource-node-dependencies node-id))
         dependency-nodes (keep nodes-by-resource-path dependency-paths)]
     dependency-nodes))

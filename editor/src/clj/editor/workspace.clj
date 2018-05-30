@@ -90,7 +90,7 @@ ordinary paths."
     (:default :text) false
     true))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [resource-type {:textual? (true? textual?)
                        :editable? (some? (some editable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
@@ -106,7 +106,9 @@ ordinary paths."
                        :tag-opts tag-opts
                        :template template
                        :label label
-                       :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)}
+                       :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
+                       :auto-connect-save-data? (and (some? write-fn)
+                                                     (not (false? auto-connect-save-data?)))}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext (string/lower-case ext))]
                          (map (fn [ext] (assoc resource-type :ext (string/lower-case ext))) ext))]

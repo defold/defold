@@ -77,10 +77,10 @@
 (declare prop prop!)
 
 (defn code-editor-source [script-id]
-  (string/join "\n" (prop script-id :lines)))
+  (string/join "\n" (prop script-id :modified-lines)))
 
 (defn code-editor-source! [script-id source]
-  (prop! script-id :lines (string/split source #"\r?\n" -1)))
+  (prop! script-id :modified-lines (string/split source #"\r?\n" -1)))
 
 (defn setup-workspace!
   ([graph]
