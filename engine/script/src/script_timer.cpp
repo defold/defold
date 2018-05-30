@@ -23,7 +23,7 @@ namespace dmScript
 
         The timer identity is an index into an indirection layer combined with a generation counter,
         this makes it possible to reuse the index for the indirection layer without risk of using
-        stale indexes - the caller to CancelTimer is allowed to call with an id of a timer that already
+        stale indexes - the caller to CancelTimer is allowed to call with an handle of a timer that already
         has expired.
 
         We also keep track of all timers associated with a specific owner, we do this by
@@ -91,8 +91,8 @@ namespace dmScript
         uintptr_t       m_Owner;
         uintptr_t       m_UserData;
 
-        // Store complete timer id with generation here to identify stale timer ids
-        HTimer          m_Id;
+        // Store complete timer handle with generation here to identify stale timer handles
+        HTimer          m_Handle;
 
         // How much time remaining until the timer fires
         float           m_Remaining;
@@ -120,17 +120,17 @@ namespace dmScript
         dmArray<Timer>                      m_Timers;
         dmArray<uint16_t>                   m_IndexLookup;
         dmIndexPool<uint16_t>               m_IndexPool;
-        dmHashTable<uintptr_t, HTimer>      m_OwnerToFirstId;
+        dmHashTable<uintptr_t, HTimer>      m_OwnerToFirstHandle;
         uint16_t                            m_Version;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
         uint16_t                            m_InUpdate : 1;
     };
 
-    static uint16_t GetLookupIndex(HTimer id)
+    static uint16_t GetLookupIndex(HTimer handle)
     {
-        return (uint16_t)(id & 0xffffu);
+        return (uint16_t)(handle & 0xffffu);
     }
 
-    static HTimer MakeId(uint16_t generation, uint16_t lookup_index)
+    static HTimer MakeHandle(uint16_t generation, uint16_t lookup_index)
     {
         return (((uint32_t)generation) << 16) | (lookup_index);
     }
@@ -145,10 +145,10 @@ namespace dmScript
             return 0x0;
         }
 
-        HTimer* id_ptr = timer_world->m_OwnerToFirstId.Get(owner);
-        if ((id_ptr == 0x0) && timer_world->m_OwnerToFirstId.Full())
+        HTimer* handle_ptr = timer_world->m_OwnerToFirstHandle.Get(owner);
+        if ((handle_ptr == 0x0) && timer_world->m_OwnerToFirstHandle.Full())
         {
-            dmLogError("Timer could not be stored since timer max_owner_count has been reached (%d).", timer_world->m_OwnerToFirstId.Size());
+            dmLogError("Timer could not be stored since timer max_owner_count has been reached (%d).", timer_world->m_OwnerToFirstHandle.Size());
             return 0x0;
         }
 
@@ -164,7 +164,7 @@ namespace dmScript
             memset(&timer_world->m_IndexLookup[old_capacity], 0u, (capacity - old_capacity) * sizeof(uint16_t));
         }
 
-        HTimer id = MakeId(timer_world->m_Version, timer_world->m_IndexPool.Pop());
+        HTimer handle = MakeHandle(timer_world->m_Version, timer_world->m_IndexPool.Pop());
 
         if (timer_world->m_Timers.Full())
         {
@@ -177,33 +177,33 @@ namespace dmScript
 
         timer_world->m_Timers.SetSize(timer_count + 1);
         Timer& timer = timer_world->m_Timers[timer_count];
-        timer.m_Id = id;
+        timer.m_Handle = handle;
         timer.m_Owner = owner;
 
         timer.m_PrevOwnerLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
-        if (id_ptr == 0x0)
+        if (handle_ptr == 0x0)
         {
             timer.m_NextOwnerLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
         }
         else
         {
-            uint16_t next_lookup_index = GetLookupIndex(*id_ptr);
+            uint16_t next_lookup_index = GetLookupIndex(*handle_ptr);
             uint32_t next_timer_index = timer_world->m_IndexLookup[next_lookup_index];
             Timer& nextTimer = timer_world->m_Timers[next_timer_index];
-            nextTimer.m_PrevOwnerLookupIndex = GetLookupIndex(id);
+            nextTimer.m_PrevOwnerLookupIndex = GetLookupIndex(handle);
             timer.m_NextOwnerLookupIndex = next_lookup_index;
         }
 
-        uint16_t lookup_index = GetLookupIndex(id);
+        uint16_t lookup_index = GetLookupIndex(handle);
 
         timer_world->m_IndexLookup[lookup_index] = timer_count;
-        if (id_ptr == 0x0)
+        if (handle_ptr == 0x0)
         {
-            timer_world->m_OwnerToFirstId.Put(owner, id);
+            timer_world->m_OwnerToFirstHandle.Put(owner, handle);
         }
         else
         {
-            *id_ptr = id;
+            *handle_ptr = handle;
         }
         return &timer;
     }
@@ -216,7 +216,7 @@ namespace dmScript
 
         if (timer_index < timer_world->m_Timers.Size())
         {
-            uint16_t moved_lookup_index = GetLookupIndex(movedTimer.m_Id);
+            uint16_t moved_lookup_index = GetLookupIndex(movedTimer.m_Handle);
             timer_world->m_IndexLookup[moved_lookup_index] = timer_index;
         }
     }
@@ -226,7 +226,7 @@ namespace dmScript
         assert(timer_world != 0x0);
         assert(timer.m_IsAlive == 0);
 
-        uint16_t lookup_index = GetLookupIndex(timer.m_Id);
+        uint16_t lookup_index = GetLookupIndex(timer.m_Handle);
         uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
         timer_world->m_IndexPool.Push(lookup_index);
 
@@ -238,7 +238,7 @@ namespace dmScript
 
         if (is_first_timer && is_last_timer)
         {
-            timer_world->m_OwnerToFirstId.Erase(timer.m_Owner);
+            timer_world->m_OwnerToFirstHandle.Erase(timer.m_Owner);
         }
         else
         {
@@ -250,9 +250,9 @@ namespace dmScript
 
                 if (is_first_timer)
                 {
-                    HTimer* id_ptr = timer_world->m_OwnerToFirstId.Get(timer.m_Owner);
-                    assert(id_ptr != 0x0);
-                    *id_ptr = next_timer.m_Id;
+                    HTimer* handle_ptr = timer_world->m_OwnerToFirstHandle.Get(timer.m_Owner);
+                    assert(handle_ptr != 0x0);
+                    *handle_ptr = next_timer.m_Handle;
                 }
             }
 
@@ -276,7 +276,7 @@ namespace dmScript
         memset(&timer_world->m_IndexLookup[0], 0u, INITIAL_TIMER_CAPACITY * sizeof(uint16_t));
         timer_world->m_IndexPool.SetCapacity(INITIAL_TIMER_CAPACITY);
         const uint32_t table_count = dmMath::Max(1, max_owner_count/3);
-        timer_world->m_OwnerToFirstId.SetCapacity(table_count, max_owner_count);
+        timer_world->m_OwnerToFirstHandle.SetCapacity(table_count, max_owner_count);
         timer_world->m_Version = 0;
         timer_world->m_InUpdate = 0;
         return timer_world;
@@ -300,8 +300,7 @@ namespace dmScript
         uint32_t size = timer_world->m_Timers.Size();
         DM_COUNTER("timerc", size);
 
-        uint32_t i = 0;
-        while (i < size)
+        for (uint32_t i = 0; i < size; ++i)
         {
             Timer& timer = timer_world->m_Timers[i];
             if (timer.m_IsAlive == 1)
@@ -309,50 +308,52 @@ namespace dmScript
                 assert(timer.m_Remaining >= 0.0f);
 
                 timer.m_Remaining -= dt;
-                if (timer.m_Remaining <= 0.0f)
+                if (timer.m_Remaining > 0.0f)
                 {
-                    assert(timer.m_Callback != 0x0);
+                    continue;
+                }
+                assert(timer.m_Callback != 0x0);
 
-                    float elapsed_time = timer.m_Delay - timer.m_Remaining;
+                float elapsed_time = timer.m_Delay - timer.m_Remaining;
 
-                    TimerEventType eventType = timer.m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
+                TimerEventType eventType = timer.m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
 
-                    timer.m_Callback(timer_world, eventType, timer.m_Id, elapsed_time, timer.m_Owner, timer.m_UserData);
+                timer.m_Callback(timer_world, eventType, timer.m_Handle, elapsed_time, timer.m_Owner, timer.m_UserData);
 
-                    if (timer.m_IsAlive == 1)
+                if (timer.m_IsAlive == 0)
+                {
+                    continue;
+                }
+
+                if (timer.m_Repeat == 0)
+                {
+                    timer.m_IsAlive = 0;
+                }
+                else
+                {
+                    if (timer.m_Delay == 0.0f)
                     {
-                        if (timer.m_Repeat == 0)
-                        {
-                            timer.m_IsAlive = 0;
-                        }
-                        else
-                        {
-                            if (timer.m_Delay == 0.0f)
-                            {
-                                timer.m_Remaining = timer.m_Delay;
-                            }
-                            else if (timer.m_Remaining == 0.0f)
-                            {
-                                timer.m_Remaining = timer.m_Delay;
-                            }
-                            else if (timer.m_Remaining < 0.0f)
-                            {
-                                float wrapped_count = ((-timer.m_Remaining) / timer.m_Delay) + 1.f;
-                                float offset_to_next_trigger  = floor(wrapped_count) * timer.m_Delay;
-                                timer.m_Remaining += offset_to_next_trigger;
-                                assert(timer.m_Remaining >= 0.f);
-                            }
-                        }
+                        timer.m_Remaining = timer.m_Delay;
+                    }
+                    else if (timer.m_Remaining == 0.0f)
+                    {
+                        timer.m_Remaining = timer.m_Delay;
+                    }
+                    else if (timer.m_Remaining < 0.0f)
+                    {
+                        float wrapped_count = ((-timer.m_Remaining) / timer.m_Delay) + 1.f;
+                        float offset_to_next_trigger  = floor(wrapped_count) * timer.m_Delay;
+                        timer.m_Remaining += offset_to_next_trigger;
+                        assert(timer.m_Remaining >= 0.f);
                     }
                 }
             }
-            ++i;
         }
         timer_world->m_InUpdate = 0;
 
         size = timer_world->m_Timers.Size();
         uint32_t original_size = size;
-        i = 0;
+        uint32_t i = 0;
         while (i < size)
         {
             Timer& timer = timer_world->m_Timers[i];
@@ -386,7 +387,7 @@ namespace dmScript
         Timer* timer = AllocateTimer(timer_world, owner);
         if (timer == 0x0)
         {
-            return INVALID_TIMER_ID;
+            return INVALID_TIMER_HANDLE;
         }
 
         timer->m_Delay = delay;
@@ -396,13 +397,13 @@ namespace dmScript
         timer->m_Repeat = repeat;
         timer->m_IsAlive = 1;
 
-        return timer->m_Id;
+        return timer->m_Handle;
     }
 
-    bool CancelTimer(HTimerWorld timer_world, HTimer id)
+    bool CancelTimer(HTimerWorld timer_world, HTimer handle)
     {
         assert(timer_world != 0x0);
-        uint16_t lookup_index = GetLookupIndex(id);
+        uint16_t lookup_index = GetLookupIndex(handle);
         if (lookup_index >= timer_world->m_IndexLookup.Size())
         {
             return false;
@@ -415,7 +416,7 @@ namespace dmScript
         }
 
         Timer& timer = timer_world->m_Timers[timer_index];
-        if (timer.m_Id != id)
+        if (timer.m_Handle != handle)
         {
             return false;
         }
@@ -426,7 +427,7 @@ namespace dmScript
         }
 
         timer.m_IsAlive = 0;
-        timer.m_Callback(timer_world, TIMER_EVENT_CANCELLED, timer.m_Id, 0.f, timer.m_Owner, timer.m_UserData);
+        timer.m_Callback(timer_world, TIMER_EVENT_CANCELLED, timer.m_Handle, 0.f, timer.m_Owner, timer.m_UserData);
 
         if (timer_world->m_InUpdate == 0)
         {
@@ -439,14 +440,14 @@ namespace dmScript
     uint32_t KillTimers(HTimerWorld timer_world, uintptr_t owner)
     {
         assert(timer_world != 0x0);
-        HTimer* id_ptr = timer_world->m_OwnerToFirstId.Get(owner);
-        if (id_ptr == 0x0)
+        HTimer* handle_ptr = timer_world->m_OwnerToFirstHandle.Get(owner);
+        if (handle_ptr == 0x0)
             return 0u;
 
         ++timer_world->m_Version;
 
         uint32_t cancelled_count = 0u;
-        uint16_t lookup_index = GetLookupIndex(*id_ptr);
+        uint16_t lookup_index = GetLookupIndex(*handle_ptr);
         do
         {
             timer_world->m_IndexPool.Push(lookup_index);
@@ -467,7 +468,7 @@ namespace dmScript
             }
         } while (lookup_index != INVALID_TIMER_LOOKUP_INDEX);
 
-        timer_world->m_OwnerToFirstId.Erase(owner);
+        timer_world->m_OwnerToFirstHandle.Erase(owner);
         return cancelled_count;
     }
 
@@ -579,18 +580,18 @@ namespace dmScript
 
     struct LuaTimerCallbackArgs
     {
-        dmScript::HTimer timer_id;
+        dmScript::HTimer timer_handle;
         float time_elapsed;
     };
 
     static void LuaTimerCallbackArgsCB(lua_State* L, void* user_context)
     {
         LuaTimerCallbackArgs* args = (LuaTimerCallbackArgs*)user_context;
-        lua_pushinteger(L, args->timer_id);
+        lua_pushinteger(L, args->timer_handle);
         lua_pushnumber(L, args->time_elapsed);
     }
 
-    static void LuaTimerCallback(HTimerWorld timer_world, TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+    static void LuaTimerCallback(HTimerWorld timer_world, TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
     {
         LuaCallbackInfo* callback = (LuaCallbackInfo*)userdata;
         if (!IsValidCallback(callback))
@@ -600,7 +601,7 @@ namespace dmScript
 
         if (event_type != TIMER_EVENT_CANCELLED)
         {
-            LuaTimerCallbackArgs args = { timer_id, time_elapsed };
+            LuaTimerCallbackArgs args = { timer_handle, time_elapsed };
 
             InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
         }
@@ -628,32 +629,32 @@ namespace dmScript
     }
 
     /*# Create a timer
-     * Adds a timer and returns a unique id
+     * Adds a timer and returns a unique handle
      *
      * You may create more timers from inside a timer callback.
      *
      * Using a delay of 0.0f will result in a timer that triggers at the next frame just before
      * script update functions.
      *
-     * If you want a timer that triggers on each frane, set delay to 0.0f and repeat to true.
+     * If you want a timer that triggers on each frame, set delay to 0.0f and repeat to true.
      * 
      * Timers created within a script will automatically die when the script is deleted.
      *
      * @name timer.delay
      * @param delay time interval in seconds
      * @param repeat true = repeat timer until cancel, false = one-shot timer
-     * @param callback [type:function(self, id, time_elapsed)] timer callback function
+     * @param callback [type:function(self, handle, time_elapsed)] timer callback function
      *
      * `self`
      * : [type:object] The current object
      *
-     * `id`
-     * : [type:hash] The id of the timer
+     * `handle`
+     * : [type:number] The handle of the timer
      *
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
-     * @return id identifier for the create timer, returns timer.INVALID_TIMER_ID if the timer can not be created
+     * @return handle identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
      */
     static int TimerDelay(lua_State* L) {
         int top = lua_gettop(L);
@@ -668,7 +669,7 @@ namespace dmScript
         if (timer_world == 0x0)
         {
             dmLogError("Unable to create a timer, the lua context does not have a timer world");
-            lua_pushnumber(L, dmScript::INVALID_TIMER_ID);
+            lua_pushnumber(L, dmScript::INVALID_TIMER_HANDLE);
             return 1;
         }
     
@@ -676,9 +677,9 @@ namespace dmScript
 
         LuaCallbackInfo* user_data = dmScript::CreateCallback(L, 3);
 
-        dmScript::HTimer id = dmScript::AddTimer(timer_world, seconds, repeat, LuaTimerCallback, (uintptr_t)owner, (uintptr_t)user_data);
+        dmScript::HTimer handle = dmScript::AddTimer(timer_world, seconds, repeat, LuaTimerCallback, (uintptr_t)owner, (uintptr_t)user_data);
 
-        lua_pushinteger(L, id);
+        lua_pushinteger(L, handle);
         assert(top + 1 == lua_gettop(L));
         return 1;
     }
@@ -688,13 +689,13 @@ namespace dmScript
      * You may cancel a timer from inside a timer callback.
      * Cancelling a timer that is already executed or cancelled is safe.
      * 
-     * @param id the timer id returned by timer.delay()
+     * @param handle the timer handle returned by timer.delay()
      * @return true if the timer was active, false if the timer is already cancelled / complete
      */
     static int TimerCancel(lua_State* L)
     {
         int top = lua_gettop(L);
-        const int id = luaL_checkint(L, 1);
+        const int handle = luaL_checkint(L, 1);
 
         dmScript::HTimerWorld timer_world = GetTimerWorld(L);
         if (timer_world == 0x0)
@@ -703,7 +704,7 @@ namespace dmScript
             return 1;
         }
 
-        bool cancelled = dmScript::CancelTimer(timer_world, (dmScript::HTimer)id);
+        bool cancelled = dmScript::CancelTimer(timer_world, (dmScript::HTimer)handle);
         lua_pushboolean(L, cancelled ? 1 : 0);
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -729,12 +730,12 @@ namespace dmScript
             lua_pushnumber(L, (lua_Number) name); \
             lua_setfield(L, -2, #name);\
 
-        /*# Indicates an invalid timer id
+        /*# Indicates an invalid timer handle
          *
-         * @name timer.INVALID_TIMER_ID
+         * @name timer.INVALID_TIMER_HANDLE
          * @variable
          */
-        SETCONSTANT(INVALID_TIMER_ID);
+        SETCONSTANT(INVALID_TIMER_HANDLE);
 
         lua_pop(L, 1);
     }

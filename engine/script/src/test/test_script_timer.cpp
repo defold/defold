@@ -10,7 +10,7 @@ struct TimerTestCallback
     static float elapsed_time;
 };
 
-static void TestCallback(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+static void TestCallback(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
 {
     switch (event_type)
     {
@@ -77,35 +77,35 @@ TEST_F(ScriptTimerTest, TestCreateDeleteTimer)
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
     bool cancelled = dmScript::CancelTimer(timer_world, 0);
     ASSERT_EQ(false, cancelled);
-    dmScript::HTimer id = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
-    cancelled = dmScript::CancelTimer(timer_world, id);
+    dmScript::HTimer handle = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
+    cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(true, cancelled);
-    cancelled = dmScript::CancelTimer(timer_world, id);
+    cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(false, cancelled);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_world));
     dmScript::DeleteTimerWorld(timer_world);
 }
 
-TEST_F(ScriptTimerTest, TestIdReuse)
+TEST_F(ScriptTimerTest, TestHandleReuse)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
-    dmScript::HTimer id1 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
-    dmScript::HTimer id2 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
-    ASSERT_NE(id1, id2);
-    bool cancelled = dmScript::CancelTimer(timer_world, id1);
+    dmScript::HTimer handle1 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
+    dmScript::HTimer handle2 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
+    ASSERT_NE(handle1, handle2);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle1);
     ASSERT_EQ(true, cancelled);
-    dmScript::HTimer id3 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
-    ASSERT_NE(id1, id2);
-    ASSERT_NE(id1, id3);
-    cancelled = dmScript::CancelTimer(timer_world, id2);
+    dmScript::HTimer handle3 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
+    ASSERT_NE(handle1, handle2);
+    ASSERT_NE(handle1, handle3);
+    cancelled = dmScript::CancelTimer(timer_world, handle2);
     ASSERT_EQ(true, cancelled);
-    cancelled = dmScript::CancelTimer(timer_world, id3);
+    cancelled = dmScript::CancelTimer(timer_world, handle3);
     ASSERT_EQ(true, cancelled);
-    dmScript::HTimer id4 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
-    ASSERT_NE(id1, id4);
-    cancelled = dmScript::CancelTimer(timer_world, id4);
+    dmScript::HTimer handle4 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
+    ASSERT_NE(handle1, handle4);
+    cancelled = dmScript::CancelTimer(timer_world, handle4);
     ASSERT_EQ(true, cancelled);
 
     ASSERT_EQ(0u, GetAliveTimers(timer_world));
@@ -121,7 +121,7 @@ TEST_F(ScriptTimerTest, TestSameOwnerTimer)
         1u
     };
 
-    dmScript::HTimer ids[] = 
+    dmScript::HTimer handles[] = 
     {
         dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, owner[0], 0x0),
         dmScript::AddTimer(timer_world, 0.017f, false, TestCallback, owner[0], 0x0),
@@ -130,13 +130,13 @@ TEST_F(ScriptTimerTest, TestSameOwnerTimer)
         dmScript::AddTimer(timer_world, 0.020f, false, TestCallback, owner[0], 0x0)
     };
 
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[0]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[1]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[2]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[3]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[4]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[0]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[1]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[2]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[3]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[4]);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, ids[2]);
+    bool cancelled = dmScript::CancelTimer(timer_world, handles[2]);
     ASSERT_EQ(true, cancelled);
 
     uint32_t killCount = dmScript::KillTimers(timer_world, owner[0]);
@@ -157,7 +157,7 @@ TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
         2u
     };
 
-    dmScript::HTimer ids[] = 
+    dmScript::HTimer handles[] = 
     {
         dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, owner[0], 0x0),
         dmScript::AddTimer(timer_world, 0.017f, false, TestCallback, owner[1], 0x0),
@@ -166,19 +166,19 @@ TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
         dmScript::AddTimer(timer_world, 0.020f, false, TestCallback, owner[1], 0x0)
     };
 
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[0]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[1]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[2]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[3]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[4]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[0]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[1]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[2]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[3]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[4]);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, ids[2]);
+    bool cancelled = dmScript::CancelTimer(timer_world, handles[2]);
     ASSERT_EQ(true, cancelled);
 
     uint32_t killCount = dmScript::KillTimers(timer_world, owner[0]);
     ASSERT_EQ(2u, killCount);
 
-    killCount = dmScript::CancelTimer(timer_world, ids[4]);
+    killCount = dmScript::CancelTimer(timer_world, handles[4]);
     ASSERT_EQ(true, killCount);
 
     killCount = dmScript::KillTimers(timer_world, owner[0]);
@@ -207,7 +207,7 @@ TEST_F(ScriptTimerTest, TestTimerOwnerCountLimit)
         8u
     };
 
-    dmScript::HTimer ids[8] = 
+    dmScript::HTimer handles[8] = 
     {
         dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, owner[0], 0x0),
         dmScript::AddTimer(timer_world, 0.017f, false, TestCallback, owner[1], 0x0),
@@ -219,40 +219,40 @@ TEST_F(ScriptTimerTest, TestTimerOwnerCountLimit)
         dmScript::AddTimer(timer_world, 0.023f, false, TestCallback, owner[7], 0x0)
     };
 
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[0]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[1]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[2]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[3]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[4]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[5]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[6]);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[7]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[0]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[1]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[2]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[3]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[4]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[5]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[6]);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[7]);
 
     // Can't add a timer with yet another owner
-    dmScript::HTimer id1 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, 0x0, 0x0);
-    ASSERT_EQ(dmScript::INVALID_TIMER_ID, id1);
+    dmScript::HTimer handle1 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, 0x0, 0x0);
+    ASSERT_EQ(dmScript::INVALID_TIMER_HANDLE, handle1);
 
     // Using the same owner should be fine
-    id1 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[1], 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id1);
+    handle1 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[1], 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle1);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, ids[0]);
+    bool cancelled = dmScript::CancelTimer(timer_world, handles[0]);
     ASSERT_EQ(true, cancelled);
 
     // Should be room for one more owner
-    dmScript::HTimer id2 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, 0x0, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id2);
+    dmScript::HTimer handle2 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, 0x0, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle2);
 
     // Now we should not have space for this
-    dmScript::HTimer id3 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[0], 0x0);
-    ASSERT_EQ(dmScript::INVALID_TIMER_ID, id3);
+    dmScript::HTimer handle3 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[0], 0x0);
+    ASSERT_EQ(dmScript::INVALID_TIMER_HANDLE, handle3);
     
-    cancelled = dmScript::CancelTimer(timer_world, ids[4]);
+    cancelled = dmScript::CancelTimer(timer_world, handles[4]);
     ASSERT_EQ(true, cancelled);
 
     // Space should be available   
-    id3 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[0], 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id3);
+    handle3 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[0], 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle3);
     
     for (uint32_t i = 0; i < 8; ++i)
     {
@@ -280,16 +280,16 @@ TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
         8u
     };
 
-    dmArray<dmScript::HTimer> ids;
-    ids.SetCapacity(65535u);
-    ids.SetSize(65535u);
+    dmArray<dmScript::HTimer> handles;
+    handles.SetCapacity(65535u);
+    handles.SetSize(65535u);
 
     uint32_t timer_count = 0;
 
-    for (; timer_count < ids.Size(); ++timer_count)
+    for (; timer_count < handles.Size(); ++timer_count)
     {
-        ids[timer_count] = dmScript::AddTimer(timer_world, 0.10f + timer_count, false, TestCallback, owner[timer_count % 8], 0x0);
-        if (ids[timer_count] == dmScript::INVALID_TIMER_ID)
+        handles[timer_count] = dmScript::AddTimer(timer_world, 0.10f + timer_count, false, TestCallback, owner[timer_count % 8], 0x0);
+        if (handles[timer_count] == dmScript::INVALID_TIMER_HANDLE)
         {
             break;
         }
@@ -311,19 +311,19 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCallback)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
+    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
     struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
         {
             ASSERT_EQ(dmScript::TIMER_EVENT_TRIGGER_WILL_DIE, event_type);
-            ASSERT_EQ(id, timer_id);
+            ASSERT_EQ(handle, timer_handle);
             ++TimerTestCallback::callback_count;
         }
     };
 
-    id = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
+    handle = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(0u, TimerTestCallback::callback_count);
@@ -334,7 +334,7 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCallback)
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(1u, TimerTestCallback::callback_count);
 
-    ASSERT_FALSE(dmScript::CancelTimer(timer_world, id));
+    ASSERT_FALSE(dmScript::CancelTimer(timer_world, handle));
 
     ASSERT_EQ(0u, GetAliveTimers(timer_world));
 
@@ -345,12 +345,12 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
+    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
     struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
         {
-            ASSERT_EQ(id, timer_id);
+            ASSERT_EQ(handle, timer_handle);
             switch (event_type)
             {
                 case dmScript::TIMER_EVENT_TRIGGER_WILL_DIE:
@@ -364,8 +364,8 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
         }
     };
 
-    id = dmScript::AddTimer(timer_world, 2.f, true, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
+    handle = dmScript::AddTimer(timer_world, 2.f, true, Callback::cb, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(0u, TimerTestCallback::callback_count);
@@ -378,7 +378,7 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(2u, TimerTestCallback::callback_count);
 
-    ASSERT_TRUE(dmScript::CancelTimer(timer_world, id));
+    ASSERT_TRUE(dmScript::CancelTimer(timer_world, handle));
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
     dmScript::UpdateTimers(timer_world, 1.f);
@@ -395,12 +395,12 @@ TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
+    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
     struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
         {
-            ASSERT_EQ(id, timer_id);
+            ASSERT_EQ(handle, timer_handle);
             switch (event_type)
             {
                 case dmScript::TIMER_EVENT_TRIGGER_WILL_DIE:
@@ -414,8 +414,8 @@ TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
         }
     };
 
-    id = dmScript::AddTimer(timer_world, 1.5f, true, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
+    handle = dmScript::AddTimer(timer_world, 1.5f, true, Callback::cb, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(0u, TimerTestCallback::callback_count);
@@ -438,7 +438,7 @@ TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
     dmScript::UpdateTimers(timer_world, 5.5f);
     ASSERT_EQ(8u, TimerTestCallback::callback_count);
 
-    ASSERT_TRUE(dmScript::CancelTimer(timer_world, id));
+    ASSERT_TRUE(dmScript::CancelTimer(timer_world, handle));
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
     dmScript::UpdateTimers(timer_world, 1.f);
@@ -457,12 +457,12 @@ TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
+    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
     struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
         {
-            ASSERT_EQ(id, timer_id);
+            ASSERT_EQ(handle, timer_handle);
             switch (event_type)
             {
                 case dmScript::TIMER_EVENT_TRIGGER_WILL_DIE:
@@ -476,8 +476,8 @@ TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
             TimerTestCallback::elapsed_time += time_elapsed;
         }
     };
-    id = dmScript::AddTimer(timer_world, 0.5f, true, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
+    handle = dmScript::AddTimer(timer_world, 0.5f, true, Callback::cb, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(1u, TimerTestCallback::callback_count);
@@ -487,7 +487,7 @@ TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
     ASSERT_EQ(2u, TimerTestCallback::callback_count);
     ASSERT_EQ(1.5f, TimerTestCallback::elapsed_time);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, id);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_TRUE(cancelled);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
@@ -500,12 +500,12 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
+    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
     struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
         {
-            ASSERT_EQ(id, timer_id);
+            ASSERT_EQ(handle, timer_handle);
 
             ASSERT_NE(dmScript::TIMER_EVENT_TRIGGER_WILL_DIE, event_type);
 
@@ -518,7 +518,7 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
                         ++TimerTestCallback::callback_count;
                         if (TimerTestCallback::callback_count == 2u)
                         {
-                            bool cancelled = dmScript::CancelTimer(timer_world, timer_id);
+                            bool cancelled = dmScript::CancelTimer(timer_world, timer_handle);
                             ASSERT_EQ(true, cancelled);
                         }
                         else
@@ -534,8 +534,8 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
         }
     };
 
-    id = dmScript::AddTimer(timer_world, 2.f, true, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
+    handle = dmScript::AddTimer(timer_world, 2.f, true, Callback::cb, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(0u, TimerTestCallback::callback_count);
@@ -545,7 +545,7 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
     ASSERT_EQ(1u, TimerTestCallback::callback_count);
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(2u, TimerTestCallback::callback_count);
-    bool cancelled = dmScript::CancelTimer(timer_world, id);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
@@ -565,12 +565,12 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
+    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
     struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
         {
-            ASSERT_EQ(id, timer_id);
+            ASSERT_EQ(handle, timer_handle);
 
             ASSERT_NE(dmScript::TIMER_EVENT_TRIGGER_WILL_REPEAT, event_type);
             switch (event_type)
@@ -579,7 +579,7 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
                 case dmScript::TIMER_EVENT_TRIGGER_WILL_REPEAT:
                     ASSERT_EQ(0u, TimerTestCallback::callback_count);
                     ++TimerTestCallback::callback_count;
-                    ASSERT_TRUE(dmScript::CancelTimer(timer_world, timer_id));
+                    ASSERT_TRUE(dmScript::CancelTimer(timer_world, timer_handle));
                     break;
                 case dmScript::TIMER_EVENT_CANCELLED:
                     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
@@ -589,8 +589,8 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
         }
     };
 
-    id = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
+    handle = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(0u, TimerTestCallback::callback_count);
@@ -598,7 +598,7 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(1u, TimerTestCallback::callback_count);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
-    bool cancelled = dmScript::CancelTimer(timer_world, id);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
     dmScript::UpdateTimers(timer_world, 1.f);
@@ -615,12 +615,12 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    static dmScript::HTimer outer_id = dmScript::INVALID_TIMER_ID;
-    static dmScript::HTimer inner_id = dmScript::INVALID_TIMER_ID;
-    static dmScript::HTimer inner2_id = dmScript::INVALID_TIMER_ID;
+    static dmScript::HTimer outer_handle = dmScript::INVALID_TIMER_HANDLE;
+    static dmScript::HTimer inner_handle = dmScript::INVALID_TIMER_HANDLE;
+    static dmScript::HTimer inner2_handle = dmScript::INVALID_TIMER_HANDLE;
 
     struct Callback {
-        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+        static void cb(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
         {
             switch (event_type)
             {
@@ -630,21 +630,21 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
                     {
                         if (TimerTestCallback::callback_count < 2u)
                         {
-                            ASSERT_EQ(outer_id, timer_id);
-                            outer_id = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, owner, 0x0);
-                            ASSERT_NE(dmScript::INVALID_TIMER_ID, outer_id);
+                            ASSERT_EQ(outer_handle, timer_handle);
+                            outer_handle = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, owner, 0x0);
+                            ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, outer_handle);
                         }
                         else if (TimerTestCallback::callback_count == 2u)
                         {
-                            ASSERT_EQ(outer_id, timer_id);
-                            inner_id = dmScript::AddTimer(timer_world, 0.f, false, Callback::cb, owner, 0x0);
-                            ASSERT_NE(dmScript::INVALID_TIMER_ID, inner_id);
+                            ASSERT_EQ(outer_handle, timer_handle);
+                            inner_handle = dmScript::AddTimer(timer_world, 0.f, false, Callback::cb, owner, 0x0);
+                            ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, inner_handle);
                         }
                         else if (TimerTestCallback::callback_count == 3u)
                         {
-                            ASSERT_EQ(inner_id, timer_id);
-                            inner2_id = dmScript::AddTimer(timer_world, 1.f, false, Callback::cb, owner, 0x0);
-                            ASSERT_NE(dmScript::INVALID_TIMER_ID, inner2_id);
+                            ASSERT_EQ(inner_handle, timer_handle);
+                            inner2_handle = dmScript::AddTimer(timer_world, 1.f, false, Callback::cb, owner, 0x0);
+                            ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, inner2_handle);
                         }
                     }
                     break;
@@ -655,8 +655,8 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
         }
     };
 
-    outer_id = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, 0x10, 0x0);
-    ASSERT_NE(outer_id, dmScript::INVALID_TIMER_ID);
+    outer_handle = dmScript::AddTimer(timer_world, 2.f, false, Callback::cb, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, outer_handle);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(0u, TimerTestCallback::callback_count);
@@ -667,21 +667,21 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(2u, TimerTestCallback::callback_count);
 
-    bool cancelled = dmScript::CancelTimer(timer_world, outer_id);
+    bool cancelled = dmScript::CancelTimer(timer_world, outer_handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
 
     dmScript::UpdateTimers(timer_world, 0.00001f);
     ASSERT_EQ(3u, TimerTestCallback::callback_count);
 
-    cancelled = dmScript::CancelTimer(timer_world, inner_id);
+    cancelled = dmScript::CancelTimer(timer_world, inner_handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
     
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(4u, TimerTestCallback::callback_count);
 
-    cancelled = dmScript::CancelTimer(timer_world, inner2_id);
+    cancelled = dmScript::CancelTimer(timer_world, inner2_handle);
     ASSERT_EQ(false, cancelled);
     ASSERT_EQ(0u, TimerTestCallback::cancel_count);
 
@@ -693,7 +693,7 @@ TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
     dmScript::DeleteTimerWorld(timer_world);
 }
 
-static void ShortRepeatTimerCallback(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata)
+static void ShortRepeatTimerCallback(dmScript::HTimerWorld timer_world, dmScript::TimerEventType event_type, dmScript::HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata)
 {
     switch (event_type)
     {
@@ -711,10 +711,10 @@ TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    static dmScript::HTimer id = dmScript::INVALID_TIMER_ID;
+    static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
-    id = dmScript::AddTimer(timer_world, 0.1f, true, ShortRepeatTimerCallback, 0x10, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, id);
+    handle = dmScript::AddTimer(timer_world, 0.1f, true, ShortRepeatTimerCallback, 0x10, 0x0);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle);
 
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(1u, TimerTestCallback::callback_count);
@@ -724,7 +724,7 @@ TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
     ASSERT_EQ(3u, TimerTestCallback::callback_count);
     dmScript::UpdateTimers(timer_world, 1.f);
     ASSERT_EQ(4u, TimerTestCallback::callback_count);
-    bool cancelled = dmScript::CancelTimer(timer_world, id);
+    bool cancelled = dmScript::CancelTimer(timer_world, handle);
     ASSERT_EQ(true, cancelled);
     ASSERT_EQ(1u, TimerTestCallback::cancel_count);
 
@@ -742,12 +742,12 @@ TEST_F(ScriptTimerTest, TestKillTimers)
 {
     dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
 
-    dmScript::HTimer ids[5];
+    dmScript::HTimer handles[5];
 
     for (uint32_t i = 0; i < 5; ++i)
     {
-        ids[i] = dmScript::AddTimer(timer_world, 1.0f, true, TestCallback, 0x10, 0x0);
-        ASSERT_NE(dmScript::INVALID_TIMER_ID, ids[i]);
+        handles[i] = dmScript::AddTimer(timer_world, 1.0f, true, TestCallback, 0x10, 0x0);
+        ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[i]);
     }
 
     dmScript::UpdateTimers(timer_world, 1.f);
@@ -790,16 +790,16 @@ static bool RunString(lua_State* L, const char* script)
     return true;
 }
 
-static dmScript::HTimer cb_callback_id = dmScript::INVALID_TIMER_ID;
+static dmScript::HTimer cb_callback_handle = dmScript::INVALID_TIMER_HANDLE;
 static uint32_t cb_callback_counter = 0u;
 static float cb_elapsed_time = 0.0f;
 
 static int CallbackCounter(lua_State* L)
 {
     int top = lua_gettop(L);
-    const int id = luaL_checkint(L, 1);
+    const int handle = luaL_checkint(L, 1);
     const double dt = luaL_checknumber(L, 2);
-    cb_callback_id = (dmScript::HTimer)id;
+    cb_callback_handle = (dmScript::HTimer)handle;
     cb_elapsed_time += dt;
     ++cb_callback_counter;
     assert(top == lua_gettop(L));
@@ -891,17 +891,17 @@ TEST_F(ScriptTimerTest, TestLuaOneshot)
     dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
 
     const char pre_script[] =
-        "local function cb(self, id, elapsed_time)\n"
-        "    print(\"Timer: \"..tostring(id)..\", Elapsed: \"..tostring(elapsed_time))\n"
-        "    test.callback_counter(id, elapsed_time)\n"
+        "local function cb(self, handle, elapsed_time)\n"
+        "    print(\"Timer: \"..tostring(handle)..\", Elapsed: \"..tostring(elapsed_time))\n"
+        "    test.callback_counter(handle, elapsed_time)\n"
         "end\n"
         "\n"
-        "id = timer.delay(1, false, cb)\n"
-        "assert(id ~= timer.INVALID_TIMER_ID)\n"
+        "handle = timer.delay(1, false, cb)\n"
+        "assert(handle ~= timer.INVALID_TIMER_HANDLE)\n"
         "\n";
 
     const char post_script[] =
-        "local cancelled = timer.cancel(id)\n"
+        "local cancelled = timer.cancel(handle)\n"
         "assert(cancelled == false)\n";
 
     cb_callback_counter = 0u;
@@ -922,7 +922,7 @@ TEST_F(ScriptTimerTest, TestLuaOneshot)
 
     dmScript::UpdateScriptWorld(script_world, 1.0f);
 
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, cb_callback_id);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, cb_callback_handle);
     ASSERT_EQ(1u, cb_callback_counter);
     ASSERT_EQ(1.0f, cb_elapsed_time);
 
@@ -952,16 +952,16 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
     dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(m_Context);
 
     const char pre_script[] =
-        "local function cb(self, id, elapsed_time)\n"
-        "    print(\"Timer: \"..tostring(id)..\", Elapsed: \"..tostring(elapsed_time))\n"
-        "    test.callback_counter(id, elapsed_time)\n"
+        "local function cb(self, handle, elapsed_time)\n"
+        "    print(\"Timer: \"..tostring(handle)..\", Elapsed: \"..tostring(elapsed_time))\n"
+        "    test.callback_counter(handle, elapsed_time)\n"
         "end\n"
         "\n"
-        "id = timer.delay(0.5, true, cb)\n"
+        "handle = timer.delay(0.5, true, cb)\n"
         "\n";
 
     const char post_script[] =
-        "local cancelled = timer.cancel(id)\n"
+        "local cancelled = timer.cancel(handle)\n"
         "if cancelled == false then\n"
         "    print(\"ERROR\")"  // Would be nicer if we could force the lua execution to return an error here!
         "end";
@@ -983,7 +983,7 @@ TEST_F(ScriptTimerTest, TestLuaRepeating)
 
     dmScript::UpdateScriptWorld(script_world, 1.0f);
 
-    ASSERT_NE(dmScript::INVALID_TIMER_ID, cb_callback_id);
+    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, cb_callback_handle);
     ASSERT_EQ(1u, cb_callback_counter);
     ASSERT_EQ(1.0f, cb_elapsed_time);
 

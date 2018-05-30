@@ -28,7 +28,7 @@ namespace dmScript
     void TimerInitializeInstance(lua_State* L, HScriptWorld script_world);
     void TimerFinalizeInstance(lua_State* L, HScriptWorld script_world);
 
-    const HTimer INVALID_TIMER_ID = 0xffffffffu;
+    const HTimer INVALID_TIMER_HANDLE = 0xffffffffu;
 
     /**
      * Update the all the timers in the world. Any timers whose time is elapsed will be triggered
@@ -47,10 +47,10 @@ namespace dmScript
      * If the timer is live the timer callback will be called with the TIMER_EVENT_CANCELLED event
      * 
      * @param timer_world the timer world created with NewTimerWorld
-     * @param id the timer id
+     * @param timer the timer handle
      * @return true if the timer was active, false if the timer is already cancelled / complete
      */
-    bool CancelTimer(HTimerWorld timer_world, HTimer id);
+    bool CancelTimer(HTimerWorld timer_world, HTimer timer);
 
     /**
      * Removes all active timers associated with an owner without calling the
@@ -69,10 +69,10 @@ namespace dmScript
         TIMER_EVENT_CANCELLED
     };
 
-    typedef void (*TimerCallback)(HTimerWorld timer_world, TimerEventType event_type, HTimer timer_id, float time_elapsed, uintptr_t owner, uintptr_t userdata);
+    typedef void (*TimerCallback)(HTimerWorld timer_world, TimerEventType event_type, HTimer timer_handle, float time_elapsed, uintptr_t owner, uintptr_t userdata);
 
     /**
-     * Adds a timer and returns a unique id within the timer_world
+     * Adds a timer and returns a unique handle within the timer_world
      * You may add a timer from inside a timer callback
      * Using a delay of 0.0f will result in a timer that triggers at the next call to UpdateTimers
      * If you want a timer that triggers on each UpdateTimers, set delay to 0.0f and repeat to true
@@ -86,7 +86,7 @@ namespace dmScript
      * @param timer_trigger the callback to call when the timer triggers
      * @param owner used to group timers for fast removal of associated timers
      * @param userdata user data associated with the timer
-     * @return the timer id, returns INVALID_TIMER_ID if the timer can not be created
+     * @return the timer handle, returns INVALID_TIMER_HANDLE if the timer can not be created
      */
     HTimer AddTimer(HTimerWorld timer_world,
                             float delay,
@@ -95,6 +95,13 @@ namespace dmScript
                             uintptr_t owner,
                             uintptr_t userdata);
 
+    /**
+     * Checks if a specific timer is alive
+     * 
+     * @param timer_world the timer world created with NewTimerWorld
+     * @param timer the timer handle
+     * @return true if the timer is alive, false if not
+     */
     bool IsTimerAlive(HTimerWorld timer_world, HTimer timer);
 
     /**
@@ -102,7 +109,7 @@ namespace dmScript
      * You may query the number of alive timers from inside a timer callback
      * 
      * @param timer_world the timer world created with NewTimerWorld
-     * @return number of active timers that was cancelled
+     * @return number of active in the timer world
      */
     uint32_t GetAliveTimers(HTimerWorld timer_world);
 }
