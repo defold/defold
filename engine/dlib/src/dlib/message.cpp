@@ -1,6 +1,7 @@
 #include "message.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 #include "hashtable.h"
 #include "profile.h"
