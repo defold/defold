@@ -251,12 +251,24 @@ namespace dmGameObject
 
             if (is_callback) {
                 dmScript::ResolveInInstance(L, function_ref);
+                if (!lua_isfunction(L, -1))
+                {
+                    // If the script instance is dead we just ignore the callback
+                    lua_pop(L, 1);
+                    lua_pushnil(L);
+                    dmScript::SetInstance(L);
+                    dmLogWarning("Failed to call message response callback function, has it been deleted?");
+                    return result;
+                }
                 dmScript::UnrefInInstance(L, function_ref);
             }
             else
             {
                 lua_rawgeti(L, LUA_REGISTRYINDEX, function_ref);
             }
+
+            assert(lua_isfunction(L, -1));
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
 
             dmScript::PushHash(L, params.m_Message->m_Id);
