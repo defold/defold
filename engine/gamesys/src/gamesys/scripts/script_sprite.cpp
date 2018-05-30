@@ -281,6 +281,33 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# Play an animation on a sprite component
+     * Play an animation on a sprite component from its tile set
+     * 
+     * @name sprit.play_animation
+     * @param url [type:string|hash|url] the sprite that should play the animation
+     * @param id hash name hash of the animation to play
+     * @param callback?
+     */
+    int SpriteComp_PlayAnimation(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmhash_t id_hash = dmScript::CheckHashOrString(L, 2);
+
+        dmGameSystemDDF::PlayAnimation msg;
+        msg.m_Id = id_hash;
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        assert(top == lua_gettop(L));
+        return 0;
+    }
+
     static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
     {
             {"set_hflip",       SpriteComp_SetHFlip},
@@ -288,6 +315,7 @@ namespace dmGameSystem
             {"set_constant",    SpriteComp_SetConstant},
             {"reset_constant",  SpriteComp_ResetConstant},
             {"set_scale",       SpriteComp_SetScale},
+            {"play_animation",  SpriteComp_PlayAnimation},
             {0, 0}
     };
 
