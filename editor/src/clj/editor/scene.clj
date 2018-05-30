@@ -143,14 +143,14 @@
 
 (defn- render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost?]
   [(boolean topmost?)
-   (- Long/MAX_VALUE (z-distance view-proj world-transform))
+   (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-proj world-transform)))
    (or index 0)])
 
 (defn- outline-render-key [^Matrix4d view-proj ^Matrix4d world-transform index topmost? selected?]
   ;; Draw selection outlines on top of other outlines.
   [(boolean selected?)
    (boolean topmost?)
-   (- Long/MAX_VALUE (z-distance view-proj world-transform))
+   (if topmost? Long/MAX_VALUE (- Long/MAX_VALUE (z-distance view-proj world-transform)))
    (or index 0)])
 
 (defn gl-viewport [^GL2 gl viewport]
@@ -324,10 +324,9 @@
 
 (defn- apply-pass-overrides
   [pass renderable]
-  (let [overrides (get-in renderable [:pass-overrides pass])]
-    (cond-> (dissoc renderable :pass-overrides)
-      overrides
-      (merge overrides))))
+  ;; No nested :pass-overrides like {... :pass-overrides {pass/outline {:pass-overrides {...}}}}
+  (-> (merge renderable (get-in renderable [:pass-overrides pass]))
+      (dissoc :pass-overrides)))
 
 (defn- make-pass-renderables
   []
@@ -341,31 +340,32 @@
         pass-renderables))
 
 (defn- update-pass-renderables!
-  [pass-renderables scene flattened-renderable]
+  [pass-renderables passes flattened-renderable]
   (reduce (fn [pass-renderables pass]
             (update pass-renderables pass conj! (apply-pass-overrides pass flattened-renderable)))
           pass-renderables
-          (-> scene :renderable :passes)))
+          passes))
 
-(defn- flatten-scene-renderables! [pass-renderables scene selection-set view-proj node-path parent-world-transform]
+(defn- flatten-scene-renderables! [pass-renderables scene selection-set view-proj node-path ^Matrix4d parent-world-transform]
   (let [renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
-        world-transform (doto (Matrix4d. ^Matrix4d parent-world-transform) (.mul local-transform))
+        world-transform (doto (Matrix4d. parent-world-transform)
+                          (.mul local-transform))
         appear-selected? (some? (some selection-set node-path)) ; Child nodes appear selected if parent is.
-        new-renderable (-> scene
-                           (dissoc :children :renderable)
-                           (assoc :node-path node-path
-                                  :picking-id (or (:picking-id scene) (peek node-path))
-                                  :render-fn (:render-fn renderable)
-                                  :world-transform world-transform
-                                  :parent-world-transform parent-world-transform
-                                  :selected appear-selected?
-                                  :user-data (:user-data renderable)
-                                  :batch-key (:batch-key renderable)
-                                  :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
-                                  :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
-                                  :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
-        pass-renderables (update-pass-renderables! pass-renderables scene new-renderable)]
+        flat-renderable (-> scene
+                            (dissoc :children :renderable)
+                            (assoc :node-path node-path
+                                   :picking-id (or (:picking-id scene) (peek node-path))
+                                   :render-fn (:render-fn renderable)
+                                   :world-transform world-transform
+                                   :parent-world-transform parent-world-transform
+                                   :selected appear-selected?
+                                   :user-data (:user-data renderable)
+                                   :batch-key (:batch-key renderable)
+                                   :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
+                                   :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
+                                   :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
+        pass-renderables (update-pass-renderables! pass-renderables (-> scene :renderable :passes) flat-renderable)]
     (reduce (fn [pass-renderables child-scene]
               (flatten-scene-renderables! pass-renderables child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-transform))
             pass-renderables
@@ -373,7 +373,7 @@
 
 (defn- flatten-scene [scene selection-set view-proj]
   (let [node-path []
-        parent-world-transform (doto (Matrix4d.) (.setIdentity))]
+        parent-world-transform geom/Identity4d]
     (-> (make-pass-renderables)
         (flatten-scene-renderables! scene selection-set view-proj node-path parent-world-transform)
         (persist-pass-renderables!))))
@@ -381,8 +381,8 @@
 (defn- get-selection-pass-renderables-by-node-id
   "Returns a map of renderables that were in a selection pass by their node id.
   If a renderable appears in multiple selection passes, the one from the latter
-  pass will be picked. This should be fine, since the new-renderable added
-  by append-flattened-scene-renderables! will be the same for all passes."
+  pass will be picked. This should be fine, since the flat-renderable added
+  by update-pass-renderables! will be the same for all passes."
   [renderables-by-pass]
   (into {}
         (comp (filter (comp types/selection? key))
