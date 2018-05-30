@@ -81,7 +81,7 @@ namespace dmScript
      * not used by the timer implementation.
      * 
      * @param timer_world the timer world created with NewTimerWorld
-     * @param delay the time to wait in same unit as used for time step with UpdateTimers
+     * @param delay the time to wait
      * @param repeat indicates if the timer should reset at trigger or die
      * @param timer_trigger the callback to call when the timer triggers
      * @param owner used to group timers for fast removal of associated timers
