@@ -16,39 +16,37 @@
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn resource-dependencies [resource value]
-  (let [resource-type (resource/resource-type resource)
-        dependencies-fn (:dependencies-fn resource-type)]
-    (if dependencies-fn
-      (dependencies-fn value)
-      [])))
+(defn resource-node-dependencies [resource-node-id evaluation-context]
+  (let [resource (g/node-value resource-node-id :resource evaluation-context)]
+    (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
+      (let [source-value (g/node-value resource-node-id :source-value evaluation-context)]
+        (dependencies-fn source-value)))))
+
+(g/defnk produce-save-data [_node-id resource save-value dirty?]
+  (let [write-fn (:write-fn (resource/resource-type resource))]
+    (cond-> {:resource resource :dirty? dirty? :value save-value :node-id _node-id}
+            (and write-fn save-value) (assoc :content (write-fn save-value)))))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
-  (property editable? g/Bool (default true) (dynamic visible (g/constantly false)))
+  (extern editable? g/Bool (default true) (dynamic visible (g/constantly false)))
 
-  (output save-data g/Any :cached (g/fnk [_node-id resource save-value dirty?]
-                                    (let [write-fn (some-> resource
-                                                     (resource/resource-type)
-                                                     :write-fn)]
-                                      (cond-> {:resource resource :dirty? dirty? :value save-value :node-id _node-id}
-                                        (and write-fn save-value) (assoc :content (write-fn save-value))))))
+  (output save-data g/Any :cached produce-save-data)
   (output source-value g/Any :cached (g/fnk [resource editable?]
-                                       (when (and editable? (some? resource) (resource/exists? resource))
-                                         (when-some [read-fn (some-> resource
-                                                                     (resource/resource-type)
-                                                                     :read-fn)]
+                                       (when-some [read-fn (:read-fn (resource/resource-type resource))]
+                                         (when (and editable? (resource/exists? resource))
                                            (read-fn resource)))))
   (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
-                                              (resource-dependencies resource save-value)))
+                                              (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
+                                                (dependencies-fn save-value))))
   
   (output save-value g/Any (g/constantly nil))
 
   (output cleaned-save-value g/Any (g/fnk [resource save-value editable?]
-                                          (when (and editable? (some? resource))
+                                          (when editable?
                                             (let [resource-type (resource/resource-type resource)
                                                   read-fn (:read-fn resource-type)
                                                   write-fn (:write-fn resource-type)]
