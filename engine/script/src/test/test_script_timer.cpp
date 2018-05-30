@@ -66,7 +66,7 @@ protected:
 
 TEST_F(ScriptTimerTest, TestCreateDeleteWorld)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
     ASSERT_NE(0x0, (uintptr_t)timer_world);
     ASSERT_EQ(0u, GetAliveTimers(timer_world));
     dmScript::DeleteTimerWorld(timer_world);
@@ -74,7 +74,7 @@ TEST_F(ScriptTimerTest, TestCreateDeleteWorld)
 
 TEST_F(ScriptTimerTest, TestCreateDeleteTimer)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
     bool cancelled = dmScript::CancelTimer(timer_world, 0);
     ASSERT_EQ(false, cancelled);
     dmScript::HTimer handle = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
@@ -90,7 +90,7 @@ TEST_F(ScriptTimerTest, TestCreateDeleteTimer)
 
 TEST_F(ScriptTimerTest, TestHandleReuse)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
     dmScript::HTimer handle1 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
     dmScript::HTimer handle2 = dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, 0x10, 0x0);
     ASSERT_NE(handle1, handle2);
@@ -114,7 +114,7 @@ TEST_F(ScriptTimerTest, TestHandleReuse)
 
 TEST_F(ScriptTimerTest, TestSameOwnerTimer)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     uintptr_t owner[] =
     {
@@ -149,7 +149,7 @@ TEST_F(ScriptTimerTest, TestSameOwnerTimer)
 
 TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     uintptr_t owner[] =
     {
@@ -192,82 +192,9 @@ TEST_F(ScriptTimerTest, TestMixedOwnersTimer)
     dmScript::DeleteTimerWorld(timer_world);
 }
 
-TEST_F(ScriptTimerTest, TestTimerOwnerCountLimit)
-{
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(8);
-
-    uintptr_t owner[8] = {
-        1u,
-        2u,
-        3u,
-        4u,
-        5u,
-        6u,
-        7u,
-        8u
-    };
-
-    dmScript::HTimer handles[8] = 
-    {
-        dmScript::AddTimer(timer_world, 0.016f, false, TestCallback, owner[0], 0x0),
-        dmScript::AddTimer(timer_world, 0.017f, false, TestCallback, owner[1], 0x0),
-        dmScript::AddTimer(timer_world, 0.018f, false, TestCallback, owner[2], 0x0),
-        dmScript::AddTimer(timer_world, 0.019f, false, TestCallback, owner[3], 0x0),
-        dmScript::AddTimer(timer_world, 0.020f, false, TestCallback, owner[4], 0x0),
-        dmScript::AddTimer(timer_world, 0.021f, false, TestCallback, owner[5], 0x0),
-        dmScript::AddTimer(timer_world, 0.022f, false, TestCallback, owner[6], 0x0),
-        dmScript::AddTimer(timer_world, 0.023f, false, TestCallback, owner[7], 0x0)
-    };
-
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[0]);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[1]);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[2]);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[3]);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[4]);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[5]);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[6]);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handles[7]);
-
-    // Can't add a timer with yet another owner
-    dmScript::HTimer handle1 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, 0x0, 0x0);
-    ASSERT_EQ(dmScript::INVALID_TIMER_HANDLE, handle1);
-
-    // Using the same owner should be fine
-    handle1 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[1], 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle1);
-
-    bool cancelled = dmScript::CancelTimer(timer_world, handles[0]);
-    ASSERT_EQ(true, cancelled);
-
-    // Should be room for one more owner
-    dmScript::HTimer handle2 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, 0x0, 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle2);
-
-    // Now we should not have space for this
-    dmScript::HTimer handle3 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[0], 0x0);
-    ASSERT_EQ(dmScript::INVALID_TIMER_HANDLE, handle3);
-    
-    cancelled = dmScript::CancelTimer(timer_world, handles[4]);
-    ASSERT_EQ(true, cancelled);
-
-    // Space should be available   
-    handle3 = dmScript::AddTimer(timer_world, 0.010f, false, TestCallback, owner[0], 0x0);
-    ASSERT_NE(dmScript::INVALID_TIMER_HANDLE, handle3);
-    
-    for (uint32_t i = 0; i < 8; ++i)
-    {
-        dmScript::KillTimers(timer_world, owner[i]);
-    }
-    dmScript::KillTimers(timer_world, 0x0);
-
-    ASSERT_EQ(0u, GetAliveTimers(timer_world));
-
-    dmScript::DeleteTimerWorld(timer_world);
-}
-
 TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     uintptr_t owner[8] = {
         1u,
@@ -309,7 +236,7 @@ TEST_F(ScriptTimerTest, TestTimerTriggerCountLimit)
 
 TEST_F(ScriptTimerTest, TestOneshotTimerCallback)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
@@ -343,7 +270,7 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCallback)
 
 TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
@@ -393,7 +320,7 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCallback)
 
 TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
@@ -455,7 +382,7 @@ TEST_F(ScriptTimerTest, TestUnevenRepeatTimerCallback)
 
 TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
@@ -498,7 +425,7 @@ TEST_F(ScriptTimerTest, TestUnevenShortRepeatTimerCallback)
 
 TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
@@ -563,7 +490,7 @@ TEST_F(ScriptTimerTest, TestRepeatTimerCancelInCallback)
 
 TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
@@ -613,7 +540,7 @@ TEST_F(ScriptTimerTest, TestOneshotTimerCancelInCallback)
 
 TEST_F(ScriptTimerTest, TestTriggerTimerInCallback)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     static dmScript::HTimer outer_handle = dmScript::INVALID_TIMER_HANDLE;
     static dmScript::HTimer inner_handle = dmScript::INVALID_TIMER_HANDLE;
@@ -709,7 +636,7 @@ static void ShortRepeatTimerCallback(dmScript::HTimerWorld timer_world, dmScript
 
 TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     static dmScript::HTimer handle = dmScript::INVALID_TIMER_HANDLE;
 
@@ -740,7 +667,7 @@ TEST_F(ScriptTimerTest, TestShortRepeatTimerCallback)
 
 TEST_F(ScriptTimerTest, TestKillTimers)
 {
-    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld(16);
+    dmScript::HTimerWorld timer_world = dmScript::NewTimerWorld();
 
     dmScript::HTimer handles[5];
 

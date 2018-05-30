@@ -16,7 +16,7 @@ namespace dmScript
 
     typedef uint32_t HTimer;
 
-    HTimerWorld NewTimerWorld(uint16_t max_owner_count);
+    HTimerWorld NewTimerWorld();
     void DeleteTimerWorld(HTimerWorld timer_world);
 
     typedef struct ScriptWorld* HScriptWorld;

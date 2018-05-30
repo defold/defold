@@ -26,64 +26,11 @@ namespace dmScript
         stale indexes - the caller to CancelTimer is allowed to call with an handle of a timer that already
         has expired.
 
-        We also keep track of all timers associated with a specific owner, we do this by
-        creating a linked list (using indirected lookup indexes) inside the timer array and just
-        holding the most recently added timer to a specific owner in a hash table for fast lookup.
-
-        This is to avoid scanning the entire timer array for a specific owner for items to remove.
-
-        Each game object needs to call KillTimers for its owner to clean up potential timers
+        Each script instance needs to call KillTimers for its owner to clean up potential timers
         that has not yet been cancelled or completed (one-shot).
-        We don't want each GO to scan the entire array for timers at destuction.
-        The m_OwnerToFirstId make the cleanup of a owner with zero timers fast and the linked list
-        makes it possible to remove individual timers and still keep the m_OwnerToFirstId lookup valid.
-
-        m_IndexLookup
-
-            Lookup index               Timer array index
-             0 <---------------------   3
-             1                       |  0  
-             2 <------------------   |  2
-             3                    |  |  4
-             4                    |  |  1
-                                  |  |
-        m_OwnerToFirstId          |  |
-                                  |  |
-            Script context        |  |  Lookup index
-             1                    |   -- 0
-             2                     ----- 2
-
-           -----------------------------------
-        0 | m_Id: 0x0000 0001                 | <--------------
-          | m_Owner 1                         |            |   |
-          | m_PrevOwnerLookupIndex 3          | --------   |   |
-          | m_NextOwnerLookupIndex 4          | ---     |  |   |
-           -----------------------------------     |    |  |   |
-        1 | m_Id: 0x0002 0004                 | <--     |  |   |
-          | m_Owner 1                         |         |  |   |
-          | m_PrevOwnerLookupIndex 1          | --------|--    |
-          | m_NextOwnerLookupIndex -1         |         |      |
-           -----------------------------------          |      |
-        2 | m_Id: 0x0000 0002                 |         |      |   <-   m_OwnerToFirstId[2] -> m_IndexLookup[2] -> m_Timers[2]
-          | m_Owner 2                         |         |      |
-          | m_PrevOwnerLookupIndex -1         |         |      |
-          | m_NextOwnerLookupIndex -1         |         |      |
-           -----------------------------------          |      |
-        3 | m_Id: 0x0001 0000                 | <----   |      |   <-   m_OwnerToFirstId[1] -> m_IndexLookup[0] -> m_Timers[3]
-          | m_Owner 1                         |      |  |      |
-          | m_PrevOwnerLookupIndex -1         |      |  |      |
-          | m_NextOwnerLookupIndex 3          | --   |  |      |
-           -----------------------------------    |  |  |      |
-        4 | m_Id: 0x0000 0003                 | <----|--       |
-          | m_Owner 1                         |      |         |
-          | m_PrevOwnerLookupIndex 0          | -----          |
-          | m_NextOwnerLookupIndex 1          | ---------------
-           -----------------------------------
     */
 
     const char* TIMER_WORLD_VALUE_KEY = "__dm_timer_world__";
-
-    static uint16_t MAX_OWNER_COUNT = 32;
 
     struct Timer
     {
@@ -100,10 +47,6 @@ namespace dmScript
         // The timer delay, we need to keep this for repeating timers
         float           m_Delay;
 
-        // Linked list of all timers with same owner
-        uint16_t        m_PrevOwnerLookupIndex;
-        uint16_t        m_NextOwnerLookupIndex;
-
         // Flag if the timer should repeat
         uint32_t        m_Repeat : 1;
         // Flag if the timer is alive
@@ -111,16 +54,15 @@ namespace dmScript
     };
 
     #define INVALID_TIMER_LOOKUP_INDEX  0xffffu
-    #define INITIAL_TIMER_CAPACITY      16u
+    #define INITIAL_TIMER_CAPACITY      8u
     #define MAX_TIMER_CAPACITY          65000u  // Needs to be less that 65535 since 65535 is reserved for invalid index
-    #define MIN_TIMER_CAPACITY_GROWTH   64u
+    #define MIN_TIMER_CAPACITY_GROWTH   16u
 
     struct TimerWorld
     {
         dmArray<Timer>                      m_Timers;
         dmArray<uint16_t>                   m_IndexLookup;
         dmIndexPool<uint16_t>               m_IndexPool;
-        dmHashTable<uintptr_t, HTimer>      m_OwnerToFirstHandle;
         uint16_t                            m_Version;   // Incremented to avoid collisions each time we push timer indexes back to the m_IndexPool
         uint16_t                            m_InUpdate : 1;
     };
@@ -142,13 +84,6 @@ namespace dmScript
         if (timer_count == MAX_TIMER_CAPACITY)
         {
             dmLogError("Timer could not be stored since the timer buffer is full (%d).", MAX_TIMER_CAPACITY);
-            return 0x0;
-        }
-
-        HTimer* handle_ptr = timer_world->m_OwnerToFirstHandle.Get(owner);
-        if ((handle_ptr == 0x0) && timer_world->m_OwnerToFirstHandle.Full())
-        {
-            dmLogError("Timer could not be stored since timer max_owner_count has been reached (%d).", timer_world->m_OwnerToFirstHandle.Size());
             return 0x0;
         }
 
@@ -180,31 +115,9 @@ namespace dmScript
         timer.m_Handle = handle;
         timer.m_Owner = owner;
 
-        timer.m_PrevOwnerLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
-        if (handle_ptr == 0x0)
-        {
-            timer.m_NextOwnerLookupIndex = INVALID_TIMER_LOOKUP_INDEX;
-        }
-        else
-        {
-            uint16_t next_lookup_index = GetLookupIndex(*handle_ptr);
-            uint32_t next_timer_index = timer_world->m_IndexLookup[next_lookup_index];
-            Timer& nextTimer = timer_world->m_Timers[next_timer_index];
-            nextTimer.m_PrevOwnerLookupIndex = GetLookupIndex(handle);
-            timer.m_NextOwnerLookupIndex = next_lookup_index;
-        }
-
         uint16_t lookup_index = GetLookupIndex(handle);
 
         timer_world->m_IndexLookup[lookup_index] = timer_count;
-        if (handle_ptr == 0x0)
-        {
-            timer_world->m_OwnerToFirstHandle.Put(owner, handle);
-        }
-        else
-        {
-            *handle_ptr = handle;
-        }
         return &timer;
     }
 
@@ -230,44 +143,10 @@ namespace dmScript
         uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
         timer_world->m_IndexPool.Push(lookup_index);
 
-        uint16_t prev_lookup_index = timer.m_PrevOwnerLookupIndex;
-        uint16_t next_lookup_index = timer.m_NextOwnerLookupIndex;
-
-        bool is_first_timer = INVALID_TIMER_LOOKUP_INDEX == prev_lookup_index;
-        bool is_last_timer = INVALID_TIMER_LOOKUP_INDEX == next_lookup_index;
-
-        if (is_first_timer && is_last_timer)
-        {
-            timer_world->m_OwnerToFirstHandle.Erase(timer.m_Owner);
-        }
-        else
-        {
-            if (!is_last_timer)
-            {
-                uint32_t next_timer_index = timer_world->m_IndexLookup[next_lookup_index];
-                Timer& next_timer = timer_world->m_Timers[next_timer_index];
-                next_timer.m_PrevOwnerLookupIndex = prev_lookup_index;
-
-                if (is_first_timer)
-                {
-                    HTimer* handle_ptr = timer_world->m_OwnerToFirstHandle.Get(timer.m_Owner);
-                    assert(handle_ptr != 0x0);
-                    *handle_ptr = next_timer.m_Handle;
-                }
-            }
-
-            if (!is_first_timer)
-            {
-                uint32_t prev_timer_index = timer_world->m_IndexLookup[prev_lookup_index];
-                Timer& prev_timer = timer_world->m_Timers[prev_timer_index];
-                prev_timer.m_NextOwnerLookupIndex = next_lookup_index;
-            }
-        }
-
         EraseTimer(timer_world, timer_index);
     }
 
-    HTimerWorld NewTimerWorld(uint16_t max_owner_count)
+    HTimerWorld NewTimerWorld()
     {
         TimerWorld* timer_world = new TimerWorld();
         timer_world->m_Timers.SetCapacity(INITIAL_TIMER_CAPACITY);
@@ -275,8 +154,6 @@ namespace dmScript
         timer_world->m_IndexLookup.SetSize(INITIAL_TIMER_CAPACITY);
         memset(&timer_world->m_IndexLookup[0], 0u, INITIAL_TIMER_CAPACITY * sizeof(uint16_t));
         timer_world->m_IndexPool.SetCapacity(INITIAL_TIMER_CAPACITY);
-        const uint32_t table_count = dmMath::Max(1, max_owner_count/3);
-        timer_world->m_OwnerToFirstHandle.SetCapacity(table_count, max_owner_count);
         timer_world->m_Version = 0;
         timer_world->m_InUpdate = 0;
         return timer_world;
@@ -440,35 +317,41 @@ namespace dmScript
     uint32_t KillTimers(HTimerWorld timer_world, uintptr_t owner)
     {
         assert(timer_world != 0x0);
-        HTimer* handle_ptr = timer_world->m_OwnerToFirstHandle.Get(owner);
-        if (handle_ptr == 0x0)
-            return 0u;
 
-        ++timer_world->m_Version;
-
-        uint32_t cancelled_count = 0u;
-        uint16_t lookup_index = GetLookupIndex(*handle_ptr);
-        do
+        uint32_t size = timer_world->m_Timers.Size();
+        uint32_t cancelled_count = 0;
+        uint32_t timer_index = 0;
+        while (timer_index < size)
         {
-            timer_world->m_IndexPool.Push(lookup_index);
-
-            uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
             Timer& timer = timer_world->m_Timers[timer_index];
-            lookup_index = timer.m_NextOwnerLookupIndex;
+            if (timer.m_Owner != owner)
+            {
+                ++timer_index;
+                continue;
+            }
 
             if (timer.m_IsAlive == 1)
             {
                 timer.m_IsAlive = 0;
                 ++cancelled_count;
-            }
+            }                
 
             if (timer_world->m_InUpdate == 0)
             {
-                EraseTimer(timer_world, timer_index);
+                FreeTimer(timer_world, timer);
+                --size;
             }
-        } while (lookup_index != INVALID_TIMER_LOOKUP_INDEX);
+            else
+            {
+                ++timer_index;
+            }
+        }
 
-        timer_world->m_OwnerToFirstHandle.Erase(owner);
+        if (cancelled_count > 0)
+        {
+            ++timer_world->m_Version;
+        }
+
         return cancelled_count;
     }
 
@@ -524,7 +407,7 @@ namespace dmScript
         assert(L != 0x0);
         DM_LUA_STACK_CHECK(L, 0);
 
-        HTimerWorld timer_world = NewTimerWorld(MAX_OWNER_COUNT);
+        HTimerWorld timer_world = NewTimerWorld();
         lua_pushstring(L, TIMER_WORLD_VALUE_KEY);
         lua_pushlightuserdata(L, timer_world);
         SetScriptWorldContextValue(script_world);
@@ -719,11 +602,8 @@ namespace dmScript
     void TimerInitialize(HContext context)
     {
         lua_State* L = context->m_LuaState;
-        dmConfigFile::HConfig config_file = context->m_ConfigFile;
         DM_LUA_STACK_CHECK(L, 0);
  
-        MAX_OWNER_COUNT = config_file ? dmConfigFile::GetInt(config_file, "timer.max_owner_count", 32) : 32;
-
         luaL_register(L, "timer", TIMER_COMP_FUNCTIONS);
 
         #define SETCONSTANT(name) \
