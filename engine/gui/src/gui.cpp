@@ -1535,6 +1535,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
             if (custom_ref != LUA_NOREF) {
                 dmScript::ResolveInInstance(L, custom_ref);
+                if (!lua_isfunction(L, -1))
+                {
+                    // If the script instance is dead we just ignore the callback
+                    lua_pop(L, 1);
+                    lua_pushnil(L);
+                    dmScript::SetInstance(L);
+                    dmLogWarning("Failed to call message response callback function, has it been deleted?");
+                    return RESULT_OK;
+                }
+                dmScript::UnrefInInstance(L, custom_ref);
             }
             else
             {
@@ -1777,11 +1787,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     }
                     break;
                 }
-            }
-
-            if (custom_ref != LUA_NOREF)
-            {
-                dmScript::UnrefInInstance(L, custom_ref);
             }
 
             lua_pushnil(L);
