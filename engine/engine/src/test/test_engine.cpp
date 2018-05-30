@@ -180,6 +180,12 @@ TEST_F(EngineTest, SpineAnim)
     ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, SpineIK)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/spine_ik/spine_ik.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, MemCpuProfiler)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/profiler/profiler.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
