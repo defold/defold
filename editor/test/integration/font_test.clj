@@ -29,15 +29,15 @@
         (let [[w' h'] (font/measure font-map "test\ntest")]
           (is (= w' w))
           (is (> h' h))
+          (let [[w'' h''] (font/measure font-map "test\u200Btest" true w 0 1)]
+            (is (= w'' w'))
+            (is (= h'' h')))
           (let [[w'' h''] (font/measure font-map "test test test" true w 0 1)]
             (is (= w'' w'))
             (is (> h'' h')))
           (let [[w'' h''] (font/measure font-map "test test test" true w 0.1 1.1)]
             (is (> w'' w'))
-            (is (> h'' h'))
-            (let [[w''' h'''] (font/measure font-map "test\u200Btest test" true w 0.1 1.1)]
-              (is (<= w''' w''))
-              (is (= h''' h'')))))))))
+            (is (> h'' h'))))))))
 
 (deftest preview-text
   (test-util/with-loaded-project
