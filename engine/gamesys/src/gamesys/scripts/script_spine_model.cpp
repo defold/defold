@@ -583,7 +583,7 @@ namespace dmGameSystem
 
     /*# reset the IK constraint target position to default of a spinemodel
      *
-     * Resets any previously set IK target of a spine model, the position will be resetted
+     * Resets any previously set IK target of a spine model, the position will be reset
      * to the original position from the spine scene.
      *
      * @name spine.reset_ik_target
@@ -604,7 +604,7 @@ namespace dmGameSystem
      */
     int SpineComp_ResetIK(lua_State* L)
     {
-        int top = lua_gettop(L);
+        DM_LUA_STACK_CHECK(L, 0);
 
         dmGameObject::HInstance sender_instance = CheckGoInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
@@ -623,7 +623,6 @@ namespace dmGameSystem
             return luaL_error(L, "the IK constraint target '%s' could not be found", dmScript::GetStringFromHashOrString(L, 2, str, sizeof(str)));
         }
 
-        assert(top == lua_gettop(L));
         return 0;
     }
 
