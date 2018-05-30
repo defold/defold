@@ -1202,19 +1202,18 @@ bail:
                         return;
                     }
 
-
-                    /* Extension updates */
+                    /* Script context updates */
                     if (engine->m_SharedScriptContext) {
-                        dmScript::UpdateExtensions(engine->m_SharedScriptContext);
+                        dmScript::Update(engine->m_SharedScriptContext);
                     } else {
                         if (engine->m_GOScriptContext) {
-                            dmScript::UpdateExtensions(engine->m_GOScriptContext);
+                            dmScript::Update(engine->m_GOScriptContext);
                         }
                         if (engine->m_RenderScriptContext) {
-                            dmScript::UpdateExtensions(engine->m_RenderScriptContext);
+                            dmScript::Update(engine->m_RenderScriptContext);
                         }
                         if (engine->m_GuiScriptContext) {
-                            dmScript::UpdateExtensions(engine->m_GuiScriptContext);
+                            dmScript::Update(engine->m_GuiScriptContext);
                         }
                     }
 
@@ -1268,7 +1267,7 @@ bail:
 
                     if (engine->m_RenderScriptPrototype)
                     {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
+                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
                     }
                     else
                     {

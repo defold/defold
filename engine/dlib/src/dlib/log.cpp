@@ -1,18 +1,13 @@
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <assert.h>
+#include "log.h"
+
 #include "dlib.h"
 #include "array.h"
 #include "dstrings.h"
-#include "log.h"
 #include "socket.h"
 #include "message.h"
 #include "thread.h"
 #include "math.h"
 #include "time.h"
-#include "path.h"
-#include "sys.h"
 #include "network_constants.h"
 
 #ifdef ANDROID

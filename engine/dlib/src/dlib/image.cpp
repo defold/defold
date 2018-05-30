@@ -1,5 +1,6 @@
-#include <dlib/log.h>
 #include "image.h"
+
+#include <dlib/log.h>
 
 #define STBI_NO_HDR
 #define STBI_NO_STDIO

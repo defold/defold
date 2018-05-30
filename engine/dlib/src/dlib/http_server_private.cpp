@@ -1,7 +1,7 @@
-#include <stdio.h>
+#include "http_server_private.h"
+
 #include <string.h>
 #include "dlib/dstrings.h"
-#include "http_server_private.h"
 
 namespace dmHttpServerPrivate
 {

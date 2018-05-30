@@ -1,7 +1,6 @@
 #include "array.h"
 
 #include <assert.h>
-#include <string.h>
 
 namespace dmArrayUtil
 {

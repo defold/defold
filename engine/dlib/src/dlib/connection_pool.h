@@ -1,7 +1,6 @@
 #ifndef DM_CONNECTION_POOL
 #define DM_CONNECTION_POOL
 
-#include <stdint.h>
 #include <dlib/socket.h>
 
 /**

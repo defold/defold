@@ -545,8 +545,27 @@ namespace dmSound
             return RESULT_NO_SUCH_GROUP;
         }
 
+        // Check if any instance is playing this group, if not we
+        // set the sound with a hard reset
+        bool reset = true;
+        uint32_t instances = sound->m_Instances.Size();
+        for (uint32_t i = 0; i < instances; ++i)
+        {
+            SoundInstance* instance = &sound->m_Instances[i];
+            if (instance->m_Group == group_hash)
+            {
+                if (instance->m_Playing || instance->m_FrameCount > 0)
+                {
+                    if (!instance->m_Gain.IsZero())
+                    {
+                        reset = false;
+                        break;
+                    }
+                }
+            }
+        }
         SoundGroup* group = &sound->m_Groups[*index];
-        group->m_Gain.m_Next = gain;
+        group->m_Gain.Set(dmMath::Max(0.0f, gain), reset);
         return RESULT_OK;
     }
 

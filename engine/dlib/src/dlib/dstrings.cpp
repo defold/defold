@@ -1,8 +1,8 @@
+#include "dstrings.h"
+
 #include <assert.h>
 #include <stdarg.h>
 #include <string.h>
-
-#include "dstrings.h"
 
 #if defined(_WIN32)
 #include <stdlib.h>

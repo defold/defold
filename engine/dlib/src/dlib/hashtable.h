@@ -2,9 +2,7 @@
 #define DM_HASHTABLE_H
 
 #include <assert.h>
-#include <stdint.h>
 #include <string.h>
-#include <stdlib.h>
 
 /**
  * Hashtable with chaining for collision resolution, memcpy-copy semantics and 32-bit indicies instead of pointers. (NUMA-friendly)

@@ -1,14 +1,12 @@
-#include <assert.h>
-#include <string.h>
 #include "message.h"
-#include "atomic.h"
-#include "hash.h"
+
+#include <assert.h>
+#include <stdlib.h>
+
 #include "hashtable.h"
 #include "profile.h"
-#include "array.h"
 #include "mutex.h"
 #include "condition_variable.h"
-#include "dstrings.h"
 #include <dlib/static_assert.h>
 
 namespace dmMessage
