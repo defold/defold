@@ -625,7 +625,7 @@
                                                                                flatten
                                                                                (map #(dissoc % :child-index))))))
   (output aabb g/Any :abstract)
-  (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
+  (output scene-children g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output scene-updatable g/Any (g/constantly nil))
   (output scene-renderable g/Any (g/constantly nil))
   (output color+alpha types/Color (g/fnk [color alpha] (assoc color 3 alpha)))
@@ -711,7 +711,7 @@
                            :gpu-texture gpu-texture
                            :material-shader material-shader}
                :select-batch-key _node-id
-               :index child-index
+               :child-index child-index
                :layer-index layer-index
                :topmost? true
                :pass-overrides {pass/outline {:batch-key ::outline}}})))
@@ -1114,8 +1114,9 @@
                                  (if-let [child-scenes (:children template-scene)]
                                    (mapv #(scene/claim-child-scene % _node-id) child-scenes)
                                    [])))
-  (output scene-renderable g/Any :cached (g/fnk [color+alpha inherit-alpha]
+  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index inherit-alpha]
                                                 {:passes [pass/selection]
+                                                 :child-index child-index
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
   (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-gui-node template-resource]
                                            (g/package-errors _node-id
@@ -1230,6 +1231,11 @@
 
 (def ^:private validate-particlefx-resource (partial validate-required-gui-resource "particlefx '%s' does not exist in the scene" :particlefx))
 
+(defn- move-topmost [scene]
+  (cond-> (update scene :children (partial mapv move-topmost))
+    (contains? scene :renderable)
+    (assoc-in [:renderable :topmost?] true)))
+
 (g/defnode ParticleFXNode
   (inherits VisualNode)
 
@@ -1250,19 +1256,21 @@
                        [:particlefx :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
-  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx layer-index material-shader color+alpha]
-                                       (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
-                                         (update source-scene :renderable
-                                           (fn [r]
-                                             (-> r
-                                               (update :user-data (fn [ud]
-                                                                    (-> ud
-                                                                      (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader material-shader))))
-                                                                      (assoc :inherit-alpha true)
-                                                                      (assoc :color color+alpha))))
-                                               (assoc :topmost? true)
-                                               (cond->
-                                                 layer-index (assoc :layer-index layer-index))))))))
+  (output source-scene g/Any :cached (g/fnk [particlefx-infos particlefx child-index layer-index material-shader color+alpha]
+                                            (when-let [source-scene (get-in particlefx-infos [particlefx :particlefx-scene])]
+                                              (-> source-scene
+                                                  (move-topmost)
+                                                  (update :renderable
+                                                          (fn [r]
+                                                            (-> r
+                                                                (assoc :child-index child-index)
+                                                                (update :user-data (fn [ud]
+                                                                                     (-> ud
+                                                                                         (update :emitter-sim-data (partial mapv (fn [d] (assoc d :shader material-shader))))
+                                                                                         (assoc :inherit-alpha true)
+                                                                                         (assoc :color color+alpha))))
+                                                                (cond->
+                                                                    layer-index (assoc :layer-index layer-index)))))))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output aabb g/Any :cached (g/fnk [transform source-scene scene-children]
                                     (let [self-aabb (or (some-> source-scene
@@ -1273,21 +1281,20 @@
                                                    (map #(geom/aabb-transform % transform)))
                                         geom/aabb-union self-aabb scene-children))))
   (output scene g/Any :cached (g/fnk [_node-id aabb transform source-scene scene-children color+alpha inherit-alpha]
-                                (let [scene (if source-scene
-                                              (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
-                                                (some-> source-scene
-                                                  (scene/claim-scene _node-id)
-                                                  (cond->
-                                                    updatable ((partial scene/map-scene #(assoc % :updatable updatable))))))
-                                              {:renderable {:passes [pass/selection]
-                                                            :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
-                                  (-> scene
-                                    (assoc
-                                      :node-id _node-id
-                                      :aabb aabb
-                                      :transform transform)
-                                    (update :children (fn [c] (-> (or c [])
-                                                                (into scene-children))))))))
+                                     (let [scene (if source-scene
+                                                   (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
+                                                     (some-> source-scene
+                                                             (scene/claim-scene _node-id)
+                                                             (cond->
+                                                                 updatable ((partial scene/map-scene #(assoc % :updatable updatable))))))
+                                                   {:renderable {:passes [pass/selection]
+                                                                 :user-data {:color color+alpha :inherit-alpha inherit-alpha}}})]
+                                       (-> scene
+                                           (assoc
+                                             :node-id _node-id
+                                             :aabb aabb
+                                             :transform transform)
+                                           (update :children (fn [c] (-> (or c []) (into scene-children))))))))
   (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-visual-node particlefx particlefx-resource-names]
                                            (g/package-errors _node-id
                                                              build-errors-visual-node
@@ -1675,7 +1682,7 @@
 
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
-  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :index :renderable) child-scenes))))
+  (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
