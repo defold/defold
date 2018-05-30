@@ -5,6 +5,7 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.graph-util :as gu]
+            [editor.resource :as resource]
             [editor.workspace :as workspace])
   (:import [java.io PushbackReader]))
 
@@ -44,29 +45,47 @@
 (def ^:private resource->json (comp read-then-close io/reader))
 (def ^:private lines->json (comp read-then-close data/lines-reader))
 
+(defn invalid-json-error [node-id resource]
+  (g/->error node-id nil :fatal nil
+             (format "The file '%s' contains invalid JSON data." (resource/proj-path resource))
+             {:type :invalid-content :resource resource}))
+
 (g/defnode JsonNode
   (inherits r/CodeEditorResourceNode)
   (property content-transform g/Any (dynamic visible (g/constantly false)))
   (input consumer-passthrough g/Any)
   (output consumer-passthrough g/Any (gu/passthrough consumer-passthrough))
-  (output content g/Any (g/fnk [content-transform lines resource editable?]
-                          (content-transform (if editable?
-                                               (lines->json lines)
-                                               (resource->json resource))))))
+  (output content g/Any (g/fnk [_node-id content-transform editable? lines resource]
+                          (try
+                            (content-transform (if editable?
+                                                 (lines->json lines)
+                                                 (resource->json resource)))
+                            (catch Exception _
+                              (invalid-json-error _node-id resource))))))
 
-(defn load-json [_project self resource]
+(defn- make-code-editable [project self resource lines]
+  (concat
+    (g/set-property self :content-transform identity :editable? true :modified-indent-type (r/guess-indent-type lines))
+    (when (resource/file-resource? resource)
+      (g/connect self :save-data project :save-data))))
+
+(defn load-json [project self resource]
   (let [lines (r/read-fn resource)
-        content (lines->json lines)
-        [load-fn accept-fn new-content] (some (fn [[_loader-id {:keys [accept-fn load-fn]}]]
-                                                (when-some [new-content (accept-fn content)]
-                                                  [load-fn accept-fn new-content]))
-                                              @json-loaders)]
-    (if (some? load-fn)
-      (concat
-        (g/set-property self :content-transform accept-fn :editable? false)
-        (load-fn self new-content))
-      (let [indent-type (data/guess-indent-type (take 500 lines) 4)]
-        (g/set-property self :content-transform identity :editable? true :indent-type indent-type :lines lines)))))
+        content (try
+                  (lines->json lines)
+                  (catch Exception error
+                    error))]
+    (if (instance? Exception content)
+      (make-code-editable project self resource lines)
+      (let [[load-fn accept-fn new-content] (some (fn [[_loader-id {:keys [accept-fn load-fn]}]]
+                                                    (when-some [new-content (accept-fn content)]
+                                                      [load-fn accept-fn new-content]))
+                                                  @json-loaders)]
+        (if (nil? load-fn)
+          (make-code-editable project self resource lines)
+          (concat
+            (g/set-property self :content-transform accept-fn :editable? false)
+            (load-fn self new-content)))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
@@ -79,7 +98,8 @@
                                     :load-fn load-json
                                     :read-fn r/read-fn
                                     :write-fn r/write-fn
-                                    :textual? true))
+                                    :textual? true
+                                    :auto-connect-save-data? false))
 
 (defn register-json-loader [loader-id accept-fn load-fn]
   (swap! json-loaders assoc loader-id {:accept-fn accept-fn :load-fn load-fn}))
