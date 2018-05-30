@@ -924,10 +924,18 @@ namespace dmGameSystem
         if (!target) {
             return false;
         }
-        target->m_Callback = UpdateIKInstanceCallback;
-        target->m_Mix = mix;
-        target->m_UserPtr = component;
-        target->m_UserHash = instance_id;
+
+        if (instance_id) {
+            target->m_Callback = UpdateIKInstanceCallback;
+            target->m_Mix = mix;
+            target->m_UserPtr = component;
+            target->m_UserHash = instance_id;
+        } else {
+            target->m_Callback = 0;
+            target->m_Mix = 0;
+            target->m_UserPtr = 0;
+            target->m_UserHash = 0;
+        }
         return true;
     }
 
