@@ -56,7 +56,7 @@ namespace dmScript
     #define INVALID_TIMER_LOOKUP_INDEX  0xffffu
     #define INITIAL_TIMER_CAPACITY      8u
     #define MAX_TIMER_CAPACITY          65000u  // Needs to be less that 65535 since 65535 is reserved for invalid index
-    #define MIN_TIMER_CAPACITY_GROWTH   16u
+    #define TIMER_CAPACITY_GROWTH       16u
 
     struct TimerWorld
     {
@@ -89,10 +89,8 @@ namespace dmScript
 
         if (timer_world->m_IndexPool.Remaining() == 0)
         {
-            // Growth heuristic is to grow with the mean of MIN_TIMER_CAPACITY_GROWTH and half current capacity, and at least MIN_TIMER_CAPACITY_GROWTH
             uint32_t old_capacity = timer_world->m_IndexPool.Capacity();
-            uint32_t growth = dmMath::Min(MIN_TIMER_CAPACITY_GROWTH, (MIN_TIMER_CAPACITY_GROWTH + old_capacity / 2) / 2);
-            uint32_t capacity = dmMath::Min(old_capacity + growth, MAX_TIMER_CAPACITY);
+            uint32_t capacity = dmMath::Min(old_capacity + TIMER_CAPACITY_GROWTH, MAX_TIMER_CAPACITY);
             timer_world->m_IndexPool.SetCapacity(capacity);
             timer_world->m_IndexLookup.SetCapacity(capacity);
             timer_world->m_IndexLookup.SetSize(capacity);
@@ -103,10 +101,8 @@ namespace dmScript
 
         if (timer_world->m_Timers.Full())
         {
-            // Growth heuristic is to grow with the mean of MIN_TIMER_CAPACITY_GROWTH and half current capacity, and at least MIN_TIMER_CAPACITY_GROWTH
             uint32_t capacity = timer_world->m_Timers.Capacity();
-            uint32_t growth = dmMath::Min(MIN_TIMER_CAPACITY_GROWTH, (MIN_TIMER_CAPACITY_GROWTH + capacity / 2) / 2);
-            capacity = dmMath::Min(capacity + growth, MAX_TIMER_CAPACITY);
+            capacity = dmMath::Min(capacity + TIMER_CAPACITY_GROWTH, MAX_TIMER_CAPACITY);
             timer_world->m_Timers.SetCapacity(capacity);
         }
 
@@ -180,52 +176,46 @@ namespace dmScript
         for (uint32_t i = 0; i < size; ++i)
         {
             Timer& timer = timer_world->m_Timers[i];
-            if (timer.m_IsAlive == 1)
+            if (timer.m_IsAlive == 0)
             {
-                assert(timer.m_Remaining >= 0.0f);
-
-                timer.m_Remaining -= dt;
-                if (timer.m_Remaining > 0.0f)
-                {
-                    continue;
-                }
-                assert(timer.m_Callback != 0x0);
-
-                float elapsed_time = timer.m_Delay - timer.m_Remaining;
-
-                TimerEventType eventType = timer.m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
-
-                timer.m_Callback(timer_world, eventType, timer.m_Handle, elapsed_time, timer.m_Owner, timer.m_UserData);
-
-                if (timer.m_IsAlive == 0)
-                {
-                    continue;
-                }
-
-                if (timer.m_Repeat == 0)
-                {
-                    timer.m_IsAlive = 0;
-                }
-                else
-                {
-                    if (timer.m_Delay == 0.0f)
-                    {
-                        timer.m_Remaining = timer.m_Delay;
-                    }
-                    else if (timer.m_Remaining == 0.0f)
-                    {
-                        timer.m_Remaining = timer.m_Delay;
-                    }
-                    else if (timer.m_Remaining < 0.0f)
-                    {
-                        float wrapped_count = ((-timer.m_Remaining) / timer.m_Delay) + 1.f;
-                        float offset_to_next_trigger  = floor(wrapped_count) * timer.m_Delay;
-                        timer.m_Remaining += offset_to_next_trigger;
-                        assert(timer.m_Remaining >= 0.f);
-                    }
-                }
+                continue;
             }
+
+            timer.m_Remaining -= dt;
+            if (timer.m_Remaining > 0.0f)
+            {
+                continue;
+            }
+
+            float elapsed_time = timer.m_Delay - timer.m_Remaining;
+
+            TimerEventType eventType = timer.m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
+
+            timer.m_Callback(timer_world, eventType, timer.m_Handle, elapsed_time, timer.m_Owner, timer.m_UserData);
+
+            if (timer.m_IsAlive == 0)
+            {
+                continue;
+            }
+
+            if (timer.m_Repeat == 0)
+            {
+                timer.m_IsAlive = 0;
+                continue;
+            }
+
+            if (timer.m_Delay == 0.0f)
+            {
+                timer.m_Remaining = 0.0f;
+                continue;
+            }
+
+            float wrapped_count = ((-timer.m_Remaining) / timer.m_Delay) + 1.f;
+            float offset_to_next_trigger  = floor(wrapped_count) * timer.m_Delay;
+            timer.m_Remaining += offset_to_next_trigger;
+            assert(timer.m_Remaining >= 0.f);
         }
+
         timer_world->m_InUpdate = 0;
 
         size = timer_world->m_Timers.Size();
@@ -516,7 +506,7 @@ namespace dmScript
      *
      * You may create more timers from inside a timer callback.
      *
-     * Using a delay of 0.0f will result in a timer that triggers at the next frame just before
+     * Using a delay of 0 will result in a timer that triggers at the next frame just before
      * script update functions.
      *
      * If you want a timer that triggers on each frame, set delay to 0.0f and repeat to true.
@@ -546,6 +536,11 @@ namespace dmScript
         luaL_checktype(L, 3, LUA_TFUNCTION);
 
         const double seconds = lua_tonumber(L, 1);
+        if (seconds < 0.0)
+        {
+            return luaL_error(L, "timer.delay does not support negative delay times");
+        }
+
         bool repeat = lua_toboolean(L, 2);
 
         dmScript::HTimerWorld timer_world = GetTimerWorld(L);

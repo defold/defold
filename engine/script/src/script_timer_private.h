@@ -109,7 +109,7 @@ namespace dmScript
      * You may query the number of alive timers from inside a timer callback
      * 
      * @param timer_world the timer world created with NewTimerWorld
-     * @return number of active in the timer world
+     * @return number of active timers in the timer world
      */
     uint32_t GetAliveTimers(HTimerWorld timer_world);
 }
