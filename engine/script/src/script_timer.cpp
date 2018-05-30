@@ -83,7 +83,7 @@ namespace dmScript
 
     const char* TIMER_WORLD_VALUE_KEY = "__dm_timer_world__";
 
-    static uint16_t MAX_OWNER_COUNT = 256;
+    static uint16_t MAX_OWNER_COUNT = 32;
 
     struct Timer
     {
@@ -97,8 +97,8 @@ namespace dmScript
         // How much time remaining until the timer fires
         float           m_Remaining;
 
-        // The timer interval, we need to keep this for repeating timers
-        float           m_Interval;
+        // The timer delay, we need to keep this for repeating timers
+        float           m_Delay;
 
         // Linked list of all timers with same owner
         uint16_t        m_PrevOwnerLookupIndex;
@@ -111,9 +111,9 @@ namespace dmScript
     };
 
     #define INVALID_TIMER_LOOKUP_INDEX  0xffffu
-    #define INITIAL_TIMER_CAPACITY      256u
-    #define MAX_TIMER_CAPACITY          65000u  // Needs to be less that 65536 since 65535 is reserved for invalid index
-    #define MIN_TIMER_CAPACITY_GROWTH   2048u
+    #define INITIAL_TIMER_CAPACITY      16u
+    #define MAX_TIMER_CAPACITY          65000u  // Needs to be less that 65535 since 65535 is reserved for invalid index
+    #define MIN_TIMER_CAPACITY_GROWTH   64u
 
     struct TimerWorld
     {
@@ -148,7 +148,7 @@ namespace dmScript
         HTimer* id_ptr = timer_world->m_OwnerToFirstId.Get(owner);
         if ((id_ptr == 0x0) && timer_world->m_OwnerToFirstId.Full())
         {
-            dmLogError("Timer could not be stored since timer max_context_count has been reached (%d).", timer_world->m_OwnerToFirstId.Size());
+            dmLogError("Timer could not be stored since timer max_owner_count has been reached (%d).", timer_world->m_OwnerToFirstId.Size());
             return 0x0;
         }
 
@@ -313,7 +313,7 @@ namespace dmScript
                 {
                     assert(timer.m_Callback != 0x0);
 
-                    float elapsed_time = timer.m_Interval - timer.m_Remaining;
+                    float elapsed_time = timer.m_Delay - timer.m_Remaining;
 
                     TimerEventType eventType = timer.m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
 
@@ -327,18 +327,18 @@ namespace dmScript
                         }
                         else
                         {
-                            if (timer.m_Interval == 0.0f)
+                            if (timer.m_Delay == 0.0f)
                             {
-                                timer.m_Remaining = timer.m_Interval;
+                                timer.m_Remaining = timer.m_Delay;
                             }
                             else if (timer.m_Remaining == 0.0f)
                             {
-                                timer.m_Remaining = timer.m_Interval;
+                                timer.m_Remaining = timer.m_Delay;
                             }
                             else if (timer.m_Remaining < 0.0f)
                             {
-                                float wrapped_count = ((-timer.m_Remaining) / timer.m_Interval) + 1.f;
-                                float offset_to_next_trigger  = floor(wrapped_count) * timer.m_Interval;
+                                float wrapped_count = ((-timer.m_Remaining) / timer.m_Delay) + 1.f;
+                                float offset_to_next_trigger  = floor(wrapped_count) * timer.m_Delay;
                                 timer.m_Remaining += offset_to_next_trigger;
                                 assert(timer.m_Remaining >= 0.f);
                             }
@@ -389,7 +389,7 @@ namespace dmScript
             return INVALID_TIMER_ID;
         }
 
-        timer->m_Interval = delay;
+        timer->m_Delay = delay;
         timer->m_Remaining = delay;
         timer->m_UserData = userdata;
         timer->m_Callback = timer_callback;
@@ -640,7 +640,7 @@ namespace dmScript
      * Timers created within a script will automatically die when the script is deleted.
      *
      * @name timer.delay
-     * @param delay time intervall in seconds
+     * @param delay time interval in seconds
      * @param repeat true = repeat timer until cancel, false = one-shot timer
      * @param callback [type:function(self, id, time_elapsed)] timer callback function
      *
@@ -667,7 +667,7 @@ namespace dmScript
         dmScript::HTimerWorld timer_world = GetTimerWorld(L);
         if (timer_world == 0x0)
         {
-            // Log error!?
+            dmLogError("Unable to create a timer, the lua context does not have a timer world");
             lua_pushnumber(L, dmScript::INVALID_TIMER_ID);
             return 1;
         }
@@ -721,7 +721,7 @@ namespace dmScript
         dmConfigFile::HConfig config_file = context->m_ConfigFile;
         DM_LUA_STACK_CHECK(L, 0);
  
-        MAX_OWNER_COUNT = config_file ? dmConfigFile::GetInt(config_file, "timer.max_context_count", 256) : 256;
+        MAX_OWNER_COUNT = config_file ? dmConfigFile::GetInt(config_file, "timer.max_owner_count", 32) : 32;
 
         luaL_register(L, "timer", TIMER_COMP_FUNCTIONS);
 

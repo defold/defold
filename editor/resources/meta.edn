@@ -336,9 +336,9 @@
    :default 128,
    :path ["factory" "max_count"]}
   {:type :integer,
-   :help "max number of timer contexts, 256 by default",
-   :default 256,
-   :path ["timer" "max_context_count"]}
+   :help "max number of timer owners, 32 by default",
+   :default 32,
+   :path ["timer" "max_owner_count"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,

@@ -53,7 +53,7 @@ namespace dmScript
     bool CancelTimer(HTimerWorld timer_world, HTimer id);
 
     /**
-     * Removes all active timers assiciated with an owner without calling the
+     * Removes all active timers associated with an owner without calling the
      * timer callback (no TIMER_EVENT_CANCELLED will be received)
      * 
      * @param timer_world the timer world created with NewTimerWorld
