@@ -1232,7 +1232,10 @@
 (def ^:private validate-particlefx-resource (partial validate-required-gui-resource "particlefx '%s' does not exist in the scene" :particlefx))
 
 (defn- move-topmost [scene]
-  (cond-> (update scene :children (partial mapv move-topmost))
+  (cond-> scene
+    (contains? scene :children)
+    (update :children (partial mapv move-topmost))
+
     (contains? scene :renderable)
     (assoc-in [:renderable :topmost?] true)))
 
