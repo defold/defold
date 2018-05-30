@@ -35,7 +35,7 @@ namespace dmScript
      * The resolution of all timers are dictated to the time step used when calling UpdateTimers
      * 
      * @param timer_world the timer world created with NewTimerWorld
-     * @param dt time step during which to simulate
+     * @param dt time step during which to simulate (in seconds)
      */
     void UpdateTimers(HTimerWorld timer_world, float dt);
 
@@ -81,7 +81,7 @@ namespace dmScript
      * not used by the timer implementation.
      * 
      * @param timer_world the timer world created with NewTimerWorld
-     * @param delay the time to wait
+     * @param delay the time to wait (in seconds)
      * @param repeat indicates if the timer should reset at trigger or die
      * @param timer_trigger the callback to call when the timer triggers
      * @param owner used to group timers for fast removal of associated timers
