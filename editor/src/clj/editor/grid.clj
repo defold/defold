@@ -86,6 +86,7 @@
   [camera grids]
   {pass/transparent
    [{:world-transform geom/Identity4d
+     :tags #{:grid}
      :render-fn       render-scaled-grids
      :user-render-data {:camera camera
                         :grids grids}}]})

@@ -1,6 +1,7 @@
 (ns integration.label-test
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
+            [clojure.walk :as walk]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
@@ -47,12 +48,17 @@
 
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]
-  (let [render-data (scene/produce-render-data scene selection [] camera)
-        renderables (:renderables render-data)]
+  (let [render-data (scene/produce-render-data scene selection [] #{} camera)
+        renderables (:renderables render-data)
+        old-render-lines label/render-lines
+        old-render-tris label/render-tris]
     (into {}
           (keep (fn [pass]
                   (let [calls (test-util/with-logged-calls [label/render-lines label/render-tris]
-                                (scene/batch-render nil {:pass pass} (get renderables pass) false key-fn))]
+                                (let [patched-renderables (walk/postwalk-replace {old-render-lines label/render-lines
+                                                                                  old-render-tris label/render-tris}
+                                                                                 renderables)]
+                                  (scene/batch-render nil {:pass pass} (get patched-renderables pass) false key-fn)))]
                     (when (seq calls)
                       [pass calls]))))
           pass/render-passes)))
@@ -110,7 +116,7 @@
           (test-util/prop! (add-label-component! go) :blend-mode :blend-mode-add)
           (test-util/prop! (add-label-component! go) :blend-mode :blend-mode-mult)
           (test-util/prop! (add-label-component! go) :blend-mode :blend-mode-mult)
-          (is (= {pass/outline {label/render-lines 2}
+          (is (= {pass/outline {label/render-lines 1}
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key)))))
 
@@ -120,7 +126,7 @@
           (test-util/prop! (add-label-component! go) :font (workspace/find-resource workspace "/fonts/active_menu_item.font"))
           (test-util/prop! (add-label-component! go) :font (workspace/find-resource workspace "/fonts/big_score.font"))
           (test-util/prop! (add-label-component! go) :font (workspace/find-resource workspace "/fonts/big_score.font"))
-          (is (= {pass/outline {label/render-lines 2}
+          (is (= {pass/outline {label/render-lines 1}
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key)))))
 
@@ -130,7 +136,7 @@
           (test-util/prop! (add-label-component! go) :material (workspace/find-resource workspace "/fonts/active_menu_item.material"))
           (test-util/prop! (add-label-component! go) :material (workspace/find-resource workspace "/fonts/big_score_font.material"))
           (test-util/prop! (add-label-component! go) :material (workspace/find-resource workspace "/fonts/big_score_font.material"))
-          (is (= {pass/outline {label/render-lines 2}
+          (is (= {pass/outline {label/render-lines 1}
                   pass/transparent {label/render-tris 2}}
                  (render-call-counts #{} :batch-key))))))))
 
