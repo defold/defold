@@ -338,6 +338,7 @@
                (geom/aabb-incorporate (- d) (- d) (- d))
                (geom/aabb-transform transform)))
    :renderable {:render-fn render-sphere
+                :tags #{:collision-shape}
                 :user-data {:sphere-diameter diameter
                             :color color}
                 :passes [pass/outline pass/transparent pass/selection]}})
@@ -355,6 +356,7 @@
                  (geom/aabb-incorporate (- ext-x) (- ext-y) (- ext-z))
                  (geom/aabb-transform transform)))
      :renderable {:render-fn render-box
+                  :tags #{:collision-shape}
                   :user-data {:box-width w
                               :box-height h
                               :color color}
@@ -371,6 +373,7 @@
                (geom/aabb-incorporate (- r) (- ext-y) (- r))
                (geom/aabb-transform transform)))
    :renderable {:render-fn render-capsule
+                :tags #{:collision-shape}
                 :user-data {:capsule-diameter diameter
                             :capsule-height height
                             :color color}

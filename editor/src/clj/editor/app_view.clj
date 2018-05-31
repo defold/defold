@@ -1,6 +1,7 @@
 (ns editor.app-view
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
@@ -42,6 +43,7 @@
             [util.profiler :as profiler]
             [util.http-server :as http-server]
             [editor.scene :as scene]
+            [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
@@ -59,7 +61,7 @@
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy ProgressBar Tooltip]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent]
-           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
+           [javafx.scene.layout AnchorPane GridPane HBox Priority]
            [javafx.scene.paint Color]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
@@ -102,6 +104,9 @@
   (property active-tool g/Keyword)
   (property manip-space g/Keyword)
 
+  (property visibility-filters-enabled g/Any)
+  (property hidden-renderable-tags g/Any)
+
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
@@ -123,6 +128,12 @@
                                         (when active-tab
                                           {:view-id (ui/user-data active-tab ::view)
                                            :view-type (ui/user-data active-tab ::view-type)})))
+
+  (output effective-hidden-renderable-tags g/Any :cached (g/fnk [visibility-filters-enabled hidden-renderable-tags]
+                                                                (if visibility-filters-enabled
+                                                                  hidden-renderable-tags
+                                                                  (set/intersection hidden-renderable-tags #{:outline :grid}))))
+  
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
@@ -198,6 +209,24 @@
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
 
+(handler/defhandler :show-visibility-settings :workbench
+  (run [app-view]
+    (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+                           (ui/selected-tab)
+                           (.. getContent (lookup "#show-visibility-settings")))]
+      (scene-visibility/show-visibility-settings btn app-view)))
+  (state [app-view]
+    (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+                           (ui/selected-tab)
+                           (.. getContent (lookup "#show-visibility-settings")))]
+      (let [visibility-filters-enabled (g/node-value app-view :visibility-filters-enabled)
+            hidden-renderable-tags (g/node-value app-view :hidden-renderable-tags)
+            filters-active (and visibility-filters-enabled (seq hidden-renderable-tags))]
+        (if filters-active
+          (ui/add-style! btn "filters-active")
+          (ui/remove-style! btn "filters-active")))
+      (scene-visibility/settings-visible? btn))))
+
 (ui/extend-menu :toolbar nil
                 [{:id :select
                   :icon "icons/45/Icons_T_01_Select.png"
@@ -210,7 +239,10 @@
                   :command :rotate-tool}
                  {:id :scale
                   :icon "icons/45/Icons_T_04_Scale.png"
-                  :command :scale-tool}])
+                  :command :scale-tool}
+                 {:id :visibility-settings
+                  :icon "scene/images/eye-icon_eye-arrow.svg"
+                  :command :show-visibility-settings}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
 (def ^:const prefs-split-positions "split-positions")
@@ -1080,7 +1112,15 @@ If you do not specifically require different script states, consider changing th
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
     (let [editor-tab-pane (TabPane.)
-          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane editor-tab-pane :tool-tab-pane tool-tab-pane :active-tool :move :manip-space :world))))]
+          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
+                                                                     :stage stage
+                                                                     :editor-tabs-split editor-tabs-split
+                                                                     :active-tab-pane editor-tab-pane
+                                                                     :tool-tab-pane tool-tab-pane
+                                                                     :active-tool :move
+                                                                     :manip-space :world
+                                                                     :visibility-filters-enabled true
+                                                                     :hidden-renderable-tags #{}))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)

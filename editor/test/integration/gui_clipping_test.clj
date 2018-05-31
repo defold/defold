@@ -99,11 +99,17 @@
 (defn- clipping-states [s]
   (into {} (map (fn [s] (let [ud (get-in s [:renderable :user-data])]
                           [(:node-id s) [(:clipping-state ud) (:clipping-child-state ud)]]))
+                 (tree-seq (constantly true) :children s))))
+
+(defn- clipper-clipping-states [s]
+  (into {} (keep (fn [s] (let [ud (get-in s [:renderable :user-data])]
+                           (when (contains? ud :clipping) ; we only test actual clipper scenes
+                             [(:node-id s) [(:clipping-state ud) (:clipping-child-state ud)]])))
                 (tree-seq (constantly true) :children s))))
 
-(defn- scene->clipping-states [scene-id]
+(defn- scene->clipper-clipping-states [scene-id]
   (-> (g/node-value scene-id :scene)
-    clipping-states))
+    clipper-clipping-states))
 
 (defn- assert-clipping [scene-id states]
   ;; states is {node-id [ref-val mask write-mask child-ref child-mask child-write-mask]
@@ -112,16 +118,20 @@
                                  [nid [{:ref-val ref :mask mask :write-mask write-mask :color-mask [false false false false]}
                                        {:ref-val child-ref :mask child-mask :write-mask child-write-mask :color-mask [true true true true]}]])
                                states))
-        actual (-> (scene->clipping-states scene-id)
+        actual (-> (scene->clipper-clipping-states scene-id)
                  (select-keys (keys expected)))
         [exp act both] (data/diff expected actual)]
+;;    (println "expected:")
+;;    (clojure.pprint/pprint expected)
+;;    (println "actual:")
+;;    (clojure.pprint/pprint actual)
     (is (nil? exp))
     (is (nil? act))))
 
 (defn- assert-ref-vals [scene-id ref-vals]
   (let [expected ref-vals
         actual (into {} (map (fn [[nid [s cs]]] [nid (:ref-val s)])
-                             (-> (scene->clipping-states scene-id)
+                             (-> (scene->clipper-clipping-states scene-id)
                                (select-keys (keys expected)))))
         [exp act both] (data/diff expected actual)]
     (is (nil? exp))
@@ -210,6 +220,13 @@
 ;; - l
 ;;
 ;; Expected values are listed in the design doc: ***REMOVED***/1mzeoLx4HNV4Fbl9aEgtsCNZ4jQDw112SehPggtQAiYE/edit#
+
+;; * are we accidentally introducing more clippers when splitting gui scenes into subscenes?
+;; * when we split, we reuse the :node-id, does that fuck up the tests? -> seems like it.
+;; * any tests relying on node paths will need at least one extra step of indirection
+;; * are we messing up the hierarchy when splitting?
+
+
 (deftest simple-hierarchy
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
@@ -313,7 +330,7 @@
           b (add-clipper! project scene a)
           c (add-inv-clipper! project scene nil)
           d (add-inv-clipper! project scene c)
-          states (scene->clipping-states scene)
+          states (scene->clipper-clipping-states scene)
           prev (first (get states b))
           inv (second (get states d))]
       (is (= (bit-and (:ref-val inv) (:mask inv)) (bit-and (:ref-val prev) (:mask inv)))))))

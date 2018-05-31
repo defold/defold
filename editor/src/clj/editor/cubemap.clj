@@ -97,6 +97,7 @@
      :renderable {:render-fn (fn [gl render-args _renderables _count]
                                (let [camera (:camera render-args)]
                                  (render-cubemap gl render-args camera gpu-texture vertex-binding)))
+                  :tags #{:cubemap}
                   :passes [pass/transparent]}}))
 
 (defn- cubemap-side-setter [resource-label image-label image-generator-label size-label]

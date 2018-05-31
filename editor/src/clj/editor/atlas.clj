@@ -84,31 +84,42 @@
 (defn render-image-outline
   [^GL2 gl render-args renderables]
   (doseq [renderable renderables]
-    (when (:selected renderable)
-      (render-rect gl (-> renderable :user-data :rect) scene/selected-outline-color)))
+    (render-rect gl (-> renderable :user-data :rect) (if (:selected renderable) scene/selected-outline-color scene/outline-color)))
   (doseq [renderable renderables]
     (when (= (-> renderable :updatable :state :frame) (-> renderable :user-data :order))
       (render-rect gl (-> renderable :user-data :rect) colors/defold-pink))))
 
-(defn render-images
+(defn- render-image-outlines
   [^GL2 gl render-args renderables n]
   (condp = (:pass render-args)
     pass/outline
-    (render-image-outline gl render-args renderables)
+    (render-image-outline gl render-args renderables)))
 
+(defn- render-image-selections
+  [^GL2 gl render-args renderables n]
+  (condp = (:pass render-args)
     pass/selection
     (run! #(render-rect gl (-> % :user-data :rect) [1.0 1.0 1.0 1.0]) renderables)))
 
 (g/defnk produce-image-scene
   [_node-id path order image-path->rect animation-updatable]
-  (let [rect (get image-path->rect path)]
+  (let [rect (get image-path->rect path)
+        aabb (geom/rect->aabb rect)]
     {:node-id _node-id
-     :aabb (geom/rect->aabb rect)
-     :renderable {:render-fn render-images
+     :aabb aabb
+     :renderable {:render-fn render-image-outlines
+                  :tags #{:atlas :outline}
                   :batch-key ::atlas-image
                   :user-data {:rect rect
                               :order order}
-                  :passes [pass/outline pass/selection]}
+                  :passes [pass/outline]}
+     :children [{:aabb aabb
+                 :node-id _node-id
+                 :renderable {:render-fn render-image-selections
+                              :tags #{:atlas}
+                              ::batch-key ::atlas-image
+                              :user-data {:rect rect}
+                              :passes [pass/selection]}}]
      :updatable animation-updatable}))
 
 (defn- path->id [path]
@@ -232,6 +243,7 @@
   {:node-id    _node-id
    :aabb       (reduce geom/aabb-union (geom/null-aabb) (keep :aabb child-scenes))
    :renderable {:render-fn render-animation
+                :tags #{:atlas}
                 :batch-key nil
                 :user-data {:gpu-texture gpu-texture
                             :anim-id     id
@@ -329,8 +341,12 @@
             vertex-binding (vtx/use-with ::atlas-binding vbuf atlas-shader)]
         (gl/with-gl-bindings gl render-args [gpu-texture atlas-shader vertex-binding]
           (shader/set-uniform atlas-shader gl "texture" 0)
-          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6)))
+          (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 6))))))
 
+(defn- render-atlas-outline
+  [^GL2 gl render-args [renderable] n]
+  (let [{:keys [pass]} render-args]
+    (condp = pass
       pass/outline
       (let [{:keys [aabb]} renderable
             [x0 y0] (math/vecmath->clj (types/min-p aabb))
@@ -351,8 +367,13 @@
      :renderable {:render-fn render-atlas
                   :user-data {:gpu-texture gpu-texture
                               :vbuf        (gen-renderable-vertex-buffer width height)}
-                  :passes [pass/transparent pass/outline]}
-     :children child-scenes}))
+                  :tags #{:atlas}
+                  :passes [pass/transparent]}
+     :children (into [{:aabb aabb
+                       :renderable {:render-fn render-atlas-outline
+                                    :tags #{:atlas :outline}
+                                    :passes [pass/outline]}}]
+                     child-scenes)}))
 
 (defn- generate-texture-set-data [{:keys [animations all-atlas-images margin inner-padding extrude-borders]}]
   (texture-set-gen/atlas->texture-set-data animations all-atlas-images margin inner-padding extrude-borders))
