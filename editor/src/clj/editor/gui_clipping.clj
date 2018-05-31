@@ -524,18 +524,19 @@
       (assert (not (clipper-trie? trie)))
       (apply-clipping scene [trie nil nil]))))
 
-#_(defn- bitstring
+(defn- bitstring
   ([n] (bitstring n stencil-bits))
   ([n total-bits] (cl-format nil (str "~" total-bits ",'0',B") n)))
 
-#_(defn- print-clipper-tree
+(defn- print-clipper-tree
     ([clipper-tree] (print-clipper-tree clipper-tree ""))
     ([clipper-tree prefix]
-     (let [{:keys [id clear max-successor-non-inverted-allocated-bits path ref-val mask child-ref-val child-mask]} clipper-tree]
+     (let [{:keys [id node-id clear max-successor-non-inverted-allocated-bits path ref-val mask child-ref-val child-mask]} clipper-tree]
        (println prefix :id id
                 (cond (inverted? clipper-tree) :inverted
                       (non-inverted? clipper-tree) :non-inverted
                       :else :not-a-clipper)
+                :node-id node-id
                 :clear clear
                 :bits-allocated max-successor-non-inverted-allocated-bits
                 :path path
@@ -552,6 +553,7 @@
                          wrap-trees
                          count-clipper-scopes
                          assign-clipper-bits)]
+;;    (print-clipper-tree clipper-tree)
     (cond
       (g/error? clipper-tree)
       clipper-tree

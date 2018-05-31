@@ -131,13 +131,8 @@
 
 (defn render-sprites [^GL2 gl render-args renderables count]
   (let [pass (:pass render-args)]
-    (cond
-      (= pass pass/outline)
-      (let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
-        (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
-          (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8))))
-
-      (= pass pass/transparent)
+    (condp = pass
+      pass/transparent
       (let [user-data (:user-data (first renderables))
             shader (:shader user-data)
             vertex-binding (vtx/use-with ::sprite-trans (gen-vertex-buffer renderables count) shader)
@@ -148,10 +143,16 @@
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6))
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))
 
-      (= pass pass/selection)
+      pass/selection
       (let [vertex-binding (vtx/use-with ::sprite-selection (gen-vertex-buffer renderables count) shader)]
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (* count 6)))))))
+
+(defn- render-sprite-outlines [^GL2 gl render-args renderables count]
+  (assert (= pass/outline (:pass render-args)))
+  (let [outline-vertex-binding (vtx/use-with ::sprite-outline (gen-outline-vertex-buffer renderables count) outline-shader)]
+    (gl/with-gl-bindings gl render-args [outline-shader outline-vertex-binding]
+      (gl/gl-draw-arrays gl GL/GL_LINES 0 (* count 8)))))
 
 ; Node defs
 
@@ -163,18 +164,26 @@
 
 (g/defnk produce-scene
   [_node-id aabb gpu-texture material-shader animation blend-mode]
-  (cond-> {:node-id _node-id
-           :aabb aabb}
-
+  (cond-> {:node-id _node-id :aabb aabb}
     (seq (:frames animation))
     (assoc :renderable {:render-fn render-sprites
                         :batch-key [gpu-texture blend-mode material-shader]
                         :select-batch-key _node-id
+                        :tags #{:sprite}
                         :user-data {:gpu-texture gpu-texture
                                     :shader material-shader
                                     :animation animation
                                     :blend-mode blend-mode}
-                        :passes [pass/transparent pass/selection pass/outline]})
+                        :passes [pass/transparent pass/selection]})
+    true
+    (assoc :children [{:node-id _node-id
+                       :aabb aabb
+                       :renderable {:render-fn render-sprite-outlines
+                                    :batch-key [outline-shader]
+                                    :tags #{:sprite :outline}
+                                    :select-batch-key _node-id
+                                    :user-data {:animation animation}
+                                    :passes [pass/outline]}}])
 
     (< 1 (count (:frames animation)))
     (assoc :updatable (texture-set/make-animation-updatable _node-id "Sprite" animation))))
