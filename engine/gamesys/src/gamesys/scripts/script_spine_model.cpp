@@ -617,7 +617,7 @@ namespace dmGameSystem
 
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
 
-        if (!CompSpineModelSetIKTargetInstance(component, ik_constraint_id, 1.0f, 0x0))
+        if (!CompSpineModelResetIKTarget(component, ik_constraint_id))
         {
             char str[128];
             return luaL_error(L, "the IK constraint target '%s' could not be found", dmScript::GetStringFromHashOrString(L, 2, str, sizeof(str)));
