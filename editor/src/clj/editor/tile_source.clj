@@ -945,5 +945,5 @@
                                     :ddf-type Tile$TileSet
                                     :load-fn load-tile-source
                                     :icon tile-source-icon
-                                    :view-types [:scene :test]
+                                    :view-types [:scene :text]
                                     :view-opts {:scene {:tool-controller ToolController}}))

@@ -201,6 +201,7 @@ namespace dmGui
     {
         HNode    m_Node;
         AnimationComplete m_AnimationComplete;
+        RigEventDataCallback m_EventDataCallback;
         void*    m_Userdata1;
         void*    m_Userdata2;
     };
@@ -253,7 +254,7 @@ namespace dmGui
     {
         int                     m_InstanceReference;
         int                     m_DataReference;
-        int                     m_RefTableReference;
+        int                     m_ContextTableReference;
         Context*                m_Context;
         Script*                 m_Script;
         dmIndexPool16           m_NodePool;
@@ -286,8 +287,10 @@ namespace dmGui
         uint16_t                m_ResChanged : 1;
         uint32_t                m_Width;
         uint32_t                m_Height;
+        dmScript::ScriptWorld*  m_ScriptWorld;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
+        RigEventDataCallback    m_RigEventDataCallback;
         OnWindowResizeCallback   m_OnWindowResizeCallback;
     };
 

@@ -39,11 +39,11 @@ static void DeleteRigAnimation(dmRigDDF::RigAnimation& anim)
         if (anim_meshtrack.m_OrderOffset.m_Count) {
             delete [] anim_meshtrack.m_OrderOffset.m_Data;
         }
-        if (anim_meshtrack.m_Visible.m_Count) {
-            delete [] anim_meshtrack.m_Visible.m_Data;
+        if (anim_meshtrack.m_MeshAttachment.m_Count) {
+            delete [] anim_meshtrack.m_MeshAttachment.m_Data;
         }
-        if (anim_meshtrack.m_Colors.m_Count) {
-            delete [] anim_meshtrack.m_Colors.m_Data;
+        if (anim_meshtrack.m_SlotColors.m_Count) {
+            delete [] anim_meshtrack.m_SlotColors.m_Data;
         }
     }
 
@@ -81,25 +81,36 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
 
     if (mesh_set != 0x0)
     {
-        for (int i = 0; i < mesh_set->m_MeshEntries.m_Count; ++i)
+        // Delete mesh attachments and their data
+        uint32_t mesh_count = mesh_set->m_MeshAttachments.m_Count;
+        for (int i = 0; i < mesh_count; ++i)
+        {
+            dmRigDDF::Mesh& mesh = mesh_set->m_MeshAttachments.m_Data[i];
+            if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
+            if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
+            if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
+            if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
+            if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
+            if (mesh.m_MeshColor.m_Count > 0)        { delete [] mesh.m_MeshColor.m_Data; }
+            if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
+            if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
+            if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+        }
+        delete [] mesh_set->m_MeshAttachments.m_Data;
+
+        // Delete mesh entries and their slot data
+        uint32_t mesh_entry_count = mesh_set->m_MeshEntries.m_Count;
+        for (int i = 0; i < mesh_entry_count; ++i)
         {
             dmRigDDF::MeshEntry& mesh_entry = mesh_set->m_MeshEntries.m_Data[i];
-            uint32_t mesh_count = mesh_entry.m_Meshes.m_Count;
-            for (int j = 0; j < mesh_count; ++j)
-            {
-                dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[j];
-                if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
-                if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
-                if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
-                if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
-                if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
-                if (mesh.m_Color.m_Count > 0)            { delete [] mesh.m_Color.m_Data; }
-                if (mesh.m_SkinColor.m_Count > 0)        { delete [] mesh.m_SkinColor.m_Data; }
-                if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
-                if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
-                if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+            uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
+            for (int j = 0; j < mesh_slot_count; j++) {
+                dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
+                if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
+                if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
             }
-            delete [] mesh_entry.m_Meshes.m_Data;
+            delete [] mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
+
         }
         delete [] mesh_set->m_MeshEntries.m_Data;
         delete [] mesh_set->m_BoneList.m_Data;
@@ -107,18 +118,16 @@ static void DeleteRigData(dmRigDDF::MeshSet* mesh_set, dmRigDDF::Skeleton* skele
     }
 }
 
-static void CreateDrawOrderMeshes(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id)
+static void CreateDrawOrderMeshes(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dmhash_t id)
 {
+    dmRigDDF::MeshEntry& mesh_entry = mesh_set->m_MeshEntries[mesh_entry_index];
     mesh_entry.m_Id = id;
-    mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[5];
-    mesh_entry.m_Meshes.m_Count = 5;
 
-    const uint32_t draw_order[] = { 0, 0, 1, 1, 2 };
-    const bool visible[] = { true, false, true, false, true };
-    for (uint32_t i = 0; i < mesh_entry.m_Meshes.m_Count; ++i)
+    for (uint32_t i = 0; i < 5; ++i)
     {
         // set vertice position so they match bone positions
-        dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[i];
+        int mesh_attachment_index = mesh_set->m_MeshAttachments.m_Count++;
+        dmRigDDF::Mesh& mesh = mesh_set->m_MeshAttachments.m_Data[mesh_attachment_index];
         mesh.m_Positions.m_Data = new float[3];
         mesh.m_Positions.m_Count = 3;
         mesh.m_Positions.m_Data[0]  = (float)i;
@@ -132,19 +141,12 @@ static void CreateDrawOrderMeshes(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id)
         mesh.m_Texcoord0.m_Data[1]    = 0.0f;
         mesh.m_Texcoord0Indices.m_Count = 0;
 
-        mesh.m_Color.m_Data           = new float[4];
-        mesh.m_Color.m_Count          = 4;
-        mesh.m_Color.m_Data[0]        = 0.0f;
-        mesh.m_Color.m_Data[1]        = 0.0f;
-        mesh.m_Color.m_Data[2]        = 0.0f;
-        mesh.m_Color.m_Data[3]        = 0.0f;
-
-        mesh.m_SkinColor.m_Data           = new float[4];
-        mesh.m_SkinColor.m_Count          = 4;
-        mesh.m_SkinColor.m_Data[0]        = 1.0f;
-        mesh.m_SkinColor.m_Data[1]        = 1.0f;
-        mesh.m_SkinColor.m_Data[2]        = 1.0f;
-        mesh.m_SkinColor.m_Data[3]        = 1.0f;
+        mesh.m_MeshColor.m_Data           = new float[4];
+        mesh.m_MeshColor.m_Count          = 4;
+        mesh.m_MeshColor.m_Data[0]        = 0.0f;
+        mesh.m_MeshColor.m_Data[1]        = 0.0f;
+        mesh.m_MeshColor.m_Data[2]        = 0.0f;
+        mesh.m_MeshColor.m_Data[3]        = 0.0f;
 
         mesh.m_Indices.m_Data         = new uint32_t[1];
         mesh.m_Indices.m_Count        = 1;
@@ -155,21 +157,38 @@ static void CreateDrawOrderMeshes(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id)
         mesh.m_BoneIndices.m_Count    = 0;
         mesh.m_Weights.m_Count        = 0;
 
-        mesh.m_Visible = visible[i];
-        mesh.m_DrawOrder = draw_order[i];
+        // The generated mesh index is set in the following order:
+        // Fromat: (X, Y) -> (slot index, attachment index)
+        // [ (0,0), (0,1), (1,0), (1,1), (2,0) ]
+        //
+        // We are generating 5 meshes, this means all slots will have 2 mesh attachments available,
+        // except the last slot (2), which will only have one attachment.
+        dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots[i / 2];
+        mesh_slot.m_MeshAttachments[i % 2] = mesh_attachment_index;
+        mesh_slot.m_ActiveIndex = 0;
     }
 }
 
-static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color, Vector4 skin_color = Vector4(1.0f))
+static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dmhash_t id, Vector4 color, Vector4 slot_color = Vector4(1.0f))
 {
+    dmRigDDF::MeshEntry& mesh_entry = mesh_set->m_MeshEntries.m_Data[mesh_entry_index];
+    int mesh_attachment_index = mesh_set->m_MeshAttachments.m_Count++;
+    dmRigDDF::Mesh& mesh = mesh_set->m_MeshAttachments.m_Data[mesh_attachment_index];
+
+    mesh_entry.m_MeshSlots[0].m_MeshAttachments[0] = mesh_attachment_index;
+    mesh_entry.m_MeshSlots[0].m_Id = 0;
+    mesh_entry.m_MeshSlots[0].m_ActiveIndex = 0;
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data = new float[4];
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[0] = slot_color.getX();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[1] = slot_color.getY();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[2] = slot_color.getZ();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[3] = slot_color.getW();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Count = 4;
+
     mesh_entry.m_Id = id;
-    mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
-    mesh_entry.m_Meshes.m_Count = 1;
 
     uint32_t vert_count = 4;
-
     // set vertice position so they match bone positions
-    dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
     mesh.m_Positions.m_Data = new float[vert_count*3];
     mesh.m_Positions.m_Count = vert_count*3;
     mesh.m_Positions.m_Data[0]  = 0.0f;
@@ -222,24 +241,24 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_NormalsIndices.m_Data[2] = 2;
     mesh.m_NormalsIndices.m_Data[3] = 3;
 
-    mesh.m_Color.m_Data           = new float[vert_count*4];
-    mesh.m_Color.m_Count          = vert_count*4;
-    mesh.m_Color[0]               = color.getX();
-    mesh.m_Color[1]               = color.getY();
-    mesh.m_Color[2]               = color.getZ();
-    mesh.m_Color[3]               = color.getW();
-    mesh.m_Color[4]               = color.getX();
-    mesh.m_Color[5]               = color.getY();
-    mesh.m_Color[6]               = color.getZ();
-    mesh.m_Color[7]               = color.getW();
-    mesh.m_Color[8]               = color.getX();
-    mesh.m_Color[9]               = color.getY();
-    mesh.m_Color[10]              = color.getZ();
-    mesh.m_Color[11]              = color.getW();
-    mesh.m_Color[12]              = color.getX();
-    mesh.m_Color[13]              = color.getY();
-    mesh.m_Color[14]              = color.getZ();
-    mesh.m_Color[15]              = color.getW();
+    mesh.m_MeshColor.m_Data       = new float[vert_count*4];
+    mesh.m_MeshColor.m_Count      = vert_count*4;
+    mesh.m_MeshColor[0]           = color.getX();
+    mesh.m_MeshColor[1]           = color.getY();
+    mesh.m_MeshColor[2]           = color.getZ();
+    mesh.m_MeshColor[3]           = color.getW();
+    mesh.m_MeshColor[4]           = color.getX();
+    mesh.m_MeshColor[5]           = color.getY();
+    mesh.m_MeshColor[6]           = color.getZ();
+    mesh.m_MeshColor[7]           = color.getW();
+    mesh.m_MeshColor[8]           = color.getX();
+    mesh.m_MeshColor[9]           = color.getY();
+    mesh.m_MeshColor[10]          = color.getZ();
+    mesh.m_MeshColor[11]          = color.getW();
+    mesh.m_MeshColor[12]          = color.getX();
+    mesh.m_MeshColor[13]          = color.getY();
+    mesh.m_MeshColor[14]          = color.getZ();
+    mesh.m_MeshColor[15]          = color.getW();
     mesh.m_Indices.m_Data         = new uint32_t[vert_count];
     mesh.m_Indices.m_Count        = vert_count;
     mesh.m_Indices.m_Data[0]      = 0;
@@ -248,25 +267,6 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Indices.m_Data[3]      = 3;
     mesh.m_BoneIndices.m_Data     = new uint32_t[vert_count*4];
     mesh.m_BoneIndices.m_Count    = vert_count*4;
-
-    mesh.m_SkinColor.m_Data           = new float[vert_count*4];
-    mesh.m_SkinColor.m_Count          = vert_count*4;
-    mesh.m_SkinColor[0]               = skin_color.getX();
-    mesh.m_SkinColor[1]               = skin_color.getY();
-    mesh.m_SkinColor[2]               = skin_color.getZ();
-    mesh.m_SkinColor[3]               = skin_color.getW();
-    mesh.m_SkinColor[4]               = skin_color.getX();
-    mesh.m_SkinColor[5]               = skin_color.getY();
-    mesh.m_SkinColor[6]               = skin_color.getZ();
-    mesh.m_SkinColor[7]               = skin_color.getW();
-    mesh.m_SkinColor[8]               = skin_color.getX();
-    mesh.m_SkinColor[9]               = skin_color.getY();
-    mesh.m_SkinColor[10]              = skin_color.getZ();
-    mesh.m_SkinColor[11]              = skin_color.getW();
-    mesh.m_SkinColor[12]              = skin_color.getX();
-    mesh.m_SkinColor[13]              = skin_color.getY();
-    mesh.m_SkinColor[14]              = skin_color.getZ();
-    mesh.m_SkinColor[15]              = skin_color.getW();
 
     // Bone indices are in reverse order here to test bone list in meshset.
     int bone_count = 6;
@@ -311,9 +311,6 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Weights.m_Data[13]     = 0.0f;
     mesh.m_Weights.m_Data[14]     = 0.0f;
     mesh.m_Weights.m_Data[15]     = 0.0f;
-
-    mesh.m_Visible = true;
-    mesh.m_DrawOrder = 0;
 }
 
 void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skeleton, dmRigDDF::MeshSet* mesh_set, dmRigDDF::AnimationSet* animation_set, dmArray<uint32_t>& pose_idx_to_influence, dmArray<uint32_t>& track_idx_to_pose)
@@ -442,9 +439,23 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
 
                 Animates the draw order of "draw_order_skin".
 
-                t0: Mesh 0 has a positive offset of 2
-                t1: Mesh 4 has a negative offset of 2
-                t2: Mesh 2 has a negative offset of 1
+                t0: Slot 0 (mesh 0) has a positive offset of 2
+                t1: Slot 3 (mesh 4) has a negative offset of 2
+                t2: Slot 2 (mesh 2) has a negative offset of 1
+
+
+        ------------------------------------
+
+            Animation 9 (id: "skin_and_slot_colors_anim")
+
+                Animates the slot colors.
+
+
+        ------------------------------------
+
+            Animation 10 (id: "slot_attachments")
+
+                Animate the slot attachment for slot 0, to attachment 1.
         */
 
         uint32_t bone_count = 6;
@@ -529,7 +540,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRig::CreateBindPose(*skeleton, bind_pose);
 
         // Bone animations
-        uint32_t animation_count = 10;
+        uint32_t animation_count = 11;
         animation_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         animation_set->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = animation_set->m_Animations.m_Data[0];
@@ -542,6 +553,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::RigAnimation& anim7 = animation_set->m_Animations.m_Data[7];
         dmRigDDF::RigAnimation& anim8 = animation_set->m_Animations.m_Data[8];
         dmRigDDF::RigAnimation& anim9 = animation_set->m_Animations.m_Data[9];
+        dmRigDDF::RigAnimation& anim10 = animation_set->m_Animations.m_Data[10];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
@@ -602,6 +614,12 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         anim9.m_EventTracks.m_Count = 0;
         anim9.m_Tracks.m_Count      = 0;
         anim9.m_IkTracks.m_Count    = 0;
+        anim10.m_Id = dmHashString64("slot_attachments");
+        anim10.m_Duration            = 0.0f;
+        anim10.m_SampleRate          = 1.0f;
+        anim10.m_EventTracks.m_Count = 0;
+        anim10.m_Tracks.m_Count      = 0;
+        anim10.m_IkTracks.m_Count    = 0;
 
         // Animation 0: "valid"
         {
@@ -803,57 +821,59 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim7.m_MeshTracks.m_Count = track_count;
             dmRigDDF::MeshAnimationTrack& anim_track0 = anim7.m_MeshTracks.m_Data[0];
 
-            anim_track0.m_MeshIndex           = 0;
-            anim_track0.m_MeshId              = dmHashString64("secondary_skin");
+            anim_track0.m_MeshSlot            = 0;
             anim_track0.m_OrderOffset.m_Count = 0;
-            anim_track0.m_Visible.m_Count     = 0;
+            anim_track0.m_MeshAttachment.m_Count = 0;
 
             uint32_t samples = 4;
-            anim_track0.m_Colors.m_Data = new float[samples*4];
-            anim_track0.m_Colors.m_Count = samples*4;
-            anim_track0.m_Colors.m_Data[0] = 1.0f;
-            anim_track0.m_Colors.m_Data[1] = 0.5f;
-            anim_track0.m_Colors.m_Data[2] = 0.0f;
-            anim_track0.m_Colors.m_Data[3] = 1.0f;
-            anim_track0.m_Colors.m_Data[4] = 0.0f;
-            anim_track0.m_Colors.m_Data[5] = 0.5f;
-            anim_track0.m_Colors.m_Data[6] = 1.0f;
-            anim_track0.m_Colors.m_Data[7] = 0.5f;
-            anim_track0.m_Colors.m_Data[8] = 0.0f;
-            anim_track0.m_Colors.m_Data[9] = 0.5f;
-            anim_track0.m_Colors.m_Data[10] = 1.0f;
-            anim_track0.m_Colors.m_Data[11] = 0.5f;
-            anim_track0.m_Colors.m_Data[12] = 0.0f;
-            anim_track0.m_Colors.m_Data[13] = 0.5f;
-            anim_track0.m_Colors.m_Data[14] = 1.0f;
-            anim_track0.m_Colors.m_Data[15] = 0.5f;
+            anim_track0.m_SlotColors.m_Data = new float[samples*4];
+            anim_track0.m_SlotColors.m_Count = samples*4;
+            anim_track0.m_SlotColors.m_Data[0] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[1] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[2] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[3] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[4] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[5] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[6] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[7] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[8] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[9] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[10] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[11] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[12] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[13] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[14] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[15] = 0.5f;
         }
 
         // Animation 8: "draw_order_anim"
         {
-            uint32_t track_count = 5;
+            uint32_t track_count = 3;
             uint32_t samples = 4;
 
             anim8.m_MeshTracks.m_Data = new dmRigDDF::MeshAnimationTrack[track_count];
             anim8.m_MeshTracks.m_Count = track_count;
 
+            // Three draw order tracks, one for each slot.
+            // k0 - slot 0 is shifted to slot 2 (delta +2)
+            // k1 - slot 2 is shifted to slot 0 (delta -2)
+            // k2 - slot 1 is shifted to slot 0 (delta -1)
+            // k3 - no draw order change, ie all marked as "unchanged"
+            static const int SIG_UNCHANGED = 0x10cced;
             const int32_t track_entries[] = {
-                // t0, t1, t2, t3
-                    2,  0,  0,  0, // Track for mesh 0
-                    0,  0,  0,  0, // Track for mesh 1
-                    0,  0, -1,  0, // Track for mesh 2
-                    0,  0,  0,  0, // Track for mesh 3
-                    0, -2,  0,  0, // Track for mesh 4
+                //         k0,            k1,            k2,            k3
+                            2, SIG_UNCHANGED, SIG_UNCHANGED, SIG_UNCHANGED, // slot 0
+                SIG_UNCHANGED, SIG_UNCHANGED,            -1, SIG_UNCHANGED, // slot 1
+                SIG_UNCHANGED,            -2, SIG_UNCHANGED, SIG_UNCHANGED, // slot 2
             };
 
             // Loop over all tracks and pick appropriet offset entries from list above.
             for (int i = 0; i < track_count; ++i)
             {
                 dmRigDDF::MeshAnimationTrack& anim_track = anim8.m_MeshTracks.m_Data[i];
-                anim_track.m_MeshIndex           = i;
-                anim_track.m_MeshId              = dmHashString64("draw_order_skin");
-                anim_track.m_Colors.m_Count      = 0;
-                anim_track.m_Visible.m_Count     = 0;
+                anim_track.m_MeshSlot               = i;
+                anim_track.m_SlotColors.m_Count     = 0;
+                anim_track.m_MeshAttachment.m_Count = 0;
 
                 anim_track.m_OrderOffset.m_Data = new int32_t[samples];
                 anim_track.m_OrderOffset.m_Count = samples;
@@ -871,42 +891,87 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim9.m_MeshTracks.m_Count = track_count;
             dmRigDDF::MeshAnimationTrack& anim_track0 = anim9.m_MeshTracks.m_Data[0];
 
-            anim_track0.m_MeshIndex           = 0;
-            anim_track0.m_MeshId              = dmHashString64("skin_color");
+            anim_track0.m_MeshSlot            = 0;
             anim_track0.m_OrderOffset.m_Count = 0;
-            anim_track0.m_Visible.m_Count     = 0;
+            anim_track0.m_MeshAttachment.m_Count = 0;
 
             uint32_t samples = 4;
-            anim_track0.m_Colors.m_Data = new float[samples*4];
-            anim_track0.m_Colors.m_Count = samples*4;
-            anim_track0.m_Colors.m_Data[0] = 1.0f;
-            anim_track0.m_Colors.m_Data[1] = 0.5f;
-            anim_track0.m_Colors.m_Data[2] = 0.0f;
-            anim_track0.m_Colors.m_Data[3] = 1.0f;
-            anim_track0.m_Colors.m_Data[4] = 0.0f;
-            anim_track0.m_Colors.m_Data[5] = 0.5f;
-            anim_track0.m_Colors.m_Data[6] = 1.0f;
-            anim_track0.m_Colors.m_Data[7] = 0.5f;
-            anim_track0.m_Colors.m_Data[8] = 0.0f;
-            anim_track0.m_Colors.m_Data[9] = 0.5f;
-            anim_track0.m_Colors.m_Data[10] = 1.0f;
-            anim_track0.m_Colors.m_Data[11] = 0.5f;
-            anim_track0.m_Colors.m_Data[12] = 0.0f;
-            anim_track0.m_Colors.m_Data[13] = 0.5f;
-            anim_track0.m_Colors.m_Data[14] = 1.0f;
-            anim_track0.m_Colors.m_Data[15] = 0.5f;
+            anim_track0.m_SlotColors.m_Data = new float[samples*4];
+            anim_track0.m_SlotColors.m_Count = samples*4;
+            anim_track0.m_SlotColors.m_Data[0] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[1] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[2] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[3] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[4] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[5] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[6] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[7] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[8] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[9] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[10] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[11] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[12] = 0.0f;
+            anim_track0.m_SlotColors.m_Data[13] = 0.5f;
+            anim_track0.m_SlotColors.m_Data[14] = 1.0f;
+            anim_track0.m_SlotColors.m_Data[15] = 0.5f;
+        }
+
+        // Animation 10: "slot_attachments"
+        {
+            uint32_t samples = 2;
+
+            anim10.m_MeshTracks.m_Data = new dmRigDDF::MeshAnimationTrack[1];
+            anim10.m_MeshTracks.m_Count = 1;
+
+            // One track for attachment animation on slot 0
+            // k0 - slot 0 gets attachment 1 (instead of 0)
+            // k1 - same as k0
+            dmRigDDF::MeshAnimationTrack& anim_track = anim10.m_MeshTracks.m_Data[0];
+            anim_track.m_MeshSlot = 0;
+            anim_track.m_SlotColors.m_Count = 0;
+            anim_track.m_OrderOffset.m_Count = 0;
+            anim_track.m_MeshAttachment.m_Data = new int32_t[samples];
+            anim_track.m_MeshAttachment.m_Count = samples;
+            anim_track.m_MeshAttachment.m_Data[0] = 1;
+            anim_track.m_MeshAttachment.m_Data[1] = 1;
         }
 
         // Meshes / skins
+        mesh_set->m_SlotCount = 3;
         mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[4];
         mesh_set->m_MeshEntries.m_Count = 4;
-        mesh_set->m_MaxBoneCount = bone_count + 1;
-        mesh_set->m_SlotCount = 3;
 
-        CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
-        CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
-        CreateDrawOrderMeshes(mesh_set->m_MeshEntries.m_Data[2], dmHashString64("draw_order_skin"));
-        CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[3], dmHashString64("skin_color"), Vector4(1.0f), Vector4(0.5f, 0.4f, 0.3f, 0.2f));
+        // Every slot will get two attachment points.
+        // Make all slot attachment point to -1, ie no meshes attached/visible
+        for (int i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
+            mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[mesh_set->m_SlotCount];
+            mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = mesh_set->m_SlotCount;
+
+            for (int j = 0; j < mesh_set->m_SlotCount; j++) {
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_Id = j;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[1] = -1;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_ActiveIndex = -1;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_SlotColor.m_Count = 0;
+            }
+        }
+        mesh_set->m_MaxBoneCount = bone_count + 1;
+
+        // Allocate mesh attachments, one for each regular skin, and 5 extra for "draw_order_skin".
+        int available_mesh_count = 3 + 5;
+        mesh_set->m_MeshAttachments.m_Data = new dmRigDDF::Mesh[available_mesh_count];
+        mesh_set->m_MeshAttachments.m_Count = 0;
+
+        // Create mesh data for skins
+        CreateTestSkin(mesh_set, 0, dmHashString64("test"), Vector4(0.0f));
+        CreateTestSkin(mesh_set, 1, dmHashString64("secondary_skin"), Vector4(1.0f));
+        CreateTestSkin(mesh_set, 2, dmHashString64("skin_color"), Vector4(0.5f, 0.4f, 0.3f, 0.2f), Vector4(1.0f));
+        CreateDrawOrderMeshes(mesh_set, 3, dmHashString64("draw_order_skin"));
+
+        // For sanity, check that all the expected meshes were added.
+        assert(mesh_set->m_MeshAttachments.m_Count == available_mesh_count);
 
         // We create bone lists for both the meshset and animationset,
         // that is in "inverted" order of the skeleton hirarchy.
@@ -1617,6 +1682,57 @@ TEST_F(RigInstanceTest, GenerateNormalData)
     ASSERT_VERT_NORM(n_neg_right, data[2]); // v2
 }
 
+TEST_F(RigInstanceTest, SetMesh)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("test")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(4, GetVertexCount(m_Instance));
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("draw_order_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(3, GetVertexCount(m_Instance));
+}
+
+TEST_F(RigInstanceTest, SetMeshSlot)
+{
+    dmRig::RigSpineModelVertex data[4];
+
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("test")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f));
+
+    // initial skin has 4 vertices on slot 0
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(4, GetVertexCount(m_Instance));
+
+    // Set specific slots from "draw_order_skin", each slot only has one vertex, with position corresponding the the mesh index.
+
+    // Set slot 0
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMeshSlot(m_Instance, dmHashString64("draw_order_skin"), 0));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(1, GetVertexCount(m_Instance));
+    ASSERT_EQ(data + 1, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+
+    // Set slot 1
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMeshSlot(m_Instance, dmHashString64("draw_order_skin"), 1));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(2, GetVertexCount(m_Instance));
+    ASSERT_EQ(data + 2, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]); // Mesh index = slot * 2
+
+    // Set slot 2
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMeshSlot(m_Instance, dmHashString64("draw_order_skin"), 2));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.0f));
+    ASSERT_EQ(3, GetVertexCount(m_Instance));
+    ASSERT_EQ(data + 3, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+}
+
 TEST_F(RigInstanceTest, SkinColor)
 {
     ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("skin_color")));
@@ -1651,7 +1767,7 @@ TEST_F(RigInstanceTest, SkinColorAndSlotColor)
             anim_track0.m_Colors.m_Data[3] = 1.0f;*/
 
     // sample 0
-    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));    
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
     // Slot color is (1.0, 0.5, 0.0, 1.0)
     // Skin color is (0.5, 0.4, 0.3, 0.2)
     ASSERT_VERT_COLOR(Vector4(0.5f, 0.2f, 0.0f, 0.2f), data[0].rgba);
@@ -1855,6 +1971,48 @@ TEST_F(RigInstanceTest, AnimatedDrawOrderBlending)
     ASSERT_VERT_POS(Vector3(4.0f), data[2]);
 }
 
+TEST_F(RigInstanceTest, AnimatedAttachmentBlending)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("draw_order_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("slot_attachments"), dmRig::PLAYBACK_ONCE_FORWARD, 0.0f, 0.0f, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 4.0f));
+
+    dmRig::RigSpineModelVertex data[1*3];
+    dmRig::RigSpineModelVertex* data_end = data + 1*3;
+
+    // Check that attachments are correct for "slot_attachments", slot 0 should have mesh 1
+    // In our setup, we indicate this by vert position being the same as mesh index, ie data[0] should be 1.0.
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(1.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+
+    // Play animation without any attachment track, blend over one frame
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 1.0f));
+
+    // Update dt with 0.25, this means that the blend is still in progress.
+    // Slot attachments should still be based on "slot_attachments" animation.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.25f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(1.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+
+    // Update dt with 0.5, the blend is still in progress, roughly at 0.75 blend.
+    // Slot attachment should now instead be taken from "valid" animation, thus slot 0 should be back to attachment 0.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.5f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+
+    // Update dt with 1.0 one last time, blending should be done and slot attachment should be same as previous update.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+}
 
 // Test Spine 2.x skeleton that has scaling relative to the bone local space.
 TEST_F(RigInstanceTest, LocalBoneScaling)
@@ -2046,11 +2204,6 @@ TEST_F(RigInstanceTest, CursorSetOutside)
 
     ASSERT_NEAR(dmRig::RESULT_OK, dmRig::SetCursor(m_Instance, -4.0f / 3.0f, true), RIG_EPSILON_FLOAT);
     ASSERT_NEAR(2.0f, dmRig::GetCursor(m_Instance, false), RIG_EPSILON_FLOAT);
-}
-
-static Vector3 IKTargetPositionCallback(void* user_data, void*)
-{
-    return *(Vector3*)user_data;
 }
 
 TEST_F(RigInstanceTest, CursorOffset)

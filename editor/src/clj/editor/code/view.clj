@@ -2223,6 +2223,7 @@
 
 (defn- make-view! [graph parent resource-node opts]
   (let [^Tab tab (:tab opts)
+        app-view (:app-view opts)
         grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
@@ -2295,7 +2296,12 @@
     (ui/observe (.selectedProperty tab)
                 (fn [_ _ became-selected?]
                   (when became-selected?
-                    (ui/run-later (.requestFocus canvas)))))
+                    ;; Must run-later here since we're not part of the Scene when we observe the property change.
+                    ;; Also note that we don't want to steal focus from the inactive tab pane, if present.
+                    (ui/run-later
+                      (when (identical? (.getTabPane tab)
+                                        (g/node-value app-view :active-tab-pane))
+                        (.requestFocus canvas))))))
 
     ;; Clicking an autocomplete-entry in the suggestions popup accepts it.
     (.setOnMouseClicked suggestions-list-view

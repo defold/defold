@@ -2,6 +2,8 @@ package com.dynamo.bob.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Matrix4d;
@@ -115,11 +117,9 @@ public class RigUtil {
         public int index = -1;
     }
 
-    public static class Mesh {
-        public String attachment;
+    public static class MeshAttachment {
         public String path;
-        public Slot slot;
-        public boolean visible;
+        public int index;
         // format is: x0, y0, z0, u0, v0, ...
         public float[] vertices;
         public int[] triangles;
@@ -129,18 +129,59 @@ public class RigUtil {
         public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
     }
 
-    public static class Slot {
+    public static class BaseSlot {
         public String name;
-        public Bone bone;
         public int index;
-        public String attachment;
+        public Bone bone;
+        public String defaultAttachmentString;
         public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
 
-        public Slot(String name, Bone bone, int index, String attachment) {
+        public List<String> attachments = new ArrayList<>();
+        public Map<String, Integer> attachmentsLut = new HashMap<>();
+        public int activeAttachment = -1;
+
+        public BaseSlot() {
+            name = null;
+            index = -1;
+            bone = null;
+            defaultAttachmentString = null;
+        }
+        public BaseSlot(String name, int index, Bone bone, String defaultAttachmentString) {
             this.name = name;
-            this.bone = bone;
             this.index = index;
-            this.attachment = attachment;
+            this.bone = bone;
+            this.defaultAttachmentString = defaultAttachmentString;
+
+            if (defaultAttachmentString != null && !defaultAttachmentString.isEmpty())
+            {
+                this.attachments.add(defaultAttachmentString);
+                this.attachmentsLut.put(defaultAttachmentString, 0);
+            }
+        }
+    }
+
+    public static class SkinSlot {
+        public BaseSlot baseSlot;
+        public int activeAttachment = -1;
+        public List<Integer> meshAttachments = new ArrayList<>();
+        public float[] color = new float[] {1.0f, 1.0f, 1.0f, 1.0f};
+
+        public SkinSlot(BaseSlot baseSlot) {
+            this.baseSlot = baseSlot;
+            this.activeAttachment = baseSlot.activeAttachment;
+            this.color = baseSlot.color;
+            for (int i = 0; i < baseSlot.attachments.size(); i++) {
+                this.meshAttachments.add(-1);
+            }
+        }
+
+        public SkinSlot(SkinSlot copy) {
+            this.baseSlot = copy.baseSlot;
+            this.activeAttachment = copy.activeAttachment;
+            this.color = copy.color;
+            for (int i = 0; i < copy.meshAttachments.size(); i++) {
+                this.meshAttachments.add(copy.meshAttachments.get(i));
+            }
         }
     }
 
@@ -159,7 +200,7 @@ public class RigUtil {
     }
 
     public static class AnimationKey {
-        public float t;
+        public double t;
         public float[] value = new float[4];
         public boolean stepped;
         public AnimationCurve curve;
@@ -187,7 +228,7 @@ public class RigUtil {
     }
 
     public static class SlotAnimationKey extends AnimationKey {
-        public String attachment;
+        public int attachment;
         public int orderOffset;
     }
 
@@ -195,7 +236,7 @@ public class RigUtil {
         public enum Property {
             ATTACHMENT, COLOR, DRAW_ORDER
         }
-        public Slot slot;
+        public int slot;
         public Property property;
     }
 
@@ -207,7 +248,7 @@ public class RigUtil {
     }
 
     public static class EventKey {
-        public float t;
+        public double t;
         public String stringPayload;
         public float floatPayload;
         public int intPayload;
@@ -220,7 +261,7 @@ public class RigUtil {
 
     public static class Animation {
         public String name;
-        public float duration;
+        public double duration;
         public List<AnimationTrack> tracks = new ArrayList<AnimationTrack>();
         public List<IKAnimationTrack> iKTracks = new ArrayList<IKAnimationTrack>();
         public List<SlotAnimationTrack> slotTracks = new ArrayList<SlotAnimationTrack>();
@@ -259,6 +300,7 @@ public class RigUtil {
     public interface PropertyBuilder<T, Key extends RigUtil.AnimationKey> {
         void addComposite(T v);
         void add(double v);
+        void duplicateLast();
         T toComposite(Key key);
         T interpolate(double t, T a, T b);
     }
@@ -300,6 +342,14 @@ public class RigUtil {
         @Override
         public void add(double v) {
             builder.addPositions((float)v);
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getPositionsCount();
+            builder.addPositions(builder.getPositions(length-3));
+            builder.addPositions(builder.getPositions(length-2));
+            builder.addPositions(builder.getPositions(length-1));
         }
 
         @Override
@@ -345,6 +395,15 @@ public class RigUtil {
         }
 
         @Override
+        public void duplicateLast() {
+            int length = builder.getRotationsCount();
+            builder.addRotations(builder.getRotations(length-4));
+            builder.addRotations(builder.getRotations(length-3));
+            builder.addRotations(builder.getRotations(length-2));
+            builder.addRotations(builder.getRotations(length-1));
+        }
+
+        @Override
         public Quat4d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return toQuat(v[0]);
@@ -372,6 +431,15 @@ public class RigUtil {
         @Override
         public void add(double v) {
             this.builder.addRotations((float)v);
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getRotationsCount();
+            builder.addRotations(builder.getRotations(length-4));
+            builder.addRotations(builder.getRotations(length-3));
+            builder.addRotations(builder.getRotations(length-2));
+            builder.addRotations(builder.getRotations(length-1));
         }
 
         @Override
@@ -405,6 +473,14 @@ public class RigUtil {
         }
 
         @Override
+        public void duplicateLast() {
+            int length = builder.getScaleCount();
+            builder.addScale(builder.getScale(length-3));
+            builder.addScale(builder.getScale(length-2));
+            builder.addScale(builder.getScale(length-1));
+        }
+
+        @Override
         public Vector3d toComposite(RigUtil.AnimationKey key) {
             float[] v = key.value;
             return new Vector3d(v[0], v[1], v[2]);
@@ -435,6 +511,12 @@ public class RigUtil {
         }
 
         @Override
+        public void duplicateLast() {
+            int length = builder.getMixCount();
+            builder.addMix(builder.getMix(length-1));
+        }
+
+        @Override
         public Float toComposite(RigUtil.IKAnimationKey key) {
             return new Float(key.mix);
         }
@@ -462,6 +544,12 @@ public class RigUtil {
         }
 
         @Override
+        public void duplicateLast() {
+            int length = builder.getPositiveCount();
+            builder.addPositive(builder.getPositive(length-1));
+        }
+
+        @Override
         public Boolean toComposite(RigUtil.IKAnimationKey key) {
             return new Boolean(key.positive);
         }
@@ -484,12 +572,21 @@ public class RigUtil {
 
         @Override
         public void addComposite(float[] c) {
-            builder.addColors(c[0]).addColors(c[1]).addColors(c[2]).addColors(c[3]);
+            builder.addSlotColors(c[0]).addSlotColors(c[1]).addSlotColors(c[2]).addSlotColors(c[3]);
         }
 
         @Override
         public void add(double v) {
-            builder.addColors((float)v);
+            builder.addSlotColors((float)v);
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getSlotColorsCount();
+            builder.addSlotColors(builder.getSlotColors(length-4));
+            builder.addSlotColors(builder.getSlotColors(length-3));
+            builder.addSlotColors(builder.getSlotColors(length-2));
+            builder.addSlotColors(builder.getSlotColors(length-1));
         }
 
         @Override
@@ -509,17 +606,15 @@ public class RigUtil {
         }
     }
 
-    public static class VisibilityBuilder extends AbstractMeshPropertyBuilder<Boolean> {
-        private String meshName;
+    public static class AttachmentBuilder extends AbstractMeshPropertyBuilder<Integer> {
 
-        public VisibilityBuilder(MeshAnimationTrack.Builder builder, String meshName) {
+        public AttachmentBuilder(MeshAnimationTrack.Builder builder) {
             super(builder);
-            this.meshName = meshName;
         }
 
         @Override
-        public void addComposite(Boolean value) {
-            builder.addVisible(value);
+        public void addComposite(Integer value) {
+            builder.addMeshAttachment(value);
         }
 
         @Override
@@ -528,12 +623,19 @@ public class RigUtil {
         }
 
         @Override
-        public Boolean toComposite(RigUtil.SlotAnimationKey key) {
-            return this.meshName.equals(key.attachment);
+        public void duplicateLast() {
+            int length = builder.getMeshAttachmentCount();
+            builder.addMeshAttachment(builder.getMeshAttachment(length-1));
+        }
+
+
+        @Override
+        public Integer toComposite(RigUtil.SlotAnimationKey key) {
+            return key.attachment;
         }
 
         @Override
-        public Boolean interpolate(double t, Boolean a, Boolean b)
+        public Integer interpolate(double t, Integer a, Integer b)
         {
             if (t <= 0.5) {
                 return a;
@@ -556,6 +658,12 @@ public class RigUtil {
         @Override
         public void add(double v) {
             throw new RuntimeException("Not supported");
+        }
+
+        @Override
+        public void duplicateLast() {
+            int length = builder.getOrderOffsetCount();
+            builder.addOrderOffset(builder.getOrderOffset(length-1));
         }
 
         @Override
@@ -596,11 +704,11 @@ public class RigUtil {
         if (track.keys.isEmpty()) {
             return;
         }
-        // We add one extra frame at the end (+1) so that we always get a copy of a the last keyframe,
-        // in turn we can safely interpolate at end of the animation in runtime when the cursor is the same as duration.
-        // If the animation has a duration of zero (ie only one keyframe at time 0), we need to make sure
-        // we always have 2 keyframes (ie a duplicate of the last one here as well).
-        int sampleCount = Math.max(2, (int)Math.ceil(duration * sampleRate) + 1);
+
+        // We add one extra frame (+1) to have a keyframe when t == duration, we also need
+        // to duplicate the last keyframe (see end of function) so that the linear
+        // interpolation works correctly in runtime.
+        int sampleCount = (int)Math.ceil(duration * sampleRate) + 1;
         double halfSample = spf / 2.0;
         int keyIndex = 0;
         int keyCount = track.keys.size();
@@ -644,5 +752,8 @@ public class RigUtil {
                 propertyBuilder.addComposite(defaultValue);
             }
         }
+
+        // Create duplicate of last keyframe
+        propertyBuilder.duplicateLast();
     }
 }

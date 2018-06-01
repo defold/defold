@@ -147,6 +147,13 @@ namespace dmGui
     typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
 
     /**
+     * Callback for rig events
+     */
+    typedef void (*RigEventDataCallback)(HScene scene,
+                                      void* node_ref,
+                                      void* event_data);
+
+    /**
      * Scene creation
      */
     struct NewSceneParams;
@@ -167,8 +174,10 @@ namespace dmGui
         void*    m_UserData;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
+        RigEventDataCallback m_RigEventDataCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
         AdjustReference m_AdjustReference;
+        dmScript::ScriptWorld* m_ScriptWorld;
 
         NewSceneParams()
         {
@@ -934,6 +943,7 @@ namespace dmGui
     dmhash_t GetNodeSpineScene(HScene scene, HNode node);
     Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id);
     dmhash_t GetNodeSpineSkin(HScene scene, HNode node);
+    Result SetNodeSpineSkinSlot(HScene scene, HNode node, dmhash_t skin_id, dmhash_t slot_id);
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
@@ -963,6 +973,7 @@ namespace dmGui
     float GetNodeSpineCursor(HScene scene, HNode node);
     Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate);
     float GetNodeSpinePlaybackRate(HScene scene, HNode node);
+    dmhash_t GetNodeSpineAnimation(HScene scene, HNode node);
     Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
 
@@ -1151,6 +1162,11 @@ namespace dmGui
      * @return lua state
      */
     lua_State* GetLuaState(HContext context);
+
+    /** Gets reference to the lua reference table used for gui scripts.
+     * @return lua reference table reference
+     */
+    int GetContextTableRef(HScene scene);
 
     /** Gets the gui scene currently connected to the lua state.
      * A scene is connected while any of the callbacks in the associated gui script is being run.

@@ -111,11 +111,14 @@ public class AtlasUtil {
         return resources;
     }
 
-    public static List<BufferedImage> loadImages(List<IResource> resources) throws IOException {
+    public static List<BufferedImage> loadImages(List<IResource> resources) throws IOException, CompileExceptionError {
         List<BufferedImage> images = new ArrayList<BufferedImage>(resources.size());
 
         for (IResource resource : resources) {
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(resource.getContent()));
+            if (image == null) {
+                throw new CompileExceptionError(resource, -1, "Unable to load image " + resource.getPath());
+            }
             images.add(image);
         }
         return images;

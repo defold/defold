@@ -317,6 +317,9 @@ public class TextureGenerator {
     public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
+        if (origImage == null) {
+            throw new TextureGeneratorException("Unknown texture format.");
+        }
         return generate(origImage, texProfile, compress, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 

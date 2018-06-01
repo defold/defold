@@ -42,7 +42,7 @@
            [javafx.scene Node Scene]
            [javafx.stage Stage WindowEvent]
            [javafx.scene.layout Region VBox AnchorPane]
-           [javafx.scene.control Label MenuBar Tab TabPane TreeView]))
+           [javafx.scene.control Label MenuBar SplitPane Tab TabPane TreeView]))
 
 (set! *warn-on-reflection* true)
 
@@ -96,8 +96,8 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [editor-tabs open-views changes-view]
-  (app-view/remove-invalid-tabs! editor-tabs open-views)
+(defn- handle-resource-changes! [tab-panes open-views changes-view]
+  (app-view/remove-invalid-tabs! tab-panes open-views)
   (changes-view/refresh! changes-view))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
@@ -167,14 +167,14 @@
 
     (let [^MenuBar menu-bar    (.lookup root "#menu-bar")
           ^Node menu-bar-space (.lookup root "#menu-bar-space")
-          ^TabPane editor-tabs (.lookup root "#editor-tabs")
+          editor-tabs-split    (.lookup root "#editor-tabs-split")
           ^TabPane tool-tabs   (.lookup root "#tool-tabs")
           ^TreeView outline    (.lookup root "#outline")
           ^TreeView assets     (.lookup root "#assets")
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
-          app-view             (app-view/make-app-view *view-graph* workspace project stage menu-bar editor-tabs tool-tabs)
+          app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
           asset-browser        (asset-browser/make-asset-browser *view-graph* workspace assets prefs)
@@ -213,8 +213,9 @@
 
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ _ _]
-                                                      (let [open-views (g/node-value app-view :open-views)]
-                                                        (handle-resource-changes! editor-tabs open-views changes-view)))))
+                                                      (let [open-views (g/node-value app-view :open-views)
+                                                            panes (.getItems ^SplitPane editor-tabs-split)]
+                                                        (handle-resource-changes! panes open-views changes-view)))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
@@ -231,7 +232,6 @@
                              (ui/remove-application-focused-callback! :main-stage)
                              (g/transact (g/delete-node project))))
 
-      (ui/restyle-tabs! tool-tabs)
       (let [context-env {:app-view            app-view
                          :project             project
                          :project-graph       (project/graph project)
@@ -259,7 +259,7 @@
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
           (let [auto-pulls [[properties-view :pane]
-                            [app-view :refresh-tab-pane]
+                            [app-view :refresh-tab-panes]
                             [outline-view :tree-view]
                             [asset-browser :tree-view]
                             [curve-view :update-list-view]

@@ -149,8 +149,9 @@ namespace dmGameObject
 
     HRegister g_Register = 0;
 
-    ScriptWorld::ScriptWorld()
+    CompScriptWorld::CompScriptWorld()
     : m_Instances()
+    , m_ScriptWorld(0x0)
     {
         // TODO: How to configure? It should correspond to collection instance count
         m_Instances.SetCapacity(1024);
@@ -273,7 +274,7 @@ namespace dmGameObject
         ScriptInstance* i = ScriptInstance_Check(L);
         lua_pop(L, 1);
         Instance* instance = i->m_Instance;
-        out_url->m_Function = 0;
+        out_url->m_FunctionRef = 0;
         out_url->m_Socket = instance->m_Collection->m_ComponentSocket;
         out_url->m_Path = instance->m_Identifier;
         out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
@@ -296,7 +297,7 @@ namespace dmGameObject
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
         Instance* instance = i->m_Instance;
         dmMessage::URL url;
-        url.m_Function = 0;
+        url.m_FunctionRef = 0;
         url.m_Socket = instance->m_Collection->m_ComponentSocket;
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
@@ -334,6 +335,18 @@ namespace dmGameObject
         return 1;
     }
 
+    static int ScriptGetInstanceContextTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int self_index = 1;
+
+        ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, self_index);
+        lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg ScriptInstance_methods[] =
     {
         {0,0}
@@ -341,14 +354,15 @@ namespace dmGameObject
 
     static const luaL_reg ScriptInstance_meta[] =
     {
-        {"__gc",                            ScriptInstance_gc},
-        {"__tostring",                      ScriptInstance_tostring},
-        {"__index",                         ScriptInstance_index},
-        {"__newindex",                      ScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL,      ScriptInstanceGetURL},
-        {dmScript::META_TABLE_GET_USER_DATA,ScriptInstanceGetUserData},
-        {dmScript::META_TABLE_RESOLVE_PATH, ScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID,     ScriptInstanceIsValid},
+        {"__gc",                                        ScriptInstance_gc},
+        {"__tostring",                                  ScriptInstance_tostring},
+        {"__index",                                     ScriptInstance_index},
+        {"__newindex",                                  ScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,                  ScriptInstanceGetURL},
+        {dmScript::META_TABLE_GET_USER_DATA,            ScriptInstanceGetUserData},
+        {dmScript::META_TABLE_RESOLVE_PATH,             ScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,                 ScriptInstanceIsValid},
+        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, ScriptGetInstanceContextTableRef},
         {0, 0}
     };
 
@@ -1119,41 +1133,37 @@ namespace dmGameObject
         assert(top == lua_gettop(L));
     }
 
-    void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
+    struct LuaAnimationStoppedArgs
+    {
+        LuaAnimationStoppedArgs(dmMessage::URL url, dmhash_t property_id)
+            : m_URL(url), m_PropertyId(property_id)
+        {}
+        dmMessage::URL m_URL;
+        dmhash_t m_PropertyId;
+    };
+
+    static void LuaAnimationStoppedCallback(lua_State* L, void* user_args)
+    {
+        LuaAnimationStoppedArgs* args = (LuaAnimationStoppedArgs*)user_args;
+        dmScript::PushURL(L, args->m_URL);
+        dmScript::PushHash(L, args->m_PropertyId);
+    }
+
+    static void LuaAnimationStopped(dmGameObject::HInstance instance, dmhash_t component_id, dmhash_t property_id,
                                         bool finished, void* userdata1, void* userdata2)
     {
-        ScriptInstance* script_instance = (ScriptInstance*)userdata1;
-        lua_State* L = GetLuaState(script_instance);
-
-        int top = lua_gettop(L);
-        (void) top;
-
-        dmMessage::URL url;
-        url.m_Socket = instance->m_Collection->m_ComponentSocket;
-        url.m_Path = instance->m_Identifier;
-        url.m_Fragment = component_id;
-
-        int ref = (int) (((uintptr_t) userdata2) & 0xffffffff);
-
-        if (finished)
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
+        if (dmScript::IsValidCallback(cbk) && finished)
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
-            lua_pushvalue(L, -1);
-            dmScript::SetInstance(L);
+            dmMessage::URL url;
+            url.m_Socket = instance->m_Collection->m_ComponentSocket;
+            url.m_Path = instance->m_Identifier;
+            url.m_Fragment = component_id;
 
-            dmScript::PushURL(L, url);
-            dmScript::PushHash(L, property_id);
-            assert(lua_type(L, -4) == LUA_TFUNCTION);
-            dmScript::PCall(L, 3, 0);
-
-            lua_pushnil(L);
-            dmScript::SetInstance(L);
+            LuaAnimationStoppedArgs args(url, property_id);
+            dmScript::InvokeCallback(cbk, LuaAnimationStoppedCallback, &args);
         }
-
-        dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
-
-        assert(top == lua_gettop(L));
+        dmScript::DeleteCallback(cbk);
     }
 
     /*# animates a named property of the specified game object or component
@@ -1290,20 +1300,18 @@ namespace dmGameObject
         if (top > 6)
             delay = (float) luaL_checknumber(L, 7);
         AnimationStopped stopped = 0x0;
-        void* userdata1 = i;
-        void* userdata2 = 0x0;
+        dmScript::LuaCallbackInfo* cbk = 0x0;
         if (top > 7)
         {
             if (lua_isfunction(L, 8))
             {
+                cbk = dmScript::CreateCallback(L, 8);
                 stopped = LuaAnimationStopped;
-                lua_pushvalue(L, 8);
-                userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
             }
         }
 
         result = dmGameObject::Animate(collection, target_instance, target.m_Fragment, property_id,
-                (Playback)playback, property_var, curve, duration, delay, stopped, userdata1, userdata2);
+                (Playback)playback, property_var, curve, duration, delay, stopped, cbk, 0x0);
         switch (result)
         {
         case dmGameObject::PROPERTY_RESULT_OK:
@@ -1450,6 +1458,10 @@ namespace dmGameObject
                 {
                     return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
                 }
+                if (todelete->m_Generated)
+                {
+                    dmScript::ReleaseHash(L, todelete->m_Identifier);
+                }
                 dmGameObject::HCollection collection = todelete->m_Collection;
                 dmGameObject::Delete(collection, todelete, recursive);
             }
@@ -1562,6 +1574,10 @@ namespace dmGameObject
         if(dmGameObject::IsBone(instance))
         {
             return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
+        }
+        if (instance->m_Generated)
+        {
+            dmScript::ReleaseHash(L, instance->m_Identifier);
         }
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance, recursive);
@@ -2044,9 +2060,10 @@ bail:
         memset(script_instance, 0, sizeof(ScriptInstance));
         script_instance->m_InstanceReference = LUA_NOREF;
         script_instance->m_ScriptDataReference = LUA_NOREF;
+        script_instance->m_ContextTableReference = LUA_NOREF;
     }
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index)
+    HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index)
     {
         lua_State* L = script->m_LuaState;
 
@@ -2063,7 +2080,11 @@ bail:
         lua_newtable(L);
         i->m_ScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
+        lua_newtable(L);
+        i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+
         i->m_Instance = instance;
+        i->m_ScriptWorld = script_world->m_ScriptWorld;
         i->m_ComponentIndex = component_index;
         NewPropertiesParams params;
         params.m_ResolvePathCallback = ScriptInstanceResolvePathCB;
@@ -2075,6 +2096,12 @@ bail:
         lua_setmetatable(L, -2);
 
         lua_pop(L, 1);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::InitializeInstance(i->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
 
@@ -2091,6 +2118,13 @@ bail:
         int top = lua_gettop(L);
         (void) top;
 
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::FinalizeInstance(script_instance->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
+        dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ContextTableReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ScriptDataReference);
 
@@ -2150,9 +2184,9 @@ const char* TYPE_NAMES[PROPERTY_TYPE_COUNT] = {
         for (uint32_t i = 0; i < count; ++i)
         {
             /*
-             * NOTE/TODO: var above is reused and URL::m_Function must
+             * NOTE/TODO: var above is reused and URL::m_FunctionRef must
              * always be zero or a valid lua-reference. By reusing a union-type here, PropertyVar,
-             * m_Function could have an invalid value. We could move PropertyVar var inside every
+             * m_FunctionRef could have an invalid value. We could move PropertyVar var inside every
              * loop but the problem and risk is illustrated here.
              */
             var = PropertyVar();

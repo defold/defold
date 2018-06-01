@@ -34,6 +34,9 @@
   (resource-hash [this])
   (openable? [this]))
 
+(defn type-ext [resource]
+  (string/lower-case (ext resource)))
+
 (defn openable-resource? [value]
   ;; A resource is considered openable if its kind can be opened. Typically this
   ;; is a resource that is part of the project and is not a directory. Note
@@ -42,6 +45,12 @@
   ;; must also make sure the resource exists.
   (and (satisfies? Resource value)
        (openable? value)))
+
+(defn editable-resource? [value]
+  ;; A resource is considered editable if the Defold Editor can edit it. Before
+  ;; opening, you must also make sure the resource exists.
+  (and (openable-resource? value)
+       (true? (:editable? (resource-type value)))))
 
 (defn- ->unix-seps ^String [^String path]
   (FilenameUtils/separatorsToUnix path))
@@ -71,7 +80,7 @@
   Resource
   (children [this] children)
   (ext [this] ext)
-  (resource-type [this] (get (g/node-value workspace :resource-types) ext))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
   (source-type [this] source-type)
   (exists? [this] (.exists (io/file this)))
   (read-only? [this] (not (.canWrite (io/file this))))
@@ -133,7 +142,7 @@
   Resource
   (children [this] nil)
   (ext [this] ext)
-  (resource-type [this] (get (g/node-value workspace :resource-types) ext))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
   (source-type [this] :file)
   (exists? [this] true)
   (read-only? [this] false)
@@ -163,7 +172,7 @@
   Resource
   (children [this] children)
   (ext [this] (FilenameUtils/getExtension name))
-  (resource-type [this] (get (g/node-value workspace :resource-types) (ext this)))
+  (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
   (source-type [this] (if (zero? (count children)) :file :folder))
   (exists? [this] (not (nil? data)))
   (read-only? [this] true)

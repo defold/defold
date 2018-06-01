@@ -65,7 +65,7 @@ ordinary paths."
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
   (let [sorted-children (sort-by (fn [r]
-                                   [(not (resource/read-only? r))
+                                   [(resource/file-resource? r)
                                     ({:folder 0 :file 1} (resource/source-type r))
                                     (when-let [node-name (resource/resource-name r)]
                                       (string/lower-case node-name))])
@@ -85,9 +85,14 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
+(defn- editable-view-type? [view-type]
+  (case view-type
+    (:default :text) false
+    true))
+
 (defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
   (let [resource-type {:textual? (true? textual?)
-                       :ext ext
+                       :editable? (some? (some editable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
@@ -103,8 +108,8 @@ ordinary paths."
                        :label label
                        :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)}
         resource-types (if (string? ext)
-                         [(assoc resource-type :ext ext)]
-                         (map (fn [ext] (assoc resource-type :ext ext)) ext))]
+                         [(assoc resource-type :ext (string/lower-case ext))]
+                         (map (fn [ext] (assoc resource-type :ext (string/lower-case ext))) ext))]
     (for [resource-type resource-types]
       (g/update-property workspace :resource-types assoc (:ext resource-type) resource-type))))
 
@@ -354,13 +359,15 @@ ordinary paths."
                 :resource-listeners (atom [])
                 :build-settings build-settings))
 
-(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn text-selection-fn]}]
+(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn dispose-preview-fn focus-fn text-selection-fn]}]
   (let [view-type (merge {:id    id
                           :label label}
                          (when make-view-fn
                            {:make-view-fn make-view-fn})
                          (when make-preview-fn
                            {:make-preview-fn make-preview-fn})
+                         (when dispose-preview-fn
+                           {:dispose-preview-fn dispose-preview-fn})
                          (when focus-fn
                            {:focus-fn focus-fn})
                          (when text-selection-fn

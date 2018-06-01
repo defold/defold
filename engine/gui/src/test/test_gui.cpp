@@ -67,16 +67,26 @@ static const float TEXT_GLYPH_WIDTH = 1.0f;
 static const float TEXT_MAX_ASCENT = 0.75f;
 static const float TEXT_MAX_DESCENT = 0.25f;
 
-static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, Vector4 color, Vector4 skin_color = Vector4(1.0f))
+static void CreateTestSkin(dmRigDDF::MeshSet* mesh_set, int mesh_entry_index, dmhash_t id, Vector4 color, Vector4 slot_color = Vector4(1.0f))
 {
+    dmRigDDF::MeshEntry& mesh_entry = mesh_set->m_MeshEntries.m_Data[mesh_entry_index];
+    int mesh_attachment_index = mesh_set->m_MeshAttachments.m_Count++;
+    dmRigDDF::Mesh& mesh = mesh_set->m_MeshAttachments.m_Data[mesh_attachment_index];
+
+    mesh_entry.m_MeshSlots[0].m_MeshAttachments[0] = mesh_attachment_index;
+    mesh_entry.m_MeshSlots[0].m_ActiveIndex = 0;
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data = new float[4];
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[0] = slot_color.getX();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[1] = slot_color.getY();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[2] = slot_color.getZ();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Data[3] = slot_color.getW();
+    mesh_entry.m_MeshSlots[0].m_SlotColor.m_Count = 4;
+
     mesh_entry.m_Id = id;
-    mesh_entry.m_Meshes.m_Data = new dmRigDDF::Mesh[1];
-    mesh_entry.m_Meshes.m_Count = 1;
 
     uint32_t vert_count = 3;
 
     // set vertice position so they match bone positions
-    dmRigDDF::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
     mesh.m_Positions.m_Data = new float[vert_count*3];
     mesh.m_Positions.m_Count = vert_count*3;
     mesh.m_Positions.m_Data[0] = 0.0f;
@@ -95,35 +105,20 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Normals.m_Data         = new float[vert_count*3];
     mesh.m_Normals.m_Count        = vert_count*3;
 
-    mesh.m_Color.m_Data           = new float[vert_count*4];
-    mesh.m_Color.m_Count          = vert_count*4;
-    mesh.m_Color[0]               = color.getX();
-    mesh.m_Color[1]               = color.getY();
-    mesh.m_Color[2]               = color.getZ();
-    mesh.m_Color[3]               = color.getW();
-    mesh.m_Color[4]               = color.getX();
-    mesh.m_Color[5]               = color.getY();
-    mesh.m_Color[6]               = color.getZ();
-    mesh.m_Color[7]               = color.getW();
-    mesh.m_Color[8]               = color.getX();
-    mesh.m_Color[9]               = color.getY();
-    mesh.m_Color[10]              = color.getZ();
-    mesh.m_Color[11]              = color.getW();
-
-    mesh.m_SkinColor.m_Data           = new float[vert_count*4];
-    mesh.m_SkinColor.m_Count          = vert_count*4;
-    mesh.m_SkinColor[0]               = skin_color.getX();
-    mesh.m_SkinColor[1]               = skin_color.getY();
-    mesh.m_SkinColor[2]               = skin_color.getZ();
-    mesh.m_SkinColor[3]               = skin_color.getW();
-    mesh.m_SkinColor[4]               = skin_color.getX();
-    mesh.m_SkinColor[5]               = skin_color.getY();
-    mesh.m_SkinColor[6]               = skin_color.getZ();
-    mesh.m_SkinColor[7]               = skin_color.getW();
-    mesh.m_SkinColor[8]               = skin_color.getX();
-    mesh.m_SkinColor[9]               = skin_color.getY();
-    mesh.m_SkinColor[10]              = skin_color.getZ();
-    mesh.m_SkinColor[11]              = skin_color.getW();
+    mesh.m_MeshColor.m_Data           = new float[vert_count*4];
+    mesh.m_MeshColor.m_Count          = vert_count*4;
+    mesh.m_MeshColor[0]               = color.getX();
+    mesh.m_MeshColor[1]               = color.getY();
+    mesh.m_MeshColor[2]               = color.getZ();
+    mesh.m_MeshColor[3]               = color.getW();
+    mesh.m_MeshColor[4]               = color.getX();
+    mesh.m_MeshColor[5]               = color.getY();
+    mesh.m_MeshColor[6]               = color.getZ();
+    mesh.m_MeshColor[7]               = color.getW();
+    mesh.m_MeshColor[8]               = color.getX();
+    mesh.m_MeshColor[9]               = color.getY();
+    mesh.m_MeshColor[10]              = color.getZ();
+    mesh.m_MeshColor[11]              = color.getW();
 
     mesh.m_Indices.m_Data         = new uint32_t[vert_count];
     mesh.m_Indices.m_Count        = vert_count;
@@ -160,8 +155,9 @@ static void CreateDummyMeshEntry(dmRigDDF::MeshEntry& mesh_entry, dmhash_t id, V
     mesh.m_Weights.m_Data[10]     = 0.0f;
     mesh.m_Weights.m_Data[11]     = 0.0f;
 
-    mesh.m_Visible = true;
-    mesh.m_DrawOrder = 0;
+    // Make sure these are set to zero, so we can check against them during tear down.
+    mesh.m_NormalsIndices.m_Count = 0;
+    mesh.m_Texcoord0Indices.m_Count = 0;
 }
 
 static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
@@ -205,6 +201,12 @@ bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::
     out_data->m_AnimationSet = spine_scene_ptr->m_AnimationSet;
 
     return true;
+}
+
+uint32_t SpineAnimationKeyEventCount = 0;
+void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
+{
+    ++SpineAnimationKeyEventCount;
 }
 
 class dmGuiTest : public ::testing::Test
@@ -266,6 +268,7 @@ public:
         params.m_ParticlefxContext = dmParticle::CreateContext(MAX_PARTICLEFX, MAX_PARTICLES);
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        params.m_RigEventDataCallback = RigEventDataCallback;
         params.m_OnWindowResizeCallback = OnWindowResizeCallback;
         m_Scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneResolution(m_Scene, 1, 1);
@@ -459,9 +462,18 @@ private:
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 2.0f;
         anim0.m_SampleRate          = 1.0f;
-        anim0.m_EventTracks.m_Count = 0;
+        anim0.m_EventTracks.m_Count = 1;
         anim0.m_MeshTracks.m_Count  = 0;
         anim0.m_IkTracks.m_Count    = 0;
+        anim0.m_EventTracks.m_Data = new dmRigDDF::EventTrack[1];
+        dmRigDDF::EventTrack* event_track = &anim0.m_EventTracks.m_Data[0];
+        event_track->m_Keys.m_Count = 1;
+        event_track->m_Keys.m_Data = new dmRigDDF::EventKey[1];
+        dmRigDDF::EventKey* event_key = &event_track->m_Keys.m_Data[0];
+        event_key->m_T = 0.5f;
+        event_key->m_Integer = 0;
+        event_key->m_String = dmHashString64("a_spine_event");
+
         anim1.m_Id = dmHashString64("ik_anim");
         anim1.m_Duration            = 3.0f;
         anim1.m_SampleRate          = 1.0f;
@@ -520,8 +532,33 @@ private:
         m_MeshSet->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[2];
         m_MeshSet->m_MeshEntries.m_Count = 2;
 
-        CreateDummyMeshEntry(m_MeshSet->m_MeshEntries.m_Data[0], dmHashString64("test"), Vector4(0.0f));
-        CreateDummyMeshEntry(m_MeshSet->m_MeshEntries.m_Data[1], dmHashString64("secondary_skin"), Vector4(1.0f));
+        m_MeshSet->m_SlotCount = 3;
+
+        // Every slot will get two attachment points.
+        // Make all slot attachment point to -1, ie no meshes attached/visible
+        for (int i = 0; i < m_MeshSet->m_MeshEntries.m_Count; i++) {
+            m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[m_MeshSet->m_SlotCount];
+            m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = m_MeshSet->m_SlotCount;
+
+            for (int j = 0; j < m_MeshSet->m_SlotCount; j++) {
+                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
+                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
+                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
+                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[1] = -1;
+                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_ActiveIndex = -1;
+                m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_SlotColor.m_Count = 0;
+            }
+        }
+
+        int available_mesh_count = 2;
+        m_MeshSet->m_MeshAttachments.m_Data = new dmRigDDF::Mesh[available_mesh_count];
+        m_MeshSet->m_MeshAttachments.m_Count = 0;
+
+        CreateTestSkin(m_MeshSet, 0, dmHashString64("test"), Vector4(0.0f));
+        CreateTestSkin(m_MeshSet, 1, dmHashString64("secondary_skin"), Vector4(1.0f));
+
+        // For sanity, check that all the expected meshes were added.
+        assert(m_MeshSet->m_MeshAttachments.m_Count == available_mesh_count);
 
         // ------------------
 
@@ -553,23 +590,45 @@ private:
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Positive.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Mix.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_EventTracks[0].m_Keys.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_EventTracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data;
         delete [] m_Skeleton->m_Bones.m_Data;
         delete [] m_Skeleton->m_Iks.m_Data;
-        for (int i = 0; i < 2; ++i)
+
+        // Delete mesh attachments and their data
+        uint32_t mesh_count = m_MeshSet->m_MeshAttachments.m_Count;
+        for (int i = 0; i < mesh_count; ++i)
         {
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Normals.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_BoneIndices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Weights.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Indices.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Color.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_SkinColor.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Texcoord0.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data[0].m_Positions.m_Data;
-            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_Meshes.m_Data;
+            dmRigDDF::Mesh& mesh = m_MeshSet->m_MeshAttachments.m_Data[i];
+            if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
+            if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
+            if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
+            if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
+            if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
+            if (mesh.m_MeshColor.m_Count > 0)            { delete [] mesh.m_MeshColor.m_Data; }
+            if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
+            if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
+            if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+        }
+        delete [] m_MeshSet->m_MeshAttachments.m_Data;
+
+        // Delete mesh entries and their slot data
+        uint32_t mesh_entry_count = m_MeshSet->m_MeshEntries.m_Count;
+        for (int i = 0; i < mesh_entry_count; ++i)
+        {
+            dmRigDDF::MeshEntry& mesh_entry = m_MeshSet->m_MeshEntries.m_Data[i];
+            uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
+            for (int j = 0; j < mesh_slot_count; j++) {
+                dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
+                if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
+                if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
+            }
+            delete [] m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
+
         }
         delete [] m_MeshSet->m_MeshEntries.m_Data;
 
@@ -4649,33 +4708,72 @@ static void CreateSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t n
     {
         mesh_set->m_MeshEntries.m_Data = new dmRigDDF::MeshEntry[num_dummy_mesh_entries];
         mesh_set->m_MeshEntries.m_Count = num_dummy_mesh_entries;
+
+        mesh_set->m_SlotCount = 3;
+
+        // Every slot will get two attachment points.
+        // Make all slot attachment point to -1, ie no meshes attached/visible
+        for (int i = 0; i < mesh_set->m_MeshEntries.m_Count; i++) {
+            mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data = new dmRigDDF::MeshSlot[mesh_set->m_SlotCount];
+            mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Count = mesh_set->m_SlotCount;
+
+            for (int j = 0; j < mesh_set->m_SlotCount; j++) {
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data = new uint32_t[2];
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Count = 2;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[0] = -1;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_MeshAttachments.m_Data[1] = -1;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_ActiveIndex = -1;
+                mesh_set->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data[j].m_SlotColor.m_Count = 0;
+            }
+        }
+
+        mesh_set->m_MeshAttachments.m_Data = new dmRigDDF::Mesh[num_dummy_mesh_entries];
+        mesh_set->m_MeshAttachments.m_Count = 0; // We will use this and update it in CreateTestSkin
     }
 
     char buf[64];
     for (int i = 0; i < num_dummy_mesh_entries; ++i)
     {
         sprintf(buf, "skin%i", i);
-        CreateDummyMeshEntry(mesh_set->m_MeshEntries.m_Data[i], dmHashString64(buf), Vector4(float(i)/float(num_dummy_mesh_entries)));
+        CreateTestSkin(mesh_set, i, dmHashString64(buf), Vector4(float(i)/float(num_dummy_mesh_entries)));
     }
+
+    // For sanity, check that all the expected meshes were added.
+    assert(mesh_set->m_MeshAttachments.m_Count == num_dummy_mesh_entries);
 }
 
 static void DeleteSpineDummyData(dmGui::RigSceneDataDesc* dummy_data, uint32_t num_dummy_mesh_entries = 0)
 {
     if (num_dummy_mesh_entries > 0)
     {
+        // Delete mesh attachments and their data
         for (int i = 0; i < num_dummy_mesh_entries; ++i)
         {
-            dmRig::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
-            dmRig::Mesh& mesh = mesh_entry.m_Meshes.m_Data[0];
-            delete [] mesh.m_Normals.m_Data;
-            delete [] mesh.m_BoneIndices.m_Data;
-            delete [] mesh.m_Weights.m_Data;
-            delete [] mesh.m_Indices.m_Data;
-            delete [] mesh.m_Color.m_Data;
-            delete [] mesh.m_SkinColor.m_Data;
-            delete [] mesh.m_Texcoord0.m_Data;
-            delete [] mesh.m_Positions.m_Data;
-            delete [] mesh_entry.m_Meshes.m_Data;
+            dmRigDDF::Mesh& mesh = dummy_data->m_MeshSet->m_MeshAttachments.m_Data[i];
+            if (mesh.m_NormalsIndices.m_Count > 0)   { delete [] mesh.m_NormalsIndices.m_Data; }
+            if (mesh.m_Normals.m_Count > 0)          { delete [] mesh.m_Normals.m_Data; }
+            if (mesh.m_BoneIndices.m_Count > 0)      { delete [] mesh.m_BoneIndices.m_Data; }
+            if (mesh.m_Weights.m_Count > 0)          { delete [] mesh.m_Weights.m_Data; }
+            if (mesh.m_Indices.m_Count > 0)          { delete [] mesh.m_Indices.m_Data; }
+            if (mesh.m_MeshColor.m_Count > 0)            { delete [] mesh.m_MeshColor.m_Data; }
+            if (mesh.m_Texcoord0Indices.m_Count > 0) { delete [] mesh.m_Texcoord0Indices.m_Data; }
+            if (mesh.m_Texcoord0.m_Count > 0)        { delete [] mesh.m_Texcoord0.m_Data; }
+            if (mesh.m_Positions.m_Count > 0)        { delete [] mesh.m_Positions.m_Data; }
+        }
+        delete [] dummy_data->m_MeshSet->m_MeshAttachments.m_Data;
+
+        // Delete mesh entries and their slot data
+        for (int i = 0; i < num_dummy_mesh_entries; ++i)
+        {
+            dmRigDDF::MeshEntry& mesh_entry = dummy_data->m_MeshSet->m_MeshEntries.m_Data[i];
+            uint32_t mesh_slot_count = mesh_entry.m_MeshSlots.m_Count;
+            for (int j = 0; j < mesh_slot_count; j++) {
+                dmRigDDF::MeshSlot& mesh_slot = mesh_entry.m_MeshSlots.m_Data[j];
+                if (mesh_slot.m_MeshAttachments.m_Count > 0) { delete [] mesh_slot.m_MeshAttachments.m_Data; }
+                if (mesh_slot.m_SlotColor.m_Count > 0) { delete [] mesh_slot.m_SlotColor.m_Data; }
+            }
+            delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data[i].m_MeshSlots.m_Data;
+
         }
         delete [] dummy_data->m_MeshSet->m_MeshEntries.m_Data;
     }
@@ -4771,6 +4869,73 @@ TEST_F(dmGuiTest, SpineNodeGetSkin)
 
     // get skin
     ASSERT_EQ(dmHashString64("skin1"), dmGui::GetNodeSpineSkin(m_Scene, node));
+}
+
+TEST_F(dmGuiTest, SpineNodeGetAnimation)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // get animation id when no animation playing
+    ASSERT_EQ(0, dmGui::GetNodeSpineAnimation(m_Scene, node));
+
+    // play invalid animation
+    ASSERT_EQ(dmGui::RESULT_INVAL_ERROR, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("non_existant"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
+    ASSERT_EQ(0, dmGui::GetNodeSpineAnimation(m_Scene, node));
+
+    // play valid animation
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
+    ASSERT_EQ(dmHashString64("valid"), dmGui::GetNodeSpineAnimation(m_Scene, node));
+
+    // play invalid animation
+    ASSERT_EQ(dmGui::RESULT_INVAL_ERROR, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("non_existant"), dmGui::PLAYBACK_LOOP_FORWARD, 0.0, 0.0, 1.0, 0,0,0));
+    ASSERT_EQ(dmHashString64("valid"), dmGui::GetNodeSpineAnimation(m_Scene, node));
+}
+
+TEST_F(dmGuiTest, SpineNodeEventCallback)
+{
+    SpineAnimationKeyEventCount = 0;
+    uint32_t width = 100;
+    uint32_t height = 50;
+    float dt = 1.0f;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // duration is 3.0 seconds, event key located at 0.5 seconds
+    // play animation with event key
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0x0, (void*)m_Scene, 0));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(SpineAnimationKeyEventCount, 1);
 }
 
 uint32_t SpineAnimationCompleteCount = 0;

@@ -165,6 +165,18 @@ namespace dmGui
         return 1;
     }
 
+    static int GuiScriptGetInstanceContextTableRef(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        const int self_index = 1;
+
+        Scene* i = (Scene*)lua_touserdata(L, self_index);
+        lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
+
+        return 1;
+    }
+
     static const luaL_reg GuiScriptInstance_methods[] =
     {
         {0,0}
@@ -172,13 +184,14 @@ namespace dmGui
 
     static const luaL_reg GuiScriptInstance_meta[] =
     {
-        {"__gc",        GuiScriptInstance_gc},
-        {"__tostring",  GuiScriptInstance_tostring},
-        {"__index",     GuiScriptInstance_index},
-        {"__newindex",  GuiScriptInstance_newindex},
-        {dmScript::META_TABLE_GET_URL,      GuiScriptInstanceGetURL},
-        {dmScript::META_TABLE_RESOLVE_PATH, GuiScriptInstanceResolvePath},
-        {dmScript::META_TABLE_IS_VALID,     GuiScriptInstanceIsValid},
+        {"__gc",                                        GuiScriptInstance_gc},
+        {"__tostring",                                  GuiScriptInstance_tostring},
+        {"__index",                                     GuiScriptInstance_index},
+        {"__newindex",                                  GuiScriptInstance_newindex},
+        {dmScript::META_TABLE_GET_URL,                  GuiScriptInstanceGetURL},
+        {dmScript::META_TABLE_RESOLVE_PATH,             GuiScriptInstanceResolvePath},
+        {dmScript::META_TABLE_IS_VALID,                 GuiScriptInstanceIsValid},
+        {dmScript::META_GET_INSTANCE_CONTEXT_TABLE_REF, GuiScriptGetInstanceContextTableRef},
         {0, 0}
     };
 
@@ -546,7 +559,7 @@ namespace dmGui
 
         int ref = (int) (((uintptr_t) curve->userdata2) & 0xffffffff);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
         dmScript::Unref(L, -1, ref);
         lua_pop(L, 1);
 
@@ -555,35 +568,42 @@ namespace dmGui
         curve->userdata2 = 0x0;
     }
 
+    struct LuaAnimationCompleteArgs
+    {
+        LuaAnimationCompleteArgs(HScene scene, int node_ref)
+            : m_Scene(scene), m_NodeRef(node_ref)
+        {}
+        HScene m_Scene;
+        int m_NodeRef;
+    };
+    
+    static void LuaCallbackCustomArgsCB(lua_State* L, void* user_args)
+    {
+        LuaAnimationCompleteArgs* args = (LuaAnimationCompleteArgs*)user_args;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, args->m_Scene->m_ContextTableReference);
+        lua_rawgeti(L, -1, args->m_NodeRef);
+        lua_insert(L, -2);
+        lua_pop(L, 1);
+    }
+
     void LuaAnimationComplete(HScene scene, HNode node, bool finished, void* userdata1, void* userdata2)
     {
         lua_State* L = scene->m_Context->m_LuaState;
         DM_LUA_STACK_CHECK(L, 0);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
-        dmScript::SetInstance(L);
-
-        int callback_ref = (int) ((uintptr_t) userdata1 & 0xffffffff);
+        dmScript::LuaCallbackInfo* cbk = (dmScript::LuaCallbackInfo*)userdata1;
         int node_ref = (int) ((uintptr_t) userdata2 & 0xffffffff);
 
-        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
-
-        if( finished )
+        if( finished && dmScript::IsValidCallback(cbk))
         {
-            lua_rawgeti(L, -1, callback_ref);
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
-            lua_rawgeti(L, -3, node_ref);
-            assert(lua_type(L, -3) == LUA_TFUNCTION);
-
-            dmScript::PCall(L, 2, 0);
+            LuaAnimationCompleteArgs args(scene, node_ref);
+            dmScript::InvokeCallback(cbk, LuaCallbackCustomArgsCB, &args);
         }
 
-        dmScript::Unref(L, -1, callback_ref);
-        dmScript::Unref(L, -1, node_ref);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
+        luaL_unref(L, -1, node_ref);
         lua_pop(L, 1);
-
-        lua_pushnil(L);
-        dmScript::SetInstance(L);
+        dmScript::DeleteCallback(cbk);
     }
 
     /*# once forward
@@ -981,7 +1001,7 @@ namespace dmGui
             curve.type = dmEasing::TYPE_FLOAT_VECTOR;
             curve.vector = dmScript::CheckVector(L, 4);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
             lua_pushvalue(L, 4);
 
             curve.release_callback = LuaCurveRelease;
@@ -996,18 +1016,19 @@ namespace dmGui
 
         lua_Number duration = luaL_checknumber(L, 5);
         float delay = 0.0f;
+
         int node_ref = LUA_NOREF;
-        int animation_complete_ref = LUA_NOREF;
+        dmScript::LuaCallbackInfo* cbk = 0x0;
         if (lua_isnumber(L, 6))
         {
             delay = (float) lua_tonumber(L, 6);
             if (lua_isfunction(L, 7))
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
-                lua_pushvalue(L, 7);
-                animation_complete_ref = dmScript::Ref(L, -2);
+                cbk = dmScript::CreateCallback(L, 7);
+
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
                 lua_pushvalue(L, 1);
-                node_ref = dmScript::Ref(L, -2);
+                node_ref = luaL_ref(L, -2);
                 lua_pop(L, 1);
             }
         } else if (!lua_isnone(L, 6)) {
@@ -1020,10 +1041,10 @@ namespace dmGui
             playback = (Playback) luaL_checkinteger(L, 8);
         }
 
-        if (animation_complete_ref == LUA_NOREF) {
+        if (cbk == 0x0) {
             AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, 0, 0, 0);
         } else {
-            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, cbk, (void*) node_ref);
         }
         return 0;
     }
@@ -1511,14 +1532,13 @@ namespace dmGui
         (void)n;
 
         int node_ref = LUA_NOREF;
-        int animation_complete_ref = LUA_NOREF;
+        dmScript::LuaCallbackInfo* cbk = 0x0;
         if (lua_isfunction(L, 3))
         {
-            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
-            lua_pushvalue(L, 3);
-            animation_complete_ref = dmScript::Ref(L, -2);
+            cbk = dmScript::CreateCallback(L, 3);
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
             lua_pushvalue(L, 1);
-            node_ref = dmScript::Ref(L, -2);
+            node_ref = luaL_ref(L, -2);
             lua_pop(L, 1);
         }
 
@@ -1526,8 +1546,8 @@ namespace dmGui
         {
             const char* anim_id = luaL_checkstring(L, 2);
             Result r;
-            if(animation_complete_ref != LUA_NOREF)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            if(cbk != 0x0)
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*) node_ref);
             else
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
@@ -1539,8 +1559,8 @@ namespace dmGui
         {
             dmhash_t anim_id = dmScript::CheckHash(L, 2);
             Result r;
-            if(animation_complete_ref != LUA_NOREF)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            if(cbk != 0x0)
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*) node_ref);
             else
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
@@ -3494,7 +3514,9 @@ namespace dmGui
     }
 
     /*# gets the node screen position
-     * Returns the screen position of the supplied node.
+     * Returns the screen position of the supplied node. This function returns the 
+     * calculated transformed position of the node, taking into account any parent node
+     * transforms.
      *
      * @name gui.get_screen_position
      * @param node [type:node] node to get the screen position from
@@ -3527,28 +3549,35 @@ namespace dmGui
         float playback_rate = 1.0f;
 
         int node_ref = LUA_NOREF;
-        int animation_complete_ref = LUA_NOREF;
+        dmScript::LuaCallbackInfo* cbk = 0x0;
         if (top > 4)
         {
             if (lua_isfunction(L, 5))
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
-                lua_pushvalue(L, 5);
-                animation_complete_ref = dmScript::Ref(L, -2);
+                cbk = dmScript::CreateCallback(L, 5);
+
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
                 lua_pushvalue(L, 1);
-                node_ref = dmScript::Ref(L, -2);
+                node_ref = luaL_ref(L, -2);
                 lua_pop(L, 1);
             }
         }
+        else
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
+            lua_pushvalue(L, 1);
+            node_ref = dmScript::Ref(L, -2);
+            lua_pop(L, 1);
+        }
 
         dmGui::Result res;
-        if (animation_complete_ref == LUA_NOREF)
+        if (cbk == 0x0)
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, 0);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*) node_ref);
         }
         else
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*) node_ref);
         }
 
         if (res == RESULT_WRONG_TYPE)
@@ -3605,8 +3634,6 @@ namespace dmGui
         lua_Integer playback = luaL_checkinteger(L, 3);
         lua_Number blend_duration = 0.0, offset = 0.0, playback_rate = 1.0;
 
-        int node_ref = LUA_NOREF;
-        int animation_complete_ref = LUA_NOREF;
         if (top > 3) // table with args, parse
         {
             luaL_checktype(L, 4, LUA_TTABLE);
@@ -3627,27 +3654,36 @@ namespace dmGui
             lua_pop(L, 1);
         }
 
+        int node_ref = LUA_NOREF;
+        dmScript::LuaCallbackInfo* cbk = 0x0;
         if (top > 4) // completed cb
         {
             if (lua_isfunction(L, 5))
             {
-                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
-                lua_pushvalue(L, 5);
-                animation_complete_ref = dmScript::Ref(L, -2);
+                cbk = dmScript::CreateCallback(L, 5);
+
+                lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
                 lua_pushvalue(L, 1);
-                node_ref = dmScript::Ref(L, -2);
+                node_ref = luaL_ref(L, -2);
                 lua_pop(L, 1);
             }
         }
+        else
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
+            lua_pushvalue(L, 1);
+            node_ref = dmScript::Ref(L, -2);
+            lua_pop(L, 1);
+        }
 
         dmGui::Result res;
-        if (animation_complete_ref == LUA_NOREF)
+        if (cbk == 0x0)
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, 0);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*) node_ref);
         }
         else
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, (void*) animation_complete_ref, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*) node_ref);
         }
 
         if (res == RESULT_WRONG_TYPE)
@@ -3778,9 +3814,29 @@ namespace dmGui
      * @name gui.set_spine_skin
      * @param node [type:node] node to set the spine skin on
      * @param spine_skin [type:string|hash] spine skin id
+     * @param [spine_slot] [type:string|hash] optional slot id to only change a specific slot
+     * @examples
+     *
+     * Change skin of a Spine node
+     *
+     * ```lua
+     * function init(self)
+     *   gui.set_spine_skin(gui.get_node("spine_node"), "monster")
+     * end
+     * ```
+     *
+     * Change only part of the Spine to a different skin.
+     *
+     * ```lua
+     * function monster_transform_arm(self)
+     *   -- The player is transforming into a monster, begin with changing the arm.
+     *   gui.set_spine_skin(gui.get_node("spine_node"), "monster", "left_arm_slot")
+     * end
+     * ```
      */
     int LuaSetSpineSkin(lua_State* L)
     {
+        int top = lua_gettop(L);
         DM_LUA_STACK_CHECK(L, 0);
 
         HNode node;
@@ -3794,12 +3850,44 @@ namespace dmGui
 
         dmhash_t spine_skin_id = dmScript::CheckHashOrString(L, 2);
 
-        if (RESULT_OK != dmGui::SetNodeSpineSkin(scene, node, spine_skin_id))
-        {
-            return luaL_error(L, "failed to set spine skin for gui node");
+        if (top > 2) {
+            dmhash_t slot_id = dmScript::CheckHashOrString(L, 3);
+            if (RESULT_OK != dmGui::SetNodeSpineSkinSlot(scene, node, spine_skin_id, slot_id)) {
+                return luaL_error(L, "failed to set spine skin ('%s') slot '%s' for gui node", dmHashReverseSafe64(spine_skin_id), dmHashReverseSafe64(slot_id));
+            }
+        } else {
+            if (RESULT_OK != dmGui::SetNodeSpineSkin(scene, node, spine_skin_id)) {
+                return luaL_error(L, "failed to set spine skin '%s' for gui node", dmHashReverseSafe64(spine_skin_id));
+            }
         }
 
         return 0;
+    }
+
+    /*# gets the playing animation on a spine node
+     * Gets the playing animation on a spine node
+     *
+     * @name gui.get_spine_animation
+     * @param node [type:node] node to get spine skin from
+     * @return id [type:hash] spine animation id, 0 if no animation is playing
+     */
+    int LuaGetSpineAnimation(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1); // hash pushed onto state will increase stack by 1
+
+        Scene* scene = GuiScriptInstance_Check(L);
+        HNode node;
+        LuaCheckNode(L, 1, &node);
+
+        if (dmGui::GetNodeIsBone(scene, node))
+        {
+            return DM_LUA_ERROR("cannot get animation for bone, did you mean to get animation for the spine model?");
+        }
+
+        dmhash_t spine_anim_id = dmGui::GetNodeSpineAnimation(scene, node);
+        dmScript::PushHash(L, spine_anim_id);
+
+        return 1;
     }
 
     /*# gets the skin of a spine node
@@ -3982,7 +4070,7 @@ namespace dmGui
     // Only used locally here in this file
     struct GuiLuaCallback
     {
-        dmScript::LuaCallbackInfo   m_Callback;
+        dmScript::LuaCallbackInfo*  m_Callback;
         HScene                      m_Scene;
         HNode                       m_Node;
     };
@@ -4016,16 +4104,17 @@ namespace dmGui
     {
         GuiEmitterStateChangedData* data = (GuiEmitterStateChangedData*)(user_data);
 
-        if( data->m_LuaInfo.m_Callback.m_Callback == LUA_NOREF )
+        if (!dmScript::IsValidCallback(data->m_LuaInfo.m_Callback))
             return;
 
         GuiPfxEmitterScriptCallbackData callback_data = { data, emitter_id, emitter_state };
-        dmScript::InvokeCallback( &data->m_LuaInfo.m_Callback, PushPfxCallbackArguments, &callback_data );
+        dmScript::InvokeCallback(data->m_LuaInfo.m_Callback, PushPfxCallbackArguments, &callback_data);
 
         // The last emitter belonging to this particlefx har gone to sleep, release lua reference.
         if(num_awake_emitters == 0 && emitter_state == dmParticle::EMITTER_STATE_SLEEPING)
         {
-            dmScript::UnregisterCallback(&data->m_LuaInfo.m_Callback);
+            dmScript::DeleteCallback(data->m_LuaInfo.m_Callback);
+            data->m_LuaInfo.m_Callback = 0x0;
         }
     }
 
@@ -4082,13 +4171,16 @@ namespace dmGui
         GuiEmitterStateChangedData* script_data = 0;
         if (lua_gettop(L) > 1 && !lua_isnil(L, 2) )
         {
-            GuiEmitterStateChangedData tmp;
-            dmScript::RegisterCallback(L, 2, &tmp.m_LuaInfo.m_Callback);
+            dmScript::LuaCallbackInfo* callback = dmScript::CreateCallback(L, 2);
+            if (callback == 0x0)
+            {
+                return DM_LUA_ERROR("Could not create callback for particlefx.");
+            }
 
             // if we reached here, the callback was registered
-            script_data = (GuiEmitterStateChangedData*)malloc(sizeof(tmp)); // Released by the particle system (or actually the m_UserData)
-            memcpy(script_data, &tmp, sizeof(tmp));
+            script_data = (GuiEmitterStateChangedData*)malloc(sizeof(GuiEmitterStateChangedData)); // Released by the particle system (or actually the m_UserData)
 
+            script_data->m_LuaInfo.m_Callback = callback;
             script_data->m_LuaInfo.m_Scene = scene;
             script_data->m_LuaInfo.m_Node = hnode;
 
@@ -4322,6 +4414,7 @@ namespace dmGui
         {"get_spine_scene", LuaGetSpineScene},
         {"set_spine_skin",  LuaSetSpineSkin},
         {"get_spine_skin",  LuaGetSpineSkin},
+        {"get_spine_animation",  LuaGetSpineAnimation},
         {"set_spine_cursor", LuaSetSpineCursor},
         {"get_spine_cursor", LuaGetSpineCursor},
         {"set_spine_playback_rate", LuaSetSpinePlaybackRate},

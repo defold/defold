@@ -25,7 +25,7 @@
 (defn- prefix-animation-id [animation-resource animation]
   (update animation :id (fn [^String id]
                           (cond
-                            (and (= "animationset" (resource/ext animation-resource))
+                            (and (= "animationset" (resource/type-ext animation-resource))
                                  (neg? (.indexOf id "/")))
                             (str (resource/base-name animation-resource) "/" id)
 
