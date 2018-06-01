@@ -20,6 +20,7 @@
             [editor.game-project-core :as gpc]
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
+            [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.properties :as properties]
             [editor.system :as system]
@@ -47,6 +48,13 @@
 (defn graph [project]
   (g/node-id->graph-id project))
 
+(defn- load-registered-resource-node [load-fn project node-id resource]
+  (concat
+    (load-fn project node-id resource)
+    (when (and (resource/file-resource? resource)
+               (:auto-connect-save-data? (resource/resource-type resource)))
+      (g/connect node-id :save-data project :save-data))))
+
 (defn- load-node [project node-id node-type resource]
   ;; Note that node-id here may be temporary (a make-node not
   ;; g/transact'ed) here, so we can't use (node-value node-id :...)
@@ -55,21 +63,18 @@
     (let [resource-type (some-> resource resource/resource-type)
           loaded? (and *load-cache* (contains? @*load-cache* node-id))
           load-fn (:load-fn resource-type)]
-      (if (and load-fn (not loaded?))
-        (if (resource/exists? resource)
+      (when-not loaded?
+        (if-not (resource/exists? resource)
+          (g/mark-defective node-id node-type (validation/file-not-found-error node-id nil :fatal resource))
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
-            (concat
-              (load-fn project node-id resource)
-              (when (and (resource/file-resource? resource)
-                         (:auto-connect-save-data? resource-type))
-                (g/connect node-id :save-data project :save-data)))
+            (if (nil? load-fn)
+              (placeholder-resource/load-node project node-id resource)
+              (load-registered-resource-node load-fn project node-id resource))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (validation/invalid-content-error node-id nil :fatal resource))))
-          (g/mark-defective node-id node-type (validation/file-not-found-error node-id nil :fatal resource)))
-        []))
+              (g/mark-defective node-id node-type (validation/invalid-content-error node-id nil :fatal resource)))))))
     (catch Throwable t
       (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
                       {:node-type node-type
@@ -167,18 +172,15 @@
   ([graph project resource load? connections attach-fn]
     (assert resource "resource required to make new node")
     (let [resource-type (resource/resource-type resource)
-          found? (some? resource-type)
-          node-type (or (:node-type resource-type) resource-node/PlaceholderResourceNode)]
+          node-type (or (:node-type resource-type) placeholder-resource/PlaceholderResourceNode)]
       (g/make-nodes graph [node [node-type :resource resource]]
-                      (concat
-                        (for [[consumer connection-labels] connections]
-                          (connect-if-output node-type node consumer connection-labels))
-                        (if (and (some? resource-type) load?)
-                          (load-node project node node-type resource)
-                          [])
-                        (if attach-fn
-                          (attach-fn node)
-                          []))))))
+                    (concat
+                      (for [[consumer connection-labels] connections]
+                        (connect-if-output node-type node consumer connection-labels))
+                      (when load?
+                        (load-node project node node-type resource))
+                      (when (some? attach-fn)
+                        (attach-fn node)))))))
 
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)]
@@ -233,6 +235,12 @@
   [project]
   (g/node-value project :dirty-save-data))
 
+(defn textual-resource-type? [resource-type]
+  ;; Unregistered resources that are connected to the project
+  ;; save-data input are assumed to produce text data.
+  (or (nil? resource-type)
+      (:textual? resource-type)))
+
 (defn write-save-data-to-disk! [save-data {:keys [render-progress!]
                                            :or {render-progress! progress/null-render-progress!}
                                            :as opts}]
@@ -245,7 +253,7 @@
           (when-not (resource/read-only? resource)
             ;; If the file is non-binary, convert line endings to the
             ;; type used by the existing file.
-            (if (and (:textual? (resource/resource-type resource))
+            (if (and (textual-resource-type? (resource/resource-type resource))
                      (resource/exists? resource)
                      (= :crlf (text-util/guess-line-endings (io/make-reader resource nil))))
               (spit resource (text-util/lf->crlf content))
