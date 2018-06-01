@@ -78,13 +78,6 @@
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
 
-(g/defnode PlaceholderResourceNode
-  (inherits ResourceNode)
-
-  (output build-targets g/Any (g/fnk [_node-id resource]
-                                (g/error-fatal (format "Cannot build resource of type '%s'" (resource/ext resource)))))
-  (output save-value g/Any (g/constantly nil)))
-
 (defn make-ddf-dependencies-fn [ddf-type]
   (fn [source-value]
     (into []
