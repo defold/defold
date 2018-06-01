@@ -1551,6 +1551,80 @@ bail:
                 }
 #endif
             }
+            else if (descriptor == dmEngineDDF::ProfilerPause::m_DDFDescriptor)
+            {
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile != 0x0)
+                {
+                    dmProfileRender::SetMode(self->m_RenderProfile, dmProfileRender::PROFILER_MODE_PAUSE);
+                }
+#endif
+            }
+            else if (descriptor == dmEngineDDF::ProfilerResume::m_DDFDescriptor)
+            {
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile != 0x0)
+                {
+                    dmProfileRender::SetMode(self->m_RenderProfile, dmProfileRender::PROFILER_MODE_RUN);
+                }
+#endif
+            }
+            else if (descriptor == dmEngineDDF::ProfilerPauseOnPeak::m_DDFDescriptor)
+            {
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile != 0x0)
+                {
+                    dmProfileRender::SetMode(self->m_RenderProfile, dmProfileRender::PROFILER_MODE_PAUSE_ON_PEAK);
+                }
+#endif
+            }
+            else if (descriptor == dmEngineDDF::ProfilerRecord::m_DDFDescriptor)
+            {
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile != 0x0)
+                {
+                    dmProfileRender::SetMode(self->m_RenderProfile, dmProfileRender::PROFILER_MODE_RECORD);
+                }
+#endif
+            }
+            else if (descriptor == dmEngineDDF::ProfilerMinimize::m_DDFDescriptor)
+            {
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile != 0x0)
+                {
+                    dmProfileRender::SetViewMode(self->m_RenderProfile, dmProfileRender::PROFILER_VIEW_MODE_MINIMIZED);
+                }
+#endif
+            }
+            else if (descriptor == dmEngineDDF::ProfilerExpand::m_DDFDescriptor)
+            {
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile != 0x0)
+                {
+                    dmProfileRender::SetViewMode(self->m_RenderProfile, dmProfileRender::PROFILER_VIEW_MODE_FULL);
+                }
+#endif
+            }
+            else if (descriptor == dmEngineDDF::ProfilerSetWaitTime::m_DDFDescriptor)
+            {
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile != 0x0)
+                {
+                    dmEngineDDF::ProfilerSetWaitTime* set_wait_time = (dmEngineDDF::ProfilerSetWaitTime*) message->m_Data;
+                    dmProfileRender::SetWaitTime(self->m_RenderProfile, set_wait_time->m_Include);
+                }
+#endif
+            }
+            else if (descriptor == dmEngineDDF::ProfilerAdjustShownFrame::m_DDFDescriptor)
+            {
+#if !defined(DM_RELEASE)
+                if (self->m_RenderProfile != 0x0)
+                {
+                    dmEngineDDF::ProfilerAdjustShownFrame* adjust_shown_frame = (dmEngineDDF::ProfilerAdjustShownFrame*) message->m_Data;
+                    dmProfileRender::AdjustShownFrame(self->m_RenderProfile, adjust_shown_frame->m_Distance);
+                }
+#endif
+            }
             else if (descriptor == dmEngineDDF::TogglePhysicsDebug::m_DDFDescriptor)
             {
                 if(dLib::IsDebugMode())

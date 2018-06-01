@@ -67,6 +67,26 @@ message HideApp {}
  */
 message ToggleProfile {}
 
+message ProfilerPause {}
+
+message ProfilerResume {}
+
+message ProfilerPauseOnPeak {}
+
+message ProfilerRecord {}
+
+message ProfilerMinimize {}
+
+message ProfilerExpand {}
+
+message ProfilerSetWaitTime {
+    required bool include = 1 [default = true];
+}
+
+message ProfilerAdjustShownFrame {
+    required int32 distance = 1;
+}
+
 /*# shows/hides the on-screen physics visual debugging
  * Toggles the on-screen physics visual debugging mode which is very useful for
  * tracking down issues related to physics. This mode visualizes
