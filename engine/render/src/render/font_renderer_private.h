@@ -7,9 +7,11 @@
 
 namespace dmRender
 {
+    const uint32_t ZERO_WIDTH_SPACE_UNICODE = 0x200B;
+
     static bool IsBreaking(uint32_t c)
     {
-        return c == ' ' || c == '\n';
+        return c == ' ' || c == '\n' || c == ZERO_WIDTH_SPACE_UNICODE;
     }
 
     static uint32_t NextBreak(const char** cursor, int* n) {
@@ -28,7 +30,7 @@ namespace dmRender
             c = dmUtf8::NextChar(cursor);
             if (c != 0)
                 *n = *n + 1;
-        } while (c != 0 && c == ' ');
+        } while (c != 0 && (c == ' ' || c == ZERO_WIDTH_SPACE_UNICODE));
 
         return c;
     }
