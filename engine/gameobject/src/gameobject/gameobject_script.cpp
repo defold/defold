@@ -149,8 +149,9 @@ namespace dmGameObject
 
     HRegister g_Register = 0;
 
-    ScriptWorld::ScriptWorld()
+    CompScriptWorld::CompScriptWorld()
     : m_Instances()
+    , m_ScriptWorld(0x0)
     {
         // TODO: How to configure? It should correspond to collection instance count
         m_Instances.SetCapacity(1024);
@@ -1457,6 +1458,10 @@ namespace dmGameObject
                 {
                     return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(todelete)));
                 }
+                if (todelete->m_Generated)
+                {
+                    dmScript::ReleaseHash(L, todelete->m_Identifier);
+                }
                 dmGameObject::HCollection collection = todelete->m_Collection;
                 dmGameObject::Delete(collection, todelete, recursive);
             }
@@ -1569,6 +1574,10 @@ namespace dmGameObject
         if(dmGameObject::IsBone(instance))
         {
             return luaL_error(L, "Can not delete subinstances of spine or model components. '%s'", dmHashReverseSafe64(dmGameObject::GetIdentifier(instance)));
+        }
+        if (instance->m_Generated)
+        {
+            dmScript::ReleaseHash(L, instance->m_Identifier);
         }
         dmGameObject::HCollection collection = instance->m_Collection;
         dmGameObject::Delete(collection, instance, recursive);
@@ -2054,7 +2063,7 @@ bail:
         script_instance->m_ContextTableReference = LUA_NOREF;
     }
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index)
+    HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index)
     {
         lua_State* L = script->m_LuaState;
 
@@ -2075,6 +2084,7 @@ bail:
         i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         i->m_Instance = instance;
+        i->m_ScriptWorld = script_world->m_ScriptWorld;
         i->m_ComponentIndex = component_index;
         NewPropertiesParams params;
         params.m_ResolvePathCallback = ScriptInstanceResolvePathCB;
@@ -2086,6 +2096,12 @@ bail:
         lua_setmetatable(L, -2);
 
         lua_pop(L, 1);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::InitializeInstance(i->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
 
@@ -2101,6 +2117,12 @@ bail:
 
         int top = lua_gettop(L);
         (void) top;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::FinalizeInstance(script_instance->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ContextTableReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);

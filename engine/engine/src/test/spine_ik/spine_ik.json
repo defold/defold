@@ -1,0 +1,38 @@
+{
+"skeleton": { "hash": "D8NCo4QnHa0mqA0hHrXCgFMtgr0", "spine": "3.6.52", "width": 208, "height": 8, "images": "" },
+"bones": [
+	{ "name": "root", "length": 100 },
+	{ "name": "target", "parent": "root", "rotation": -58.47, "x": 300, "color": "ffffffff" },
+	{ "name": "child1", "parent": "root", "length": 100, "x": 100, "color": "ffffffff" },
+	{ "name": "child2", "parent": "child1", "length": 100, "x": 100, "color": "ffffffff" }
+],
+"slots": [
+	{ "name": "root", "bone": "root", "attachment": "8x8" },
+	{ "name": "child1", "bone": "child1", "attachment": "8x8" },
+	{ "name": "child2", "bone": "child2", "attachment": "8x8" }
+],
+"ik": [
+	{
+		"name": "target",
+		"order": 0,
+		"bones": [ "child1", "child2" ],
+		"target": "target"
+	}
+],
+"skins": {
+	"default": {
+		"child1": {
+			"8x8": { "width": 8, "height": 8 }
+		},
+		"child2": {
+			"8x8": { "width": 8, "height": 8 }
+		},
+		"root": {
+			"8x8": { "width": 8, "height": 8 }
+		}
+	}
+},
+"animations": {
+	"animation": {}
+}
+}

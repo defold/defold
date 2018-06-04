@@ -2575,6 +2575,7 @@ bail:
         ResetRenderScriptInstance(i);
         i->m_PredicateCount = 0;
         i->m_RenderScript = render_script;
+        i->m_ScriptWorld = render_context->m_ScriptWorld;
         i->m_RenderContext = render_context;
         i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
         i->m_Materials.SetCapacity(16, 8);
@@ -2591,7 +2592,10 @@ bail:
         luaL_getmetatable(L, RENDER_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
 
-        lua_pop(L, 1);
+        dmScript::SetInstance(L);
+        dmScript::InitializeInstance(i->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
 
@@ -2604,6 +2608,12 @@ bail:
 
         int top = lua_gettop(L);
         (void) top;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::FinalizeInstance(render_script_instance->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, render_script_instance->m_RenderScriptDataReference);
@@ -2751,10 +2761,13 @@ bail:
         return context.m_Result;
     }
 
-    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance)
+    RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance, float dt)
     {
         DM_PROFILE(RenderScript, "UpdateRSI");
         instance->m_CommandBuffer.SetSize(0);
+
+        dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
+
         RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, 0x0);
 
         if (instance->m_CommandBuffer.Size() > 0)
