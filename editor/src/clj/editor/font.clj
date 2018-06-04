@@ -136,8 +136,9 @@
   (loop [b (dec (count line))
          last-space nil]
     (if (> b 0)
-      (let [c (.charAt line b)]
-        (if (Character/isWhitespace c)
+      (let [c (.charAt line b)
+            cu (.codePointAt line b)]
+        (if (or (Character/isWhitespace c) (= cu 0x200B))
           (let [[l1 l2] (split line b)
                 w (measure-line glyphs text-tracking l1)]
             (if (> w max-width)

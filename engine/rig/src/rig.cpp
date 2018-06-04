@@ -1522,6 +1522,30 @@ namespace dmRig
         return &instance->m_IKTargets[ik_index];
     }
 
+    bool ResetIKTarget(HRigInstance instance, dmhash_t constraint_id)
+    {
+        if (!instance) {
+            return false;
+        }
+
+        uint32_t ik_index = FindIKIndex(instance, constraint_id);
+        if (ik_index == ~0u) {
+            dmLogError("Could not find IK constraint (%llu)", (unsigned long long)constraint_id);
+            return false;
+        }
+
+        // Clear target fields, see DoAnimate function of the fields usage.
+        // If callback is NULL it is considered not active, clear rest of fields
+        // to avoid confusion.
+        IKTarget* target = &instance->m_IKTargets[ik_index];
+        target->m_Callback = 0x0;
+        target->m_Mix = 0.0f;
+        target->m_UserPtr = 0x0;
+        target->m_UserHash = 0x0;
+
+        return true;
+    }
+
     static void DestroyInstance(HRigContext context, uint32_t index)
     {
         RigInstance* instance = context->m_Instances.Get(index);
