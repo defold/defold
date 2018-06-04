@@ -7,6 +7,11 @@
 
 #include <gameobject/gameobject.h>
 
+namespace dmScript
+{
+    struct LuaCallbackInfo;
+}
+
 namespace dmGameSystem
 {
 #define EXT_CONSTANTS(prefix, ext)\
@@ -46,14 +51,10 @@ namespace dmGameSystem
         EmitterStateChangedScriptData()
         {
             memset(this, 0, sizeof(*this));
-            m_LuaCallbackRef = LUA_NOREF;
-            m_LuaSelfRef = LUA_NOREF;
         }
 
         dmhash_t m_ComponentId;
-        int m_LuaCallbackRef;
-        int m_LuaSelfRef;
-        lua_State* m_L;
+        dmScript::LuaCallbackInfo* m_CallbackInfo;
     };
 
     /**

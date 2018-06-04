@@ -72,6 +72,7 @@ namespace dmGameSystem
 
     bool CompSpineModelSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
     bool CompSpineModelSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position);
+    bool CompSpineModelResetIKTarget(SpineModelComponent* component, dmhash_t constraint_id);
 
     bool CompSpineModelSetSkin(SpineModelComponent* component, dmhash_t skin_id);
     bool CompSpineModelSetSkinSlot(SpineModelComponent* component, dmhash_t skin_id, dmhash_t slot_id);

@@ -101,7 +101,7 @@
   (some->> errors
            (map unpack-if-package)
            flatten
-           (remove nil?)
+           (filter #(instance? ErrorValue %))
            not-empty
            error-aggregate))
 

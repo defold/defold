@@ -177,13 +177,14 @@ void DispatchCallbackDDF(dmMessage::Message *message, void* user_ptr)
 
     // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
     int ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
-    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
-    dmScript::Unref(L, LUA_REGISTRYINDEX, ref);
+    dmScript::ResolveInInstance(L, ref);
+    dmScript::UnrefInInstance(L, ref);
     lua_gc(L, LUA_GCCOLLECT, 0);
 
     dmScript::PushDDF(L, descriptor, (const char*)&message->m_Data[0]);
     int ret = dmScript::PCall(L, 1, 0);
     test->m_NumberOfFails += ret == 0 ? 0 : 1;
+
     ASSERT_EQ(0, ret);
 }
 

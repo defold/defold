@@ -132,6 +132,8 @@ namespace dmGameSystem
         gui_world->m_MaxParticleCount = gui_context->m_MaxParticleCount;
         gui_world->m_ParticleContext = dmParticle::CreateContext(gui_world->m_MaxParticleFXCount, gui_world->m_MaxParticleCount);
 
+        gui_world->m_ScriptWorld = dmScript::NewScriptWorld(gui_context->m_ScriptContext);
+
         *params.m_World = gui_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -162,6 +164,8 @@ namespace dmGameSystem
         dmGraphics::DeleteTexture(gui_world->m_WhiteTexture);
 
         dmRig::DeleteContext(gui_world->m_RigContext);
+
+        dmScript::DeleteScriptWorld(gui_world->m_ScriptWorld);
 
         delete gui_world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -554,6 +558,7 @@ namespace dmGameSystem
         scene_params.m_FetchRigSceneDataCallback = &FetchRigSceneDataCallback;
         scene_params.m_RigEventDataCallback = &RigEventDataCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
+        scene_params.m_ScriptWorld = gui_world->m_ScriptWorld;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
 
@@ -1672,6 +1677,8 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompGuiUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
     {
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
+
+        dmScript::UpdateScriptWorld(gui_world->m_ScriptWorld, params.m_UpdateContext->m_DT);
 
         dmRig::Update(gui_world->m_RigContext, params.m_UpdateContext->m_DT);
 
