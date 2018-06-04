@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.string :as string]
+            [editor.analytics :as analytics]
             [editor.client :as client]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
@@ -748,7 +749,7 @@
                                           (when (fs/existing-file? project-file)
                                             (set-last-opened-project-directory! prefs (.getParentFile project-file))
                                             (ui/close! stage)
-
+                                            (analytics/track-event "Welcome" "Open-project" "")
                                             ;; NOTE: Old comment copied from old open-welcome function in boot.clj
                                             ;; We load the project in the same class-loader as welcome is loaded from.
                                             ;; In other words, we can't reuse the welcome page and it has to be closed.
@@ -762,6 +763,7 @@
                                 progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)
                                 credentials (git/credentials prefs)]
                             (future
+                              (analytics/track-event "Welcome" "Clone-project" "")
                               (try
                                 (git/clone! credentials repository-url dest-directory progress-monitor)
                                 (ui/run-later
@@ -783,6 +785,7 @@
                                                             (ui/run-later
                                                               (.setProgress progress-bar progress)))))]
                                 (future
+                                  (analytics/track-event "Welcome" "Download-template" template-title)
                                   (try
                                     (if-some [template-zip-file (download-proj-zip! zip-url progress-callback cancelled-atom)]
                                       (let [project-file (io/file dest-directory "game.project")]
