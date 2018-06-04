@@ -1,0 +1,18 @@
+name: "default"
+scale_along_z: 0
+embedded_instances {
+  id: "go"
+  data: "components {\n  id: \"script\"\n  component: \"/spine_ik/spine_ik.script\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\nembedded_components {\n  id: \"spinemodel\"\n  type: \"spinemodel\"\n  data: \"spine_scene: \\\"/spine_ik/spine_ik.spinescene\\\"\\ndefault_animation: \\\"animation\\\"\\nskin: \\\"\\\"\\nblend_mode: BLEND_MODE_ALPHA\\nmaterial: \\\"/builtins/materials/sprite.material\\\"\\n\"\n  position {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n  }\n  rotation {\n    x: 0.0\n    y: 0.0\n    z: 0.0\n    w: 1.0\n  }\n}\n"
+  position {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  rotation {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+  scale: 1.0
+}
