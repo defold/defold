@@ -108,10 +108,11 @@ namespace dmGameSystem
         sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 4 * sprite_world->m_Components.Capacity());
         {
             uint32_t vertex_count = 4*sprite_context->m_MaxSpriteCount;
-            uint32_t size_type = vertex_count >= 65536 ? sizeof(uint32_t) : sizeof(uint16_t);
+            uint32_t size_type = vertex_count <= 65536 ? sizeof(uint16_t) : sizeof(uint32_t);
             sprite_world->m_Is16BitIndex = size_type == sizeof(uint16_t) ? 1 : 0;
 
             uint32_t indices_count = 6*sprite_context->m_MaxSpriteCount;
+            size_t indices_size = indices_count * size_type;
             void* indices = (void*)malloc(indices_count * size_type);
             if (sprite_world->m_Is16BitIndex) {
                 uint16_t* index = (uint16_t*)indices;
@@ -137,7 +138,7 @@ namespace dmGameSystem
                 }
             }
 
-            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_count*size_type, indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
             free(indices);
         }
 
@@ -359,8 +360,8 @@ namespace dmGameSystem
         ro.m_Textures[0] = texture_set->m_Texture;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_IndexType = sprite_world->m_Is16BitIndex ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
-        ro.m_VertexStart = (vb_begin - sprite_world->m_VertexBufferData)*3;             // Element arrays: offset in bytes into element buffer. Triangles is 3 elements = 6 bytes (16bit)
-        ro.m_VertexCount = ((sprite_world->m_VertexBufferWritePtr - vb_begin)>>1)*3;    // Element arrays: number of elements to draw, which is triangles * 3
+        ro.m_VertexStart = (vb_begin - sprite_world->m_VertexBufferData)*3*(sprite_world->m_Is16BitIndex?1:2);  // Element arrays: offset in bytes into element buffer. Triangles is 3 elements = 6 bytes (16bit)
+        ro.m_VertexCount = ((sprite_world->m_VertexBufferWritePtr - vb_begin)>>1)*3;                            // Element arrays: number of elements to draw, which is triangles * 3
 
         const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
         uint32_t size = first->m_RenderConstants.m_ConstantCount;
