@@ -439,9 +439,23 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
 
                 Animates the draw order of "draw_order_skin".
 
-                t0: Mesh 0 has a positive offset of 2
-                t1: Mesh 4 has a negative offset of 2
-                t2: Mesh 2 has a negative offset of 1
+                t0: Slot 0 (mesh 0) has a positive offset of 2
+                t1: Slot 3 (mesh 4) has a negative offset of 2
+                t2: Slot 2 (mesh 2) has a negative offset of 1
+
+
+        ------------------------------------
+
+            Animation 9 (id: "skin_and_slot_colors_anim")
+
+                Animates the slot colors.
+
+
+        ------------------------------------
+
+            Animation 10 (id: "slot_attachments")
+
+                Animate the slot attachment for slot 0, to attachment 1.
         */
 
         uint32_t bone_count = 6;
@@ -526,7 +540,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRig::CreateBindPose(*skeleton, bind_pose);
 
         // Bone animations
-        uint32_t animation_count = 10;
+        uint32_t animation_count = 11;
         animation_set->m_Animations.m_Data = new dmRigDDF::RigAnimation[animation_count];
         animation_set->m_Animations.m_Count = animation_count;
         dmRigDDF::RigAnimation& anim0 = animation_set->m_Animations.m_Data[0];
@@ -539,6 +553,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         dmRigDDF::RigAnimation& anim7 = animation_set->m_Animations.m_Data[7];
         dmRigDDF::RigAnimation& anim8 = animation_set->m_Animations.m_Data[8];
         dmRigDDF::RigAnimation& anim9 = animation_set->m_Animations.m_Data[9];
+        dmRigDDF::RigAnimation& anim10 = animation_set->m_Animations.m_Data[10];
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 3.0f;
         anim0.m_SampleRate          = 1.0f;
@@ -599,6 +614,12 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
         anim9.m_EventTracks.m_Count = 0;
         anim9.m_Tracks.m_Count      = 0;
         anim9.m_IkTracks.m_Count    = 0;
+        anim10.m_Id = dmHashString64("slot_attachments");
+        anim10.m_Duration            = 0.0f;
+        anim10.m_SampleRate          = 1.0f;
+        anim10.m_EventTracks.m_Count = 0;
+        anim10.m_Tracks.m_Count      = 0;
+        anim10.m_IkTracks.m_Count    = 0;
 
         // Animation 0: "valid"
         {
@@ -893,6 +914,26 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmRigDDF::Skeleton* skel
             anim_track0.m_SlotColors.m_Data[13] = 0.5f;
             anim_track0.m_SlotColors.m_Data[14] = 1.0f;
             anim_track0.m_SlotColors.m_Data[15] = 0.5f;
+        }
+
+        // Animation 10: "slot_attachments"
+        {
+            uint32_t samples = 2;
+
+            anim10.m_MeshTracks.m_Data = new dmRigDDF::MeshAnimationTrack[1];
+            anim10.m_MeshTracks.m_Count = 1;
+
+            // One track for attachment animation on slot 0
+            // k0 - slot 0 gets attachment 1 (instead of 0)
+            // k1 - same as k0
+            dmRigDDF::MeshAnimationTrack& anim_track = anim10.m_MeshTracks.m_Data[0];
+            anim_track.m_MeshSlot = 0;
+            anim_track.m_SlotColors.m_Count = 0;
+            anim_track.m_OrderOffset.m_Count = 0;
+            anim_track.m_MeshAttachment.m_Data = new int32_t[samples];
+            anim_track.m_MeshAttachment.m_Count = samples;
+            anim_track.m_MeshAttachment.m_Data[0] = 1;
+            anim_track.m_MeshAttachment.m_Data[1] = 1;
         }
 
         // Meshes / skins
@@ -1930,6 +1971,48 @@ TEST_F(RigInstanceTest, AnimatedDrawOrderBlending)
     ASSERT_VERT_POS(Vector3(4.0f), data[2]);
 }
 
+TEST_F(RigInstanceTest, AnimatedAttachmentBlending)
+{
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::SetMesh(m_Instance, dmHashString64("draw_order_skin")));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("slot_attachments"), dmRig::PLAYBACK_ONCE_FORWARD, 0.0f, 0.0f, 1.0f));
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 4.0f));
+
+    dmRig::RigSpineModelVertex data[1*3];
+    dmRig::RigSpineModelVertex* data_end = data + 1*3;
+
+    // Check that attachments are correct for "slot_attachments", slot 0 should have mesh 1
+    // In our setup, we indicate this by vert position being the same as mesh index, ie data[0] should be 1.0.
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(1.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+
+    // Play animation without any attachment track, blend over one frame
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::PlayAnimation(m_Instance, dmHashString64("valid"), dmRig::PLAYBACK_ONCE_FORWARD, 1.0f, 0.0f, 1.0f));
+
+    // Update dt with 0.25, this means that the blend is still in progress.
+    // Slot attachments should still be based on "slot_attachments" animation.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.25f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(1.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+
+    // Update dt with 0.5, the blend is still in progress, roughly at 0.75 blend.
+    // Slot attachment should now instead be taken from "valid" animation, thus slot 0 should be back to attachment 0.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 0.5f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+
+    // Update dt with 1.0 one last time, blending should be done and slot attachment should be same as previous update.
+    ASSERT_EQ(dmRig::RESULT_OK, dmRig::Update(m_Context, 1.0f));
+    ASSERT_EQ(data_end, dmRig::GenerateVertexData(m_Context, m_Instance, Matrix4::identity(), Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)data));
+    ASSERT_VERT_POS(Vector3(0.0f), data[0]);
+    ASSERT_VERT_POS(Vector3(2.0f), data[1]);
+    ASSERT_VERT_POS(Vector3(4.0f), data[2]);
+}
 
 // Test Spine 2.x skeleton that has scaling relative to the bone local space.
 TEST_F(RigInstanceTest, LocalBoneScaling)

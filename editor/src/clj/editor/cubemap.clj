@@ -124,7 +124,7 @@
   (let [{:keys [image-generators texture-profile compress?]} user-data
         images (generate-images image-generators)]
     (g/precluding-errors
-      (filter g/error? (vals images))
+      (vals images)
       (let [texture-images (tex-gen/make-cubemap-texture-images images texture-profile compress?)
             cubemap-texture-image (tex-gen/assemble-cubemap-texture-images texture-images)]
         {:resource resource

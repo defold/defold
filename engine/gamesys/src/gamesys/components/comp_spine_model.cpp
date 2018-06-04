@@ -906,6 +906,7 @@ namespace dmGameSystem
         if (!target) {
             return false;
         }
+
         target->m_Callback = UpdateIKInstanceCallback;
         target->m_Mix = mix;
         target->m_UserPtr = component;
@@ -924,6 +925,11 @@ namespace dmGameSystem
         target->m_UserPtr = component;
         target->m_Position = (Vector3)position;
         return true;
+    }
+
+    bool CompSpineModelResetIKTarget(SpineModelComponent* component, dmhash_t constraint_id)
+    {
+        return dmRig::ResetIKTarget(component->m_RigInstance, constraint_id);
     }
 
     bool CompSpineModelSetSkin(SpineModelComponent* component, dmhash_t skin_id)

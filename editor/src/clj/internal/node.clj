@@ -11,7 +11,8 @@
             [clojure.walk :as walk]
             [clojure.zip :as zip])
   (:import [internal.graph.error_values ErrorValue]
-           [schema.core Maybe Either]))
+           [schema.core Maybe Either]
+           [java.lang.ref WeakReference]))
 
 ;; TODO - replace use of 'transform' as a variable name with 'label'
 
@@ -352,7 +353,9 @@
   (and node (gt/produce-value node label evaluation-context)))
 
 (defn- validate-evaluation-context-options [options]
-  (assert (every? #{:basis :cache :initial-invalidate-counters :tracer :dry-run} (keys options)) (str (keys options)))
+  ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
+  ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
+  (assert (every? #{:basis :cache :initial-invalidate-counters :tracer :dry-run :no-local-temp} (keys options)) (str (keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
@@ -361,19 +364,22 @@
   (assert (c/cache? cache))
   (assert (map? initial-invalidate-counters))
   {:basis basis
-   :cache cache
+   :cache cache ; cache from the system
    :initial-invalidate-counters initial-invalidate-counters
-   :local (atom {})
+   :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
+   :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
    :hits (atom [])
    :in-production #{}})
 
 (defn custom-evaluation-context
   [options]
   (validate-evaluation-context-options options)
-  (assoc options
-         :local           (atom {})
-         :hits            (atom [])
-         :in-production   #{}))
+  (cond-> (assoc options
+                 :local           (atom {})
+                 :hits            (atom [])
+                 :in-production   #{})
+    (not (:no-local-temp options))
+    (assoc :local-temp      (atom {}))))
 
 (defn- validate-evaluation-context [evaluation-context]
   (assert (some? (:basis evaluation-context)))
@@ -385,6 +391,7 @@
   (cond-> evaluation-context
     (:dry-run evaluation-context)
     (assoc :local (atom @(:local evaluation-context))
+           :local-temp (some-> (:local-temp evaluation-context) deref atom)
            :hits (atom @(:hits evaluation-context)))))
 
 (defn node-value
@@ -1275,7 +1282,7 @@
      ~forms))
 
 (defn- check-caches-form [self-name ctx-name nodeid-sym description transform local-cache-sym forms]
-  (gensyms [local global key]
+  (gensyms [local global local-temp local-temp-res key]
            (if (get-in description [:output transform :flags :cached])
              `(let [~local-cache-sym (:local ~ctx-name)
                     ~local  (deref ~local-cache-sym)
@@ -1292,8 +1299,15 @@
                         (do (swap! (:hits ~ctx-name) conj ~key)
                             cached#)))
 
-                  true ~forms))
-             forms)))
+                  true
+                  ~forms))
+             `(let [~local-temp (some-> (:local-temp ~ctx-name) deref)
+                    ~key [~nodeid-sym ~transform]
+                    weak# ^WeakReference (get ~local-temp ~key)]
+                (if-some [~local-temp-res (and weak# (.get weak#))]
+                  ~(with-tracer-calls-form self-name ctx-name transform :cache
+                     `(if (= ~local-temp-res ::nil) nil ~local-temp-res))
+                  ~forms)))))
 
 (defn- gather-inputs-form [input-sym schema-sym self-name ctx-name nodeid-sym description transform production-function forms]
   (let [arg-names       (get-in description [:output transform :arguments])
@@ -1321,7 +1335,10 @@
     `(do
        (swap! ~local-cache-sym assoc [~nodeid-sym ~transform] ~output-sym)
        ~forms)
-    forms))
+    `(do
+       (when-let [local-temp# (:local-temp ~ctx-name)]
+         (swap! local-temp# assoc [~nodeid-sym ~transform] (WeakReference. (if (= ~output-sym nil) ::nil ~output-sym))))
+       ~forms)))
 
 (defn deduce-output-type-form
   [self-name description transform]

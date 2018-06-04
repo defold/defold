@@ -164,7 +164,7 @@ namespace dmGameSystem
             {
                 lua_pushvalue(L, 5);
                 // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
-                sender.m_FunctionRef = dmScript::Ref(L, LUA_REGISTRYINDEX) - LUA_NOREF;
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
 
@@ -304,7 +304,7 @@ namespace dmGameSystem
             {
                 lua_pushvalue(L, 5);
                 // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
-                sender.m_FunctionRef = dmScript::Ref(L, LUA_REGISTRYINDEX) - LUA_NOREF;
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
 

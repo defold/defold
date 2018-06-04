@@ -1,0 +1,88 @@
+--[[
+
+    We test the world position of two IK constrained bones (child1 and child2) before and
+    after setting the IK target position. Finally we reset the IK, the world positions
+    should then again be the original positions.
+
+    Spine scene:
+
+    (1)--->(2)--->(3)
+     +------------------>(4)
+
+    Bones:      World positions:
+    1 - root    (  0,  0)
+    2 - child1  (100,  0)
+    3 - child2  (200,  0)
+    4 - target  (300,  0)
+
+]]
+
+-- helper functions to verify a vmath.vector3 with epsilon
+local EPSILON = 0.0001
+local function eq_epsilon(exp, act)
+    return math.abs(exp - act) < EPSILON
+end
+
+local function assert_pos(exp, act)
+    if not eq_epsilon(exp.x, act.x) or
+       not eq_epsilon(exp.y, act.y) or
+       not eq_epsilon(exp.z, act.z) then
+       msg.post("@system:", "exit", { code = 1 })
+       error("Bone position assert failed, expected: " .. tostring(exp) .. ", actual: " .. tostring(act))
+   end
+end
+
+function init(self)
+    self.child1_go = spine.get_go("#spinemodel", "child1")
+    self.child2_go = spine.get_go("#spinemodel", "child2")
+    self.child1_pos = go.get_world_position(self.child1_go)
+    self.child2_pos = go.get_world_position(self.child2_go)
+
+    -- List of functions, test one function on each update below.
+    self.tests = {
+
+        -- verify default/original position
+        function()
+            assert_pos(vmath.vector3(100,0,0), self.child1_pos)
+            assert_pos(vmath.vector3(200,0,0), self.child2_pos)
+        end,
+
+        -- set ik target position
+        function()
+            spine.set_ik_target_position("go#spinemodel", "target", vmath.vector3(100, 200, 0))
+        end,
+
+        -- verify position has changed
+        function()
+            assert_pos(vmath.vector3(100,0,0), go.get_world_position(self.child1_go))
+            assert_pos(vmath.vector3(100,100,0), go.get_world_position(self.child2_go))
+        end,
+
+        -- reset ik target position
+        function()
+            spine.reset_ik_target("go#spinemodel", "target")
+        end,
+
+        -- verify original position again
+        function()
+            assert_pos(vmath.vector3(100,0,0), self.child1_pos)
+            assert_pos(vmath.vector3(200,0,0), self.child2_pos)
+        end,
+
+        -- tests done, exit with code 0
+        function ()
+            msg.post("@system:", "exit", { code = 0 })
+        end
+    }
+end
+
+function update(self, dt)
+    local fn = table.remove(self.tests, 1)
+
+    -- if a test fail, exit with code 1
+    local res, err = pcall(fn)
+    if not res then
+        print("Test failed: " .. tostring(err))
+        msg.post("@system:", "exit", { code = 1 })
+    end
+end
