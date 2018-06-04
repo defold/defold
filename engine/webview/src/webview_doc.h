@@ -1,7 +1,8 @@
 /*# Webview API documentation
  *
  * Functions and for creating and controlling webviews to show html pages
- * or evaluate javascript.
+ * or evaluate javascript. These API:s only exist on mobile platforms.
+ * [icon:ios] [icon:android]
  *
  * @document
  * @name Webview

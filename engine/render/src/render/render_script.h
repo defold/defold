@@ -37,6 +37,7 @@ namespace dmRender
         Predicate*                  m_Predicates[MAX_PREDICATE_COUNT];
         RenderContext*              m_RenderContext;
         HRenderScript               m_RenderScript;
+        dmScript::ScriptWorld*      m_ScriptWorld;
         uint32_t                    m_PredicateCount;
         int                         m_InstanceReference;
         int                         m_RenderScriptDataReference;

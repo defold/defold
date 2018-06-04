@@ -171,7 +171,14 @@ namespace dmTracking
             const int ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
 
             dmScript::ResolveInInstance(L, ref);
-            assert(lua_isfunction(L, -1));
+            if (!lua_isfunction(L, -1))
+            {
+                // If the script instance is dead we just ignore the callback
+                lua_pop(L, 1);
+                dmLogWarning("Failed to call message response callback function, has it been deleted?");
+                return;
+            }
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextReference);
 
             dmScript::PushHash(L, message->m_Id);

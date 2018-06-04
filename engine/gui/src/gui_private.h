@@ -287,6 +287,7 @@ namespace dmGui
         uint16_t                m_ResChanged : 1;
         uint32_t                m_Width;
         uint32_t                m_Height;
+        dmScript::ScriptWorld*  m_ScriptWorld;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
         RigEventDataCallback    m_RigEventDataCallback;
