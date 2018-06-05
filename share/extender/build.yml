@@ -230,8 +230,8 @@ platforms:
         includes:   ["C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/INCLUDE","C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/ATLMFC/INCLUDE","C:/ProgramFilesx86/WindowsKits/10/include/10.0.10240.0/ucrt","C:/ProgramFilesx86/WindowsKits/NETFXSDK/4.6.1/include/um","C:/ProgramFilesx86/WindowsKits/8.1/include/shared","C:/ProgramFilesx86/WindowsKits/8.1/include/um","C:/ProgramFilesx86/WindowsKits/8.1/include/winrt"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE"]
         flags:      []
-        linkFlags:  ["/DELAYLOAD:LibFBGPlatform64.dll"]
-        libs:       ["OpenGL32.lib", "Delayimp.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
+        linkFlags:  []
+        libs:       ["OpenGL32.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
         symbols:    ["GameroomExt"]
 
     exePrefix:      ''
@@ -259,8 +259,8 @@ platforms:
         includes:   ["C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/INCLUDE","C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/ATLMFC/INCLUDE","C:/ProgramFilesx86/WindowsKits/10/include/10.0.10240.0/ucrt","C:/ProgramFilesx86/WindowsKits/NETFXSDK/4.6.1/include/um","C:/ProgramFilesx86/WindowsKits/8.1/include/shared","C:/ProgramFilesx86/WindowsKits/8.1/include/um","C:/ProgramFilesx86/WindowsKits/8.1/include/winrt"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE"]
         flags:      []
-        linkFlags:  ["/DELAYLOAD:LibFBGPlatform32.dll"]
-        libs:       ["OpenGL32.lib", "Delayimp.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
+        linkFlags:  []
+        libs:       ["OpenGL32.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
         symbols:    ["GameroomExt"]
 
     exePrefix:      ''
