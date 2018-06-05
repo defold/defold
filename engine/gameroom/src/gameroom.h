@@ -121,14 +121,14 @@ namespace dmFBGameroom
 		fbgMessageType_ToString_Function 				fbgMessageType_ToString;
 		fbgPlatformInitializeResult_ToString_Function 	fbgPlatformInitializeResult_ToString;
 		fbid_ToString_Function 							fbid_ToString;
-    	fbg_Purchase_GetCurrency_Function				fbg_Purchase_GetCurrency;
-    	fbg_Purchase_GetErrorMessage_Function			fbg_Purchase_GetErrorMessage;
-    	fbg_Purchase_GetPaymentID_Function				fbg_Purchase_GetPaymentID;
-    	fbg_Purchase_GetProductId_Function				fbg_Purchase_GetProductId;
-    	fbg_Purchase_GetPurchaseToken_Function			fbg_Purchase_GetPurchaseToken;
-    	fbg_Purchase_GetRequestId_Function				fbg_Purchase_GetRequestId;
-    	fbg_Purchase_GetSignedRequest_Function			fbg_Purchase_GetSignedRequest;
-    	fbg_Purchase_GetStatus_Function					fbg_Purchase_GetStatus;
+		fbg_Purchase_GetCurrency_Function				fbg_Purchase_GetCurrency;
+		fbg_Purchase_GetErrorMessage_Function			fbg_Purchase_GetErrorMessage;
+		fbg_Purchase_GetPaymentID_Function				fbg_Purchase_GetPaymentID;
+		fbg_Purchase_GetProductId_Function				fbg_Purchase_GetProductId;
+		fbg_Purchase_GetPurchaseToken_Function			fbg_Purchase_GetPurchaseToken;
+		fbg_Purchase_GetRequestId_Function				fbg_Purchase_GetRequestId;
+		fbg_Purchase_GetSignedRequest_Function			fbg_Purchase_GetSignedRequest;
+		fbg_Purchase_GetStatus_Function					fbg_Purchase_GetStatus;
 	};
 
     const struct FBGameroomFunctions* GetFBFunctions();
