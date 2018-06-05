@@ -403,7 +403,7 @@ int Facebook_Permissions(lua_State* L)
 
     for (size_t i = 0; i < permission_count; ++i) {
         lua_pushnumber(L, i);
-        lua_pushstring(L, fbgLoginScope_ToString(permissions[i]));
+        lua_pushstring(L, g_GameroomFB.m_FBFunctions->fbgLoginScope_ToString(permissions[i]));
         lua_rawset(L, -3);
     }
 
@@ -542,7 +542,7 @@ int Facebook_PostEvent(lua_State* L)
 
     const char* event = Analytics::GetEvent(L, 1);
     float value_to_sum = (float)luaL_checknumber(L, 2);
-    const fbgFormDataHandle form_data_handle = fbg_FormData_CreateNew();
+    const fbgFormDataHandle form_data_handle = g_GameroomFB.m_FBFunctions->fbg_FormData_CreateNew();
 
     // Table is an optional argument and should only be parsed if provided.
     if (lua_gettop(L) >= 3)
@@ -556,7 +556,7 @@ int Facebook_PostEvent(lua_State* L)
         // Prepare for Gameroom API
         for (unsigned int i = 0; i < length; ++i)
         {
-            fbg_FormData_Set(form_data_handle, keys[i], strlen(keys[i]), values[i], strlen(values[i]));
+            g_GameroomFB.m_FBFunctions->fbg_FormData_Set(form_data_handle, keys[i], strlen(keys[i]), values[i], strlen(values[i]));
         }
     }
 
@@ -631,7 +631,7 @@ static dmExtension::Result UpdateFacebook(dmExtension::Params* params)
             case fbgMessage_AccessToken: {
 
                 fbgAccessTokenHandle access_token = g_GameroomFB.m_FBFunctions->fbg_Message_AccessToken(message);
-                if (fbg_AccessToken_IsValid(access_token))
+                if (g_GameroomFB.m_FBFunctions->fbg_AccessToken_IsValid(access_token))
                 {
                     RunLoginResultCallback(L, dmFacebook::STATE_OPEN, 0x0);
                 } else {

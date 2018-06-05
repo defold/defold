@@ -43,50 +43,52 @@ static bool LoadFBGameRoom()
         return false; \
     }
 
-    LOAD_FUNC(fbg_Message_GetType);
-    LOAD_FUNC(fbgMessageType_ToString);
-    LOAD_FUNC(fbg_PopMessage);
-
-    LOAD_FUNC(fbg_SetPlatformLogFunc);
-    LOAD_FUNC(fbg_IsPlatformInitialized);
-    LOAD_FUNC(fbg_PlatformInitializeWindows);
-    LOAD_FUNC(fbgPlatformInitializeResult_ToString);
-
-    LOAD_FUNC(fbg_PurchaseIAP);
-    LOAD_FUNC(fbg_PurchaseIAPWithProductURL);
-
-    LOAD_FUNC(fbg_PayPremium);
-    LOAD_FUNC(fbg_HasLicense);
-
-    LOAD_FUNC(fbg_FreeMessage);
-
-    LOAD_FUNC(fbg_Message_Purchase);
-
-    LOAD_FUNC(fbg_Purchase_GetAmount);
-    LOAD_FUNC(fbg_Purchase_GetPurchaseTime);
-    LOAD_FUNC(fbg_Purchase_GetQuantity);
-    LOAD_FUNC(fbg_Purchase_GetErrorCode);
-
-    LOAD_FUNC(fbg_Message_HasLicense);
-    LOAD_FUNC(fbg_HasLicense_GetHasLicense);
-
-    LOAD_FUNC(fbg_Login);
-    LOAD_FUNC(fbg_Login_WithScopes);
-    LOAD_FUNC(fbg_AccessToken_GetTokenString);
     LOAD_FUNC(fbg_AccessToken_GetActiveAccessToken);
-    LOAD_FUNC(fbg_AccessToken_IsValid);
     LOAD_FUNC(fbg_AccessToken_GetPermissions);
-    LOAD_FUNC(fbg_FeedShare_GetPostID);
-    LOAD_FUNC(fbg_FeedShare);
+    LOAD_FUNC(fbg_AccessToken_GetTokenString);
+    LOAD_FUNC(fbg_AccessToken_IsValid);
     LOAD_FUNC(fbg_AppRequest);
-    LOAD_FUNC(fbg_LogAppEventWithValueToSum);
-    LOAD_FUNC(fbg_Message_AccessToken);
-    LOAD_FUNC(fbg_Message_FeedShare);
-    LOAD_FUNC(fbid_ToString);
-    LOAD_FUNC(fbg_Message_AppRequest);
     LOAD_FUNC(fbg_AppRequest_GetRequestObjectId);
     LOAD_FUNC(fbg_AppRequest_GetTo);
-
+    LOAD_FUNC(fbg_FeedShare);
+    LOAD_FUNC(fbg_FeedShare_GetPostID);
+    LOAD_FUNC(fbg_FormData_CreateNew);
+    LOAD_FUNC(fbg_FormData_Set);
+    LOAD_FUNC(fbg_FreeMessage);
+    LOAD_FUNC(fbg_HasLicense);
+    LOAD_FUNC(fbg_HasLicense_GetHasLicense);
+    LOAD_FUNC(fbg_IsPlatformInitialized);
+    LOAD_FUNC(fbg_LogAppEventWithValueToSum);
+    LOAD_FUNC(fbg_Login);
+    LOAD_FUNC(fbg_Login_WithScopes);
+    LOAD_FUNC(fbg_Message_AccessToken);
+    LOAD_FUNC(fbg_Message_AppRequest);
+    LOAD_FUNC(fbg_Message_FeedShare);
+    LOAD_FUNC(fbg_Message_GetType);
+    LOAD_FUNC(fbg_Message_HasLicense);
+    LOAD_FUNC(fbg_Message_Purchase);
+    LOAD_FUNC(fbg_PayPremium);
+    LOAD_FUNC(fbg_PlatformInitializeWindows);
+    LOAD_FUNC(fbg_PopMessage);
+    LOAD_FUNC(fbg_Purchase_GetAmount);
+    LOAD_FUNC(fbg_Purchase_GetErrorCode);
+    LOAD_FUNC(fbg_Purchase_GetPurchaseTime);
+    LOAD_FUNC(fbg_Purchase_GetQuantity);
+    LOAD_FUNC(fbg_PurchaseIAP);
+    LOAD_FUNC(fbg_PurchaseIAPWithProductURL);
+    LOAD_FUNC(fbg_SetPlatformLogFunc);
+    LOAD_FUNC(fbgLoginScope_ToString);
+    LOAD_FUNC(fbgMessageType_ToString);
+    LOAD_FUNC(fbgPlatformInitializeResult_ToString);
+    LOAD_FUNC(fbid_ToString);
+    LOAD_FUNC(fbg_Purchase_GetCurrency);
+    LOAD_FUNC(fbg_Purchase_GetErrorMessage);
+    LOAD_FUNC(fbg_Purchase_GetPaymentID);
+    LOAD_FUNC(fbg_Purchase_GetProductId);
+    LOAD_FUNC(fbg_Purchase_GetPurchaseToken);
+    LOAD_FUNC(fbg_Purchase_GetRequestId);
+    LOAD_FUNC(fbg_Purchase_GetSignedRequest);
+    LOAD_FUNC(fbg_Purchase_GetStatus);
 
 #undef LOAD_FUNC
 
@@ -148,7 +150,7 @@ bool dmFBGameroom::CheckGameroomInit()
         return false;
     }
 
-    if (!fbg_IsPlatformInitialized()) {
+    if (!g_FBFunctions.fbg_IsPlatformInitialized()) {
         dmLogOnceError("Facebook Gameroom is not initialized.");
         return false;
     }
@@ -200,7 +202,7 @@ static dmExtension::Result AppFinalizeGameroom(dmExtension::AppParams* params)
 
 static dmExtension::Result UpdateGameroom(dmExtension::Params* params)
 {
-    if (!g_FBGameroom.m_Enabled || !fbg_IsPlatformInitialized())
+    if (!g_FBGameroom.m_Enabled || !g_FBFunctions.fbg_IsPlatformInitialized())
     {
         return dmExtension::RESULT_OK;
     }

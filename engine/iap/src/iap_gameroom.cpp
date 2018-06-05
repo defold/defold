@@ -549,14 +549,14 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
                 fbgPurchaseHandle purchase_handle = g_IAP.m_FBFunctions->fbg_Message_Purchase(message);
 
                 PendingTransaction* transaction = new PendingTransaction();
-                transaction->m_PaymentId = GetSafeStr(purchase_handle, fbg_Purchase_GetPaymentID);
-                transaction->m_Currency = GetSafeStr(purchase_handle, fbg_Purchase_GetCurrency);
-                transaction->m_ProductId = GetSafeStr(purchase_handle, fbg_Purchase_GetProductId);
-                transaction->m_PurchaseToken = GetSafeStr(purchase_handle, fbg_Purchase_GetPurchaseToken);
-                transaction->m_RequestId = GetSafeStr(purchase_handle, fbg_Purchase_GetRequestId);
-                transaction->m_Status = GetSafeStr(purchase_handle, fbg_Purchase_GetStatus);
-                transaction->m_SignedRequest = GetSafeStr(purchase_handle, fbg_Purchase_GetSignedRequest);
-                transaction->m_ErrorMessage = GetSafeStr(purchase_handle, fbg_Purchase_GetErrorMessage);
+                transaction->m_PaymentId = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetPaymentID);
+                transaction->m_Currency = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetCurrency);
+                transaction->m_ProductId = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetProductId);
+                transaction->m_PurchaseToken = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetPurchaseToken);
+                transaction->m_RequestId = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetRequestId);
+                transaction->m_Status = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetStatus);
+                transaction->m_SignedRequest = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetSignedRequest);
+                transaction->m_ErrorMessage = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetErrorMessage);
                 transaction->m_Amount = g_IAP.m_FBFunctions->fbg_Purchase_GetAmount(purchase_handle);
                 transaction->m_PurchaseTime = g_IAP.m_FBFunctions->fbg_Purchase_GetPurchaseTime(purchase_handle);
                 transaction->m_Quantity = g_IAP.m_FBFunctions->fbg_Purchase_GetQuantity(purchase_handle);

@@ -109,7 +109,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
     conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
-    conf.env['STATICLIB_FBGPLATFORM'] = 'FBGPlatform'
     conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
