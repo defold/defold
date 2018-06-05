@@ -35,6 +35,13 @@ function terminate_trap() {
 [ ! -z "${DYNAMO_HOME:-}" ] || terminate "DYNAMO_HOME is not set"
 DEFOLD_HOME="$(cd "${DYNAMO_HOME}/../.."; pwd)"
 
+ANDROID_ROOT=~/android
+ANDROID_NDK_VERSION=10e
+ANDROID_NDK="${ANDROID_ROOT}/android-ndk-r${ANDROID_NDK_VERSION}"
+
+[ -d "${ANDROID_ROOT}" ] || terminate "ANDROID_ROOT=${ANDROID_ROOT} does not exist"
+[ -d "${ANDROID_NDK}" ] || terminate "ANDROID_NDK=${ANDROID_NDK} does not exist"
+
 SOURCE="${1:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
 SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
 CERTIFICATE="${2:-}"
@@ -83,9 +90,13 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 (
     cd "${BUILD}"
 
+    EXENAME=`(cd lib/armeabi-v7a && ls lib*.so)`
+
     rm -rf "META-INF"
-    cp "${ENGINE_LIB}" "lib/armeabi-v7a/lib${APPLICATION}.so"
-    cp "${ENGINE_DEX}" "classes.dex"
+    cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
+    cp -v "${ENGINE_DEX}" "classes.dex"
+
+    cp -v "${ANDROID_NDK}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
 
     ${ZIP} -qr "${REPACKZIP}" "."
 )
