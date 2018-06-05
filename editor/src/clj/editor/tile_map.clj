@@ -135,10 +135,7 @@
         (when vbuf
           (let [vertex-binding (vtx/use-with node-id vbuf shader)]
             (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
-              (case blend-mode
-                :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-                (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-                :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+              (gl/set-blend-mode gl blend-mode)
               ;; TODO: can't use selected because we also need to know when nothing is selected
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
