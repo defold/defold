@@ -90,8 +90,10 @@ TARGET="$(cd "$(dirname "${SOURCE}")"; pwd)/${APPLICATION}.repack"
 (
     cd "${BUILD}"
 
+    EXENAME=`(cd lib/armeabi-v7a && ls lib*.so)`
+
     rm -rf "META-INF"
-    cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/lib${APPLICATION}.so"
+    cp -v "${ENGINE_LIB}" "lib/armeabi-v7a/${EXENAME}"
     cp -v "${ENGINE_DEX}" "classes.dex"
 
     cp -v "${ANDROID_NDK}/prebuilt/android-arm/gdbserver/gdbserver" ./lib/armeabi-v7a/gdbserver
