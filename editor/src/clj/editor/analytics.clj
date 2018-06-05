@@ -1,6 +1,6 @@
 (ns editor.analytics
-  (:require [service.log :as log]
-            [editor.system :as sys])
+  (:require [editor.system :as sys]
+            [service.log :as log])
   (:import [com.defold.editor.analytics Analytics]
            [com.defold.editor Editor]))
 

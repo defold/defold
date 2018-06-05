@@ -749,7 +749,7 @@
                                           (when (fs/existing-file? project-file)
                                             (set-last-opened-project-directory! prefs (.getParentFile project-file))
                                             (ui/close! stage)
-                                            (analytics/track-event "Welcome" "Open-project" "")
+                                            (analytics/track-event "welcome" "open-project" "")
                                             ;; NOTE: Old comment copied from old open-welcome function in boot.clj
                                             ;; We load the project in the same class-loader as welcome is loaded from.
                                             ;; In other words, we can't reuse the welcome page and it has to be closed.
@@ -762,8 +762,8 @@
                                 progress-bar (show-progress! root (str "Downloading " project-title) "Cancel Download" #(reset! cancelled-atom true))
                                 progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)
                                 credentials (git/credentials prefs)]
+                            (analytics/track-event "welcome" "clone-project" "")
                             (future
-                              (analytics/track-event "Welcome" "Clone-project" "")
                               (try
                                 (git/clone! credentials repository-url dest-directory progress-monitor)
                                 (ui/run-later
@@ -784,8 +784,8 @@
                                                           (let [progress (/ (double done) (double total))]
                                                             (ui/run-later
                                                               (.setProgress progress-bar progress)))))]
+                                (analytics/track-event "welcome" "download-template" template-title)
                                 (future
-                                  (analytics/track-event "Welcome" "Download-template" template-title)
                                   (try
                                     (if-some [template-zip-file (download-proj-zip! zip-url progress-callback cancelled-atom)]
                                       (let [project-file (io/file dest-directory "game.project")]
@@ -912,5 +912,6 @@
                                              (.positionCaret 0))]))))
 
      ;; Show the dialog.
+     (analytics/track-event "welcome" "show-welcome" "")
      (.setScene stage scene)
      (ui/show! stage))))
