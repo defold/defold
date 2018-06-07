@@ -170,7 +170,7 @@ namespace dmGameObject
         return regist->m_DefaultCollectionCapacity;
     }
 
-    void DoDeleteCollection(HCollection collection);
+    static void DoDeleteCollection(HCollection collection);
 
     void DeleteRegister(HRegister regist)
     {
@@ -184,7 +184,7 @@ namespace dmGameObject
         delete regist;
     }
 
-    void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params);
 
     HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances)
     {
@@ -254,9 +254,9 @@ namespace dmGameObject
         return collection;
     }
 
-    void DoDeleteAll(HCollection collection);
+    static void DoDeleteAll(HCollection collection);
 
-    void DoDeleteCollection(HCollection collection)
+    static void DoDeleteCollection(HCollection collection)
     {
         Final(collection);
         DoDeleteAll(collection);
@@ -621,7 +621,7 @@ namespace dmGameObject
         return ok;
     }
 
-    void DestroyComponents(HCollection collection, HInstance instance) {
+    static void DestroyComponents(HCollection collection, HInstance instance) {
         HPrototype prototype = instance->m_Prototype;
         uint32_t next_component_instance_data = 0;
         for (uint32_t i = 0; i < prototype->m_Components.Size(); ++i)
@@ -1541,7 +1541,7 @@ namespace dmGameObject
         instance->m_ToBeAdded = 0;
     }
 
-    void DoDelete(HCollection collection, HInstance instance)
+    static void DoDelete(HCollection collection, HInstance instance)
     {
         CancelAnimations(collection, instance);
         if (instance->m_ToBeAdded) {
@@ -1650,7 +1650,7 @@ namespace dmGameObject
         }
     }
 
-    void DoDeleteAll(HCollection collection)
+    static void DoDeleteAll(HCollection collection)
     {
         // This will perform tons of unnecessary work to resolve and reorder
         // the hierarchies and other things but will serve as a nice test case
@@ -3184,7 +3184,7 @@ namespace dmGameObject
         DoAddToUpdate(collection, new_instance);
     }
 
-    void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
+    static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params)
     {
         Collection* collection = (Collection*) params.m_UserData;
         for (uint32_t level_i = 0; level_i < MAX_HIERARCHICAL_DEPTH; ++level_i)

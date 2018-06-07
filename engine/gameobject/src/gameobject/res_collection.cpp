@@ -77,8 +77,9 @@ namespace dmGameObject
 
                 // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
                 Vector3 scale = instance_desc.m_Scale3;
-                if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0)
-                        scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+                if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0) {
+                    scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+                }
 
                 instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
 
