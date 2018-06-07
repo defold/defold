@@ -284,10 +284,25 @@ namespace dmGameSystem
     /*# Play an animation on a sprite component
      * Play an animation on a sprite component from its tile set
      * 
-     * @name sprit.play_animation
+     * @name sprite.play_animation
      * @param url [type:string|hash|url] the sprite that should play the animation
      * @param id hash name hash of the animation to play
-     * @param callback?
+     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `message_id`
+     * : [type:hash] The name of the completion message, `"animation_done"`.
+     *
+     * `message`
+     * : [type:table] Information about the completion:
+     *
+     * - [type:number] `current_tile` - the current tile of the sprite.
+     * - [type:hash] `id` - id of the animation that was completed.
+     *
+     * `sender`
+     * : [type:url] The invoker of the callback: the sprite component.
      */
     int SpriteComp_PlayAnimation(lua_State* L)
     {
@@ -296,12 +311,22 @@ namespace dmGameSystem
         dmGameObject::HInstance instance = CheckGoInstance(L);
         dmhash_t id_hash = dmScript::CheckHashOrString(L, 2);
 
-        dmGameSystemDDF::PlayAnimation msg;
-        msg.m_Id = id_hash;
-
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        if (top > 2)
+        {
+            if (lua_isfunction(L, 3))
+            {
+                lua_pushvalue(L, 3);
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
+            }
+        }
+
+        dmGameSystemDDF::PlayAnimation msg;
+        msg.m_Id = id_hash;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
