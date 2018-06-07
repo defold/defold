@@ -8,7 +8,9 @@
 
 #include <sound/sound.h>
 
-#include "../gamesys.h"
+#include "gamesys.h"
+#include "gamesys_ddf.h"
+#include "../gamesys_private.h"
 
 #include "script_sound.h"
 
@@ -328,6 +330,38 @@ namespace dmGameSystem
         return 1;
     }
 
+    int Sound_PlaySound(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+        float delay = luaL_checknumber(L, 2);
+        float gain = luaL_checknumber(L, 3);
+
+        dmGameSystemDDF::PlaySound msg;
+        msg.m_Delay = delay;
+        msg.m_Gain = gain;
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+    }
+
+    int Sound_StopSound(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+
+        dmGameSystemDDF::StopSound msg;
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopSound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+    }
+
     static const luaL_reg SOUND_FUNCTIONS[] =
     {
         {"is_music_playing", Sound_IsMusicPlaying},
@@ -338,6 +372,8 @@ namespace dmGameSystem
         {"get_groups", Sound_GetGroups},
         {"get_group_name", Sound_GetGroupName},
         {"is_phone_call_active", Sound_IsPhoneCallActive},
+        {"play_sound", Sound_PlaySound},
+        {"stop_sound", Sound_StopSound},
         {0, 0}
     };
 
