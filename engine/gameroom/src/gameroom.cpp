@@ -16,8 +16,8 @@
     #undef fbg_PlatformInitializeWindows
 #endif
 
-HMODULE g_FBGLibrary = 0;
-dmFBGameroom::FBGameroomFunctions g_FBFunctions;
+static HMODULE g_FBGLibrary = 0;
+static dmFBGameroom::FBGameroomFunctions g_FBFunctions;
 
 static bool LoadFBGameRoom()
 {
@@ -35,6 +35,16 @@ static bool LoadFBGameRoom()
 
 #define LOAD_FUNC(_NAME) \
     g_FBFunctions. _NAME = (dmFBGameroom:: _NAME ## _Function)GetProcAddress(g_FBGLibrary, #_NAME); \
+    if (g_FBFunctions. _NAME == 0) \
+    { \
+        FreeLibrary(g_FBGLibrary); \
+        g_FBGLibrary = 0; \
+        dmLogError("Failed to get function address: %s", #_NAME); \
+        return false; \
+    }
+
+#define LOAD_FUNC_TYPE(_NAME, _TYPE) \
+    g_FBFunctions. _NAME = (_TYPE)GetProcAddress(g_FBGLibrary, #_NAME); \
     if (g_FBFunctions. _NAME == 0) \
     { \
         FreeLibrary(g_FBGLibrary); \
@@ -74,8 +84,8 @@ static bool LoadFBGameRoom()
     LOAD_FUNC(fbg_Purchase_GetErrorCode);
     LOAD_FUNC(fbg_Purchase_GetPurchaseTime);
     LOAD_FUNC(fbg_Purchase_GetQuantity);
-    LOAD_FUNC(fbg_PurchaseIAP);
-    LOAD_FUNC(fbg_PurchaseIAPWithProductURL);
+    LOAD_FUNC_TYPE(fbg_PurchaseIAP, dmFBGameroom::fbg_PurchaseFunction);
+    LOAD_FUNC_TYPE(fbg_PurchaseIAPWithProductURL, dmFBGameroom::fbg_PurchaseFunction);
     LOAD_FUNC(fbg_SetPlatformLogFunc);
     LOAD_FUNC(fbgLoginScope_ToString);
     LOAD_FUNC(fbgMessageType_ToString);
@@ -91,6 +101,7 @@ static bool LoadFBGameRoom()
     LOAD_FUNC(fbg_Purchase_GetStatus);
 
 #undef LOAD_FUNC
+#undef LOAD_FUNC_TYPE
 
     return true;
 }

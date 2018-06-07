@@ -299,10 +299,9 @@ static int IAP_Buy(lua_State* L)
 
     // Figure out if this is a FB Purchases Lite or regular call
     // by checking if the product starts with "http".
-    typedef fbgRequest (*purchase_func_t)(const char*, uint32_t, uint32_t, uint32_t, const char*, const char*, const char*);
-    purchase_func_t purchase_func = (purchase_func_t)g_IAP.m_FBFunctions->fbg_PurchaseIAP;
+    dmFBGameroom::fbg_PurchaseFunction purchase_func = g_IAP.m_FBFunctions->fbg_PurchaseIAP;
     if (strncmp("http", product_id, 4) == 0) {
-        purchase_func = (purchase_func_t)g_IAP.m_FBFunctions->fbg_PurchaseIAPWithProductURL;
+        purchase_func = g_IAP.m_FBFunctions->fbg_PurchaseIAPWithProductURL;
     }
 
     if (lua_gettop(L) >= 2) {

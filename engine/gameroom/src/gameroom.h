@@ -21,21 +21,13 @@ namespace dmFBGameroom
 	FBG_DEFINE_FUNC(fbgPlatformInitializeResult, fbg_PlatformInitializeWindows, const char*, int, int);
 	FBG_DEFINE_FUNC(const char *, fbgPlatformInitializeResult_ToString, fbgPlatformInitializeResult);
 
-	FBG_DEFINE_FUNC(fbgRequest, fbg_PurchaseIAP,    const char* product,
+	typedef fbgRequest (*fbg_PurchaseFunction)( const char* product,
 	                                              uint32_t quantity,
 	                                              uint32_t quantityMin,
 	                                              uint32_t quantityMax,
 	                                              const char* requestId,
 	                                              const char* pricePointId,
-	                                              const char* testCurrency);
-
-	FBG_DEFINE_FUNC(fbgRequest, fbg_PurchaseIAPWithProductURL, const char* product,
-	                                                          uint32_t quantity,
-	                                                          uint32_t quantityMin,
-	                                                          uint32_t quantityMax,
-	                                                          const char* requestId,
-	                                                          const char* pricePointId,
-	                                                          const char* testCurrency);
+	                                              const char* testCurrency );
 
 	FBG_DEFINE_FUNC(fbgRequest, fbg_PayPremium, void);
 	FBG_DEFINE_FUNC(fbgRequest, fbg_HasLicense, void);
@@ -114,8 +106,8 @@ namespace dmFBGameroom
 		fbg_Purchase_GetErrorCode_Function 				fbg_Purchase_GetErrorCode;
 		fbg_Purchase_GetPurchaseTime_Function 			fbg_Purchase_GetPurchaseTime;
 		fbg_Purchase_GetQuantity_Function 				fbg_Purchase_GetQuantity;
-		fbg_PurchaseIAP_Function 						fbg_PurchaseIAP;
-		fbg_PurchaseIAPWithProductURL_Function 			fbg_PurchaseIAPWithProductURL;
+		fbg_PurchaseFunction 							fbg_PurchaseIAP;
+		fbg_PurchaseFunction 							fbg_PurchaseIAPWithProductURL;
 		fbg_SetPlatformLogFunc_Function 				fbg_SetPlatformLogFunc;
 		fbgLoginScope_ToString_Function 				fbgLoginScope_ToString;
 		fbgMessageType_ToString_Function 				fbgMessageType_ToString;
