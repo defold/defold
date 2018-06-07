@@ -174,8 +174,9 @@ public:
      * Put key/value pair in hash table. NOTE: The method will "assert" if the hashtable is full.
      * @param key Key
      * @param value Value
+     * @return Pointer to stored value
      */
-    void Put(KEY key, const T& value)
+    T* Put(KEY key, const T& value)
     {
         assert(!Full());
         Entry* entry = FindEntry(key);
@@ -185,7 +186,7 @@ public:
         {
             // TODO: memcpy or similar to enforce memcpy-semantics?
             entry->m_Value = value;
-            return;
+            return &entry->m_Value;
         }
         else
         {
@@ -214,9 +215,9 @@ public:
                 // Link prev entry to this
                 prev_entry->m_Next = (uint32_t)(uintptr_t)(entry - m_InitialEntries);
             }
+            m_Count++;
+            return &entry->m_Value;
         }
-
-        m_Count++;
     }
 
     /**
