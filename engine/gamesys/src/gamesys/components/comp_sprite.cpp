@@ -40,6 +40,7 @@ namespace dmGameSystem
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
         uint32_t                    m_MixedHash;
+        dmMessage::URL              m_Listener;
         uint32_t                    m_AnimationID;
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
@@ -226,6 +227,7 @@ namespace dmGameSystem
         component->m_Position = Vector3(params.m_Position);
         component->m_Rotation = params.m_Rotation;
         component->m_Resource = (SpriteResource*)params.m_Resource;
+        dmMessage::ResetURL(component->m_Listener);
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
@@ -437,6 +439,23 @@ namespace dmGameSystem
         }
     }
 
+    static bool GetSender(SpriteComponent* component, dmMessage::URL* out_sender)
+    {
+        dmMessage::URL sender;
+        sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
+        if (dmMessage::IsSocketValid(sender.m_Socket))
+        {
+            dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
+            if (go_result == dmGameObject::RESULT_OK)
+            {
+                sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
+                *out_sender = sender;
+                return true;
+            }
+        }
+        return false;
+    }
+
     static void PostMessages(SpriteWorld* sprite_world)
     {
         DM_PROFILE(Sprite, "PostMessages");
@@ -463,14 +482,20 @@ namespace dmGameSystem
                 component->m_Playing = 0;
                 if (component->m_ListenerInstance != 0x0)
                 {
+                    dmMessage::URL sender;
+                    dmMessage::URL receiver = component->m_Listener;
+                    if (!GetSender(component, &sender))
+                    {
+                        dmLogError("Could not send animation_done to listener because of incomplete component.");
+                        return;
+                    }
+
                     dmhash_t message_id = dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_NameHash;
                     dmGameSystemDDF::AnimationDone message;
                     // Engine has 0-based indices, scripts use 1-based
                     message.m_CurrentTile = component->m_CurrentAnimationFrame + 1;
                     message.m_Id = component->m_CurrentAnimation;
-                    dmMessage::URL receiver;
                     receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
-                    dmMessage::URL sender;
                     sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
                     if (dmMessage::IsSocketValid(receiver.m_Socket) && dmMessage::IsSocketValid(sender.m_Socket))
                     {
@@ -485,6 +510,7 @@ namespace dmGameSystem
                             dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
                             component->m_ListenerInstance = 0x0;
                             component->m_ListenerComponent = 0xff;
+                            dmMessage::ResetURL(component->m_Listener);
                             if (result != dmMessage::RESULT_OK)
                             {
                                 dmLogError("Could not send animation_done to listener.");
@@ -699,6 +725,7 @@ namespace dmGameSystem
                 {
                     component->m_ListenerInstance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), params.m_Message->m_Sender.m_Path);
                     component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
+                    component->m_Listener = params.m_Message->m_Sender;
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash)

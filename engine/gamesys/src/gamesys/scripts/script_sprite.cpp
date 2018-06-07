@@ -306,6 +306,7 @@ namespace dmGameSystem
      */
     int SpriteComp_PlayAnimation(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
@@ -329,7 +330,6 @@ namespace dmGameSystem
         msg.m_Id = id_hash;
 
         dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
-        assert(top == lua_gettop(L));
         return 0;
     }
 
