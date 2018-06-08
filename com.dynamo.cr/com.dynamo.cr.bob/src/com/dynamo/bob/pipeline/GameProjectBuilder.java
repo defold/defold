@@ -460,10 +460,10 @@ public class GameProjectBuilder extends Builder<Void> {
             }
         }
 
-        // If loading supplied keys failed or none were supplied, generate them instead
+        // If loading supplied keys failed or none were supplied, generate them instead.
         if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
             if (project.option("liveupdate", "false").equals("true")) {
-                System.out.println("Warning: No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
+                System.err.println("Warning! No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
             }
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
