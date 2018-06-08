@@ -216,6 +216,9 @@
                   :icon "icons/32/Icons_M_07_plus.png"
                   :command :add-secondary-from-file}
                  {:label :separator}
+                 {:label "Toggle Animation"
+                  :command :scene-play}
+                 {:label :separator}
                  {:label "Cut"
                   :command :cut}
                  {:label "Copy"

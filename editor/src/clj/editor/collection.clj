@@ -598,34 +598,35 @@
 (defn- selection->game-object-instance [selection]
   (g/override-root (handler/adapt-single selection GameObjectInstanceNode)))
 
-(defn add-game-object-file [coll-node parent resource select-fn]
+(defn add-game-object-files [coll-node parent resources select-fn]
   (let [project (project/get-project coll-node)
-        base (resource/base-name resource)
-        id (gen-instance-id coll-node base)
         op-seq (gensym)
         [go-node] (g/tx-nodes-added
-                    (g/transact
-                      (concat
-                        (g/operation-label "Add Game Object")
-                        (g/operation-sequence op-seq)
-                        (make-ref-go coll-node project resource id [0 0 0] [0 0 0 1] [1 1 1] parent {}))))]
+                    (doseq [resource resources]
+                      (g/transact
+                        (let [base (resource/base-name resource)
+                              id (gen-instance-id coll-node base)]
+                          (concat
+                            (g/operation-label "Add Game Object")
+                            (g/operation-sequence op-seq)
+                            (make-ref-go coll-node project resource id [0 0 0] [0 0 0 1] [1 1 1] parent {}))))))]
     ;; Selection
     (g/transact
       (concat
         (g/operation-sequence op-seq)
-        (g/operation-label "Add Game Object")
-        (select-fn [go-node])))))
+        (g/operation-label "Add GameObject")
+        (select-fn go-node)))))
 
-(defn- select-go-file [workspace project]
-  (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"})))
+(defn- select-go-files [workspace project]
+  (seq (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object Files" :selection :multiple})))
 
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->collection selection))
-  (label [selection] "Add Game Object File")
+  (label [selection] "Add Game Object Files")
   (run [workspace project app-view selection]
     (let [collection (selection->collection selection)]
-      (when-let [resource (first (dialogs/make-resource-dialog workspace project {:ext "go" :title "Select Game Object File"}))]
-        (add-game-object-file collection collection resource (fn [node-ids] (app-view/select app-view node-ids)))))))
+      (when-let [resources (select-go-files workspace project)]
+        (add-game-object-files collection collection resources (fn [node-ids] (app-view/select app-view node-ids)))))))
 
 (defn- make-embedded-go [self project type data id position rotation scale parent select-fn]
   (let [graph (g/node-id->graph-id self)
@@ -695,7 +696,7 @@
                          (selection->game-object-instance selection)))
   (label [selection] (if (selection->collection selection)
                        "Add Collection File"
-                       "Add Game Object File"))
+                       "Add Game Object Files"))
   (run [selection workspace project app-view]
        (if-let [coll-node (selection->collection selection)]
          (let [ext           "collection"
@@ -716,10 +717,10 @@
                    (g/operation-sequence op-seq)
                    (g/operation-label "Add Collection")
                    (app-view/select app-view [coll-inst-node]))))))
-         (when-let [resource (select-go-file workspace project)]
+         (when-let [resources (select-go-files workspace project)]
            (let [go-node (selection->game-object-instance selection)
                  coll-node (core/scope-of-type go-node CollectionNode)]
-             (add-game-object-file coll-node go-node resource (fn [node-ids] (app-view/select app-view node-ids))))))))
+             (add-game-object-files coll-node go-node resources (fn [node-ids] (app-view/select app-view node-ids))))))))
 
 (defn load-collection [project self resource collection]
   (concat

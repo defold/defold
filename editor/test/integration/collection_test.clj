@@ -135,7 +135,7 @@
           script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
       (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] []))
-      (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
+      (collection/add-game-object-files coll-id coll-id [(test-util/resource workspace "/game_object/test.go")] select-fn)
       (is (nil? (test-util/outline coll-id [0 0])))
       (let [inst (first (test-util/selection app-view))]
         (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script") select-fn)
@@ -179,7 +179,7 @@
           script-id (test-util/resource-node project "/script/props.script")
           select-fn (fn [node-ids] (app-view/select app-view node-ids))]
       (g/transact (collection/add-collection-instance parent-id (test-util/resource workspace "/collection/test.collection") "child" [0 0 0] [0 0 0 1] [1 1 1] []))
-      (collection/add-game-object-file coll-id coll-id (test-util/resource workspace "/game_object/test.go") select-fn)
+      (collection/add-game-object-files coll-id coll-id [(test-util/resource workspace "/game_object/test.go")] select-fn)
       (game-object/add-component-file go-id (test-util/resource workspace "/script/props.script") select-fn)
       (testing "component id should only be editable on the game object including the component"
         (let [go-comp (:node-id (test-util/outline go-id [0]))
