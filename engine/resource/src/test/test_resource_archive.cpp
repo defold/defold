@@ -427,6 +427,10 @@ TEST(dmResourceArchive, BundleVersionValidVersionFail)
     manifest->m_DDF->m_Signature.m_Data[0] += 1; // make the signature wrong
     dmResource::Result bundle_valid_result = dmResource::BundleVersionValid(manifest, "./resources.manifest_hash");
     ASSERT_EQ(dmResource::RESULT_VERSION_MISMATCH, bundle_valid_result);
+
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
 }
 
 TEST(dmResourceArchive, ResourceEntries)
