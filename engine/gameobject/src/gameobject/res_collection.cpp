@@ -45,13 +45,14 @@ namespace dmGameObject
         dmMutex::Lock(regist->m_Mutex);
 
         uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
-        HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity);
-        if (collection == 0)
+        HCollection hcollection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity);
+        if (hcollection == 0)
         {
             dmMutex::Unlock(regist->m_Mutex);
             dmDDF::FreeMessage(collection_desc);
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
+        Collection* collection = hcollection->m_Collection;
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
 
         uint32_t created_instances = 0;
@@ -65,7 +66,7 @@ namespace dmGameObject
             {
                 dmResource::Result error = dmResource::Get(params.m_Factory, instance_desc.m_Prototype, (void**)&proto);
                 if (error == dmResource::RESULT_OK) {
-                    instance = dmGameObject::NewInstance(collection, proto, instance_desc.m_Prototype);
+                    instance = dmGameObject::NewInstance(hcollection, proto, instance_desc.m_Prototype);
                     if (instance == 0) {
                         dmResource::Release(factory, proto);
                     }
@@ -94,7 +95,7 @@ namespace dmGameObject
                     dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, instance_desc.m_Id, path_end - instance_desc.m_Id + 1);
                 }
 
-                if (dmGameObject::SetIdentifier(collection, instance, instance_desc.m_Id) != dmGameObject::RESULT_OK)
+                if (dmGameObject::SetIdentifier(hcollection, instance, instance_desc.m_Id) != dmGameObject::RESULT_OK)
                 {
                     dmLogError("Unable to set identifier %s. Name clash?", instance_desc.m_Id);
                 }
@@ -114,12 +115,12 @@ namespace dmGameObject
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
-            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(instance_desc.m_Id));
+            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(hcollection, dmHashString64(instance_desc.m_Id));
             assert(parent);
 
             for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
             {
-                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j])));
+                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(hcollection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j])));
                 if (child)
                 {
                     dmGameObject::Result r = dmGameObject::SetParent(child, parent);
@@ -135,16 +136,16 @@ namespace dmGameObject
             }
         }
 
-        dmGameObject::UpdateTransforms(collection);
+        dmGameObject::UpdateTransforms(hcollection);
 
         // Create components and set properties
         for (uint32_t i = 0; i < created_instances; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(instance_desc.m_Id));
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(hcollection, dmHashString64(instance_desc.m_Id));
 
-            bool result = dmGameObject::CreateComponents(collection, instance);
+            bool result = dmGameObject::CreateComponents(hcollection, instance);
             if (result) {
                 // Set properties
                 uint32_t component_instance_data_index = 0;
@@ -193,8 +194,8 @@ namespace dmGameObject
                         ++component_instance_data_index;
                 }
             } else {
-                dmGameObject::ReleaseIdentifier(collection, instance);
-                dmGameObject::UndoNewInstance(collection, instance);
+                dmGameObject::ReleaseIdentifier(hcollection, instance);
+                dmGameObject::UndoNewInstance(hcollection, instance);
                 res = dmResource::RESULT_FORMAT_ERROR;
             }
         }
@@ -202,7 +203,7 @@ namespace dmGameObject
         if (collection_desc->m_CollectionInstances.m_Count != 0)
             dmLogError("Sub collections must be merged before loading.");
 
-        params.m_Resource->m_Resource = (void*) collection;
+        params.m_Resource->m_Resource = (void*) hcollection;
         {
             uint32_t size = sizeof(Collection);
             size += collection->m_InstanceIndices.Capacity()*sizeof(uint16_t);
@@ -218,7 +219,7 @@ bail:
         if (res != dmResource::RESULT_OK)
         {
             // Loading of root-collection is responsible for deleting
-            DeleteCollection(collection);
+            DeleteCollection(hcollection);
         }
 
         dmMutex::Unlock(regist->m_Mutex);
@@ -231,4 +232,47 @@ bail:
         DeleteCollection(collection);
         return dmResource::RESULT_OK;
     }
+
+    // dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams& params)
+    // {
+    //     Register* regist = (Register*) params.m_Context;
+    //     dmResource::Result res = dmResource::RESULT_OK;
+
+    //     dmGameObjectDDF::CollectionDesc* collection_desc;
+    //     dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
+
+    //     if (e != dmDDF::RESULT_OK)
+    //     {
+    //         return dmResource::RESULT_FORMAT_ERROR;
+    //     }
+
+    //     //dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params.m_PreloadData;
+    // }
+
+    /*
+        dmResource::Result ResPrototypeRecreate(const dmResource::ResourceRecreateParams& params)
+    {
+        Register* regist = (Register*) params.m_Context;
+        dmGameObjectDDF::PrototypeDesc* proto_desc;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &proto_desc);
+        if (e != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+        Prototype* temp = new Prototype();
+        dmResource::Result r = AcquireResources(params.m_Factory, regist, proto_desc, temp, params.m_Filename);
+        if (dmResource::RESULT_OK == r) {
+            Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
+            proto->m_Components.Swap(temp->m_Components);
+            params.m_Resource->m_PrevResource = temp;
+        } else {
+            ReleaseResources(params.m_Factory, temp);
+            delete temp;
+        }
+        dmDDF::FreeMessage(proto_desc);
+        return r;
+    }
+    */
+
+
 }

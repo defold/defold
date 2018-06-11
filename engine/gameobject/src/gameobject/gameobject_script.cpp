@@ -275,7 +275,7 @@ namespace dmGameObject
         lua_pop(L, 1);
         Instance* instance = i->m_Instance;
         out_url->m_FunctionRef = 0;
-        out_url->m_Socket = instance->m_Collection->m_ComponentSocket;
+        out_url->m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection);
         out_url->m_Path = instance->m_Identifier;
         out_url->m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
     }
@@ -298,7 +298,7 @@ namespace dmGameObject
         Instance* instance = i->m_Instance;
         dmMessage::URL url;
         url.m_FunctionRef = 0;
-        url.m_Socket = instance->m_Collection->m_ComponentSocket;
+        url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection);
         url.m_Path = instance->m_Identifier;
         url.m_Fragment = instance->m_Prototype->m_Components[i->m_ComponentIndex].m_Id;
         dmScript::PushURL(L, url);
@@ -467,13 +467,13 @@ namespace dmGameObject
             if (component_ext != 0x0)
             {
                 dmResource::ResourceType resource_type;
-                dmResource::Result resource_res = dmResource::GetTypeFromExtension(instance->m_Collection->m_Factory, component_ext, &resource_type);
+                dmResource::Result resource_res = dmResource::GetTypeFromExtension(dmGameObject::GetFactory(instance->m_Collection), component_ext, &resource_type);
                 if (resource_res != dmResource::RESULT_OK)
                 {
                     luaL_error(L, "Component type '%s' not found", component_ext);
                     return; // Actually never reached
                 }
-                ComponentType* type = &instance->m_Collection->m_Register->m_ComponentTypes[component_type_index];
+                ComponentType* type = &dmGameObject::GetRegister(instance->m_Collection)->m_ComponentTypes[component_type_index];
                 if (type->m_ResourceType != resource_type)
                 {
                     luaL_error(L, "Component expected to be of type '%s' but was '%s'", component_ext, type->m_Name);
@@ -501,11 +501,12 @@ namespace dmGameObject
 
     void* GetComponentFromURL(const dmMessage::URL& url)
     {
-        HCollection collection = GetCollectionFromURL(url);
-        if (!collection) {
+        HCollection hcollection = GetCollectionFromURL(url);
+        if (!hcollection) {
             return 0;
         }
 
+        Collection* collection = hcollection->m_Collection;
         Instance** instance = collection->m_IDToInstance.Get(url.m_Path);
         if (!instance) {
             return 0;
@@ -1156,7 +1157,7 @@ namespace dmGameObject
         if (dmScript::IsValidCallback(cbk) && finished)
         {
             dmMessage::URL url;
-            url.m_Socket = instance->m_Collection->m_ComponentSocket;
+            url.m_Socket = dmGameObject::GetMessageSocket(instance->m_Collection);
             url.m_Path = instance->m_Identifier;
             url.m_Fragment = component_id;
 
@@ -1288,7 +1289,7 @@ namespace dmGameObject
             lua_pushvalue(L, 5);
             curve.release_callback = LuaCurveRelease;
             curve.userdata1 = i;
-            curve.userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
+            curve.userdata2 = (void*)(uintptr_t)dmScript::Ref(L, LUA_REGISTRYINDEX);
         }
         else
         {

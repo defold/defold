@@ -312,6 +312,11 @@ namespace dmGameObject
         uint32_t                 m_DirtyTransforms : 1;
     };
 
+    struct CollectionHandle
+    {
+        Collection* m_Collection;
+    };
+
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
 
     HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name);
@@ -320,11 +325,9 @@ namespace dmGameObject
     bool CreateComponents(HCollection collection, HInstance instance);
     void UpdateTransforms(HCollection collection);
 
-#if !defined(NDEBUG)
     // Unit test functions
     uint32_t GetAddToUpdateCount(HCollection collection); // Returns the number of items scheduled to be added to update
     uint32_t GetRemoveFromUpdateCount(HCollection collection); // Returns the number of items scheduled to be removed from update
-#endif // NDEBUG
 }
 
 #endif // GAMEOBJECT_COMMON_H

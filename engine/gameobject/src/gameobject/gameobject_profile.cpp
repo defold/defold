@@ -9,12 +9,13 @@ bool IterateCollections(HRegister regist, FCollectionIterator callback, void* us
 {
     for(uint32_t i = 0; i < regist->m_Collections.Size(); ++i)
     {
-        Collection* collection = regist->m_Collections[i];
+        HCollection hcollection = regist->m_Collections[i];
+        Collection* collection = hcollection->m_Collection;
         DM_MUTEX_SCOPED_LOCK(collection->m_Mutex);
         if(!collection->m_ToBeDeleted)
         {
             IteratorCollection iterator;
-            iterator.m_Collection = collection;
+            iterator.m_Collection = hcollection;
             iterator.m_NameHash = collection->m_NameHash;
             iterator.m_Resource = 0;
             dmResource::GetPath(collection->m_Factory, collection, &iterator.m_Resource);
@@ -25,36 +26,38 @@ bool IterateCollections(HRegister regist, FCollectionIterator callback, void* us
     return true;
 }
 
-static bool IterateGameObject(HCollection collection, HInstance instance, FGameObjectIterator callback, void* user_ctx)
+static bool IterateGameObject(HCollection hcollection, HInstance instance, FGameObjectIterator callback, void* user_ctx)
 {
     IteratorGameObject iterator;
-    iterator.m_Collection = collection;
+    iterator.m_Collection = hcollection;
     iterator.m_Instance = instance;
     iterator.m_NameHash = instance->m_Identifier;
     iterator.m_Resource = 0;
-    dmResource::GetPath(collection->m_Factory, instance->m_Prototype, &iterator.m_Resource);
+    dmResource::GetPath(dmGameObject::GetFactory(hcollection), instance->m_Prototype, &iterator.m_Resource);
 
     if (!callback(&iterator, user_ctx))
         return false;
 
+    Collection* collection = hcollection->m_Collection;
     uint32_t childIndex = instance->m_FirstChildIndex;
     while (childIndex != INVALID_INSTANCE_INDEX)
     {
         Instance* child = collection->m_Instances[childIndex];
         assert(child->m_Parent == instance->m_Index);
         childIndex = child->m_SiblingIndex;
-        if (!IterateGameObject(collection, child, callback, user_ctx))
+        if (!IterateGameObject(hcollection, child, callback, user_ctx))
             return false;
     }
     return true;
 }
 
-bool IterateGameObjects(HCollection collection, FGameObjectIterator callback, void* user_ctx)
+bool IterateGameObjects(HCollection hcollection, FGameObjectIterator callback, void* user_ctx)
 {
+    Collection* collection = hcollection->m_Collection;
     const dmArray<uint16_t>& root_level = collection->m_LevelIndices[0];
     for (uint32_t j = 0; j < root_level.Size(); ++j)
     {
-        if (!IterateGameObject(collection, collection->m_Instances[root_level[j]], callback, user_ctx))
+        if (!IterateGameObject(hcollection, collection->m_Instances[root_level[j]], callback, user_ctx))
             return false;
     }
     return true;
