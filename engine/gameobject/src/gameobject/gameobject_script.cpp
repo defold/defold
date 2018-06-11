@@ -1438,7 +1438,6 @@ namespace dmGameObject
     static int DeleteGOTable(lua_State* L, bool recursive)
     {
         ScriptInstance* i = ScriptInstance_Check(L);
-        Instance* instance = i->m_Instance;
         HCollection hcollection = i->m_Instance->m_Collection->m_HCollection;
 
         // read table

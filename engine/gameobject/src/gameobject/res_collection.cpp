@@ -66,7 +66,7 @@ namespace dmGameObject
             {
                 dmResource::Result error = dmResource::Get(params.m_Factory, instance_desc.m_Prototype, (void**)&proto);
                 if (error == dmResource::RESULT_OK) {
-                    instance = dmGameObject::NewInstance(hcollection, proto, instance_desc.m_Prototype);
+                    instance = dmGameObject::NewInstance(collection, proto, instance_desc.m_Prototype);
                     if (instance == 0) {
                         dmResource::Release(factory, proto);
                     }
@@ -95,7 +95,7 @@ namespace dmGameObject
                     dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, instance_desc.m_Id, path_end - instance_desc.m_Id + 1);
                 }
 
-                if (dmGameObject::SetIdentifier(hcollection, instance, instance_desc.m_Id) != dmGameObject::RESULT_OK)
+                if (dmGameObject::SetIdentifier(collection, instance, instance_desc.m_Id) != dmGameObject::RESULT_OK)
                 {
                     dmLogError("Unable to set identifier %s. Name clash?", instance_desc.m_Id);
                 }
@@ -115,12 +115,12 @@ namespace dmGameObject
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
-            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(hcollection, dmHashString64(instance_desc.m_Id));
+            dmGameObject::HInstance parent = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(instance_desc.m_Id));
             assert(parent);
 
             for (uint32_t j = 0; j < instance_desc.m_Children.m_Count; ++j)
             {
-                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(hcollection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j])));
+                dmGameObject::HInstance child = dmGameObject::GetInstanceFromIdentifier(collection, dmGameObject::GetAbsoluteIdentifier(parent, instance_desc.m_Children[j], strlen(instance_desc.m_Children[j])));
                 if (child)
                 {
                     dmGameObject::Result r = dmGameObject::SetParent(child, parent);
@@ -136,16 +136,16 @@ namespace dmGameObject
             }
         }
 
-        dmGameObject::UpdateTransforms(hcollection);
+        dmGameObject::UpdateTransforms(collection);
 
         // Create components and set properties
         for (uint32_t i = 0; i < created_instances; ++i)
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
 
-            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(hcollection, dmHashString64(instance_desc.m_Id));
+            dmGameObject::HInstance instance = dmGameObject::GetInstanceFromIdentifier(collection, dmHashString64(instance_desc.m_Id));
 
-            bool result = dmGameObject::CreateComponents(hcollection, instance);
+            bool result = dmGameObject::CreateComponents(collection, instance);
             if (result) {
                 // Set properties
                 uint32_t component_instance_data_index = 0;
@@ -194,8 +194,8 @@ namespace dmGameObject
                         ++component_instance_data_index;
                 }
             } else {
-                dmGameObject::ReleaseIdentifier(hcollection, instance);
-                dmGameObject::UndoNewInstance(hcollection, instance);
+                dmGameObject::ReleaseIdentifier(collection, instance);
+                dmGameObject::UndoNewInstance(collection, instance);
                 res = dmResource::RESULT_FORMAT_ERROR;
             }
         }
@@ -219,7 +219,7 @@ bail:
         if (res != dmResource::RESULT_OK)
         {
             // Loading of root-collection is responsible for deleting
-            DeleteCollection(hcollection);
+            DeleteCollection(collection);
         }
 
         dmMutex::Unlock(regist->m_Mutex);
@@ -229,7 +229,7 @@ bail:
     dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
     {
         HCollection collection = (HCollection) params.m_Resource->m_Resource;
-        DeleteCollection(collection);
+        DeleteCollection(collection->m_Collection);
         return dmResource::RESULT_OK;
     }
 }
