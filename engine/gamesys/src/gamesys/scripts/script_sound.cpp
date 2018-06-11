@@ -358,6 +358,8 @@ namespace dmGameSystem
     int Sound_PlaySound(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
+
         dmGameObject::HInstance instance = CheckGoInstance(L);
 
         float delay = 0.0f, gain = 1.0f;
