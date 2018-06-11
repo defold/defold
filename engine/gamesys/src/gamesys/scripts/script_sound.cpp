@@ -342,7 +342,7 @@ namespace dmGameSystem
      * @param url [type:string|hash|url] the sound that should play
      * @param [play_properties] [type:table] optional table with properties:
      * `delay`
-     * : [type:number] delay in seconds before the sound starts playing, default is .
+     * : [type:number] delay in seconds before the sound starts playing, default is 0.
      *
      * `gain`
      * : [type:number] sound gain between 0 and 1, default is 1.
