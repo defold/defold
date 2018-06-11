@@ -55,6 +55,7 @@ namespace dmResource
     uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
 
     Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, char*& out_digest, uint32_t &out_digest_len);
+    Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
 
     struct PreloadRequest;
     struct PreloadHintInfo

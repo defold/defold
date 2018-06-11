@@ -556,6 +556,58 @@ Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hashDigest
     return (result == dmResourceArchive::RESULT_OK) ? RESULT_OK : RESULT_INVAL;
 }
 
+/* In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.
+ * We check this by persisting the bundled manifest signature hash to file the first time a liveupdate.manifest
+ * is stored. At app start we check the current bundled manifest signature hash against the hash written to file.
+ * If they don't match the bundle has changed, and we need to remove any liveupdate.manifest from the filesystem
+ * and load the bundled manifest instead.
+ */
+Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
+{
+    dmLogError("Got bundle_ver_path: %s", bundle_ver_path);
+    Result result = RESULT_OK;
+    struct stat file_stat;
+    bool bundle_ver_exists = stat(bundle_ver_path, &file_stat) == 0;
+    dmLogError("bundle_ver_exists: %i", bundle_ver_exists);
+    
+    // "Hash of bundle", should be OK to use manifest signature I think? Yup.
+    uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
+    uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
+    if (bundle_ver_exists)
+    {
+        dmLogError("Found build.ver, checking...");
+        // Take bundled manifest signature and compare to signature written to file.
+        // If different, unlink (remove) local liveupdate.manifest AND 'bundle_ver' file
+        FILE* bundle_ver = fopen(bundle_ver_path, "rb");
+        uint8_t* buf = (uint8_t*)malloc(signature_len);
+        fread(buf, 1, signature_len, bundle_ver);
+        fclose(bundle_ver);
+        if (memcmp(buf, signature, signature_len) != 0)
+        {
+            // Bundle has changed, local liveupdate manifest no longer valid.
+            // Unlink liveupdate.manifest and bundle_ver_path from filesys
+            dmLogError("Version mismatch in bundle! Deleting liveupdate.manifest and bundle_ver file, falling back to bundled manifest...");
+            result = RESULT_VERSION_MISMATCH;
+        }
+        else
+            dmLogError("Match! Loading local liveupdate manifest...");
+
+        free(buf);
+    }
+    else
+    {
+        // Take bundled manifest signature and write to 'bundle_ver' file
+        dmLogError("No build_ver file found, creating it then loading local liveupdate manifest!");
+        FILE* bundle_ver = fopen(bundle_ver_path, "wb");
+        size_t size = fwrite(signature, 1, signature_len, bundle_ver);
+        fclose(bundle_ver);
+        dmLogError("Wrote %lu bytes to %s", size, bundle_ver_path);
+        result = RESULT_OK;
+    }
+
+    return result;
+}
+
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
     dmMessage::HSocket socket = 0;
@@ -673,20 +725,38 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         bool lu_manifest_exists = stat(lu_manifest_file_path, &file_stat) == 0;
         if (lu_manifest_exists)
         {
-            // Unload bundled manifest data and load liveupdate manifest
-            dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
-            dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
-            factory->m_Manifest->m_DDFData = 0x0;
-            factory->m_Manifest->m_DDF = 0x0;
-            dmLogInfo("LiveUpdate manifest file exists! path: %s", lu_manifest_file_path);
-            r = LoadExternalManifest(lu_manifest_file_path, factory);
-            // Use liveupdate manifest if successfully loaded, otherwise fall back to bundled manifest
-            if (r == RESULT_OK)
-                manifest_path = lu_manifest_file_path;
+            // Check if bundle has changed (e.g. app upgraded)
+            char bundle_ver_path[DMPATH_MAX_PATH];
+            dmPath::Concat(app_support_path, "bundle.ver", bundle_ver_path, DMPATH_MAX_PATH);
+
+            Result bundle_ver_valid = BundleVersionValid(factory->m_Manifest, bundle_ver_path);
+            if (bundle_ver_valid == RESULT_OK)
+            {
+                // Unload bundled manifest
+                dmDDF::FreeMessage(factory->m_Manifest->m_DDFData);
+                dmDDF::FreeMessage(factory->m_Manifest->m_DDF);
+                factory->m_Manifest->m_DDFData = 0x0;
+                factory->m_Manifest->m_DDF = 0x0;
+                // Load external liveupdate.manifest
+                dmLogInfo("LiveUpdate manifest file exists! path: %s", lu_manifest_file_path);
+                r = LoadExternalManifest(lu_manifest_file_path, factory);
+                // Use liveupdate manifest if successfully loaded, otherwise fall back to bundled manifest
+                if (r == RESULT_OK)
+                    manifest_path = lu_manifest_file_path;
+                else
+                {
+                    dmLogWarning("Failed to load liveupdate manifest: %s with result: %i. Falling back to bundled manifest", lu_manifest_file_path, r);
+                    LoadManifest(manifest_path, factory);
+                }
+            }
             else
             {
-                dmLogWarning("Failed to load liveupdate manifest: %s with result: %i. Falling back to bundled manifest", lu_manifest_file_path, r);
-                r = LoadManifest(manifest_path, factory);
+                // Bundle version file exists from previous run, but signature does not match currently loaded bundled manifest
+                // Unlink liveupdate.manifest and bundle_ver_path from filesys
+                // Load bundled manifest instead. 
+                // Already loaded at this point? Just need the unlinks then
+                dmSys::Unlink(bundle_ver_path);
+                dmSys::Unlink(lu_manifest_file_path);
             }
         }
         else

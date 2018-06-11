@@ -406,6 +406,25 @@ TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
     delete manifest;
 }
 
+TEST(dmResourceArchive, BundleVersionValidSuccess)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    dmResource::Result bundle_valid_result = dmResource::BundleVersionValid(manifest, "./resources.manifest_hash");
+    ASSERT_EQ(dmResource::RESULT_OK, bundle_valid_result);
+}
+
+TEST(dmResourceArchive, BundleVersionValidVersionFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+
+    manifest->m_DDF->m_Signature.m_Data[0] += 1; // make the signature wrong
+    dmResource::Result bundle_valid_result = dmResource::BundleVersionValid(manifest, "./resources.manifest_hash");
+    ASSERT_EQ(dmResource::RESULT_VERSION_MISMATCH, bundle_valid_result);
+}
+
 TEST(dmResourceArchive, ResourceEntries)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
