@@ -105,7 +105,7 @@ namespace dmGameObject
         Vector3 m_PrevEulerRotation;
         // Collection this instances belongs to. Added for GetWorldPosition.
         // We should consider to remove this (memory footprint)
-        HCollection     m_Collection;
+        struct Collection* m_Collection;
         Prototype*      m_Prototype;
 
         uint32_t        m_IdentifierIndex;
@@ -244,6 +244,8 @@ namespace dmGameObject
 
         // GameObject component register
         HRegister                m_Register;
+
+        struct CollectionHandle* m_HCollection;
 
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
