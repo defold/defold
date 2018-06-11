@@ -413,6 +413,10 @@ TEST(dmResourceArchive, BundleVersionValidSuccess)
 
     dmResource::Result bundle_valid_result = dmResource::BundleVersionValid(manifest, "./resources.manifest_hash");
     ASSERT_EQ(dmResource::RESULT_OK, bundle_valid_result);
+
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
 }
 
 TEST(dmResourceArchive, BundleVersionValidVersionFail)
