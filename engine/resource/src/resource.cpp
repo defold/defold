@@ -601,7 +601,7 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
         FILE* bundle_ver = fopen(bundle_ver_path, "wb");
         size_t size = fwrite(signature, 1, signature_len, bundle_ver);
         fclose(bundle_ver);
-        dmLogError("Wrote %lu bytes to %s", size, bundle_ver_path);
+        dmLogError("Wrote %u bytes to %s", size, bundle_ver_path);
         result = RESULT_OK;
     }
 
