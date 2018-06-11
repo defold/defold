@@ -599,9 +599,8 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
         // Take bundled manifest signature and write to 'bundle_ver' file
         dmLogError("No build_ver file found, creating it then loading local liveupdate manifest!");
         FILE* bundle_ver = fopen(bundle_ver_path, "wb");
-        size_t size = fwrite(signature, 1, signature_len, bundle_ver);
+        fwrite(signature, 1, signature_len, bundle_ver);
         fclose(bundle_ver);
-        dmLogError("Wrote %u bytes to %s", size, bundle_ver_path);
         result = RESULT_OK;
     }
 
