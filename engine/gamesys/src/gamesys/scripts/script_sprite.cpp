@@ -317,14 +317,15 @@ namespace dmGameSystem
      *   if message_id == hash("model_animation_done") then
      *     if message.id == hash("jump") then
      *       -- open animation done, chain with "run"
-     *       sprite.play_anim(url, "run")
+     *       sprite.play_animation(url, "run")
      *     end
      *   end
      * end
      * 
      * ```lua
      * function init(self)
-     *   sprite.play_animation("#sprite", "jump", anim_done)
+     *   local url = msg.url("#sprite")
+     *   sprite.play_animation(url, "jump", anim_done)
      * end
      * ```
      */

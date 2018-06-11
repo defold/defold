@@ -331,7 +331,7 @@ namespace dmGameSystem
     }
 
     /*# plays a sound
-     * Make the spound component play its sound. Multiple voices is support. The limit is set to 32 voices per sound component.
+     * Make the sound component play its sound. Multiple voices is supported. The limit is set to 32 voices per sound component.
      *
      * [icon:attention] Note that gain is in linear scale, between 0 and 1.
      * To get the dB value from the gain, use the formula `20 * log(gain)`.
@@ -340,22 +340,43 @@ namespace dmGameSystem
      *
      * @name sound.play_sound
      * @param url [type:string|hash|url] the sound that should play
-     * @param [delay] [type:number] delay in seconds before the sound starts playing, default is 0.
-     * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
+     * @param [play_properties] [type:table] optional table with properties:
+     * `delay`
+     * : [type:number] delay in seconds before the sound starts playing, default is .
+     *
+     * `gain`
+     * : [type:number] sound gain between 0 and 1, default is 1.
+     * 
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
      *
      * ```lua
-     * sound.play_sound("#sound", delay = 1, gain = 0.5)
+     * sound.play_sound("#sound", { delay = 1, gain = 0.5 } )
      * ```
      */
     int Sound_PlaySound(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         dmGameObject::HInstance instance = CheckGoInstance(L);
-        float delay = luaL_checknumber(L, 2);
-        float gain = luaL_checknumber(L, 3);
+
+        float delay = 0.0f, gain = 1.0f;
+
+        if (top > 1) // table with args
+        {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_pushvalue(L, 2);
+
+            lua_getfield(L, -1, "delay");
+            delay = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_getfield(L, -1, "gain");
+            gain = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+            lua_pop(L, 1);
+
+            lua_pop(L, 1);
+        }
 
         dmGameSystemDDF::PlaySound msg;
         msg.m_Delay = delay;
