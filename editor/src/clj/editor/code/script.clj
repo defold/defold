@@ -203,6 +203,14 @@
     {:properties props
      :display-order display-order}))
 
+(g/defnk produce-breakpoints [resource regions]
+  (into []
+        (comp (filter data/breakpoint-region?)
+              (map (fn [region]
+                     {:resource resource
+                      :line (data/breakpoint-row region)})))
+        regions))
+
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
@@ -211,9 +219,8 @@
 
   (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
-  ;; Overrides lines property in CodeEditorResourceNode.
-  (property lines r/Lines
-            (default [""])
+  ;; Overrides modified-lines property in CodeEditorResourceNode.
+  (property modified-lines r/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [lua-info (lua-parser/lua-info (data/lines-reader new-value))
@@ -246,6 +253,12 @@
             (default [])
             (dynamic visible (g/constantly false)))
 
+  ;; Breakpoints output only consumed by project (array input of all code files)
+  ;; and already cached there. Changing breakpoints and pulling project breakpoints
+  ;; does imply a pass over all ScriptNodes to produce new breakpoints, but does
+  ;; not seem to be much of a perf issue.
+  (output breakpoints project/Breakpoints produce-breakpoints)
+
   (output _properties g/Properties :cached produce-properties)
   (output build-targets g/Any :cached produce-build-targets)
   (output completions g/Any :cached produce-completions)
@@ -253,5 +266,5 @@
 
 (defn register-resource-types [workspace]
   (for [def script-defs
-        :let [args (assoc def :node-type ScriptNode)]]
+        :let [args (assoc def :node-type ScriptNode :eager-loading? true)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
