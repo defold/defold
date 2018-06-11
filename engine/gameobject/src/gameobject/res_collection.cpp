@@ -232,47 +232,4 @@ bail:
         DeleteCollection(collection);
         return dmResource::RESULT_OK;
     }
-
-    // dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams& params)
-    // {
-    //     Register* regist = (Register*) params.m_Context;
-    //     dmResource::Result res = dmResource::RESULT_OK;
-
-    //     dmGameObjectDDF::CollectionDesc* collection_desc;
-    //     dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
-
-    //     if (e != dmDDF::RESULT_OK)
-    //     {
-    //         return dmResource::RESULT_FORMAT_ERROR;
-    //     }
-
-    //     //dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params.m_PreloadData;
-    // }
-
-    /*
-        dmResource::Result ResPrototypeRecreate(const dmResource::ResourceRecreateParams& params)
-    {
-        Register* regist = (Register*) params.m_Context;
-        dmGameObjectDDF::PrototypeDesc* proto_desc;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &proto_desc);
-        if (e != dmDDF::RESULT_OK)
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-        Prototype* temp = new Prototype();
-        dmResource::Result r = AcquireResources(params.m_Factory, regist, proto_desc, temp, params.m_Filename);
-        if (dmResource::RESULT_OK == r) {
-            Prototype* proto = (Prototype*) params.m_Resource->m_Resource;
-            proto->m_Components.Swap(temp->m_Components);
-            params.m_Resource->m_PrevResource = temp;
-        } else {
-            ReleaseResources(params.m_Factory, temp);
-            delete temp;
-        }
-        dmDDF::FreeMessage(proto_desc);
-        return r;
-    }
-    */
-
-
 }
