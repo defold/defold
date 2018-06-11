@@ -45,7 +45,7 @@ namespace dmGameObject
     typedef struct Register* HRegister;
 
     /// Collection handle
-    typedef struct Collection* HCollection;
+    typedef struct CollectionHandle* HCollection;
 
     /// Properties handle
     typedef struct Properties* HProperties;

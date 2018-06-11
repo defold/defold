@@ -45,13 +45,14 @@ namespace dmGameObject
         dmMutex::Lock(regist->m_Mutex);
 
         uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
-        HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity);
-        if (collection == 0)
+        HCollection hcollection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity);
+        if (hcollection == 0)
         {
             dmMutex::Unlock(regist->m_Mutex);
             dmDDF::FreeMessage(collection_desc);
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
+        Collection* collection = hcollection->m_Collection;
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
 
         uint32_t created_instances = 0;
@@ -77,8 +78,9 @@ namespace dmGameObject
 
                 // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
                 Vector3 scale = instance_desc.m_Scale3;
-                if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0)
-                        scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+                if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0) {
+                    scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+                }
 
                 instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
 
@@ -201,7 +203,7 @@ namespace dmGameObject
         if (collection_desc->m_CollectionInstances.m_Count != 0)
             dmLogError("Sub collections must be merged before loading.");
 
-        params.m_Resource->m_Resource = (void*) collection;
+        params.m_Resource->m_Resource = (void*) hcollection;
         {
             uint32_t size = sizeof(Collection);
             size += collection->m_InstanceIndices.Capacity()*sizeof(uint16_t);
@@ -227,7 +229,7 @@ bail:
     dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
     {
         HCollection collection = (HCollection) params.m_Resource->m_Resource;
-        DeleteCollection(collection);
+        DeleteCollection(collection->m_Collection);
         return dmResource::RESULT_OK;
     }
 }
