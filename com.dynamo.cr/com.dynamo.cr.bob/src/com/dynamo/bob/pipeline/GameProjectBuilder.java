@@ -575,7 +575,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 // Add copy of game.dmanifest to be published with liveuodate resources
                 File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
-                String liveupdateManifestFilename = "liveupdate.v" + project.getProjectProperties().getStringValue("project", "version", "") + ".game.dmanifest";
+                String liveupdateManifestFilename = "liveupdate.game.dmanifest";
                 File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
                 project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
