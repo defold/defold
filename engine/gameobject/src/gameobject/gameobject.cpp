@@ -586,7 +586,6 @@ namespace dmGameObject
             assert(next_component_instance_data <= instance->m_ComponentInstanceUserDataCount);
 
             ComponentCreateParams params;
-            params.m_Collection = collection->m_HCollection;
             params.m_Instance = instance;
             params.m_Position = component->m_Position;
             params.m_Rotation = component->m_Rotation;

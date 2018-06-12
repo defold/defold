@@ -293,8 +293,6 @@ namespace dmGameObject
      */
     struct ComponentCreateParams
     {
-        /// Collection handle
-        HCollection m_Collection;
         /// Game object instance
         HInstance m_Instance;
         /// Local component position
