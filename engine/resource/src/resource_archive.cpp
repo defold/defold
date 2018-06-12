@@ -695,7 +695,6 @@ namespace dmResourceArchive
         fclose(f_lu_index);
 
         // set result
-        // TODO resource load lock here? Since we lock for SetNewArchiveIndex should we lock here as well?
         out_new_index = ai_temp;
         return RESULT_OK;
     }

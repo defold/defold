@@ -85,9 +85,9 @@ namespace dmLiveUpdate
     /*# create, verify, and store a manifest to device
      *
      * Create a new manifest from a buffer. The created manifest is verified
-     * by ensuring that the manifest was created using the correct private key
-     * during the bundle process and that the manifest supports the current running
-     * engine version. Once the manifest is verified it is stored on device.
+     * by ensuring that the manifest was signed using the bundled public/private 
+     * key-pair during the bundle process and that the manifest supports the current
+     * running engine version. Once the manifest is verified it is stored on device.
      * The next time the engine starts (or is rebooted) it will look for the stored
      * manifest before loading resources. Storing a new manifest allows the
      * developer to update the game, modify existing resources, or add new

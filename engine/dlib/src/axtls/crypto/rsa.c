@@ -78,7 +78,7 @@ void RSA_priv_key_new(RSA_CTX **ctx,
 }
 
 /**
- * Similar to RSA_pub_key_new, rewritten to make this program depend only on bi module
+ * Reads RSA public key without needing a complete certificate.
  */
 void RSA_pub_key_raw_new(RSA_CTX **rsa, const uint8_t *modulus, int mod_len, const uint8_t *pub_exp, int pub_len)
 {
@@ -152,7 +152,7 @@ void RSA_free(RSA_CTX *rsa_ctx)
 }
 
 /**
- * Decrypts the buffer using the rsa public key loaded
+ * Decrypts the buffer using the raw rsa public key loaded
  */
 int RSA_decrypt_public(RSA_CTX *rsa, uint8_t *buffer_in, uint8_t *buffer_out, int out_len)
 {

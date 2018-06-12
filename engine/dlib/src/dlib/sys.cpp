@@ -182,11 +182,6 @@ namespace dmSys
     {
 #if defined(_WIN32)
         bool rename_result = MoveFileEx(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-        if (!rename_result)
-        {
-            int last_error = GetLastError();
-            dmLogInfo("WriteWithMove failed with error (%i)", last_error);
-        }
 #else
         bool rename_result = rename(src_filename, dst_filename) != -1;
 #endif

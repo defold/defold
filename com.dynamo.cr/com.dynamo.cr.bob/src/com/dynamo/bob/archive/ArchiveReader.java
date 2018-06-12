@@ -97,7 +97,7 @@ public class ArchiveReader {
 
             if (this.manifestFile != null) {
                 ManifestData manifestData = ManifestData.parseFrom(this.manifestFile.getData());
-	            for (ResourceEntry resource : manifestData.getResourcesList()) {
+                for (ResourceEntry resource : manifestData.getResourcesList()) {
 	            	if (matchHash(e.hash, resource.getHash().getData().toByteArray(), this.hashLength)) {
 	            		e.fileName = resource.getUrl();
 	            		e.relName = resource.getUrl();

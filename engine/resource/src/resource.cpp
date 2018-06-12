@@ -431,7 +431,7 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
 // Load manifest at specified manifest_path instead of from bundle
 Result LoadExternalManifest(const char* manifest_path, HFactory factory)
 {
-// Android uses different functions to access resources in local storage compared to bundled resources
+// Android differs in storage for resources in local storage compared to bundled resources
 #if !defined(__ANDROID__)
         return LoadManifest(manifest_path, factory);
 #else
@@ -506,8 +506,6 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     return RESULT_OK;
 }
 
-// Diagram of what need to be done; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
-// Inspect asn1 key; http://lapo.it/asn1js/#
 Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len)
 {
     if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") != 0)
@@ -556,12 +554,6 @@ Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hashDigest
     return (result == dmResourceArchive::RESULT_OK) ? RESULT_OK : RESULT_INVAL;
 }
 
-/* In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.
- * We check this by persisting the bundled manifest signature to file the first time a liveupdate.manifest
- * is stored. At app start we check the current bundled manifest signature against the signature written to file.
- * If they don't match the bundle has changed, and we need to remove any liveupdate.manifest from the filesystem
- * and load the bundled manifest instead.
- */
 Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
 {
     Result result = RESULT_OK;
@@ -732,10 +724,8 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             }
             else
             {
-                // Bundle version file exists from previous run, but signature does not match currently loaded bundled manifest
-                // Unlink liveupdate.manifest and bundle_ver_path from filesys
-                // Load bundled manifest instead. 
-                // Already loaded at this point? Just need the unlinks then
+                // Bundle version file exists from previous run, but signature does not match currently loaded bundled manifest.
+                // Unlink liveupdate.manifest and bundle_ver_path from filesystem and load bundled manifest instead. 
                 dmSys::Unlink(bundle_ver_path);
                 dmSys::Unlink(lu_manifest_file_path);
             }
@@ -941,12 +931,6 @@ Result RegisterType(HFactory factory,
     factory->m_ResourceTypes[factory->m_ResourceTypesCount++] = resource_type;
 
     return RESULT_OK;
-}
-
-uint32_t HexDigestLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
-{
-
-    return dmResource::HashLength(algorithm) * 2U;
 }
 
 Result LoadFromManifest(const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
@@ -1943,7 +1927,7 @@ dmMutex::Mutex GetLoadMutex(const dmResource::HFactory factory)
     return factory->m_LoadMutex;
 }
 
-void ReleaseBuiltinsManifest(HFactory factory) 
+void ReleaseBuiltinsManifest(HFactory factory)
 {
     if (factory->m_BuiltinsManifest)
     {

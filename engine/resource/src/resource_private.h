@@ -55,6 +55,14 @@ namespace dmResource
     uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
 
     Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, char*& out_digest, uint32_t &out_digest_len);
+
+    /** 
+     * In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.
+     * We check this by persisting the bundled manifest signature to file the first time a liveupdate.manifest
+     * is stored. At app start we check the current bundled manifest signature against the signature written to file.
+     * If they don't match the bundle has changed, and we need to remove any liveupdate.manifest from the filesystem
+     * and load the bundled manifest instead.
+     */
     Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
 
     struct PreloadRequest;

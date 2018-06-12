@@ -608,6 +608,13 @@ namespace dmResource
 
     Result StoreManifest(Manifest* manifest);
 
+    /**
+     * Loads the public RSA key from the bundle.
+     * Uses the public key to decrypt the manifest signature to get the content hash.
+     * Compares the decrypted content hash to the expected content hash.
+     * Diagram of what to do; https://crypto.stackexchange.com/questions/12768/why-hash-the-message-before-signing-it-with-rsa
+     * Inspect asn1 key content; http://lapo.it/asn1js/#
+     */
     Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* expected_digest, uint32_t expected_len);
 
     /**
@@ -663,7 +670,7 @@ namespace dmResource
     void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
 
     /**
-     * Compares two hash buffers byte for byte
+     * Byte-wise comparison of two hash buffers
      * @param digest The hash digest to compare
      * @param len The hash digest length
      * @param buf The expected hash digest
@@ -673,7 +680,7 @@ namespace dmResource
     Result HashCompare(const uint8_t* digest, uint32_t len, const uint8_t* expected_digest, uint32_t expected_len);
 
     // Platform specific implementation of archive and manifest loading. Data written into mount_info must
-    // be provided when unloading and may contain information about memory mapping etc.
+    // be provided for unloading and may contain information about memory mapping etc.
     Result MountArchiveInternal(const char* index_path, const char* data_path, const char* lu_data_path, dmResourceArchive::HArchiveIndexContainer* archive, void** mount_info);
     void UnmountArchiveInternal(dmResourceArchive::HArchiveIndexContainer &archive, void* mount_info);
     Result MountManifest(const char* manifest_filename, void*& out_map, uint32_t& out_size);

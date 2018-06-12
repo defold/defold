@@ -155,7 +155,6 @@ namespace dmLiveUpdate
         
         dmResource::Manifest* manifest = new dmResource::Manifest();
 
-        // TODO create/verify/store async
         // Create
         Result result = ParseManifestBin((uint8_t*) manifest_data, manifest_len, manifest);
         if (result == RESULT_OK)
