@@ -447,7 +447,7 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmGameObject::HInstance instance = CheckGoInstance(L);
-        dmhash_t id_hash = dmScript::CheckHashOrString(L, 2);
+        dmhash_t id_hash = dmScript::CheckHashOrString(L, 1);
         float gain = luaL_checknumber(L, 2);
 
         dmMessage::URL receiver;
