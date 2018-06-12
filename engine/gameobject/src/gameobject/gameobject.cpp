@@ -3322,10 +3322,11 @@ namespace dmGameObject
     // Unit test functions
     uint32_t GetAddToUpdateCount(HCollection hcollection)
     {
+        Collection* collection = hcollection->m_Collection;
         uint32_t count = 0;
-        uint16_t index = hcollection->m_Collection->m_InstancesToAddHead;
+        uint16_t index = collection->m_InstancesToAddHead;
         while (index != INVALID_INSTANCE_INDEX) {
-            index = hcollection->m_Collection->m_Instances[index]->m_NextToAdd;
+            index = collection->m_Instances[index]->m_NextToAdd;
             ++count;
         }
         return count;
@@ -3333,10 +3334,11 @@ namespace dmGameObject
 
     uint32_t GetRemoveFromUpdateCount(HCollection hcollection)
     {
+        Collection* collection = hcollection->m_Collection;
         uint32_t count = 0;
-        uint16_t index = hcollection->m_Collection->m_InstancesToDeleteHead;
+        uint16_t index = collection->m_InstancesToDeleteHead;
         while (index != INVALID_INSTANCE_INDEX) {
-            index = hcollection->m_Collection->m_Instances[index]->m_NextToDelete;
+            index = collection->m_Instances[index]->m_NextToDelete;
             ++count;
         }
         return count;
