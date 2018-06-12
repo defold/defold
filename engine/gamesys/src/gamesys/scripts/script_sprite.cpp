@@ -288,7 +288,7 @@ namespace dmGameSystem
      * the animation has completed playing. If no function is provided,
      * a [ref:animation_done] message is sent to the script that started the animation.
      * 
-     * @name sprite.play_animation
+     * @name sprite.play_flipbook
      * @param url [type:string|hash|url] the sprite that should play the animation
      * @param id hash name hash of the animation to play
      * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
@@ -317,7 +317,7 @@ namespace dmGameSystem
      *   if message_id == hash("model_animation_done") then
      *     if message.id == hash("jump") then
      *       -- open animation done, chain with "run"
-     *       sprite.play_animation(url, "run")
+     *       sprite.play_flipbook(url, "run")
      *     end
      *   end
      * end
@@ -325,11 +325,11 @@ namespace dmGameSystem
      * ```lua
      * function init(self)
      *   local url = msg.url("#sprite")
-     *   sprite.play_animation(url, "jump", anim_done)
+     *   sprite.play_flipbook(url, "jump", anim_done)
      * end
      * ```
      */
-    int SpriteComp_PlayAnimation(lua_State* L)
+    int SpriteComp_PlayFlipBook(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
@@ -365,7 +365,7 @@ namespace dmGameSystem
             {"set_constant",    SpriteComp_SetConstant},
             {"reset_constant",  SpriteComp_ResetConstant},
             {"set_scale",       SpriteComp_SetScale},
-            {"play_animation",  SpriteComp_PlayAnimation},
+            {"play_flipbook",  SpriteComp_PlayFlipBook},
             {0, 0}
     };
 

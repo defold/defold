@@ -486,7 +486,7 @@ namespace dmGameSystem
                     dmMessage::URL receiver = component->m_Listener;
                     if (!GetSender(component, &sender))
                     {
-                        dmLogError("Could not send animation_done to listener because of incomplete component.");
+                        dmLogError("Could not send animation_done to listener.");
                         return;
                     }
 

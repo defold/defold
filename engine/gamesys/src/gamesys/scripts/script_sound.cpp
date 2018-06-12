@@ -338,24 +338,24 @@ namespace dmGameSystem
      * Inversely, to find the linear value from a dB value, use the formula
      * <code>10<sup>db/20</sup></code>.
      *
-     * @name sound.play_sound
+     * @name sound.play
      * @param url [type:string|hash|url] the sound that should play
      * @param [play_properties] [type:table] optional table with properties:
      * `delay`
      * : [type:number] delay in seconds before the sound starts playing, default is 0.
      *
      * `gain`
-     * : [type:number] sound gain between 0 and 1, default is 1.
+     * : [type:number] sound gain between 0 and 1, default is 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
      * 
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component play its sound after 1 second:
      *
      * ```lua
-     * sound.play_sound("#sound", { delay = 1, gain = 0.5 } )
+     * sound.play("#sound", { delay = 1, gain = 0.5 } )
      * ```
      */
-    int Sound_PlaySound(lua_State* L)
+    int Sound_Play(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
@@ -395,17 +395,18 @@ namespace dmGameSystem
     /*# stop a playing a sound(s)
      * Stop playing all active voices
      *
-     * @name sound.stop_sound
+     * @name sound.stop
      * @param url [type:string|hash|url] the sound that should stop
+     * 
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will make the component stop all playing voices:
      *
      * ```lua
-     * sound.stop_sound("#sound")
+     * sound.stop("#sound")
      * ```
      */
-    int Sound_StopSound(lua_State* L)
+    int Sound_Stop(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         dmGameObject::HInstance instance = CheckGoInstance(L);
@@ -431,13 +432,13 @@ namespace dmGameSystem
      * @message
      * @name sound.set_gain
      * @param url [type:string|hash|url] the sound to set the gain of
-     * @param [gain] [type:number] sound gain between 0 and 1, default is 1.
+     * @param [gain] [type:number] sound gain between 0 and 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
      * @examples
      *
      * Assuming the script belongs to an instance with a sound-component with id "sound", this will set the gain to 0.5
      *
      * ```lua
-     * sound.set_gain("#sound", gain = 0.5)
+     * sound.set_gain("#sound", 0.5)
      * ```
      */
     int Sound_SetGain(lua_State* L)
@@ -470,8 +471,8 @@ namespace dmGameSystem
         {"get_groups", Sound_GetGroups},
         {"get_group_name", Sound_GetGroupName},
         {"is_phone_call_active", Sound_IsPhoneCallActive},
-        {"play_sound", Sound_PlaySound},
-        {"stop_sound", Sound_StopSound},
+        {"play", Sound_Play},
+        {"stop", Sound_Stop},
         {"set_gain", Sound_SetGain},
         {0, 0}
     };
