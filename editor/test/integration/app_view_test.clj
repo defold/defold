@@ -83,15 +83,6 @@
     (-> git (.commit) (.setMessage "init repo") (.call))
     git))
 
-(defn- path->file [workspace ^String path]
-  (File. ^File (workspace/project-path workspace) path))
-
-(defn- rename! [workspace ^String from ^String to]
-  (let [from-file (path->file workspace from)
-        to-file (path->file workspace to)]
-    (fs/move-file! from-file to-file)
-    (workspace/resource-sync! workspace [[from-file to-file]])))
-
 (defn- edit-and-save! [workspace atlas margin]
   (g/set-property! atlas :margin margin)
   (let [save-data (g/node-value atlas :save-data)]
@@ -102,7 +93,7 @@
   (let [status (git/unified-status git)
         moved-files (->> status
                       (filter #(= (:change-type %) :rename))
-                      (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %)))))]
+                      (mapv #(vector (test-util/file workspace (:new-path %)) (test-util/file workspace (:old-path %)))))]
     (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) status))
     (workspace/resource-sync! workspace moved-files)))
 
@@ -120,7 +111,7 @@
           git (init-git proj-path)
           atlas-outline (fn [path] (test-util/outline (g/node-value app-view :active-resource-node) path))]
       (is (= atlas-res (g/node-value app-view :active-resource)))
-      (rename! workspace atlas-path atlas-path2)
+      (test-util/move-file! workspace atlas-path atlas-path2)
       (is (= atlas-res2 (g/node-value app-view :active-resource)))
       (revert-all! workspace git)
       (is (= atlas-res (g/node-value app-view :active-resource)))

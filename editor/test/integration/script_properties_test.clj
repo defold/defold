@@ -686,6 +686,46 @@
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
 
+(deftest rename-resource-referenced-from-component-instance-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          resource (partial tu/resource workspace)
+          build-resource (partial build-resource project)
+          build-output (partial build-output project)
+          make-atlas! (partial make-atlas! project)
+          make-resource-node! (partial tu/make-resource-node! project)]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas! "/from-props-script.atlas")
+        (make-atlas! "/from-props-game-object.atlas")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+              props-game-object (make-resource-node! "/props.go")
+              props-script-component (add-component! props-game-object props-script)]
+          (edit-property! props-script-component :__atlas (resource "/from-props-game-object.atlas"))
+          (tu/move-file! workspace "/from-props-game-object.atlas" "/renamed-from-props-game-object.atlas")
+          (is (tu/prop-overridden? props-script-component :__atlas))
+          (is (atlas-resource-property? (get (properties props-script-component) :__atlas) (resource "/renamed-from-props-game-object.atlas")))
+          (is (contains? (built-resources props-game-object) (build-resource "/renamed-from-props-game-object.atlas")))
+
+          (let [saved-props-game-object (save-value GameObject$PrototypeDesc props-game-object)
+                saved-props-script-component (find-corresponding (:components saved-props-game-object) props-script-component)]
+            (is (= {} (unpack-property-declarations (:property-decls saved-props-script-component))))
+            (is (= (:properties saved-props-script-component)
+                   [{:id "atlas"
+                     :value "/renamed-from-props-game-object.atlas"
+                     :type :property-type-hash}])))
+
+          (with-open [_ (build! props-game-object)]
+            (let [built-props-game-object (protobuf/bytes->map GameObject$PrototypeDesc (build-output "/props.go"))
+                  built-props-script-component (find-corresponding (:components built-props-game-object) props-script-component)
+                  renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-props-game-object.atlas"))]
+              (is (= [] (:properties built-props-script-component)))
+              (is (= (unpack-property-declarations (:property-decls built-props-script-component))
+                     {"atlas" (murmur/hash64 renamed-build-resource-path)}))
+              (is (= (:property-resources built-props-game-object)
+                     [renamed-build-resource-path])))))))))
+
 (deftest edit-game-object-instance-resource-properties-test
   (with-clean-system
     (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
@@ -909,6 +949,52 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
+
+(deftest rename-resource-referenced-from-game-object-instance-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          resource (partial tu/resource workspace)
+          build-resource (partial build-resource project)
+          build-output (partial build-output project)
+          make-atlas! (partial make-atlas! project)
+          make-resource-node! (partial tu/make-resource-node! project)]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas! "/from-props-script.atlas")
+        (make-atlas! "/from-props-collection.atlas")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+              props-game-object (doto (make-resource-node! "/props.go")
+                                  (add-component! props-script))
+              props-collection (make-resource-node! "/props.collection")
+              ov-props-game-object (add-game-object! props-collection props-game-object)
+              ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
+              props-game-object-instance (ffirst (g/sources-of props-collection :ref-inst-ddf))]
+          (edit-property! ov-props-script-component :__atlas (resource "/from-props-collection.atlas"))
+          (tu/move-file! workspace "/from-props-collection.atlas" "/renamed-from-props-collection.atlas")
+          (is (tu/prop-overridden? ov-props-script-component :__atlas))
+          (is (atlas-resource-property? (get (properties ov-props-script-component) :__atlas) (resource "/renamed-from-props-collection.atlas")))
+          (is (contains? (built-resources props-collection) (build-resource "/renamed-from-props-collection.atlas")))
+
+          (let [saved-props-collection (save-value GameObject$CollectionDesc props-collection)
+                saved-props-game-object-instance (find-corresponding (:instances saved-props-collection) props-game-object-instance)
+                saved-props-script-component (find-corresponding (:component-properties saved-props-game-object-instance) ov-props-script-component)]
+            (is (= {} (unpack-property-declarations (:property-decls saved-props-script-component))))
+            (is (= (:properties saved-props-script-component)
+                   [{:id "atlas"
+                     :value "/renamed-from-props-collection.atlas"
+                     :type :property-type-hash}])))
+
+          (with-open [_ (build! props-collection)]
+            (let [built-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/props.collection"))
+                  built-props-game-object-instance (find-corresponding (:instances built-props-collection) props-game-object-instance)
+                  built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)
+                  renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-props-collection.atlas"))]
+              (is (= [] (:properties built-props-script-component)))
+              (is (= (unpack-property-declarations (:property-decls built-props-script-component))
+                     {"atlas" (murmur/hash64 renamed-build-resource-path)}))
+              (is (= (:property-resources built-props-collection)
+                     [renamed-build-resource-path])))))))))
 
 (deftest edit-collection-instance-resource-properties-test
   (with-clean-system
@@ -1150,3 +1236,156 @@
 
               ["go.property('texture', resource.texture('/from-props-script.material'))"]
               "Texture '/from-props-script.material' is not of type .cubemap, .jpg or .png")))))))
+
+(deftest rename-resource-referenced-from-collection-instance-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          resource (partial tu/resource workspace)
+          build-resource (partial build-resource project)
+          build-output (partial build-output project)
+          make-atlas! (partial make-atlas! project)
+          make-resource-node! (partial tu/make-resource-node! project)]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas! "/from-props-script.atlas")
+        (make-atlas! "/from-sub-props-collection.atlas")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+              props-game-object (doto (make-resource-node! "/props.go")
+                                  (add-component! props-script))
+              props-collection (doto (make-resource-node! "/props.collection")
+                                 (add-game-object! props-game-object))
+              sub-props-collection (make-resource-node! "/sub-props.collection")
+              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-game-object-instance (ffirst (g/sources-of ov-props-collection :ref-inst-ddf))
+              ov-props-game-object (ffirst (g/sources-of ov-props-game-object-instance :source-resource))
+              ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
+              props-collection-instance (ffirst (g/sources-of sub-props-collection :ref-coll-ddf))]
+          (edit-property! ov-props-script-component :__atlas (resource "/from-sub-props-collection.atlas"))
+          (tu/move-file! workspace "/from-sub-props-collection.atlas" "/renamed-from-sub-props-collection.atlas")
+          (is (tu/prop-overridden? ov-props-script-component :__atlas))
+          (is (atlas-resource-property? (get (properties ov-props-script-component) :__atlas) (resource "/renamed-from-sub-props-collection.atlas")))
+          (is (contains? (built-resources sub-props-collection) (build-resource "/renamed-from-sub-props-collection.atlas")))
+
+          (let [saved-sub-props-collection (save-value GameObject$CollectionDesc sub-props-collection)
+                saved-props-collection-instance (find-corresponding (:collection-instances saved-sub-props-collection) props-collection-instance)
+                saved-props-game-object-instance (find-corresponding (:instance-properties saved-props-collection-instance) ov-props-game-object-instance)
+                saved-props-script-component (find-corresponding (:properties saved-props-game-object-instance) ov-props-script-component)]
+            (is (= {} (unpack-property-declarations (:property-decls saved-props-script-component))))
+            (is (= (:properties saved-props-script-component)
+                   [{:id "atlas"
+                     :value "/renamed-from-sub-props-collection.atlas"
+                     :type :property-type-hash}])))
+
+          (with-open [_ (build! sub-props-collection)]
+            (let [built-sub-props-collection (protobuf/bytes->map GameObject$CollectionDesc (build-output "/sub-props.collection"))
+                  built-props-game-object-instance (first (:instances built-sub-props-collection))
+                  built-props-script-component (find-corresponding (:component-properties built-props-game-object-instance) ov-props-script-component)
+                  renamed-build-resource-path (resource/proj-path (build-resource "/renamed-from-sub-props-collection.atlas"))]
+              (is (= [] (:properties built-props-script-component)))
+              (is (= (unpack-property-declarations (:property-decls built-props-script-component))
+                     {"atlas" (murmur/hash64 renamed-build-resource-path)}))
+              (is (= (:property-resources built-sub-props-collection)
+                     [renamed-build-resource-path])))))))))
+
+(deftest layered-resource-property-override-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          project-graph (g/node-id->graph-id project)
+          make-atlas! (partial make-atlas! project)
+          make-resource-node! (partial tu/make-resource-node! project)
+          edit-property! (fn [node-id proj-path] (edit-property! node-id :__atlas (tu/resource workspace proj-path)))
+          assigned-property? (fn [node-id proj-path] (atlas-resource-property? (get (properties node-id) :__atlas) (tu/resource workspace proj-path)))
+          overridden-property? (fn [node-id] (overridden? node-id "atlas"))]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas! "/from-props-script.atlas")
+        (make-atlas! "/from-props-game-object.atlas")
+        (make-atlas! "/from-props-collection.atlas")
+        (make-atlas! "/from-sub-props-collection.atlas")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+              props-game-object (make-resource-node! "/props.go")
+              props-script-component (add-component! props-game-object props-script)
+              props-collection (make-resource-node! "/props.collection")
+              ov-props-game-object (add-game-object! props-collection props-game-object)
+              ov-props-script-component (ffirst (g/sources-of ov-props-game-object :ref-ddf))
+              sub-props-collection (make-resource-node! "/sub-props.collection")
+              ov-props-collection (add-collection! sub-props-collection props-collection)
+              ov-props-game-object-instance (ffirst (g/sources-of ov-props-collection :ref-inst-ddf))
+              ov-ov-props-game-object (ffirst (g/sources-of ov-props-game-object-instance :source-resource))
+              ov-ov-props-script-component (ffirst (g/sources-of ov-ov-props-game-object :ref-ddf))]
+          (is (g/node-instance? game-object/ReferencedComponent props-script-component))
+          (is (g/node-instance? game-object/ReferencedComponent ov-props-script-component))
+          (is (g/node-instance? game-object/ReferencedComponent ov-ov-props-script-component))
+          (is (not (g/override? props-script-component)))
+          (is (= props-script-component (g/override-original ov-props-script-component)))
+          (is (= ov-props-script-component (g/override-original ov-ov-props-script-component)))
+
+          (with-open [_ (tu/make-graph-reverter project-graph)]
+            (edit-property! props-script-component               "/from-props-game-object.atlas")
+            (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
+            (is (assigned-property? ov-props-script-component    "/from-props-game-object.atlas"))
+            (is (assigned-property? ov-ov-props-script-component "/from-props-game-object.atlas"))
+            (is (overridden-property? props-script-component))
+            (is (not (overridden-property? ov-props-script-component)))
+            (is (not (overridden-property? ov-ov-props-script-component))))
+
+          (with-open [_ (tu/make-graph-reverter project-graph)]
+            (edit-property! ov-props-script-component            "/from-props-collection.atlas")
+            (is (assigned-property? props-script-component       "/from-props-script.atlas"))
+            (is (assigned-property? ov-props-script-component    "/from-props-collection.atlas"))
+            (is (assigned-property? ov-ov-props-script-component "/from-props-collection.atlas"))
+            (is (not (overridden-property? props-script-component)))
+            (is (overridden-property? ov-props-script-component))
+            (is (not (overridden-property? ov-ov-props-script-component))))
+
+          (with-open [_ (tu/make-graph-reverter project-graph)]
+            (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
+            (is (assigned-property? props-script-component       "/from-props-script.atlas"))
+            (is (assigned-property? ov-props-script-component    "/from-props-script.atlas"))
+            (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
+            (is (not (overridden-property? props-script-component)))
+            (is (not (overridden-property? ov-props-script-component)))
+            (is (overridden-property? ov-ov-props-script-component)))
+
+          (with-open [_ (tu/make-graph-reverter project-graph)]
+            (edit-property! props-script-component               "/from-props-game-object.atlas")
+            (edit-property! ov-props-script-component            "/from-props-collection.atlas")
+            (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
+            (is (assigned-property? ov-props-script-component    "/from-props-collection.atlas"))
+            (is (assigned-property? ov-ov-props-script-component "/from-props-collection.atlas"))
+            (is (overridden-property? props-script-component))
+            (is (overridden-property? ov-props-script-component))
+            (is (not (overridden-property? ov-ov-props-script-component))))
+
+          (with-open [_ (tu/make-graph-reverter project-graph)]
+            (edit-property! props-script-component               "/from-props-game-object.atlas")
+            (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
+            (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
+            (is (assigned-property? ov-props-script-component    "/from-props-game-object.atlas"))
+            (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
+            (is (overridden-property? props-script-component))
+            (is (not (overridden-property? ov-props-script-component)))
+            (is (overridden-property? ov-ov-props-script-component)))
+
+          (with-open [_ (tu/make-graph-reverter project-graph)]
+            (edit-property! ov-props-script-component            "/from-props-collection.atlas")
+            (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
+            (is (assigned-property? props-script-component       "/from-props-script.atlas"))
+            (is (assigned-property? ov-props-script-component    "/from-props-collection.atlas"))
+            (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
+            (is (not (overridden-property? props-script-component)))
+            (is (overridden-property? ov-props-script-component))
+            (is (overridden-property? ov-ov-props-script-component)))
+
+          (with-open [_ (tu/make-graph-reverter project-graph)]
+            (edit-property! props-script-component               "/from-props-game-object.atlas")
+            (edit-property! ov-props-script-component            "/from-props-collection.atlas")
+            (edit-property! ov-ov-props-script-component         "/from-sub-props-collection.atlas")
+            (is (assigned-property? props-script-component       "/from-props-game-object.atlas"))
+            (is (assigned-property? ov-props-script-component    "/from-props-collection.atlas"))
+            (is (assigned-property? ov-ov-props-script-component "/from-sub-props-collection.atlas"))
+            (is (overridden-property? props-script-component))
+            (is (overridden-property? ov-props-script-component))
+            (is (overridden-property? ov-ov-props-script-component))))))))

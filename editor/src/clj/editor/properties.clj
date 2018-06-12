@@ -518,16 +518,12 @@
 (defn set-resource-property [node-id prop-kw resource]
   ;; Nodes with resource properties must have a property-resources property that
   ;; hooks up the resource property build targets in its setter.
-  (concat
-    (g/set-property node-id prop-kw resource)
-    (g/update-property node-id :property-resources assoc prop-kw resource)))
+  (g/update-property node-id :property-resources assoc prop-kw resource))
 
 (defn clear-resource-property [node-id prop-kw]
   ;; Nodes with resource properties must have a property-resources property that
   ;; hooks up the resource property build targets in its setter.
-  (concat
-    (g/clear-property node-id prop-kw)
-    (g/update-property node-id :property-resources dissoc prop-kw)))
+  (g/update-property node-id :property-resources dissoc prop-kw))
 
 (defn- apply-property-override [workspace node-id prop-kw prop property-desc]
   (assert (integer? node-id))

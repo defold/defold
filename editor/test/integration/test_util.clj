@@ -376,6 +376,9 @@
 (defn resource [workspace path]
   (workspace/file-resource workspace path))
 
+(defn file ^File [workspace path]
+  (File. (workspace/project-path workspace) path))
+
 (defn selection [app-view]
   (-> app-view
     app-view/->selection-provider
@@ -539,7 +542,7 @@
   "Adds a PNG image file to the workspace. Returns the created FileResource."
   (assert (integer? workspace))
   (assert (.startsWith proj-path "/"))
-  (let [resource (workspace/file-resource workspace proj-path)]
+  (let [resource (resource workspace proj-path)]
     (with-open [out (io/output-stream resource)]
       (.write out png-image-bytes))
     resource))
@@ -549,7 +552,7 @@
   [workspace proj-path]
   (assert (integer? workspace))
   (assert (.startsWith proj-path "/"))
-  (let [resource (workspace/file-resource workspace proj-path)
+  (let [resource (resource workspace proj-path)
         resource-type (resource/resource-type resource)
         template (workspace/template resource-type)]
     (spit resource template)
@@ -563,6 +566,14 @@
         resource (make-resource! workspace proj-path)]
     (workspace/resource-sync! workspace)
     (project/get-resource-node project resource)))
+
+(defn move-file!
+  "Moves or renames a file in the workspace, then performs a resource sync."
+  [workspace ^String from-proj-path ^String to-proj-path]
+  (let [from-file (file workspace from-proj-path)
+        to-file (file workspace to-proj-path)]
+    (fs/move-file! from-file to-file)
+    (workspace/resource-sync! workspace [[from-file to-file]])))
 
 (defn block-until
   "Blocks the calling thread until the supplied predicate is satisfied for the

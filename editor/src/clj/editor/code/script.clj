@@ -309,21 +309,26 @@
         prop-type (script-property-type->property-type type)
         go-prop-type (script-property-type->go-prop-type type)
         edit-type (script-property-edit-type script-property)
-        validated-value (get override-values-by-prop-kw prop-kw value)
-        error (validate-value-against-edit-type node-id prop-kw validated-value edit-type)]
+        final-value (get override-values-by-prop-kw prop-kw value)
+        error (validate-value-against-edit-type node-id prop-kw final-value edit-type)]
     [prop-kw {:node-id node-id
               :type prop-type
               :edit-type edit-type
               :go-prop-type go-prop-type
-              :value value
+              :value final-value
               :error error
               :read-only? read-only?}]))
 
-(g/defnk produce-user-properties [_node-id script-properties property-resources]
-  (let [read-only? (nil? (g/override-original _node-id))]
+(g/defnk produce-user-properties [_node-id script-properties property-resources resource-property-resources]
+  (let [read-only? (nil? (g/override-original _node-id))
+        resources-by-prop-kw (into {}
+                                   (map (fn [[prop-kw] resource]
+                                          [prop-kw resource])
+                                        property-resources
+                                        resource-property-resources))]
     {:display-order (mapv prop->key script-properties)
      :properties (into {}
-                       (map (partial script-property->property-entry _node-id read-only? property-resources))
+                       (map (partial script-property->property-entry _node-id read-only? resources-by-prop-kw))
                        script-properties)}))
 
 (g/defnode ScriptNode
@@ -331,6 +336,7 @@
 
   (input module-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
+  (input resource-property-resources resource/Resource :array)
   (input resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
   (input original-resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
 
@@ -388,11 +394,14 @@
                    (let [basis (:basis evaluation-context)
                          project (project/get-project self)]
                      (concat
+                       (gu/disconnect-all basis self :resource-property-resources)
                        (gu/disconnect-all basis self :resource-property-build-targets)
-                       (for [[_prop-kw resource] new-value
-                             :when (some? resource)]
-                         (project/connect-resource-node project resource self
-                                                        [[:build-targets :resource-property-build-targets]])))))))
+                       (for [[_prop-kw resource] new-value]
+                         (if (nil? resource)
+                           (g/connect project :nil-resource self :resource-property-resources)
+                           (project/connect-resource-node project resource self
+                                                          [[:resource :resource-property-resources]
+                                                           [:build-targets :resource-property-build-targets]]))))))))
 
   (output _properties g/Properties :cached produce-properties)
   (output build-targets g/Any :cached produce-build-targets)
