@@ -95,7 +95,7 @@ namespace dmLiveUpdate
      *
      * @name resource.store_manifest
      * @param manifest_buffer [type:string] the binary data that represents the manifest
-     * @param callback [type:function(self, status)] the callback function this
+     * @param callback [type:function(self, status)] the callback function
      * executed once the engine has attempted to store the manifest.
 
      * `self`

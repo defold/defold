@@ -198,7 +198,6 @@ namespace dmLiveUpdate
         }
 
         dmResource::HashToString(algorithm, digest, hex_digest, hex_digest_len);
-        dmLogInfo("Actual manifest hash; %s", hex_digest);
 
         Result result = ResourceResultToLiveupdateResult(dmResource::VerifyManifestHash(m_ResourceFactory, manifest, (const uint8_t*)hex_digest, hex_digest_len));
 

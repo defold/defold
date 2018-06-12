@@ -620,7 +620,6 @@ namespace dmEngine
 #endif
 
         const char* resource_uri = dmConfigFile::GetString(engine->m_Config, "resource.uri", content_root);
-        dmLogInfo("Loading data from: %s", resource_uri);
         engine->m_Factory = dmResource::NewFactory(&params, resource_uri);
         if (!engine->m_Factory)
         {

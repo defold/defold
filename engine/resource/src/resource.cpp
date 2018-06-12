@@ -63,6 +63,8 @@ namespace dmResource
 const int DEFAULT_BUFFER_SIZE = 1024 * 1024;
 
 #define RESOURCE_SOCKET_NAME "@resource"
+#define LIVEUPDATE_MANIFEST_FILENAME "liveupdate.dmanifest"
+#define LIVEUPDATE_BUNDLE_VER_FILENAME "bundle.ver"
 
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
 
@@ -267,7 +269,7 @@ Result StoreManifest(Manifest* manifest)
     char manifest_tmp_file_path[DMPATH_MAX_PATH];
     HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-    dmPath::Concat(app_support_path, "liveupdate.dmanifest", manifest_file_path, DMPATH_MAX_PATH);
+    dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, manifest_file_path, DMPATH_MAX_PATH);
     dmStrlCpy(manifest_tmp_file_path, manifest_file_path, DMPATH_MAX_PATH);
     dmStrlCat(manifest_tmp_file_path, ".tmp", DMPATH_MAX_PATH);
     // write to tempfile, if successful move/rename and then delete tmpfile
@@ -498,7 +500,6 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     out_digest_len = signature_hash_len * 2 + 1;
     out_digest = (char*)malloc(out_digest_len);
     dmResource::HashToString(signature_hash_algorithm, hash, out_digest, out_digest_len);
-    dmLogInfo("Decrypted hash: %s", out_digest); // DEBUG PRINT
 
     free(hash);
     free(hash_decrypted);
@@ -525,7 +526,6 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
     // Load public key
     dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
     dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
-    dmLogInfo("public_key_path: %s", public_key_path);
     dmSys::ResourceSize(public_key_path, &pub_key_size);
     pub_key_buf = (uint8_t*)malloc(pub_key_size);
     assert(pub_key_buf);
@@ -557,27 +557,21 @@ Result NewArchiveIndexWithResource(Manifest* manifest, const uint8_t* hashDigest
 }
 
 /* In the case of an app-store upgrade, we dont want the runtime to load any existing local liveupdate.manifest.
- * We check this by persisting the bundled manifest signature hash to file the first time a liveupdate.manifest
- * is stored. At app start we check the current bundled manifest signature hash against the hash written to file.
+ * We check this by persisting the bundled manifest signature to file the first time a liveupdate.manifest
+ * is stored. At app start we check the current bundled manifest signature against the signature written to file.
  * If they don't match the bundle has changed, and we need to remove any liveupdate.manifest from the filesystem
  * and load the bundled manifest instead.
  */
 Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
 {
-    dmLogError("Got bundle_ver_path: %s", bundle_ver_path);
     Result result = RESULT_OK;
     struct stat file_stat;
     bool bundle_ver_exists = stat(bundle_ver_path, &file_stat) == 0;
-    dmLogError("bundle_ver_exists: %i", bundle_ver_exists);
     
-    // "Hash of bundle", should be OK to use manifest signature I think? Yup.
     uint8_t* signature = manifest->m_DDF->m_Signature.m_Data;
     uint32_t signature_len = manifest->m_DDF->m_Signature.m_Count;
     if (bundle_ver_exists)
     {
-        dmLogError("Found build.ver, checking...");
-        // Take bundled manifest signature and compare to signature written to file.
-        // If different, unlink (remove) local liveupdate.manifest AND 'bundle_ver' file
         FILE* bundle_ver = fopen(bundle_ver_path, "rb");
         uint8_t* buf = (uint8_t*)malloc(signature_len);
         fread(buf, 1, signature_len, bundle_ver);
@@ -585,13 +579,8 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
         if (memcmp(buf, signature, signature_len) != 0)
         {
             // Bundle has changed, local liveupdate manifest no longer valid.
-            // Unlink liveupdate.manifest and bundle_ver_path from filesys
-            dmLogError("Version mismatch in bundle! Deleting liveupdate.manifest and bundle_ver file, falling back to bundled manifest...");
             result = RESULT_VERSION_MISMATCH;
         }
-        else
-            dmLogError("Match! Loading local liveupdate manifest...");
-
         free(buf);
     }
     else
@@ -630,8 +619,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         delete factory;
         return 0;
     }
-
-    dmLogInfo("factory->m_UriParts.m_Scheme: %s", factory->m_UriParts.m_Scheme);
 
     factory->m_HttpBuffer = 0;
     factory->m_HttpClient = 0;
@@ -694,9 +681,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     }
     else if (strcmp(factory->m_UriParts.m_Scheme, "dmanif") == 0)
     {
-        dmLogInfo("path: %s", factory->m_UriParts.m_Path)
-        dmLogInfo("location: %s", factory->m_UriParts.m_Location)
-        dmLogInfo("hostname: %s", factory->m_UriParts.m_Hostname)
         factory->m_Manifest = new Manifest();
         factory->m_ArchiveMountInfo = 0x0;
 
@@ -719,14 +703,14 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
         HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
         dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
-        dmPath::Concat(app_support_path, "liveupdate.dmanifest", lu_manifest_file_path, DMPATH_MAX_PATH);
+        dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, lu_manifest_file_path, DMPATH_MAX_PATH);
         struct stat file_stat;
         bool lu_manifest_exists = stat(lu_manifest_file_path, &file_stat) == 0;
         if (lu_manifest_exists)
         {
             // Check if bundle has changed (e.g. app upgraded)
             char bundle_ver_path[DMPATH_MAX_PATH];
-            dmPath::Concat(app_support_path, "bundle.ver", bundle_ver_path, DMPATH_MAX_PATH);
+            dmPath::Concat(app_support_path, LIVEUPDATE_BUNDLE_VER_FILENAME, bundle_ver_path, DMPATH_MAX_PATH);
 
             Result bundle_ver_valid = BundleVersionValid(factory->m_Manifest, bundle_ver_path);
             if (bundle_ver_valid == RESULT_OK)
@@ -737,7 +721,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 factory->m_Manifest->m_DDFData = 0x0;
                 factory->m_Manifest->m_DDF = 0x0;
                 // Load external liveupdate.manifest
-                dmLogInfo("LiveUpdate manifest file exists! path: %s", lu_manifest_file_path);
                 r = LoadExternalManifest(lu_manifest_file_path, factory);
                 // Use liveupdate manifest if successfully loaded, otherwise fall back to bundled manifest
                 if (r == RESULT_OK)
@@ -758,8 +741,6 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
                 dmSys::Unlink(lu_manifest_file_path);
             }
         }
-        else
-            dmLogInfo("No external LiveUpdate manifest file found :( Looked for path: %s", lu_manifest_file_path);
 
         r = LoadArchiveIndex(manifest_path, factory->m_UriParts.m_Path, factory);
 
