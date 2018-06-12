@@ -105,7 +105,7 @@ namespace dmGameObject
         Vector3 m_PrevEulerRotation;
         // Collection this instances belongs to. Added for GetWorldPosition.
         // We should consider to remove this (memory footprint)
-        HCollection     m_Collection;
+        struct Collection* m_Collection;
         Prototype*      m_Prototype;
 
         uint32_t        m_IdentifierIndex;
@@ -185,7 +185,7 @@ namespace dmGameObject
         dmMutex::Mutex              m_Mutex;
 
         // All collections. Protected by m_Mutex
-        dmArray<HCollection>        m_Collections;
+        dmArray<Collection*>        m_Collections;
         // Default capacity of collections
         uint32_t                    m_DefaultCollectionCapacity;
 
@@ -245,6 +245,8 @@ namespace dmGameObject
         // GameObject component register
         HRegister                m_Register;
 
+        struct CollectionHandle* m_HCollection;
+
         // Component type specific worlds
         void*                    m_ComponentWorlds[MAX_COMPONENT_TYPES];
         // Component type specific instance counters
@@ -270,7 +272,7 @@ namespace dmGameObject
         dmArray<uint16_t>        m_LevelIndices[MAX_HIERARCHICAL_DEPTH];
 
         // Array of world transforms. Calculated using m_LevelIndices above
-        dmArray<Matrix4> m_WorldTransforms;
+        dmArray<Matrix4>         m_WorldTransforms;
 
         // Identifier to Instance mapping
         dmHashTable64<Instance*> m_IDToInstance;
@@ -312,19 +314,34 @@ namespace dmGameObject
         uint32_t                 m_DirtyTransforms : 1;
     };
 
+    struct CollectionHandle
+    {
+        Collection* m_Collection;
+    };
+
     ComponentType* FindComponentType(Register* regist, uint32_t resource_type, uint32_t* index);
 
-    HInstance NewInstance(HCollection collection, Prototype* proto, const char* prototype_name);
-    void ReleaseIdentifier(HCollection collection, HInstance instance);
-    void UndoNewInstance(HCollection collection, HInstance instance);
-    bool CreateComponents(HCollection collection, HInstance instance);
-    void UpdateTransforms(HCollection collection);
+    HInstance NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
+    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
+    Result SetIdentifier(Collection* collection, HInstance instance, const char* identifier);
+    void ReleaseIdentifier(Collection* collection, HInstance instance);
+    void UndoNewInstance(Collection* collection, HInstance instance);
+    bool CreateComponents(Collection* collection, HInstance instance);
+    void UpdateTransforms(Collection* collection);
+    void DeleteCollection(Collection* collection);
+    void ReleaseInstanceIndex(uint32_t index, HCollection collection);
 
-#if !defined(NDEBUG)
+    bool Init(Collection* collection);
+    bool Init(Collection* collection, HInstance instance);
+    void Delete(Collection* collection, HInstance instance, bool recursive);
+
+    void AcquireInputFocus(Collection* collection, HInstance instance);
+    void ReleaseInputFocus(Collection* collection, HInstance instance);
+    UpdateResult DispatchInput(Collection* collection, InputAction* input_actions, uint32_t input_action_count);
+
     // Unit test functions
     uint32_t GetAddToUpdateCount(HCollection collection); // Returns the number of items scheduled to be added to update
     uint32_t GetRemoveFromUpdateCount(HCollection collection); // Returns the number of items scheduled to be removed from update
-#endif // NDEBUG
 }
 
 #endif // GAMEOBJECT_COMMON_H
