@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -135,6 +136,8 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        boolean shouldPublish = project.option("liveupdate", "false").equals("true");
+        project.createPublisher(shouldPublish);
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
@@ -208,7 +211,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
@@ -220,23 +223,16 @@ public class GameProjectBuilder extends Builder<Void> {
             archiveBuilder.add(s, compress);
         }
 
-        Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
         archiveIndex.close();
         archiveData.close();
 
-        // Populate the zip archive with the resource pack
+        // Populate publisher with the resource pack
         for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
             if (fhandle.isFile()) {
                 project.getPublisher().AddEntry(fhandle.getName(), fhandle);
             }
-        }
-
-        project.getPublisher().Publish();
-        File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
-        if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
-            FileUtils.deleteDirectory(resourcePackDirectoryHandle);
         }
     }
 
@@ -435,18 +431,40 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
-        String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
-        String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
-        String publicKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "publickey", null);
+        String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
+        String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
+        String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setDependencies(rootNode);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
 
-        if (privateKeyFilepath == null || publicKeyFilepath == null) {
+
+        // If manifest signing keys are specified, use them instead of generating them.
+        if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
+            if (!Files.exists(Paths.get(privateKeyFilepath))) {
+                privateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
+                if (!Files.exists(Paths.get(privateKeyFilepath))) {
+                    privateKeyFilepath = "";
+                }
+            }
+
+            if (!Files.exists(Paths.get(publicKeyFilepath))) {
+                publicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
+                if (!Files.exists(Paths.get(publicKeyFilepath))) {
+                    publicKeyFilepath = "";
+                }
+            }
+        }
+
+        // If loading supplied keys failed or none were supplied, generate them instead.
+        if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
+            if (project.option("liveupdate", "false").equals("true")) {
+                System.err.println("Warning! No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
+            }
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
 
@@ -465,7 +483,7 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
         manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
-        manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
+        manifestBuilder.addSupportedEngineVersion(EngineVersion.version);
         if (supportedEngineVersionsString != null) {
             String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
             for (String supportedEngineVersion : supportedEngineVersions) {
@@ -537,7 +555,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
-                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources);
+                Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
+                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources, resourcePackDirectory);
 
                 // Create manifest
                 byte[] manifestFile = manifestBuilder.buildManifest();
@@ -553,6 +572,20 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
+
+                // Add copy of game.dmanifest to be published with liveuodate resources
+                File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
+                String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+                File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
+                FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
+                project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
+                project.getPublisher().Publish();
+                
+                manifestTmpFileHandle.delete();
+                File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
+                if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
+                    FileUtils.deleteDirectory(resourcePackDirectoryHandle);
+                }
 
                 List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
                 for (int i = 0; i < publisherOutputs.size(); ++i) {
