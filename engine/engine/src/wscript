@@ -51,7 +51,6 @@ def build(bld):
         additional_libs.append('TREMOLO')
 
     if 'win32' in bld.env['PLATFORM']:
-        additional_libs.append('FBGPLATFORM')
         exported_symbols.append('GameroomExt')
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
