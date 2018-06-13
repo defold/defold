@@ -223,6 +223,7 @@
            :render-key
            :selected
            :user-data
+           :world-rotation
            :world-transform} (set (keys renderable))))
   (is (instance? AABB (:aabb renderable)))
   (is (some? (:node-id renderable)))
