@@ -100,6 +100,7 @@
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
+  (property manip-space g/Keyword)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -1079,7 +1080,7 @@ If you do not specifically require different script states, consider changing th
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
     (let [editor-tab-pane (TabPane.)
-          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane editor-tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
+          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane editor-tab-pane :tool-tab-pane tool-tab-pane :active-tool :move :manip-space :world))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
