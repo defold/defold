@@ -1,7 +1,8 @@
 (ns editor.settings-core
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [clojure.string :as str])
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
 (set! *warn-on-reflection* true)
@@ -69,12 +70,24 @@
 (defmethod parse-setting-value :resource [_ raw]
   raw)
 
+(defmethod parse-setting-value :file [_ raw]
+  raw)
+
+(defmethod parse-setting-value :directory [_ raw]
+  raw)
+
+(defmethod parse-setting-value :comma-separated-list [_ raw]
+  (when raw
+    (into [] (str/split raw #"[,\s]"))))
+
 (def ^:private type-defaults
   {:string ""
    :boolean false
    :integer 0
    :number 0.0
-   :resource nil})
+   :resource nil
+   :file nil
+   :directory nil})
 
 (defn- add-type-defaults [meta-info]
   (update-in meta-info [:settings]
@@ -174,6 +187,9 @@
 
 (defmethod render-raw-setting-value :default [_ value]
   (str value))
+
+(defmethod render-raw-setting-value :comma-separated-list [_ value]
+  (when (seq value) (str/join "," value)))
 
 (defn make-settings-map [settings]
   (into {} (map (juxt :path :value) settings)))
