@@ -98,7 +98,6 @@ namespace dmLiveUpdate
         return uniqueCount;
     }
 
-    // Hashes the actual resource data with the same hashing algorithm as spec. by manifest, and compares to the expected resource hash
     bool VerifyResource(dmResource::Manifest* manifest, const char* expected, uint32_t expectedLength, const dmResourceArchive::LiveUpdateResource* resource)
     {
         if (manifest == 0x0 || resource->m_Data == 0x0)
