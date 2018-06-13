@@ -1602,10 +1602,15 @@ namespace dmProfileRender
                     break;
                 }
 
+                double e = ((double)(sample_sum->m_Elapsed)) / ticks_per_second;
+
+                if ( e < 0.000001)
+                {
+                    continue;
+                }
+
                 uint32_t color_index = (sample_sum->m_NameHash >> 6) & 0x1f;
                 HslToRgb2( color_index / 31.0f, 1.0f, 0.65f, col);
-
-                double e = ((double)(sample_sum->m_Elapsed)) / ticks_per_second;
 
                 params.m_WorldTransform.setElem(3, 1, y);
                 params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
@@ -1632,6 +1637,7 @@ namespace dmProfileRender
                     
                     float x = frames_x + sample->m_StartTick * tick_length;
                     float w = sample->m_Elapsed * tick_length;
+                    if (w < 1.0f) w == 1.0f;
 
                     dmRender::Square2d(render_context, x, y - CHAR_HEIGHT, x + w, y, Vector4(col[0], col[1], col[2], 1));
 
