@@ -74,12 +74,7 @@ namespace dmEngineVersion
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'delayimp.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
-
-        if "x86_64-win32" == conf.env['PLATFORM']:
-            conf.env.append_value('LINKFLAGS', '/DELAYLOAD:LibFBGPlatform64.dll')
-        else:
-            conf.env.append_value('LINKFLAGS', '/DELAYLOAD:LibFBGPlatform32.dll')
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
     elif operating_sys == 'web' and architecture == 'js':
         pass
 
@@ -114,7 +109,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
     conf.env['LIB_SQLLITE'] = 'sqlite3'
     conf.env['STATICLIB_FACEBOOKEXT'] = 'facebookext'
-    conf.env['STATICLIB_FBGPLATFORM'] = 'FBGPlatform'
     conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
