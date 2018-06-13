@@ -130,8 +130,8 @@
 (defn- manip-visible? [manip manip-rotation ^Matrix4d view]
   (if (manip->screen? manip)
     true
-    (let [dir (manip->normal manip manip-rotation)
-          _ (.transform view dir)]
+    (let [dir (manip->normal manip manip-rotation)]
+      (.transform view dir)
       (case manip
         (:move-x :move-y :move-z :scale-x :scale-y :scale-z) (< (Math/abs (.z dir)) 0.99)
         (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (> (Math/abs (.z dir)) 0.06)
@@ -344,23 +344,22 @@
      :scale-uniform scale-uniform}))
 
 (defn- gen-manip-renderable [id manip manip-space manip-world-rotation ^Matrix4d manip-world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
-  (let [manip-rotation (get-manip-rotation manip-space manip-world-rotation)
-        vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)
+  (let [vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)
         vertex-buffers (mapv (fn [[mode vs]]
                                (let [count (count vs)]
                                  [mode (gen-vertex-buffer vs count) count])) vertices-by-mode)
         rotation-mat (doto (Matrix4d.) (.set rotation))
-        wt (Matrix4d. manip-world-transform)
-        _ (when (manip->screen? manip)
-            (let [rotation (Matrix3d.)
-                  _ (.get inv-view rotation)]
-              (.setRotation wt rotation)))
-        _ (.mul wt rotation-mat)]
+        world-transform (Matrix4d. manip-world-transform)]
+    (when (manip->screen? manip)
+      (let [rotation (Matrix3d.)]
+        (.get inv-view rotation)
+        (.setRotation world-transform rotation)))
+    (.mul world-transform rotation-mat)
     {:node-id id
      :selection-data manip
      :render-fn render-manips
-     :user-data {:color color :vertex-buffers vertex-buffers :manip manip :manip-rotation manip-rotation}
-     :world-transform wt}))
+     :user-data {:color color :vertex-buffers vertex-buffers :manip manip :manip-rotation (get-manip-rotation manip-space manip-world-rotation)}
+     :world-transform world-transform}))
 
 (def transform-tools
   {:move {:manips-fn manip-move-manips
@@ -571,6 +570,12 @@
 (g/defnk produce-manip-opts [prefs]
   {:move-snap-fn (move-snap-fn prefs)})
 
+(g/defnk produce-manip-space [active-tool manip-space]
+  (let [supported-manip-spaces (supported-manip-spaces active-tool)]
+    (if (contains? supported-manip-spaces manip-space)
+      manip-space
+      (first supported-manip-spaces))))
+
 (g/defnode ToolController
   (property prefs g/Any)
   (property start-action g/Any)
@@ -590,4 +595,5 @@
 
   (output renderables pass/RenderData :cached produce-renderables)
   (output input-handler Runnable :cached (g/constantly handle-input))
-  (output manip-opts g/Any produce-manip-opts))
+  (output manip-opts g/Any produce-manip-opts)
+  (output manip-space g/Keyword produce-manip-space))
