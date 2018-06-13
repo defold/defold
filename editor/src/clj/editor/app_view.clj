@@ -20,13 +20,13 @@
             [editor.error-reporting :as error-reporting]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
-            [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.keymap :as keymap]
@@ -42,7 +42,8 @@
             [util.profiler :as profiler]
             [util.http-server :as http-server]
             [editor.scene :as scene]
-            [editor.scene-cache :as scene-cache])
+            [editor.scene-cache :as scene-cache]
+            [editor.live-update-settings :as live-update-settings])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
@@ -1155,16 +1156,13 @@ If you do not specifically require different script states, consider changing th
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
   ([app-view prefs workspace project resource opts]
-   (let [resource-type  (resource/resource-type resource)
-         resource-node  (or (project/get-resource-node project resource)
-                            (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
-                                            {})))
-         text-view-type (workspace/get-view-type workspace :text)
-         view-type      (or (:selected-view-type opts)
-                            (if (nil? resource-type)
-                              (placeholder-resource/view-type workspace)
-                              (first (:view-types resource-type)))
-                            text-view-type)]
+   (let [resource-type (resource/resource-type resource)
+         resource-node (or (project/get-resource-node project resource)
+                           (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                           {})))
+         view-type     (or (:selected-view-type opts)
+                           (first (:view-types resource-type))
+                           (workspace/get-view-type workspace :text))]
      (if (defective-resource-node? resource-node)
        (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
            false)
@@ -1182,12 +1180,10 @@ If you do not specifically require different script states, consider changing th
              (.directory (workspace/project-path workspace))
              (.start))
            false)
-         (if (contains? view-type :make-view-fn)
+         (if-let [make-view-fn (:make-view-fn view-type)]
            (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
                  tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
-                 view-type (if (g/node-value resource-node :editable?) view-type text-view-type)
-                 make-view-fn (:make-view-fn view-type)
                  ^Tab tab (or (some #(when (and (= (tab->resource-node %) resource-node)
                                                 (= view-type (ui/user-data % ::view-type)))
                                        %)
@@ -1432,7 +1428,7 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :live-update-settings :global
   (run [app-view prefs workspace project]
-    (some->> (or (workspace/find-resource workspace "/liveupdate.settings")
+    (some->> (or (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))
                  (create-live-update-settings! workspace))
       (open-resource app-view prefs workspace project))))
 
