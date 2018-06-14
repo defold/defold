@@ -179,6 +179,8 @@ namespace dmLiveUpdate
         if (result == RESULT_OK)
             result = dmLiveUpdate::StoreManifest(manifest);
 
+        dmDDF::FreeMessage(manifest->m_DDFData);
+        dmDDF::FreeMessage(manifest->m_DDF);
         delete manifest;
 
         cb.m_Status = result;
