@@ -28,7 +28,7 @@
 #ifdef _MSC_VER
 #define DM_DLLEXPORT __declspec(dllexport)
 #else
-#define DM_DLLEXPORT __attribute__ ((visibility ("default")))
+#define DM_DLLEXPORT
 #endif
 
 #endif // DMSDK_SHARED_LIBRARY_H
