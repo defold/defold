@@ -2,7 +2,9 @@ package com.dynamo.bob;
 
 public class ConsoleProgress implements IProgress {
 
+    private float EPSILON = 0.001f;
     private float totalWork;
+    private float prev_worked;
     private float worked;
     private ConsoleProgress reportTo;
     private float ticks;
@@ -31,6 +33,7 @@ public class ConsoleProgress implements IProgress {
         if (scale > 0) {
             this.reportTo.workedInternal(report / scale);
         }
+        prev_worked = worked;
     }
 
     private void workedInternal(float amount) {
@@ -39,9 +42,11 @@ public class ConsoleProgress implements IProgress {
     }
 
     private void printProgress() {
-        System.out.print("\r                               \r");
-        String s = String.format("%.0f%%", 100 * worked / totalWork);
-        System.out.print(s);
+        if (worked - prev_worked > EPSILON) {
+            System.out.print("\r                               \r");
+            String s = String.format("%.0f%%", 100 * worked / totalWork);
+            System.out.print(s);
+        }
     }
 
     @Override
