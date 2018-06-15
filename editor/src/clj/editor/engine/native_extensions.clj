@@ -204,7 +204,7 @@
 
 (defn- find-or-build-engine-archive
   [cache-dir server-url platform sdk-version resource-nodes-by-upload-path]
-  (let [key (cache-key platform sdk-version (vals resource-nodes-by-upload-path))]
+  (let [key (cache-key platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)))]
     (or (cached-engine-archive cache-dir platform key)
         (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes-by-upload-path)]
           (cache-engine-archive! cache-dir platform key engine-archive)))))
