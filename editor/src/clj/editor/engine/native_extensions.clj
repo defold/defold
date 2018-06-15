@@ -37,7 +37,7 @@
 (defn- hash-resources! ^MessageDigest
   [^MessageDigest md resource-nodes]
   (run! #(DigestUtils/updateDigest md ^String (g/node-value % :sha256))
-        (sort resource-nodes))
+        resource-nodes)
   md)
 
 (defn- cache-key
