@@ -51,22 +51,22 @@
 
 (defn- prop [node-id prop-name]
   (let [key (properties/user-name->key prop-name)]
-    (tu/prop (tu/prop-node-id node-id key) key)))
+    (tu/prop node-id key)))
 
 (defn- read-only? [node-id prop-name]
   (tu/prop-read-only? node-id (properties/user-name->key prop-name)))
 
 (defn- overridden? [node-id prop-name]
   (let [key (properties/user-name->key prop-name)]
-    (tu/prop-overridden? (tu/prop-node-id node-id key) key)))
+    (tu/prop-overridden? node-id key)))
 
 (defn- prop! [node-id prop-name value]
   (let [key (properties/user-name->key prop-name)]
-    (tu/prop! (tu/prop-node-id node-id key) key value)))
+    (tu/prop! node-id key value)))
 
 (defn- clear! [node-id prop-name]
   (let [key (properties/user-name->key prop-name)]
-    (tu/prop-clear! (tu/prop-node-id node-id key) key)))
+    (tu/prop-clear! node-id key)))
 
 (defn- make-fake-file-resource [workspace proj-path text]
   (let [root-dir (workspace/project-path workspace)]

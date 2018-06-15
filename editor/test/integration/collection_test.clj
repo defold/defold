@@ -121,11 +121,11 @@
 
 (defn- script-prop! [node-id name v]
   (let [key (properties/user-name->key name)]
-    (test-util/prop! (test-util/prop-node-id node-id key) key v)))
+    (test-util/prop! node-id key v)))
 
 (defn- script-prop-clear! [node-id name]
   (let [key (properties/user-name->key name)]
-    (test-util/prop-clear! (test-util/prop-node-id node-id key) key)))
+    (test-util/prop-clear! node-id key)))
 
 (deftest add-script-properties
   (test-util/with-loaded-project

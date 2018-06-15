@@ -16,7 +16,8 @@
             [editor.resource :as resource]
             [editor.types :as t]
             [editor.workspace :as workspace]
-            [editor.validation :as validation])
+            [editor.validation :as validation]
+            [schema.core :as s])
   (:import (com.dynamo.lua.proto Lua$LuaModule)
            (com.google.protobuf ByteString)))
 
@@ -109,6 +110,15 @@
     :script-property-type-boolean  :property-type-boolean
     :script-property-type-resource :property-type-hash))
 
+(g/deftype ScriptPropertyType (s/enum :script-property-type-number
+                                      :script-property-type-hash
+                                      :script-property-type-url
+                                      :script-property-type-vector3
+                                      :script-property-type-vector4
+                                      :script-property-type-quat
+                                      :script-property-type-boolean
+                                      :script-property-type-resource))
+
 (def script-defs [{:ext "script"
                    :label "Script"
                    :icon "icons/32/Icons_12-Script-type.png"
@@ -152,18 +162,12 @@
 
 (def ^:private valid-resource-kind? (partial contains? resource-kind->ext))
 
-(defn- script-property-edit-type [script-property]
-  (let [prop-kw (prop->key script-property)
-        prop-type (script-property-type->property-type (:type script-property))]
-    (if (not= resource/Resource prop-type)
-      {:type prop-type}
-      {:type prop-type
-       :ext (resource-kind->ext (:resource-kind script-property))
-       :clear-fn properties/clear-resource-property
-       :set-fn (fn set-resource-property [_evaluation-context self _old-value new-value]
-                 (properties/set-resource-property self prop-kw new-value))})))
+(defn- script-property-edit-type [prop-type resource-kind]
+  (if (= resource/Resource prop-type)
+    {:type prop-type :ext (resource-kind->ext resource-kind)}
+    {:type prop-type}))
 
-(defn- resource-assignment-error [node-id prop-kw resource expected-ext]
+(defn- resource-assignment-error [node-id prop-kw prop-name resource expected-ext]
   (when (some? resource)
     (let [resource-ext (resource/ext resource)
           ext-match? (if (coll? expected-ext)
@@ -173,28 +177,149 @@
         (not ext-match?)
         (g/->error node-id prop-kw :fatal resource
                    (format "%s '%s' is not of type %s"
-                           (validation/keyword->name prop-kw)
+                           (validation/format-name prop-name)
                            (resource/proj-path resource)
                            (validation/format-ext expected-ext)))
 
         (not (resource/exists? resource))
         (g/->error node-id prop-kw :fatal resource
                    (format "%s '%s' could not be found"
-                           (validation/keyword->name prop-kw)
+                           (validation/format-name prop-name)
                            (resource/proj-path resource)))))))
 
-(defn- validate-value-against-edit-type [node-id prop-kw value edit-type]
+(defn- validate-value-against-edit-type [node-id prop-kw prop-name value edit-type]
   (when (= resource/Resource (:type edit-type))
-    (resource-assignment-error node-id prop-kw value (:ext edit-type))))
+    (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
 
-(g/defnk produce-properties [_declared-properties user-properties]
+(g/defnk produce-script-property-entries [_node-id deleted? name resource-kind type value]
+  (when-not deleted?
+    (let [prop-kw (properties/user-name->key name)
+          prop-type (script-property-type->property-type type)
+          edit-type (script-property-edit-type prop-type resource-kind)
+          error (validate-value-against-edit-type _node-id :value name value edit-type)
+          go-prop-type (script-property-type->go-prop-type type)
+          read-only? (nil? (g/override-original _node-id))
+          visible? (not deleted?)]
+      {prop-kw {:edit-type edit-type
+                :error error
+                :go-prop-type go-prop-type
+                :node-id _node-id
+                :prop-kw :value
+                :read-only? read-only?
+                :type prop-type
+                :value value
+                :visible visible?}})))
+
+(g/deftype NameNodeIDPair [(s/one s/Str "name") (s/one s/Int "node-id")])
+(g/deftype NameNodeIDMap {s/Str s/Int})
+(g/deftype ResourceKind (apply s/enum (keys resource-kind->ext)))
+(g/deftype ScriptPropertyEntries {s/Keyword {:node-id s/Int
+                                             :go-prop-type (apply s/enum (keys properties/type->entry-keys))
+                                             :type s/Any
+                                             :value s/Any
+                                             s/Keyword s/Any}})
+
+(g/defnode ScriptPropertyNode
+  (property deleted? g/Bool)
+  (property edit-type g/Any)
+  (property name g/Str)
+  (property resource-kind ResourceKind)
+  (property type ScriptPropertyType)
+  (property value g/Any
+            (value (g/fnk [type resource value]
+                     (case type
+                       :script-property-type-resource resource
+                       value)))
+            (set (fn [evaluation-context self _old-value new-value]
+                   (let [basis (:basis evaluation-context)
+                         project (project/get-project self)]
+                     (concat
+                       (gu/disconnect-all basis self :resource)
+                       (when (and (resource/resource? new-value)
+                                  (= :script-property-type-resource
+                                     (g/node-value self :type evaluation-context)))
+                         (project/connect-resource-node project new-value self [[:resource :resource]
+                                                                                [:build-targets :resource-build-targets]])))))))
+
+  (input resource resource/Resource)
+  (input resource-build-targets g/Any)
+
+  (output build-targets g/Any (g/fnk [deleted? resource-build-targets] (when-not deleted? resource-build-targets)))
+  (output name+node-id NameNodeIDPair (g/fnk [_node-id name] [name _node-id]))
+  (output property-entries ScriptPropertyEntries :cached produce-script-property-entries))
+
+(defn- detect-edits [old-info-by-name new-info-by-name]
+  (into {}
+        (filter (fn [[name new-info]]
+                  (when-some [old-info (old-info-by-name name)]
+                    (not= old-info new-info))))
+        new-info-by-name))
+
+(defn- detect-renames [old-info-by-removed-name new-info-by-added-name]
+  (let [added-name-by-new-info (into {} (map (juxt val key)) new-info-by-added-name)]
+    (into {}
+          (keep (fn [[old-name old-info]]
+                  (when-some [renamed-name (added-name-by-new-info old-info)]
+                    [old-name renamed-name])))
+          old-info-by-removed-name)))
+
+(def ^:private xform-to-name-info-pairs (map (juxt :name #(dissoc % :name))))
+
+(defn- edit-script-property [node-id type resource-kind value]
+  (g/set-property node-id :type type :resource-kind resource-kind :value value))
+
+(defn- create-script-property [script-node-id name type resource-kind value]
+  (g/make-nodes (g/node-id->graph-id script-node-id) [node-id [ScriptPropertyNode :name name]]
+                (edit-script-property node-id type resource-kind value)
+                (g/connect node-id :_node-id script-node-id :nodes)
+                (g/connect node-id :build-targets script-node-id :resource-property-build-targets)
+                (g/connect node-id :name+node-id script-node-id :script-property-name+node-ids)
+                (g/connect node-id :property-entries script-node-id :script-property-entries)))
+
+(defn- update-script-properties [evaluation-context script-node-id old-value new-value]
+  (assert (or (nil? old-value) (vector? old-value)))
+  (assert (or (nil? new-value) (vector? new-value)))
+  (let [old-info-by-name (into {} xform-to-name-info-pairs old-value)
+        new-info-by-name (into {} xform-to-name-info-pairs new-value)
+        old-info-by-removed-name (into {} (remove (comp (partial contains? new-info-by-name) key)) old-info-by-name)
+        new-info-by-added-name (into {} (remove (comp (partial contains? old-info-by-name) key)) new-info-by-name)
+        renamed-name-by-old-name (detect-renames old-info-by-removed-name new-info-by-added-name)
+        removed-names (into #{} (remove renamed-name-by-old-name) (keys old-info-by-removed-name))
+        added-info-by-name (apply dissoc new-info-by-added-name (vals renamed-name-by-old-name))
+        edited-info-by-name (detect-edits old-info-by-name new-info-by-name)
+        node-ids-by-name (g/node-value script-node-id :script-property-node-ids-by-name evaluation-context)]
+    (concat
+      ;; Renamed properties.
+      (for [[old-name new-name] renamed-name-by-old-name
+            :let [node-id (node-ids-by-name old-name)]]
+        (g/set-property node-id :name new-name))
+
+      ;; Added properties.
+      (for [[name {:keys [resource-kind type value]}] added-info-by-name]
+        (if-some [node-id (node-ids-by-name name)]
+          (concat
+            (g/set-property node-id :deleted? false)
+            (edit-script-property node-id type resource-kind value))
+          (create-script-property script-node-id name type resource-kind value)))
+
+      ;; Edited properties.
+      (for [[name {:keys [resource-kind type value]}] edited-info-by-name
+            :let [node-id (node-ids-by-name name)]]
+        (edit-script-property node-id type resource-kind value))
+
+      ;; Removed properties.
+      (for [name removed-names
+            :let [node-id (node-ids-by-name name)]]
+        (g/set-property node-id :deleted? true)))))
+
+(g/defnk produce-properties [_declared-properties _node-id script-properties script-property-entries]
   ;; TODO - fix this when corresponding graph issue has been fixed
   (cond
     (g/error? _declared-properties) _declared-properties
-    (g/error? user-properties) user-properties
+    (g/error? script-property-entries) script-property-entries
     :else (-> _declared-properties
-              (update :properties into (:properties user-properties))
-              (update :display-order into (:display-order user-properties)))))
+              (update :properties into script-property-entries)
+              (update :display-order into (map prop->key) script-properties))))
 
 (defn- go-property-declaration-cursor-ranges [lines]
   (loop [cursor-ranges (transient [])
@@ -278,10 +403,10 @@
 
 (g/defnk produce-build-targets [_node-id resource lines script-properties modules module-build-targets original-resource-property-build-targets]
   (g/precluding-errors
-    (keep (fn [script-property]
-            (let [prop-kw (prop->key script-property)
-                  edit-type (script-property-edit-type script-property)]
-              (validate-value-against-edit-type _node-id prop-kw (:value script-property) edit-type)))
+    (keep (fn [{:keys [name resource-kind type value]}]
+            (let [prop-type (script-property-type->property-type type)
+                  edit-type (script-property-edit-type prop-type resource-kind)]
+              (validate-value-against-edit-type _node-id :lines name value edit-type)))
           script-properties)
     (let [go-props-with-source-resources (map (fn [{:keys [name type value]}]
                                                 (let [go-prop-type (script-property-type->go-prop-type type)
@@ -304,38 +429,14 @@
 (g/defnk produce-completions [completion-info module-completion-infos]
   (code-completion/combine-completions completion-info module-completion-infos))
 
-(defn- script-property->property-entry [node-id read-only? override-values-by-prop-kw {:keys [type value] :as script-property}]
-  (let [prop-kw (prop->key script-property)
-        prop-type (script-property-type->property-type type)
-        go-prop-type (script-property-type->go-prop-type type)
-        edit-type (script-property-edit-type script-property)
-        final-value (get override-values-by-prop-kw prop-kw value)
-        error (validate-value-against-edit-type node-id prop-kw final-value edit-type)]
-    [prop-kw {:node-id node-id
-              :type prop-type
-              :edit-type edit-type
-              :go-prop-type go-prop-type
-              :value final-value
-              :error error
-              :read-only? read-only?}]))
-
-(g/defnk produce-user-properties [_node-id script-properties property-resources resource-property-resources]
-  (let [read-only? (nil? (g/override-original _node-id))
-        resources-by-prop-kw (into {}
-                                   (map (fn [[prop-kw] resource]
-                                          [prop-kw resource])
-                                        property-resources
-                                        resource-property-resources))]
-    {:display-order (mapv prop->key script-properties)
-     :properties (into {}
-                       (map (partial script-property->property-entry _node-id read-only? resources-by-prop-kw))
-                       script-properties)}))
-
 (g/defnode ScriptNode
   (inherits r/CodeEditorResourceNode)
 
   (input module-build-targets g/Any :array)
   (input module-completion-infos g/Any :array :substitute gu/array-subst-remove-errors)
+  (input script-property-name+node-ids NameNodeIDPair :array)
+  (input script-property-entries ScriptPropertyEntries :array)
+
   (input resource-property-resources resource/Resource :array)
   (input resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
   (input original-resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
@@ -376,38 +477,22 @@
   (property script-properties g/Any
             (default [])
             (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self _old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
                          project (project/get-project self)]
                      (concat
+                       (update-script-properties evaluation-context self old-value new-value)
                        (gu/disconnect-all basis self :original-resource-property-build-targets)
                        (for [{:keys [type value]} new-value
-                             :when (= :script-property-type-resource type)
-                             :when (some? value)]
-                         (project/connect-resource-node project value self
-                                                        [[:build-targets :original-resource-property-build-targets]])))))))
-
-  (property property-resources g/Any
-            (default {})
-            (dynamic visible (g/constantly false))
-            (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)
-                         project (project/get-project self)]
-                     (concat
-                       (gu/disconnect-all basis self :resource-property-resources)
-                       (gu/disconnect-all basis self :resource-property-build-targets)
-                       (for [[_prop-kw resource] new-value]
-                         (if (nil? resource)
-                           (g/connect project :nil-resource self :resource-property-resources)
-                           (project/connect-resource-node project resource self
-                                                          [[:resource :resource-property-resources]
-                                                           [:build-targets :resource-property-build-targets]]))))))))
+                             :when (and (= :script-property-type-resource type) (some? value))]
+                         (project/connect-resource-node project value self [[:build-targets :original-resource-property-build-targets]])))))))
 
   (output _properties g/Properties :cached produce-properties)
   (output build-targets g/Any :cached produce-build-targets)
   (output completions g/Any :cached produce-completions)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
-  (output user-properties g/Properties produce-user-properties))
+  (output script-property-entries ScriptPropertyEntries (g/fnk [script-property-entries] (reduce into {} script-property-entries)))
+  (output script-property-node-ids-by-name NameNodeIDMap (g/fnk [script-property-name+node-ids] (into {} script-property-name+node-ids))))
 
 (defn register-resource-types [workspace]
   (for [def script-defs

@@ -15,10 +15,18 @@
          (format "\"%s\" has been replaced by \"%s\"",
                  (options# :blend-mode-add-alpha) (options# :blend-mode-add))))))
 
-(defn format-ext [ext]
+(defn format-ext
+  ^String [ext]
   (if (coll? ext)
     (util/join-words ", " " or " (into (sorted-set) (map (partial str \.)) ext))
     (str \. ext)))
+
+(defn format-name
+  ^String [name]
+  (-> name
+      camel/->Camel_Snake_Case_String
+      (clojure.string/replace "_" " ")
+      clojure.string/trim))
 
 (defn prop-id-duplicate? [id-counts id]
   (when (> (id-counts id) 1)
@@ -79,9 +87,7 @@
 (defn keyword->name [kw]
   (-> kw
       name
-      camel/->Camel_Snake_Case_String
-      (clojure.string/replace "_" " ")
-      clojure.string/trim))
+      format-name))
 
 (defmacro prop-error-fnk
   [severity f property]

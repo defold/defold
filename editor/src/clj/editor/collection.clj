@@ -255,7 +255,8 @@
 (defn- or-go-traverse? [basis [src-id src-label tgt-id tgt-label]]
   (or
     (overridable-component? basis src-id)
-    (g/node-instance? basis resource-node/ResourceNode src-id)))
+    (g/node-instance? basis resource-node/ResourceNode src-id)
+    (g/node-instance? basis script/ScriptPropertyNode src-id)))
 
 (defn- path-error [node-id resource]
   (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
@@ -286,8 +287,7 @@
                                                           (let [override (g/override (:basis evaluation-context) go-node {:traverse? or-go-traverse?})
                                                                 id-mapping (:id-mapping override)
                                                                 or-go-node (get id-mapping go-node)
-                                                                comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)
-                                                                refd-comp-node->or-comp-node #(id-mapping (g/node-value % :source-id evaluation-context))]
+                                                                comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
                                                             (concat
                                                               (:tx-data override)
                                                               (for [[from to] [[:_node-id                        :source-id]
@@ -303,9 +303,8 @@
                                                                 (g/connect self from or-go-node to))
                                                               (for [{comp-name :id overrides :properties} (:overrides new-value)
                                                                     :let [refd-comp-node (comp-name->refd-comp-node comp-name)
-                                                                          or-comp-node (refd-comp-node->or-comp-node refd-comp-node)
                                                                           comp-props (:properties (g/node-value refd-comp-node :_properties evaluation-context))]]
-                                                                (properties/apply-property-overrides workspace or-comp-node comp-props overrides)))))))))))
+                                                                (properties/apply-property-overrides workspace id-mapping comp-props overrides)))))))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
@@ -515,6 +514,7 @@
   (or
     (overridable-component? basis src-id)
     (g/node-instance? basis resource-node/ResourceNode src-id)
+    (g/node-instance? basis script/ScriptPropertyNode src-id)
     (g/node-instance? basis InstanceNode src-id)))
 
 (g/defnode CollectionInstanceNode
@@ -556,13 +556,11 @@
                                                         (g/connect self from or-coll-node to))
                                                       (for [{go-name :id overrides :properties} (:overrides new-value)
                                                             :let [go-node (go-name->go-node go-name)
-                                                                  comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)
-                                                                  refd-comp-node->or-comp-node #(id-mapping (g/node-value % :source-id evaluation-context))]
+                                                                  comp-name->refd-comp-node (g/node-value go-node :component-ids evaluation-context)]
                                                             {comp-name :id overrides :properties} overrides
                                                             :let [refd-comp-node (comp-name->refd-comp-node comp-name)
-                                                                  or-comp-node (refd-comp-node->or-comp-node refd-comp-node)
                                                                   comp-props (:properties (g/node-value refd-comp-node :_properties evaluation-context))]]
-                                                        (properties/apply-property-overrides workspace or-comp-node comp-props overrides)))))))))))
+                                                        (properties/apply-property-overrides workspace id-mapping comp-props overrides)))))))))))
     (dynamic error (g/fnk [_node-id source-resource]
                           (path-error _node-id source-resource)))
     (dynamic edit-type (g/fnk [source-resource]

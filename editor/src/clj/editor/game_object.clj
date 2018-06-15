@@ -284,7 +284,7 @@
                                                                                    [:resource-property-build-targets :resource-property-build-targets]]
                                                                         :when (contains? outputs from)]
                                                                     (g/connect or-comp-node from self to)))
-                                                                (properties/apply-property-overrides workspace or-comp-node comp-props (:overrides new-value)))))))
+                                                                (properties/apply-property-overrides workspace id-mapping comp-props (:overrides new-value)))))))
                          (project/resource-setter self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]

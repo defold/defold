@@ -352,20 +352,25 @@
     outline->str
     println))
 
+(defn resolve-prop [node-id label]
+  (let [prop (get-in (g/node-value node-id :_properties) [:properties label])
+        resolved-node-id (:node-id prop)
+        resolved-label (get prop :prop-kw label)]
+    [resolved-node-id resolved-label]))
+
 (defn prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
 
 (defn prop-error [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :error]))
 
-(defn prop-node-id [node-id label]
-  (get-in (g/node-value node-id :_properties) [:properties label :node-id]))
-
 (defn prop! [node-id label val]
-  (g/transact (g/set-property (prop-node-id node-id label) label val)))
+  (let [[node-id label] (resolve-prop node-id label)]
+    (g/set-property! node-id label val)))
 
 (defn prop-clear! [node-id label]
-  (g/transact (g/clear-property (prop-node-id node-id label) label)))
+  (let [[node-id label] (resolve-prop node-id label)]
+    (g/clear-property! node-id label)))
 
 (defn prop-read-only? [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :read-only?]))

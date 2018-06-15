@@ -358,6 +358,10 @@
         coalesced (into {} (map (fn [[k v]]
                                   (let [prop {:key k
                                               :node-ids (mapv :node-id v)
+                                              :prop-kws (mapv (fn [{:keys [prop-kw]}]
+                                                                (cond (some? prop-kw) prop-kw
+                                                                      (vector? k) (first k)
+                                                                      :else k)) v)
                                               :values (mapv (fn [{:keys [value]}]
                                                              (when-not (g/error? value)
                                                                value)) v)
@@ -387,11 +391,11 @@
   (let [key (:key property)
         set-fn (get-in property [:edit-type :set-fn])
         from-fn (get-in property [:edit-type :from-type] identity)]
-    (for [[node-id old-value new-value] (map vector (:node-ids property) (:values property) (map from-fn values))]
+    (for [[node-id prop-kw old-value new-value] (map vector (:node-ids property) (:prop-kws property) (:values property) (map from-fn values))]
       (cond
         set-fn (set-fn evaluation-context node-id old-value new-value)
-        (vector? key) (g/update-property node-id (first key) assoc-in (rest key) new-value)
-        true (g/set-property node-id key new-value)))))
+        (vector? key) (g/update-property node-id prop-kw assoc-in (rest key) new-value)
+        true (g/set-property node-id prop-kw new-value)))))
 
 (defn keyword->name [kw]
   (-> kw
@@ -404,8 +408,8 @@
   [property]
   (or (:label property)
       (let [k (:key property)
-           k (if (vector? k) (last k) k)]
-       (keyword->name k))))
+            k (if (vector? k) (last k) k)]
+        (keyword->name k))))
 
 (defn read-only? [property]
   (:read-only? property))
@@ -448,12 +452,13 @@
     (g/transact
       (concat
         (g/operation-label (str "Clear " (label property)))
-        (let [key (:key property)
-              clear-fn (get-in property [:edit-type :clear-fn])]
-          (for [node-id (:node-ids property)]
-            (if clear-fn
-              (clear-fn node-id key)
-              (g/clear-property node-id key))))))))
+        (let [clear-fn (get-in property [:edit-type :clear-fn])]
+          (map (fn [node-id prop-kw]
+                 (if clear-fn
+                   (clear-fn node-id prop-kw)
+                   (g/clear-property node-id prop-kw)))
+               (:node-ids property)
+               (:prop-kws property)))))))
 
 (defn round-scalar [n]
   (math/round-with-precision n 0.001))
@@ -515,19 +520,7 @@
 (defmethod go-prop-value->clj-value [:property-type-hash resource/Resource] [_ _ go-prop-value workspace]
   (workspace/resolve-workspace-resource workspace go-prop-value))
 
-(defn set-resource-property [node-id prop-kw resource]
-  ;; Nodes with resource properties must have a property-resources property that
-  ;; hooks up the resource property build targets in its setter.
-  (g/update-property node-id :property-resources assoc prop-kw resource))
-
-(defn clear-resource-property [node-id prop-kw]
-  ;; Nodes with resource properties must have a property-resources property that
-  ;; hooks up the resource property build targets in its setter.
-  (g/update-property node-id :property-resources dissoc prop-kw))
-
-(defn- apply-property-override [workspace node-id prop-kw prop property-desc]
-  (assert (integer? node-id))
-  (assert (keyword? prop-kw))
+(defn- apply-property-override [workspace id-mapping prop-kw prop property-desc]
   ;; This can be used with raw PropertyDescs in map format. However, we decorate
   ;; these with a :clj-value field when they enter the graph, so if that is
   ;; already present we don't attempt conversion here.
@@ -539,15 +532,14 @@
                       (catch Exception _
                         ::unsupported-conversion)))]
     (when (not= ::unsupported-conversion clj-value)
-      (if (= resource/Resource (:type prop))
-        (set-resource-property node-id prop-kw clj-value)
-        (g/set-property node-id prop-kw clj-value)))))
+      (let [resolved-node-id (id-mapping (:node-id prop))
+            resolved-prop-kw (get prop :prop-kw prop-kw)]
+        (g/set-property resolved-node-id resolved-prop-kw clj-value)))))
 
 (defn apply-property-overrides
   "Returns transaction steps that applies the overrides from the supplied
   PropertyDescs in map format to the specified node."
-  [workspace or-node overridable-properties property-descs]
-  (assert (integer? or-node))
+  [workspace id-mapping overridable-properties property-descs]
   (assert (sequential? property-descs))
   (when (seq overridable-properties)
     (assert (map? overridable-properties))
@@ -556,7 +548,7 @@
               (let [prop-kw (user-name->key (:id property-desc))
                     prop (get overridable-properties prop-kw)]
                 (when (some? prop)
-                  (apply-property-override workspace or-node prop-kw prop property-desc))))
+                  (apply-property-override workspace id-mapping prop-kw prop property-desc))))
             property-descs)))
 
 (defn build-target-go-props [resource-property-build-targets go-props-with-source-resources]
