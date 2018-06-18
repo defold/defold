@@ -243,7 +243,7 @@ namespace dmGameSystem
      *     local url = msg.url("#model")
      *     local play_properties = { blend_duration = 0.1 }
      *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
-     *     model.play_anim(url, "open", go.PLAYBACK_ONCE_FORWARD, play_properties, anim_done)
+     *     model.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, anim_done)
      * end
      * ```
      */

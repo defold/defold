@@ -10,7 +10,7 @@ def build(bld):
     source = ['gameroom_null.cpp']
 
     if re.match('.*win32', bld.env.PLATFORM):
-        source = ['gameroom.cpp', 'FBG_PlatformLoaderWrapper.cpp']
+        source = ['gameroom.cpp']
 
     gameroom = bld.new_task_gen(features = 'cxx cstaticlib ddf',
                             includes = '.',

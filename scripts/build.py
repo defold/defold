@@ -46,6 +46,7 @@ EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VE
 PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
+ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
 
 class ExecException(Exception):
     def __init__(self, retcode, output):
@@ -240,9 +241,19 @@ class Configuration(object):
         sys.stderr.flush()
 
     def distclean(self):
-        shutil.rmtree(self.dynamo_home)
+        if os.path.exists(self.dynamo_home):
+            self._log('Removing %s' % self.dynamo_home)
+            shutil.rmtree(self.dynamo_home)
+
+        for lib in ['dlib','texc']+ENGINE_LIBS:
+            builddir = join(self.defold_root, 'engine/%s/build' % lib)
+            if os.path.exists(builddir):
+                self._log('Removing %s' % builddir)
+                shutil.rmtree(builddir)
+
         # Recreate dirs
         self._create_common_dirs()
+        self._log('distclean done.')
 
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
@@ -737,7 +748,7 @@ class Configuration(object):
             self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         self.build_bob_light()
         # Target libs to build
-        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
+        engine_libs = list(ENGINE_LIBS)
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
