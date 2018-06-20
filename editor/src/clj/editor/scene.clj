@@ -346,17 +346,20 @@
           pass-renderables
           passes))
 
-(defn- flatten-scene-renderables! [pass-renderables scene selection-set view-proj node-path ^Matrix4d parent-world-transform]
+(defn- flatten-scene-renderables! [pass-renderables scene selection-set view-proj node-path ^Quat4d parent-world-rotation ^Matrix4d parent-world-transform]
   (let [renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
-        world-transform (doto (Matrix4d. parent-world-transform)
-                          (.mul local-transform))
+        world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
+        local-transform-unscaled (doto (Matrix4d. local-transform) (.setScale 1.0))
+        local-rotation (doto (Quat4d.) (.set local-transform-unscaled))
+        world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
         appear-selected? (some? (some selection-set node-path)) ; Child nodes appear selected if parent is.
         flat-renderable (-> scene
                             (dissoc :children :renderable)
                             (assoc :node-path node-path
                                    :picking-id (or (:picking-id scene) (peek node-path))
                                    :render-fn (:render-fn renderable)
+                                   :world-rotation world-rotation
                                    :world-transform world-transform
                                    :parent-world-transform parent-world-transform
                                    :selected appear-selected?
@@ -367,15 +370,16 @@
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
         pass-renderables (update-pass-renderables! pass-renderables (-> scene :renderable :passes) flat-renderable)]
     (reduce (fn [pass-renderables child-scene]
-              (flatten-scene-renderables! pass-renderables child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-transform))
+              (flatten-scene-renderables! pass-renderables child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-rotation world-transform))
             pass-renderables
             (:children scene))))
 
 (defn- flatten-scene [scene selection-set view-proj]
   (let [node-path []
+        parent-world-rotation geom/NoRotation
         parent-world-transform geom/Identity4d]
     (-> (make-pass-renderables)
-        (flatten-scene-renderables! scene selection-set view-proj node-path parent-world-transform)
+        (flatten-scene-renderables! scene selection-set view-proj node-path parent-world-rotation parent-world-transform)
         (persist-pass-renderables!))))
 
 (defn- get-selection-pass-renderables-by-node-id
@@ -584,10 +588,12 @@
   (input picking-rect Rect)
   (input tool-renderables pass/RenderData :array :substitute substitute-render-data)
   (input active-tool g/Keyword)
+  (input manip-space g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (output inactive? g/Bool (g/fnk [_node-id active-view] (not= _node-id active-view)))
   (output active-tool g/Keyword (gu/passthrough active-tool))
+  (output manip-space g/Keyword (gu/passthrough manip-space))
   (output active-updatables g/Any :cached (g/fnk [updatables active-updatable-ids]
                                                  (into [] (keep updatables) active-updatable-ids)))
 
@@ -731,13 +737,34 @@
   (run [app-view] (when-let [view (active-scene-view app-view)]
                     (realign-camera view true))))
 
+(defn- set-manip-space! [app-view manip-space]
+  (assert (contains? #{:local :world} manip-space))
+  (g/set-property! app-view :manip-space manip-space))
+
+(handler/defhandler :set-manip-space :global
+  (enabled? [app-view user-data] (let [active-tool (g/node-value app-view :active-tool)]
+                                   (contains? (scene-tools/supported-manip-spaces active-tool)
+                                              (:manip-space user-data))))
+  (run [app-view user-data] (set-manip-space! app-view (:manip-space user-data)))
+  (state [app-view user-data] (= (g/node-value app-view :manip-space) (:manip-space user-data))))
+
 (handler/defhandler :toggle-move-whole-pixels :global
   (active? [app-view] (active-scene-view app-view))
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 
 (ui/extend-menu ::menubar :editor.app-view/edit-end
-                [{:label "Move Whole Pixels"
+                [{:label :separator}
+                 {:label "World Space"
+                  :command :set-manip-space
+                  :user-data {:manip-space :world}
+                  :check true}
+                 {:label "Local Space"
+                  :command :set-manip-space
+                  :user-data {:manip-space :local}
+                  :check true}
+                 {:label :separator}
+                 {:label "Move Whole Pixels"
                   :command :toggle-move-whole-pixels
                   :check true}])
 
@@ -970,6 +997,7 @@
 
   (input input-handlers Runnable :array)
   (input active-tool g/Keyword)
+  (input manip-space g/Keyword)
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input picking-rect Rect)
@@ -977,6 +1005,7 @@
 
   (output inactive? g/Bool (g/constantly false))
   (output active-tool g/Keyword (gu/passthrough active-tool))
+  (output manip-space g/Keyword (gu/passthrough manip-space))
   (output viewport Region (g/fnk [width height] (types/->Region 0 width 0 height)))
   (output selection g/Any (gu/passthrough selection))
   (output picking-selection g/Any :cached produce-selection)
@@ -1043,10 +1072,12 @@
                     (g/connect app-view-id          :selected-node-ids         view-id          :selection)
                     (g/connect app-view-id          :active-view               view-id          :active-view)
                     (g/connect app-view-id          :active-tool               view-id          :active-tool)
+                    (g/connect app-view-id          :manip-space               view-id          :manip-space)
 
                     (g/connect tool-controller      :input-handler             view-id          :input-handlers)
                     (g/connect tool-controller      :renderables               view-id          :tool-renderables)
                     (g/connect view-id              :active-tool               tool-controller  :active-tool)
+                    (g/connect view-id              :manip-space               tool-controller  :manip-space)
                     (g/connect view-id              :viewport                  tool-controller  :viewport)
                     (g/connect camera               :camera                    tool-controller  :camera)
                     (g/connect view-id              :selected-renderables      tool-controller  :selected-renderables)

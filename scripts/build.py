@@ -46,6 +46,7 @@ EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VE
 PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
+ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
 
 class ExecException(Exception):
     def __init__(self, retcode, output):
@@ -168,6 +169,7 @@ class Configuration(object):
                  skip_codesign = False,
                  skip_docs = False,
                  skip_builtins = False,
+                 skip_bob_light = False,
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
@@ -202,6 +204,7 @@ class Configuration(object):
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
         self.skip_builtins = skip_builtins
+        self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
@@ -240,9 +243,19 @@ class Configuration(object):
         sys.stderr.flush()
 
     def distclean(self):
-        shutil.rmtree(self.dynamo_home)
+        if os.path.exists(self.dynamo_home):
+            self._log('Removing %s' % self.dynamo_home)
+            shutil.rmtree(self.dynamo_home)
+
+        for lib in ['dlib','texc']+ENGINE_LIBS:
+            builddir = join(self.defold_root, 'engine/%s/build' % lib)
+            if os.path.exists(builddir):
+                self._log('Removing %s' % builddir)
+                shutil.rmtree(builddir)
+
         # Recreate dirs
         self._create_common_dirs()
+        self._log('distclean done.')
 
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
@@ -730,14 +743,15 @@ class Configuration(object):
             self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
         if host == 'x86_64-win32' and self.target_platform != 'win32':
             self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
-        # We must build bob-light, which builds content during the engine build
-        # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
-        for lib in ['dlib', 'texc']:
-            skip_tests = host != self.target_platform
-            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
-        self.build_bob_light()
+        if not self.skip_bob_light:
+            # We must build bob-light, which builds content during the engine build
+            # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
+            for lib in ['dlib', 'texc']:
+                skip_tests = host != self.target_platform
+                self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
+            self.build_bob_light()
         # Target libs to build
-        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
+        engine_libs = list(ENGINE_LIBS)
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
@@ -1886,6 +1900,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'skip building builtins when building the engine. Default is false')
 
+    parser.add_option('--skip-bob-light', dest='skip_bob_light',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip building bob-light when building the engine. Default is false')
+
     parser.add_option('--disable-ccache', dest='disable_ccache',
                       action = 'store_true',
                       default = False,
@@ -1939,6 +1958,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
                       skip_builtins = options.skip_builtins,
+                      skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,

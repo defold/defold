@@ -130,13 +130,13 @@
 (defn quat->euler [^Quat4d quat]
   (quat-components->euler (.getX quat) (.getY quat) (.getZ quat) (.getW quat)))
 
-(defn ^Vector3d rotate [^Quat4d rotation ^Vector3d v]
+(defn rotate ^Vector3d [^Quat4d rotation ^Vector3d v]
   (let [q (doto (Quat4d.) (.set (Vector4d. v)))
         _ (.mul q rotation q)
         _ (.mulInverse q rotation)]
     (Vector3d. (.getX q) (.getY q) (.getZ q))))
 
-(defn ^Vector3d transform-vector [^Matrix4d mat ^Vector3d v]
+(defn transform-vector ^Vector3d [^Matrix4d mat ^Vector3d v]
   (let [v' (Vector3d. v)]
     (.transform mat v')
     v'))
