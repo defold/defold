@@ -1,7 +1,9 @@
 (ns util.text-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string])
-  (:import (java.io BufferedReader Reader)))
+  (:import (java.io Reader)))
+
+(set! *warn-on-reflection* true)
 
 (defn text-char?
   "Returns true if the supplied character is textual. This can
@@ -149,7 +151,7 @@
     (loop [substrings (transient [])
            builder (StringBuilder.)
            index start-index
-           stop-char stop-char]
+           ^char stop-char stop-char]
       (if (= index (count str))
         (persistent!
           (if (zero? (.length builder))
