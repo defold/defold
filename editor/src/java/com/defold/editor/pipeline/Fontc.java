@@ -160,7 +160,7 @@ public class Fontc {
 
 
         if (fontDesc.getOutlineWidth() > 0.0f) {
-            outlineStroke = new BasicStroke((float)Math.ceil(fontDesc.getOutlineWidth() * 2.0));
+            outlineStroke = new BasicStroke(fontDesc.getOutlineWidth() * 2.0f);
         }
 
         font = Font.createFont(Font.TRUETYPE_FONT, fontStream);
@@ -290,7 +290,7 @@ public class Fontc {
         float edge = 0.75f;
         int shadowBlur = fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD ? 0 : fontDesc.getShadowBlur();
         if (fontDesc.getAntialias() != 0)
-            padding = Math.min(4, fontDesc.getShadowBlur()) + (int)Math.ceil(fontDesc.getOutlineWidth());
+            padding = Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             padding++; // to give extra range for the outline.
 
