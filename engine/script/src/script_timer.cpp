@@ -11,6 +11,25 @@
 
 namespace dmScript
 {
+    /*# Timer API documentation
+     *
+     * Timers allow you to set a delay and a callback to be called when the timer completes.
+     *
+     * The timers created with this API are updated with the collection timer where they
+     * are created. If you pause or speed up the collection (using `set_time_step`) it will 
+     * also affect the new timer.
+     *
+     * ```lua
+     * function printx(x)
+     *   print("0x"..bit.tohex(x))
+     * end
+     * ```
+     *
+     * @document
+     * @name Timer
+     * @namespace timer
+     */
+
     /*
         The timers are stored in a flat array with no holes which we scan sequenctially on each update.
 
@@ -501,7 +520,7 @@ namespace dmScript
         return world;
     }
 
-    /*# Create a timer
+    /*# create a timer
      * Adds a timer and returns a unique handle
      *
      * You may create more timers from inside a timer callback.
@@ -562,11 +581,12 @@ namespace dmScript
         return 1;
     }
 
-    /*# Cancel a timer
+    /*# cancel a timer
      *
      * You may cancel a timer from inside a timer callback.
      * Cancelling a timer that is already executed or cancelled is safe.
      * 
+     * @name timer.cancel
      * @param handle the timer handle returned by timer.delay()
      * @return true if the timer was active, false if the timer is already cancelled / complete
      */
