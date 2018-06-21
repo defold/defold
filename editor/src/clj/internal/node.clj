@@ -1526,7 +1526,8 @@
                   (reduce-kv (fn [props prop-kw orig-prop]
                                (let [original-value (:value orig-prop)]
                                  (if (or (contains? properties prop-kw)
-                                         (not= original-value (get-in props [prop-kw :value])))
+                                         (and (not (declared? prop-kw))
+                                              (not= original-value (get-in props [prop-kw :value]))))
                                    (update props prop-kw assoc :original-value original-value)
                                    props)))
                              props-with-override-values

@@ -182,12 +182,11 @@
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
   (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
-  (output build-targets g/Any (g/fnk [build-resource source-build-targets resource-property-build-targets build-error ddf-message transform]
-                                (g/precluding-errors
-                                  (into []
-                                        (comp (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
-                                              (keep :error))
-                                        (:component-properties ddf-message))
+  (output build-targets g/Any (g/fnk [_node-id build-resource source-build-targets resource-property-build-targets build-error ddf-message transform]
+                                (if-some [errors (not-empty (sequence (comp (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
+                                                                            (keep :error))
+                                                                      (:component-properties ddf-message)))]
+                                  (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
                                   (let [build-target-go-props (partial properties/build-target-go-props resource-property-build-targets)
                                         component-property-infos (map (comp build-target-go-props :properties) (:component-properties ddf-message))
                                         component-go-props (map first component-property-infos)
@@ -487,12 +486,12 @@
     {:resource resource :instance-msg instance-msg :transform transform :property-deps go-prop-dep-build-targets}))
 
 (g/defnk produce-coll-inst-build-targets [_node-id source-resource id transform build-targets resource-property-build-targets ddf-properties]
-  (g/precluding-errors
-    (into [(path-error _node-id source-resource)]
-          (comp (mapcat :properties) ; Extract ComponentPropertyDescs from InstancePropertyDescs
-                (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
-                (keep :error))
-          ddf-properties)
+  (if-some [errors (not-empty (concat (some-> (path-error _node-id source-resource) vector)
+                                      (sequence (comp (mapcat :properties) ; Extract ComponentPropertyDescs from InstancePropertyDescs
+                                                      (mapcat :properties) ; Extract PropertyDescs from ComponentPropertyDescs
+                                                      (keep :error))
+                                                ddf-properties)))]
+    (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
     (let [ddf-properties (into {} (map (fn [m] [(:id m) (:properties m)]) ddf-properties))
           base-id (str id path-sep)
           instance-data (get-in build-targets [0 :user-data :instance-data])

@@ -39,6 +39,13 @@
       (when-some [remaining-errors (next errors)]
         (recur evaluation-context remaining-errors origin-override-depth origin-override-id))))
 
+(defn- error-outline-node-id [basis errors origin-override-depth origin-override-id]
+  (or (when-some [node-id (node-id-at-override-depth origin-override-depth (:_node-id (first errors)))]
+        (when (g/node-instance? basis outline/OutlineNode node-id)
+          node-id))
+      (when-some [remaining-errors (next errors)]
+        (recur basis remaining-errors origin-override-depth origin-override-id))))
+
 (defn- find-override-value-origin [basis node-id label depth]
   (if (and node-id (g/override? basis node-id))
     (if-not (g/property-overridden? basis node-id label)
@@ -65,10 +72,11 @@
         basis (:basis evaluation-context)
         [origin-node-id origin-override-depth] (find-override-value-origin basis (:_node-id error) (:_label error) 0)
         origin-override-id (when (some? origin-node-id) (g/override-id basis origin-node-id))
+        outline-node-id (error-outline-node-id basis errors origin-override-depth origin-override-id)
         parent (parent-resource evaluation-context errors origin-override-depth origin-override-id)
         line (error-line error)]
     (cond-> {:parent parent
-             :node-id origin-node-id
+             :node-id outline-node-id
              :message (:message error)
              :severity (:severity error)}
             line (assoc :line line))))

@@ -184,8 +184,8 @@
   (output build-targets g/Any :cached (g/fnk [_node-id source-build-targets resource-property-build-targets build-resource ddf-message transform]
                                         (when-some [source-build-target (first source-build-targets)]
                                           (let [go-props-with-source-resources (:properties ddf-message)]
-                                            (g/precluding-errors
-                                              (keep :error go-props-with-source-resources)
+                                            (if-some [errors (not-empty (keep :error go-props-with-source-resources))]
+                                              (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
                                               (let [[go-props go-prop-dep-build-targets] (properties/build-target-go-props resource-property-build-targets go-props-with-source-resources)
                                                     build-target (-> source-build-target
                                                                      (assoc :resource build-resource)

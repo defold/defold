@@ -1389,3 +1389,54 @@
             (is (overridden-property? props-script-component))
             (is (overridden-property? ov-props-script-component))
             (is (overridden-property? ov-ov-props-script-component))))))))
+
+(deftest overrides-remain-after-script-edit-test
+  (with-clean-system
+    (let [workspace (tu/setup-scratch-workspace! world "test/resources/empty_project")
+          project (tu/setup-project! workspace)
+          project-graph (g/node-id->graph-id project)
+          resource (partial tu/resource workspace)
+          make-atlas! (partial make-atlas! project)
+          make-resource-node! (partial tu/make-resource-node! project)]
+      (with-open [_ (tu/make-directory-deleter (workspace/project-path workspace))]
+        (make-atlas! "/from-props-script.atlas")
+        (make-atlas! "/from-props-game-object.atlas")
+        (let [props-script (doto (make-resource-node! "/props.script")
+                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+              props-game-object (make-resource-node! "/props.go")
+              props-script-component (add-component! props-game-object props-script)]
+          (edit-property! props-script-component :__atlas (resource "/from-props-game-object.atlas"))
+          (atlas-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas"))
+
+          (testing "Rename property in script."
+            (with-open [_ (tu/make-graph-reverter project-graph)]
+              (g/set-property! props-script :lines ["go.property('renamed', resource.atlas('/from-props-script.atlas'))"])
+              (is (atlas-resource-property? (:__renamed (properties props-script)) (resource "/from-props-script.atlas")))
+              (is (atlas-resource-property? (:__renamed (properties props-script-component)) (resource "/from-props-game-object.atlas")))))
+
+          (testing "Change property default in script."
+            (with-open [_ (tu/make-graph-reverter project-graph)]
+              (g/set-property! props-script :lines ["go.property('atlas', resource.atlas('/renamed-from-props-script.atlas'))"])
+              (is (atlas-resource-property? (:__atlas (properties props-script)) (resource "/renamed-from-props-script.atlas")))
+              (is (atlas-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas")))))
+
+          (testing "Change property type in script."
+            (with-open [_ (tu/make-graph-reverter project-graph)]
+              (g/set-property! props-script :lines ["go.property('atlas', resource.texture('/from-props-script.png'))"])
+              (is (texture-resource-property? (:__atlas (properties props-script)) (resource "/from-props-script.png")))
+              (is (texture-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas")))
+
+              (let [prop-error (tu/prop-error props-script-component :__atlas)]
+                (is (g/error? prop-error))
+                (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg or .png" (:message prop-error))))
+
+              (let [build-error (build-error! props-game-object)]
+                (when (is (g/error? build-error))
+                  (let [error-tree (build-errors-view/build-resource-tree build-error)
+                        error-item-of-parent-resource (first (:children error-tree))
+                        error-item-of-faulty-node (first (:children error-item-of-parent-resource))]
+                    (is (= "Atlas '/from-props-game-object.atlas' is not of type .cubemap, .jpg or .png" (:message error-item-of-faulty-node)))
+                    (is (= [(resource "/props.go") props-game-object]
+                           (error-item-open-info-without-opts error-item-of-parent-resource)))
+                    (is (= [(resource "/props.go") props-script-component]
+                           (error-item-open-info-without-opts error-item-of-faulty-node)))))))))))))

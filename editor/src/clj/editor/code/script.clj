@@ -235,16 +235,16 @@
                          project (project/get-project self)]
                      (concat
                        (gu/disconnect-all basis self :resource)
-                       (when (and (resource/resource? new-value)
-                                  (= :script-property-type-resource
-                                     (g/node-value self :type evaluation-context)))
+                       (when (resource/resource? new-value)
                          (project/connect-resource-node project new-value self [[:resource :resource]
                                                                                 [:build-targets :resource-build-targets]])))))))
 
   (input resource resource/Resource)
   (input resource-build-targets g/Any)
 
-  (output build-targets g/Any (g/fnk [deleted? resource-build-targets] (when-not deleted? resource-build-targets)))
+  (output build-targets g/Any (g/fnk [deleted? resource-build-targets type]
+                                (when (and (= :script-property-type-resource type) (not deleted?))
+                                  resource-build-targets)))
   (output name+node-id NameNodeIDPair (g/fnk [_node-id name] [name _node-id]))
   (output property-entries ScriptPropertyEntries :cached produce-script-property-entries))
 
@@ -312,13 +312,19 @@
             :let [node-id (node-ids-by-name name)]]
         (g/set-property node-id :deleted? true)))))
 
+(defn- lift-error [node-id [prop-kw {:keys [error] :as prop} :as property-entry]]
+  (if (nil? error)
+    property-entry
+    (let [lifted-error (g/error-aggregate [error] :_node-id node-id :_label prop-kw :message (:message error) :value (:value error))]
+      [prop-kw (assoc prop :error lifted-error)])))
+
 (g/defnk produce-properties [_declared-properties _node-id script-properties script-property-entries]
   ;; TODO - fix this when corresponding graph issue has been fixed
   (cond
     (g/error? _declared-properties) _declared-properties
     (g/error? script-property-entries) script-property-entries
     :else (-> _declared-properties
-              (update :properties into script-property-entries)
+              (update :properties into (map (partial lift-error _node-id)) script-property-entries)
               (update :display-order into (map prop->key) script-properties))))
 
 (defn- go-property-declaration-cursor-ranges [lines]
@@ -402,12 +408,12 @@
                                                                   go-props)})}))))
 
 (g/defnk produce-build-targets [_node-id resource lines script-properties modules module-build-targets original-resource-property-build-targets]
-  (g/precluding-errors
-    (keep (fn [{:keys [name resource-kind type value]}]
-            (let [prop-type (script-property-type->property-type type)
-                  edit-type (script-property-edit-type prop-type resource-kind)]
-              (validate-value-against-edit-type _node-id :lines name value edit-type)))
-          script-properties)
+  (if-some [errors (not-empty (keep (fn [{:keys [name resource-kind type value]}]
+                                      (let [prop-type (script-property-type->property-type type)
+                                            edit-type (script-property-edit-type prop-type resource-kind)]
+                                        (validate-value-against-edit-type _node-id :lines name value edit-type)))
+                                    script-properties))]
+    (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
     (let [go-props-with-source-resources (map (fn [{:keys [name type value]}]
                                                 (let [go-prop-type (script-property-type->go-prop-type type)
                                                       go-prop-value (properties/clj-value->go-prop-value go-prop-type value)]

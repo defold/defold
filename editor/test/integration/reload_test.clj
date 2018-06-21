@@ -442,6 +442,8 @@
         (is (= main>main-go-scripts main>main-go-scripts2))
         (is (= (map g/override-original main>main-go-scripts2) [main>main-script2]))
         ;; new version of /main/main.script added, /script/props.script and old version of /main/main.script removed
+        ;; TODO: Fails because ScriptPropertyNodes are not taken into account.
+        ;; TODO: Like override-nodes above, these should remain and have their override-originals updated.
         (is (= (graph-nodes project)
                (set/union
                  (set/difference initial-graph-nodes
