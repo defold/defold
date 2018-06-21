@@ -1,7 +1,9 @@
 (ns util.text-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string])
-  (:import (java.io BufferedReader Reader)))
+  (:import (java.io Reader)))
+
+(set! *warn-on-reflection* true)
 
 (defn text-char?
   "Returns true if the supplied character is textual. This can
@@ -124,3 +126,52 @@
              (recur (inc i) (if (text-char? (aget cbuf i)) binary-chars (inc binary-chars))))
            false))))))
 
+(defn- consume-separator [^String str start-index]
+  (loop [quote-char-count 0
+         index start-index]
+    (if (= index (count str))
+      [index \,]
+      (let [char (.charAt str index)]
+        (cond
+          (= \" char)
+          (recur (inc quote-char-count) (inc index))
+
+          (or (= \, char) (Character/isWhitespace char))
+          (recur quote-char-count (inc index))
+
+          :else
+          (let [quoted? (odd? quote-char-count)
+                stop-char (if quoted? \" \,)]
+            [index stop-char]))))))
+
+(defn parse-comma-separated-string
+  "Parses a string of comma-separated, optionally quoted strings into a vector of unquoted strings."
+  [^String str]
+  (let [[start-index stop-char] (consume-separator str 0)]
+    (loop [substrings (transient [])
+           builder (StringBuilder.)
+           index start-index
+           ^char stop-char stop-char]
+      (if (= index (count str))
+        (persistent!
+          (if (zero? (.length builder))
+            substrings
+            (conj! substrings (.toString builder))))
+        (let [char (.charAt str index)]
+          (if (= char stop-char)
+            (let [[next-index next-stop-char] (consume-separator str (inc index))]
+              (recur (conj! substrings (.toString builder))
+                     (StringBuilder.)
+                     next-index
+                     next-stop-char))
+            (recur substrings
+                   (.append builder char)
+                   (inc index)
+                   stop-char)))))))
+
+(defn join-comma-separated-string
+  ^String [strings]
+  (let [inner-string (string/join "\", \"" (remove empty? strings))]
+    (if (empty? inner-string)
+      inner-string
+      (str "\"" inner-string "\""))))
