@@ -45,8 +45,15 @@ namespace dmGameSystem
 
     dmResource::Result ResDisplayProfilesRecreate(const dmResource::ResourceRecreateParams& params)
     {
-        dmRender::HDisplayProfiles profiles = (dmRender::HDisplayProfiles) params.m_Resource->m_Resource;
+        dmRender::HDisplayProfiles old_profiles = (dmRender::HDisplayProfiles)params.m_Resource->m_Resource;
+        dmRender::HDisplayProfiles profiles = dmRender::NewDisplayProfiles();
         dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, profiles, params.m_Filename);
+        if (r == dmResource::RESULT_OK)
+        {
+            if (old_profiles != 0x0)
+                dmRender::DeleteDisplayProfiles(old_profiles);
+            params.m_Resource->m_Resource = profiles;
+        }
         return r;
     }
 }
