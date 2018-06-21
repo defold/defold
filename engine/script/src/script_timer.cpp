@@ -19,12 +19,6 @@ namespace dmScript
      * are created. If you pause or speed up the collection (using `set_time_step`) it will 
      * also affect the new timer.
      *
-     * ```lua
-     * function printx(x)
-     *   print("0x"..bit.tohex(x))
-     * end
-     * ```
-     *
      * @document
      * @name Timer
      * @namespace timer
