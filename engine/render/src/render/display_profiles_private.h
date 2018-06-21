@@ -41,6 +41,11 @@ namespace dmRender
         dmhash_t m_NameHash;
     };
 
+    /**
+     * Returns true if a qualifier device model matches the start of running device model. 
+     * E.g. "iPhone10" will match with "iPhone10,3". Desktop platforms never report a device model
+     * and will therefore never pick a display profile that has a device model qualifier.
+     */
     bool DeviceModelMatch(DisplayProfiles::Qualifier *qualifier, dmSys::SystemInfo *sys_info);
 }
 
