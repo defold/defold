@@ -117,10 +117,8 @@ namespace dmRender
         uint32_t device_models_count = qualifier->m_NumDeviceModels;
         size_t sys_device_model_len = strlen(sys_info->m_DeviceModel);
         
-        bool device_model_match = true;
         for (uint32_t d = 0; d < device_models_count; ++d)
         {
-            device_model_match = false;
             const char* device_model = qualifier->m_DeviceModels[d];
             size_t q_device_model_len = strlen(device_model);
 
@@ -128,13 +126,12 @@ namespace dmRender
             {
                 if (strncmp(device_model, sys_info->m_DeviceModel, q_device_model_len) == 0) // match
                 {
-                    device_model_match = true;
-                    break;
+                    return true;
                 }
             }
         }
 
-        return device_model_match;
+        return false;
     }
 
     dmhash_t GetOptimalDisplayProfile(HDisplayProfiles profiles, uint32_t width, uint32_t height, uint32_t dpi, const dmArray<dmhash_t>* id_choices)
@@ -168,7 +165,7 @@ namespace dmRender
             {
                 DisplayProfiles::Qualifier& qualifier = profile.m_Qualifiers[q];
 
-                bool device_model_match = DeviceModelMatch(&qualifier, &sys_info);
+                bool device_model_match = (qualifier.m_NumDeviceModels == 0) ? true : DeviceModelMatch(&qualifier, &sys_info);
 
                 if (!device_model_match)
                 {
