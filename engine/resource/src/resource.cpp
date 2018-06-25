@@ -497,11 +497,9 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     uint8_t* hash = (uint8_t*)malloc(signature_hash_len);
     memcpy(hash, hash_decrypted + signature_len - signature_hash_len, signature_hash_len);
 
-    out_digest_len = signature_hash_len * 2 + 1;
-    out_digest = (char*)malloc(out_digest_len);
-    dmResource::HashToString(signature_hash_algorithm, hash, out_digest, out_digest_len);
+    out_digest_len = signature_hash_len;
+    out_digest = (char*)hash;
 
-    free(hash);
     free(hash_decrypted);
     return RESULT_OK;
 }
@@ -517,9 +515,9 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
     Result res = RESULT_OK;
     char public_key_path[DMPATH_MAX_PATH];
     char game_dir[DMPATH_MAX_PATH];
-    uint32_t pub_key_size = 0, hex_digest_len = 0, out_resource_size = 0;
+    uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
     uint8_t* pub_key_buf = 0x0;
-    char* hex_digest = 0x0;
+    char* hash_decrypted = 0x0;
 
     // Load public key
     dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
@@ -536,14 +534,14 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
         return RESULT_IO_ERROR;
     }
 
-    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hex_digest, hex_digest_len);
+    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hash_decrypted, hash_decrypted_len);
     if (res != RESULT_OK)
     {
         return res;
     }
-    res = HashCompare((const uint8_t*)hex_digest, hex_digest_len, expected_digest, expected_len);
+    res = HashCompare((const uint8_t*)hash_decrypted, hash_decrypted_len, expected_digest, expected_len);
 
-    free(hex_digest);
+    free(hash_decrypted);
     free(pub_key_buf);
     return res;
 }

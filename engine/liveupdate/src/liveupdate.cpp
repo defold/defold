@@ -143,28 +143,19 @@ namespace dmLiveUpdate
         bool engine_version_supported = false;
         uint32_t engine_digest_len = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1);
         uint8_t* engine_digest = (uint8_t*) malloc(engine_digest_len * sizeof(uint8_t));
-        // string representation of digest, 2 chars per hex value plus null terminator
-        uint32_t engine_hex_digest_len = engine_digest_len * 2 + 1;
-        char* engine_hex_digest = (char*) malloc(engine_hex_digest_len * sizeof(char));
 
         CreateResourceHash(dmLiveUpdateDDF::HASH_SHA1, engine_info.m_Version, strlen(engine_info.m_Version), engine_digest);
-        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, engine_digest, engine_hex_digest, engine_hex_digest_len);
 
         // Compare manifest supported versions to running dmengine version
         dmLiveUpdateDDF::HashDigest* versions = manifest->m_DDFData->m_EngineVersions.m_Data;
-        uint32_t version_hex_digest_len = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1) * 2 + 1;
-        char* version_hex_digest = (char*)malloc(version_hex_digest_len);
         for (uint32_t i = 0; i < manifest->m_DDFData->m_EngineVersions.m_Count; ++i)
         {
-            dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, versions[i].m_Data.m_Data, version_hex_digest, versions[i].m_Data.m_Count * 2 + 1);
-            if (memcmp(engine_hex_digest, version_hex_digest, engine_hex_digest_len) == 0)
+            if (memcmp(engine_digest, versions[i].m_Data.m_Data, engine_digest_len) == 0)
             {
                 engine_version_supported = true;
                 break;
             }
         }
-        free(version_hex_digest);
-        free(engine_hex_digest);
         free(engine_digest);
 
         if (!engine_version_supported)
@@ -188,20 +179,8 @@ namespace dmLiveUpdate
 
         dmLiveUpdate::CreateManifestHash(algorithm, manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, digest);
 
-        uint32_t hex_digest_len = digest_len * 2 + 1;
-        char* hex_digest = (char*) malloc(hex_digest_len * sizeof(char));
-        if (hex_digest == 0x0)
-        {
-            dmLogError("Failed to allocate memory for hash calculation.");
-            free(digest);
-            return RESULT_MEM_ERROR;
-        }
+        Result result = ResourceResultToLiveupdateResult(dmResource::VerifyManifestHash(m_ResourceFactory, manifest, digest, digest_len));
 
-        dmResource::HashToString(algorithm, digest, hex_digest, hex_digest_len);
-
-        Result result = ResourceResultToLiveupdateResult(dmResource::VerifyManifestHash(m_ResourceFactory, manifest, (const uint8_t*)hex_digest, hex_digest_len));
-
-        free(hex_digest);
         free(digest);
 
         return result;
