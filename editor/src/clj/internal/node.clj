@@ -1522,12 +1522,15 @@
                                properties))
 
                   ;; Assoc :original-value from original property entries.
+                  ;; If your produced property does not make use of the
+                  ;; properties map, it must set :assoc-original-value? to true
+                  ;; in the produced property to set the :original-value here.
                   props-with-overrides-and-original-values
                   (reduce-kv (fn [props prop-kw orig-prop]
                                (let [original-value (:value orig-prop)]
                                  (if (or (contains? properties prop-kw)
                                          (and (not (declared? prop-kw))
-                                              (not= original-value (get-in props [prop-kw :value]))))
+                                              (get-in props [prop-kw :assoc-original-value?])))
                                    (update props prop-kw assoc :original-value original-value)
                                    props)))
                              props-with-override-values

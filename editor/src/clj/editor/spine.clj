@@ -517,16 +517,6 @@
         []))
     []))
 
-(defn reconnect [transaction graph self label kind labels]
-  (when (some #{:atlas} labels)
-    (let [atlas (g/node-value self :atlas)
-          project (project/get-project self)]
-      (concat
-        (gu/disconnect-all self :anim-data)
-        (gu/disconnect-all self :gpu-texture)
-        (gu/disconnect-all self :dep-build-targets)
-        (connect-atlas project self atlas)))))
-
 (defn- read-bones
   [spine-scene]
   (mapv (fn [b]

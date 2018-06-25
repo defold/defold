@@ -191,16 +191,18 @@
   (when (= resource/Resource (:type edit-type))
     (resource-assignment-error node-id prop-kw prop-name value (:ext edit-type))))
 
-(g/defnk produce-script-property-entries [_node-id deleted? name resource-kind type value]
+(g/defnk produce-script-property-entries [_basis _node-id deleted? name resource-kind type value]
   (when-not deleted?
     (let [prop-kw (properties/user-name->key name)
           prop-type (script-property-type->property-type type)
           edit-type (script-property-edit-type prop-type resource-kind)
           error (validate-value-against-edit-type _node-id :value name value edit-type)
           go-prop-type (script-property-type->go-prop-type type)
-          read-only? (nil? (g/override-original _node-id))
+          overridden? (g/property-overridden? _basis _node-id :value)
+          read-only? (nil? (g/override-original _basis _node-id))
           visible? (not deleted?)]
-      {prop-kw {:edit-type edit-type
+      {prop-kw {:assoc-original-value? overridden?
+                :edit-type edit-type
                 :error error
                 :go-prop-type go-prop-type
                 :node-id _node-id
@@ -234,7 +236,8 @@
                    (let [basis (:basis evaluation-context)
                          project (project/get-project self)]
                      (concat
-                       (gu/disconnect-all basis self :resource)
+                       (g/disconnect-sources basis self :resource)
+                       (g/disconnect-sources basis self :resource-build-targets)
                        (when (resource/resource? new-value)
                          (project/connect-resource-node project new-value self [[:resource :resource]
                                                                                 [:build-targets :resource-build-targets]])))))))
@@ -472,8 +475,8 @@
                    (let [basis (:basis evaluation-context)
                          project (project/get-project self)]
                      (concat
-                       (gu/disconnect-all basis self :module-build-targets)
-                       (gu/disconnect-all basis self :module-completion-infos)
+                       (g/disconnect-sources basis self :module-build-targets)
+                       (g/disconnect-sources basis self :module-completion-infos)
                        (for [module new-value]
                          (let [path (lua/lua-module->path module)]
                            (project/connect-resource-node project path self
@@ -488,7 +491,7 @@
                          project (project/get-project self)]
                      (concat
                        (update-script-properties evaluation-context self old-value new-value)
-                       (gu/disconnect-all basis self :original-resource-property-build-targets)
+                       (g/disconnect-sources basis self :original-resource-property-build-targets)
                        (for [{:keys [type value]} new-value
                              :when (and (= :script-property-type-resource type) (some? value))]
                          (project/connect-resource-node project value self [[:build-targets :original-resource-property-build-targets]])))))))
