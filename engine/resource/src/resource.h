@@ -5,7 +5,7 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/mutex.h>
-#include "manifest_ddf.h"
+#include "liveupdate_ddf.h"
 #include "resource_archive.h"
 
 namespace dmBuffer

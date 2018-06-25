@@ -3,7 +3,7 @@
 
 #define LIB_NAME "liveupdate"
 
-#include <resource/manifest_ddf.h>
+#include <resource/liveupdate_ddf.h>
 #include <resource/resource_archive.h>
 #include <dlib/hash.h>
 
