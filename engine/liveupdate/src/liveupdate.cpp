@@ -143,6 +143,7 @@ namespace dmLiveUpdate
         bool engine_version_supported = false;
         uint32_t engine_digest_len = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1);
         uint8_t* engine_digest = (uint8_t*) malloc(engine_digest_len * sizeof(uint8_t));
+        // string representation of digest, 2 chars per hex value plus null terminator
         uint32_t engine_hex_digest_len = engine_digest_len * 2 + 1;
         char* engine_hex_digest = (char*) malloc(engine_hex_digest_len * sizeof(char));
 

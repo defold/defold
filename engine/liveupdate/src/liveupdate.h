@@ -52,7 +52,6 @@ namespace dmLiveUpdate
         void*       m_L;
         int         m_Self;
         int         m_Callback;
-        int         m_ManifestIndex;
         int         m_Status;
     };
 

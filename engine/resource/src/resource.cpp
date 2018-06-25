@@ -579,7 +579,11 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
     {
         // Take bundled manifest signature and write to 'bundle_ver' file
         FILE* bundle_ver = fopen(bundle_ver_path, "wb");
-        fwrite(signature, 1, signature_len, bundle_ver);
+        size_t bytes_written = fwrite(signature, 1, signature_len, bundle_ver);
+        if (bytes_written != signature_len)
+        {
+            dmLogWarning("Failed to write bundle version to file, wrote %u bytes out of %u bytes.", (uint32_t)bytes_written, signature_len);
+        }
         fclose(bundle_ver);
         result = RESULT_OK;
     }
