@@ -87,7 +87,7 @@ public class Analytics extends Thread {
             if (events.size() < MAX_EVENTS) {
                 events.add(event);
             } else {
-                LOGGER.warn("too many events in log ({}}", events.size());
+                LOGGER.warn("too many events in log ({})", events.size());
             }
         }
     }

@@ -77,10 +77,10 @@
 (declare prop prop!)
 
 (defn code-editor-source [script-id]
-  (string/join "\n" (prop script-id :lines)))
+  (string/join "\n" (prop script-id :modified-lines)))
 
 (defn code-editor-source! [script-id source]
-  (prop! script-id :lines (string/split source #"\r?\n" -1)))
+  (prop! script-id :modified-lines (string/split source #"\r?\n" -1)))
 
 (defn setup-workspace!
   ([graph]
@@ -181,7 +181,7 @@
 
 (defn setup-app-view! [project]
   (let [view-graph (make-view-graph!)]
-    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
+    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move :manip-space :world]]
           (g/connect project :_node-id app-view :project-id)
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))
