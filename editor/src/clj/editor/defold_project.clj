@@ -63,7 +63,8 @@
           loaded? (and *load-cache* (contains? @*load-cache* node-id))
           load-fn (:load-fn resource-type)]
       (when-not loaded?
-        (if-not (resource/exists? resource)
+        (if (or (not= :file (resource/source-type resource))
+                (not (resource/exists? resource)))
           (g/mark-defective node-id node-type (validation/file-not-found-error node-id nil :fatal resource))
           (try
             (when *load-cache*

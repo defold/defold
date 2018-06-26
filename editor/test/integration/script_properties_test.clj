@@ -366,6 +366,9 @@
 (defn- reset-property! [node-id prop-kw]
   (properties/clear-override! (coalesced-property node-id prop-kw)))
 
+(defn- edit-script! [node-id lines]
+  (g/set-property! node-id :modified-lines lines))
+
 (defn- find-corresponding [items node-with-id-property]
   (assert (vector? items))
   (let [wanted-id (g/node-value node-with-id-property :id)]
@@ -395,9 +398,9 @@
         (make-atlas!    "/from-props-script.atlas")
         (make-material! "/from-props-script.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
-                                                      "go.property('material', resource.material('/from-props-script.material'))"
-                                                      "go.property('texture',   resource.texture('/from-props-script.png'))"]))]
+                             (edit-script! ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                                            "go.property('material', resource.material('/from-props-script.material'))"
+                                            "go.property('texture',   resource.texture('/from-props-script.png'))"]))]
           (is (g/node-instance? script/ScriptNode props-script))
           (is (not (g/override? props-script)))
 
@@ -427,7 +430,7 @@
 
             (testing "Editing the script code affects exposed properties"
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (g/set-property! props-script :lines ["go.property('other', resource.texture('/from-props-script.png'))"])
+                (edit-script! props-script ["go.property('other', resource.texture('/from-props-script.png'))"])
                 (let [properties (properties props-script)]
                   (is (not (contains? properties :__atlas)))
                   (is (not (contains? properties :__material)))
@@ -445,7 +448,7 @@
 
             (testing "Missing resource error"
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (g/set-property! props-script :lines ["go.property('texture', resource.texture('/missing-resource.png'))"])
+                (edit-script! props-script ["go.property('texture', resource.texture('/missing-resource.png'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
                   (is (texture-resource-property? (:__texture properties) (resource "/missing-resource.png")))
@@ -464,7 +467,7 @@
 
             (testing "Unsupported resource error"
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (g/set-property! props-script :lines ["go.property('texture', resource.texture('/from-props-script.material'))"])
+                (edit-script! props-script ["go.property('texture', resource.texture('/from-props-script.material'))"])
                 (let [properties (properties props-script)
                       error-value (tu/prop-error props-script :__texture)]
                   (is (texture-resource-property? (:__texture properties) (resource "/from-props-script.material")))
@@ -501,9 +504,9 @@
         (make-atlas!    "/from-props-game-object.atlas")
         (make-material! "/from-props-game-object.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
-                                                      "go.property('material', resource.material('/from-props-script.material'))"
-                                                      "go.property('texture',   resource.texture('/from-props-script.png'))"]))
+                             (edit-script! ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                                            "go.property('material', resource.material('/from-props-script.material'))"
+                                            "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (make-resource-node! "/props.go")
               props-script-component (add-component! props-game-object props-script)
               original-property-values (into {}
@@ -668,7 +671,7 @@
           (testing "Downstream error breaks build"
             (are [lines message]
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (g/set-property! props-script :lines lines)
+                (edit-script! props-script lines)
                 (let [error-value (build-error! props-game-object)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
@@ -699,7 +702,7 @@
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+                             (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (make-resource-node! "/props.go")
               props-script-component (add-component! props-game-object props-script)]
           (edit-property! props-script-component :__atlas (resource "/from-props-game-object.atlas"))
@@ -748,9 +751,9 @@
         (make-atlas!    "/from-props-collection.atlas")
         (make-material! "/from-props-collection.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
-                                                      "go.property('material', resource.material('/from-props-script.material'))"
-                                                      "go.property('texture',   resource.texture('/from-props-script.png'))"]))
+                             (edit-script! ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                                            "go.property('material', resource.material('/from-props-script.material'))"
+                                            "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
                                   (add-component! props-script))
               props-collection (make-resource-node! "/props.collection")
@@ -932,7 +935,7 @@
           (testing "Downstream error breaks build"
             (are [lines message]
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (g/set-property! props-script :lines lines)
+                (edit-script! props-script lines)
                 (let [error-value (build-error! props-collection)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
@@ -963,7 +966,7 @@
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-collection.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+                             (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
                                   (add-component! props-script))
               props-collection (make-resource-node! "/props.collection")
@@ -1020,9 +1023,9 @@
         (make-atlas!    "/from-sub-props-collection.atlas")
         (make-material! "/from-sub-props-collection.material")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
-                                                      "go.property('material', resource.material('/from-props-script.material'))"
-                                                      "go.property('texture',   resource.texture('/from-props-script.png'))"]))
+                             (edit-script! ["go.property('atlas',       resource.atlas('/from-props-script.atlas'))"
+                                            "go.property('material', resource.material('/from-props-script.material'))"
+                                            "go.property('texture',   resource.texture('/from-props-script.png'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
                                   (add-component! props-script))
               props-collection (doto (make-resource-node! "/props.collection")
@@ -1219,7 +1222,7 @@
           (testing "Downstream error breaks build"
             (are [lines message]
               (with-open [_ (tu/make-graph-reverter project-graph)]
-                (g/set-property! props-script :lines lines)
+                (edit-script! props-script lines)
                 (let [error-value (build-error! sub-props-collection)]
                   (when (is (g/error? error-value))
                     (let [error-tree (build-errors-view/build-resource-tree error-value)
@@ -1250,7 +1253,7 @@
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-sub-props-collection.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+                             (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (doto (make-resource-node! "/props.go")
                                   (add-component! props-script))
               props-collection (doto (make-resource-node! "/props.collection")
@@ -1304,7 +1307,7 @@
         (make-atlas! "/from-props-collection.atlas")
         (make-atlas! "/from-sub-props-collection.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+                             (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (make-resource-node! "/props.go")
               props-script-component (add-component! props-game-object props-script)
               props-collection (make-resource-node! "/props.collection")
@@ -1402,7 +1405,7 @@
         (make-atlas! "/from-props-script.atlas")
         (make-atlas! "/from-props-game-object.atlas")
         (let [props-script (doto (make-resource-node! "/props.script")
-                             (g/set-property! :lines ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
+                             (edit-script! ["go.property('atlas', resource.atlas('/from-props-script.atlas'))"]))
               props-game-object (make-resource-node! "/props.go")
               props-script-component (add-component! props-game-object props-script)]
           (edit-property! props-script-component :__atlas (resource "/from-props-game-object.atlas"))
@@ -1410,19 +1413,19 @@
 
           (testing "Rename property in script."
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (g/set-property! props-script :lines ["go.property('renamed', resource.atlas('/from-props-script.atlas'))"])
+              (edit-script! props-script ["go.property('renamed', resource.atlas('/from-props-script.atlas'))"])
               (is (atlas-resource-property? (:__renamed (properties props-script)) (resource "/from-props-script.atlas")))
               (is (atlas-resource-property? (:__renamed (properties props-script-component)) (resource "/from-props-game-object.atlas")))))
 
           (testing "Change property default in script."
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (g/set-property! props-script :lines ["go.property('atlas', resource.atlas('/renamed-from-props-script.atlas'))"])
+              (edit-script! props-script ["go.property('atlas', resource.atlas('/renamed-from-props-script.atlas'))"])
               (is (atlas-resource-property? (:__atlas (properties props-script)) (resource "/renamed-from-props-script.atlas")))
               (is (atlas-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas")))))
 
           (testing "Change property type in script."
             (with-open [_ (tu/make-graph-reverter project-graph)]
-              (g/set-property! props-script :lines ["go.property('atlas', resource.texture('/from-props-script.png'))"])
+              (edit-script! props-script ["go.property('atlas', resource.texture('/from-props-script.png'))"])
               (is (texture-resource-property? (:__atlas (properties props-script)) (resource "/from-props-script.png")))
               (is (texture-resource-property? (:__atlas (properties props-script-component)) (resource "/from-props-game-object.atlas")))
 

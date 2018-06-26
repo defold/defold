@@ -378,7 +378,7 @@
     (luajit/bytecode (data/lines-reader lines) proj-path)
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
-        (g/->error nil :lines :fatal e (.getMessage e)
+        (g/->error nil :modified-lines :fatal e (.getMessage e)
                    {:filename filename
                     :line     line
                     :message  message})))))
