@@ -246,17 +246,16 @@ uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
     return bitlen[(int) algorithm] / 8U;
 }
 
-void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen)
+void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len)
 {
-    const uint32_t hlen = HashLength(algorithm);
-    if (buf != NULL && buflen > 0)
+    if (out_buf != NULL && out_len > 0)
     {
-        buf[0] = 0x0;
-        for (uint32_t i = 0; i < hlen; ++i)
+        out_buf[0] = 0x0;
+        for (uint32_t i = 0; i < byte_buf_len; ++i)
         {
             char current[3];
-            DM_SNPRINTF(current, 3, "%02x", hash[i]);
-            dmStrlCat(buf, current, buflen);
+            DM_SNPRINTF(current, 3, "%02x", byte_buf[i]);
+            dmStrlCat(out_buf, current, out_len);
         }
     }
 }
@@ -267,11 +266,11 @@ Result StoreManifest(Manifest* manifest)
     char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
     char manifest_file_path[DMPATH_MAX_PATH];
     char manifest_tmp_file_path[DMPATH_MAX_PATH];
-    HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+    BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, manifest_file_path, DMPATH_MAX_PATH);
     dmStrlCpy(manifest_tmp_file_path, manifest_file_path, DMPATH_MAX_PATH);
-    dmStrlCat(manifest_tmp_file_path, ".tmp", DMPATH_MAX_PATH);
+    DM_SNPRINTF(manifest_tmp_file_path, sizeof(manifest_tmp_file_path), "%s.tmp", manifest_file_path);
     // write to tempfile, if successful move/rename and then delete tmpfile
     dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
     if (ddf_result != dmDDF::RESULT_OK)
@@ -284,7 +283,6 @@ Result StoreManifest(Manifest* manifest)
     {
         return RESULT_IO_ERROR;
     }
-    dmSys::Unlink(manifest_tmp_file_path);
     return RESULT_OK;
 }
 
@@ -306,7 +304,7 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
     dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
     archive_index_path[strlen(archive_index_path) - 1] = 'i';
 
-    HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+    BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
     struct stat file_stat;
@@ -563,7 +561,7 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
     if (bundle_ver_exists)
     {
         FILE* bundle_ver = fopen(bundle_ver_path, "rb");
-        uint8_t* buf = (uint8_t*)malloc(signature_len);
+        uint8_t* buf = (uint8_t*)alloca(signature_len);
         fread(buf, 1, signature_len, bundle_ver);
         fclose(bundle_ver);
         if (memcmp(buf, signature, signature_len) != 0)
@@ -571,7 +569,6 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
             // Bundle has changed, local liveupdate manifest no longer valid.
             result = RESULT_VERSION_MISMATCH;
         }
-        free(buf);
     }
     else
     {
@@ -694,7 +691,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         char app_support_path[DMPATH_MAX_PATH];
         char lu_manifest_file_path[DMPATH_MAX_PATH];
         char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
-        HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+        BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
         dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
         dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, lu_manifest_file_path, DMPATH_MAX_PATH);
         struct stat file_stat;

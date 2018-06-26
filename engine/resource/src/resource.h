@@ -661,13 +661,13 @@ namespace dmResource
     uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm);
 
     /**
-     * Converts the supplied hash to hexadecimal string representation using the hash algorithm supplied
-     * @param algorithm The hash algorithm
-     * @param hash The hash buffer
-     * @param buf The output string buffer
-     * @param buflen The output buffer length
+     * Converts the supplied byte buffer to hexadecimal string representation
+     * @param byte_buf The byte buffer
+     * @param byte_buf_len The byte buffer length
+     * @param out_buf The output string buffer
+     * @param out_len The output buffer length
      */
-    void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen);
+    void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len);
 
     /**
      * Byte-wise comparison of two hash buffers
