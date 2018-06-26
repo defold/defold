@@ -602,9 +602,9 @@ namespace dmResource
 
     Manifest* GetManifest(HFactory factory);
 
-    Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFactory factory);
+    Result LoadArchiveIndex(const char* bundle_dir, HFactory factory);
 
-    Result ParseManifestDDF(uint8_t* manifestBuf, uint32_t size, dmResource::Manifest*& manifest);
+    Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest);
 
     Result StoreManifest(Manifest* manifest);
 

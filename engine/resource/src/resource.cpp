@@ -286,7 +286,7 @@ Result StoreManifest(Manifest* manifest)
     return RESULT_OK;
 }
 
-Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFactory factory)
+Result LoadArchiveIndex(const char* bundle_dir, HFactory factory)
 {
     Result result = RESULT_OK;
     const uint32_t manifest_extension_length = strlen("dmanifest");
@@ -358,10 +358,10 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
     return result;
 }
 
-Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manifest*& manifest)
+Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
 {
     // Read from manifest resource
-    dmDDF::Result result = dmDDF::LoadMessage(manifest_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifest->m_DDF);
+    dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest (%i)", result);
@@ -369,33 +369,33 @@ Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manife
     }
 
     // Read data blob from ManifestFile into ManifestData message
-    result = dmDDF::LoadMessage(manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &manifest->m_DDFData);
+    result = dmDDF::LoadMessage(out_manifest->m_DDF->m_Data.m_Data, out_manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &out_manifest->m_DDFData);
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest data (%i)", result);
-        dmDDF::FreeMessage(manifest->m_DDF);
-        manifest->m_DDF = 0x0;
+        dmDDF::FreeMessage(out_manifest->m_DDF);
+        out_manifest->m_DDF = 0x0;
         return RESULT_IO_ERROR;
     }
-    if (manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
+    if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
     {
         dmLogError("Manifest format mismatch (expected '%x', actual '%x')",
-            MANIFEST_MAGIC_NUMBER, manifest->m_DDFData->m_Header.m_MagicNumber);
-        dmDDF::FreeMessage(manifest->m_DDFData);
-        dmDDF::FreeMessage(manifest->m_DDF);
-        manifest->m_DDFData = 0x0;
-        manifest->m_DDF = 0x0;
+            MANIFEST_MAGIC_NUMBER, out_manifest->m_DDFData->m_Header.m_MagicNumber);
+        dmDDF::FreeMessage(out_manifest->m_DDFData);
+        dmDDF::FreeMessage(out_manifest->m_DDF);
+        out_manifest->m_DDFData = 0x0;
+        out_manifest->m_DDF = 0x0;
         return RESULT_FORMAT_ERROR;
     }
 
-    if (manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
+    if (out_manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
     {
         dmLogError("Manifest version mismatch (expected '%i', actual '%i')",
-            dmResourceArchive::VERSION, manifest->m_DDFData->m_Header.m_Version);
-        dmDDF::FreeMessage(manifest->m_DDFData);
-        dmDDF::FreeMessage(manifest->m_DDF);
-        manifest->m_DDFData = 0x0;
-        manifest->m_DDF = 0x0;
+            dmResourceArchive::VERSION, out_manifest->m_DDFData->m_Header.m_Version);
+        dmDDF::FreeMessage(out_manifest->m_DDFData);
+        dmDDF::FreeMessage(out_manifest->m_DDF);
+        out_manifest->m_DDFData = 0x0;
+        out_manifest->m_DDF = 0x0;
         return RESULT_VERSION_MISMATCH;
     }
 
@@ -420,7 +420,7 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest);
+    Result result = ManifestLoadMessage(manifestBuffer, manifestLength, factory->m_Manifest);
     dmMemory::AlignedFree(manifestBuffer);
 
     return result;
@@ -444,7 +444,7 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifestDDF(manifest_buf, manifest_len, factory->m_Manifest);
+    Result result = ManifestLoadMessage(manifest_buf, manifest_len, factory->m_Manifest);
     UnmountManifest((void*&)manifest_buf, manifest_len);
 
     return result;
@@ -730,7 +730,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             }
         }
 
-        r = LoadArchiveIndex(manifest_path, factory->m_UriParts.m_Path, factory);
+        r = LoadArchiveIndex(factory->m_UriParts.m_Path, factory);
 
         if (r == RESULT_OK)
         {

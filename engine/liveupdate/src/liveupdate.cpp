@@ -174,7 +174,7 @@ namespace dmLiveUpdate
 
     Result ParseManifestBin(uint8_t* manifest_data, size_t manifest_len, dmResource::Manifest* manifest)
     {
-        return ResourceResultToLiveupdateResult(dmResource::ParseManifestDDF(manifest_data, manifest_len, manifest));
+        return ResourceResultToLiveupdateResult(dmResource::ManifestLoadMessage(manifest_data, manifest_len, manifest));
     }
 
     Result StoreManifest(dmResource::Manifest* manifest)

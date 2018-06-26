@@ -304,7 +304,7 @@ TEST(dmResourceArchive, ManifestHeader)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     manifest_data = manifest->m_DDFData;
@@ -325,7 +325,7 @@ TEST(dmResourceArchive, ManifestHeader)
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
@@ -344,7 +344,7 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
 TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
@@ -364,7 +364,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
     uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
     char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
@@ -384,7 +384,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
     unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
     memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
@@ -404,7 +404,7 @@ TEST(dmResourceArchive, ResourceEntries)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     manifest_data = manifest->m_DDFData;
@@ -434,7 +434,7 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, manifest);
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     manifest_data = manifest->m_DDFData;
