@@ -278,7 +278,7 @@ Result StoreManifest(Manifest* manifest)
         dmLogError("Failed storing manifest to file, result: %i", ddf_result);
         return RESULT_DDF_ERROR;
     }
-    dmSys::Result sys_result = dmSys::WriteWithMove(manifest_file_path, manifest_tmp_file_path);
+    dmSys::Result sys_result = dmSys::MoveFile(manifest_file_path, manifest_tmp_file_path);
     if (sys_result != dmSys::RESULT_OK)
     {
         return RESULT_IO_ERROR;
@@ -326,7 +326,7 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
         bool luTempIndexExists = stat(temp_archive_index_path, &file_stat) == 0;
         if (luTempIndexExists)
         {
-            dmSys::Result moveResult = dmSys::WriteWithMove(liveupdate_index_path, temp_archive_index_path);
+            dmSys::Result moveResult = dmSys::MoveFile(liveupdate_index_path, temp_archive_index_path);
 
             if (moveResult != dmSys::RESULT_OK)
             {

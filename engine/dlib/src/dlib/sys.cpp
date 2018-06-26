@@ -178,7 +178,7 @@ namespace dmSys
 
 
 #if !defined(__EMSCRIPTEN__)
-    Result WriteWithMove(const char* dst_filename, const char* src_filename)
+    Result MoveFile(const char* dst_filename, const char* src_filename)
     {
 #if defined(_WIN32)
         bool rename_result = MoveFileEx(src_filename, dst_filename, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
@@ -192,7 +192,7 @@ namespace dmSys
         return RESULT_UNKNOWN;
     }
 #else // EMSCRIPTEN
-    Result WriteWithMove(const char* dst_filename, const char* src_filename)
+    Result MoveFile(const char* dst_filename, const char* src_filename)
     {
         FILE* src_file = fopen(src_filename, "rb");
         if (!src_file)
