@@ -8,6 +8,11 @@
 #include <dlib/log.h>
 #include <dlib/sys.h>
 
+#if defined(_WIN32)
+#include <malloc.h>
+#define alloca(_SIZE) _alloca(_SIZE)
+#endif
+
 namespace dmLiveUpdate
 {
     Result ResourceResultToLiveupdateResult(dmResource::Result r)
