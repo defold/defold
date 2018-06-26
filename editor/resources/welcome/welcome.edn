@@ -33,6 +33,15 @@
                              :zip-url "https://github.com/defold/tutorial-side-scroller/archive/master.zip"
                              :skip-root? true}
 
+                             {:name "Walking astronaut tutorial"
+                             :description "In this beginner's tutorial you learn how to capture player input and make a character move and animate. You will also learn about the core building blocks in Defold: game objects, components and collections."
+                             :image "astronaut.png"
+                             :duration "Medium"
+                             :user-level "Beginner"
+                             :zip-url "https://github.com/defold/tutorial-astronaut/archive/master.zip"
+                             :skip-root? true}
+
+
                              {:name "Movement tutorial"
                              :description "In this beginner's tutorial you learn how to make realistic movement using vectors and some simple vector algebra."
                              :image "movement.png"
@@ -72,6 +81,14 @@
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/sample-roids/archive/master.zip"
+                             :skip-root? true}
+
+                            {:name "RPG map sample"
+                             :description "This sample shows how you can create a large RPG map that scrolls one screen at a time as the hero progresses."
+                             :image "rpg-map.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-rpgmap/archive/master.zip"
                              :skip-root? true}
 
                              {:name "Shadertoy sample"

@@ -297,6 +297,83 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# Play an animation on a sprite component
+     * Play an animation on a sprite component from its tile set
+     * 
+     * An optional completion callback function can be provided that will be called when
+     * the animation has completed playing. If no function is provided,
+     * a [ref:animation_done] message is sent to the script that started the animation.
+     * 
+     * @name sprite.play_flipbook
+     * @param url [type:string|hash|url] the sprite that should play the animation
+     * @param id hash name hash of the animation to play
+     * @param [complete_function] [type:function(self, message_id, message, sender))] function to call when the animation has completed.
+     *
+     * `self`
+     * : [type:object] The current object.
+     *
+     * `message_id`
+     * : [type:hash] The name of the completion message, `"animation_done"`.
+     *
+     * `message`
+     * : [type:table] Information about the completion:
+     *
+     * - [type:number] `current_tile` - the current tile of the sprite.
+     * - [type:hash] `id` - id of the animation that was completed.
+     *
+     * `sender`
+     * : [type:url] The invoker of the callback: the sprite component.
+     * @examples
+     * 
+     * The following examples assumes that the model has id "sprite".
+     * 
+     * How to play the "jump" animation followed by the "run" animation:
+     * 
+     * local function anim_done(self, message_id, message, sender)
+     *   if message_id == hash("model_animation_done") then
+     *     if message.id == hash("jump") then
+     *       -- open animation done, chain with "run"
+     *       sprite.play_flipbook(url, "run")
+     *     end
+     *   end
+     * end
+     * 
+     * ```lua
+     * function init(self)
+     *   local url = msg.url("#sprite")
+     *   sprite.play_flipbook(url, "jump", anim_done)
+     * end
+     * ```
+     */
+    int SpriteComp_PlayFlipBook(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmhash_t id_hash = dmScript::CheckHashOrString(L, 2);
+
+        dmMessage::URL receiver;
+        dmMessage::URL sender;
+        dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        if (top > 2)
+        {
+            if (lua_isfunction(L, 3))
+            {
+                lua_pushvalue(L, 3);
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
+            }
+        }
+
+        dmGameSystemDDF::PlayAnimation msg;
+        msg.m_Id = id_hash;
+
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        return 0;
+    }
+
     static const luaL_reg SPRITE_COMP_FUNCTIONS[] =
     {
             {"set_hflip",       SpriteComp_SetHFlip},
@@ -304,6 +381,7 @@ namespace dmGameSystem
             {"set_constant",    SpriteComp_SetConstant},
             {"reset_constant",  SpriteComp_ResetConstant},
             {"set_scale",       SpriteComp_SetScale},
+            {"play_flipbook",  SpriteComp_PlayFlipBook},
             {0, 0}
     };
 

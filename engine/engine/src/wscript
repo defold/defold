@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os, re
 from waf_dynamo import copy_file_task, apidoc_extract_task
+import Options
 
 def set_options(opt):
     pass
@@ -51,7 +52,6 @@ def build(bld):
         additional_libs.append('TREMOLO')
 
     if 'win32' in bld.env['PLATFORM']:
-        additional_libs.append('FBGPLATFORM')
         exported_symbols.append('GameroomExt')
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
@@ -179,7 +179,8 @@ def build(bld):
         task = copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)
         task.install_path = install_path
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')
 
 def configure(conf):
     pass
