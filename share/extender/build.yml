@@ -71,7 +71,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin"]
         defines:    ["DM_PLATFORM_OSX", "LUA_BYTECODE_ENABLE"]
-        flags:      []
+        flags:      ['-fvisibility=hidden']
         linkFlags:  ["-pagezero_size", "10000", "-image_base", "100000000"]
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -120,7 +120,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "FBSDKCore", "FBSDKLogin", "FBSDKShare"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin"]
         defines:    ["DM_PLATFORM_IOS"]
-        flags:      ['-fno-exceptions']
+        flags:      ['-fno-exceptions', '-fvisibility=hidden']
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip']
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -145,7 +145,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "FBSDKCore", "FBSDKLogin", "FBSDKShare" ]
         libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin"]
         defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE"]
-        flags:      ['-fno-exceptions']
+        flags:      ['-fno-exceptions', '-fvisibility=hidden']
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip']
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -170,7 +170,7 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{android_stl_lib}}"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
         platformIncludes:   ["{{android_ndk_path}}/sources/android/native_app_glue", "{{android_ndk_path}}/sources/android/cpufeatures", "{{android_ndk_include}}", "{{android_stl_include}}", "{{android_stl_arch_include}}"]
-        flags:      []
+        flags:      ['-fvisibility=hidden']
         linkFlags:  []
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -225,13 +225,13 @@ platforms:
         TEMP:       "{{build_folder}}"
         WINEPATH:   "C:/Program Files (x86)/MSBuild/14.0/bin;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/IDE/;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN/x86_amd64;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/Tools;C:/WINDOWS/Microsoft.NET/Framework/v4.0.30319;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/VCPackages;C:/Program Files (x86)/HTML Help Workshop;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Team Tools/Performance Tools;C:/ProgramFilesx86/WindowsKits/8.1/bin/x64;C:/Program Files (x86)/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
     context:
-        engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libadtruthext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx","libFBGPlatform"]
+        engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libadtruthext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32","{{dynamo_home}}/ext/lib/x86_64-win32","C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/LIB/amd64","C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/ATLMFC/LIB/amd64","C:/ProgramFilesx86/WindowsKits/10/lib/10.0.10240.0/ucrt/x64","C:/ProgramFilesx86/WindowsKits/NETFXSDK/4.6.1/lib/um/x64","C:/ProgramFilesx86/WindowsKits/8.1/lib/winv6.3/um/x64"]
         includes:   ["C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/INCLUDE","C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/ATLMFC/INCLUDE","C:/ProgramFilesx86/WindowsKits/10/include/10.0.10240.0/ucrt","C:/ProgramFilesx86/WindowsKits/NETFXSDK/4.6.1/include/um","C:/ProgramFilesx86/WindowsKits/8.1/include/shared","C:/ProgramFilesx86/WindowsKits/8.1/include/um","C:/ProgramFilesx86/WindowsKits/8.1/include/winrt"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE"]
         flags:      []
-        linkFlags:  ["/DELAYLOAD:LibFBGPlatform64.dll"]
-        libs:       ["OpenGL32.lib", "Delayimp.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
+        linkFlags:  []
+        libs:       ["OpenGL32.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
         symbols:    ["GameroomExt"]
 
     exePrefix:      ''
@@ -254,13 +254,13 @@ platforms:
         TEMP:       "{{build_folder}}"
         WINEPATH:   "C:/Program Files (x86)/MSBuild/14.0/bin;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/IDE/;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/BIN;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Common7/Tools;C:/WINDOWS/Microsoft.NET/Framework/v4.0.30319;C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/VCPackages;C:/Program Files (x86)/HTML Help Workshop;C:/Program Files (x86)/Microsoft Visual Studio 14.0/Team Tools/Performance Tools;C:/ProgramFilesx86/WindowsKits/8.1/bin/x86;C:/Program Files (x86)/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.6.1 Tools/"
     context:
-        engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libadtruthext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx","libFBGPlatform"]
+        engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libadtruthext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx"]
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/LIB","C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/ATLMFC/LIB","C:/ProgramFilesx86/WindowsKits/10/lib/10.0.10240.0/ucrt/x86","C:/ProgramFilesx86/WindowsKits/NETFXSDK/4.6.1/lib/um/x86","C:/ProgramFilesx86/WindowsKits/8.1/lib/winv6.3/um/x86"]
         includes:   ["C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/INCLUDE","C:/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/ATLMFC/INCLUDE","C:/ProgramFilesx86/WindowsKits/10/include/10.0.10240.0/ucrt","C:/ProgramFilesx86/WindowsKits/NETFXSDK/4.6.1/include/um","C:/ProgramFilesx86/WindowsKits/8.1/include/shared","C:/ProgramFilesx86/WindowsKits/8.1/include/um","C:/ProgramFilesx86/WindowsKits/8.1/include/winrt"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE"]
         flags:      []
-        linkFlags:  ["/DELAYLOAD:LibFBGPlatform32.dll"]
-        libs:       ["OpenGL32.lib", "Delayimp.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
+        linkFlags:  []
+        libs:       ["OpenGL32.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
         symbols:    ["GameroomExt"]
 
     exePrefix:      ''
@@ -284,7 +284,7 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
         includes:   ["{{dynamo_home}}/include/x86_64-linux"]
         defines:    ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
-        flags:      ["-ffloat-store", "-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC"]
+        flags:      ["-ffloat-store", "-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
         linkFlags:  []
         libs:       []
         # this happens to contain some dynamic engine libs too (openal)

@@ -789,10 +789,7 @@
                   shader (get user-data :shader render/shader-tex-tint)
                   vertex-binding (vtx/use-with ::spine-trans vb shader)]
               (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
-                (case blend-mode
-                  :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-                  (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-                  :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
+                (gl/set-blend-mode gl blend-mode)
                 (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
                 (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
           (when-let [vb (gen-skeleton-vb renderables)]
@@ -835,7 +832,7 @@
                    (project/resource-setter self old-value new-value
                                             [:resource :spine-json-resource]
                                             [:content :spine-scene]
-                                            [:structure :scene-structure]
+                                            [:consumer-passthrough :scene-structure]
                                             [:node-outline :source-outline])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "json"}))
             (dynamic error (g/fnk [_node-id spine-json]
@@ -1120,7 +1117,7 @@
         scene-tx-data (g/make-nodes graph [scene SpineSceneJson]
                                     (g/connect scene :_node-id node-id :nodes)
                                     (g/connect scene :node-outline node-id :child-outlines)
-                                    (g/connect scene :structure node-id :structure)
+                                    (g/connect scene :structure node-id :consumer-passthrough)
                                     (g/connect node-id :content scene :content))
         scene-id (tx-first-created scene-tx-data)]
     (concat
