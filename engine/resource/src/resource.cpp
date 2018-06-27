@@ -250,12 +250,19 @@ void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_
 {
     if (out_buf != NULL && out_len > 0)
     {
+        uint32_t out_len_cond = (out_len + 1) / 2;
         out_buf[0] = 0x0;
         for (uint32_t i = 0; i < byte_buf_len; ++i)
         {
             char current[3];
             DM_SNPRINTF(current, 3, "%02x", byte_buf[i]);
-            dmStrlCat(out_buf, current, out_len);
+
+            if (i < out_len_cond)
+                strncat(out_buf, current, 1);
+            if (i+1 < out_len_cond)
+                strncat(out_buf, current+1, 1);
+            else
+                break;
         }
     }
 }
