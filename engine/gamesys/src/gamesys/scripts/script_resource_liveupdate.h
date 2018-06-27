@@ -125,7 +125,7 @@ namespace dmLiveUpdate
      *
      * local function download_and_store_manifest(self)
      *   http.request(MANIFEST_URL, "GET", function(self, id, response)
-     *       if response.status > 199 and response.status < 400 then
+     *       if response.status == 200 then
      *         resource.store_manifest(response.response, store_manifest_cb)
      *       end
      *     end)
