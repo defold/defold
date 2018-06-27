@@ -304,7 +304,7 @@ TEST(dmResourceArchive, ManifestHeader)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     manifest_data = manifest->m_DDFData;
@@ -325,18 +325,16 @@ TEST(dmResourceArchive, ManifestHeader)
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm) * 2 + 1;
-    char* expected_digest = (char*)malloc(expected_digest_len);
-    dmResource::HashToString(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm, RESOURCES_MANIFEST_HASH, expected_digest, expected_digest_len);
+    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
+    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
 
     char* hex_digest = 0x0;
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
 
-    free(expected_digest);
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);
     dmDDF::FreeMessage(manifest->m_DDF);
@@ -346,19 +344,17 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
 TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm) * 2 + 1;
-    char* expected_digest = (char*)malloc(expected_digest_len);
-    dmResource::HashToString(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm, RESOURCES_MANIFEST_HASH, expected_digest, expected_digest_len);
+    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
+    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
 
     char* hex_digest = 0x0;
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
     hex_digest_len *= 0.5f; // make the supplied hash shorter than expected
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len - 1, (const uint8_t*) expected_digest, strlen(expected_digest)));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
 
-    free(expected_digest);
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);
     dmDDF::FreeMessage(manifest->m_DDF);
@@ -368,19 +364,17 @@ TEST(dmResourceArchive, ManifestSignatureVerificationLengthFail)
 TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
-    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm) * 2 + 1;
-    char* expected_digest = (char*)malloc(expected_digest_len);
-    dmResource::HashToString(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm, RESOURCES_MANIFEST_HASH, expected_digest, expected_digest_len);
+    uint32_t expected_digest_len = dmResource::HashLength(manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm);
+    char* expected_digest = (char*)RESOURCES_MANIFEST_HASH;
 
     char* hex_digest = 0x0;
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
     memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len - 1, (const uint8_t*) expected_digest, strlen(expected_digest)));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, RESOURCES_MANIFEST_HASH_SIZE));
 
-    free(expected_digest);
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);
     dmDDF::FreeMessage(manifest->m_DDF);
@@ -390,7 +384,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
 TEST(dmResourceArchive, ManifestSignatureVerificationWrongKey)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest));
 
     unsigned char* resources_public_wrong = (unsigned char*)malloc(RESOURCES_PUBLIC_SIZE);
     memcpy(resources_public_wrong, &RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE);
@@ -410,7 +404,7 @@ TEST(dmResourceArchive, ResourceEntries)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     manifest_data = manifest->m_DDFData;
@@ -440,7 +434,7 @@ TEST(dmResourceArchive, ResourceEntries_Compressed)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
     dmLiveUpdateDDF::ManifestData* manifest_data;
-    dmResource::Result result = dmResource::ParseManifestDDF(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, manifest);
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, manifest);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 
     manifest_data = manifest->m_DDFData;

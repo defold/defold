@@ -54,6 +54,13 @@ namespace dmResource
     uint32_t GetRefCount(HFactory factory, void* resource);
     uint32_t GetRefCount(HFactory factory, dmhash_t identifier);
 
+    /** 
+     * The manifest has a signature embedded. This signature is created when bundling by hashing the manifest content
+     * and encrypting the hash with the private part of a public-private key pair. To verify a manifest this procedure
+     * is performed in reverse; first decrypting the signature using the public key (bundled with the engine) to
+     * retreive the content hash then hashing the actual manifest content and comparing the two.
+     * This method handles the signature decryption part.
+     */
     Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint32_t pub_key_len, char*& out_digest, uint32_t &out_digest_len);
 
     /** 

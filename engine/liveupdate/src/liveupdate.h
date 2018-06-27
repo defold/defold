@@ -2,7 +2,7 @@
 #define DM_LIVEUPDATE_H
 
 #include <resource/resource.h>
-#include <resource/manifest_ddf.h>
+#include <resource/liveupdate_ddf.h>
 #include <resource/resource_archive.h>
 
 namespace dmLiveUpdate
@@ -52,7 +52,6 @@ namespace dmLiveUpdate
         void*       m_L;
         int         m_Self;
         int         m_Callback;
-        int         m_ManifestIndex;
         int         m_Status;
     };
 

@@ -246,17 +246,23 @@ uint32_t HashLength(dmLiveUpdateDDF::HashAlgorithm algorithm)
     return bitlen[(int) algorithm] / 8U;
 }
 
-void HashToString(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* hash, char* buf, uint32_t buflen)
+void BytesToHexString(const uint8_t* byte_buf, uint32_t byte_buf_len, char* out_buf, uint32_t out_len)
 {
-    const uint32_t hlen = HashLength(algorithm);
-    if (buf != NULL && buflen > 0)
+    if (out_buf != NULL && out_len > 0)
     {
-        buf[0] = 0x0;
-        for (uint32_t i = 0; i < hlen; ++i)
+        uint32_t out_len_cond = (out_len + 1) / 2;
+        out_buf[0] = 0x0;
+        for (uint32_t i = 0; i < byte_buf_len; ++i)
         {
             char current[3];
-            DM_SNPRINTF(current, 3, "%02x", hash[i]);
-            dmStrlCat(buf, current, buflen);
+            DM_SNPRINTF(current, 3, "%02x", byte_buf[i]);
+
+            if (i < out_len_cond)
+                strncat(out_buf, current, 1);
+            if (i+1 < out_len_cond)
+                strncat(out_buf, current+1, 1);
+            else
+                break;
         }
     }
 }
@@ -267,11 +273,11 @@ Result StoreManifest(Manifest* manifest)
     char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
     char manifest_file_path[DMPATH_MAX_PATH];
     char manifest_tmp_file_path[DMPATH_MAX_PATH];
-    HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+    BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, manifest_file_path, DMPATH_MAX_PATH);
     dmStrlCpy(manifest_tmp_file_path, manifest_file_path, DMPATH_MAX_PATH);
-    dmStrlCat(manifest_tmp_file_path, ".tmp", DMPATH_MAX_PATH);
+    DM_SNPRINTF(manifest_tmp_file_path, sizeof(manifest_tmp_file_path), "%s.tmp", manifest_file_path);
     // write to tempfile, if successful move/rename and then delete tmpfile
     dmDDF::Result ddf_result = dmDDF::SaveMessageToFile(manifest->m_DDF, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, manifest_tmp_file_path);
     if (ddf_result != dmDDF::RESULT_OK)
@@ -279,16 +285,15 @@ Result StoreManifest(Manifest* manifest)
         dmLogError("Failed storing manifest to file, result: %i", ddf_result);
         return RESULT_DDF_ERROR;
     }
-    dmSys::Result sys_result = dmSys::WriteWithMove(manifest_file_path, manifest_tmp_file_path);
+    dmSys::Result sys_result = dmSys::MoveFile(manifest_file_path, manifest_tmp_file_path);
     if (sys_result != dmSys::RESULT_OK)
     {
         return RESULT_IO_ERROR;
     }
-    dmSys::Unlink(manifest_tmp_file_path);
     return RESULT_OK;
 }
 
-Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFactory factory)
+Result LoadArchiveIndex(const char* bundle_dir, HFactory factory)
 {
     Result result = RESULT_OK;
     const uint32_t manifest_extension_length = strlen("dmanifest");
@@ -306,7 +311,7 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
     dmStrlCpy(archive_index_path, archive_resource_path, DMPATH_MAX_PATH);
     archive_index_path[strlen(archive_index_path) - 1] = 'i';
 
-    HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+    BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
     dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
     dmPath::Concat(app_support_path, "liveupdate.arci", liveupdate_index_path, DMPATH_MAX_PATH);
     struct stat file_stat;
@@ -328,7 +333,7 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
         bool luTempIndexExists = stat(temp_archive_index_path, &file_stat) == 0;
         if (luTempIndexExists)
         {
-            dmSys::Result moveResult = dmSys::WriteWithMove(liveupdate_index_path, temp_archive_index_path);
+            dmSys::Result moveResult = dmSys::MoveFile(liveupdate_index_path, temp_archive_index_path);
 
             if (moveResult != dmSys::RESULT_OK)
             {
@@ -360,10 +365,10 @@ Result LoadArchiveIndex(const char* manifestPath, const char* bundle_dir, HFacto
     return result;
 }
 
-Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manifest*& manifest)
+Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource::Manifest*& out_manifest)
 {
     // Read from manifest resource
-    dmDDF::Result result = dmDDF::LoadMessage(manifest_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &manifest->m_DDF);
+    dmDDF::Result result = dmDDF::LoadMessage(manifest_msg_buf, size, dmLiveUpdateDDF::ManifestFile::m_DDFDescriptor, (void**) &out_manifest->m_DDF);
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest (%i)", result);
@@ -371,33 +376,33 @@ Result ParseManifestDDF(uint8_t* manifest_buf, uint32_t size, dmResource::Manife
     }
 
     // Read data blob from ManifestFile into ManifestData message
-    result = dmDDF::LoadMessage(manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &manifest->m_DDFData);
+    result = dmDDF::LoadMessage(out_manifest->m_DDF->m_Data.m_Data, out_manifest->m_DDF->m_Data.m_Count, dmLiveUpdateDDF::ManifestData::m_DDFDescriptor, (void**) &out_manifest->m_DDFData);
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest data (%i)", result);
-        dmDDF::FreeMessage(manifest->m_DDF);
-        manifest->m_DDF = 0x0;
+        dmDDF::FreeMessage(out_manifest->m_DDF);
+        out_manifest->m_DDF = 0x0;
         return RESULT_IO_ERROR;
     }
-    if (manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
+    if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
     {
         dmLogError("Manifest format mismatch (expected '%x', actual '%x')",
-            MANIFEST_MAGIC_NUMBER, manifest->m_DDFData->m_Header.m_MagicNumber);
-        dmDDF::FreeMessage(manifest->m_DDFData);
-        dmDDF::FreeMessage(manifest->m_DDF);
-        manifest->m_DDFData = 0x0;
-        manifest->m_DDF = 0x0;
+            MANIFEST_MAGIC_NUMBER, out_manifest->m_DDFData->m_Header.m_MagicNumber);
+        dmDDF::FreeMessage(out_manifest->m_DDFData);
+        dmDDF::FreeMessage(out_manifest->m_DDF);
+        out_manifest->m_DDFData = 0x0;
+        out_manifest->m_DDF = 0x0;
         return RESULT_FORMAT_ERROR;
     }
 
-    if (manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
+    if (out_manifest->m_DDFData->m_Header.m_Version != MANIFEST_VERSION)
     {
         dmLogError("Manifest version mismatch (expected '%i', actual '%i')",
-            dmResourceArchive::VERSION, manifest->m_DDFData->m_Header.m_Version);
-        dmDDF::FreeMessage(manifest->m_DDFData);
-        dmDDF::FreeMessage(manifest->m_DDF);
-        manifest->m_DDFData = 0x0;
-        manifest->m_DDF = 0x0;
+            dmResourceArchive::VERSION, out_manifest->m_DDFData->m_Header.m_Version);
+        dmDDF::FreeMessage(out_manifest->m_DDFData);
+        dmDDF::FreeMessage(out_manifest->m_DDF);
+        out_manifest->m_DDFData = 0x0;
+        out_manifest->m_DDF = 0x0;
         return RESULT_VERSION_MISMATCH;
     }
 
@@ -422,7 +427,7 @@ Result LoadManifest(const char* manifestPath, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifestDDF(manifestBuffer, manifestLength, factory->m_Manifest);
+    Result result = ManifestLoadMessage(manifestBuffer, manifestLength, factory->m_Manifest);
     dmMemory::AlignedFree(manifestBuffer);
 
     return result;
@@ -446,7 +451,7 @@ Result LoadExternalManifest(const char* manifest_path, HFactory factory)
         return RESULT_IO_ERROR;
     }
 
-    Result result = ParseManifestDDF(manifest_buf, manifest_len, factory->m_Manifest);
+    Result result = ManifestLoadMessage(manifest_buf, manifest_len, factory->m_Manifest);
     UnmountManifest((void*&)manifest_buf, manifest_len);
 
     return result;
@@ -497,11 +502,9 @@ Result DecryptSignatureHash(Manifest* manifest, const uint8_t* pub_key_buf, uint
     uint8_t* hash = (uint8_t*)malloc(signature_hash_len);
     memcpy(hash, hash_decrypted + signature_len - signature_hash_len, signature_hash_len);
 
-    out_digest_len = signature_hash_len * 2 + 1;
-    out_digest = (char*)malloc(out_digest_len);
-    dmResource::HashToString(signature_hash_algorithm, hash, out_digest, out_digest_len);
+    out_digest_len = signature_hash_len;
+    out_digest = (char*)hash;
 
-    free(hash);
     free(hash_decrypted);
     return RESULT_OK;
 }
@@ -517,9 +520,9 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
     Result res = RESULT_OK;
     char public_key_path[DMPATH_MAX_PATH];
     char game_dir[DMPATH_MAX_PATH];
-    uint32_t pub_key_size = 0, hex_digest_len = 0, out_resource_size = 0;
+    uint32_t pub_key_size = 0, hash_decrypted_len = 0, out_resource_size = 0;
     uint8_t* pub_key_buf = 0x0;
-    char* hex_digest = 0x0;
+    char* hash_decrypted = 0x0;
 
     // Load public key
     dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
@@ -536,14 +539,14 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
         return RESULT_IO_ERROR;
     }
 
-    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hex_digest, hex_digest_len);
+    res = DecryptSignatureHash(manifest, pub_key_buf, pub_key_size, hash_decrypted, hash_decrypted_len);
     if (res != RESULT_OK)
     {
         return res;
     }
-    res = HashCompare((const uint8_t*)hex_digest, hex_digest_len, expected_digest, expected_len);
+    res = HashCompare((const uint8_t*)hash_decrypted, hash_decrypted_len, expected_digest, expected_len);
 
-    free(hex_digest);
+    free(hash_decrypted);
     free(pub_key_buf);
     return res;
 }
@@ -565,7 +568,7 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
     if (bundle_ver_exists)
     {
         FILE* bundle_ver = fopen(bundle_ver_path, "rb");
-        uint8_t* buf = (uint8_t*)malloc(signature_len);
+        uint8_t* buf = (uint8_t*)alloca(signature_len);
         fread(buf, 1, signature_len, bundle_ver);
         fclose(bundle_ver);
         if (memcmp(buf, signature, signature_len) != 0)
@@ -573,13 +576,16 @@ Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path)
             // Bundle has changed, local liveupdate manifest no longer valid.
             result = RESULT_VERSION_MISMATCH;
         }
-        free(buf);
     }
     else
     {
         // Take bundled manifest signature and write to 'bundle_ver' file
         FILE* bundle_ver = fopen(bundle_ver_path, "wb");
-        fwrite(signature, 1, signature_len, bundle_ver);
+        size_t bytes_written = fwrite(signature, 1, signature_len, bundle_ver);
+        if (bytes_written != signature_len)
+        {
+            dmLogWarning("Failed to write bundle version to file, wrote %u bytes out of %u bytes.", (uint32_t)bytes_written, signature_len);
+        }
         fclose(bundle_ver);
         result = RESULT_OK;
     }
@@ -692,7 +698,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         char app_support_path[DMPATH_MAX_PATH];
         char lu_manifest_file_path[DMPATH_MAX_PATH];
         char id_buf[MANIFEST_PROJ_ID_LEN]; // String repr. of project id SHA1 hash
-        HashToString(dmLiveUpdateDDF::HASH_SHA1, factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, id_buf, MANIFEST_PROJ_ID_LEN);
+        BytesToHexString(factory->m_Manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, HashLength(dmLiveUpdateDDF::HASH_SHA1), id_buf, MANIFEST_PROJ_ID_LEN);
         dmSys::GetApplicationSupportPath(id_buf, app_support_path, DMPATH_MAX_PATH);
         dmPath::Concat(app_support_path, LIVEUPDATE_MANIFEST_FILENAME, lu_manifest_file_path, DMPATH_MAX_PATH);
         struct stat file_stat;
@@ -731,7 +737,7 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
             }
         }
 
-        r = LoadArchiveIndex(manifest_path, factory->m_UriParts.m_Path, factory);
+        r = LoadArchiveIndex(factory->m_UriParts.m_Path, factory);
 
         if (r == RESULT_OK)
         {
