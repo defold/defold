@@ -300,7 +300,7 @@ public class ManifestBuilder {
     }
 
     public byte[] getManifestDataHash() {
-        return (this.manifestDataHash != null) ? this.manifestDataHash : null;
+        return this.manifestDataHash;
     }
 
     public void setResourceHashAlgorithm(HashAlgorithm algorithm) {
