@@ -359,6 +359,8 @@ public class ManifestBuilder {
 
     public void addSupportedEngineVersion(String version) {
         try {
+            // strip any leading or trailing quotation marks
+            version = version.replaceAll("^\"|\"$", "");
             byte[] hashBytes = CryptographicOperations.hash(version.getBytes(), HashAlgorithm.HASH_SHA1);
             HashDigest.Builder builder = HashDigest.newBuilder();
             builder.setData(ByteString.copyFrom(hashBytes));
