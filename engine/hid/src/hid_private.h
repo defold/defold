@@ -35,6 +35,9 @@ namespace dmHID
         uint32_t m_IgnoreTouchDevice : 1;
         uint32_t m_IgnoreAcceleration : 1;
         uint32_t m_FlipScrollDirection : 1;
+
+        DMHIDGamepadFunc m_GamepadConnectivityCallback;
+        void* m_GamepadConnectivityUserdata;
     };
 }
 

@@ -49,6 +49,14 @@ namespace dmHID
         SetMarkedText(g_Context, text);
     }
 
+    static void GamepadCallback(int gamepad_id, int connected)
+    {
+        if (g_Context->m_GamepadConnectivityCallback) {
+            g_Context->m_GamepadConnectivityCallback(gamepad_id, connected, g_Context->m_GamepadConnectivityUserdata);
+        }
+        SetGamepadConnectivity(g_Context, gamepad_id, connected);
+    }
+
     bool Init(HContext context)
     {
         if (context != 0x0)
@@ -66,6 +74,10 @@ namespace dmHID
             }
             if (glfwSetMarkedTextCallback(MarkedTextCallback) == 0) {
                 dmLogFatal("could not set glfw marked text callback.");
+                return false;
+            }
+            if (glfwSetGamepadCallback(GamepadCallback) == 0) {
+                dmLogFatal("could not set glfw gamepad callback.");
                 return false;
             }
             context->m_KeyboardConnected = 0;

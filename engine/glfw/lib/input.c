@@ -349,3 +349,15 @@ GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_coun
     return 1;
 }
 
+GLFWAPI int GLFWAPIENTRY glfwSetGamepadCallback(GLFWkeyfun cbfun)
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return 0;
+    }
+
+    // Set callback function
+    _glfwWin.gamepadCallback = cbfun;
+    return 1;
+}
+

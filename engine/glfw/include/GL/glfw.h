@@ -451,6 +451,7 @@ typedef void (GLFWCALL * GLFWkeyfun)(int,int);
 typedef void (GLFWCALL * GLFWcharfun)(int,int);
 typedef void (GLFWCALL * GLFWmarkedtextfun)(char *);
 typedef void (GLFWCALL * GLFWthreadfun)(void *);
+typedef void (GLFWCALL * GLFWgamepadfun)(int,int);
 
 
 /*************************************************************************
@@ -564,6 +565,7 @@ GLFWAPI void  GLFWAPIENTRY glfwUnacquireAuxContext(void* context);
 // Trying to mimic somewhat the features of glfw 3.0
 typedef void (GLFWCALL * GLFWwindowfocusfun)(int);
 GLFWAPI void GLFWAPIENTRY glfwSetWindowFocusCallback( GLFWwindowfocusfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwSetGamepadCallback( GLFWgamepadfun cbfun );
 
 #ifdef __cplusplus
 }
