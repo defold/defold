@@ -39,7 +39,7 @@
    :default "",
    :presentation-category "Manifest"
    :path ["liveupdate" "privatekey"]}
-   {:type :comma-separated-list,
+  {:type :comma-separated-list,
    :help "List of supported engine versions",
    :default "",
    :presentation-category "Manifest"
