@@ -135,6 +135,12 @@
   [nt]
   (into {} (filter (comp (declared-property-labels nt) key)) (all-properties nt)))
 
+(defn jammable-output-labels [nt]
+  (into #{}
+        (keep (fn [[label {:keys [flags]}]]
+                (when-not (contains? flags :unjammable)
+                  label)))
+        (declared-outputs nt)))
 
 ;;; ----------------------------------------
 ;;; Registry of node types
@@ -369,7 +375,8 @@
    :local (atom {}) ; local cache for :cached outputs produced during node-value, will likely populate system cache later on
    :local-temp (atom {}) ; local (weak) cache for non-:cached outputs produced during node-value, never used to populate system cache
    :hits (atom [])
-   :in-production #{}})
+   :in-production #{}
+   :tx-data-context (atom {})})
 
 (defn custom-evaluation-context
   [options]
@@ -377,7 +384,8 @@
   (cond-> (assoc options
                  :local           (atom {})
                  :hits            (atom [])
-                 :in-production   #{})
+                 :in-production   #{}
+                 :tx-data-context (atom {}))
     (not (:no-local-temp options))
     (assoc :local-temp      (atom {}))))
 
@@ -817,11 +825,14 @@
 
 (defmulti process-as first)
 
+(defn- mark-unjammable [flags]
+  (conj (or flags #{}) :unjammable))
+
 (defmethod process-as 'extern [[_ label & forms]]
   (assert-symbol "extern" label)
-  (update-in
-   (process-as (list* 'property label forms))
-   [:property (keyword label) :flags] #(conj (or % #{}) :unjammable)))
+  (-> (process-as (list* 'property label forms))
+      (update-in [:property (keyword label) :flags] mark-unjammable)
+      (update-in [:output (keyword label) :flags] mark-unjammable)))
 
 (defmethod process-as 'property [[_ label & forms]]
   (assert-symbol "property" label)
@@ -840,7 +851,7 @@
                  :output              {klabel outdef}}]
     desc))
 
-(def ^:private output-flags   #{:cached :abstract})
+(def ^:private output-flags   #{:cached :abstract :unjammable})
 (def ^:private output-options #{})
 
 (defmethod process-as 'output [[_ label & forms]]
