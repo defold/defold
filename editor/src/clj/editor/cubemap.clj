@@ -101,7 +101,7 @@
 
 (defn- cubemap-side-setter [resource-label image-label image-generator-label size-label]
   (fn [evaluation-context self old-value new-value]
-    (project/resource-setter self old-value new-value
+    (project/resource-setter evaluation-context self old-value new-value
                              [:resource resource-label]
                              [:content image-label]
                              [:content-generator image-generator-label]

@@ -113,18 +113,18 @@
 
   (property animations resource/ResourceVec
             (value (gu/passthrough animation-resources))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (let [project (project/get-project self)
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :animation-resources]
                                       [:animation-set :animation-sets]]]
                      (concat
                        (for [old-resource old-value]
                          (if old-resource
-                           (project/disconnect-resource-node project old-resource self connections)
+                           (project/disconnect-resource-node evaluation-context project old-resource self connections)
                            (g/disconnect project :nil-resource self :animation-resources)))
                        (for [new-resource new-value]
                          (if new-resource
-                           (project/connect-resource-node project new-resource self connections)
+                           (project/connect-resource-node evaluation-context project new-resource self connections)
                            (g/connect project :nil-resource self :animation-resources)))))))
             (dynamic visible (g/constantly false)))
 
