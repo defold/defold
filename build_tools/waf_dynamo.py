@@ -1,4 +1,4 @@
-import os, sys, subprocess, shutil, re, stat, glob
+import os, sys, subprocess, shutil, re, stat, glob, zipfile
 import Build, Options, Utils, Task, Logs
 import Configure
 from Configure import conf
@@ -185,6 +185,8 @@ def default_flags(self):
     opt_level = Options.options.opt_level
     if opt_level == "2" and 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         opt_level = "3" # emscripten highest opt level
+    elif opt_level == "0" and 'win' in build_util.get_target_os():
+        opt_level = "d" # how to disable optimizations in windows
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
@@ -206,7 +208,7 @@ def default_flags(self):
 
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
             # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
             # some tests after we switched to -02 optimisations. We should refine these tests so that they
             # don't rely on equal-compare floating point values, and/or verify that underlaying engine
@@ -236,7 +238,9 @@ def default_flags(self):
             self.env.append_value(f, ['-DGTEST_USE_OWN_TR1_TUPLE=1'])
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
+            self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-fvisibility=hidden',
+                                        '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
+                                        '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
         self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
 
     elif 'android' == build_util.get_target_os() and 'armv7' == build_util.get_target_architecture():
@@ -253,7 +257,7 @@ def default_flags(self):
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
-                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
+                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden',
                                       '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
@@ -885,34 +889,37 @@ def android_package(task):
         f.write(task.classes_dex.abspath(task.env), 'classes.dex')
         f.close()
 
-    sdklibPath = '%s/android-sdk/tools/lib/sdklib.jar' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
-    apkBuilderArgs = [ 'java',
-                       '-Xmx128M',
-                       '-classpath',
-                       '\"' + sdklibPath + '\"',
-                       'com.android.sdklib.build.ApkBuilderMain',
-                       apk_unaligned,
-                       '-v',
-                       '-z',
-                       ap_,
-                       '-nf',
-                       libs_dir,
-                       '-d'
-                      ]
 
-    ret = bld.exec_command(' '.join(apkBuilderArgs))
+    # add library files
+    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
+        for root, dirs, files in os.walk(libs_dir):
+            for f in files:
+                full_path = os.path.join(root, f)
+                relative_path = os.path.relpath(full_path, libs_dir)
+                if relative_path.startswith('armeabi-v7a'):
+                    relative_path = os.path.join('lib', relative_path)
+                zip.write(full_path, relative_path)
 
-    if ret != 0:
-        error('Error running apkbuilder')
-        return 1
+    shutil.copy(ap_, apk_unaligned)
 
     apk = task.apk.abspath(task.env)
+
     zipalign = '%s/android-sdk/build-tools/%s/zipalign' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
-    ret = bld.exec_command('%s -f 4 %s %s' % (zipalign, apk_unaligned, apk))
+    ret = bld.exec_command('%s -f 4 %s %s' % (zipalign, apk_unaligned, ap_))
     if ret != 0:
         error('Error running zipalign')
+        return 1
+
+    apkc = '%s/../../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-%s/apkc' % (os.environ['DYNAMO_HOME'], task.env.BUILD_PLATFORM)
+    if not os.path.exists(apkc):
+        error("file doesn't exist: %s" % apkc)
+        return 1
+
+    ret = bld.exec_command('%s --in="%s" --out="%s"' % (apkc, ap_, apk))
+    if ret != 0:
+        error('Error running apkc')
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:

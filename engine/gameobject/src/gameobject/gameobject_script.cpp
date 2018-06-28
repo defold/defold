@@ -149,8 +149,9 @@ namespace dmGameObject
 
     HRegister g_Register = 0;
 
-    ScriptWorld::ScriptWorld()
+    CompScriptWorld::CompScriptWorld()
     : m_Instances()
+    , m_ScriptWorld(0x0)
     {
         // TODO: How to configure? It should correspond to collection instance count
         m_Instances.SetCapacity(1024);
@@ -1476,8 +1477,11 @@ namespace dmGameObject
 
 
     /*# delete one or more game object instances
-     * Delete one or more game objects identified by id.
-     *
+     * Delete one or more game objects identified by id. Deletion is asynchronous meaning that 
+     * the game object(s) are scheduled for deletion which will happen at the end of the current
+     * frame. Note that game objects scheduled for deletion will be counted against 
+     * `max_instances` in "game.project" until they are actually removed.
+     * 
      * @name go.delete
      * @param [id] [type:string|hash|url|table] optional id or table of id's of the instance(s) to delete, the instance of the calling script is deleted by default
      * @param [recursive] [type:boolean] optional boolean, set to true to recursively delete child hiearchy in child to parent order
@@ -2062,7 +2066,7 @@ bail:
         script_instance->m_ContextTableReference = LUA_NOREF;
     }
 
-    HScriptInstance NewScriptInstance(HScript script, HInstance instance, uint16_t component_index)
+    HScriptInstance NewScriptInstance(CompScriptWorld* script_world, HScript script, HInstance instance, uint16_t component_index)
     {
         lua_State* L = script->m_LuaState;
 
@@ -2083,6 +2087,7 @@ bail:
         i->m_ContextTableReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         i->m_Instance = instance;
+        i->m_ScriptWorld = script_world->m_ScriptWorld;
         i->m_ComponentIndex = component_index;
         NewPropertiesParams params;
         params.m_ResolvePathCallback = ScriptInstanceResolvePathCB;
@@ -2094,6 +2099,12 @@ bail:
         lua_setmetatable(L, -2);
 
         lua_pop(L, 1);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, i->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::InitializeInstance(i->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
 
@@ -2109,6 +2120,12 @@ bail:
 
         int top = lua_gettop(L);
         (void) top;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::FinalizeInstance(script_instance->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_ContextTableReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, script_instance->m_InstanceReference);

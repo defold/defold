@@ -177,6 +177,7 @@ namespace dmGui
         RigEventDataCallback m_RigEventDataCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
         AdjustReference m_AdjustReference;
+        dmScript::ScriptWorld* m_ScriptWorld;
 
         NewSceneParams()
         {
