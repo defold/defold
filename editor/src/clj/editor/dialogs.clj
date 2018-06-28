@@ -15,6 +15,7 @@
             [editor.github :as github]
             [service.log :as log])
   (:import [java.io File]
+           [java.util List Collection]
            [java.nio.file Path Paths]
            [javafx.event ActionEvent]
            [javafx.geometry Pos]
@@ -24,8 +25,7 @@
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout HBox Region]
            [javafx.scene.text Text TextFlow]
-           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]
-           (java.util List Collection)))
+           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
 (set! *warn-on-reflection* true)
 

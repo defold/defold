@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
             [clojure.edn :as edn]
-            [clojure.string :as str])
+            [util.text-util :as text-util])
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
 (set! *warn-on-reflection* true)
@@ -78,7 +78,7 @@
 
 (defmethod parse-setting-value :comma-separated-list [_ raw]
   (when raw
-    (into [] (str/split raw #"[,\s]"))))
+    (into [] (text-util/parse-comma-separated-string raw))))
 
 (def ^:private type-defaults
   {:string ""
@@ -189,7 +189,7 @@
   (str value))
 
 (defmethod render-raw-setting-value :comma-separated-list [_ value]
-  (when (seq value) (str/join "," value)))
+  (when (seq value) (text-util/join-comma-separated-string value)))
 
 (defn make-settings-map [settings]
   (into {} (map (juxt :path :value) settings)))

@@ -161,20 +161,19 @@
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
                         (ui/add-style! "button-small"))
-        text (let [tf (TextField.)]
-               (.setPrefWidth tf (field-width field-info))
-               (GridPane/setFillWidth tf true)
-               tf)
+        text (doto (TextField.)
+               (.setPrefWidth (field-width field-info))
+               (GridPane/setFillWidth true))
         content (atom nil)
         update-fn (fn [value]
                     (reset! content value)
-                    (ui/text! text  value))
+                    (ui/text! text value))
         commit-fn (fn [_] (let [resource-path (ui/text text)
                                 file (some->> (when-not (string/blank? resource-path) resource-path))]
                             (set path file)
                             (update-fn file)))]
     (ui/add-style! box "composite-property-control-container")
-    (ui/on-action! browse-button (fn [_] (when-let [file (ui/choose-directory (or title "Select Directory") nil )]
+    (ui/on-action! browse-button (fn [_] (when-let [file (ui/choose-directory (or title "Select Directory") nil)]
                                            (set path file))))
     (ui/on-action! text commit-fn)
     (ui/auto-commit! text commit-fn)
@@ -203,14 +202,13 @@
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
                         (ui/add-style! "button-small"))
-        text (let [tf (TextField.)]
-               (.setPrefWidth tf (field-width field-info))
-               (GridPane/setFillWidth tf true)
-               tf)
+        text (doto (TextField.)
+               (.setPrefWidth (field-width field-info))
+               (GridPane/setFillWidth true))
         content (atom nil)
         update-fn (fn [value]
                     (reset! content value)
-                    (ui/text! text  value))
+                    (ui/text! text value))
         commit-fn (fn [_] (let [resource-path (ui/text text)
                                 file (some->> (when-not (string/blank? resource-path) resource-path))]
                             (set path file)
@@ -370,12 +368,6 @@
 
 (defmethod get-value-string-fn :resource [_]
   resource/resource->proj-path)
-
-(defmethod get-value-string-fn :file [_]
-  str)
-
-(defmethod get-value-string-fn :directory [_]
-  str)
 
 (defn- create-cell-field-control [^Cell cell column-info ctxt]
   (let [field-ops {:set (fn [_ value] (.commitEdit cell value))

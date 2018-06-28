@@ -99,5 +99,4 @@
         file-resource (get project-settings ["liveupdate" "settings"])]
     (if (resource/exists? file-resource)
       (resource/proj-path file-resource)
-      "/liveupdate.settings")
-    ))
+      "/liveupdate.settings")))
