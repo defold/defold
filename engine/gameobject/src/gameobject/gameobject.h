@@ -917,13 +917,6 @@ namespace dmGameObject
     void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
 
     /**
-     * Gets a collection given an URL
-     * @param url the url to the object (uses the socket to find the collection)
-     * @return the collection matching the url. returns null if no match was found
-     */
-    HCollection GetCollectionFromURL(const dmMessage::URL& url);
-
-    /**
      * Gets a component given an URL
      * @param url the url to the object
      * @return the component matching the url. returns null if no match was found
