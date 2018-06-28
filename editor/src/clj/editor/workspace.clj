@@ -151,21 +151,33 @@ ordinary paths."
         :folder
         "icons/32/Icons_01-Folder-closed.png"))))
 
-(defn file-resource [workspace path-or-file]
-  (let [root (g/node-value workspace :root)
-        f (if (instance? File path-or-file)
-            path-or-file
-            (File. (str root path-or-file)))]
-    (resource/make-file-resource workspace root f [])))
+(defn file-resource
+  ([workspace path-or-file]
+   (g/with-auto-evaluation-context evaluation-context
+     (file-resource workspace path-or-file evaluation-context)))
+  ([workspace path-or-file evaluation-context]
+   (let [root (g/node-value workspace :root evaluation-context)
+         f (if (instance? File path-or-file)
+             path-or-file
+             (File. (str root path-or-file)))]
+     (resource/make-file-resource workspace root f []))))
 
-(defn find-resource [workspace proj-path]
-  (get (g/node-value workspace :resource-map) proj-path))
+(defn find-resource
+  ([workspace proj-path]
+   (g/with-auto-evaluation-context evaluation-context
+     (find-resource workspace proj-path evaluation-context)))
+  ([workspace proj-path evaluation-context]
+   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
 
-(defn resolve-workspace-resource [workspace path]
-  (when (and path (not-empty path))
-    (or
-      (find-resource workspace path)
-      (file-resource workspace path))))
+(defn resolve-workspace-resource
+  ([workspace path]
+   (g/with-auto-evaluation-context evaluation-context
+     (resolve-workspace-resource workspace path evaluation-context)))
+  ([workspace path evaluation-context]
+   (when (and path (not-empty path))
+     (or
+       (find-resource workspace path evaluation-context)
+       (file-resource workspace path evaluation-context)))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))

@@ -510,8 +510,8 @@
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
@@ -546,8 +546,8 @@
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
   (property collision resource/Resource ; optional
             (value (gu/passthrough collision-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :collision-resource]
                                             [:size :collision-size])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
