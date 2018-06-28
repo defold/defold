@@ -91,8 +91,9 @@
               bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
           (doseq [[key val] bob-args]
             (.setOption bob-project key val))
-          (.setOption bob-project "liveupdate" (let [shouldPublish (.hasOption bob-project "liveupdate")]
-                                                    (if shouldPublish
+          "If \"Publish Live Update content\" was checked, add corresponding flag to bob"
+          (.setOption bob-project "liveupdate" (let [shouldPublish? (.hasOption bob-project "liveupdate")]
+                                                    (if shouldPublish?
                                                       "true"
                                                       "false")))
           (let [scanner (ClassLoaderScanner.)]
