@@ -184,21 +184,6 @@ bail:
         if (res != dmResource::RESULT_OK)
         {
             // Loading of root-collection is responsible for deleting
-
-	        uint32_t n_objects = collection->m_Instances.Size();
-	        for (uint32_t i = 0; i < n_objects; ++i)
-	        {
-	            dmGameObject::HInstance instance = collection->m_Instances[i];
-	            if (instance)
-		        {
-		        	void* resource = dmGameObject::GetResource(instance);
-		        	if (resource != 0)
-		        	{
-		            	dmResource::Release(collection->m_Factory, resource);
-		        	}
-	            }
-	        }
-
             DeleteCollection(collection);
             collection = 0;
             hcollection = 0;
@@ -265,15 +250,6 @@ bail:
         HCollection hcollection = (HCollection) params.m_Resource->m_Resource;
         ReleaseResources(params.m_Factory, hcollection);
         return dmResource::RESULT_OK;
-    }
-
-    static void SwapCollection(HCollection a, HCollection b)
-    {
-        Collection* tmp = a->m_Collection;
-        a->m_Collection = b->m_Collection;
-        b->m_Collection = tmp;
-        a->m_Collection->m_HCollection = a;
-        b->m_Collection->m_HCollection = b;
     }
 
     dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams& params)
