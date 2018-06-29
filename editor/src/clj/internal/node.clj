@@ -361,7 +361,7 @@
 (defn- validate-evaluation-context-options [options]
   ;; :dry-run means no production functions will be called, useful speedup when tracing dependencies
   ;; :no-local-temp disables the non deterministic local caching of non :cached outputs, useful for stable results when debugging dependencies
-  (assert (every? #{:basis :cache :initial-invalidate-counters :tracer :dry-run :no-local-temp} (keys options)) (str (keys options)))
+  (assert (every? #{:basis :cache :dry-run :initial-invalidate-counters :no-local-temp :tracer :tx-data-context} (keys options)) (str (keys options)))
   (assert (not (and (some? (:cache options)) (nil? (:basis options))))))
 
 (defn default-evaluation-context
@@ -384,10 +384,13 @@
   (cond-> (assoc options
                  :local           (atom {})
                  :hits            (atom [])
-                 :in-production   #{}
-                 :tx-data-context (atom {}))
+                 :in-production   #{})
+
     (not (:no-local-temp options))
-    (assoc :local-temp      (atom {}))))
+    (assoc :local-temp (atom {}))
+
+    (not (contains? options :tx-data-context))
+    (assoc :tx-data-context (atom {}))))
 
 (defn- validate-evaluation-context [evaluation-context]
   (assert (some? (:basis evaluation-context)))
