@@ -456,10 +456,10 @@
                (set-visible-layout! node-id "Landscape")
                (is (= "Testing Text" (gui-text node-id "scene/text"))))
       (testing "scene generation"
-        (is (= {:width 1280 :height 720}
+        (is (= {:device-models [] :width 1280 :height 720}
                (g/node-value node-id :scene-dims)))
         (set-visible-layout! node-id "Portrait")
-        (is (= {:width 720 :height 1280}
+        (is (= {:device-models [] :width 720 :height 1280}
                (g/node-value node-id :scene-dims)))))))
 
 (deftest gui-legacy-alpha

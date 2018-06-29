@@ -1,71 +1,105 @@
 (ns editor.json
-  (:require [editor.protobuf :as protobuf]
-            [dynamo.graph :as g]
+  (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.data.json :as json]
-            [editor.gl :as gl]
-            [editor.gl.shader :as shader]
-            [editor.gl.vertex :as vtx]
-            [editor.resource-node :as resource-node]
-            [editor.scene :as scene]
-            [editor.workspace :as workspace]
-            [editor.gl.pass :as pass])
-  (:import [com.dynamo.graphics.proto Graphics$Cubemap Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.sprite.proto Sprite$SpriteDesc Sprite$SpriteDesc$BlendMode]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
-           [java.awt.image BufferedImage]
-           [java.io PushbackReader]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory]
-           [com.jogamp.opengl.glu GLU]
-           [javax.vecmath Matrix4d Point3d]))
+            [dynamo.graph :as g]
+            [editor.code.data :as data]
+            [editor.code.resource :as r]
+            [editor.graph-util :as gu]
+            [editor.resource :as resource]
+            [editor.workspace :as workspace])
+  (:import [java.io PushbackReader]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
-;; TODO - missing icon
-(def json-icon "icons/32/Icons_29-AT-Unknown.png")
+(def json-grammar
+  {:name "JSON"
+   :scope-name "source.json"
+   ;; indent patterns shamelessly stolen from textmate:
+   ;; https://github.com/textmate/json.tmbundle/blob/master/Preferences/Miscellaneous.tmPreferences
+   :indent {:begin #"^.*(\{[^}]*|\[[^\]]*)$"
+            :end #"^\s*[}\]],?\s*$"}
+   :patterns [{:match #"\b(?:true|false|null)\b"
+               :name "constant.language.json"}
+              {:match #"(?x)-?(?:0|[1-9]\d*)(?:\n(?:\n\.\d+)?(?:[eE][+-]?\d+)?)?"
+               :name "constant.numeric.json"}
+              {:begin #"\""
+               :begin-captures {0 {:name "punctuation.definition.string.begin.json"}}
+               :end #"\""
+               :end-captures {0 {:name "punctuation.definition.string.end.json"}}
+               :name "string.quoted.double.json"}
+              {:begin #"/\*"
+               :captures {0 {:name "punctuation.definition.comment.json"}}
+               :end #"\*/"
+               :name "comment.block.json"}
+              {:captures {1 {:name "punctuation.definition.comment.json"}}
+               :match #"(//).*$\n?"
+               :name "comment.line.double-slash.js"}]})
 
 (defonce ^:private json-loaders (atom {}))
 
-(defn- resource->json [resource]
-  (with-open [reader (PushbackReader. (io/reader resource))]
-    (-> reader
-        json/read)))
+(defn- read-then-close [reader]
+  (with-open [pushback-reader (PushbackReader. reader)]
+    (json/read pushback-reader)))
+
+(def ^:private resource->json (comp read-then-close io/reader))
+(def ^:private lines->json (comp read-then-close data/lines-reader))
+
+(defn invalid-json-error [node-id resource]
+  (g/->error node-id nil :fatal nil
+             (format "The file '%s' contains invalid JSON data." (resource/proj-path resource))
+             {:type :invalid-content :resource resource}))
 
 (g/defnode JsonNode
-  (inherits resource-node/ResourceNode)
-  (property content-transform g/Any
-            (dynamic visible (g/constantly false)))
-  (input structure g/Any)
+  (inherits r/CodeEditorResourceNode)
+  (property content-transform g/Any (dynamic visible (g/constantly false)))
+  (input consumer-passthrough g/Any)
+  (output consumer-passthrough g/Any (gu/passthrough consumer-passthrough))
+  (output content g/Any (g/fnk [_node-id content-transform editable? lines resource]
+                          (try
+                            (content-transform (if editable?
+                                                 (lines->json lines)
+                                                 (resource->json resource)))
+                            (catch Exception _
+                              (invalid-json-error _node-id resource))))))
 
-  (output content g/Any (g/fnk [resource content-transform]
-                            (-> (resource->json resource)
-                                content-transform)))
-
-  ;; we never modify JsonNode, save-data and source-value can be trivial and not cached
-  (output save-data g/Any (g/constantly nil))
-  (output source-value g/Any (g/constantly nil))
-
-  (output structure g/Any (g/fnk [structure] structure)))
+(defn- make-code-editable [project self resource lines]
+  (concat
+    (g/set-property self :content-transform identity :editable? true :modified-indent-type (r/guess-indent-type lines))
+    (when (resource/file-resource? resource)
+      (g/connect self :save-data project :save-data))))
 
 (defn load-json [project self resource]
-  (let [content (resource->json resource)
-        [load-fn accept-fn new-content] (some (fn [[loader-id {:keys [accept-fn load-fn]}]]
-                                      (when-let [new-content (accept-fn content)]
-                                        [load-fn accept-fn new-content]))
-                                    @json-loaders)]
-    (if load-fn
-      (concat
-        (g/set-property self :content-transform accept-fn)
-        (load-fn self new-content))
-      (g/set-property self :content-transform identity))))
+  (let [lines (r/read-fn resource)
+        content (try
+                  (lines->json lines)
+                  (catch Exception error
+                    error))]
+    (if (instance? Exception content)
+      (make-code-editable project self resource lines)
+      (let [[load-fn accept-fn new-content] (some (fn [[_loader-id {:keys [accept-fn load-fn]}]]
+                                                    (when-some [new-content (accept-fn content)]
+                                                      [load-fn accept-fn new-content]))
+                                                  @json-loaders)]
+        (if (nil? load-fn)
+          (make-code-editable project self resource lines)
+          (concat
+            (g/set-property self :content-transform accept-fn :editable? false)
+            (load-fn self new-content)))))))
 
 (defn register-resource-types [workspace]
   (workspace/register-resource-type workspace
                                     :ext "json"
+                                    :label "JSON"
+                                    :icon "icons/32/Icons_29-AT-Unknown.png"
+                                    :view-types [:code :default]
+                                    :view-opts {:code {:grammar json-grammar}}
                                     :node-type JsonNode
                                     :load-fn load-json
-                                    :icon json-icon))
+                                    :read-fn r/read-fn
+                                    :write-fn r/write-fn
+                                    :textual? true
+                                    :auto-connect-save-data? false))
 
 (defn register-json-loader [loader-id accept-fn load-fn]
   (swap! json-loaders assoc loader-id {:accept-fn accept-fn :load-fn load-fn}))

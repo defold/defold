@@ -185,6 +185,8 @@ def default_flags(self):
     opt_level = Options.options.opt_level
     if opt_level == "2" and 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         opt_level = "3" # emscripten highest opt level
+    elif opt_level == "0" and 'win' in build_util.get_target_os():
+        opt_level = "d" # how to disable optimizations in windows
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
