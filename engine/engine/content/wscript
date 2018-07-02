@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 import os, shutil, zipfile
-
-import Node
+import Node, Options
 
 def set_options(opt):
     pass
@@ -43,12 +42,13 @@ def build(bld):
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
 
-    bld.new_task_gen(name = 'bob-engine',
-                     source = bld.path.ant_glob('builtins/**'),
-                     target = 'bob-engine.jar',
-                     rule = package_bob,
-                     always = True)
-    bld.install_files('${PREFIX}/share/java', 'bob-engine.jar')
+    if not Options.options.skip_build_tests:
+        bld.new_task_gen(name = 'bob-engine',
+                         source = bld.path.ant_glob('builtins/**'),
+                         target = 'bob-engine.jar',
+                         rule = package_bob,
+                         always = True)
+        bld.install_files('${PREFIX}/share/java', 'bob-engine.jar')
 
 
 def configure(conf):
