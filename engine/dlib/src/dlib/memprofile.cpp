@@ -17,6 +17,7 @@
 #include <pthread.h>
 #include "dlib.h"
 #include "profile.h"
+#include "shared_library.h"
 
 #ifdef __MACH__
 #include <malloc/malloc.h>
@@ -143,7 +144,7 @@ namespace dmMemProfile
 }
 
 extern "C"
-void dmMemProfileInitializeLibrary(dmMemProfile::InternalData* internal_data)
+DM_DLLEXPORT void dmMemProfileInitializeLibrary(dmMemProfile::InternalData* internal_data)
 {
     dmMemProfile::InitializeLibrary(internal_data);
 }
@@ -252,7 +253,7 @@ namespace dmMemProfile
 }
 
 extern "C"
-void *malloc(size_t size)
+DM_DLLEXPORT void *malloc(size_t size)
 {
     if (!mallocp)
     {
@@ -293,7 +294,7 @@ void *malloc(size_t size)
 
 #ifndef __MACH__
 extern "C"
-void *memalign(size_t alignment, size_t size)
+DM_DLLEXPORT void *memalign(size_t alignment, size_t size)
 {
     if (!memalignp)
     {
@@ -334,7 +335,7 @@ void *memalign(size_t alignment, size_t size)
 #endif
 
 extern "C"
-int posix_memalign(void **memptr, size_t alignment, size_t size)
+DM_DLLEXPORT int posix_memalign(void **memptr, size_t alignment, size_t size)
 {
     if (!posix_memalignp)
     {
@@ -374,7 +375,7 @@ int posix_memalign(void **memptr, size_t alignment, size_t size)
 }
 
 extern "C"
-void *calloc(size_t count, size_t size)
+DM_DLLEXPORT void *calloc(size_t count, size_t size)
 {
     if (!callocp)
     {
@@ -414,7 +415,7 @@ void *calloc(size_t count, size_t size)
 }
 
 extern "C"
-void *realloc(void* ptr, size_t size)
+DM_DLLEXPORT void *realloc(void* ptr, size_t size)
 {
     // This simplifies the code below a bit
     if (ptr == 0)
@@ -471,14 +472,14 @@ void *realloc(void* ptr, size_t size)
 
 #ifdef __MACH__
 extern "C"
-void* reallocf(void *ptr, size_t size)
+DM_DLLEXPORT void* reallocf(void *ptr, size_t size)
 {
     free(ptr);
     return malloc(size);
 }
 #endif
 
-void free(void *ptr)
+DM_DLLEXPORT void free(void *ptr)
 {
     if (!freep)
     {
@@ -504,22 +505,22 @@ void free(void *ptr)
     freep(ptr);
 }
 
-void* operator new(size_t size)
+DM_DLLEXPORT void* operator new(size_t size)
 {
     return malloc(size);
 }
 
-void operator delete(void* ptr)
+DM_DLLEXPORT void operator delete(void* ptr)
 {
     free(ptr);
 }
 
-void* operator new[](size_t size)
+DM_DLLEXPORT void* operator new[](size_t size)
 {
     return malloc(size);
 }
 
-void operator delete[](void* ptr)
+DM_DLLEXPORT void operator delete[](void* ptr)
 {
     free(ptr);
 }
