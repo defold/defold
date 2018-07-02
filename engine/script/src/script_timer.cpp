@@ -479,7 +479,7 @@ namespace dmScript
             InvokeCallback(callback, LuaTimerCallbackArgsCB, &args);
         }
 
-        if (event_type != TIMER_EVENT_TRIGGER_WILL_REPEAT)
+        if ((event_type != TIMER_EVENT_TRIGGER_WILL_REPEAT) && IsValidCallback(callback))
         {
             DeleteCallback(callback);
         }
