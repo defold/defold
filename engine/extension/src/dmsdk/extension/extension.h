@@ -216,7 +216,10 @@ namespace dmExtension
     /*# Register application delegate
      *
      * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
-     * @note Only available on iOS
+     *
+     * This function is only available on iOS. [icon:ios]
+     *
+     * @name RegisteriOSUIApplicationDelegate
      * @param delegate an id<UIApplicationDelegate> See https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
      *
      * @examples
@@ -252,7 +255,10 @@ namespace dmExtension
     /*# Unregister an application delegate
      *
      * Deregister a previously registered iOS application delegate
-     * @note Only available on iOS
+     *
+     * This function is only available on iOS. [icon:ios]
+     * 
+     * @name UnregisteriOSUIApplicationDelegate
      * @param delegate an id<UIApplicationDelegate>
      * @examples
      * ```cpp
