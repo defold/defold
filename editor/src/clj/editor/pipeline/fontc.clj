@@ -287,14 +287,15 @@
             (.clearRect 0 0 (.getWidth image) (.getHeight image))
             (.translate dx dy))]
     (if antialias
-      (let [^Shape outline (.getOutline glyph-vector 0 0)]
+      (let [^Shape outline (.getOutline glyph-vector 0 0)
+            stroke-width (* 2.0 font-desc-outline-width)]
         (when (> font-desc-shadow-alpha 0.0)
           (when (> font-desc-alpha 0.0)
             (.setPaint g (Color. 0.0 0.0 (* font-desc-shadow-alpha font-desc-alpha)))
             (.fill g outline))
           (when (and (> font-desc-outline-width 0.0)
                      (> font-desc-outline-alpha 0.0))
-            (let [outline-stroke (BasicStroke. font-desc-outline-width)]
+            (let [outline-stroke (BasicStroke. stroke-width)]
               (.setPaint g (Color. 0.0 0.0 (* font-desc-shadow-alpha font-desc-outline-alpha)))
               (.setStroke g outline-stroke)
               (.draw g outline)))
@@ -304,7 +305,7 @@
         (.setComposite g blend-composite)
         (when (and (> font-desc-outline-width 0.0)
                    (> font-desc-outline-alpha 0.0))
-          (let [outline-stroke (BasicStroke. font-desc-outline-width)]
+          (let [outline-stroke (BasicStroke. stroke-width)]
             (.setPaint g outline-color)
             (.setStroke g outline-stroke)
             (.draw g outline)))
@@ -378,7 +379,7 @@
         font-metrics (font-metrics font)
         padding (if antialias
                   (+ (min (int 4) ^int (:shadow-blur font-desc))
-                     (int (Math/ceil (* ^double (:outline-width font-desc) 0.5))))
+                     (int (:outline-width font-desc)))
                   0)
         glyph-cell-padding 1
         channel-count (if (and (> ^double (:outline-width font-desc) 0.0)
@@ -517,7 +518,7 @@
         semi-glyphs (ttf-semi-glyphs font-desc font antialias)
         font-metrics (font-metrics font)
         padding (+ (int (if antialias
-                          (Math/ceil (* ^double (:outline-width font-desc) 0.5))
+                          (int (:outline-width font-desc))
                           0))
                    1)
         channel-count 1
