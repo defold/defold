@@ -215,7 +215,6 @@
                             (update-fn file)))]
     (ui/add-style! box "composite-property-control-container")
     (ui/on-action! browse-button (fn [_] (when-let [file (dialogs/make-file-dialog (or title "Select File") filter nil (.getWindow (.getScene browse-button)))]
-
                                            (set path (.getAbsolutePath file)))))
     (ui/on-action! text commit-fn)
     (ui/auto-commit! text commit-fn)
