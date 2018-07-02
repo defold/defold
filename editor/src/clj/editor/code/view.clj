@@ -3,7 +3,7 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [pair split-lines]]
+            [editor.code.util :refer [anonymize-line pair split-lines]]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
@@ -735,9 +735,31 @@
           debugger-execution-locations)))
 
 (g/defnk produce-repaint-canvas [repaint-trigger ^Canvas canvas font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap? execution-markers]
-  (let [regions (into [] cat [regions execution-markers])]
-    (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?))
-  nil)
+  (try
+    (let [all-regions (into [] cat [regions execution-markers])]
+      (draw! (.getGraphicsContext2D canvas) font gutter-view hovered-element layout minimap-layout color-scheme lines all-regions syntax-info cursor-range-draw-infos minimap-cursor-range-draw-infos indent-type visible-cursors visible-indentation-guides? visible-whitespace? visible-minimap?)
+      nil)
+    (catch Exception error
+      (throw (ex-info "Code view repaint failed."
+                      {:cursor-range-draw-infos (mapv #(dissoc % :fill :stroke) cursor-range-draw-infos)
+                       :execution-markers execution-markers
+                       :font (some-> font bean)
+                       :hovered-element hovered-element
+                       :indent-type indent-type
+                       :layout (update layout :glyph dissoc :font-strike)
+                       :lines (mapv anonymize-line lines)
+                       :minimap-cursor-range-draw-infos (mapv #(dissoc % :fill :stroke) minimap-cursor-range-draw-infos)
+                       :minimap-layout (update minimap-layout :glyph dissoc :font-strike)
+                       :regions regions
+                       :syntax-info (mapv (fn [[contexts runs]]
+                                            {:contexts (mapv (comp :name :parent-pattern) contexts)
+                                             :runs runs})
+                                          syntax-info)
+                       :visible-cursors visible-cursors
+                       :visible-indentation-guides? visible-indentation-guides?
+                       :visible-minimap? visible-minimap?
+                       :visible-whitespace? visible-whitespace?}
+                      error)))))
 
 (defn- make-cursor-rectangle
   ^Rectangle [^Paint fill opacity ^Rect cursor-rect]

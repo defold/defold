@@ -6,6 +6,123 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(def ^:private unanonymized-tokens
+  #{"abstract"
+    "and"
+    "async"
+    "await"
+    "break"
+    "case"
+    "catch"
+    "class"
+    "const"
+    "constexpr"
+    "continue"
+    "default"
+    "do"
+    "each"
+    "elif"
+    "else"
+    "elseif"
+    "elsif"
+    "end"
+    "endif"
+    "enum"
+    "export"
+    "extends"
+    "extern"
+    "final"
+    "finally"
+    "for"
+    "foreach"
+    "function"
+    "goto"
+    "if"
+    "implements"
+    "import"
+    "in"
+    "interface"
+    "let"
+    "local"
+    "mutable"
+    "namespace"
+    "native"
+    "noexcept"
+    "not"
+    "operator"
+    "or"
+    "package"
+    "private"
+    "protected"
+    "public"
+    "register"
+    "repeat"
+    "require"
+    "requires"
+    "return"
+    "static"
+    "struct"
+    "switch"
+    "synchronized"
+    "template"
+    "then"
+    "throw"
+    "throws"
+    "transient"
+    "try"
+    "typedef"
+    "typename"
+    "union"
+    "until"
+    "using"
+    "var"
+    "volatile"
+    "while"
+    "with"
+    "yield"})
+
+(defn- anonymize-token
+  ^String [^String token]
+  (if (contains? unanonymized-tokens token)
+    token
+    (let [length (count token)]
+      (loop [index 0
+             builder (StringBuilder. length)]
+        (if (= length index)
+          (.toString builder)
+          (let [original-glyph (.codePointAt token index)
+                scrambled-glyph (if (Character/isLetter original-glyph)
+                                  (if (Character/isUpperCase original-glyph)
+                                    (int \A)
+                                    (int \a))
+                                  (if (Character/isDigit original-glyph)
+                                    (int \0)
+                                    original-glyph))]
+            (recur (inc index)
+                   (.appendCodePoint builder scrambled-glyph))))))))
+
+(defn anonymize-line
+  "Given a line of code, replace all identifying information such as
+  strings, numbers and variable names with zeroes or the letter 'A'."
+  ^String [^String line]
+  (let [length (count line)]
+    (loop [index 0
+           line-builder (StringBuilder. length)
+           token-builder (StringBuilder. length)]
+      (if (= length index)
+        (.toString (.append line-builder (anonymize-token (.toString token-builder))))
+        (let [glyph (.codePointAt line index)]
+          (if (Character/isLetterOrDigit glyph)
+            (recur (inc index)
+                   line-builder
+                   (.appendCodePoint token-builder glyph))
+            (recur (inc index)
+                   (doto line-builder
+                     (.append (anonymize-token (.toString token-builder)))
+                     (.appendCodePoint glyph))
+                   (doto token-builder
+                     (.setLength 0)))))))))
+
 (defn- comparisons-syntax [exp & rest-exps]
   (if (empty? rest-exps)
     exp
