@@ -283,13 +283,20 @@ public class Project {
     }
 
     public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
-        if (shouldPublish) {
-            try {
-                IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
-                if (publisherSettings.exists()) {
-                    ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
-                    PublisherSettings settings = PublisherSettings.load(is);
-
+        try {
+            String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
+            IResource publisherSettings = this.fileSystem.get(settingsPath);
+            if (!publisherSettings.exists()) {
+                if (shouldPublish) {
+                    IResource gameProject = this.fileSystem.get("/game.project");
+                    throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from disk.");
+                } else {
+                    this.publisher = new NullPublisher(new PublisherSettings());
+                }
+            } else {
+                ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
+                PublisherSettings settings = PublisherSettings.load(is);
+                if (shouldPublish) {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
@@ -299,15 +306,14 @@ public class Project {
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }
-
                 } else {
-                    throw new CompileExceptionError("There is no liveupdate.settings file", null);
+                    this.publisher = new NullPublisher(settings);
                 }
-            } catch (Throwable e) {
-                throw new CompileExceptionError(null, 0, e.getMessage(), e);
             }
-        } else {
-            this.publisher = new NullPublisher(new PublisherSettings());
+        } catch (CompileExceptionError e) {
+        	throw e;
+        } catch (Throwable e) {
+            throw new CompileExceptionError(null, 0, e.getMessage(), e);
         }
     }
 
