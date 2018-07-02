@@ -15,6 +15,7 @@
             [editor.github :as github]
             [service.log :as log])
   (:import [java.io File]
+           [java.util List Collection]
            [java.nio.file Path Paths]
            [javafx.event ActionEvent]
            [javafx.geometry Pos]
@@ -24,7 +25,7 @@
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout HBox Region]
            [javafx.scene.text Text TextFlow]
-           [javafx.stage Stage DirectoryChooser]))
+           [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
 (set! *warn-on-reflection* true)
 
@@ -175,6 +176,24 @@
     (ui/request-focus! (:report controls))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
+
+(defn make-file-dialog
+  ^File [title filter-descs ^File initial-file ^Window owner-window]
+  (let [chooser (FileChooser.)
+        initial-directory (some-> initial-file .getParentFile)
+        initial-file-name (some-> initial-file .getName)
+        extension-filters (map (fn [filter-desc]
+                                 (let [description ^String (first filter-desc)
+                                       extensions ^List (vec (rest filter-desc))]
+                                   (FileChooser$ExtensionFilter. description extensions)))
+                               filter-descs)]
+    (when (and (some? initial-directory) (.exists initial-directory))
+      (.setInitialDirectory chooser initial-directory))
+    (when (some? (not-empty initial-file-name))
+      (.setInitialFileName chooser initial-file-name))
+    (.addAll (.getExtensionFilters chooser) ^Collection extension-filters)
+    (.setTitle chooser title)
+    (.showOpenDialog chooser owner-window)))
 
 (defn make-task-dialog [dialog-fxml options]
   (let [root ^Parent (ui/load-fxml "task-dialog.fxml")
