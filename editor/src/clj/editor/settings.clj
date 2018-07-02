@@ -82,7 +82,7 @@
     (assoc :type :list :element {:type :url :default "http://url.to/library"})
 
     (= :comma-separated-list (:type setting))
-    (assoc :type :list :element {:type :string :default (or (:default setting) ("item1, item2"))})))
+    (assoc :type :list :element {:type :string :default (or (:default setting) "item1, item2")})))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)

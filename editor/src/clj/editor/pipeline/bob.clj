@@ -91,11 +91,7 @@
               bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
           (doseq [[key val] bob-args]
             (.setOption bob-project key val))
-          "If \"Publish Live Update content\" was checked, add corresponding flag to bob"
-          (.setOption bob-project "liveupdate" (let [shouldPublish? (.hasOption bob-project "liveupdate")]
-                                                    (if shouldPublish?
-                                                      "true"
-                                                      "false")))
+          (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
           (let [scanner (ClassLoaderScanner.)]
             (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
               (.scan bob-project scanner pkg)))
