@@ -172,7 +172,7 @@ namespace dmSys
      * @param src_filename the source filename. The contents will be written to the destination filename and the file unlinked if successful.
      * @return RESULT_OK on success
     */
-    Result WriteWithMove(const char* dst_filename, const char* src_filename);
+    Result MoveFile(const char* dst_filename, const char* src_filename);
 
     /**
      * Get and create platform specific application support directory.
