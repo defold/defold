@@ -66,7 +66,7 @@ namespace dmGameSystem
 
      /*# [type:number] spine playback_rate
      *
-     * The animation playback rate. A multiplier to the animation playback rate. The type of the property is number.
+     * The animation playback rate. A multiplier to the animation playback rate. The type of the property is [type:number].
      *
      * The playback_rate is a non-negative number, a negative value will be clamped to 0.
      *
@@ -89,7 +89,8 @@ namespace dmGameSystem
 
      /*# [type:hash] spine animation
      *
-     * The current animation set on the component. The type of the property is hash.
+     * [mark:READ ONLY] The current animation set on the component.
+     * The type of the property is [type:hash].
      *
      * @name animation
      * @property
@@ -617,7 +618,7 @@ namespace dmGameSystem
 
         dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
 
-        if (!CompSpineModelSetIKTargetInstance(component, ik_constraint_id, 1.0f, 0x0))
+        if (!CompSpineModelResetIKTarget(component, ik_constraint_id))
         {
             char str[128];
             return luaL_error(L, "the IK constraint target '%s' could not be found", dmScript::GetStringFromHashOrString(L, 2, str, sizeof(str)));

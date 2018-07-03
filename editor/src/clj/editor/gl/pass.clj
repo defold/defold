@@ -101,7 +101,7 @@
     (.glPolygonMode GL/GL_FRONT_AND_BACK GL2/GL_FILL)
     (.glEnable GL/GL_BLEND)
     (.glBlendFunc GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
-    (.glDisable GL/GL_DEPTH_TEST)
+    (.glEnable GL/GL_DEPTH_TEST)
     (.glDepthMask false)
     (.glDisable GL/GL_SCISSOR_TEST)
     (.glDisable GL/GL_STENCIL_TEST)
