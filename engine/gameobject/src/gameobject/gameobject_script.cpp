@@ -493,20 +493,19 @@ namespace dmGameObject
         }
     }
 
-    HCollection GetCollectionFromURL(const dmMessage::URL& url)
+    static Collection* GetCollectionFromURL(const dmMessage::URL& url)
     {
-        HCollection* collection = g_Register->m_SocketToCollection.Get(url.m_Socket);
-        return collection ? *collection : 0;
+        Collection** pcollection = g_Register->m_SocketToCollection.Get(url.m_Socket);
+        return pcollection ? *pcollection : 0;
     }
 
     void* GetComponentFromURL(const dmMessage::URL& url)
     {
-        HCollection hcollection = GetCollectionFromURL(url);
-        if (!hcollection) {
+        Collection* collection = GetCollectionFromURL(url);
+        if (!collection) {
             return 0;
         }
 
-        Collection* collection = hcollection->m_Collection;
         Instance** instance = collection->m_IDToInstance.Get(url.m_Path);
         if (!instance) {
             return 0;
