@@ -1299,7 +1299,7 @@ namespace dmGui
      *
      * @name gui.get_line_break
      * @param node [type:node] node from which to get the line-break for
-     * @return line-break [type:boolean] `true` or `false`
+     * @return line_break [type:boolean] `true` or `false`
      */
     static int LuaGetLineBreak(lua_State* L)
     {
@@ -1314,7 +1314,7 @@ namespace dmGui
      *
      * @name gui.set_line_break
      * @param node [type:node] node to set line-break for
-     * @param line-break [type:boolean] true or false
+     * @param line_break [type:boolean] true or false
      */
     static int LuaSetLineBreak(lua_State* L)
     {
@@ -2139,7 +2139,7 @@ namespace dmGui
      * @param font [type:string|hash] font id
      * @param text [type:string] text to measure
      * @param width [type:number] max-width. Use for line-breaks (default=FLT_MAX)
-     * @param line_breaks [type:boolean] true to break lines accordingly to width (default=false)
+     * @param line_break [type:boolean] true to break lines accordingly to width (default=false)
      * @param leading [type:number] scale value for line spacing (default=1)
      * @param tracking [type:number] scale value for letter spacing (default=0)
      * @return metrics [type:table] a table with the following fields:
