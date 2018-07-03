@@ -27,7 +27,6 @@ namespace dmGameObject
         HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, collection_capacity);
         if (hcollection == 0)
         {
-            dmDDF::FreeMessage(collection_desc);
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
         Collection* collection = hcollection->m_Collection;
@@ -233,12 +232,12 @@ bail:
 
         HCollection hcollection = 0;
         dmResource::Result res = AcquireResources(collection_desc->m_Name, params.m_Factory, regist, collection_desc, params.m_Filename, &hcollection);
+        dmDDF::FreeMessage(collection_desc);
+
         if (res != dmResource::RESULT_OK)
         {
         	return res;
         }
-
-        dmDDF::FreeMessage(collection_desc);
 
         params.m_Resource->m_Resource = hcollection;
         params.m_Resource->m_ResourceSize = CalcSize(hcollection->m_Collection);
