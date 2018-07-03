@@ -6,14 +6,6 @@
 
 namespace dmSys
 {
-#if defined(_WIN32) || defined(_WIN64)
-    static const char* const PATH_CHARACTER = "\\";
-    static const char* const PATH_SEPARATOR = ";";
-#else
-    static const char* const PATH_CHARACTER = "/";
-    static const char* const PATH_SEPARATOR = ":";
-#endif
-
     /**
      * Result code. Similar to standard posix result codes
      */

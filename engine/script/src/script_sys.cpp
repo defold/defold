@@ -231,7 +231,7 @@ union SaveLoadBuffer
             dmStrlCpy(app_support_path, dm_home, sizeof(app_support_path));
         }
 
-        dmStrlCat(app_support_path, dmSys::PATH_CHARACTER, sizeof(app_support_path));
+        dmStrlCat(app_support_path, dmPath::PATH_CHARACTER, sizeof(app_support_path));
         dmStrlCat(app_support_path, filename, sizeof(app_support_path));
         lua_pushstring(L, app_support_path);
 
