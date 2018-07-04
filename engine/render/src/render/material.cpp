@@ -191,6 +191,22 @@ namespace dmRender
                     }
                     break;
                 }
+                case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TEX0SIZE:
+                {
+                    {
+                        dmGraphics::HTexture texture = ro->m_Textures[0];
+                        if (render_context->m_Textures[0])
+                            texture = render_context->m_Textures[0];
+                        if (texture)
+                        {
+                            uint16_t w = dmGraphics::GetTextureWidth(texture);
+                            uint16_t h = dmGraphics::GetTextureHeight(texture);
+                            Vector4 s((float)w, (float)h, 0.0f, 0.0f);
+                            dmGraphics::SetConstantV4(graphics_context, (Vector4*)&s, location);
+                        }
+                    }
+                    break;
+                }
             }
         }
     }

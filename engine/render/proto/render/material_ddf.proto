@@ -18,6 +18,7 @@ message MaterialDesc
         CONSTANT_TYPE_PROJECTION = 5;
         CONSTANT_TYPE_NORMAL = 6;
         CONSTANT_TYPE_WORLDVIEW = 7;
+        CONSTANT_TYPE_TEX0SIZE = 8;
     }
 
     message Constant
