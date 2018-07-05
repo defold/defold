@@ -706,6 +706,25 @@
       (assert-render-order scene [b c a]))))
 
 ;; Render order for the following hierarchy:
+;; - a (layer 2)
+;;   - b (clipper, no layer, not visible)
+;;     - c (layer 1)
+;;     - d (no layer)
+;;
+;; Expected order: c, d, a
+(deftest render-order-complex-3
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
+          a (add-box! project scene nil)
+          b (add-clipper! project scene a false false)
+          c (add-box! project scene b)
+          d (add-box! project scene b)]
+      (add-layers! project scene ["layer1" "layer2"])
+      (set-layer! a "layer2")
+      (set-layer! c "layer1")
+      (assert-render-order scene [c d a]))))
+
+;; Render order for the following hierarchy:
 ;; - a
 ;;   - b
 ;;   - c (clipper)
