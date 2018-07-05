@@ -128,10 +128,6 @@ public class ArchiveBuilder {
 
     public boolean excludeResource(String filepath, List<String> excludedResources) {
         boolean result = false;
-        if (filepath.startsWith("/builtins")) {
-            return false;
-        }
-
         if (this.manifestBuilder != null) {
             List<ArrayList<String>> totalParentCollectionProxies = this.manifestBuilder.getParentCollectionProxies(filepath);
             for (List<String> parentCollectionProxies : totalParentCollectionProxies) {
@@ -297,16 +293,20 @@ public class ArchiveBuilder {
         File filepathManifest       = new File(args[1] + ".dmanifest");
         File filepathPublicKey      = new File(args[1] + ".public");
         File filepathPrivateKey     = new File(args[1] + ".private");
+        File filepathManifestHash   = new File(args[1] + ".manifest_hash");
 
         if (!dirpathRoot.isDirectory()) {
             printUsageAndTerminate("root does not exist: " + dirpathRoot.getAbsolutePath());
         }
 
         boolean doCompress = false;
+        boolean doOutputManifestHashFile = false;
         List<File> inputs = new ArrayList<File>();
         for (int i = 2; i < args.length; ++i) {
             if (args[i].equals("-c")) {
                 doCompress = true;
+            } else if (args[i].equals("-m")) {
+                doOutputManifestHashFile = true;
             } else {
                 File currentInput = new File(args[i]);
                 if (!currentInput.isFile()) {
@@ -322,11 +322,12 @@ public class ArchiveBuilder {
         }
 
         // Create manifest and archive
-        ManifestBuilder manifestBuilder = new ManifestBuilder();
+
+        ManifestBuilder manifestBuilder = new ManifestBuilder(doOutputManifestHashFile);
         manifestBuilder.setProjectIdentifier("<anonymous project>");
         manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
 
         System.out.println("Generating private key: " + filepathPrivateKey.getCanonicalPath());
@@ -369,6 +370,12 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();
             outputStreamManifest.write(manifestFile);
+
+            if (doOutputManifestHashFile) {
+                FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
+                manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
+                manifestHashOutoutStream.close();
+            }
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {

@@ -20,6 +20,7 @@ import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.DirectoryDialog;
+import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
@@ -99,7 +100,7 @@ public class LiveUpdateDialog extends TitleAreaDialog {
         labelControl.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false, 3, 1));
     }
 
-    private void CreateFileInput(Composite container, final String label, String text, final IInputAction action) {
+    private void CreateFileInput(Composite container, final String label, String text, final boolean selectFile, final IInputAction action) {
         Label labelControl = new Label(container, SWT.NONE);
         labelControl.setText(label);
 
@@ -114,11 +115,21 @@ public class LiveUpdateDialog extends TitleAreaDialog {
         buttonControl.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
-                DirectoryDialog directoryDialog = new DirectoryDialog(getShell());
-                String filepath = directoryDialog.open();
-                if (filepath != null) {
-                    textControl.setText(filepath);
-                    action.setInput(filepath);
+                if (selectFile) {
+                    FileDialog fileDialog = new FileDialog(getShell());
+                    String filepath = fileDialog.open();
+                    if (filepath != null) {
+                        textControl.setText(filepath);
+                        action.setInput(filepath);
+                    }
+
+                } else {
+                    DirectoryDialog directoryDialog = new DirectoryDialog(getShell());
+                    String filepath = directoryDialog.open();
+                    if (filepath != null) {
+                        textControl.setText(filepath);
+                        action.setInput(filepath);
+                    }
                 }
             }
         });
@@ -180,7 +191,7 @@ public class LiveUpdateDialog extends TitleAreaDialog {
         // -------------------------------------------------------------------
         CreateHorizontalSpacing(container);
 
-        CreateFileInput(container, "(Zip) Export path:", presenter.getZipFilepath(), new IInputAction() {
+        CreateFileInput(container, "(Zip) Export path:", presenter.getZipFilepath(), false, new IInputAction() {
             @Override
             public void setInput(String value) {
                 presenter.setZipFilepath(value);
@@ -188,6 +199,33 @@ public class LiveUpdateDialog extends TitleAreaDialog {
             }
         });
 
+        // -------------------------------------------------------------------
+        // Manifest
+        // -------------------------------------------------------------------
+        CreateHorizontalSpacing(container);
+
+        CreateFileInput(container, "Manifest public key:", presenter.getManifestPublicKey(), true, new IInputAction() {
+            @Override
+            public void setInput(String value) {
+                presenter.setManifestPublicKey(value);
+
+            }
+        });
+
+        CreateFileInput(container, "Manifest private key:", presenter.getManifestPrivateKey(), true, new IInputAction() {
+            @Override
+            public void setInput(String value) {
+                presenter.setManifestPrivateKey(value);
+
+            }
+        });
+
+        CreateTextInput(container, "Manifest supported versions:", false, presenter.getSupportedVersions(), new IInputAction() {
+            @Override
+            public void setInput(String value) {
+                presenter.setSupportedVersions(value);
+            }
+        });
 
         presenter.updateMode();
         presenter.updateBuckets(false);
