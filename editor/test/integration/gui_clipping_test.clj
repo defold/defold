@@ -165,7 +165,6 @@
           clipper-order (-> scene
                             clipper-seq
                             seq->render-order
-
                             (get clipper))
           visual-order (-> scene
                            visual-seq
@@ -366,7 +365,7 @@
 ;;
 ;; - a (non-inv)
 ;;   - b (box)
-;;     - c  (box) <--- c should be clipped according to a
+;;     - c (box) <--- c should be clipped according to a
 ;;
 ;; Shapes:
 ;;
@@ -604,7 +603,7 @@
 ;;   - b (layer1)
 ;;
 ;; Expected order: c, b, a
-(deftest render-order-both-layers2
+(deftest render-order-both-layers-2
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
           c (add-box! project scene nil)

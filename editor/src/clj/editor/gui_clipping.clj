@@ -36,7 +36,7 @@
 ;; The stencil buffer can be updated by incrementing or decrementing
 ;; the value, setting it to zero, inverting the bits, keeping the
 ;; original value or replacing it with ref. Only the bits masked by
-;; by stencil-mask are updated.
+;; stencil-mask are updated.
 ;;
 ;; The parameters we use are:
 ;;
@@ -176,7 +176,7 @@
 ;; In the top level scene scope we have the obvious non-inverted clippers
 ;; A, C but now we also count J. The reason we include J in the scene
 ;; scope even though I lies between is that I is an inverted node. We
-;; cannot use the bit we assign to I for distinguishing between A,C and
+;; cannot use the bit we assign to I for distinguishing between A, C and
 ;; J. So, we have the off limits 00 + 01, 10, 11 for A, C and J requiring
 ;; 2 bits for the top level group.
 ;;
@@ -362,11 +362,8 @@
                                            [[] child-context]
                                            (:children clipper-tree))
         clipper-tree' (assoc clipper-tree
-                             ;; glStencilFunc will do (ref & mask) == (<stencil buffer value> & mask) when drawing the node
-                             ;; for this clipper
                              :ref-val ref-val
                              :mask mask
-                             ;; child-ref-val & -mask will be used in glStencilFunc for child nodes of this clipper node
                              :child-ref-val child-ref-val
                              :child-mask child-mask
                              :children children')
@@ -416,20 +413,29 @@
                                                [[] child-context]
                                                (:children clipper-tree))]
         (assoc clipper-tree :children children'))
-      (let [wrapped-children (map (comp count-wrapper-scope wrap-trees vector) (:children clipper-tree))]
-        (if-let [overflowing-clipper (first (filter #(> (:allocated-bits %) stencil-bits) wrapped-children))]
-          (g/error-fatal "bit overflow" {:type :bit-overflow :source-id (-> overflowing-clipper :children first :node-id)})
+      (let [wrapped-child-clipper-trees (map (comp count-wrapper-scope wrap-trees vector) (:children clipper-tree))]
+        ;; If the clipper-tree (wrapper) requires more bits than
+        ;; available in the stencil buffer, we try to recover
+        ;; by inserting a clear betweeen each top level clipper.
+        ;; This is only possible if each of the top level clippers
+        ;; would fit on its own. Otherwise, we bail with an error.
+        (if-let [overflowing-child-clipper-tree (first (filter #(> (:allocated-bits %) stencil-bits) wrapped-child-clipper-trees))]
+          (g/error-fatal "bit overflow" {:type :bit-overflow :source-id (-> overflowing-child-clipper-tree :children first :node-id)})
           ;; Try recovering from the overflow by adding clear
           ;; flags. Note that the engine does not do this, so you
-          ;; might be mislead into building a gui in the editor that
+          ;; might be misled into building a gui in the editor that
           ;; will not work during runtime. Apparently the engine only
           ;; inserts clears between rendering different gui scenes.
           (let [children' (into []
                                 (comp
-                                  (mapcat (fn [clipper-tree]
-                                            (:children (assign-wrapper-clipper-bits clipper-tree))))
+                                  (mapcat (fn [wrapped-child-clipper-tree]
+                                            ;; Each wrapped-child-clipper-tree has one child, and assign-wrapper-clipper-bits
+                                            ;; leaves the tree structure unchanged.
+                                            (let [{:keys [children]} (assign-wrapper-clipper-bits wrapped-child-clipper-tree)]
+                                              (assert (= 1 (count children)))
+                                              children)))
                                   (map #(assoc % :clear true)))
-                                wrapped-children)]
+                                wrapped-child-clipper-trees)]
             (assoc clipper-tree :children children')))))))
 
 (defn- assign-clipper-bits
@@ -515,7 +521,8 @@
                   :because-gui-clipping-tests-need-it
                   (assoc-in [:renderable :user-data :clipping-child-state]
                             (nth (lookup-clipping-state trie last-clipper-trie :fake-child-step false) 2)))))]
-      (apply-clipping scene [trie (when (clipper-trie? trie) trie) nil]))))
+      (assert (not (clipper-trie? trie)))
+      (apply-clipping scene [trie nil nil]))))
 
 #_(defn- bitstring
   ([n] (bitstring n stencil-bits))
