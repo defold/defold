@@ -1114,9 +1114,10 @@
                                  (if-let [child-scenes (:children template-scene)]
                                    (mapv #(scene/claim-child-scene % _node-id) child-scenes)
                                    [])))
-  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index inherit-alpha]
+  (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha]
                                                 {:passes [pass/selection]
                                                  :child-index child-index
+                                                 :layer-index layer-index
                                                  :user-data {:color color+alpha :inherit-alpha inherit-alpha}}))
   (output own-build-errors g/Any :cached (g/fnk [_node-id build-errors-gui-node template-resource]
                                            (g/package-errors _node-id
