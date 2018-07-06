@@ -508,13 +508,13 @@ namespace dmProfile
         }
     }
 
-    void AddCounter(const char* name, uint32_t amount)
+    uint32_t GetNameHash(const char* name)
     {
-        uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
-        AddCounterHash(name, name_hash, amount);
+        uintptr_t p = (uintptr_t)name;
+        return (uint32_t)((p >> 2) * 0x9E3779B97F4A7C15llu);
     }
 
-    void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
+    static void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
     {
         // dmProfile::Initialize allocates memory. Is memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
         if (!g_IsInitialized || g_Paused)
@@ -539,19 +539,25 @@ namespace dmProfile
 
             Counter* c = &g_Counters[new_index];
             c->m_Name = name;
-            c->m_NameHash = dmHashBufferNoReverse32(name, strlen(name));
+            c->m_NameHash = name_hash;
 
             CounterData* cd = &profile->m_CountersData[new_index];
             cd->m_Counter = c;
             cd->m_Value = 0;
 
-            g_CountersTable.Put(c->m_NameHash, new_index);
+            g_CountersTable.Put(name_hash, new_index);
 
             counter_index = g_CountersTable.Get(name_hash);
         }
 
         profile->m_CountersData[*counter_index].m_Value += amount;
         dmSpinlock::Unlock(&g_ProfileLock);
+    }
+
+    void AddCounter(const char* name, uint32_t amount)
+    {
+        uint32_t name_hash = GetNameHash(name);
+        AddCounterHash(name, name_hash, amount);
     }
 
     float GetFrameTime()

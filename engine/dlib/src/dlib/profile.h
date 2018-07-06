@@ -21,25 +21,15 @@
 
 /**
  * Profile counter macro
- * name is the counter name
+ * name is the counter name - must be a static string constant or an internalized string
  * amount is the amount (integer) to add to the specific counter.
  */
 #define DM_COUNTER(name, amount)
 #undef DM_COUNTER
 
-/**
- * Profile counter macro. Fast version of #DM_COUNTER
- * name is the counter name
- * name_hash is the prehashed name
- * amount is the amount (integer) to add to the specific counter.
- */
-#define DM_COUNTER_HASH(name, name_hash, amount)
-#undef DM_COUNTER_HASH
-
 #if defined(NDEBUG)
     #define DM_PROFILE(scope_name, name)
     #define DM_COUNTER(name, amount)
-    #define DM_COUNTER_HASH(name, name_hash, amount)
 #else
     #define DM_PROFILE(scope_name, name) \
         static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
@@ -52,9 +42,6 @@
 
     #define DM_COUNTER(name, amount) \
     dmProfile::AddCounter(name, amount);
-
-    #define DM_COUNTER_HASH(name, name_hash, amount) \
-    dmProfile::AddCounterHash(name, name_hash, amount);
 
 #endif
 
@@ -242,19 +229,11 @@ namespace dmProfile
     const char* Internalize(const char* string);
 
     /**
-     * Add #amount to counter with #name
-     * @param name Counter name
+     * Add #amount to counter with #name.
+     * @param name Counter name - must be a static string constant or an internalized string
      * @param amount Amount to add
      */
     void AddCounter(const char* name, uint32_t amount);
-
-    /**
-     * Add #amount to counter with prehashed name. Faster version of #AddCounter
-     * @param name Counter name
-     * @param name Counter name hash
-     * @param amount Amount to add
-     */
-    void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount);
 
     /**
      * Get time for the frame total
