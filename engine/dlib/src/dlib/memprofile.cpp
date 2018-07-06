@@ -4,6 +4,7 @@
 #include <string.h>
 #include "profile.h"
 #include "memprofile.h"
+#include "dlib.h"
 
 #if !(defined(_MSC_VER) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__))
 
@@ -15,7 +16,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include "dlib.h"
 #include "profile.h"
 #include "shared_library.h"
 
