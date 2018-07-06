@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <string.h>
 #include "dlib.h"
+#include "log.h"
 
 #include "hashtable.h"
 #include "hash.h"

@@ -2,10 +2,7 @@
 #define DM_PROFILE_H
 
 #include <stdint.h>
-#include <dlib/array.h>
-#include <dlib/log.h>
 #include <dlib/atomic.h>
-#include <dlib/dlib.h>
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
