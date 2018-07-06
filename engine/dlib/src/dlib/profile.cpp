@@ -1,3 +1,11 @@
+#if defined(_WIN32)
+#include "safe_windows.h"
+#elif  defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#else
+#include <sys/time.h>
+#endif
+
 #include <algorithm>
 #include <string.h>
 #include "dlib.h"
@@ -628,15 +636,17 @@ namespace dmProfile
         }
     }
 
+    uint32_t GetTickSinceBegin()
+    {
+       uint64_t now = GetNowTicks();
+       return (uint32_t)(now - g_BeginTime);
+    }
+
     uint64_t GetNowTicks()
     {
-        if (!g_IsInitialized)
-        {
-            return 0u;
-        }
-       uint64_t now;
+        uint64_t now;
 #if defined(_WIN32)
-            QueryPerformanceCounter((LARGE_INTEGER *) &end);
+        QueryPerformanceCounter((LARGE_INTEGER *) &end);
 #elif defined(__EMSCRIPTEN__)
         now = (uint64_t)(emscripten_get_now() * 1000.0);
 #else
@@ -647,10 +657,20 @@ namespace dmProfile
         return now;
     }
 
-    uint32_t GetTickSinceBegin()
+    void ProfileScope::StartScope(Scope* scope, const char* name)
     {
-       uint64_t now = GetNowTicks();
-       return (uint32_t)(now - g_BeginTime);
+        uint64_t start = GetNowTicks();
+        Sample*s = AllocateSample();
+        s->m_Name = name;
+        s->m_Scope = scope;
+        s->m_Start = (uint32_t)(start - g_BeginTime);
+        m_Sample = s;
+    }
+
+    void ProfileScope::EndScope()
+    {
+        uint64_t end = GetNowTicks();
+        m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
     }
 }
 
