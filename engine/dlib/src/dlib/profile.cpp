@@ -321,6 +321,21 @@ namespace dmProfile
         active_threads.Iterate(&CalculateScopeProfileThread, profile);
     }
 
+    static uint64_t GetNowTicks()
+    {
+        uint64_t now;
+#if defined(_WIN32)
+        QueryPerformanceCounter((LARGE_INTEGER *) &now);
+#elif defined(__EMSCRIPTEN__)
+        now = (uint64_t)(emscripten_get_now() * 1000.0);
+#else
+        timeval tv;
+        gettimeofday(&tv, 0);
+        now = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
+        return now;
+    }
+
     HProfile Begin()
     {
         if (!g_IsInitialized)
@@ -374,17 +389,7 @@ namespace dmProfile
 
         profile->m_Samples.SetSize(0);
 
-#if defined(_WIN32)
-        uint64_t pcnt;
-        QueryPerformanceCounter((LARGE_INTEGER *) &pcnt);
-        g_BeginTime = (uint32_t) pcnt;
-#elif defined(__EMSCRIPTEN__)
-        g_BeginTime = (uint64_t)(emscripten_get_now() * 1000.0);
-#else
-        timeval tv;
-        gettimeofday(&tv, 0);
-        g_BeginTime = tv.tv_sec * 1000000 + tv.tv_usec;
-#endif
+        g_BeginTime = GetNowTicks();
         g_OutOfScopes = false;
         g_OutOfSamples = false;
         g_OutOfCounters = false;
@@ -635,21 +640,6 @@ namespace dmProfile
         {
             call_back(context, &profile->m_CountersData[i]);
         }
-    }
-
-    static uint64_t GetNowTicks()
-    {
-        uint64_t now;
-#if defined(_WIN32)
-        QueryPerformanceCounter((LARGE_INTEGER *) &end);
-#elif defined(__EMSCRIPTEN__)
-        now = (uint64_t)(emscripten_get_now() * 1000.0);
-#else
-        timeval tv;
-        gettimeofday(&tv, 0);
-        now = tv.tv_sec * 1000000 + tv.tv_usec;
-#endif
-        return now;
     }
 
     void ProfileScope::StartScope(Scope* scope, const char* name)
