@@ -219,6 +219,9 @@
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)
                            (.. getContent (lookup "#show-visibility-settings")))]
+      ;; TODO: We have no mechanism for updating the style nor icon on
+      ;; on the toolbar button. For now we piggyback on the state
+      ;; update polling to set a style when the filters are active.
       (let [visibility-filters-enabled (g/node-value app-view :visibility-filters-enabled)
             hidden-renderable-tags (g/node-value app-view :hidden-renderable-tags)
             filters-active (and visibility-filters-enabled (seq hidden-renderable-tags))]
