@@ -1144,11 +1144,6 @@ namespace dmProfileRender
         Size s;
     };
 
-    static Position GetHeaderTitlePosition(DisplayMode display_mode, const Size& display_size)
-    {
-        return Position(BORDER_SIZE, display_size.h - BORDER_SIZE);
-    }
-
     static Area GetProfilerArea(DisplayMode display_mode, const Size& display_size)
     {
         if (display_mode == DISPLAYMODE_MINIMIZED)
@@ -1410,13 +1405,6 @@ namespace dmProfileRender
         FillArea(render_context, profiler_area, Vector4(0.1f, 0.1f, 0.1f, 0.5f));
         FillArea(render_context, sample_frames_area, Vector4(0.15f, 0.15f, 0.15f, 0.2f));
 
-        //FillArea(render_context, profiler_area, Vector4(0.5f, 0.5f, 0.5f, 0.5f));
-        //FillArea(render_context, header_area, Vector4(0.8f, 0.0f, 0.0f, 0.8f));
-        //FillArea(render_context, scopes_area, Vector4(0.0f, 0.8f, 0.0f, 0.8f));
-        //FillArea(render_context, counters_area, Vector4(0.0f, 0.0f, 0.8f, 0.8f));
-        //FillArea(render_context, samples_area, Vector4(0.8f, 0.8f, 0.0f, 0.8f));
-        //FillArea(render_context, sample_frames_area, Vector4(0.8f, 0.0f, 0.8f, 0.8f));
-
         char buffer[256];
         float col[3];
 
@@ -1604,11 +1592,6 @@ namespace dmProfileRender
 
                 double e = ((double)(sample_sum->m_Elapsed)) / ticks_per_second;
 
-                if ( e < 0.000001)
-                {
-                    continue;
-                }
-
                 uint32_t color_index = (sample_sum->m_NameHash >> 6) & 0x1f;
                 HslToRgb2( color_index / 31.0f, 1.0f, 0.65f, col);
 
@@ -1637,7 +1620,10 @@ namespace dmProfileRender
                     
                     float x = frames_x + sample->m_StartTick * tick_length;
                     float w = sample->m_Elapsed * tick_length;
-                    if (w < 1.0f) w == 1.0f;
+                    if (w < 0.5f)
+                    {
+                        w = 0.5f;
+                    }
 
                     dmRender::Square2d(render_context, x, y - CHAR_HEIGHT, x + w, y, Vector4(col[0], col[1], col[2], 1));
 
