@@ -1,3 +1,11 @@
+#if defined(_WIN32)
+#include "safe_windows.h"
+#elif  defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#else
+#include <sys/time.h>
+#endif
+
 #include <algorithm>
 #include <string.h>
 #include "dlib.h"
@@ -15,12 +23,12 @@
 
 namespace dmProfile
 {
-    const uint32_t PROFILE_BUFFER_COUNT = 3;
+    static const uint32_t PROFILE_BUFFER_COUNT = 3;
 
-    dmArray<Scope> g_Scopes;
+    static dmArray<Scope> g_Scopes;
 
-    dmHashTable32<uint32_t> g_CountersTable;
-    dmArray<Counter> g_Counters;
+    static dmHashTable32<uint32_t> g_CountersTable;
+    static dmArray<Counter> g_Counters;
 
     struct Profile
     {
@@ -32,36 +40,36 @@ namespace dmProfile
     };
 
     // Default profile if not dmProfile::Initialize is invoked
-    Profile  g_EmptyProfile;
+    static Profile  g_EmptyProfile;
 
     // Current active profile
-    Profile* g_ActiveProfile = &g_EmptyProfile;
+    static Profile* g_ActiveProfile = &g_EmptyProfile;
 
-    Profile g_AllProfiles[PROFILE_BUFFER_COUNT];
-    dmArray<Profile*> g_FreeProfiles;
+    static Profile g_AllProfiles[PROFILE_BUFFER_COUNT];
+    static dmArray<Profile*> g_FreeProfiles;
 
     // Mapping of strings. Use when sending profiling data over HTTP
-    dmHashTable<uintptr_t, const char*> g_StringTable;
-    dmStringPool::HPool g_StringPool = 0;
+    static dmHashTable<uintptr_t, const char*> g_StringTable;
+    static dmStringPool::HPool g_StringPool = 0;
 
-    uint32_t g_BeginTime = 0;
-    uint64_t g_TicksPerSecond = 1000000;
-    float g_FrameTime = 0.0f;
-    float g_MaxFrameTime = 0.0f;
-    uint32_t g_MaxFrameTimeCounter = 0;
-    bool g_OutOfScopes = false;
-    bool g_OutOfSamples = false;
-    bool g_OutOfCounters = false;
+    static uint32_t g_BeginTime = 0;
+    static uint64_t g_TicksPerSecond = 1000000;
+    static float g_FrameTime = 0.0f;
+    static float g_MaxFrameTime = 0.0f;
+    static uint32_t g_MaxFrameTimeCounter = 0;
+    static bool g_OutOfScopes = false;
+    static bool g_OutOfSamples = false;
+    static bool g_OutOfCounters = false;
     bool g_IsInitialized = false;
-    bool g_Paused = false;
-    dmSpinlock::lock_t g_ProfileLock;
+    static bool g_Paused = false;
+    static dmSpinlock::lock_t g_ProfileLock;
 
-    dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
-    uint32_t g_ThreadCount = 0;
+    static dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
+    static uint32_t g_ThreadCount = 0;
 
     // Used when out of scopes in order to remove conditional branches
-    ScopeData g_DummyScopeData;
-    Scope g_DummyScope = { "foo", 0, &g_DummyScopeData };
+    static ScopeData g_DummyScopeData;
+    static Scope g_DummyScope = { "foo", 0, &g_DummyScopeData };
 
     struct InitSpinLocks
     {
@@ -71,7 +79,7 @@ namespace dmProfile
         }
     };
 
-    InitSpinLocks g_InitSpinlocks;
+    static InitSpinLocks g_InitSpinlocks;
 
     static void HttpHeader(void* user_data, const char* key, const char* value)
     {
@@ -621,6 +629,37 @@ namespace dmProfile
         {
             call_back(context, &profile->m_CountersData[i]);
         }
+    }
+
+    static uint64_t GetNowTicks()
+    {
+        uint64_t now;
+#if defined(_WIN32)
+        QueryPerformanceCounter((LARGE_INTEGER *) &end);
+#elif defined(__EMSCRIPTEN__)
+        now = (uint64_t)(emscripten_get_now() * 1000.0);
+#else
+        timeval tv;
+        gettimeofday(&tv, 0);
+        now = tv.tv_sec * 1000000 + tv.tv_usec;
+#endif
+        return now;
+    }
+
+    void ProfileScope::StartScope(Scope* scope, const char* name)
+    {
+        uint64_t start = GetNowTicks();
+        Sample*s = AllocateSample();
+        s->m_Name = name;
+        s->m_Scope = scope;
+        s->m_Start = (uint32_t)(start - g_BeginTime);
+        m_Sample = s;
+    }
+
+    void ProfileScope::EndScope()
+    {
+        uint64_t end = GetNowTicks();
+        m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
     }
 }
 
