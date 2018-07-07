@@ -259,6 +259,8 @@ void RunPythonThread(void*)
 #endif
 }
 
+#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
+
 TEST_F(dmHttpServerTest, TestServer)
 {
     dmThread::Thread thread = dmThread::New(RunPythonThread, 0x8000, 0, "test");
@@ -273,6 +275,8 @@ TEST_F(dmHttpServerTest, TestServer)
     dmThread::Join(thread);
     ASSERT_EQ(0, g_PythonTestResult);
 }
+
+#endif
 
 TEST_F(dmHttpServerTest, TestServerClient)
 {
