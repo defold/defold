@@ -230,7 +230,12 @@
 
       (ui/on-closed! stage (fn [_]
                              (ui/remove-application-focused-callback! :main-stage)
-                             (g/transact (g/delete-node project))))
+
+                             ;; TODO: This takes a long time in large projects.
+                             ;; Disabled for now since we don't really need to
+                             ;; delete the project node until we support project
+                             ;; switching.
+                             #_(g/transact (g/delete-node project))))
 
       (let [context-env {:app-view            app-view
                          :project             project
