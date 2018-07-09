@@ -210,9 +210,9 @@ def default_flags(self):
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fno-rtti','-fPIC', '-fvisibility=hidden'])
 
-            if Options.options.with_asan:
+            if Options.options.with_asan and "osx" == build_util.get_target_os():
                 self.env.append_value(f, ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
-                
+
             # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
             # some tests after we switched to -02 optimisations. We should refine these tests so that they
             # don't rely on equal-compare floating point values, and/or verify that underlaying engine
