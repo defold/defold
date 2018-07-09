@@ -1421,6 +1421,21 @@ def detect(conf):
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
 
+    # Since we're using an old waf version, we remove unused arguments
+    def remove_flag(arr, flag, nargs):
+        if not flag in arr:
+            return
+        index = arr.index(flag)
+        if index >= 0:
+            del arr[index]
+            for i in range(nargs):
+                del arr[index]
+
+    remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
+    remove_flag(conf.env['shlib_CCFLAGS'], '-current_version', 1)
+    remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
+    remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
+
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
     if 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         bin = os.environ.get('EMSCRIPTEN')
