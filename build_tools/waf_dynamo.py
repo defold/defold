@@ -1423,6 +1423,8 @@ def detect(conf):
 
     # Since we're using an old waf version, we remove unused arguments
     def remove_flag(arr, flag, nargs):
+        if not flag in arr:
+            return
         index = arr.index(flag)
         if index >= 0:
             del arr[index]
