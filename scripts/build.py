@@ -1746,8 +1746,6 @@ instructions.configure=\
             arg_str = ' '.join(arg_list)
         self._log('[exec] %s' % arg_str)
 
-        print "MAWE, Is this a TTY? ", sys.stdout.isatty()
-
         if sys.stdout.isatty():
             # If not on CI, we want the colored output, and we get the output as it runs
             process = subprocess.Popen(arg_list, stdout = sys.stdout, stderr = sys.stderr, **kwargs)
