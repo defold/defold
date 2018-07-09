@@ -1746,16 +1746,22 @@ instructions.configure=\
             arg_str = ' '.join(arg_list)
         self._log('[exec] %s' % arg_str)
 
-        process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
+        if sys.stdout.isatty():
+            # If not on CI, we want the colored output, and we get the output as it runs
+            process = subprocess.Popen(arg_list, stdout = sys.stdout, stderr = sys.stderr, **kwargs)
+            output = process.communicate()[0]
+        else:
+            # On the CI machines, we make sure we produce a steady stream of output
+            process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
 
-        output = ''
-        while True:
-            line = process.stdout.readline()
-            if line != '':
-                output += line
-                self._log(line.rstrip())
-            else:
-                break
+            output = ''
+            while True:
+                line = process.stdout.readline()
+                if line != '':
+                    output += line
+                    self._log(line.rstrip())
+                else:
+                    break
 
         if process.wait() != 0:
             raise ExecException(process.returncode, output)
