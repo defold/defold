@@ -230,7 +230,8 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64"]
         includes:   ["/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/include", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/include", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Include/10.0.10240.0/ucrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/winrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/um", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE", "_CRT_SECURE_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
-        flags:      ["-O2", "-Wall", "-Werror=format", "-fno-exceptions",         linkFlags:  ["-O2", "-fuse-ld=lld"]
+        flags:      ["-O2", "-Wall", "-Werror=format", "-fno-exceptions", "-fvisibility=hidden"]
+        linkFlags:  ["-O2", "-fuse-ld=lld"]
         libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "openal32", "WS2_32", "IPHlpApi", "DbgHelp"]
         symbols:    ["GameroomExt"]
 
@@ -257,7 +258,8 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/lib", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86"]
         includes:   ["/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/include", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/include", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Include/10.0.10240.0/ucrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/winrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/um", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE", "_CRT_SECURE_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
-        flags:      ["-O2", "-Wall", "-Werror=format", "-fno-exceptions",         linkFlags:  ["-O2", "-fuse-ld=lld"]
+        flags:      ["-O2", "-Wall", "-Werror=format", "-fno-exceptions", "-fvisibility=hidden"]
+        linkFlags:  ["-O2", "-fuse-ld=lld"]
         libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "openal32", "WS2_32", "IPHlpApi", "DbgHelp"]
         symbols:    ["GameroomExt"]
 
