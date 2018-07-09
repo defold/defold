@@ -115,7 +115,7 @@ message ManifestData {
  * entry and a single signature should be part of this entity.
  */
 message ManifestFile {
-    required ManifestData       data = 1;
+    required bytes              data = 1;
     required bytes              signature = 2;
     required bytes              archive_identifier = 3;
 }

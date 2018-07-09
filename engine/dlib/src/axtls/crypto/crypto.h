@@ -233,10 +233,12 @@ void RSA_priv_key_new(RSA_CTX **rsa_ctx,
         const uint8_t *qInv, int qInv_len
 #endif
         );
+void RSA_pub_key_raw_new(RSA_CTX **rsa, const uint8_t *modulus, int mod_len, const uint8_t *pub_exp, int pub_len);
 void RSA_pub_key_new(RSA_CTX **rsa_ctx,
         const uint8_t *modulus, int mod_len,
         const uint8_t *pub_exp, int pub_len);
 void RSA_free(RSA_CTX *ctx);
+int RSA_decrypt_public(RSA_CTX *rsa, uint8_t *buffer_in, uint8_t *buffer_out, int out_len);
 int RSA_decrypt(const RSA_CTX *ctx, const uint8_t *in_data, uint8_t *out_data,
         int out_len, int is_decryption);
 bigint *RSA_private(const RSA_CTX *c, bigint *bi_msg);
