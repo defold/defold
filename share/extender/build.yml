@@ -73,7 +73,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-darwin", "{{dynamo_home}}/ext/lib/x86_64-darwin"]
         defines:    ["DM_PLATFORM_OSX", "LUA_BYTECODE_ENABLE"]
-        flags:      ['-fvisibility=hidden']
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fvisibility=hidden"]
         linkFlags:  ["-pagezero_size", "10000", "-image_base", "100000000"]
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -97,7 +97,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "vpx", "liveupdate"]
         libPaths:   ["{{dynamo_home}}/lib/darwin", "{{dynamo_home}}/ext/lib/darwin"]
         defines:    ["DM_PLATFORM_OSX", "LUA_BYTECODE_ENABLE"]
-        flags:      []
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fvisibility=hidden"]
         linkFlags:  []
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -122,7 +122,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "FBSDKCore", "FBSDKLogin", "FBSDKShare"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin"]
         defines:    ["DM_PLATFORM_IOS"]
-        flags:      ['-fno-exceptions', '-fvisibility=hidden']
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fvisibility=hidden"]
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip']
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -147,7 +147,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "FBSDKCore", "FBSDKLogin", "FBSDKShare" ]
         libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin"]
         defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE"]
-        flags:      ['-fno-exceptions', '-fvisibility=hidden']
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fvisibility=hidden"]
         linkFlags:  ['-fobjc-link-runtime', '-dead_strip']
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -172,7 +172,7 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/armv7-android", "{{dynamo_home}}/ext/lib/armv7-android", "{{android_stl_lib}}"]
         defines:    ["DM_PLATFORM_ANDROID", "LUA_BYTECODE_ENABLE", "__ARM_ARCH_5__", "__ARM_ARCH_5T__", "__ARM_ARCH_5E__", "__ARM_ARCH_5TE__"]
         platformIncludes:   ["{{android_ndk_path}}/sources/android/native_app_glue", "{{android_ndk_path}}/sources/android/cpufeatures", "{{android_ndk_include}}", "{{android_stl_include}}", "{{android_stl_arch_include}}"]
-        flags:      ['-fvisibility=hidden']
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fvisibility=hidden"]
         linkFlags:  []
         libs:       []
         symbols:    ["AudioDecoderTremolo"]
@@ -187,7 +187,7 @@ platforms:
     writeExePattern: 'libdmengine.so'
     allowedLibs: [ "EGL","GLESv1_CM","GLESv2","GLESv3","OpenMAXAL","OpenSLES","RSSupport","RScpp_static","android","c","c\\+\\+_shared","c\\+\\+_static","compiler_rt","compiler_rt_shared","compiler_rt_static","dl","gabi\\+\\+_shared","gabi\\+\\+_static","gccunwind","gnustl_shared","gnustl_static","jnigraphics","log","m","m_hard","mediandk","portable","stdc\\+\\+","stlport_shared","stlport_static","supc\\+\\+","thread_db","z"]
     allowedFlags: ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","-W{{warning}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fpermissive"]
-    compileCmd: 'arm-linux-androideabi-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -fno-exceptions -funwind-tables --sysroot={{android_sysroot}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{.}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
+    compileCmd: 'arm-linux-androideabi-g++ -c -g -gdwarf-2 -fpic -ffunction-sections -fstack-protector -Wno-psabi -march=armv7-a -mfloat-abi=softfp -mfpu=vfp -fomit-frame-pointer -fno-strict-aliasing -finline-limit=64 -funwind-tables --sysroot={{android_sysroot}} -DANDROID -Wa,--noexecstack {{#defines}}-D{{.}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{.}} {{/ext.includes}} {{#includes}}-I{{.}} {{/includes}} {{#platformIncludes}}-I{{.}} {{/platformIncludes}} {{src}} -o{{tgt}}'
     linkCmd: 'arm-linux-androideabi-g++ --sysroot={{android_sysroot}} -lEGL -lGLESv1_CM -lGLESv2 {{#src}}{{.}} {{/src}} -o {{tgt}} -Wl,-soname=libdmengine.so {{#defines}}-D{{.}} {{/defines}} {{#linkFlags}}{{{.}}} {{/linkFlags}} -Wl,--fix-cortex-a8 -Wl,--no-undefined -Wl,-z,noexecstack -landroid -fpic -z text {{#ext.libPaths}}-L{{.}} {{/ext.libPaths}} {{#libPaths}}-L{{.}} {{/libPaths}} -Wl,-Bstatic -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{.}} {{/ext.libs}} {{#engineLibs}}-l{{.}} {{/engineLibs}} -Wl,--end-group -Wl,-Bdynamic -lOpenSLES -lgnustl_static -lm -llog -lc -Wl,--no-undefined -Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -shared'
     libCmd: 'arm-linux-androideabi-ar rcs {{tgt}} {{#objs}}{{.}} {{/objs}}'
     javacCmd: 'javac -source 1.6 -target 1.6 -J-Xms2048m -J-Xmx2048m -classpath {{dynamo_home}}/ext/share/java/android-support-v4.jar:{{dynamo_home}}/ext/share/java/android.jar:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
@@ -202,7 +202,7 @@ platforms:
         engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "liveupdate", "sound"]
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
-        flags:      ["-fno-exceptions", "-s", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-s", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]"]
         linkFlags:  ["--pre-js {{dynamo_home}}/share/js-web-pre.js", "--emit-symbol-map", "--llvm-lto", "0", "--memory-init-file", "0"]
         emscriptenFlags: ["PRECISE_F32=2", "AGGRESSIVE_VARIABLE_ELIMINATION=1", "TOTAL_MEMORY=268435456", "DISABLE_EXCEPTION_CATCHING=1", "EXPORTED_FUNCTIONS=[\"_JSWriteDump\",\"_main\"]"]
         libs:       []
@@ -230,7 +230,8 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64"]
         includes:   ["/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/include", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/include", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Include/10.0.10240.0/ucrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/winrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/um", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE", "_CRT_SECURE_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
-        flags:      ["-O2", "-Wall", "-Werror=format", "-fno-exceptions"]
+        #flags:      ["-O2", "-Wall", "-Werror=format", "-fno-exceptions", "-fno-rtti"]
+        flags:      ["-O0", "-Wall", "-Werror=format", "-fno-rtti", "-std=c++98"]
         linkFlags:  ["-O2", "-fuse-ld=lld"]
         libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "openal32", "WS2_32", "IPHlpApi", "DbgHelp"]
         symbols:    ["GameroomExt"]
@@ -258,8 +259,8 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/lib", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86"]
         includes:   ["/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/include", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/include", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Include/10.0.10240.0/ucrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/winrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/um", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE", "_CRT_SECURE_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
-        flags:      ["-O0"]
-        linkFlags:  ["-O0", "-fuse-ld=lld"]
+        flags:      ["-O2", "-Wall", "-Werror=format", "-fno-exceptions", "-fno-rtti"]
+        linkFlags:  ["-O2", "-fuse-ld=lld"]
         libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "openal32", "WS2_32", "IPHlpApi", "DbgHelp"]
         symbols:    ["GameroomExt"]
 
@@ -341,7 +342,7 @@ platforms:
         libPaths:   ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
         includes:   ["{{dynamo_home}}/include/x86_64-linux"]
         defines:    ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS"]
-        flags:      ["-ffloat-store", "-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
+        flags:      ["-ffloat-store", "-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fno-rtti", "-fPIC", "-fvisibility=hidden"]
         linkFlags:  []
         libs:       []
         # this happens to contain some dynamic engine libs too (openal)
