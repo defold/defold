@@ -686,16 +686,6 @@
    :help "auto-finish transactions",
    :default true,
    :path ["iap" "auto_finish_transactions"]}
-  {:type :resource
-   :help "private key"
-   :default nil
-   :label "Private key"
-   :path ["liveupdate" "privatekey"]}
-  {:type :resource
-   :help "public key"
-   :default nil
-   :label "Public key"
-   :path ["liveupdate" "publickey"]}
   {:type :resource,
    :filter "appmanifest",
    :preserve-extension true,
@@ -704,7 +694,13 @@
   {:type :boolean
    :help "enable CPU usage sampling in release"
    :default false
-   :path ["profiler" "track_cpu"]}]
+   :path ["profiler" "track_cpu"]}
+  {:type :resource
+   :filter "settings"
+   :default "/liveupdate.settings"
+   :help "liveupdate settings"
+   :preserve-extension true,
+   :path ["liveupdate" "settings"]}]
  :categories
  {"sound" {:help "Sound related settings"},
   "html5" {:help "HTML5 related settings"},
