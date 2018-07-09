@@ -343,7 +343,6 @@ namespace dmGameObject
                 break;
             }
         }
-        assert(found);
 
         dmMutex::Unlock(regist->m_Mutex);
 
