@@ -142,7 +142,7 @@ namespace dmGameObject
         m_ComponentTypeCount = 0;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_Mutex = dmMutex::New();
-        m_SocketToCollection.SetCapacity(32, 17);
+        m_SocketToCollection.SetCapacity(15, 17);
     }
 
     Register::~Register()
@@ -310,8 +310,8 @@ namespace dmGameObject
 
         if (regist->m_SocketToCollection.Full())
         {
-            uint32_t capacity = regist->m_SocketToCollection.Capacity()+16;
-            regist->m_SocketToCollection.SetCapacity(capacity, (capacity*2)/3);
+            uint32_t capacity = regist->m_Collections.Capacity()*2; // two sockets per collection
+            regist->m_SocketToCollection.SetCapacity(capacity/2-1, capacity);
         }
         regist->m_SocketToCollection.Put(collection->m_NameHash, collection);
 
@@ -343,6 +343,8 @@ namespace dmGameObject
                 break;
             }
         }
+        assert(found);
+
         dmMutex::Unlock(regist->m_Mutex);
 
         dmResource::UnregisterResourceReloadedCallback(collection->m_Factory, ResourceReloadedCallback, collection);
@@ -1478,7 +1480,6 @@ namespace dmGameObject
         {
             if (instance->m_Initialized)
             {
-dmLogWarning("InitInstance: %s", dmHashReverseSafe64(collection->m_NameHash));
                 dmLogWarning("Instance is initialized twice, this may lead to undefined behaviour.");
             }
             else
