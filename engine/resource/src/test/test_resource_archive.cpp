@@ -373,7 +373,7 @@ TEST(dmResourceArchive, ManifestSignatureVerificationHashFail)
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
     memset(hex_digest, 0x0, hex_digest_len / 2); // NULL out the first half of hash
-    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, RESOURCES_MANIFEST_HASH_SIZE));
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
 
     free(hex_digest);
     dmDDF::FreeMessage(manifest->m_DDFData);
