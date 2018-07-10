@@ -30,6 +30,73 @@
 // Helper and utility functions
 namespace dmSocket
 {
+#if defined(_WIN32)
+    #define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) case WSAE##x: return RESULT_##x
+#else
+    #define DM_SOCKET_NATIVE_TO_RESULT_CASE(x) case E##x: return RESULT_##x
+#endif
+    static Result NativeToResult(const char* filename, int line, int r)
+    {
+        switch (r)
+        {
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(ACCES);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(AFNOSUPPORT);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(WOULDBLOCK);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(BADF);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(CONNRESET);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(DESTADDRREQ);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(FAULT);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(HOSTUNREACH);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(INTR);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(INVAL);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(ISCONN);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(MFILE);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(MSGSIZE);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(NETDOWN);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(NETUNREACH);
+            //DM_SOCKET_NATIVE_TO_RESULT_CASE(NFILE);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(NOBUFS);
+            //DM_SOCKET_NATIVE_TO_RESULT_CASE(NOENT);
+            //DM_SOCKET_NATIVE_TO_RESULT_CASE(NOMEM);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTCONN);
+            //DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTDIR);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(NOTSOCK);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(OPNOTSUPP);
+#ifndef _WIN32
+            // NOTE: EPIPE is not availble on winsock
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(PIPE);
+#endif
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(PROTONOSUPPORT);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(PROTOTYPE);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(TIMEDOUT);
+
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(ADDRNOTAVAIL);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(CONNREFUSED);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(ADDRINUSE);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(CONNABORTED);
+            DM_SOCKET_NATIVE_TO_RESULT_CASE(INPROGRESS);
+        }
+
+        // TODO: Add log-domain support
+        dmLogError("%s( %d ): SOCKET: Unknown result code %d\n", filename, line, r);
+        return RESULT_UNKNOWN;
+    }
+    #undef DM_SOCKET_NATIVE_TO_RESULT_CASE
+
+    #define NATIVETORESULT(_R_) NativeToResult(__FILE__, __LINE__, _R_)
+
+    // Use this function for BSD socket compatibility
+    // However, don't use it blindly as we return code ETIMEDOUT is "lost".
+    // The background is that ETIMEDOUT is returned rather than EWOULDBLOCK on windows
+    // on socket timeout.
+    static Result NativeToResultCompat(int r)
+    {
+        Result res = NativeToResult(__FILE__, __LINE__, r);
+        if (res == RESULT_TIMEDOUT) {
+            res = RESULT_WOULDBLOCK;
+        }
+        return res;
+    }
 
     bool Empty(Address address)
     {
@@ -216,13 +283,14 @@ namespace dmSocket
         int result = -1;
         if (IsSocketIPv4(socket))
         {
-            struct in_addr inaddr = { 0 };
+            struct in_addr inaddr;
+            memset(&inaddr, 0, sizeof(inaddr));
             inaddr.s_addr = *IPv4(&address);
             result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
         }
         else if (IsSocketIPv6(socket))
         {
-            struct in6_addr inaddr = { 0 };
+            struct in6_addr inaddr;
             memcpy(&inaddr, IPv6(&address), sizeof(struct in6_addr));
             result = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF, (char *) &inaddr, sizeof(inaddr));
         }
@@ -808,7 +876,7 @@ namespace dmSocket
             hints.ai_family = AF_INET;
         else if (ipv6)
             hints.ai_family = AF_INET6;
-            
+
         hints.ai_socktype = SOCK_STREAM;
 
         // getaddrinfo_a is an asynchronous alternative, but it is specific to glibc.

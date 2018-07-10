@@ -73,10 +73,6 @@ namespace dmProfile
 
     InitSpinLocks g_InitSpinlocks;
 
-    static void HttpHeader(void* user_data, const char* key, const char* value)
-    {
-    }
-
     void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters)
     {
         if (!dLib::IsDebugMode())
