@@ -10,6 +10,7 @@ import os, sys, re, subprocess
 import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, waf_resource
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import Logs
+import Options
 
 def init():
     pass
@@ -169,7 +170,6 @@ def build(bld):
             if (os.path.exists(filePath)):
                 bld.install_files('${PREFIX}/bin/js-web', filePath)
 
-import Options
 def shutdown():
     # unit tests disabled on win32 for now
     if sys.platform != "win32":
