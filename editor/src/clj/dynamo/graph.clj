@@ -135,6 +135,18 @@
     tx-result))
 
 ;; ---------------------------------------------------------------------------
+;; Using transaction data
+;; ---------------------------------------------------------------------------
+(defn tx-data-nodes-added
+  "Returns a list of the node-ids added given a list of transaction steps, (tx-data)."
+  [txs]
+  (keep (fn [tx-data]
+          (case (:type tx-data)
+            :create-node (-> tx-data :node :_node-id)
+            nil))
+        (flatten txs)))
+
+;; ---------------------------------------------------------------------------
 ;; Using transaction values
 ;; ---------------------------------------------------------------------------
 (defn tx-nodes-added
@@ -681,11 +693,10 @@
    (mark-defective node-id (node-type* node-id) defective-value))
   ([node-id node-type defective-value]
    (assert node-id)
-   (let [outputs   (in/output-labels node-type)
-         externs   (in/externs node-type)]
+   (let [jammable-outputs (in/jammable-output-labels node-type)]
      (list
       (set-property node-id :_output-jammers
-                    (zipmap (remove externs outputs)
+                    (zipmap jammable-outputs
                             (repeat (clojure.core/constantly defective-value))))
       (invalidate node-id)))))
 
