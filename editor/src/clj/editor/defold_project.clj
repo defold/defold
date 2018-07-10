@@ -30,7 +30,8 @@
             [util.http-server :as http-server]
             [util.text-util :as text-util]
             [clojure.string :as str]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.thread-util :as thread-util])
   (:import [java.io File]
            [org.apache.commons.codec.digest DigestUtils]
            [org.apache.commons.io IOUtils]
@@ -55,7 +56,7 @@
                (:auto-connect-save-data? (resource/resource-type resource)))
       (g/connect node-id :save-data project :save-data))))
 
-(defn- load-node [project node-id node-type resource]
+(defn load-node [project node-id node-type resource]
   ;; Note that node-id here may be temporary (a make-node not
   ;; g/transact'ed) here, so we can't use (node-value node-id :...)
   ;; to inspect it. That's why we pass in node-type, resource.
@@ -64,7 +65,8 @@
           loaded? (and *load-cache* (contains? @*load-cache* node-id))
           load-fn (:load-fn resource-type)]
       (when-not loaded?
-        (if-not (resource/exists? resource)
+        (if (or (= :folder (resource/source-type resource))
+                (not (resource/exists? resource)))
           (g/mark-defective node-id node-type (validation/file-not-found-error node-id nil :fatal resource))
           (try
             (when *load-cache*
@@ -160,38 +162,29 @@
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
   (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies)))
 
-(defn- connect-if-output [src-type src tgt connections]
+(defn connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
     (for [[src-label tgt-label] connections
           :when (contains? outputs src-label)]
       (g/connect src src-label tgt tgt-label))))
 
-(defn make-resource-node
-  ([graph project resource load? connections]
-    (make-resource-node graph project resource load? connections nil))
-  ([graph project resource load? connections attach-fn]
-    (assert resource "resource required to make new node")
-    (let [resource-type (resource/resource-type resource)
-          node-type (or (:node-type resource-type) placeholder-resource/PlaceholderResourceNode)]
-      (g/make-nodes graph [node [node-type :resource resource]]
-                    (concat
-                      (for [[consumer connection-labels] connections]
-                        (connect-if-output node-type node consumer connection-labels))
-                      (when load?
-                        (load-node project node node-type resource))
-                      (when (some? attach-fn)
-                        (attach-fn node)))))))
+(defn- resource-type->node-type [resource-type]
+  (or (:node-type resource-type)
+      placeholder-resource/PlaceholderResourceNode))
+
+(def resource-node-type (comp resource-type->node-type resource/resource-type))
 
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)]
     (g/tx-nodes-added
       (g/transact
         (for [[resource-type resources] (group-by resource/resource-type resources)
-              resource resources]
-          (if (not= (resource/source-type resource) :folder)
-            (make-resource-node project-graph project resource false {project [[:_node-id :nodes]
-                                                                               [:resource :node-resources]]})
-            []))))))
+              :let [node-type (resource-type->node-type resource-type)]
+              resource resources
+              :when (not= :folder (resource/source-type resource))]
+          (g/make-nodes project-graph [node [node-type :resource resource]]
+                        (g/connect node :_node-id project :nodes)
+                        (g/connect node :node-id+resource project :node-id+resources)))))))
 
 (defn get-resource-node
   ([project path-or-resource]
@@ -199,8 +192,7 @@
      (get-resource-node project path-or-resource ec)))
   ([project path-or-resource evaluation-context]
    (when-let [resource (cond
-                         ;; TODO: pass evaluation-context to workspace/find-resource functions
-                         (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace evaluation-context) path-or-resource)
+                         (string? path-or-resource) (workspace/find-resource (g/node-value project :workspace evaluation-context) path-or-resource evaluation-context)
                          (satisfies? resource/Resource path-or-resource) path-or-resource
                          :else (assert false (str (type path-or-resource) " is neither a path nor a resource: " (pr-str path-or-resource))))]
      (let [nodes-by-resource-path (g/node-value project :nodes-by-resource-path evaluation-context)]
@@ -263,8 +255,12 @@
         (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
       (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))))
 
-(defn workspace [project]
-  (g/node-value project :workspace))
+(defn workspace
+  ([project]
+   (g/with-auto-evaluation-context evaluation-context
+     (workspace project evaluation-context)))
+  ([project evaluation-context]
+   (g/node-value project :workspace evaluation-context)))
 
 (defn save-all!
   ([project]
@@ -429,8 +425,8 @@
               m))
     m key-m))
 
-(defn- make-resource-nodes-by-path-map [nodes]
-  (into {} (map (fn [n] [(resource/proj-path (g/node-value n :resource)) n]) nodes)))
+(def ^:private make-resource-nodes-by-path-map
+  (partial into {} (map (juxt (comp resource/proj-path second) first))))
 
 (defn- perform-resource-change-plan [plan project render-progress!]
   (binding [*load-cache* (atom (into #{} (g/node-value project :nodes)))]
@@ -555,7 +551,7 @@
   (input resource-map g/Any)
   (input resource-types g/Any)
   (input save-data g/Any :array :substitute gu/array-subst-remove-errors)
-  (input node-resources resource/Resource :array)
+  (input node-id+resources g/Any :array)
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
@@ -581,7 +577,7 @@
                                                                    (map (fn [[key vals]] [key (filterv (comp selected-node-id-set first) vals)]))
                                                                    (into {})))))
   (output resource-map g/Any (gu/passthrough resource-map))
-  (output nodes-by-resource-path g/Any :cached (g/fnk [node-resources nodes] (make-resource-nodes-by-path-map nodes)))
+  (output nodes-by-resource-path g/Any :cached (g/fnk [node-id+resources] (make-resource-nodes-by-path-map node-id+resources)))
   (output save-data g/Any :cached (g/fnk [save-data] (filterv #(and % (:content %)) save-data)))
   (output dirty-save-data g/Any :cached (g/fnk [save-data] (filterv #(and (:dirty? %)
                                                                        (when-let [r (:resource %)]
@@ -598,8 +594,11 @@
 (defn get-resource-type [resource-node]
   (when resource-node (resource/resource-type (g/node-value resource-node :resource))))
 
-(defn get-project [node]
-  (g/graph-value (g/node-id->graph-id node) :project-id))
+(defn get-project
+  ([node]
+   (get-project (g/now) node))
+  ([basis node]
+   (g/graph-value basis (g/node-id->graph-id node) :project-id)))
 
 (defn find-resources [project query]
   (let [resource-path-to-node (g/node-value project :nodes-by-resource-path)
@@ -632,41 +631,60 @@
     (settings)
     (get ["project" "title"])))
 
-(defn- disconnect-from-inputs [src tgt connections]
-  (let [outputs (set (g/output-labels (g/node-type* src)))
-        inputs (set (g/input-labels (g/node-type* tgt)))]
+(defn- disconnect-from-inputs [basis src tgt connections]
+  (let [outputs (set (g/output-labels (g/node-type* basis src)))
+        inputs (set (g/input-labels (g/node-type* basis tgt)))]
     (for [[src-label tgt-label] connections
           :when (and (outputs src-label) (inputs tgt-label))]
       (g/disconnect src src-label tgt tgt-label))))
 
-(defn disconnect-resource-node [project path-or-resource consumer-node connections]
-  (let [resource (if (string? path-or-resource)
-                   (workspace/resolve-workspace-resource (workspace project) path-or-resource)
-                   path-or-resource)
-        node (get-resource-node project resource)]
-    (disconnect-from-inputs node consumer-node connections)))
+(defn resolve-path-or-resource [project path-or-resource evaluation-context]
+  (if (string? path-or-resource)
+    (workspace/resolve-workspace-resource (workspace project evaluation-context) path-or-resource evaluation-context)
+    path-or-resource))
+
+(defn disconnect-resource-node [evaluation-context project path-or-resource consumer-node connections]
+  (let [basis (:basis evaluation-context)
+        resource (resolve-path-or-resource project path-or-resource evaluation-context)
+        node (get-resource-node project resource evaluation-context)]
+    (disconnect-from-inputs basis node consumer-node connections)))
+
+(defn- ensure-resource-node-created [tx-data-context project resource]
+  (assert (satisfies? resource/Resource resource))
+  (if-some [[_ pending-resource-node-id] (find (:created-resource-nodes tx-data-context) resource)]
+    [tx-data-context pending-resource-node-id nil]
+    (let [graph-id (g/node-id->graph-id project)
+          node-type (resource-node-type resource)
+          creation-tx-data (g/make-nodes graph-id [resource-node-id [node-type :resource resource]]
+                                         (g/connect resource-node-id :_node-id project :nodes)
+                                         (g/connect resource-node-id :node-id+resource project :node-id+resources))
+          created-resource-node-id (first (g/tx-data-nodes-added creation-tx-data))
+          tx-data-context' (assoc-in tx-data-context [:created-resource-nodes resource] created-resource-node-id)]
+      [tx-data-context' created-resource-node-id creation-tx-data])))
 
 (defn connect-resource-node
-  ([project path-or-resource consumer-node connections]
-    (connect-resource-node project path-or-resource consumer-node connections nil))
-  ([project path-or-resource consumer-node connections attach-fn]
-    (if-let [resource (if (string? path-or-resource)
-                        (workspace/resolve-workspace-resource (workspace project) path-or-resource)
-                        path-or-resource)]
-      (if-let [node (get-resource-node project resource)]
-        (concat
-          (if *load-cache*
-            (load-node project node (g/node-type* node) resource)
-            [])
-          (connect-if-output (g/node-type* node) node consumer-node connections)
-          (if attach-fn
-            (attach-fn node)
-            []))
-        (make-resource-node (g/node-id->graph-id project) project resource true {project [[:_node-id :nodes]
-                                                                                          [:resource :node-resources]]
-                                                                                 consumer-node connections}
-                            attach-fn))
-      [])))
+  ([evaluation-context project path-or-resource consumer-node connections]
+   (connect-resource-node evaluation-context project path-or-resource consumer-node connections nil))
+  ([evaluation-context project path-or-resource consumer-node connections attach-fn]
+   ;; TODO: This is typically run from a property setter, where currently the
+   ;; evaluation-context does not contain a cache. This makes resource lookups
+   ;; very costly as they need to produce the lookup maps every time.
+   ;; In large projects, this has a huge impact on load time. To work around
+   ;; this, we use the default, cached evaluation-context to resolve resources.
+   ;; This has been reported as DEFEDIT-1411.
+   (g/with-auto-evaluation-context default-evaluation-context
+     (when-some [resource (resolve-path-or-resource project path-or-resource default-evaluation-context)]
+       (let [[node-id creation-tx-data] (if-some [existing-resource-node-id (get-resource-node project resource default-evaluation-context)]
+                                          [existing-resource-node-id nil]
+                                          (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
+             node-type (resource-node-type resource)]
+         (concat
+           creation-tx-data
+           (when (or creation-tx-data *load-cache*)
+             (load-node project node-id node-type resource))
+           (connect-if-output node-type node-id consumer-node connections)
+           (when (some? attach-fn)
+             (attach-fn node-id))))))))
 
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener
@@ -722,8 +740,8 @@
       (cache-save-data! populated-project)
       populated-project)))
 
-(defn resource-setter [self old-value new-value & connections]
-  (let [project (get-project self)]
+(defn resource-setter [evaluation-context self old-value new-value & connections]
+  (let [project (get-project (:basis evaluation-context) self)]
     (concat
-     (when old-value (disconnect-resource-node project old-value self connections))
-     (when new-value (connect-resource-node project new-value self connections)))))
+      (when old-value (disconnect-resource-node evaluation-context project old-value self connections))
+      (when new-value (connect-resource-node evaluation-context project new-value self connections)))))

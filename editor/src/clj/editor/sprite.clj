@@ -204,8 +204,8 @@
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :image-resource]
                                             [:anim-data :anim-data]
                                             [:anim-ids :anim-ids]
@@ -227,8 +227,8 @@
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
