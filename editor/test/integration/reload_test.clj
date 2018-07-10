@@ -638,13 +638,12 @@
   ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
-          initial-node-resources (g/node-value project :node-resources)]
+          initial-node-resources (test-util/project-node-resources project)]
       (copy-file workspace "/graphics/ball.png" "/ball.png")
       (delete-file workspace "/graphics/ball.png")
       (move-file workspace "/ball.png" "/graphics/ball.png")
-      (let [node-resources (g/node-value project :node-resources)]
-        (is (= (sort-by resource/proj-path initial-node-resources)
-               (sort-by resource/proj-path node-resources)))))))
+      (let [node-resources (test-util/project-node-resources project)]
+        (is (= initial-node-resources node-resources))))))
 
 (defn- coll-link [coll]
   (get-in (g/node-value coll :node-outline) [:children 0 :link]))
