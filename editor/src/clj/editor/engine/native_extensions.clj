@@ -30,7 +30,7 @@
 
 (def ^:const defold-build-server-url "https://build.defold.com")
 (def ^:const connect-timeout-ms (* 30 1000))
-(def ^:const read-timeout-ms (* 5 60 1000))
+(def ^:const read-timeout-ms (* 10 60 1000))
 
 ;;; Caching
 
