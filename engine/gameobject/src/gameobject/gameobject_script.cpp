@@ -1288,7 +1288,7 @@ namespace dmGameObject
             lua_pushvalue(L, 5);
             curve.release_callback = LuaCurveRelease;
             curve.userdata1 = i;
-            curve.userdata2 = (void*)dmScript::Ref(L, LUA_REGISTRYINDEX);
+            curve.userdata2 = (void*)(uintptr_t)dmScript::Ref(L, LUA_REGISTRYINDEX);
         }
         else
         {
