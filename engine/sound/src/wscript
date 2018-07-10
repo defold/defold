@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os, sys, re
+import Options
 
 def configure(conf):
     pass
@@ -62,4 +63,5 @@ def build(bld):
         sound.defines = '_XBOX'
         sound_null.defines = '_XBOX'
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')

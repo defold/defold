@@ -429,7 +429,6 @@ namespace dmGameSystem
      * Inversely, to find the linear value from a dB value, use the formula
      * <code>10<sup>db/20</sup></code>.
      *
-     * @message
      * @name sound.set_gain
      * @param url [type:string|hash|url] the sound to set the gain of
      * @param [gain] [type:number] sound gain between 0 and 1. The final gain of the sound will be a combination of this gain, the group gain and the master gain.
