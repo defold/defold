@@ -117,7 +117,7 @@ platforms:
     context:
         frameworks: ["Foundation", "OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
         weakFrameworks: ["Accounts", "Social", "AdSupport"]
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "FBSDKCore", "FBSDKLogin", "FBSDKShare"]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "Bolts", "FBSDKCore", "FBSDKLogin", "FBSDKShare"]
         libPaths:   ["{{dynamo_home}}/lib/arm64-darwin", "{{dynamo_home}}/ext/lib/arm64-darwin"]
         defines:    ["DM_PLATFORM_IOS"]
         flags:      ['-fno-exceptions', '-fvisibility=hidden']
@@ -142,7 +142,7 @@ platforms:
     context:
         frameworks: ["Foundation", "OpenGLES", "OpenAL", "QuartzCore", "CoreGraphics", "AudioToolbox", "SystemConfiguration", "CoreVideo", "UIKit", "CoreTelephony", "StoreKit", "Security"]
         weakFrameworks: ["Accounts", "Social", "AdSupport"]
-        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "FBSDKCore", "FBSDKLogin", "FBSDKShare" ]
+        engineLibs: ["engine", "engine_service", "axtls", "webviewext", "adtruthext", "profilerext", "facebookext", "iapext", "pushext", "iacext", "record_null", "gameobject", "ddf", "resource", "gamesys", "graphics", "physics", "BulletDynamics", "BulletCollision", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "dmglfw", "gui", "tracking", "crashext", "sound", "tremolo", "liveupdate", "Bolts", "FBSDKCore", "FBSDKLogin", "FBSDKShare" ]
         libPaths:   ["{{dynamo_home}}/lib/armv7-darwin", "{{dynamo_home}}/ext/lib/armv7-darwin"]
         defines:    ["DM_PLATFORM_IOS", "LUA_BYTECODE_ENABLE"]
         flags:      ['-fno-exceptions', '-fvisibility=hidden']

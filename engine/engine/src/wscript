@@ -58,6 +58,7 @@ def build(bld):
 
     mobile_service_symbols = ['IACExt', 'IAPExt', 'PushExt', 'AdTruthExt', 'WebViewExt']
     if  re.match('arm.*?darwin', bld.env['PLATFORM']):
+        additional_libs.append('BOLTS')
         additional_libs.append('FBSDKCORE')
         additional_libs.append('FBSDKLOGIN')
         additional_libs.append('FBSDKSHARE')

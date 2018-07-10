@@ -105,6 +105,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
+    conf.env['STATICLIB_BOLTS'] = 'Bolts'
     conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
     conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
     conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'

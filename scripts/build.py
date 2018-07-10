@@ -16,11 +16,11 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.4.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.0 luajit-2.0.5 tremolo-0.0.8".split()
-PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.4.0 tremolo-0.0.8".split()
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8".split()
+PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8".split()
 PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
 PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0".split()
