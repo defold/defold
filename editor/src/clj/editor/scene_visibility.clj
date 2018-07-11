@@ -2,14 +2,12 @@
   (:require [dynamo.graph :as g]
             [editor.keymap :as keymap]
             [editor.ui :as ui]
-            [editor.util :as util]
-            [editor.ui.popup :as popup])
-  (:import [javafx.scene Parent Node]
-           [javafx.scene.control CheckBox Label]
-           [javafx.scene.layout VBox HBox Priority]
-           [javafx.geometry Point2D HPos VPos Pos]
-           [javafx.css Styleable]
-           [javafx.scene.control PopupControl Skin]))
+            [editor.ui.popup :as popup]
+            [editor.util :as util])
+  (:import [javafx.geometry Point2D Pos]
+           [javafx.scene Parent]
+           [javafx.scene.control CheckBox Label PopupControl]
+           [javafx.scene.layout HBox Priority VBox]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,6 +43,8 @@
    {:label "Sprites" :tag :sprite}
    {:label "Text" :tag :label}
    {:label "Tile Maps" :tag :tilemap}])
+
+(def toggleable-tags (into #{} (map :tag) tag-toggles-info))
 
 (defn set-tag-visibility! [toggles-node tag visible]
   (g/update-property! toggles-node :hidden-renderable-tags (if visible disj conj) tag))

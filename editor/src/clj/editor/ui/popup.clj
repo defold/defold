@@ -1,7 +1,9 @@
 (ns editor.ui.popup
-  (:import [javafx.scene Node]
-           [javafx.css Styleable]
+  (:import [javafx.css Styleable]
+           [javafx.scene Node]
            [javafx.scene.control PopupControl Skin]))
+
+(set! *warn-on-reflection* true)
 
 (defn make-popup
   ^PopupControl [^Styleable owner ^Node content]
@@ -18,4 +20,3 @@
       (.setAutoHide true)
       (.setAutoFix true)
       (.setHideOnEscape true))))
-

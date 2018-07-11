@@ -117,7 +117,7 @@
                  :node-id _node-id
                  :renderable {:render-fn render-image-selections
                               :tags #{:atlas}
-                              ::batch-key ::atlas-image
+                              :batch-key ::atlas-image
                               :user-data {:rect rect}
                               :passes [pass/selection]}}]
      :updatable animation-updatable}))
