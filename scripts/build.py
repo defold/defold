@@ -33,6 +33,9 @@ PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
 PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
+PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
+PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -403,6 +406,16 @@ class Configuration(object):
         xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
 
+        def download_sdk(url, targetfolder, tmpname=None): # tmpname is the top folder name inside the archive, which you wish to rename
+            if not os.path.exists(targetfolder):
+                dlpath = self._download(url)
+                parent_folder = os.path.split(targetfolder)[0]
+                if tmpname is None:
+                    self._extract_tgz(dlpath, parent_folder)
+                else:
+                    tmpfolder = os.path.join(parent_folder, tmpname)
+                    os.rename(tmpfolder, targetfolder)
+
         if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
             # macOS SDK
             tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
@@ -429,6 +442,15 @@ class Configuration(object):
                 tmpfolder = join(self.ext, 'SDKs')
                 self._extract_tgz(dlpath, tmpfolder)
                 os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
+
+        if 'win32' in target_platform and not ('win32' in self.host):
+            win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            targetfolder = join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') # let's avoid spaces in the paths
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), targetfolder, 'Microsoft Visual Studio 14.0' )
+
+            # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
     def _form_ems_path(self):
         path = ''
