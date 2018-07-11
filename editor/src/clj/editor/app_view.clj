@@ -61,8 +61,8 @@
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy ProgressBar Tooltip]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent]
-           [javafx.scene.layout AnchorPane GridPane HBox Priority]
-           [javafx.scene.paint Color]
+           [javafx.scene.layout AnchorPane HBox StackPane]
+           [javafx.scene.shape Ellipse]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
            [java.io InputStream File IOException BufferedReader]
@@ -230,6 +230,13 @@
           (ui/remove-style! btn "filters-active")))
       (scene-visibility/settings-visible? btn))))
 
+(def ^:private visibility-settings-graphic
+  (doto (StackPane.)
+    (ui/children! [(doto (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg")
+                     (.setId "eye-icon"))
+                   (doto (Ellipse. 3.0 3.0)
+                     (.setId "active-indicator"))])))
+
 (ui/extend-menu :toolbar nil
                 [{:id :select
                   :icon "icons/45/Icons_T_01_Select.png"
@@ -244,7 +251,7 @@
                   :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}
                  {:id :visibility-settings
-                  :icon "scene/images/eye_icon_eye_arrow.svg"
+                  :graphic visibility-settings-graphic
                   :command :show-visibility-settings}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
