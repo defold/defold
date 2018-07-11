@@ -222,10 +222,10 @@
       ;; TODO: We have no mechanism for updating the style nor icon on
       ;; on the toolbar button. For now we piggyback on the state
       ;; update polling to set a style when the filters are active.
-      (let [visibility-filters-enabled (g/node-value app-view :visibility-filters-enabled)
+      (let [visibility-filters-enabled? (g/node-value app-view :visibility-filters-enabled)
             hidden-renderable-tags (g/node-value app-view :hidden-renderable-tags)
-            filters-active (and visibility-filters-enabled (seq hidden-renderable-tags))]
-        (if filters-active
+            filters-active? (and visibility-filters-enabled? (some scene-visibility/toggleable-tags hidden-renderable-tags))]
+        (if filters-active?
           (ui/add-style! btn "filters-active")
           (ui/remove-style! btn "filters-active")))
       (scene-visibility/settings-visible? btn))))
@@ -244,7 +244,7 @@
                   :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}
                  {:id :visibility-settings
-                  :icon "scene/images/eye-icon_eye-arrow.svg"
+                  :icon "scene/images/eye_icon_eye_arrow.svg"
                   :command :show-visibility-settings}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")

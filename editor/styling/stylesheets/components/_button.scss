@@ -32,17 +32,16 @@
 }
 
 .button-small {
-	@extend .button;
-	-fx-padding: 2px 17px;
-	-fx-min-width: 0px;
+  @extend .button;
+  -fx-padding: 2px 17px;
+  -fx-min-width: 0px;
 }
 
 .button-large {
-	@extend .button;
-	-fx-padding: 10px 25px;
-	-fx-min-width: 200px;
-  }
-
+  @extend .button;
+  -fx-padding: 10px 25px;
+  -fx-min-width: 200px;
+}
 
 .clear-button {
   -fx-background-radius: 0;
@@ -120,7 +119,7 @@
     > .box {
       -fx-alignment: center-right;
       > .mark {
-	-fx-background-color: #4CB1FF;
+        -fx-background-color: #4CB1FF;
       }
     }
   }
@@ -129,7 +128,6 @@
     -fx-opacity: 50%;
   }
 }
-
 
 .color-picker.split-button > .arrow-button:hover,
 .color-picker.split-button > .color-picker-label:hover {

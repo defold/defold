@@ -112,8 +112,8 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(def color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
+(def color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
+(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
 
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]

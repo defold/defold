@@ -2,110 +2,110 @@
  * Styling of toolbar in scene editor.
  */
 #toolbar * {
-  -fx-focus-traversable: false;
+    -fx-focus-traversable: false;
 }
 
 #toolbar {
-  -fx-background-color: $scene-toolbar-background;
-  -fx-border-width: 0;
-  -fx-border-insets: 0;
-  -fx-background-insets: 0;
-  -fx-background-radius: 20px;
-  -fx-padding: 5px;
-  -fx-spacing: 10px;
-  -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
-
-  >.toggle-button {
-    -fx-background-color: transparent;
-    -fx-background-insets: 0;
-    -fx-background-radius: 15px;
-    -fx-pref-width: 30px;
-    -fx-pref-height: 30px;
-    -fx-border-width: 0;
-    -fx-alignment: center;
-
-    .image-view {
-      -fx-effect: innershadow(gaussian, $scene-toolbar-button-foreground, 20, 0.3, 0, 0) !important;
-    }
-
-    &:hover {
-      .image-view {
-        -fx-effect: innershadow(gaussian, $scene-toolbar-button-hovered-foreground, 20, 0.3, 0, 0) !important;
-      }
-    }
-    &:selected {
-      -fx-background-color: $scene-toolbar-button-selected-background;
-      .image-view {
-        -fx-effect: innershadow(gaussian, $scene-toolbar-button-selected-foreground, 20, 0.3, 0, 0) !important;
-      }
-    }
-  }
-
-  #show-visibility-settings.filters-active SVGPath {
-    -fx-fill: $defold-orange;
-  }
-
-  .visibility-toggles-list {
     -fx-background-color: $scene-toolbar-background;
-    -fx-padding: 0px 0px 7px 0px;
-    > .first-entry {
-      -fx-padding: 10px 8px 10px 8px;
-      -fx-background-color: #4d4f54;
-    }
-
-    > HBox {
-      -fx-padding: 3px 8px 3px 8px;
-    }
-  }
-
-  SVGPath {
-    -fx-fill: $defold-white;
-  }
-
-  .separator {
-    &:horizontal {
-      .line {
-        -fx-border-color: $grey;
-      }
-    }
-
-    &:vertical {
-      .line {
-        -fx-border-color: $grey;
-      }
-    }
-  }
-
-  /* This is for the gui device picker that pops up when an .gui file is active */
-  .cell {
-    -fx-alignment: center;
-    -fx-padding: 0 0 0 8px;
-    -fx-spacing: 8px;
     -fx-border-width: 0;
     -fx-border-insets: 0;
-    -fx-background-color: transparent;
-    .image-view {
-      -fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0) !important;
-    }
-    >.choice-box {
-      -fx-border-width: 0;
-      -fx-pref-width: 90px;
-      >.label {
-        -fx-background-color: $scene-toolbar-background;
-        -fx-text-fill: $defold-white;
-      }
-      .open-button {
+    -fx-background-insets: 0;
+    -fx-background-radius: 20px;
+    -fx-padding: 5px;
+    -fx-spacing: 10px;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 16, 0, 0, 0);
+
+    >.toggle-button {
+        -fx-background-color: transparent;
+        -fx-background-insets: 0;
+        -fx-background-radius: 15px;
+        -fx-pref-width: 30px;
+        -fx-pref-height: 30px;
         -fx-border-width: 0;
-        -fx-background-color: $scene-toolbar-background;
-        .arrow {
-          -fx-background-color: $defold-white;
+        -fx-alignment: center;
+
+        .image-view {
+            -fx-effect: innershadow(gaussian, $scene-toolbar-button-foreground, 20, 0.3, 0, 0) !important;
         }
-      }
-      &:hover, &:pressed, &:focused {
-        .open-button {
-          -fx-background-color: $scene-toolbar-background;
+
+        &:hover {
+            .image-view {
+                -fx-effect: innershadow(gaussian, $scene-toolbar-button-hovered-foreground, 20, 0.3, 0, 0) !important;
+            }
         }
-      }
+        &:selected {
+            -fx-background-color: $scene-toolbar-button-selected-background;
+            .image-view {
+                -fx-effect: innershadow(gaussian, $scene-toolbar-button-selected-foreground, 20, 0.3, 0, 0) !important;
+            }
+        }
     }
-  }
+
+    #show-visibility-settings.filters-active SVGPath {
+        -fx-fill: $defold-orange;
+    }
+
+    .visibility-toggles-list {
+        -fx-background-color: $scene-toolbar-background;
+        -fx-padding: 0px 0px 7px 0px;
+        > .first-entry {
+            -fx-padding: 10px 8px 10px 8px;
+            -fx-background-color: #4d4f54;
+        }
+
+        > HBox {
+            -fx-padding: 3px 8px 3px 8px;
+        }
+    }
+
+    SVGPath {
+        -fx-fill: $defold-white;
+    }
+
+    .separator {
+        &:horizontal {
+            .line {
+                -fx-border-color: $grey;
+            }
+        }
+
+        &:vertical {
+            .line {
+                -fx-border-color: $grey;
+            }
+        }
+    }
+
+    /* This is for the gui device picker that pops up when an .gui file is active */
+    .cell {
+        -fx-alignment: center;
+        -fx-padding: 0 0 0 8px;
+        -fx-spacing: 8px;
+        -fx-border-width: 0;
+        -fx-border-insets: 0;
+        -fx-background-color: transparent;
+        .image-view {
+            -fx-effect: innershadow(gaussian, $defold-white, 20, 0.3, 0, 0) !important;
+        }
+        >.choice-box {
+            -fx-border-width: 0;
+            -fx-pref-width: 90px;
+            >.label {
+                -fx-background-color: $scene-toolbar-background;
+                -fx-text-fill: $defold-white;
+            }
+            .open-button {
+                -fx-border-width: 0;
+                -fx-background-color: $scene-toolbar-background;
+                .arrow {
+                    -fx-background-color: $defold-white;
+                }
+            }
+            &:hover, &:pressed, &:focused {
+                .open-button {
+                    -fx-background-color: $scene-toolbar-background;
+                }
+            }
+        }
+    }
 }
