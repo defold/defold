@@ -62,7 +62,7 @@
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent]
            [javafx.scene.layout AnchorPane HBox StackPane]
-           [javafx.scene.shape Ellipse]
+           [javafx.scene.shape Ellipse SVGPath]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
            [java.io InputStream File IOException BufferedReader]
@@ -230,10 +230,13 @@
           (ui/remove-style! btn "filters-active")))
       (scene-visibility/settings-visible? btn))))
 
-(def ^:private visibility-settings-graphic
+(def ^:private eye-icon-template (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+
+(defn- make-visibility-settings-graphic []
   (doto (StackPane.)
-    (ui/children! [(doto (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg")
-                     (.setId "eye-icon"))
+    (ui/children! [(doto (SVGPath.)
+                     (.setId "eye-icon")
+                     (.setContent (.getContent ^SVGPath eye-icon-template)))
                    (doto (Ellipse. 3.0 3.0)
                      (.setId "active-indicator"))])))
 
@@ -251,7 +254,7 @@
                   :icon "icons/45/Icons_T_04_Scale.png"
                   :command :scale-tool}
                  {:id :visibility-settings
-                  :graphic visibility-settings-graphic
+                  :graphic-fn make-visibility-settings-graphic
                   :command :show-visibility-settings}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
