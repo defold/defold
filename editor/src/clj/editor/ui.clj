@@ -1551,17 +1551,18 @@
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
-                                                       graphic (:graphic menu-item)
+                                                       graphic-fn (:graphic-fn menu-item)
                                                        icon (:icon menu-item)]
                                                    (cond
-                                                     graphic
-                                                     (.setGraphic button graphic)
+                                                     graphic-fn
+                                                     ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
+                                                     ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
+                                                     ;; disappears from the toolbars of subsequent tabs. For now, we generate
+                                                     ;; instances for each tab.
+                                                     (.setGraphic button (graphic-fn))
 
                                                      icon
-                                                     (.setGraphic button
-                                                                  (if (string/ends-with? (string/lower-case icon) ".svg")
-                                                                    (load-svg-path icon)
-                                                                    (jfx/get-image-view icon 16))))
+                                                     (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
                                                                           (let [command-contexts (contexts scene)]
