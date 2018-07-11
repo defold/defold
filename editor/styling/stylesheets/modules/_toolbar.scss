@@ -41,8 +41,27 @@
         }
     }
 
-    #show-visibility-settings.filters-active SVGPath {
-        -fx-fill: $defold-orange;
+    #show-visibility-settings {
+        #eye-icon {
+            -fx-translate-y: 1px;
+        }
+
+        #active-indicator {
+            visibility: hidden;
+            -fx-fill: $defold-orange;
+            -fx-stroke: $scene-toolbar-background;
+            -fx-stroke-width: 1px;
+            -fx-translate-x: 3.5px;
+            -fx-translate-y: -5px;
+        }
+
+        &:selected #active-indicator {
+            -fx-stroke: $scene-toolbar-button-selected-background;
+        }
+
+        &.filters-active #active-indicator {
+            visibility: visible;
+        }
     }
 
     .visibility-toggles-list {

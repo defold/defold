@@ -1551,8 +1551,13 @@
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                       graphic (:graphic menu-item)
                                                        icon (:icon menu-item)]
-                                                   (when icon
+                                                   (cond
+                                                     graphic
+                                                     (.setGraphic button graphic)
+
+                                                     icon
                                                      (.setGraphic button
                                                                   (if (string/ends-with? (string/lower-case icon) ".svg")
                                                                     (load-svg-path icon)
