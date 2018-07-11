@@ -12,6 +12,7 @@
 #include <graphics/graphics_util.h>
 
 #include "display_profiles.h"
+#include "display_profiles_private.h"
 
 #include "render_private.h"
 #include "render.h"
@@ -25,27 +26,6 @@ namespace dmRender
     , m_NameHash(0x0)
     { }
 
-    struct DisplayProfiles
-    {
-        struct Qualifier
-        {
-            float m_Width;
-            float m_Height;
-            float m_Dpi;
-        };
-
-        struct Profile
-        {
-            dmhash_t m_Id;
-            uint32_t m_QualifierCount;
-            struct Qualifier* m_Qualifiers;
-        };
-
-        dmArray<Profile> m_Profiles;
-        dmArray<Qualifier> m_Qualifiers;
-        dmhash_t m_NameHash;
-    };
-
     HDisplayProfiles NewDisplayProfiles()
     {
         DisplayProfiles* profiles = new DisplayProfiles();
@@ -56,6 +36,22 @@ namespace dmRender
 
     void DeleteDisplayProfiles(HDisplayProfiles profiles)
     {
+        uint32_t profile_count = profiles->m_Profiles.Size();
+        DisplayProfiles::Qualifier* qualifier = &profiles->m_Qualifiers[0];
+        for(uint32_t i = 0; i < profile_count; ++i)
+        {
+            DisplayProfiles::Profile& profile = profiles->m_Profiles[i];
+            uint32_t qualifier_count = profile.m_QualifierCount;
+            for(uint32_t q = 0; q < qualifier_count; ++q)
+            {
+                for (uint32_t d = 0; d < qualifier->m_NumDeviceModels; ++d)
+                {
+                    free(qualifier->m_DeviceModels[d]);
+                }
+                delete[] qualifier->m_DeviceModels;
+                ++qualifier;
+            }
+        }
         delete profiles;
     }
 
@@ -97,6 +93,14 @@ namespace dmRender
                 qualifier->m_Width = (float) sq.m_Width;
                 qualifier->m_Height = (float) sq.m_Height;
                 qualifier->m_Dpi = 0.0f;
+
+                uint32_t device_models_count = sq.m_DeviceModels.m_Count;
+                qualifier->m_NumDeviceModels = device_models_count;
+                qualifier->m_DeviceModels = new char*[device_models_count];
+                for (uint32_t d = 0; d < device_models_count; ++d)
+                {
+                    qualifier->m_DeviceModels[d] = strdup(sq.m_DeviceModels.m_Data[d]);
+                }
                 ++qualifier;
             }
         }
@@ -108,8 +112,32 @@ namespace dmRender
         return width > height ? 0 : 1;
     }
 
+    bool DeviceModelMatch(DisplayProfiles::Qualifier *qualifier, dmSys::SystemInfo *sys_info)
+    {
+        uint32_t device_models_count = qualifier->m_NumDeviceModels;
+        size_t sys_device_model_len = strlen(sys_info->m_DeviceModel);
+        
+        for (uint32_t d = 0; d < device_models_count; ++d)
+        {
+            const char* device_model = qualifier->m_DeviceModels[d];
+            size_t q_device_model_len = strlen(device_model);
+
+            if (q_device_model_len <= sys_device_model_len)
+            {
+                if (strncmp(device_model, sys_info->m_DeviceModel, q_device_model_len) == 0) // match
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     dmhash_t GetOptimalDisplayProfile(HDisplayProfiles profiles, uint32_t width, uint32_t height, uint32_t dpi, const dmArray<dmhash_t>* id_choices)
     {
+        dmSys::SystemInfo sys_info;
+        dmSys::GetSystemInfo(&sys_info);
         float width_f = (float) width;
         float height_f = (float) height;
         float match_area = width_f * height_f;
@@ -136,6 +164,13 @@ namespace dmRender
             for(uint32_t q = 0; q < profile.m_QualifierCount; ++q)
             {
                 DisplayProfiles::Qualifier& qualifier = profile.m_Qualifiers[q];
+
+                bool device_model_match = (qualifier.m_NumDeviceModels == 0) ? true : DeviceModelMatch(&qualifier, &sys_info);
+
+                if (!device_model_match)
+                {
+                    continue;
+                }
 
                 int category = IsPortrait(qualifier.m_Width, qualifier.m_Height);
                 float area = qualifier.m_Width * qualifier.m_Height;

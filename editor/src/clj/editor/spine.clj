@@ -838,8 +838,8 @@
 
   (property spine-json resource/Resource
             (value (gu/passthrough spine-json-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :spine-json-resource]
                                             [:content :spine-scene]
                                             [:consumer-passthrough :scene-structure]
@@ -850,8 +850,8 @@
 
   (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :atlas-resource]
                                             [:anim-data :anim-data]
                                             [:gpu-texture :gpu-texture]
@@ -960,8 +960,8 @@
 
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :spine-scene-resource]
                                             [:scene :spine-scene-scene]
                                             [:spine-anim-ids :spine-anim-ids]
@@ -978,8 +978,8 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]

@@ -238,8 +238,8 @@
     
   (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :font-resource]
                                             [:gpu-texture :gpu-texture]
                                             [:font-map :font-map]
@@ -253,8 +253,8 @@
                                   :ext ["font"]})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]

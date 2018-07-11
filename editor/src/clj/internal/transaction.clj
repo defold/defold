@@ -396,7 +396,8 @@
 
 (defn- call-setter-fn [ctx property setter-fn basis node-id old-value new-value]
   (try
-    (let [setter-actions (setter-fn (in/custom-evaluation-context {:basis basis}) node-id old-value new-value)]
+    (let [tx-data-context (:tx-data-context ctx)
+          setter-actions (setter-fn (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context}) node-id old-value new-value)]
       (when *tx-debug*
         (println (txerrstr ctx "setter actions" (seq setter-actions))))
       setter-actions)
@@ -652,6 +653,7 @@
    :node-id-generators node-id-generators
    :completed           []
    :txid                (new-txid)
+   :tx-data-context     (atom {})
    :deferred-setters    []})
 
 (defn- update-successors

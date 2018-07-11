@@ -136,8 +136,8 @@
 
   (property image resource/Resource
             (value (gu/passthrough image-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :image-resource]
                                             [:size :image-size])))
             (dynamic visible (g/constantly false)))

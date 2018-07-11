@@ -489,8 +489,8 @@
   (property tile-source resource/Resource
             (dynamic label (g/constantly "Image"))
             (value (gu/passthrough tile-source-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:texture-set :texture-set]
@@ -513,8 +513,8 @@
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
