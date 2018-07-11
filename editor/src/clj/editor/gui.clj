@@ -2746,7 +2746,7 @@
                     :command :set-gui-layout
                     :user-data l}))))))
 
-(ui/extend-menu :toolbar :scale
+(ui/extend-menu :toolbar :visibility-settings
                 [{:label :separator}
                  {:icon layout-icon
                   :command :set-gui-layout
