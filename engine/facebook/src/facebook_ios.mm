@@ -475,7 +475,7 @@ static void UpdateUserData()
 static void DoLogin()
 {
     NSMutableArray *permissions = [[NSMutableArray alloc] initWithObjects: @"public_profile", @"email", @"user_friends", nil];
-    [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+    [g_Facebook.m_Login logInWithReadPermissions: permissions fromViewController:nil handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
         if (error) {
             RunStateCallback(g_Facebook.m_MainThread, dmFacebook::STATE_CLOSED_LOGIN_FAILED, error);
         } else if (result.isCancelled) {
@@ -637,7 +637,7 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
     }
 
     @try {
-        [g_Facebook.m_Login logInWithReadPermissions: ns_permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error)
+        [g_Facebook.m_Login logInWithReadPermissions: ns_permissions fromViewController:nil handler:^(FBSDKLoginManagerLoginResult *result, NSError *error)
         {
             PrepareCallback(thread, result, error);
         }];
@@ -715,7 +715,7 @@ void PlatformFacebookLoginWithPublishPermissions(lua_State* L, const char** perm
 
     @try {
         [g_Facebook.m_Login setDefaultAudience: convertDefaultAudience(audience)];
-        [g_Facebook.m_Login logInWithPublishPermissions: ns_permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+        [g_Facebook.m_Login logInWithPublishPermissions: ns_permissions fromViewController:nil handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
             PrepareCallback(thread, result, error);
         }];
     } @catch (NSException* exception) {
@@ -803,7 +803,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
     AppendArray(L, permissions, 1);
 
     @try {
-        [g_Facebook.m_Login logInWithReadPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+        [g_Facebook.m_Login logInWithReadPermissions: permissions fromViewController:nil handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
             RunCallback(main_thread, error);
         }];
     } @catch (NSException* exception) {
@@ -842,7 +842,7 @@ int Facebook_RequestPublishPermissions(lua_State* L)
 
     @try {
         [g_Facebook.m_Login setDefaultAudience: audience];
-        [g_Facebook.m_Login logInWithPublishPermissions: permissions handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
+        [g_Facebook.m_Login logInWithPublishPermissions: permissions fromViewController:nil handler:^(FBSDKLoginManagerLoginResult *result, NSError *error) {
             RunCallback(main_thread, error);
         }];
     } @catch (NSException* exception) {
@@ -1227,7 +1227,14 @@ int Facebook_ShowDialog(lua_State* L)
         content.appLinkURL               = [NSURL URLWithString:GetTableValue(L, 2, @[@"url"], LUA_TSTRING)];
         content.appInvitePreviewImageURL = [NSURL URLWithString:GetTableValue(L, 2, @[@"preview_image_url"], LUA_TSTRING)];
 
-        [FBSDKAppInviteDialog showWithContent:content delegate:g_Facebook.m_Delegate];
+        @try {
+            [FBSDKAppInviteDialog showFromViewController:nil withContent:content delegate:g_Facebook.m_Delegate];
+        } @catch (NSException* exception) {
+            NSString* errorMessage = [NSString stringWithFormat:@"App invites deprecated: %@", exception.reason];
+            NSMutableDictionary* errorDetail = [NSMutableDictionary dictionary];
+            [errorDetail setValue:errorMessage forKey:NSLocalizedDescriptionKey];
+            RunCallback(L, [NSError errorWithDomain:@"facebook" code:0 userInfo:errorDetail]);
+        }
 
     } else if (dialog == dmHashString64("apprequests") || dialog == dmHashString64("apprequest")) {
 
