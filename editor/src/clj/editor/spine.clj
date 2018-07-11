@@ -836,7 +836,7 @@
                :children [{:aabb aabb
                            :node-id _node-id
                            :renderable {:render-fn render-spine-skeletons
-                                        :tags #{:spine :outline}
+                                        :tags #{:spine :skeleton :outline}
                                         :batch-key gpu-texture
                                         :user-data {:scene-structure scene-structure}
                                         :passes [pass/transparent]}}
