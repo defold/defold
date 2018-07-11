@@ -35,10 +35,11 @@
       [hbox update])))
 
 (def ^:private tag-toggles-info
-  [{:label "GUI Elements" :tag :gui}
+  [{:label "Collision Shapes" :tag :collision-shape}
+   {:label "GUI Elements" :tag :gui}
    {:label "Models" :tag :model}
    {:label "Particle Effects" :tag :particlefx}
-   {:label "Physics" :tag :collision-shape}
+   {:label "Skeletons" :tag :skeleton}
    {:label "Spine Scenes" :tag :spine}
    {:label "Sprites" :tag :sprite}
    {:label "Text" :tag :label}
