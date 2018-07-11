@@ -5,7 +5,7 @@
             [support.test-support :refer [with-clean-system spit-until-new-mtime]]
             [integration.test-util :as test-util]
             [editor.fs :as fs]
-            [editor.game-project :as gp]
+            [editor.resource :as resource]
             [editor.workspace :as workspace]
             [editor.defold-project :as project]
             [service.log :as log])
@@ -13,10 +13,13 @@
 
 (def ^:dynamic ^String *project-path*)
 
-(defn- create-test-project []
-  (alter-var-root #'*project-path* (fn [_] (-> (fs/create-temp-directory! "foo")
-                                               (.getAbsolutePath))))
-  (fs/copy-directory! (io/file "test/resources/reload_project") (io/file *project-path*)))
+(defn- create-test-project
+  ([]
+   (create-test-project "test/resources/reload_project"))
+  ([project-path]
+   (alter-var-root #'*project-path* (fn [_] (-> (fs/create-temp-directory! "foo")
+                                                (.getAbsolutePath))))
+   (fs/copy-directory! (io/file project-path) (io/file *project-path*))))
 
 (defn- load-test-project [ws-graph]
   (let [workspace (test-util/setup-workspace! ws-graph *project-path*)
@@ -52,6 +55,21 @@
       (testing "Settings loaded"
         (let [settings (g/node-value project :settings)]
           (is (= "Side-scroller" (title settings))))))))
+
+(deftest load-incomplete-project
+  (testing "Missing ResourceNodes are shared among all references to it."
+    (with-clean-system
+      (create-test-project "test/resources/missing_project")
+      ;; Create multiple references to the non-existent resources.
+      (doseq [path ["missing_collection.collection" ; references "/non-existent.collection"
+                    "missing_component.go"          ; references "/non-existent.script"
+                    "missing_go.collection"]]       ; references "/non-existent.go"
+        (copy-file path (str "duplicate_" path)))
+      (let [project (second (log/without-logging (load-test-project world)))
+            num-nodes-by-proj-path (frequencies (map resource/proj-path (test-util/project-node-resources project)))]
+        (is (= 1 (num-nodes-by-proj-path "/non-existent.collection")))
+        (is (= 1 (num-nodes-by-proj-path "/non-existent.script")))
+        (is (= 1 (num-nodes-by-proj-path "/non-existent.go")))))))
 
 (deftest load-broken-project
   (with-clean-system

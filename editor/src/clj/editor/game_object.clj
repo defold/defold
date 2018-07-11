@@ -260,10 +260,11 @@
                            resource-type (and new-resource (resource/resource-type new-resource))
                            override? (contains? (:tags resource-type) :overridable-properties)]
                        (if override?
-                         (let [project (project/get-project self)]
-                           (project/connect-resource-node project new-resource self []
+                         (let [basis (:basis evaluation-context)
+                               project (project/get-project basis self)]
+                           (project/connect-resource-node evaluation-context project new-resource self []
                                                           (fn [comp-node]
-                                                            (let [override (g/override (:basis evaluation-context) comp-node {:traverse? (constantly true)})
+                                                            (let [override (g/override basis comp-node {:traverse? (constantly true)})
                                                                   id-mapping (:id-mapping override)
                                                                   or-node (get id-mapping comp-node)
                                                                   comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
@@ -283,7 +284,7 @@
                                                                         override-type (script/go-prop-type->property-types type)]
                                                                     (when (= original-type override-type)
                                                                       (g/set-property or-node label value)))))))))
-                         (project/resource-setter self (:resource old-value) (:resource new-value)
+                         (project/resource-setter evaluation-context self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
                                                   [:scene :scene]
@@ -456,25 +457,24 @@
 
 (defn- add-embedded-component [self project type data id {:keys [position rotation scale]} select-fn]
   (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project type data)]
-    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]]
-      (g/connect comp-node :_node-id self :nodes)
-      (if select-fn
-        (select-fn [comp-node])
-        [])
-      (let [tx-data (project/make-resource-node graph project resource true {comp-node [[:_node-id :embedded-resource-id]
-                                                                                        [:resource :source-resource]
-                                                                                        [:_properties :source-properties]
-                                                                                        [:node-outline :source-outline]
-                                                                                        [:save-data :save-data]
-                                                                                        [:scene :scene]
-                                                                                        [:build-targets :source-build-targets]]
-                                                                             self [[:_node-id :nodes]]})]
-        (concat
-          tx-data
-          (if (empty? tx-data)
-            []
-            (attach-embedded-component self comp-node)))))))
+        resource (project/make-embedded-resource project type data)
+        node-type (project/resource-node-type resource)]
+    (g/make-nodes graph [comp-node [EmbeddedComponent :id id :position position :rotation rotation :scale scale]
+                         resource-node [node-type :resource resource]]
+                  (g/connect resource-node :_node-id self :nodes)
+                  (g/connect comp-node :_node-id self :nodes)
+                  (project/load-node project resource-node node-type resource)
+                  (project/connect-if-output node-type resource-node comp-node
+                                             [[:_node-id :embedded-resource-id]
+                                              [:resource :source-resource]
+                                              [:_properties :source-properties]
+                                              [:node-outline :source-outline]
+                                              [:save-data :save-data]
+                                              [:scene :scene]
+                                              [:build-targets :source-build-targets]])
+                  (attach-embedded-component self comp-node)
+                  (when select-fn
+                    (select-fn [comp-node])))))
 
 (defn add-embedded-component-handler [user-data select-fn]
   (let [self (:_node-id user-data)
