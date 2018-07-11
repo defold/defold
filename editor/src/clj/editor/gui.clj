@@ -1017,14 +1017,14 @@
                             {:resource template-resource :overrides overrides})))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         project (project/get-project self)
+                         project (project/get-project basis self)
                          current-scene (g/node-feeding-into basis self :template-resource)]
                      (concat
                        (if current-scene
                          (g/delete-node current-scene)
                          [])
                        (if (and new-value (:resource new-value))
-                         (project/connect-resource-node project (:resource new-value) self []
+                         (project/connect-resource-node evaluation-context project (:resource new-value) self []
                                                         (fn [scene-node]
                                                           (let [properties-by-node-id (comp (or (:overrides new-value) {})
                                                                                         (into {} (map (fn [[k v]] [v k]))
@@ -1309,16 +1309,6 @@
   (when (references-gui-resource? evaluation-context node-id :particlefx old-name)
     (g/set-property node-id :particlefx new-name)))
 
-(g/defnode ImageTextureNode
-  (input image BufferedImage)
-  (input image-size g/Any)
-  (output gpu-texture g/Any :cached (g/fnk [_node-id image] (texture/image-texture _node-id image)))
-  (output anim-data g/Any (g/fnk [image-size]
-                            {nil (assoc image-size
-                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
-                                   :uv-transforms [(TextureSetGenerator$UVTransform.)])})))
-
-;; NOTE: ImageTextureNode above is a source of image data.
 ;; This InternalTextureNode is a drop-in replacement for TextureNode below.
 ;; It can be used in place of TextureNode when you already have a gpu-texture.
 (g/defnode InternalTextureNode
@@ -1369,8 +1359,8 @@
             (set (partial update-gui-resource-references :texture)))
   (property texture resource/Resource
             (value (gu/passthrough texture-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :texture-resource]
                                             [:gpu-texture :gpu-texture]
                                             [:anim-data :anim-data]
@@ -1388,7 +1378,6 @@
   (input gpu-texture g/Any :substitute nil)
   (input anim-data g/Any :substitute (constantly nil))
   (input anim-ids g/Any :substitute (constantly []))
-  (input image-texture g/NodeID :cascade-delete)
   (input samplers [g/KeywordMap] :substitute (constantly []))
 
   (input dep-build-targets g/Any)
@@ -1418,13 +1407,13 @@
             (set (partial update-gui-resource-references :font)))
   (property font resource/Resource
             (value (gu/passthrough font-resource))
-            (set (fn [_evaluation-context self old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
-                    self old-value new-value
-                    [:resource :font-resource]
-                    [:font-data :font-data]
-                    [:material-shader :font-shader]
-                    [:build-targets :dep-build-targets])))
+                     evaluation-context self old-value new-value
+                     [:resource :font-resource]
+                     [:font-data :font-data]
+                     [:material-shader :font-shader]
+                     [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id font]
                                   (prop-resource-error _node-id :font font "Font")))
             (dynamic edit-type (g/constantly
@@ -1514,9 +1503,9 @@
             (set (partial update-gui-resource-references :spine-scene)))
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
-            (set (fn [_evaluation-context self old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
-                     self old-value new-value
+                     evaluation-context self old-value new-value
                      [:resource :spine-scene-resource]
                      [:build-targets :dep-build-targets]
                      [:spine-anim-ids :spine-anim-ids]
@@ -1562,9 +1551,9 @@
             (set (partial update-gui-resource-references :particlefx)))
   (property particlefx resource/Resource
             (value (gu/passthrough particlefx-resource))
-            (set (fn [_evaluation-context self old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
-                     self old-value new-value
+                     evaluation-context self old-value new-value
                      [:resource :particlefx-resource]
                      [:build-targets :dep-build-targets]
                      [:scene :particlefx-scene])))
@@ -1949,11 +1938,11 @@
 
   (property script resource/Resource
             (value (gu/passthrough script-resource))
-            (set (fn [_evaluation-context self old-value new-value]
+            (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter
-                    self old-value new-value
-                    [:resource :script-resource]
-                    [:build-targets :dep-build-targets])))
+                     evaluation-context self old-value new-value
+                     [:resource :script-resource]
+                     [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id script]
                              (when script
                                (prop-resource-error _node-id :script script "Script"))))
@@ -1963,13 +1952,13 @@
 
   (property material resource/Resource
     (value (gu/passthrough material-resource))
-    (set (fn [_evaluation-context self old-value new-value]
+    (set (fn [evaluation-context self old-value new-value]
            (project/resource-setter
-            self old-value new-value
-            [:resource :material-resource]
-            [:shader :material-shader]
-            [:samplers :samplers]
-            [:build-targets :dep-build-targets])))
+             evaluation-context self old-value new-value
+             [:resource :material-resource]
+             [:shader :material-shader]
+             [:samplers :samplers]
+             [:build-targets :dep-build-targets])))
     (dynamic error (g/fnk [_node-id material]
                           (prop-resource-error _node-id :material material "Material")))
     (dynamic edit-type (g/constantly
@@ -2488,28 +2477,10 @@
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
                     (attach-texture self textures-node no-texture true)
-                    (for [texture-desc (:textures scene)]
-                      (let [resource (workspace/resolve-resource resource (:texture texture-desc))
-                            outputs (some-> resource
-                                            resource/resource-type
-                                            :node-type
-                                            g/output-labels)]
-                        ;; Messy because we need to deal with legacy standalone image files
-                        (if (or (nil? resource) ;; i.e. :texture field not set
-                                (outputs :anim-data))
-                          ;; TODO: have no tests for this
-                          (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
-                                        (attach-texture self textures-node texture))
-                          (g/make-nodes graph-id [img-texture [ImageTextureNode]
-                                                  texture [TextureNode :name (:name texture-desc)]]
-                                        (g/connect img-texture :_node-id texture :image-texture)
-                                        (g/connect img-texture :gpu-texture texture :gpu-texture)
-                                        (g/connect img-texture :anim-data texture :anim-data)
-                                        (project/connect-resource-node project resource img-texture [[:content :image]
-                                                                                                     [:size :image-size]])
-                                        (project/connect-resource-node project resource texture [[:resource :texture-resource]
-                                                                                                 [:build-targets :dep-build-targets]])
-                                        (attach-texture self textures-node texture))))))
+                    (for [texture-desc (:textures scene)
+                          :let [resource (workspace/resolve-resource resource (:texture texture-desc))]]
+                      (g/make-nodes graph-id [texture [TextureNode :name (:name texture-desc) :texture resource]]
+                                    (attach-texture self textures-node texture))))
       (g/make-nodes graph-id [spine-scenes-node SpineScenesNode
                               no-spine-scene [SpineSceneNode
                                               :name ""]]

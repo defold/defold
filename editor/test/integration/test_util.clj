@@ -123,6 +123,11 @@
      (g/reset-undo! proj-graph)
      project)))
 
+(defn project-node-resources [project]
+  (g/with-auto-evaluation-context evaluation-context
+    (sort-by resource/proj-path
+             (map (comp #(g/node-value % :resource evaluation-context) first)
+                  (g/sources-of project :node-id+resources)))))
 
 (defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
   resource/Resource
