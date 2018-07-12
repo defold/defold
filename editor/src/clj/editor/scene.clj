@@ -19,6 +19,7 @@
             [editor.scene-cache :as scene-cache]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
+            [editor.scene-visibility :as scene-visibility]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.handler :as handler]
@@ -266,25 +267,25 @@
     (if-let [renderable (first renderables)]
       (let [first-key (key-fn renderable)
             first-render-fn (:render-fn renderable)
-            count (loop [renderables (rest renderables)
-                         count 1]
-                    (let [renderable (first renderables)
-                          key (key-fn renderable)
-                          render-fn (:render-fn renderable)
-                          break? (or (not= first-render-fn render-fn)
-                                     (nil? first-key)
-                                     (nil? key)
-                                     (not= first-key key))]
-                      (if break?
-                        count
-                        (recur (rest renderables) (inc count)))))]
-        (when (> count 0)
+            batch-count (loop [renderables (rest renderables)
+                               batch-count 1]
+                          (let [renderable (first renderables)
+                                key (key-fn renderable)
+                                render-fn (:render-fn renderable)
+                                break? (or (not= first-render-fn render-fn)
+                                           (nil? first-key)
+                                           (nil? key)
+                                           (not= first-key key))]
+                            (if break?
+                              batch-count
+                              (recur (rest renderables) (inc batch-count)))))]
+        (when (> batch-count 0)
           (let [gl-name (if gl-names? batch-index nil)
-                batch (subvec renderables 0 count)]
-            (render-nodes gl render-args batch count gl-name))
-          (let [end (+ offset count)]
+                batch (subvec renderables 0 batch-count)]
+            (render-nodes gl render-args batch batch-count gl-name))
+          (let [end (+ offset batch-count)]
             ;; TODO - long conversion should not be necessary?
-            (recur (subvec renderables count) (long end) (inc batch-index) (conj! batches [offset end])))))
+            (recur (subvec renderables batch-count) (long end) (inc batch-index) (conj! batches [offset end])))))
       (persistent! batches))))
 
 (defn- render-sort [renderables]
@@ -346,7 +347,13 @@
           pass-renderables
           passes))
 
-(defn- flatten-scene-renderables! [pass-renderables scene selection-set view-proj node-path ^Quat4d parent-world-rotation ^Matrix4d parent-world-transform]
+(defn- effective-renderable-tags [flat-renderable]
+  (cond-> (:tags flat-renderable)
+    ;; if the renderable is selected, we don't want to filter out its outline
+    (:selected flat-renderable)
+    (disj :outline)))
+
+(defn- flatten-scene-renderables! [pass-renderables scene selection-set hidden-renderable-tags view-proj node-path ^Quat4d parent-world-rotation ^Matrix4d parent-world-transform]
   (let [renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
@@ -358,6 +365,7 @@
                             (dissoc :children :renderable)
                             (assoc :node-path node-path
                                    :picking-id (or (:picking-id scene) (peek node-path))
+                                   :tags (:tags renderable)
                                    :render-fn (:render-fn renderable)
                                    :world-rotation world-rotation
                                    :world-transform world-transform
@@ -368,18 +376,20 @@
                                    :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
-        pass-renderables (update-pass-renderables! pass-renderables (-> scene :renderable :passes) flat-renderable)]
+        pass-renderables (if (empty? (set/intersection hidden-renderable-tags (effective-renderable-tags flat-renderable)))
+                           (update-pass-renderables! pass-renderables (-> scene :renderable :passes) flat-renderable)
+                           pass-renderables)]
     (reduce (fn [pass-renderables child-scene]
-              (flatten-scene-renderables! pass-renderables child-scene selection-set view-proj (conj node-path (:node-id child-scene)) world-rotation world-transform))
+              (flatten-scene-renderables! pass-renderables child-scene selection-set hidden-renderable-tags view-proj (conj node-path (:node-id child-scene)) world-rotation world-transform))
             pass-renderables
             (:children scene))))
 
-(defn- flatten-scene [scene selection-set view-proj]
+(defn- flatten-scene [scene selection-set hidden-renderable-tags view-proj]
   (let [node-path []
         parent-world-rotation geom/NoRotation
         parent-world-transform geom/Identity4d]
     (-> (make-pass-renderables)
-        (flatten-scene-renderables! scene selection-set view-proj node-path parent-world-rotation parent-world-transform)
+        (flatten-scene-renderables! scene selection-set hidden-renderable-tags view-proj node-path parent-world-rotation parent-world-transform)
         (persist-pass-renderables!))))
 
 (defn- get-selection-pass-renderables-by-node-id
@@ -396,14 +406,19 @@
                              renderables))))
         renderables-by-pass))
 
-(defn produce-render-data [scene selection aux-renderables camera]
+(defn produce-render-data [scene selection aux-renderables hidden-renderable-tags camera]
+  ;; public defn because used from tests
   (let [selection-set (set selection)
         view-proj (c/camera-view-proj-matrix camera)
-        scene-renderables-by-pass (flatten-scene scene selection-set view-proj)
+        scene-renderables-by-pass (flatten-scene scene selection-set hidden-renderable-tags view-proj)
         selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id scene-renderables-by-pass)
         selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)
         aux-renderables-by-pass (apply merge-with concat aux-renderables)
-        all-renderables-by-pass (merge-with into scene-renderables-by-pass aux-renderables-by-pass)
+        filtered-aux-renderables-by-pass (into {}
+                                               (map (fn [[pass renderables]]
+                                                      [pass (remove #(not-empty (set/intersection hidden-renderable-tags (:tags %))) renderables)]))
+                                               aux-renderables-by-pass)
+        all-renderables-by-pass (merge-with into scene-renderables-by-pass filtered-aux-renderables-by-pass)
         sorted-renderables-by-pass (into {} (map (fn [[pass renderables]] [pass (vec (render-sort renderables))]) all-renderables-by-pass))]
     {:renderables sorted-renderables-by-pass
      :selected-renderables selected-renderables}))
@@ -423,10 +438,11 @@
   (input selection g/Any)
   (input camera Camera)
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
+  (input hidden-renderable-tags g/Any)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
-  (output render-data g/Any :cached (g/fnk [scene selection aux-renderables camera] (produce-render-data scene selection aux-renderables camera)))
+  (output render-data g/Any :cached (g/fnk [scene selection aux-renderables hidden-renderable-tags camera] (produce-render-data scene selection aux-renderables hidden-renderable-tags camera)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:renderables render-data)))
   (output selected-renderables g/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
   (output selected-aabb AABB :cached (g/fnk [selected-renderables scene] (if (empty? selected-renderables)
@@ -669,6 +685,18 @@
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
+(handler/defhandler :toggle-visibility-filters :global
+  (active? [app-view] (active-scene-view app-view))
+  (run [app-view] (scene-visibility/toggle-filters-enabled! app-view)))
+
+(handler/defhandler :toggle-component-guides :global
+  (active? [app-view] (active-scene-view app-view))
+  (run [app-view] (scene-visibility/toggle-tag-visibility! app-view :outline)))
+
+(handler/defhandler :toggle-grid :global
+  (active? [app-view] (active-scene-view app-view))
+  (run [app-view] (scene-visibility/toggle-tag-visibility! app-view :grid)))
+
 (handler/defhandler :scene-play :global
   (active? [app-view] (when-let [view (active-scene-view app-view)]
                         (seq (g/node-value view :updatables))))
@@ -769,7 +797,14 @@
                   :check true}])
 
 (ui/extend-menu ::menubar :editor.app-view/view-end
-                [{:label "Play"
+                [{:label "Toggle Visibility Filters"
+                  :command :toggle-visibility-filters}
+                 {:label "Toggle Component Guides"
+                  :command :toggle-component-guides}
+                 {:label "Toggle Grid"
+                  :command :toggle-grid}
+                 {:label :separator}
+                 {:label "Play"
                   :command :scene-play}
                  {:label "Stop"
                   :command :scene-stop}
@@ -998,6 +1033,8 @@
   (input input-handlers Runnable :array)
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
+
+  (input hidden-renderable-tags g/Any)
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input picking-rect Rect)
@@ -1073,6 +1110,7 @@
                     (g/connect app-view-id          :active-view               view-id          :active-view)
                     (g/connect app-view-id          :active-tool               view-id          :active-tool)
                     (g/connect app-view-id          :manip-space               view-id          :manip-space)
+                    (g/connect app-view-id          :effective-hidden-renderable-tags view-id   :hidden-renderable-tags)
 
                     (g/connect tool-controller      :input-handler             view-id          :input-handlers)
                     (g/connect tool-controller      :renderables               view-id          :tool-renderables)

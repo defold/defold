@@ -118,12 +118,6 @@
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount)
           (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))))
 
-(defn render-labels [^GL2 gl render-args renderables rcount]
-  (let [pass (:pass render-args)]
-    (if (= pass pass/outline)
-      (render-lines gl render-args renderables rcount)
-      (render-tris gl render-args renderables rcount))))
-
 ; Node defs
 
 (defn- pivot->h-align [pivot]
@@ -184,7 +178,8 @@
             [w h _] size
             offset (pivot-offset pivot size)
             lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
-        (assoc scene :renderable {:render-fn render-labels
+        (assoc scene :renderable {:render-fn render-tris
+                                  :tags #{:label}
                                   :batch-key {:blend-mode blend-mode :gpu-texture gpu-texture :material-shader material-shader}
                                   :select-batch-key _node-id
                                   :user-data {:material-shader material-shader
@@ -192,7 +187,13 @@
                                               :gpu-texture gpu-texture
                                               :line-data lines
                                               :text-data text-data}
-                                  :passes [pass/transparent pass/selection pass/outline]}))
+                                  :passes [pass/transparent pass/selection]}
+               :children [{:node-id _node-id
+                           :renderable {:render-fn render-lines
+                                        :tags #{:label :outline}
+                                        :batch-key ::outline
+                                        :user-data {:line-data lines}
+                                        :passes [pass/outline]}}]))
       scene)))
 
 (defn- build-label [resource dep-resources user-data]
