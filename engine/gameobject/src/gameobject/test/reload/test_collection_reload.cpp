@@ -124,7 +124,7 @@ public:
 
     Stats m_Stats;
     void* m_NewResource;
-    ReloadTargetWorld* m_Worlds[2]; // Before and after reload
+    ReloadTargetWorld* m_Worlds[3]; // Before and after reload
     int m_NumWorlds;
 
     dmScript::HContext m_ScriptContext;
