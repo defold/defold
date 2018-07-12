@@ -1,8 +1,9 @@
 /*
- * Styling of toolbar that changes mouse action in scene editor.
+ * Styling of toolbar in scene editor.
  */
 #toolbar * {
-    -fx-focus-traversable: false; }
+    -fx-focus-traversable: false;
+}
 
 #toolbar {
     -fx-background-color: $scene-toolbar-background;
@@ -30,14 +31,54 @@
         &:hover {
             .image-view {
                 -fx-effect: innershadow(gaussian, $scene-toolbar-button-hovered-foreground, 20, 0.3, 0, 0) !important;
-            } 
+            }
         }
         &:selected {
             -fx-background-color: $scene-toolbar-button-selected-background;
             .image-view {
                 -fx-effect: innershadow(gaussian, $scene-toolbar-button-selected-foreground, 20, 0.3, 0, 0) !important;
-            } 
+            }
         }
+    }
+
+    #show-visibility-settings {
+        #eye-icon {
+            -fx-translate-y: 1px;
+        }
+
+        #active-indicator {
+            visibility: hidden;
+            -fx-fill: $defold-orange;
+            -fx-stroke: $scene-toolbar-background;
+            -fx-stroke-width: 1px;
+            -fx-translate-x: 3.5px;
+            -fx-translate-y: -5px;
+        }
+
+        &:selected #active-indicator {
+            -fx-stroke: $scene-toolbar-button-selected-background;
+        }
+
+        &.filters-active #active-indicator {
+            visibility: visible;
+        }
+    }
+
+    .visibility-toggles-list {
+        -fx-background-color: $scene-toolbar-background;
+        -fx-padding: 0px 0px 7px 0px;
+        > .first-entry {
+            -fx-padding: 10px 8px 10px 8px;
+            -fx-background-color: #4d4f54;
+        }
+
+        > HBox {
+            -fx-padding: 3px 8px 3px 8px;
+        }
+    }
+
+    SVGPath {
+        -fx-fill: $defold-white;
     }
 
     .separator {
