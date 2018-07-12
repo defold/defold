@@ -331,6 +331,7 @@
 (g/defnk produce-sphere-shape-scene
   [_node-id transform diameter color]
   {:node-id _node-id
+   :node-key (shape-type-label :type-sphere)
    :transform transform
    :aabb (let [d (* 0.5 diameter)]
            (-> (geom/null-aabb)
@@ -347,6 +348,7 @@
   [_node-id transform dimensions color]
   (let [[w h d] dimensions]
     {:node-id _node-id
+     :node-key (shape-type-label :type-box)
      :transform transform
      :aabb (let [ext-x (* 0.5 w)
                  ext-y (* 0.5 h)
@@ -365,6 +367,7 @@
 (g/defnk produce-capsule-shape-scene
   [_node-id transform diameter height color]
   {:node-id _node-id
+   :node-key (shape-type-label :type-capsule)
    :transform transform
    :aabb (let [r (* 0.5 diameter)
                ext-y (+ (* 0.5 height) r)]
