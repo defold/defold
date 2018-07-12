@@ -101,6 +101,7 @@
    ["Shift+Shortcut+E"      :replace-next]
    ["Shift+Shortcut+F"      :search-in-files]
    ["Shift+Shortcut+G"      :find-prev]
+   ["Shift+Shortcut+I"      :toggle-visibility-filters]   
    ["Shift+Shortcut+Home"   :select-beginning-of-file]
    ["Shift+Shortcut+L"      :split-selection-into-lines]
    ["Shift+Shortcut+Left"   :select-beginning-of-line-text]
@@ -202,6 +203,9 @@
 (defn- key-combo->map [s]
   (let [key-combo (KeyCombination/keyCombination s)]
     (key-combo->map* key-combo)))
+
+(defn key-combo->display-text [s]
+  (.getDisplayText (KeyCombination/keyCombination s)))
 
 (defn- convert-shortcut-key [platform-shortcut-key key-combo-data]
   (-> key-combo-data

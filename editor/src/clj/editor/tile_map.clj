@@ -205,6 +205,7 @@
       {:node-id _node-id
        :aabb aabb
        :renderable {:render-fn render-layer
+                    :tags #{:tilemap}
                     :user-data {:node-id _node-id
                                 :vbuf vbuf
                                 :gpu-texture gpu-texture
