@@ -531,11 +531,12 @@
 #_(defn- print-clipper-tree
     ([clipper-tree] (print-clipper-tree clipper-tree ""))
     ([clipper-tree prefix]
-     (let [{:keys [id clear max-successor-non-inverted-allocated-bits path ref-val mask child-ref-val child-mask]} clipper-tree]
+     (let [{:keys [id node-id clear max-successor-non-inverted-allocated-bits path ref-val mask child-ref-val child-mask]} clipper-tree]
        (println prefix :id id
                 (cond (inverted? clipper-tree) :inverted
                       (non-inverted? clipper-tree) :non-inverted
                       :else :not-a-clipper)
+                :node-id node-id
                 :clear clear
                 :bits-allocated max-successor-non-inverted-allocated-bits
                 :path path
