@@ -1085,15 +1085,15 @@ TYPED_TEST(PhysicsTest, TriggerRayCasting)
     (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
 }
 
+enum Groups
+{
+    GROUP_A = 1 << 0,
+    GROUP_B = 1 << 1
+};
+
 TYPED_TEST(PhysicsTest, FilteredRayCasting)
 {
     float box_half_ext = 0.5f;
-
-    enum Groups
-    {
-        GROUP_A = 1 << 0,
-        GROUP_B = 1 << 1
-    };
 
     VisualObject vo_a;
     dmPhysics::CollisionObjectData data_a;

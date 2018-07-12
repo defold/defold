@@ -99,8 +99,8 @@
 
   (property prototype resource/Resource
             (value (gu/passthrough prototype-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :prototype-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id prototype-resource]
