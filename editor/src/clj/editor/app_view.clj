@@ -629,7 +629,7 @@ If you do not specifically require different script states, consider changing th
                        (when-not (handle-bob-error! render-error! project result)
                          (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))
 
-(def ^:private unreloadable-resource-build-exts #{"collectionc" "tilemapc"})
+(def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view debug-view selection prefs]
