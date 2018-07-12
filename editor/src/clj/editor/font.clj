@@ -321,6 +321,7 @@
 
               (and (some? font-map) (not-empty preview-text))
               (assoc :renderable {:render-fn render-font
+                                  :tags #{:font}
                                   :batch-key gpu-texture
                                   :select-batch-key _node-id
                                   :user-data {:type type
