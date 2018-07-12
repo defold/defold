@@ -785,48 +785,67 @@
       (let [vb (render/->vtx-pos-col vcount)]
         (persistent! (reduce conj! vb vs))))))
 
-(defn render-spine-scenes [^GL2 gl render-args renderables rcount]
+(defn- render-spine-scenes [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
-    (cond
-      (= pass pass/outline)
-      (render/render-aabb-outline gl render-args ::spine-outline renderables rcount)
+    (condp = pass
+      pass/transparent
+      (when-let [vb (gen-vb renderables)]
+        (let [user-data (:user-data (first renderables))
+              blend-mode (:blend-mode user-data)
+              gpu-texture (:gpu-texture user-data)
+              shader (get user-data :shader render/shader-tex-tint)
+              vertex-binding (vtx/use-with ::spine-trans vb shader)]
+          (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+            (gl/set-blend-mode gl blend-mode)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
 
-      (= pass pass/transparent)
-      (do (when-let [vb (gen-vb renderables)]
-            (let [user-data (:user-data (first renderables))
-                  blend-mode (:blend-mode user-data)
-                  gpu-texture (:gpu-texture user-data)
-                  shader (get user-data :shader render/shader-tex-tint)
-                  vertex-binding (vtx/use-with ::spine-trans vb shader)]
-              (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
-                (gl/set-blend-mode gl blend-mode)
-                (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
-          (when-let [vb (gen-skeleton-vb renderables)]
-            (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
-              (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
-                (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
-
-      (= pass pass/selection)
+      pass/selection
       (when-let [vb (gen-vb renderables)]
         (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
+
+(defn- render-spine-skeletons [^GL2 gl render-args renderables rcount]
+  (assert (= (:pass render-args) pass/transparent))
+  (when-let [vb (gen-skeleton-vb renderables)]
+    (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
+      (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
+
+(defn- render-spine-outlines [^GL2 gl render-args renderables rcount]
+  (assert (= (:pass render-args) pass/outline))
+  (render/render-aabb-outline gl render-args ::spine-outline renderables rcount))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
                :aabb aabb}]
     (if (and gpu-texture scene-structure)
       (let [blend-mode :blend-mode-alpha]
-        (assoc scene :renderable {:render-fn render-spine-scenes
-                                  :batch-key gpu-texture
-                                  :select-batch-key _node-id
-                                  :user-data {:spine-scene-pb spine-scene-pb
-                                              :scene-structure scene-structure
-                                              :gpu-texture gpu-texture
-                                              :tex-params default-tex-params
-                                              :blend-mode blend-mode}
-                                  :passes [pass/transparent pass/selection pass/outline]}))
+        (assoc scene
+               :renderable {:render-fn render-spine-scenes
+                            :tags #{:spine}
+                            :batch-key gpu-texture
+                            :select-batch-key _node-id
+                            :user-data {:spine-scene-pb spine-scene-pb
+                                        :scene-structure scene-structure
+                                        :gpu-texture gpu-texture
+                                        :tex-params default-tex-params
+                                        :blend-mode blend-mode}
+                            :passes [pass/transparent pass/selection]}
+               :children [{:aabb aabb
+                           :node-id _node-id
+                           :renderable {:render-fn render-spine-skeletons
+                                        :tags #{:spine :skeleton :outline}
+                                        :batch-key gpu-texture
+                                        :user-data {:scene-structure scene-structure}
+                                        :passes [pass/transparent]}}
+                          {:aabb aabb
+                           :node-id _node-id
+                           :renderable {:render-fn render-spine-outlines
+                                        :tags #{:spine :outline}
+                                        :batch-key ::outline
+                                        :passes [pass/outline]}}]))
       scene)))
 
 (defn- mesh->aabb [aabb mesh]
