@@ -630,7 +630,7 @@ TEST_F(FBTest, JoinCStringArray_NullArray)
 
 TEST_F(FBTest, JoinCStringArray_NullBuffer)
 {
-    char* array[1] = { 0 };
+    const char* array[1] = { 0 };
 
     dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), NULL, 0, ",");
     // If it doesn't crash it works
@@ -638,10 +638,10 @@ TEST_F(FBTest, JoinCStringArray_NullBuffer)
 
 TEST_F(FBTest, JoinCStringArray_LargerBuffer)
 {
-    char* array[1] = { 0 };
+    const char* array[1] = { 0 };
     char buffer[9] = { 0 };
 
-    char* e1 = "one";
+    const char* e1 = "one";
     array[0] = e1;
 
     dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
@@ -650,12 +650,12 @@ TEST_F(FBTest, JoinCStringArray_LargerBuffer)
 
 TEST_F(FBTest, JoinCStringArray_SmallerBuffer)
 {
-    char* array[3] = { 0 };
+    const char* array[3] = { 0 };
     char buffer[6] = { 0 };
 
-    char* e1 = "one";
-    char* e2 = "two";
-    char* e3 = "three";
+    const char* e1 = "one";
+    const char* e2 = "two";
+    const char* e3 = "three";
 
     array[0] = e1;
     array[1] = e2;
@@ -667,10 +667,10 @@ TEST_F(FBTest, JoinCStringArray_SmallerBuffer)
 
 TEST_F(FBTest, JoinCStringArray_SingleElement)
 {
-    char* array[1] = { 0 };
+    const char* array[1] = { 0 };
     char buffer[4] = { 0 };
 
-    char* e1 = "one";
+    const char* e1 = "one";
     array[0] = e1;
 
     dmFacebook::JoinCStringArray((const char**) array, sizeof(array) / sizeof(array[0]), buffer, sizeof(buffer) / sizeof(buffer[0]), ",");
@@ -679,12 +679,12 @@ TEST_F(FBTest, JoinCStringArray_SingleElement)
 
 TEST_F(FBTest, JoinCStringArray_MultipleElement)
 {
-    char* array[3] = { 0 };
+    const char* array[3] = { 0 };
     char buffer[14] = { 0 };
 
-    char* e1 = "one";
-    char* e2 = "two";
-    char* e3 = "three";
+    const char* e1 = "one";
+    const char* e2 = "two";
+    const char* e3 = "three";
 
     array[0] = e1;
     array[1] = e2;

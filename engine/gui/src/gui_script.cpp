@@ -1006,7 +1006,7 @@ namespace dmGui
 
             curve.release_callback = LuaCurveRelease;
             curve.userdata1 = (void*)scene;
-            curve.userdata2 = (void*)dmScript::Ref(L, -2);
+            curve.userdata2 = (void*)(uintptr_t)dmScript::Ref(L, -2);
             lua_pop(L, 1);
         }
         else
@@ -1044,7 +1044,7 @@ namespace dmGui
         if (cbk == 0x0) {
             AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, 0, 0, 0);
         } else {
-            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, cbk, (void*) node_ref);
+            AnimateNodeHash(scene, hnode, property_hash, to, curve, playback, (float) duration, delay, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
         }
         return 0;
     }
@@ -1547,7 +1547,7 @@ namespace dmGui
             const char* anim_id = luaL_checkstring(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
@@ -1560,7 +1560,7 @@ namespace dmGui
             dmhash_t anim_id = dmScript::CheckHash(L, 2);
             Result r;
             if(cbk != 0x0)
-                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*) node_ref);
+                r = PlayNodeFlipbookAnim(scene, hnode, anim_id, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
             else
                 r = PlayNodeFlipbookAnim(scene, hnode, anim_id);
             if (r != RESULT_OK)
@@ -3514,7 +3514,7 @@ namespace dmGui
     }
 
     /*# gets the node screen position
-     * Returns the screen position of the supplied node. This function returns the 
+     * Returns the screen position of the supplied node. This function returns the
      * calculated transformed position of the node, taking into account any parent node
      * transforms.
      *
@@ -3573,11 +3573,11 @@ namespace dmGui
         dmGui::Result res;
         if (cbk == 0x0)
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*)(uintptr_t) node_ref);
         }
         else
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
         }
 
         if (res == RESULT_WRONG_TYPE)
@@ -3679,11 +3679,11 @@ namespace dmGui
         dmGui::Result res;
         if (cbk == 0x0)
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, 0, 0, (void*)(uintptr_t) node_ref);
         }
         else
         {
-            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*) node_ref);
+            res = dmGui::PlayNodeSpineAnim(scene, hnode, anim_id, (dmGui::Playback)playback, blend_duration, offset, playback_rate, &LuaAnimationComplete, cbk, (void*)(uintptr_t) node_ref);
         }
 
         if (res == RESULT_WRONG_TYPE)

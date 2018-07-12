@@ -209,6 +209,10 @@ def default_flags(self):
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fno-rtti','-fPIC', '-fvisibility=hidden'])
+
+            if Options.options.with_asan and "osx" == build_util.get_target_os():
+                self.env.append_value(f, ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
+
             # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
             # some tests after we switched to -02 optimisations. We should refine these tests so that they
             # don't rely on equal-compare floating point values, and/or verify that underlaying engine
@@ -232,6 +236,8 @@ def default_flags(self):
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
             self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon'])
+        if Options.options.with_asan:
+            self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer'])
     elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -1421,6 +1427,21 @@ def detect(conf):
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
 
+    # Since we're using an old waf version, we remove unused arguments
+    def remove_flag(arr, flag, nargs):
+        if not flag in arr:
+            return
+        index = arr.index(flag)
+        if index >= 0:
+            del arr[index]
+            for i in range(nargs):
+                del arr[index]
+
+    remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
+    remove_flag(conf.env['shlib_CCFLAGS'], '-current_version', 1)
+    remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
+    remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
+
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
     if 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         bin = os.environ.get('EMSCRIPTEN')
@@ -1525,3 +1546,4 @@ def set_options(opt):
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
+    opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')

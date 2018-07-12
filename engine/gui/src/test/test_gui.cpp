@@ -1586,7 +1586,7 @@ TEST_F(dmGuiTest, AnimateComplete)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     Point3 completed_position;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*)(uintptr_t) node, (void*)&completed_position);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -1625,7 +1625,7 @@ void MyPingPongComplete1(dmGui::HScene scene,
 {
     ++PingPongCount;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(scene, node, property, Vector4(0,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(0,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*)(uintptr_t) node, 0);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
@@ -1636,14 +1636,14 @@ void MyPingPongComplete2(dmGui::HScene scene,
 {
     ++PingPongCount;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*)(uintptr_t) node, 0);
 }
 
 TEST_F(dmGuiTest, PingPong)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*)(uintptr_t) node, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -5195,6 +5195,9 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
 
     ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
     dmGui::DeleteNode(m_Scene, node_pfx, false);
+    dmGui::DeleteNode(m_Scene, node_box, false);
+    dmGui::DeleteNode(m_Scene, node_pie, false);
+    dmGui::DeleteNode(m_Scene, node_text, false);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 60.0f));
     ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
     dmGui::FinalScene(m_Scene);
@@ -5309,17 +5312,17 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
- 
+
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
     ASSERT_EQ(3, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     ASSERT_EQ(4, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
@@ -5341,17 +5344,17 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
- 
+
     float dt = 0.1f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning
     ASSERT_EQ(2, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Still spawning, should not trigger callback
     ASSERT_EQ(2, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
@@ -5375,17 +5378,17 @@ TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(3, data->m_NumStateChanges);
- 
+
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
     ASSERT_EQ(9, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     ASSERT_EQ(12, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
