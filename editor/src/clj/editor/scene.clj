@@ -347,24 +347,19 @@
           pass-renderables
           passes))
 
-(defn- effective-renderable-tags [flat-renderable]
-  (cond-> (:tags flat-renderable)
-    ;; if the renderable is selected, we don't want to filter out its outline
-    (:selected flat-renderable)
-    (disj :outline)))
-
-(defn- flatten-scene-renderables! [pass-renderables scene selection-set hidden-renderable-tags view-proj node-path ^Quat4d parent-world-rotation ^Matrix4d parent-world-transform]
+(defn- flatten-scene-renderables! [pass-renderables scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj node-id-path node-key-path ^Quat4d parent-world-rotation ^Matrix4d parent-world-transform]
   (let [renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
         local-transform-unscaled (doto (Matrix4d. local-transform) (.setScale 1.0))
         local-rotation (doto (Quat4d.) (.set local-transform-unscaled))
         world-rotation (doto (Quat4d. parent-world-rotation) (.mul local-rotation))
-        appear-selected? (some? (some selection-set node-path)) ; Child nodes appear selected if parent is.
+        appear-selected? (some? (some selection-set node-id-path)) ; Child nodes appear selected if parent is.
         flat-renderable (-> scene
                             (dissoc :children :renderable)
-                            (assoc :node-path node-path
-                                   :picking-id (or (:picking-id scene) (peek node-path))
+                            (assoc :node-id-path node-id-path
+                                   :node-key-path node-key-path
+                                   :picking-id (or (:picking-id scene) (peek node-id-path))
                                    :tags (:tags renderable)
                                    :render-fn (:render-fn renderable)
                                    :world-rotation world-rotation
@@ -376,20 +371,46 @@
                                    :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
-        pass-renderables (if (empty? (set/intersection hidden-renderable-tags (effective-renderable-tags flat-renderable)))
-                           (update-pass-renderables! pass-renderables (-> scene :renderable :passes) flat-renderable)
-                           pass-renderables)]
+        visible? (and (not (contains? hidden-node-outline-key-paths node-key-path))
+                      (not-any? (partial contains? hidden-renderable-tags) (:tags flat-renderable)))
+        drawn-passes (cond
+                       ;; Draw to all passes unless hidden.
+                       visible?
+                       (:passes renderable)
+
+                       ;; For selected objects, we always draw the outline and
+                       ;; selection passes. This way, the visual part is hidden,
+                       ;; but the selection highlight and hit test remains until
+                       ;; the object is deselected. If we do not render the
+                       ;; selection pass, objects can be deselected by clicking
+                       ;; within their outlines, and more importantly, the
+                       ;; manipulator disappears, since it aligns to selection
+                       ;; pass renderables.
+                       appear-selected?
+                       (filterv #(or (= pass/outline %)
+                                     (= pass/selection %))
+                                (:passes renderable)))
+        pass-renderables (update-pass-renderables! pass-renderables drawn-passes flat-renderable)]
     (reduce (fn [pass-renderables child-scene]
-              (flatten-scene-renderables! pass-renderables child-scene selection-set hidden-renderable-tags view-proj (conj node-path (:node-id child-scene)) world-rotation world-transform))
+              (let [parent-node-id (:node-id scene)
+                    child-node-id (:node-id child-scene)
+                    child-node-id-path (if (= parent-node-id child-node-id)
+                                         node-id-path
+                                         (conj node-id-path child-node-id))
+                    child-node-key-path (if (= parent-node-id child-node-id)
+                                          node-key-path
+                                          (conj node-key-path (:node-key child-scene)))]
+                (flatten-scene-renderables! pass-renderables child-scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj child-node-id-path child-node-key-path world-rotation world-transform)))
             pass-renderables
             (:children scene))))
 
-(defn- flatten-scene [scene selection-set hidden-renderable-tags view-proj]
-  (let [node-path []
+(defn- flatten-scene [scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj]
+  (let [node-id-path []
+        node-key-path [(:node-id scene)]
         parent-world-rotation geom/NoRotation
         parent-world-transform geom/Identity4d]
     (-> (make-pass-renderables)
-        (flatten-scene-renderables! scene selection-set hidden-renderable-tags view-proj node-path parent-world-rotation parent-world-transform)
+        (flatten-scene-renderables! scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj node-id-path node-key-path parent-world-rotation parent-world-transform)
         (persist-pass-renderables!))))
 
 (defn- get-selection-pass-renderables-by-node-id
@@ -406,11 +427,11 @@
                              renderables))))
         renderables-by-pass))
 
-(defn produce-render-data [scene selection aux-renderables hidden-renderable-tags camera]
+(defn produce-render-data [scene selection aux-renderables hidden-renderable-tags hidden-node-outline-key-paths camera]
   ;; public defn because used from tests
   (let [selection-set (set selection)
         view-proj (c/camera-view-proj-matrix camera)
-        scene-renderables-by-pass (flatten-scene scene selection-set hidden-renderable-tags view-proj)
+        scene-renderables-by-pass (flatten-scene scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj)
         selection-pass-renderables-by-node-id (get-selection-pass-renderables-by-node-id scene-renderables-by-pass)
         selected-renderables (into [] (keep selection-pass-renderables-by-node-id) selection)
         aux-renderables-by-pass (apply merge-with concat aux-renderables)
@@ -438,11 +459,12 @@
   (input selection g/Any)
   (input camera Camera)
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
+  (input hidden-node-outline-key-paths g/Any)
   (input hidden-renderable-tags g/Any)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
-  (output render-data g/Any :cached (g/fnk [scene selection aux-renderables hidden-renderable-tags camera] (produce-render-data scene selection aux-renderables hidden-renderable-tags camera)))
+  (output render-data g/Any :cached (g/fnk [scene selection aux-renderables hidden-renderable-tags hidden-node-outline-key-paths camera] (produce-render-data scene selection aux-renderables hidden-renderable-tags hidden-node-outline-key-paths camera)))
   (output renderables pass/RenderData :cached (g/fnk [render-data] (:renderables render-data)))
   (output selected-renderables g/Any :cached (g/fnk [render-data] (:selected-renderables render-data)))
   (output selected-aabb AABB :cached (g/fnk [selected-renderables scene] (if (empty? selected-renderables)
@@ -462,7 +484,7 @@
                                      ;; as every emitter and modifier below it. This makes it possible to start
                                      ;; playback of the owning ParticleFX scene while a modifier is selected.
                                      ;; In order to find the owning ParticleFX scene so we can position the
-                                     ;; effect in the world, we find the renderable with the shortest node-path
+                                     ;; effect in the world, we find the renderable with the shortest node-id-path
                                      ;; for that particular updatable.
                                      ;;
                                      ;; TODO:
@@ -472,7 +494,7 @@
                                            renderables-by-updatable-node-id (dissoc (group-by (comp :node-id :updatable) flat-renderables) nil)]
                                        (into {}
                                              (map (fn [[updatable-node-id renderables]]
-                                                    (let [renderable (first (sort-by (comp count :node-path) renderables))
+                                                    (let [renderable (first (sort-by (comp count :node-id-path) renderables))
                                                           updatable (:updatable renderable)
                                                           world-transform (:world-transform renderable)
                                                           transformed-updatable (assoc updatable :world-transform world-transform)]
@@ -529,19 +551,21 @@
                 children (update :children (partial mapv scene-fn)))))]
     (scene-fn scene)))
 
-(defn claim-child-scene [scene node-id]
-  (assoc scene :picking-id node-id))
+(defn claim-child-scene [old-node-id new-node-id new-node-key child-scene]
+  (if (= old-node-id (:node-id child-scene))
+    (assoc child-scene :node-id new-node-id :node-key new-node-key)
+    (assoc child-scene :picking-id new-node-id)))
 
-(defn claim-scene [scene node-id]
+(defn claim-scene [scene new-node-id new-node-key]
   ;; When scenes reference other resources in the project, we want to treat the
   ;; referenced scene as a group when picking in the scene view. To make this
   ;; happen, the referencing scene claims ownership of the referenced scene and
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
-  (let [child-f #(claim-child-scene % node-id)
+  (let [old-node-id (:node-id scene)
+        child-f (partial claim-child-scene old-node-id new-node-id new-node-key)
         children (:children scene)]
-    (cond-> scene
-      true (assoc :node-id node-id)
+    (cond-> (assoc scene :node-id new-node-id :node-key new-node-key)
       children (update :children (partial mapv (partial map-scene child-f))))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
@@ -685,17 +709,65 @@
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
 
-(handler/defhandler :toggle-visibility-filters :global
+(handler/defhandler :toggle-visibility-filters :workbench
   (active? [app-view] (active-scene-view app-view))
   (run [app-view] (scene-visibility/toggle-filters-enabled! app-view)))
 
-(handler/defhandler :toggle-component-guides :global
+(handler/defhandler :toggle-component-guides :workbench
   (active? [app-view] (active-scene-view app-view))
   (run [app-view] (scene-visibility/toggle-tag-visibility! app-view :outline)))
 
-(handler/defhandler :toggle-grid :global
+(handler/defhandler :toggle-grid :workbench
   (active? [app-view] (active-scene-view app-view))
   (run [app-view] (scene-visibility/toggle-tag-visibility! app-view :grid)))
+
+(declare SceneNode)
+
+(defn- recursive-node-key-paths [node-key-path {:keys [node-id children] :as _scene}]
+  (mapcat (fn [{child-node-id :node-id child-node-key :node-key :as child-scene}]
+            (if (= node-id child-node-id)
+              (recursive-node-key-paths node-key-path child-scene)
+              (let [child-node-key-path (conj node-key-path child-node-key)]
+                (cons child-node-key-path
+                      (recursive-node-key-paths child-node-key-path child-scene)))))
+          children))
+
+(defn- selection->renderable-node-outline-key-paths [selection]
+  (into #{}
+        (mapcat (fn [{:keys [node-id node-key-path]}]
+                  (if (empty? (rest node-key-path))
+                    (recursive-node-key-paths node-key-path (g/node-value node-id :scene))
+                    (cons node-key-path
+                          (recursive-node-key-paths node-key-path (g/node-value node-id :scene))))))
+        selection))
+
+(defn- selection->hideable-node-outline-key-paths [app-view selection]
+  (not-empty (set/difference (set (selection->renderable-node-outline-key-paths selection))
+                             (scene-visibility/hidden-node-outline-key-paths app-view))))
+
+(defn- selection->showable-node-outline-key-paths [app-view selection]
+  (not-empty (set/intersection (set (selection->renderable-node-outline-key-paths selection))
+                               (scene-visibility/hidden-node-outline-key-paths app-view))))
+
+(handler/defhandler :hide-selected :workbench
+  (active? [app-view] (active-scene-view app-view))
+  (enabled? [app-view selection] (selection->hideable-node-outline-key-paths app-view selection))
+  (run [app-view selection] (scene-visibility/hide-node-outline-key-paths! app-view (selection->hideable-node-outline-key-paths app-view selection))))
+
+(handler/defhandler :show-selected :workbench
+  (active? [app-view] (active-scene-view app-view))
+  (enabled? [app-view selection] (selection->showable-node-outline-key-paths app-view selection))
+  (run [app-view selection] (scene-visibility/show-node-outline-key-paths! app-view (selection->showable-node-outline-key-paths app-view selection))))
+
+(handler/defhandler :show-last-hidden :workbench
+  (active? [app-view] (active-scene-view app-view))
+  (enabled? [app-view] (scene-visibility/last-hidden-node-outline-key-paths app-view))
+  (run [app-view] (scene-visibility/show-node-outline-key-paths! app-view (scene-visibility/last-hidden-node-outline-key-paths app-view))))
+
+(handler/defhandler :show-all-hidden :workbench
+  (active? [app-view] (active-scene-view app-view))
+  (enabled? [app-view] (scene-visibility/hidden-node-outline-key-paths app-view))
+  (run [app-view] (scene-visibility/show-node-outline-key-paths! app-view (scene-visibility/hidden-node-outline-key-paths app-view))))
 
 (handler/defhandler :scene-play :global
   (active? [app-view] (when-let [view (active-scene-view app-view)]
@@ -803,6 +875,15 @@
                   :command :toggle-component-guides}
                  {:label "Toggle Grid"
                   :command :toggle-grid}
+                 {:label :separator}
+                 {:label "Hide Selected Objects"
+                  :command :hide-selected}
+                 {:label "Show Selected Objects"
+                  :command :show-selected}
+                 {:label "Show Last Hidden Objects"
+                  :command :show-last-hidden}
+                 {:label "Show All Hidden Objects"
+                  :command :show-all-hidden}
                  {:label :separator}
                  {:label "Play"
                   :command :scene-play}
@@ -1034,6 +1115,7 @@
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
 
+  (input hidden-node-outline-key-paths scene-visibility/NodeOutlineKeyPaths)
   (input hidden-renderable-tags g/Any)
   (input updatables g/Any)
   (input selected-updatables g/Any)
@@ -1111,6 +1193,7 @@
                     (g/connect app-view-id          :active-tool               view-id          :active-tool)
                     (g/connect app-view-id          :manip-space               view-id          :manip-space)
                     (g/connect app-view-id          :effective-hidden-renderable-tags view-id   :hidden-renderable-tags)
+                    (g/connect app-view-id          :hidden-node-outline-key-paths view-id      :hidden-node-outline-key-paths)
 
                     (g/connect tool-controller      :input-handler             view-id          :input-handlers)
                     (g/connect tool-controller      :renderables               view-id          :tool-renderables)

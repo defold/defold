@@ -173,7 +173,7 @@
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
-  (output scene g/Any :cached (g/fnk [_node-id transform scene]
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
                                 (let [transform (if-let [local-transform (:transform scene)]
                                                   (doto (Matrix4d. ^Matrix4d transform)
                                                     (.mul ^Matrix4d local-transform))
@@ -181,7 +181,7 @@
                                       updatable (some-> (:updatable scene)
                                                   (assoc :node-id _node-id))]
                                   (cond-> scene
-                                    true (scene/claim-scene _node-id)
+                                    true (scene/claim-scene _node-id id)
                                     true (assoc :transform transform
                                            :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
                                     updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))

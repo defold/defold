@@ -270,3 +270,28 @@
   (into []
         (mapcat (juxt identity (partial get m)))
         (sort (keys m))))
+
+(declare select-keys-deep)
+
+(defn- select-keys-deep-value-helper [kept-keys value]
+  (cond
+    (map? value)
+    (select-keys-deep value kept-keys)
+
+    (coll? value)
+    (into (empty value)
+          (map (partial select-keys-deep-value-helper kept-keys))
+          value)
+
+    :else
+    value))
+
+(defn select-keys-deep
+  "Like select-keys, but applies the filter recursively to nested data structures."
+  [m kept-keys]
+  (assert (map? m))
+  (into (empty m)
+        (keep (fn [key]
+                (when-some [[_ value] (find m key)]
+                  [key (select-keys-deep-value-helper kept-keys value)])))
+        kept-keys))

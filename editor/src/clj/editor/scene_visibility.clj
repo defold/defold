@@ -1,15 +1,67 @@
 (ns editor.scene-visibility
-  (:require [dynamo.graph :as g]
+  (:require [clojure.set :as set]
+            [dynamo.graph :as g]
             [editor.keymap :as keymap]
             [editor.ui :as ui]
             [editor.ui.popup :as popup]
-            [editor.util :as util])
+            [editor.util :as util]
+            [schema.core :as s])
   (:import [javafx.geometry Point2D Pos]
            [javafx.scene Parent]
            [javafx.scene.control CheckBox Label PopupControl]
            [javafx.scene.layout HBox Priority VBox]))
 
 (set! *warn-on-reflection* true)
+
+;; -----------------------------------------------------------------------------
+;; Per-Object Visibility
+;; -----------------------------------------------------------------------------
+
+(defn node-outline-key-path? [value]
+  (and (vector? value)
+       (let [[resource-node-id & outline-node-names] value]
+         (and (integer? resource-node-id)
+              (every? string? outline-node-names)))))
+
+(def TNodeOutlineKeyPath (s/pred node-outline-key-path?))
+(def TNodeOutlineKeyPaths #{TNodeOutlineKeyPath})
+(g/deftype NodeOutlineKeyPaths TNodeOutlineKeyPaths)
+(g/deftype NodeOutlineKeyPathsHistory [(s/both TNodeOutlineKeyPaths (s/pred seq 'seq))])
+
+(defn hidden-node-outline-key-paths [toggles-node]
+  (not-empty (g/node-value toggles-node :hidden-node-outline-key-paths)))
+
+(defn last-hidden-node-outline-key-paths [toggles-node]
+  (peek (g/node-value toggles-node :hidden-node-outline-key-paths-history)))
+
+(defn show-node-outline-key-paths! [toggles-node node-outline-key-paths]
+  (assert (set? (not-empty node-outline-key-paths)))
+  (assert (every? node-outline-key-path? node-outline-key-paths))
+  (g/transact
+    (concat
+      (g/update-property toggles-node :hidden-node-outline-key-paths set/difference node-outline-key-paths)
+      (g/update-property toggles-node :hidden-node-outline-key-paths-history
+                         (fn [hidden-node-outline-key-paths-history]
+                           ;; Removing the now-visible nodes from the history
+                           ;; ensures the Show Last Hidden Objects command will
+                           ;; work as expected if the user manually shows nodes
+                           ;; she had previously hidden.
+                           (into []
+                                 (keep (fn [hidden-node-outline-key-paths]
+                                         (not-empty (set/difference hidden-node-outline-key-paths node-outline-key-paths))))
+                                 hidden-node-outline-key-paths-history))))))
+
+(defn hide-node-outline-key-paths! [toggles-node node-outline-key-paths]
+  (assert (set? (not-empty node-outline-key-paths)))
+  (assert (every? node-outline-key-path? node-outline-key-paths))
+  (g/transact
+    (concat
+      (g/update-property toggles-node :hidden-node-outline-key-paths set/union node-outline-key-paths)
+      (g/update-property toggles-node :hidden-node-outline-key-paths-history conj node-outline-key-paths))))
+
+;; -----------------------------------------------------------------------------
+;; Visibility Filters
+;; -----------------------------------------------------------------------------
 
 (defn- make-toggle [{:keys [label acc on-change]}]
   (let [check-box (CheckBox.)
