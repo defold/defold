@@ -101,12 +101,18 @@
 
 (defn- decorate
   ([root]
-   (:item (decorate [] root (:outline-reference? root))))
-  ([path item parent-reference?]
-   (let [path (conj path (:node-id item))
-         data (mapv #(decorate path % (or parent-reference? (:outline-reference? item))) (:children item))
+   (:item (decorate [] [] root (:outline-reference? root))))
+  ([node-id-path node-key-path {:keys [node-id] :as item} parent-reference?]
+   (let [node-id-path (conj node-id-path node-id)
+         node-key-path (if (empty? node-key-path)
+                         [node-id]
+                         (if-some [node-key (get item :node-key (:label item))]
+                           (conj node-key-path node-key)
+                           node-key-path))
+         data (mapv #(decorate node-id-path node-key-path % (or parent-reference? (:outline-reference? item))) (:children item))
          item (assoc item
-                :path path
+                :node-id-path node-id-path
+                :node-key-path node-key-path
                 :parent-reference? parent-reference?
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))
@@ -172,7 +178,7 @@
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached update-tree-view)
   (output tree-selection g/Any :cached (g/fnk [tree-view] (ui/selection tree-view)))
-  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (mapv ->iterator (ui/selection-root-items tree-view (comp :path item->value) (comp :node-id item->value)))))
+  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (mapv ->iterator (ui/selection-root-items tree-view (comp :node-id-path item->value) (comp :node-id item->value)))))
   (output succeeding-tree-selection g/Any :cached (g/fnk [tree-view tree-selection-root-its]
                                                          (->> tree-selection-root-its
                                                            (mapv :tree-item)

@@ -278,6 +278,7 @@
         magnitude (props/sample magnitude)
         max-distance (props/sample max-distance)]
     {:node-id _node-id
+     :node-key (:label mod-type)
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-lines
@@ -367,7 +368,7 @@
       pass/transparent (render-emitters-sim gl render-args renderables count))))
 
 (g/defnk produce-emitter-scene
-  [_node-id transform aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
+  [_node-id id transform aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
   (let [emitter-type (emitter-types type)
         user-data {:type type
                    :emitter-sim-data emitter-sim-data
@@ -376,6 +377,7 @@
                    :geom-data-world (apply (:geom-data-world emitter-type)
                                            (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
     {:node-id _node-id
+     :node-key id
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-emitters
@@ -385,6 +387,7 @@
                   :user-data user-data
                   :passes [pass/selection pass/transparent]}
      :children (into [{:node-id _node-id
+                       :node-key id
                        :aabb aabb
                        :renderable {:render-fn render-lines
                                     :batch-key nil

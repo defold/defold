@@ -185,10 +185,10 @@
                                                                       :transform transform})])))
   (output build-error g/Err (g/constantly nil))
 
-  (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (scene/claim-scene scene _node-id)
+                                       (-> (scene/claim-scene scene _node-id id)
                                          (assoc :transform transform
                                                 :aabb aabb
                                                 :renderable {:passes [pass/selection]})
@@ -561,8 +561,8 @@
                                             :rotation rotation
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
-  (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc (scene/claim-scene scene _node-id)
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
+                                     (assoc (scene/claim-scene scene _node-id id)
                                             :transform transform
                                             :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
                                             :renderable {:passes [pass/selection]})))

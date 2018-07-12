@@ -107,6 +107,8 @@
 
   (property visibility-filters-enabled g/Any)
   (property hidden-renderable-tags g/Any)
+  (property hidden-node-outline-key-paths scene-visibility/NodeOutlineKeyPaths)
+  (property hidden-node-outline-key-paths-history scene-visibility/NodeOutlineKeyPathsHistory)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -1136,7 +1138,9 @@ If you do not specifically require different script states, consider changing th
                                                                      :active-tool :move
                                                                      :manip-space :world
                                                                      :visibility-filters-enabled true
-                                                                     :hidden-renderable-tags #{}))))]
+                                                                     :hidden-renderable-tags #{}
+                                                                     :hidden-node-outline-key-paths #{}
+                                                                     :hidden-node-outline-key-paths-history []))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
