@@ -19,12 +19,14 @@
 (def default-key-bindings
   ;; We should generally avoid adding shortcuts that can also be
   ;; interpreted as typable text. This includes "A", "Shift+E" but
-  ;; also combinations like Alt+Shortcut+2 because on windows Shorcut means
+  ;; also combinations like Alt+Shortcut+2 because on windows Shortcut means
   ;; Ctrl, and Alt+Ctrl is an alternative way to enter AltGR and
   ;; AltGR+2 is @ on some layouts - something you may want to type in
   ;; the code editor :)
   ;; The function key-binding-data->keymap attempts to catch this type
   ;; of mistake.
+  ;; Note that specifying both Ctrl+Shortcut will map the modifier to just
+  ;; Ctrl on platforms where Shortcut means Ctrl.
   [["A"                     :add]
    ["Alt+Backspace"         :delete-prev-word]
    ["Alt+Delete"            :delete-next-word]
@@ -48,6 +50,7 @@
    ["Ctrl+K"                :cut-to-end-of-line]
    ["Ctrl+Left"             :prev-word]
    ["Ctrl+Right"            :next-word]
+   ["Ctrl+Shortcut+H"       :toggle-component-guides] ; Mirrors the View > Extras shortcut in Photoshop. Maps to Ctrl+H on non-Mac platforms.
    ["Ctrl+Space"            :proposals]
    ["Delete"                :delete]
    ["Down"                  :down]
@@ -101,7 +104,7 @@
    ["Shift+Shortcut+E"      :replace-next]
    ["Shift+Shortcut+F"      :search-in-files]
    ["Shift+Shortcut+G"      :find-prev]
-   ["Shift+Shortcut+I"      :toggle-visibility-filters]   
+   ["Shift+Shortcut+I"      :toggle-visibility-filters]
    ["Shift+Shortcut+Home"   :select-beginning-of-file]
    ["Shift+Shortcut+L"      :split-selection-into-lines]
    ["Shift+Shortcut+Left"   :select-beginning-of-line-text]
@@ -125,6 +128,7 @@
    ["Shortcut+End"          :end-of-file]
    ["Shortcut+F"            :find-text]
    ["Shortcut+G"            :find-next]
+   #_["Shortcut+H"            :toggle-component-guides] ; This is actually taken on non-Mac platforms due to "Ctrl+Shortcut+H" above, and on Mac by the system-wide Hide Application shortcut.
    ["Shortcut+Home"         :beginning-of-file]
    ["Shortcut+I"            :reindent]
    ["Shortcut+L"            :goto-line]
