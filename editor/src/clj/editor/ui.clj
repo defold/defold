@@ -446,6 +446,9 @@
   (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                               (fn e)))))
 
+(defn on-click! [^Node node fn]
+  (.setOnMouseClicked node (event-handler e (fn e))))
+
 (defn on-mouse! [^Node node fn]
   (.setOnMouseEntered node (when fn (event-handler e (fn :enter e))))
   (.setOnMouseExited node (when fn (event-handler e (fn :exit e))))
@@ -1090,6 +1093,10 @@
       ;; a special event handler that suppresses actions invoked via
       ;; an accelerator, but still dispatches actions when invoked by
       ;; clicking the menu item.
+      ;; Note this doesn't seem to work for CheckMenuItems as the
+      ;; CheckMenuItemAdapter in GlobalMenuAdapter.java does
+      ;; getOnMenuValidation() on this instead of the target
+      ;; menuItem. In effect we never get a MENU_VALIDATION_EVENT.
       (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
@@ -1113,7 +1120,7 @@
               user-data (:user-data item)
               check (:check item)]
           (when-let [handler-ctx (handler/active command command-contexts user-data)]
-            (let [label (or (handler/label handler-ctx) item-label)
+            (let [label (or (handler/label handler-ctx) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
                   enabled? (handler/enabled? handler-ctx)
                   acc (command->shortcut command)]
               (if-let [options (handler/options handler-ctx)]
@@ -1544,8 +1551,17 @@
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                       graphic-fn (:graphic-fn menu-item)
                                                        icon (:icon menu-item)]
-                                                   (when icon
+                                                   (cond
+                                                     graphic-fn
+                                                     ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
+                                                     ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
+                                                     ;; disappears from the toolbars of subsequent tabs. For now, we generate
+                                                     ;; instances for each tab.
+                                                     (.setGraphic button (graphic-fn))
+
+                                                     icon
                                                      (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]

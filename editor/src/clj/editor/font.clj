@@ -321,6 +321,7 @@
 
               (and (some? font-map) (not-empty preview-text))
               (assoc :renderable {:render-fn render-font
+                                  :tags #{:font}
                                   :batch-key gpu-texture
                                   :select-batch-key _node-id
                                   :user-data {:type type
@@ -414,6 +415,12 @@
 
 (g/defnode FontSourceNode
   (inherits resource-node/ResourceNode)
+  (property texture resource/Resource
+            (value (gu/passthrough texture-resource))
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
+                                            [:resource :texture-resource]
+                                            [:size :texture-size]))))
   (input texture-resource resource/Resource)
   (input texture-size g/Any) ; we pipe in size to provoke errors, for instance if the texture node is defective / non-existant
   (output font-resource-map g/Any (g/fnk [texture-resource texture-size]
@@ -433,9 +440,7 @@
                                   getFileName
                                   toString)
             texture-resource (workspace/resolve-resource resource texture-file-name)]
-        (when texture-resource
-          (project/connect-resource-node project texture-resource self [[:resource :texture-resource]
-                                                                        [:size :texture-size]]))))))
+        (g/set-property self :texture texture-resource)))))
 
 (g/defnk produce-font-type [font output-format]
   (font-type font output-format))
@@ -488,8 +493,8 @@
 
   (property font resource/Resource
     (value (gu/passthrough font-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (project/resource-setter self old-value new-value
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :font-resource]
                                     [:font-resource-map :font-resource-map])))
     (dynamic error (g/fnk [_node-id font-resource]
@@ -501,8 +506,8 @@
 
   (property material resource/Resource
     (value (gu/passthrough material-resource))
-    (set (fn [_evaluation-context self old-value new-value]
-           (project/resource-setter self old-value new-value
+    (set (fn [evaluation-context self old-value new-value]
+           (project/resource-setter evaluation-context self old-value new-value
                                     [:resource :material-resource]
                                     [:build-targets :dep-build-targets]
                                     [:samplers :material-samplers]

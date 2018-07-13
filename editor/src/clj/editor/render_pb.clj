@@ -18,15 +18,15 @@
   (property material resource/Resource
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
-                   (let [project (project/get-project self)
+                   (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :material-resource]
                                       [:build-targets :dep-build-targets]]]
                      (concat
                        (if old-value
-                         (project/disconnect-resource-node project old-value self connections)
+                         (project/disconnect-resource-node evaluation-context project old-value self connections)
                          (g/disconnect project :nil-resource self :material-resource))
                        (if new-value
-                         (project/connect-resource-node project new-value self connections)
+                         (project/connect-resource-node evaluation-context project new-value self connections)
                          (g/connect project :nil-resource self :material-resource))))))
            (dynamic visible (g/constantly false)))
 
@@ -142,8 +142,8 @@
   (property script resource/Resource
             (dynamic visible (g/constantly false))
             (value (gu/passthrough script-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :script-resource]
                                             [:build-targets :dep-build-targets]))))
   (input script-resource resource/Resource)

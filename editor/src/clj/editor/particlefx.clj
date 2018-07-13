@@ -112,8 +112,8 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(def color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
+(def color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
+(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
 
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]
@@ -173,8 +173,7 @@
             :when (> vcount 0)]
       (let [^Matrix4d world-transform (:world-transform renderable)
             world-transform-no-scale (orthonormalize world-transform)
-            color (-> (if (:selected renderable) selected-color color)
-                    (conj 1))
+            color (if (:selected renderable) selected-color color)
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                  (geom/transf-p world-transform vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
@@ -282,6 +281,7 @@
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-lines
+                  :tags #{:particlefx :outline}
                   :batch-key nil
                   :select-batch-key _node-id
                   :user-data {:geom-data-screen ((:geom-data-screen mod-type) magnitude max-distance)
@@ -363,27 +363,36 @@
 (defn- render-emitters [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
     (condp = pass
-      pass/outline (render-lines gl render-args renderables count)
       pass/selection (render-lines gl render-args renderables count)
       pass/transparent (render-emitters-sim gl render-args renderables count))))
 
 (g/defnk produce-emitter-scene
   [_node-id transform aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
-  (let [emitter-type (emitter-types type)]
+  (let [emitter-type (emitter-types type)
+        user-data {:type type
+                   :emitter-sim-data emitter-sim-data
+                   :emitter-index emitter-index
+                   :color [1.0 1.0 1.0 1.0]
+                   :geom-data-world (apply (:geom-data-world emitter-type)
+                                           (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
     {:node-id _node-id
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-emitters
                   :batch-key nil
+                  :tags #{:particlefx}
                   :select-batch-key _node-id
-                  :user-data {:type type
-                              :emitter-sim-data emitter-sim-data
-                              :emitter-index emitter-index
-                              :color [1.0 1.0 1.0 1.0]
-                              :geom-data-world (apply (:geom-data-world emitter-type)
-                                                 (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}
-                  :passes [pass/outline pass/selection pass/transparent]}
-     :children child-scenes}))
+                  :user-data user-data
+                  :passes [pass/selection pass/transparent]}
+     :children (into [{:node-id _node-id
+                       :aabb aabb
+                       :renderable {:render-fn render-lines
+                                    :batch-key nil
+                                    :tags #{:particlefx :outline}
+                                    :select-batch-key _node-id
+                                    :user-data user-data
+                                    :passes [pass/outline]}}]
+                     child-scenes)}))
 
 (g/defnode EmitterProperties
   (property emitter-key-spawn-rate CurveSpread (dynamic label (g/constantly "Spawn Rate")))
@@ -489,8 +498,8 @@
   (property tile-source resource/Resource
             (dynamic label (g/constantly "Image"))
             (value (gu/passthrough tile-source-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:texture-set :texture-set]
@@ -513,8 +522,8 @@
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
