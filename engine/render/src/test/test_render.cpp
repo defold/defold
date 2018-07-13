@@ -488,6 +488,21 @@ TEST(dmFontRenderer, Layout)
     ASSERT_LINE(5, 3, lines, 2);
     ASSERT_EQ(char_width * 3, w);
 
+    // 0x200B = Unicode "zero width space", UTF8 representation: E2 80 8B
+    total_lines = dmRender::Layout("foo" "\xe2\x80\x8b" "bar", 3 * char_width, lines, lines_count, &w, Metric);
+    ASSERT_EQ(2, total_lines);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_LINE(6, 3, lines, 1);
+    ASSERT_EQ(char_width * 3, w);
+
+    // Note that second line would include a "zero width space" as first
+    // character since we don't trim whitespace currently.
+    total_lines = dmRender::Layout("foo" "\xe2\x80\x8b\xe2\x80\x8b" "bar", 3 * char_width, lines, lines_count, &w, Metric);
+    ASSERT_EQ(2, total_lines);
+    ASSERT_LINE(0, 3, lines, 0);
+    ASSERT_LINE(6, 4, lines, 1);
+    ASSERT_EQ(char_width * 4, w);
+
     // åäö
     total_lines = dmRender::Layout("\xc3\xa5\xc3\xa4\xc3\xb6", 3 * char_width, lines, lines_count, &w, Metric);
     ASSERT_EQ(1, total_lines);

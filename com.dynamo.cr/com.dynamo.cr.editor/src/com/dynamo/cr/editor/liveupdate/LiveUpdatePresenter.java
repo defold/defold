@@ -126,6 +126,30 @@ public class LiveUpdatePresenter {
         return this.settings.getZipFilepath();
     }
 
+    public void setManifestPublicKey(String value) {
+        this.settings.setManifestPublicKey(value);
+    }
+
+    public String getManifestPublicKey() {
+        return this.settings.getManifestPublicKey();
+    }
+
+    public void setManifestPrivateKey(String value) {
+        this.settings.setManifestPrivateKey(value);
+    }
+
+    public String getManifestPrivateKey() {
+        return this.settings.getManifestPrivateKey();
+    }
+
+    public void setSupportedVersions(String value) {
+        this.settings.setSupportedVersions(value);
+    }
+
+    public String getSupportedVersions() {
+        return this.settings.getSupportedVersions();
+    }
+
     public void save() {
         IBranchClient branchClient = Activator.getDefault().getBranchClient();
         String location = branchClient.getNativeLocation();

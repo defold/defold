@@ -58,7 +58,7 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/logic/main.gui")
           scene (g/node-value node-id :scene)]
-      (is (= 0.25 (get-in scene [:children 2 :children 0 :renderable :user-data :color 3]))))))
+      (is (= 0.25 (get-in scene [:children 2 :children 1 :renderable :user-data :color 3]))))))
 
 (deftest gui-scene-material
   (test-util/with-loaded-project
@@ -338,11 +338,16 @@
     (select-keys [:node-id :children :renderable])
     (update :children (fn [c] (mapv #(strip-scene %) c)))
     (update-in [:renderable :user-data] select-keys [:color])
-    (update :renderable select-keys [:user-data])))
+    (update :renderable select-keys [:user-data :tags])))
 
 (defn- scene-by-nid [root-id node-id]
   (let [scene (g/node-value root-id :scene)
-        scenes (into {} (map (fn [s] [(:node-id s) s]) (tree-seq (constantly true) :children (strip-scene scene))))]
+        scenes (into {}
+                     (comp
+                       ;; we're not interested in the outline subscenes for gui nodes
+                       (remove (fn [scene] (contains? (get-in scene [:renderable :tags]) :outline)))
+                       (map (fn [s] [(:node-id s) s])))
+                     (tree-seq (constantly true) :children (strip-scene scene)))]
     (scenes node-id)))
 
 (deftest gui-template-alpha
@@ -456,10 +461,10 @@
                (set-visible-layout! node-id "Landscape")
                (is (= "Testing Text" (gui-text node-id "scene/text"))))
       (testing "scene generation"
-        (is (= {:width 1280 :height 720}
+        (is (= {:device-models [] :width 1280 :height 720}
                (g/node-value node-id :scene-dims)))
         (set-visible-layout! node-id "Portrait")
-        (is (= {:width 720 :height 1280}
+        (is (= {:device-models [] :width 720 :height 1280}
                (g/node-value node-id :scene-dims)))))))
 
 (deftest gui-legacy-alpha

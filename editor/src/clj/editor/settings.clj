@@ -21,11 +21,11 @@
             (set (fn [evaluation-context self old-value new-value]
                    (concat
                      ;; connect resource node to this
-                     (project/resource-setter self old-value new-value [:resource :resource])
+                     (project/resource-setter evaluation-context self old-value new-value [:resource :resource])
                      (when-let [resource-connections (g/node-value self :resource-connections evaluation-context)]
                        (let [[target-node connections] resource-connections]
                          ;; connect extra resource node outputs directly to target-node (GameProjectNode for instance)
-                         (apply project/resource-setter target-node old-value new-value
+                         (apply project/resource-setter evaluation-context target-node old-value new-value
                            connections)))))))
   (input resource resource/Resource)
   ;; resource-setting-reference only consumed by SettingsNode and already cached there.
@@ -79,7 +79,10 @@
     (assoc :type :choicebox)
 
     (= :library-list (:type setting))
-    (assoc :type :list :element {:type :url :default "http://url.to/library"})))
+    (assoc :type :list :element {:type :url :default "http://url.to/library"})
+
+    (= :comma-separated-list (:type setting))
+    (assoc :type :list :element {:type :string :default (or (:default setting) "item1, item2")})))
 
 (defn- make-form-section [category-name category-info settings]
   {:title (or (:title category-info) category-name)

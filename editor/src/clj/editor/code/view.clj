@@ -4,6 +4,7 @@
             [editor.code.data :as data]
             [editor.code.resource :as r]
             [editor.code.util :refer [pair split-lines]]
+            [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
             [editor.prefs :as prefs]
@@ -565,7 +566,7 @@
 ;; -----------------------------------------------------------------------------
 
 (g/defnk produce-indent-type [indent-type]
-  ;; TODO: Produce default from preferences.
+  ;; Defaults to :tabs when not connected to a resource node.
   (or indent-type :tabs))
 
 (g/defnk produce-indent-string [indent-type]
@@ -829,6 +830,10 @@
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
+  ;; We cache the lines in the view instead of the resource node, since the
+  ;; resource node will read directly from disk unless edits have been made.
+  (output lines r/Lines :cached (gu/passthrough lines))
+
   (output indent-type r/IndentType produce-indent-type)
   (output indent-string g/Str produce-indent-string)
   (output tab-spaces g/Num produce-tab-spaces)
@@ -923,7 +928,7 @@
         (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
-                          (:cursor-ranges :indent-type :lines :regions)
+                          (:cursor-ranges :regions)
                           (g/set-property resource-node prop-kw value)
 
                           ;; Several rows could have been invalidated between repaints.
@@ -931,6 +936,20 @@
                           :invalidated-row
                           (g/update-property resource-node :invalidated-rows conj value)
 
+                          ;; The :indent-type output in the resource node is
+                          ;; cached, but reads from disk unless a value exists
+                          ;; for the :modified-indent-type property.
+                          :indent-type
+                          (g/set-property resource-node :modified-indent-type value)
+
+                          ;; The :lines output in the resource node is uncached.
+                          ;; It reads from disk unless a value exists for the
+                          ;; :modified-lines property. This means only modified
+                          ;; or currently open files are kept in memory.
+                          :lines
+                          (g/set-property resource-node :modified-lines value)
+
+                          ;; All other properties are set on the view node.
                           (g/set-property view-node prop-kw value))))
               values-by-prop-kw))
       true)))
@@ -2230,7 +2249,6 @@
         suggestions-list-view (make-suggestions-list-view canvas)
         suggestions-popup (popup/make-choices-popup canvas-pane suggestions-list-view)
         undo-grouping-info (pair :navigation (gensym))
-        app-view (:app-view opts)
         view-node (setup-view! resource-node
                                (g/make-node! graph CodeEditorView
                                              :canvas canvas

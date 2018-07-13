@@ -74,6 +74,8 @@ namespace dmRig
         uint16_t                      m_Backwards : 1;
         /// Flag used to handle initial setup, resetting pose with UpdateMeshProperties in DoAnimate
         uint16_t                      m_Initial : 1;
+        /// Flag used to handle blending players, resetting pose to avoid lingering slot attachment changes from previous animation.
+        uint16_t                      m_BlendFinished : 1;
     };
 
     struct RigBone
@@ -116,7 +118,7 @@ namespace dmRig
         float               m_Mix;
         /// Static IK target position
         Vector3             m_Position;
-        /// Callback to dynamically set the IK target position.
+        /// Callback to dynamically set the IK target position. If NULL then the target isn't active.
         RigIKTargetCallback m_Callback;
         void*               m_UserPtr;
         dmhash_t            m_UserHash;
@@ -309,6 +311,7 @@ namespace dmRig
     Result SetPlaybackRate(HRigInstance instance, float playback_rate);
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
     IKTarget* GetIKTarget(HRigInstance instance, dmhash_t constraint_id);
+    bool ResetIKTarget(HRigInstance instance, dmhash_t constraint_id);
     void SetEnabled(HRigInstance instance, bool enabled);
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);

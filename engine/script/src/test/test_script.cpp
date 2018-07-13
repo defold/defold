@@ -171,14 +171,7 @@ static int TestGetContextTableRef(lua_State* L)
     int top = lua_gettop(L);
 
     TestDummy* i = (TestDummy*)lua_touserdata(L, self_index);
-    if (i != 0x0 && i->m_ContextTableReference != LUA_NOREF)
-    {
-        lua_pushnumber(L, i->m_ContextTableReference);
-    }
-    else
-    {
-        lua_pushnil(L);
-    }
+    lua_pushnumber(L, i ? i->m_ContextTableReference : LUA_NOREF);
 
     assert(top + 1 == lua_gettop(L));
 
@@ -285,26 +278,26 @@ TEST_F(ScriptTest, TestUserType) {
     ASSERT_TRUE(dmScript::SetInstanceContextValue(L));
 
     lua_pushstring(L, "__context_value_4711_");
-    ASSERT_TRUE(dmScript::GetInstanceContextValue(L));
+    dmScript::GetInstanceContextValue(L);
     ASSERT_EQ(4711, lua_tonumber(L, -1));
     lua_pop(L, 1);
 
     lua_pushstring(L, "__context_value_666_");
-    ASSERT_TRUE(dmScript::GetInstanceContextValue(L));
+    dmScript::GetInstanceContextValue(L);
     ASSERT_EQ(666, lua_tonumber(L, -1));
     lua_pop(L, 1);
 
     lua_pushstring(L, "__context_value_invalid_");
-    ASSERT_TRUE(dmScript::GetInstanceContextValue(L));
-    ASSERT_EQ(LUA_TNIL, lua_type(L, -1));
+    dmScript::GetInstanceContextValue(L);
+    ASSERT_TRUE(lua_isnil(L, -1));
     lua_pop(L, 1);
 
     dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
     dummy->m_ContextTableReference = LUA_NOREF;
 
     lua_pushstring(L, "__context_value_4711_");
-    ASSERT_FALSE(dmScript::GetInstanceContextValue(L));
-    ASSERT_EQ(LUA_TNIL, lua_type(L, -1));
+    dmScript::GetInstanceContextValue(L);
+    ASSERT_TRUE(lua_isnil(L, -1));
     lua_pop(L, 1);
 
     // Destruction
@@ -314,7 +307,9 @@ TEST_F(ScriptTest, TestUserType) {
     lua_pushnil(L);
     dmScript::SetInstance(L);
     lua_pushstring(L, "__context_value_4711_");
-    ASSERT_FALSE(dmScript::GetInstanceContextValue(L));
+    dmScript::GetInstanceContextValue(L);
+    ASSERT_TRUE(lua_isnil(L, -1));
+    lua_pop(L, 1);
 }
 
 #undef ASSERT_EQ_URL
@@ -410,6 +405,8 @@ static void LuaCallbackCustomArgs(lua_State* L, void* user_args)
 
 static int CreateAndPushInstance(lua_State* L)
 {
+    DM_LUA_STACK_CHECK(L, 0);
+
     const char* type_name = "TestType";
     dmScript::RegisterUserType(L, type_name, Test_methods, Test_meta);
 
@@ -474,9 +471,33 @@ TEST_F(ScriptTest, LuaCallbackHelpers)
     dmScript::DeleteCallback(cbk);
     ASSERT_FALSE(IsValidCallback(cbk));
 
-    ASSERT_EQ(top, lua_gettop(L));
+    char* test_string = (char*)lua_newuserdata(L, strlen("test_ref_data") + 1);
+    strcpy(test_string, "test_ref_data");
+    int string_ref = dmScript::RefInInstance(L);
+    dmScript::ResolveInInstance(L, string_ref);
+    const char* verify_string = (const char*)lua_touserdata(L, -1);
+    ASSERT_STREQ(test_string, verify_string);
+    lua_pop(L, 1);
+
+    dmScript::UnrefInInstance(L, string_ref);
+    dmScript::ResolveInInstance(L, string_ref);
+    void* unset_ref = lua_touserdata(L, -1);
+    ASSERT_EQ(0x0, unset_ref);
+    lua_pop(L, 1);
+
+    char* test_string_gcd = (char*)lua_newuserdata(L, strlen("test_ref_data") + 1);
+    strcpy(test_string_gcd, "test_ref_data");
+    int string_ref_gcd = dmScript::RefInInstance(L);
+
     dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
+
+    dmScript::ResolveInInstance(L, string_ref_gcd);
+    void* unset_ref_2 = lua_touserdata(L, -1);
+    ASSERT_EQ(0x0, unset_ref_2);
+    lua_pop(L, 1);
+
+    ASSERT_EQ(top, lua_gettop(L));
 }
 
 TEST_F(ScriptTest, GetTableValues)
@@ -532,6 +553,300 @@ TEST_F(ScriptTest, GetTableValues)
     dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
     dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
 }
+
+struct TestScriptExtension
+{
+    int m_SelfRef;
+    float m_DeltaT;
+    static uint32_t m_InitializeCalled;
+    static uint32_t m_UpdateCalled;
+    static uint32_t m_FinalizedCalled;
+    static uint32_t m_NewScriptWorldCalled;
+    static uint32_t m_DeleteScriptWorldCalled;
+    static uint32_t m_UpdateScriptWorldCalled;
+    static uint32_t m_InitializeScriptInstancedCalled;
+    static uint32_t m_FinalizeScriptInstancedCalled;
+};
+
+uint32_t TestScriptExtension::m_InitializeCalled = 0;
+uint32_t TestScriptExtension::m_UpdateCalled = 0;
+uint32_t TestScriptExtension::m_FinalizedCalled = 0;
+uint32_t TestScriptExtension::m_NewScriptWorldCalled = 0;
+uint32_t TestScriptExtension::m_DeleteScriptWorldCalled = 0;
+uint32_t TestScriptExtension::m_UpdateScriptWorldCalled = 0;
+uint32_t TestScriptExtension::m_InitializeScriptInstancedCalled = 0;
+uint32_t TestScriptExtension::m_FinalizeScriptInstancedCalled = 0;
+
+static TestScriptExtension* GetTestScriptExtension(dmScript::HContext context)
+{
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    lua_pushstring(L, "__TestScriptExtension__");
+    dmScript::GetContextValue(context);
+    int ref = lua_tonumber(L, 1);
+    lua_pop(L, 1);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, ref);
+    TestScriptExtension* extension = (TestScriptExtension*)(lua_touserdata(L, -1));
+    lua_pop(L, 1);
+    return extension;
+}
+
+void TestScriptExtensionInitialize(dmScript::HContext context)
+{
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    TestScriptExtension* extension = (TestScriptExtension*)lua_newuserdata(L, sizeof(TestScriptExtension));
+    memset(extension, 0, sizeof(TestScriptExtension));
+    extension->m_SelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    extension->m_InitializeCalled = 1;
+    lua_pushstring(L, "__TestScriptExtension__");
+    lua_pushnumber(L, extension->m_SelfRef);
+    dmScript::SetContextValue(context);
+}
+
+static void TestScriptExtensionUpdate(dmScript::HContext context)
+{
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    TestScriptExtension* extension = GetTestScriptExtension(context);
+    ++extension->m_UpdateCalled;
+}
+
+static void TestScriptExtensionFinalize(dmScript::HContext context)
+{
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    TestScriptExtension* extension = GetTestScriptExtension(context);
+    ++extension->m_FinalizedCalled = 1;
+    lua_pushstring(L, "__TestScriptExtension__");
+    lua_pushnil(L);
+    dmScript::SetContextValue(context);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, extension->m_SelfRef);
+}
+
+struct TestScriptWorldContext
+{
+    TestScriptExtension* m_Extension;
+    int m_SelfRef;
+    float m_DeltaT;
+    static uint32_t m_NewScriptWorldCalled;
+    static uint32_t m_DeleteScriptWorldCalled;
+    static uint32_t m_UpdateScriptWorldCalled;
+    static uint32_t m_InitializeScriptInstancedCalled;
+    static uint32_t m_FinalizeScriptInstancedCalled;
+};
+
+uint32_t TestScriptWorldContext::m_NewScriptWorldCalled = 0;
+uint32_t TestScriptWorldContext::m_DeleteScriptWorldCalled = 0;
+uint32_t TestScriptWorldContext::m_UpdateScriptWorldCalled = 0;
+uint32_t TestScriptWorldContext::m_InitializeScriptInstancedCalled = 0;
+uint32_t TestScriptWorldContext::m_FinalizeScriptInstancedCalled = 0;
+
+static void TestScriptExtensionNewScriptWorld(dmScript::HScriptWorld script_world)
+{
+    dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    TestScriptExtension* extension = GetTestScriptExtension(context);
+    ++extension->m_NewScriptWorldCalled = 1;
+
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_newuserdata(L, sizeof(TestScriptWorldContext));
+    memset(extension_world, 0, sizeof(TestScriptWorldContext));
+    extension_world->m_Extension = extension;
+    lua_pushstring(L, "__TestScriptWorldContext__");
+    lua_pushvalue(L, -2);
+    dmScript::SetScriptWorldContextValue(script_world);
+    extension_world->m_SelfRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    ++extension_world->m_NewScriptWorldCalled;
+}
+
+static void TestScriptExtensionDeleteScriptWorld(dmScript::HScriptWorld script_world)
+{
+    dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    lua_pushstring(L, "__TestScriptWorldContext__");
+    dmScript::GetScriptWorldContextValue(script_world);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    ++extension_world->m_DeleteScriptWorldCalled;
+    ++extension_world->m_Extension->m_DeleteScriptWorldCalled;
+    dmScript::Unref(L, LUA_REGISTRYINDEX, extension_world->m_SelfRef);
+}
+
+static void TestScriptExtensionUpdateScriptWorld(dmScript::HScriptWorld script_world, float dt)
+{
+    dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    lua_pushstring(L, "__TestScriptWorldContext__");
+    dmScript::GetScriptWorldContextValue(script_world);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    ++extension_world->m_UpdateScriptWorldCalled;
+    extension_world->m_DeltaT += dt;
+    ++extension_world->m_Extension->m_UpdateScriptWorldCalled;
+    ++extension_world->m_Extension->m_DeltaT += dt;
+}
+
+static void TestScriptExtensionInitializeScriptInstance(dmScript::HScriptWorld script_world)
+{
+    dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+
+    lua_pushstring(L, "__TestScriptWorldContext__");
+    dmScript::GetScriptWorldContextValue(script_world);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
+    ++extension_world->m_InitializeScriptInstancedCalled;
+    ++extension_world->m_Extension->m_InitializeScriptInstancedCalled;
+    lua_pushstring(L, "__TestScriptWorldContext__");
+    lua_insert(L, -2);
+    dmScript::SetInstanceContextValue(L);
+}
+
+static void TestScriptExtensionFinalizeScriptInstance(dmScript::HScriptWorld script_world)
+{
+    dmScript::HContext context = dmScript::GetScriptWorldContext(script_world);
+    lua_State* L = dmScript::GetLuaState(context);
+    DM_LUA_STACK_CHECK(L, 0);
+    lua_pushstring(L, "__TestScriptWorldContext__");
+    dmScript::GetInstanceContextValue(L);
+    TestScriptWorldContext* extension_world = (TestScriptWorldContext*)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    ++extension_world->m_FinalizeScriptInstancedCalled;
+    ++extension_world->m_Extension->m_FinalizeScriptInstancedCalled;
+    lua_pushstring(L, "__TestScriptWorldContext__");
+    lua_pushnil(L);
+    dmScript::SetInstanceContextValue(L);
+}
+
+TEST_F(ScriptTest, ScriptExtension)
+{
+    dmScript::HContext context = dmScript::NewContext(0x0, 0, true);
+
+    static dmScript::ScriptExtension extension = 
+    {
+        TestScriptExtensionInitialize,
+        TestScriptExtensionUpdate,
+        TestScriptExtensionFinalize,
+        TestScriptExtensionNewScriptWorld,
+        TestScriptExtensionDeleteScriptWorld,
+        TestScriptExtensionUpdateScriptWorld,
+        TestScriptExtensionInitializeScriptInstance,
+        TestScriptExtensionFinalizeScriptInstance
+    };
+
+    {
+        lua_State* L = dmScript::GetLuaState(context);
+
+        DM_LUA_STACK_CHECK(L, 0);
+        int ref_count = dmScript::GetLuaRefCount();
+
+        dmScript::RegisterScriptExtension(context, &extension);
+
+        ASSERT_EQ(0u, TestScriptExtension::m_InitializeCalled);
+        dmScript::Initialize(context);
+        ASSERT_EQ(1u, TestScriptExtension::m_InitializeCalled);
+
+        ASSERT_EQ(0u, TestScriptExtension::m_NewScriptWorldCalled);
+        ASSERT_EQ(0u, TestScriptWorldContext::m_NewScriptWorldCalled);
+        dmScript::HScriptWorld script_world = dmScript::NewScriptWorld(context);
+        ASSERT_NE((dmScript::HScriptWorld)0x0, script_world);
+        ASSERT_EQ(1u, TestScriptExtension::m_NewScriptWorldCalled);
+        ASSERT_EQ(1u, TestScriptWorldContext::m_NewScriptWorldCalled);
+
+        ASSERT_EQ(0u, TestScriptExtension::m_UpdateCalled);
+        dmScript::Update(context);
+        ASSERT_EQ(1u, TestScriptExtension::m_UpdateCalled);
+
+        ASSERT_EQ(0u, TestScriptExtension::m_UpdateScriptWorldCalled);
+        ASSERT_EQ(0u, TestScriptWorldContext::m_UpdateScriptWorldCalled);
+        dmScript::UpdateScriptWorld(script_world, 0.16f);
+        ASSERT_EQ(1u, TestScriptExtension::m_UpdateScriptWorldCalled);
+        ASSERT_EQ(1u, TestScriptWorldContext::m_UpdateScriptWorldCalled);
+
+        int instanceref = CreateAndPushInstance(L);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref);
+        TestDummy* dummy = (TestDummy*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        ASSERT_EQ(0u, TestScriptExtension::m_InitializeScriptInstancedCalled);
+        ASSERT_EQ(0u, TestScriptWorldContext::m_InitializeScriptInstancedCalled);
+        dmScript::InitializeInstance(script_world);
+        ASSERT_EQ(1u, TestScriptExtension::m_InitializeScriptInstancedCalled);
+        ASSERT_EQ(1u, TestScriptWorldContext::m_InitializeScriptInstancedCalled);
+
+        ASSERT_EQ(0u, TestScriptExtension::m_FinalizeScriptInstancedCalled);
+        ASSERT_EQ(0u, TestScriptWorldContext::m_FinalizeScriptInstancedCalled);
+        dmScript::FinalizeInstance(script_world);
+        ASSERT_EQ(1u, TestScriptExtension::m_FinalizeScriptInstancedCalled);
+        ASSERT_EQ(1u, TestScriptWorldContext::m_FinalizeScriptInstancedCalled);
+
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
+
+        dmScript::Unref(L, LUA_REGISTRYINDEX, dummy->m_ContextTableReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref);
+
+        ASSERT_EQ(0u, TestScriptExtension::m_DeleteScriptWorldCalled);
+        ASSERT_EQ(0u, TestScriptWorldContext::m_DeleteScriptWorldCalled);
+        dmScript::DeleteScriptWorld(script_world);
+
+        ASSERT_EQ(1u, TestScriptExtension::m_DeleteScriptWorldCalled);
+        ASSERT_EQ(1u, TestScriptWorldContext::m_DeleteScriptWorldCalled);
+
+        ASSERT_EQ(0u, TestScriptExtension::m_FinalizedCalled);
+        dmScript::Finalize(context);
+        ASSERT_EQ(1u, TestScriptExtension::m_FinalizedCalled);
+
+        ASSERT_EQ(ref_count, dmScript::GetLuaRefCount());
+    }
+    dmScript::DeleteContext(context);
+}
+
+TEST_F(ScriptTest, InstanceId)
+{
+    uintptr_t instanceid0 = dmScript::GetInstanceId(L);
+    ASSERT_EQ(0, instanceid0);
+    int instanceref1 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref1);
+    dmScript::SetInstance(L);
+    uintptr_t instanceid1 = dmScript::GetInstanceId(L);
+    int instanceref2 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref2);
+    dmScript::SetInstance(L);
+    uintptr_t instanceid2 = dmScript::GetInstanceId(L);
+    int instanceref3 = CreateAndPushInstance(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instanceref3);
+    dmScript::SetInstance(L);
+    uintptr_t instanceid3 = dmScript::GetInstanceId(L);
+    lua_pushnil(L);
+    dmScript::SetInstance(L);
+    uintptr_t instanceid0_2 = dmScript::GetInstanceId(L);
+    ASSERT_EQ(0, instanceid0_2);
+
+    ASSERT_NE(0, instanceid1);
+    ASSERT_NE(0, instanceid2);
+    ASSERT_NE(0, instanceid3);
+
+    ASSERT_NE(instanceid2, instanceid1);
+    ASSERT_NE(instanceid3, instanceid1);
+    ASSERT_NE(instanceid2, instanceid3);
+
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref1);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref2);
+    dmScript::Unref(L, LUA_REGISTRYINDEX, instanceref3);
+}
+
 
 int main(int argc, char **argv)
 {

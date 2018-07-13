@@ -222,7 +222,9 @@
            :render-fn
            :render-key
            :selected
+           :tags
            :user-data
+           :world-rotation
            :world-transform} (set (keys renderable))))
   (is (instance? AABB (:aabb renderable)))
   (is (some? (:node-id renderable)))
@@ -272,7 +274,7 @@
                                                    :renderable {:render-fn :bucket-render-fn
                                                                 :passes passes}}]}]}]}]
     (testing "Output is well-formed"
-      (let [render-data (scene/produce-render-data scene [] [] camera)]
+      (let [render-data (scene/produce-render-data scene [] [] #{} camera)]
         (is (= [:renderables :selected-renderables] (keys render-data)))
         (is (every? render-pass? (keys (:renderables render-data))))
         (is (every? output-renderable-vector? (vals (:renderables render-data))))
@@ -281,12 +283,12 @@
     (testing "Aux renderables are included unaltered"
       (let [background-renderable {:batch-key [false 0 0] :render-fn :background-render-fn}
             aux-renderables [{pass/background [background-renderable]}]
-            render-data (scene/produce-render-data scene [] aux-renderables camera)
+            render-data (scene/produce-render-data scene [] aux-renderables #{} camera)
             background-renderables (-> render-data :renderables (get pass/background))]
         (is (some? (some #(= background-renderable %) background-renderables)))))
 
     (testing "Node paths are relative to scene"
-      (let [render-data (scene/produce-render-data scene [] [] camera)
+      (let [render-data (scene/produce-render-data scene [] [] #{} camera)
             selection-renderables (-> render-data :renderables (get pass/selection))]
         (are [render-fn node-path]
           (= [node-path] (into []
@@ -302,7 +304,7 @@
           :door-handle-render-fn [:house-node-id :door-node-id :door-handle-node-id])))
 
     (testing "Picking ids are assigned correctly"
-      (let [render-data (scene/produce-render-data scene [] [] camera)
+      (let [render-data (scene/produce-render-data scene [] [] #{} camera)
             selection-renderables (-> render-data :renderables (get pass/selection))
             picking-ids-by-node-id (into {}
                                          (map (juxt :node-id :picking-id))
@@ -322,7 +324,7 @@
 
     (testing "Selection"
       (are [selection appears-selected]
-        (let [render-data (scene/produce-render-data scene selection [] camera)
+        (let [render-data (scene/produce-render-data scene selection [] #{} camera)
               outline-renderables (-> render-data :renderables (get pass/outline))
               selected-renderables (:selected-renderables render-data)]
           (is (= selection (mapv :node-id selected-renderables)))
@@ -360,7 +362,7 @@
 
     (testing "Selected renderables are ordered"
       (are [selection]
-        (let [selected-renderables (:selected-renderables (scene/produce-render-data scene selection [] camera))]
+        (let [selected-renderables (:selected-renderables (scene/produce-render-data scene selection [] #{} camera))]
           (is (= selection (mapv :node-id selected-renderables))))
         [:house-node-id :door-node-id :door-handle-node-id]
         [:door-handle-node-id :house-node-id :door-node-id]

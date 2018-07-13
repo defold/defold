@@ -116,6 +116,7 @@ namespace dmRig
 
         RigPlayer* player = SwitchPlayer(instance);
         player->m_Initial = 1;
+        player->m_BlendFinished = blend_duration > 0.0f ? 0 : 1;
         player->m_AnimationId = animation_id;
         player->m_Animation = anim;
         player->m_Playing = 1;
@@ -659,6 +660,14 @@ namespace dmRig
                     float blend_weight = fade_rate;
                     if (player != p) {
                         blend_weight = 1.0f - fade_rate;
+                    }
+
+                    // Check if we should reset the mesh slot pose.
+                    // This needs to be done once we are past 0.5 in blending, if the new player/animation
+                    // don't have a mesh animation track it would otherwise be the same from previous animation.
+                    if (p->m_BlendFinished == 0 && blend_weight > 0.5) {
+                        p->m_BlendFinished = 1;
+                        ResetMeshSlotPose(instance);
                     }
 
                     UpdatePlayer(instance, p, dt, blend_weight);
@@ -1511,6 +1520,30 @@ namespace dmRig
         }
 
         return &instance->m_IKTargets[ik_index];
+    }
+
+    bool ResetIKTarget(HRigInstance instance, dmhash_t constraint_id)
+    {
+        if (!instance) {
+            return false;
+        }
+
+        uint32_t ik_index = FindIKIndex(instance, constraint_id);
+        if (ik_index == ~0u) {
+            dmLogError("Could not find IK constraint (%llu)", (unsigned long long)constraint_id);
+            return false;
+        }
+
+        // Clear target fields, see DoAnimate function of the fields usage.
+        // If callback is NULL it is considered not active, clear rest of fields
+        // to avoid confusion.
+        IKTarget* target = &instance->m_IKTargets[ik_index];
+        target->m_Callback = 0x0;
+        target->m_Mix = 0.0f;
+        target->m_UserPtr = 0x0;
+        target->m_UserHash = 0x0;
+
+        return true;
     }
 
     static void DestroyInstance(HRigContext context, uint32_t index)

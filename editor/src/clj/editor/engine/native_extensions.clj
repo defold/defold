@@ -30,14 +30,14 @@
 
 (def ^:const defold-build-server-url "https://build.defold.com")
 (def ^:const connect-timeout-ms (* 30 1000))
-(def ^:const read-timeout-ms (* 5 60 1000))
+(def ^:const read-timeout-ms (* 10 60 1000))
 
 ;;; Caching
 
 (defn- hash-resources! ^MessageDigest
   [^MessageDigest md resource-nodes]
   (run! #(DigestUtils/updateDigest md ^String (g/node-value % :sha256))
-        (sort resource-nodes))
+        resource-nodes)
   md)
 
 (defn- cache-key
@@ -204,7 +204,7 @@
 
 (defn- find-or-build-engine-archive
   [cache-dir server-url platform sdk-version resource-nodes-by-upload-path]
-  (let [key (cache-key platform sdk-version (vals resource-nodes-by-upload-path))]
+  (let [key (cache-key platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)))]
     (or (cached-engine-archive cache-dir platform key)
         (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes-by-upload-path)]
           (cache-engine-archive! cache-dir platform key engine-archive)))))

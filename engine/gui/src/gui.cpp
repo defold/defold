@@ -124,16 +124,30 @@ namespace dmGui
 
     static void RigEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        if (!user_data2) {
+        if (!user_data1 || !user_data2) 
+        {
             return;
         }
 
         HScene scene = (HScene)user_data1;
         SpineAnimation* animation = (SpineAnimation*)user_data2;
 
-        // We ignore rig keyframe events for now, only completed events are handled.
-        if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
-            animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
+        switch (event_type)
+        {
+            case dmRig::RIG_EVENT_TYPE_COMPLETED:
+            {
+                if (animation->m_AnimationComplete)
+                    animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
+                break;
+            }
+            case dmRig::RIG_EVENT_TYPE_KEYFRAME:
+            {
+                scene->m_RigEventDataCallback(scene, animation->m_Userdata2, event_data);
+                break;
+            }
+            default:
+                dmLogError("Unknown rig event received (%d).", event_type);
+                break;
         }
     }
 
@@ -292,6 +306,8 @@ namespace dmGui
         // 16 is hard cap for the same reason as above
         params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
+
+        params->m_ScriptWorld = 0x0;
     }
 
     static void ResetScene(HScene scene) {
@@ -358,7 +374,9 @@ namespace dmGui
         scene->m_Height = context->m_DefaultProjectHeight;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
         scene->m_FetchRigSceneDataCallback = params->m_FetchRigSceneDataCallback;
+        scene->m_RigEventDataCallback = params->m_RigEventDataCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
+        scene->m_ScriptWorld = params->m_ScriptWorld;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
 
@@ -374,7 +392,10 @@ namespace dmGui
         luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
 
-        lua_pop(L, 1);
+        dmScript::SetInstance(L);
+        dmScript::InitializeInstance(scene->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
 
@@ -384,6 +405,12 @@ namespace dmGui
     void DeleteScene(HScene scene)
     {
         lua_State*L = scene->m_Context->m_LuaState;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::FinalizeInstance(scene->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -1506,8 +1533,26 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
+            if (custom_ref != LUA_NOREF) {
+                dmScript::ResolveInInstance(L, custom_ref);
+                if (!lua_isfunction(L, -1))
+                {
+                    // If the script instance is dead we just ignore the callback
+                    lua_pop(L, 1);
+                    lua_pushnil(L);
+                    dmScript::SetInstance(L);
+                    dmLogWarning("Failed to call message response callback function, has it been deleted?");
+                    return RESULT_OK;
+                }
+                dmScript::UnrefInInstance(L, custom_ref);
+            }
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
+            }
+
             assert(lua_isfunction(L, -1));
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
 
             uint32_t arg_count = 1;
@@ -1743,6 +1788,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     break;
                 }
             }
+
             lua_pushnil(L);
             dmScript::SetInstance(L);
             assert(top == lua_gettop(L));
@@ -1856,19 +1902,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
     {
         int custom_ref = LUA_NOREF;
-        bool is_callback = false;
-        if (message->m_Receiver.m_Function) {
-            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
-            custom_ref = message->m_Receiver.m_Function - 2;
-            is_callback = true;
+        if (message->m_Receiver.m_FunctionRef) {
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            custom_ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
+            // RunScript method will DeRef the custom_ref if it is not LUA_NOREF
         }
 
         Result r = RunScript(scene, SCRIPT_FUNCTION_ONMESSAGE, custom_ref, (void*)message);
 
-        if (is_callback) {
-            lua_State* L = scene->m_Context->m_LuaState;
-            dmScript::Unref(L, LUA_REGISTRYINDEX, custom_ref);
-        }
         return r;
     }
 
@@ -3015,17 +3056,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             animation.m_Userdata1 = userdata1;
             animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-            SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
         }
         else
         {
             animation.m_Node = node;
             animation.m_AnimationComplete = 0;
             animation.m_Userdata1 = 0;
-            animation.m_Userdata2 = 0;
+            animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-            SetEventCallback(rig_instance, 0, 0, 0);
         }
+
+        SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
 
         return RESULT_OK;
     }
@@ -3994,6 +4035,11 @@ bail:
     lua_State* GetLuaState(HContext context)
     {
         return context->m_LuaState;
+    }
+
+    int GetContextTableRef(HScene scene)
+    {
+        return scene->m_ContextTableReference;
     }
 
 }  // namespace dmGui

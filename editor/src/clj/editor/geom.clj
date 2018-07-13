@@ -4,7 +4,7 @@
             [editor.math :as math])
   (:import [com.defold.util Geometry]
            [editor.types Rect AABB]
-           [javax.vecmath Point2d Point3d Point4d Vector4d Vector3d Quat4d Matrix4d]
+           [javax.vecmath Point2d Point3d Point4d Vector4d Vector3d Quat4d Matrix3d Matrix4d]
            [com.defold.editor.pipeline TextureSetGenerator$UVTransform]))
 
 (set! *warn-on-reflection* true)
@@ -164,6 +164,8 @@
     (.transform tfm p)
     p))
 
+(def ^Quat4d NoRotation (Quat4d. 0.0 0.0 0.0 1.0))
+(def ^Matrix3d Identity3d (doto (Matrix3d.) (.setIdentity)))
 (def ^Matrix4d Identity4d (doto (Matrix4d.) (.setIdentity)))
 
 ; -------------------------------------

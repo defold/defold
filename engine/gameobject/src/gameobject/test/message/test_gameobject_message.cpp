@@ -324,11 +324,11 @@ TEST_F(MessageTest, TestInputFocus)
     receiver.m_Fragment = 0;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, message_id, (uintptr_t)go, (uintptr_t)dmGameObjectDDF::AcquireInputFocus::m_DDFDescriptor, 0x0, 0, 0));
 
-    ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(0u, m_Collection->m_Collection->m_InputFocusStack.Size());
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(1u, m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(1u, m_Collection->m_Collection->m_InputFocusStack.Size());
 
     message_id = dmGameObjectDDF::ReleaseInputFocus::m_DDFDescriptor->m_NameHash;
 
@@ -336,7 +336,7 @@ TEST_F(MessageTest, TestInputFocus)
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(0u, m_Collection->m_InputFocusStack.Size());
+    ASSERT_EQ(0u, m_Collection->m_Collection->m_InputFocusStack.Size());
 
     dmGameObject::Delete(m_Collection, go, false);
 }

@@ -66,7 +66,7 @@ namespace dmGameSystem
 
      /*# [type:number] spine playback_rate
      *
-     * The animation playback rate. A multiplier to the animation playback rate. The type of the property is number.
+     * The animation playback rate. A multiplier to the animation playback rate. The type of the property is [type:number].
      *
      * The playback_rate is a non-negative number, a negative value will be clamped to 0.
      *
@@ -89,7 +89,8 @@ namespace dmGameSystem
 
      /*# [type:hash] spine animation
      *
-     * The current animation set on the component. The type of the property is hash.
+     * [mark:READ ONLY] The current animation set on the component.
+     * The type of the property is [type:hash].
      *
      * @name animation
      * @property
@@ -152,8 +153,8 @@ namespace dmGameSystem
             if (lua_isfunction(L, 5))
             {
                 lua_pushvalue(L, 5);
-                // see message.h for why 2 is added
-                sender.m_Function = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
 
@@ -290,8 +291,8 @@ namespace dmGameSystem
             if (lua_isfunction(L, 5))
             {
                 lua_pushvalue(L, 5);
-                // see message.h for why 2 is added
-                sender.m_Function = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
 
@@ -581,6 +582,51 @@ namespace dmGameSystem
         return 0;
     }
 
+    /*# reset the IK constraint target position to default of a spinemodel
+     *
+     * Resets any previously set IK target of a spine model, the position will be reset
+     * to the original position from the spine scene.
+     *
+     * @name spine.reset_ik_target
+     * @param url [type:string|hash|url] the spine model containing the object
+     * @param ik_constraint_id [type:string|hash] id of the corresponding IK constraint object
+     * @examples
+     *
+     * The following example assumes that the spine model has id "spinemodel".
+     *
+     * A player no longer has an item in hand, that previously was controlled through IK,
+     * let's reset the IK of the right hand.
+     *
+     * ```lua
+     * function player_lost_item(self)
+     *   spine.reset_ik_target("player#spinemodel", "right_hand_constraint")
+     * end
+     * ```
+     */
+    int SpineComp_ResetIK(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        uintptr_t user_data;
+        dmMessage::URL receiver;
+        SpineModelWorld* world = 0;
+        dmGameObject::GetComponentUserDataFromLua(L, 1, collection, SPINE_MODEL_EXT, &user_data, &receiver, (void**) &world);
+        SpineModelComponent* component = world->m_Components.Get(user_data);
+
+        dmhash_t ik_constraint_id = dmScript::CheckHashOrString(L, 2);
+
+        if (!CompSpineModelResetIKTarget(component, ik_constraint_id))
+        {
+            char str[128];
+            return luaL_error(L, "the IK constraint target '%s' could not be found", dmScript::GetStringFromHashOrString(L, 2, str, sizeof(str)));
+        }
+
+        return 0;
+    }
+
     /*# set a shader constant for a spine model
      * Sets a shader constant for a spine model component.
      * The constant must be defined in the material assigned to the spine model.
@@ -677,6 +723,7 @@ namespace dmGameSystem
             {"set_skin",  SpineComp_SetSkin},
             {"set_ik_target_position", SpineComp_SetIKTargetPosition},
             {"set_ik_target",   SpineComp_SetIKTarget},
+            {"reset_ik_target",        SpineComp_ResetIK},
             {"set_constant",    SpineComp_SetConstant},
             {"reset_constant",  SpineComp_ResetConstant},
             {0, 0}

@@ -33,6 +33,9 @@ PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
 PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
+PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
+PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -46,6 +49,7 @@ EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VE
 PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
+ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
 
 class ExecException(Exception):
     def __init__(self, retcode, output):
@@ -168,6 +172,7 @@ class Configuration(object):
                  skip_codesign = False,
                  skip_docs = False,
                  skip_builtins = False,
+                 skip_bob_light = False,
                  disable_ccache = False,
                  no_colors = False,
                  archive_path = None,
@@ -202,6 +207,7 @@ class Configuration(object):
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
         self.skip_builtins = skip_builtins
+        self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
         self.no_colors = no_colors
         self.archive_path = archive_path
@@ -240,9 +246,19 @@ class Configuration(object):
         sys.stderr.flush()
 
     def distclean(self):
-        shutil.rmtree(self.dynamo_home)
+        if os.path.exists(self.dynamo_home):
+            self._log('Removing %s' % self.dynamo_home)
+            shutil.rmtree(self.dynamo_home)
+
+        for lib in ['dlib','texc']+ENGINE_LIBS:
+            builddir = join(self.defold_root, 'engine/%s/build' % lib)
+            if os.path.exists(builddir):
+                self._log('Removing %s' % builddir)
+                shutil.rmtree(builddir)
+
         # Recreate dirs
         self._create_common_dirs()
+        self._log('distclean done.')
 
     def _extract_tgz(self, file, path):
         self._log('Extracting %s to %s' % (file, path))
@@ -390,6 +406,16 @@ class Configuration(object):
         xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
 
+        def download_sdk(url, targetfolder, tmpname=None): # tmpname is the top folder name inside the archive, which you wish to rename
+            if not os.path.exists(targetfolder):
+                dlpath = self._download(url)
+                parent_folder = os.path.split(targetfolder)[0]
+                if tmpname is None:
+                    self._extract_tgz(dlpath, parent_folder)
+                else:
+                    tmpfolder = os.path.join(parent_folder, tmpname)
+                    os.rename(tmpfolder, targetfolder)
+
         if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
             # macOS SDK
             tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
@@ -416,6 +442,15 @@ class Configuration(object):
                 tmpfolder = join(self.ext, 'SDKs')
                 self._extract_tgz(dlpath, tmpfolder)
                 os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
+
+        if 'win32' in target_platform and not ('win32' in self.host):
+            win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            targetfolder = join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') # let's avoid spaces in the paths
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), targetfolder, 'Microsoft Visual Studio 14.0' )
+
+            # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
     def _form_ems_path(self):
         path = ''
@@ -730,14 +765,15 @@ class Configuration(object):
             self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
         if host == 'x86_64-win32' and self.target_platform != 'win32':
             self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
-        # We must build bob-light, which builds content during the engine build
-        # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
-        for lib in ['dlib', 'texc']:
-            skip_tests = host != self.target_platform
-            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
-        self.build_bob_light()
+        if not self.skip_bob_light:
+            # We must build bob-light, which builds content during the engine build
+            # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
+            for lib in ['dlib', 'texc']:
+                skip_tests = host != self.target_platform
+                self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
+            self.build_bob_light()
         # Target libs to build
-        engine_libs = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
+        engine_libs = list(ENGINE_LIBS)
         if host != self.target_platform:
             engine_libs.insert(0, 'dlib')
             if self.is_desktop_target():
@@ -1732,16 +1768,22 @@ instructions.configure=\
             arg_str = ' '.join(arg_list)
         self._log('[exec] %s' % arg_str)
 
-        process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
+        if sys.stdout.isatty():
+            # If not on CI, we want the colored output, and we get the output as it runs
+            process = subprocess.Popen(arg_list, stdout = sys.stdout, stderr = sys.stderr, **kwargs)
+            output = process.communicate()[0]
+        else:
+            # On the CI machines, we make sure we produce a steady stream of output
+            process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
 
-        output = ''
-        while True:
-            line = process.stdout.readline()
-            if line != '':
-                output += line
-                self._log(line.rstrip())
-            else:
-                break
+            output = ''
+            while True:
+                line = process.stdout.readline()
+                if line != '':
+                    output += line
+                    self._log(line.rstrip())
+                else:
+                    break
 
         if process.wait() != 0:
             raise ExecException(process.returncode, output)
@@ -1886,6 +1928,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'skip building builtins when building the engine. Default is false')
 
+    parser.add_option('--skip-bob-light', dest='skip_bob_light',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip building bob-light when building the engine. Default is false')
+
     parser.add_option('--disable-ccache', dest='disable_ccache',
                       action = 'store_true',
                       default = False,
@@ -1939,6 +1986,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
                       skip_builtins = options.skip_builtins,
+                      skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
                       no_colors = options.no_colors,
                       archive_path = options.archive_path,

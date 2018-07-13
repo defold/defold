@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 import os, shutil, zipfile
-
-import Node
+import Node, Options
 
 def set_options(opt):
     pass
@@ -28,6 +27,11 @@ def build(bld):
 
     builtins.find_sources_in_dirs('builtins/input builtins/render builtins/fonts builtins/connect builtins/materials builtins/graphics builtins/scripts')
 
+    # DEF-3259 - The resource build system doesn't take into account that several builds using same source contnt
+    # may be running at the same time. And, as a fix, we add a synchronization point here for the builds,
+    # to make sure that builtins + builtins_release are built consecutively.
+    bld.add_group()
+
     builtins_release = bld.new_task_gen(features='barchive',
                                 source_root='default/content',
                                 resource_name='builtins_release',
@@ -38,12 +42,13 @@ def build(bld):
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
 
-    bld.new_task_gen(name = 'bob-engine',
-                     source = bld.path.ant_glob('builtins/**'),
-                     target = 'bob-engine.jar',
-                     rule = package_bob,
-                     always = True)
-    bld.install_files('${PREFIX}/share/java', 'bob-engine.jar')
+    if not Options.options.skip_build_tests:
+        bld.new_task_gen(name = 'bob-engine',
+                         source = bld.path.ant_glob('builtins/**'),
+                         target = 'bob-engine.jar',
+                         rule = package_bob,
+                         always = True)
+        bld.install_files('${PREFIX}/share/java', 'bob-engine.jar')
 
 
 def configure(conf):

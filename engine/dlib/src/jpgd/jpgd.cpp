@@ -563,8 +563,10 @@ inline int jpeg_decoder::huff_decode(huff_tables *pH, int& extra_bits)
 
 // Tables and macro used to fully decode the DPCM differences.
 static const int s_extend_test[16] = { 0, 0x0001, 0x0002, 0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080, 0x0100, 0x0200, 0x0400, 0x0800, 0x1000, 0x2000, 0x4000 };
-static const int s_extend_offset[16] = { 0, ((-1)<<1) + 1, ((-1)<<2) + 1, ((-1)<<3) + 1, ((-1)<<4) + 1, ((-1)<<5) + 1, ((-1)<<6) + 1, ((-1)<<7) + 1, ((-1)<<8) + 1, ((-1)<<9) + 1, ((-1)<<10) + 1, ((-1)<<11) + 1, ((-1)<<12) + 1, ((-1)<<13) + 1, ((-1)<<14) + 1, ((-1)<<15) + 1 };
-static const int s_extend_mask[] = { 0, (1<<0), (1<<1), (1<<2), (1<<3), (1<<4), (1<<5), (1<<6), (1<<7), (1<<8), (1<<9), (1<<10), (1<<11), (1<<12), (1<<13), (1<<14), (1<<15), (1<<16) };
+// DEFOLD: Removed warnings of negative shifts (also https://github.com/richgel999/jpeg-compressor/pull/9/files)
+//static const int s_extend_offset[16] = { 0, ((-1)<<1) + 1, ((-1)<<2) + 1, ((-1)<<3) + 1, ((-1)<<4) + 1, ((-1)<<5) + 1, ((-1)<<6) + 1, ((-1)<<7) + 1, ((-1)<<8) + 1, ((-1)<<9) + 1, ((-1)<<10) + 1, ((-1)<<11) + 1, ((-1)<<12) + 1, ((-1)<<13) + 1, ((-1)<<14) + 1, ((-1)<<15) + 1 };
+static const int s_extend_offset[16] = { 0, -1, -3, -7, -15, -31, -63, -127, -255, -511, -1023, -2047, -4095, -8191, -16383, -32767};
+//UNUSED: static const int s_extend_mask[] = { 0, (1<<0), (1<<1), (1<<2), (1<<3), (1<<4), (1<<5), (1<<6), (1<<7), (1<<8), (1<<9), (1<<10), (1<<11), (1<<12), (1<<13), (1<<14), (1<<15), (1<<16) };
 // The logical AND's in this macro are to shut up static code analysis (aren't really necessary - couldn't find another way to do this)
 #define JPGD_HUFF_EXTEND(x, s) (((x) < s_extend_test[s & 15]) ? ((x) + s_extend_offset[s & 15]) : (x))
 
@@ -1537,7 +1539,7 @@ void jpeg_decoder::transform_mcu_expand(int mcu_row)
     JPGD_ASSERT(m_mcu_block_max_zag[mcu_block] >= 1);
     JPGD_ASSERT(m_mcu_block_max_zag[mcu_block] <= 64);
 
-    int max_zag = m_mcu_block_max_zag[mcu_block++] - 1; 
+    int max_zag = m_mcu_block_max_zag[mcu_block++] - 1;
     if (max_zag <= 0) max_zag = 0; // should never happen, only here to shut up static analysis
     switch (s_max_rc[max_zag])
     {
@@ -1810,7 +1812,7 @@ void jpeg_decoder::decode_next_row()
 
             k += r;
           }
-          
+
           s = JPGD_HUFF_EXTEND(extra_bits, s);
 
           JPGD_ASSERT(k < 64);
@@ -2679,11 +2681,11 @@ void jpeg_decoder::decode_block_ac_refine(jpeg_decoder *pD, int component_id, in
   int p1 = 1 << pD->m_successive_low;
   int m1 = (-1) << pD->m_successive_low;
   jpgd_block_t *p = pD->coeff_buf_getp(pD->m_ac_coeffs[component_id], block_x, block_y);
-  
+
   JPGD_ASSERT(pD->m_spectral_end <= 63);
-  
+
   k = pD->m_spectral_start;
-  
+
   if (pD->m_eob_run == 0)
   {
     for ( ; k <= pD->m_spectral_end; k++)

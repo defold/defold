@@ -20,6 +20,7 @@
 #include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
+#include "script_timer.h"
 
 extern "C"
 {
@@ -55,11 +56,13 @@ namespace dmScript
         context->m_Modules.SetCapacity(127, 256);
         context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
+        context->m_ScriptExtensions.SetCapacity(8);
         context->m_ConfigFile = config_file;
         context->m_ResourceFactory = factory;
         context->m_EnableExtensions = enable_extensions;
         memset(context->m_InitializedExtensions, 0, sizeof(context->m_InitializedExtensions));
         context->m_LuaState = lua_open();
+        context->m_ContextTableRef = LUA_NOREF;
         return context;
     }
 
@@ -175,6 +178,19 @@ namespace dmScript
         lua_pushlightuserdata(L, (void*)L);
         lua_setglobal(L, SCRIPT_MAIN_THREAD);
 
+        lua_newtable(L);
+        context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
+
+        InitializeTimer(context);
+
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Initialize != 0x0)
+            {
+                (*l)->Initialize(context);
+            }
+        }
+
 #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
 #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
@@ -199,8 +215,25 @@ namespace dmScript
         assert(top == lua_gettop(L));
     }
 
-    void UpdateExtensions(HContext context)
+    void RegisterScriptExtension(HContext context, HScriptExtension script_extension)
     {
+        if (context->m_ScriptExtensions.Full())
+        {
+            context->m_ScriptExtensions.SetCapacity(context->m_ScriptExtensions.Capacity() + 8);
+        }
+        context->m_ScriptExtensions.Push(script_extension);
+    }
+
+    void Update(HContext context)
+    {
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Update != 0x0)
+            {
+                (*l)->Update(context);
+            }
+        }
+
         if (context->m_EnableExtensions) {
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
             uint32_t i = 0;
@@ -227,6 +260,14 @@ namespace dmScript
     {
         lua_State* L = context->m_LuaState;
         FinalizeHttp(L);
+
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->Finalize != 0x0)
+            {
+                (*l)->Finalize(context);
+            }
+        }
 
         if (context->m_EnableExtensions) {
             const dmExtension::Desc* ed = dmExtension::GetFirstExtension();
@@ -256,6 +297,9 @@ namespace dmScript
         lua_getglobal(L, RANDOM_SEED);
         uint32_t* seed = (uint32_t*) lua_touserdata(L, -1);
         free(seed);
+        lua_pop(L, 1);
+
+        Unref(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
     }
 #undef BIT_INDEX
 #undef BIT_OFFSET
@@ -574,158 +618,398 @@ namespace dmScript
         return false;
     }
 
-    bool SetInstanceContextValue(lua_State* L)
+    void SetContextValue(HContext context)
     {
+        assert(context != 0x0);
+        lua_State* L = context->m_LuaState;
+
         DM_LUA_STACK_CHECK(L, -2);
 
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
+        // [-3] key
+        // [-2] value
+        // [-1] context table
+
+        assert(lua_type(L, -1) == LUA_TTABLE);
+
+        lua_insert(L, -3);
+        // [-3] context table
         // [-2] key
         // [-1] value
 
-        GetInstance(L);
-        // [-3] key
-        // [-2] value
-        // [-1] instance
+        lua_settable(L, -3);
+        // [-1] context table
 
-        if (GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF)) {
-            // [-4] key
-            // [-3] value
-            // [-2] instance
-            // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
-
-            lua_pushvalue(L, -2);
-            // [-5] key
-            // [-4] value
-            // [-3] instance
-            // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
-            // [-1] instance
-
-            lua_call(L, 1, 1);
-            // [-4] key
-            // [-3] value
-            // [-2] instance
-            // [-1] instance context table ref
-            assert(lua_type(L, -1) == LUA_TNUMBER);
-
-            int context_table_ref = lua_tonumber(L, -1);
-            lua_pop(L, 1);
-            // [-3] key
-            // [-2] value
-            // [-1] instance
-
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
-            assert(lua_type(L, -1) == LUA_TTABLE);
-            // [-4] key
-            // [-3] value
-            // [-2] instance
-            // [-1] instance context table
-
-            lua_pushvalue(L, -4);
-            // [-5] key
-            // [-4] value
-            // [-3] instance
-            // [-2] instance context table
-            // [-1] key
-
-            lua_pushvalue(L, -4);
-            // [-6] key
-            // [-5] value
-            // [-4] instance
-            // [-3] instance context table
-            // [-2] key
-            // [-1] value
-
-            lua_settable(L, -3);
-            // [-4] key
-            // [-3] value
-            // [-2] instance
-            // [-1] instance context table
-
-            lua_pop(L, 4);
-            return true;
-        }
-        lua_pop(L, 3);
-
-        return false;
+        lua_pop(L, 1);
     }
 
-    bool GetInstanceContextValue(lua_State* L)
+    void GetContextValue(HContext context)
     {
-        // [-1] key
+        assert(context != 0x0);
+        lua_State* L = context->m_LuaState;
 
-        int top = lua_gettop(L);
-        (void)top;
+        DM_LUA_STACK_CHECK(L, 0);
 
-        GetInstance(L);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context->m_ContextTableRef);
         // [-2] key
-        // [-1] instance
+        // [-1] context table
 
-        if (GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF)) {
-            // [-3] key
-            // [-2] instance
-            // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
-
-            lua_pushvalue(L, -2);
-            // [-4] key
-            // [-3] instance
-            // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
-            // [-1] instance
-
-            lua_call(L, 1, 1);
-            // [-3] key
-            // [-2] instance
-            // [-1] instance context table ref
-            if(lua_type(L, -1) != LUA_TNUMBER)
-            {
-                lua_pop(L, 3);
-                assert(top - 1 == lua_gettop(L));
-                return false;
-            }
-
-            int context_table_ref = lua_tonumber(L, -1);
-            lua_pop(L, 1);
-            // [-3] key
-            // [-2] instance
-
-            lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
-            // [-3] key
-            // [-2] instance
-            // [-1] instance context table
-
-            if(lua_type(L, -1) != LUA_TTABLE)
-            {
-                lua_pop(L, 3);
-                assert(top - 1 == lua_gettop(L));
-                return false;
-            }
-
-            lua_pushvalue(L, -3);
-            // [-4] key
-            // [-3] instance
-            // [-2] instance context table
-            // [-1] key
-
-            lua_gettable(L, -2);
-            // [-4] key
-            // [-3] instance
-            // [-2] instance context table
-            // [-1] value
-
-            lua_insert(L, -4);
-            // [-4] value
-            // [-3] key
-            // [-2] instance
-            // [-1] instance context table
-
-            lua_pop(L, 3);
-            // [-1] value
-
-            assert(top == lua_gettop(L));
-            return true;
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 2);
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
         }
 
-        lua_pop(L, 2);
-        assert(top - 1 == lua_gettop(L));
-        return false;
+        lua_insert(L, -2);
+        // [-2] context table
+        // [-1] key
+        lua_gettable(L, -2);
+        // [-2] context table
+        // [-1] value
+
+        lua_remove(L, -2);
+        // [-1] value
+    }
+
+    static void GetInstanceContextTable(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        GetInstance(L);
+        // [-1] instance
+
+        if (!GetMetaFunction(L, -1, META_GET_INSTANCE_CONTEXT_TABLE_REF))
+        {
+            lua_pop(L, 1);
+            lua_pushnil(L);
+            return;
+        }
+        // [-2] instance
+        // [-1] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+
+        lua_insert(L, -2);
+        // [-2] META_GET_INSTANCE_CONTEXT_TABLE_REF()
+        // [-1] instance
+
+        lua_call(L, 1, 1);
+        // [-1] instance context table ref or LUA_NOREF
+        assert(lua_type(L, -1) == LUA_TNUMBER);
+
+        int context_table_ref = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        if (context_table_ref == LUA_NOREF)
+        {
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, context_table_ref);
+        // [-1] instance context table
+    }
+
+    uintptr_t GetInstanceId(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void)top;
+        GetInstance(L);
+        int instance_type = lua_type(L, -1);
+        // We assume that all users of SetInstance puts some form of user data/light user data, it is an assumption that works for now
+        uintptr_t id = (instance_type == LUA_TLIGHTUSERDATA || instance_type == LUA_TUSERDATA) ? (uintptr_t)lua_touserdata(L, -1) : 0;
+        lua_pop(L, 1);
+        assert(top == lua_gettop(L));
+        return id;
+    }
+
+    struct ScriptWorld
+    {
+        HContext m_Context;
+        int      m_WorldContextTableRef;
+    };
+
+    HContext GetScriptWorldContext(HScriptWorld script_world)
+    {
+        return script_world == 0x0 ? 0x0 : script_world->m_Context;
+    }
+
+    void SetScriptWorldContextValue(HScriptWorld script_world)
+    {
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+        // [-3] key
+        // [-2] value
+        // [-1] context table
+
+        lua_insert(L, -3);
+        // [-3] context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] context table
+
+        lua_pop(L, 1);
+    }
+
+    void GetScriptWorldContextValue(HScriptWorld script_world)
+    {
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+        // [-2] key
+        // [-1] context table
+
+        lua_insert(L, -2);
+        // [-2] context table
+        // [-1] key
+
+        lua_gettable(L, -2);
+        // [-2] context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] context table
+
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
+    HScriptWorld NewScriptWorld(HContext context)
+    {
+        HScriptWorld script_world = (ScriptWorld*)malloc(sizeof(ScriptWorld));
+        assert(script_world != 0x0);
+        script_world->m_Context = context;
+        lua_State* L = script_world->m_Context->m_LuaState;
+        lua_newtable(L);
+        script_world->m_WorldContextTableRef = Ref(L, LUA_REGISTRYINDEX);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->NewScriptWorld != 0x0)
+            {
+                (*l)->NewScriptWorld(script_world);
+            }
+        }
+        return script_world;
+    }
+
+    void DeleteScriptWorld(HScriptWorld script_world)
+    {
+        assert(script_world != 0x0);
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->DeleteScriptWorld != 0x0)
+            {
+                (*l)->DeleteScriptWorld(script_world);
+            }
+        }
+        lua_State* L = script_world->m_Context->m_LuaState;
+        Unref(L, LUA_REGISTRYINDEX, script_world->m_WorldContextTableRef);
+
+        free(script_world);
+    }
+
+    void UpdateScriptWorld(HScriptWorld script_world, float dt)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->UpdateScriptWorld != 0x0)
+            {
+                (*l)->UpdateScriptWorld(script_world, dt);
+            }
+        }
+    }
+
+    void InitializeInstance(HScriptWorld script_world)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->InitializeScriptInstance != 0x0)
+            {
+                (*l)->InitializeScriptInstance(script_world);
+            }
+        }
+    }
+
+    void FinalizeInstance(HScriptWorld script_world)
+    {
+        if (script_world == 0x0)
+        {
+            return;
+        }
+        HContext context = GetScriptWorldContext(script_world);
+        for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
+        {
+            if ((*l)->FinalizeScriptInstance != 0x0)
+            {
+                (*l)->FinalizeScriptInstance(script_world);
+            }
+        }
+    }
+
+    bool SetInstanceContextValue(lua_State* L)
+    {
+        // [-2] key
+        // [-1] value
+
+        DM_LUA_STACK_CHECK(L, -2);
+
+        GetInstanceContextTable(L);
+        // [-3] key
+        // [-2] value
+        // [-1] instance context table or LUA_NIL
+
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 3);
+            return false;
+        }
+        // [-3] key
+        // [-2] value
+        // [-1] instance context table
+
+        lua_insert(L, -3);
+        // [-3] instance context table
+        // [-2] key
+        // [-1] value
+
+        lua_settable(L, -3);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+        return true;
+    }
+
+    void GetInstanceContextValue(lua_State* L)
+    {
+        // [-1] key
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstanceContextTable(L);
+        // [-2] key
+        // [-1] instance context table or LUA_NIL
+
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 2);
+
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+        // [-2] key
+        // [-1] instance context table
+
+        lua_insert(L, -2);
+        // [-2] instance context table
+        // [-1] key
+
+        lua_gettable(L, -2);
+        // [-2] instance context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] instance context table
+        
+        lua_pop(L, 1);
+        // [-1] value
+    }
+
+    int RefInInstance(lua_State* L)
+    {
+        // [-1] value
+        DM_LUA_STACK_CHECK(L, -1);
+
+        GetInstanceContextTable(L);
+        // [-2] value
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            // [-2] value
+            // [-1] LUA_NIL
+
+            lua_pop(L, 2);
+            return LUA_NOREF;
+        }
+        // [-2] value
+        // [-1] instance context table
+
+        lua_insert(L, -2);
+        // [-2] instance context table
+        // [-1] value
+
+        int instance_ref = luaL_ref(L, -2);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+
+        return instance_ref;
+    }
+
+    void UnrefInInstance(lua_State* L, int ref)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        GetInstanceContextTable(L);
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            // [-1] LUA_NIL
+
+            lua_pop(L, 1);
+            return;
+        }
+        // [-1] instance context table
+
+        luaL_unref(L, -1, ref);
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+    }
+
+    void ResolveInInstance(lua_State* L, int ref)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        GetInstanceContextTable(L);
+        // [-1] instance context table or LUA_NIL
+        
+        if (lua_type(L, -1) != LUA_TTABLE)
+        {
+            lua_pop(L, 1);
+
+            lua_pushnil(L);
+            // [-1] LUA_NIL
+            return;
+        }
+        // [-1] instance context table
+
+        lua_rawgeti(L, -1, ref);
+        // [-2] instance context table
+        // [-1] value
+
+        lua_insert(L, -2);
+        // [-2] value
+        // [-1] instance context table
+
+        lua_pop(L, 1);
+        // [-1] value
     }
 
     static int BacktraceErrorHandler(lua_State *m_state) {
@@ -934,9 +1218,14 @@ namespace dmScript
         cbk->m_L = GetMainThread(L);
         cbk->m_ContextTableRef = context_table_ref;
         
-        cbk->m_CallbackInfoRef = luaL_ref(L, -3);
+        // For the callback ref (that can actually outlive the script instance)
+        // we want to add to the lua debug count
+        cbk->m_CallbackInfoRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
         // [-2] context table
         // [-1] callback
+
+        // We do not use dmScript::Unref for refs in the context local table as we don't
+        // want to count those refs the ref debug count shown in the profiler
 
         cbk->m_Callback = luaL_ref(L, -2);
         // [-1] context table
@@ -976,9 +1265,14 @@ namespace dmScript
             lua_rawgeti(L, LUA_REGISTRYINDEX, cbk->m_ContextTableRef);
             if (lua_type(L, -1) == LUA_TTABLE)
             {
+                // We do not use dmScript::Unref for refs in the context local table as we don't
+                // want to count those refs the ref debug count shown in the profiler
                 luaL_unref(L, -1, cbk->m_Self);
                 luaL_unref(L, -1, cbk->m_Callback);
-                luaL_unref(L, -1, cbk->m_CallbackInfoRef);
+
+                // For the callback (that can actually outlive the script instance)
+                // we want to add to the lua debug count
+                dmScript::Unref(L, LUA_REGISTRYINDEX, cbk->m_CallbackInfoRef);
             }
             cbk->m_Self = LUA_NOREF;
             cbk->m_Callback = LUA_NOREF;
@@ -999,7 +1293,7 @@ namespace dmScript
 
     bool InvokeCallback(LuaCallbackInfo* cbk, LuaCallbackUserFn fn, void* user_context)
     {
-        if(cbk->m_ContextTableRef == LUA_NOREF)
+        if(cbk->m_CallbackInfoRef == LUA_NOREF)
         {
             dmLogWarning("Failed to invoke callback (it was not registered)");
             return false;
@@ -1018,7 +1312,6 @@ namespace dmScript
         if (lua_type(L, -1) != LUA_TTABLE)
         {
             lua_pop(L, 2);
-            dmLogWarning("Could not run callback because the script instance has been deleted");
             return false;
         }
 
@@ -1031,7 +1324,6 @@ namespace dmScript
         if (lua_type(L, -1) != LUA_TFUNCTION)
         {
             lua_pop(L, 3);
-            dmLogWarning("Could not run callback because the callback function has been deleted");
             return false;
         }
 
@@ -1043,7 +1335,6 @@ namespace dmScript
         if (lua_isnil(L, -1))
         {
             lua_pop(L, 4);
-            dmLogWarning("Could not run callback because the script instance has been deleted");
             return false;
         }
 
@@ -1066,7 +1357,6 @@ namespace dmScript
             // [-1] old instance
 
             SetInstance(L);
-            dmLogWarning("Could not run callback because the script instance is invalid");
             return false;
         }
 
@@ -1079,13 +1369,12 @@ namespace dmScript
 
         int number_of_arguments = 1 + user_args_end - user_args_start; // instance + number of arguments that the user pushed
         int ret = PCall(L, number_of_arguments, 0);
-        if (ret != 0) {
-            // [-3] old instance
-            // [-2] context table
-            // [-1] error string
-            dmLogError("Error running callback: %s", lua_tostring(L,-1));
 
-            lua_pop(L, 2);
+        if (ret != 0) {
+            // [-2] old instance
+            // [-1] context table
+
+            lua_pop(L, 1);
             // [-1] old instance
 
             SetInstance(L);

@@ -109,6 +109,7 @@ namespace dmRender
 
         context->m_ScriptContext = params.m_ScriptContext;
         InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_ScriptContext, params.m_CommandBufferSize);
+        context->m_ScriptWorld = dmScript::NewScriptWorld(context->m_ScriptContext);
 
         context->m_DebugRenderer.m_RenderContext = 0;
         if (params.m_VertexProgramData != 0 && params.m_VertexProgramDataSize != 0 &&
@@ -137,6 +138,7 @@ namespace dmRender
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
         FinalizeRenderScriptContext(render_context->m_RenderScriptContext, script_context);
+        dmScript::DeleteScriptWorld(render_context->m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         dmMessage::DeleteSocket(render_context->m_Socket);

@@ -203,6 +203,12 @@ bool FetchRigSceneDataCallback(void* spine_scene, dmhash_t rig_scene_id, dmGui::
     return true;
 }
 
+uint32_t SpineAnimationKeyEventCount = 0;
+void RigEventDataCallback(dmGui::HScene scene, void* node_ref, void* event_data)
+{
+    ++SpineAnimationKeyEventCount;
+}
+
 class dmGuiTest : public ::testing::Test
 {
 public:
@@ -262,6 +268,7 @@ public:
         params.m_ParticlefxContext = dmParticle::CreateContext(MAX_PARTICLEFX, MAX_PARTICLES);
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
+        params.m_RigEventDataCallback = RigEventDataCallback;
         params.m_OnWindowResizeCallback = OnWindowResizeCallback;
         m_Scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneResolution(m_Scene, 1, 1);
@@ -455,9 +462,18 @@ private:
         anim0.m_Id = dmHashString64("valid");
         anim0.m_Duration            = 2.0f;
         anim0.m_SampleRate          = 1.0f;
-        anim0.m_EventTracks.m_Count = 0;
+        anim0.m_EventTracks.m_Count = 1;
         anim0.m_MeshTracks.m_Count  = 0;
         anim0.m_IkTracks.m_Count    = 0;
+        anim0.m_EventTracks.m_Data = new dmRigDDF::EventTrack[1];
+        dmRigDDF::EventTrack* event_track = &anim0.m_EventTracks.m_Data[0];
+        event_track->m_Keys.m_Count = 1;
+        event_track->m_Keys.m_Data = new dmRigDDF::EventKey[1];
+        dmRigDDF::EventKey* event_key = &event_track->m_Keys.m_Data[0];
+        event_key->m_T = 0.5f;
+        event_key->m_Integer = 0;
+        event_key->m_String = dmHashString64("a_spine_event");
+
         anim1.m_Id = dmHashString64("ik_anim");
         anim1.m_Duration            = 3.0f;
         anim1.m_SampleRate          = 1.0f;
@@ -574,6 +590,8 @@ private:
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Positive.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data[0].m_Mix.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[1].m_IkTracks.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_EventTracks[0].m_Keys.m_Data;
+        delete [] m_AnimationSet->m_Animations.m_Data[0].m_EventTracks.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[1].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data[0].m_Rotations.m_Data;
         delete [] m_AnimationSet->m_Animations.m_Data[0].m_Tracks.m_Data;
@@ -1568,7 +1586,7 @@ TEST_F(dmGuiTest, AnimateComplete)
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     Point3 completed_position;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*) node, (void*)&completed_position);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyAnimationComplete, (void*)(uintptr_t) node, (void*)&completed_position);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -1607,7 +1625,7 @@ void MyPingPongComplete1(dmGui::HScene scene,
 {
     ++PingPongCount;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(scene, node, property, Vector4(0,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*) node, 0);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(0,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete2, (void*)(uintptr_t) node, 0);
 }
 
 void MyPingPongComplete2(dmGui::HScene scene,
@@ -1618,14 +1636,14 @@ void MyPingPongComplete2(dmGui::HScene scene,
 {
     ++PingPongCount;
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNodeHash(scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*)(uintptr_t) node, 0);
 }
 
 TEST_F(dmGuiTest, PingPong)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX);
     dmhash_t property = dmGui::GetPropertyHash(dmGui::PROPERTY_POSITION);
-    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*) node, 0);
+    dmGui::AnimateNodeHash(m_Scene, node, property, Vector4(1,0,0,0), dmEasing::Curve(dmEasing::TYPE_LINEAR), dmGui::PLAYBACK_ONCE_FORWARD, 1.0f, 0, &MyPingPongComplete1, (void*)(uintptr_t) node, 0);
 
     ASSERT_NEAR(dmGui::GetNodePosition(m_Scene, node).getX(), 0.0f, EPSILON);
 
@@ -4890,6 +4908,36 @@ TEST_F(dmGuiTest, SpineNodeGetAnimation)
     ASSERT_EQ(dmHashString64("valid"), dmGui::GetNodeSpineAnimation(m_Scene, node));
 }
 
+TEST_F(dmGuiTest, SpineNodeEventCallback)
+{
+    SpineAnimationKeyEventCount = 0;
+    uint32_t width = 100;
+    uint32_t height = 50;
+    float dt = 1.0f;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmGui::RigSceneDataDesc rig_scene_desc;
+    rig_scene_desc.m_BindPose = &m_BindPose;
+    rig_scene_desc.m_Skeleton = m_Skeleton;
+    rig_scene_desc.m_MeshSet = m_MeshSet;
+    rig_scene_desc.m_AnimationSet = m_AnimationSet;
+    rig_scene_desc.m_TrackIdxToPose = &m_TrackIdxToPose;
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::AddSpineScene(m_Scene, "test_spine", (void*)&rig_scene_desc));
+
+    // create node
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(0, 0, 0), Vector3(0, 0, 0), dmGui::NODE_TYPE_SPINE);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeSpineScene(m_Scene, node, dmHashString64("test_spine"), dmHashString64((const char*)"skin1"), dmHashString64((const char*)""), true));
+
+    // duration is 3.0 seconds, event key located at 0.5 seconds
+    // play animation with event key
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeSpineAnim(m_Scene, node, dmHashString64("valid"), dmGui::PLAYBACK_ONCE_FORWARD, 0.0, 0.0, 1.0, 0x0, (void*)m_Scene, 0));
+    ASSERT_EQ(dmRig::RESULT_UPDATED_POSE, dmRig::Update(m_RigContext, dt));
+    ASSERT_EQ(SpineAnimationKeyEventCount, 1);
+}
+
 uint32_t SpineAnimationCompleteCount = 0;
 void SpineAnimationComplete(dmGui::HScene scene,
                          dmGui::HNode node,
@@ -5147,6 +5195,9 @@ TEST_F(dmGuiTest, KeepParticlefxOnNodeDeletion)
 
     ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
     dmGui::DeleteNode(m_Scene, node_pfx, false);
+    dmGui::DeleteNode(m_Scene, node_box, false);
+    dmGui::DeleteNode(m_Scene, node_pie, false);
+    dmGui::DeleteNode(m_Scene, node_text, false);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::UpdateScene(m_Scene, 1.0f / 60.0f));
     ASSERT_EQ(1U, dmGui::GetParticlefxCount(m_Scene));
     dmGui::FinalScene(m_Scene);
@@ -5261,17 +5312,17 @@ TEST_F(dmGuiTest, CallbackCalledCorrectNumTimes)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
- 
+
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
     ASSERT_EQ(3, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     ASSERT_EQ(4, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
@@ -5293,17 +5344,17 @@ TEST_F(dmGuiTest, CallbackCalledSingleTimePerStateChange)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(1, data->m_NumStateChanges);
- 
+
     float dt = 0.1f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning
     ASSERT_EQ(2, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Still spawning, should not trigger callback
     ASSERT_EQ(2, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 
@@ -5327,17 +5378,17 @@ TEST_F(dmGuiTest, CallbackCalledMultipleEmitters)
     particle_callback.m_UserData = data;
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, &particle_callback)); // Prespawn
-    
+
     ASSERT_TRUE(data->m_CallbackWasCalled);
     ASSERT_EQ(3, data->m_NumStateChanges);
- 
+
     float dt = 1.2f;
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Spawning & Postspawn
     ASSERT_EQ(9, data->m_NumStateChanges);
 
     dmParticle::Update(m_Scene->m_ParticlefxContext, dt, 0); // Sleeping
     ASSERT_EQ(12, data->m_NumStateChanges);
-    
+
     dmGui::DeleteNode(m_Scene, node_pfx, true);
     dmGui::UpdateScene(m_Scene, dt);
 

@@ -147,6 +147,13 @@ namespace dmGui
     typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
 
     /**
+     * Callback for rig events
+     */
+    typedef void (*RigEventDataCallback)(HScene scene,
+                                      void* node_ref,
+                                      void* event_data);
+
+    /**
      * Scene creation
      */
     struct NewSceneParams;
@@ -167,8 +174,10 @@ namespace dmGui
         void*    m_UserData;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
+        RigEventDataCallback m_RigEventDataCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
         AdjustReference m_AdjustReference;
+        dmScript::ScriptWorld* m_ScriptWorld;
 
         NewSceneParams()
         {
@@ -1153,6 +1162,11 @@ namespace dmGui
      * @return lua state
      */
     lua_State* GetLuaState(HContext context);
+
+    /** Gets reference to the lua reference table used for gui scripts.
+     * @return lua reference table reference
+     */
+    int GetContextTableRef(HScene scene);
 
     /** Gets the gui scene currently connected to the lua state.
      * A scene is connected while any of the callbacks in the associated gui script is being run.

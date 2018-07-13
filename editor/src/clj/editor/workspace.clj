@@ -65,7 +65,7 @@ ordinary paths."
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
   (let [sorted-children (sort-by (fn [r]
-                                   [(not (resource/read-only? r))
+                                   [(resource/file-resource? r)
                                     ({:folder 0 :file 1} (resource/source-type r))
                                     (when-let [node-name (resource/resource-name r)]
                                       (string/lower-case node-name))])
@@ -90,7 +90,7 @@ ordinary paths."
     (:default :text) false
     true))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [resource-type {:textual? (true? textual?)
                        :editable? (some? (some editable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
@@ -106,7 +106,9 @@ ordinary paths."
                        :tag-opts tag-opts
                        :template template
                        :label label
-                       :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)}
+                       :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
+                       :auto-connect-save-data? (and (some? write-fn)
+                                                     (not (false? auto-connect-save-data?)))}
         resource-types (if (string? ext)
                          [(assoc resource-type :ext (string/lower-case ext))]
                          (map (fn [ext] (assoc resource-type :ext (string/lower-case ext))) ext))]
@@ -149,21 +151,33 @@ ordinary paths."
         :folder
         "icons/32/Icons_01-Folder-closed.png"))))
 
-(defn file-resource [workspace path-or-file]
-  (let [root (g/node-value workspace :root)
-        f (if (instance? File path-or-file)
-            path-or-file
-            (File. (str root path-or-file)))]
-    (resource/make-file-resource workspace root f [])))
+(defn file-resource
+  ([workspace path-or-file]
+   (g/with-auto-evaluation-context evaluation-context
+     (file-resource workspace path-or-file evaluation-context)))
+  ([workspace path-or-file evaluation-context]
+   (let [root (g/node-value workspace :root evaluation-context)
+         f (if (instance? File path-or-file)
+             path-or-file
+             (File. (str root path-or-file)))]
+     (resource/make-file-resource workspace root f []))))
 
-(defn find-resource [workspace proj-path]
-  (get (g/node-value workspace :resource-map) proj-path))
+(defn find-resource
+  ([workspace proj-path]
+   (g/with-auto-evaluation-context evaluation-context
+     (find-resource workspace proj-path evaluation-context)))
+  ([workspace proj-path evaluation-context]
+   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
 
-(defn resolve-workspace-resource [workspace path]
-  (when (and path (not-empty path))
-    (or
-      (find-resource workspace path)
-      (file-resource workspace path))))
+(defn resolve-workspace-resource
+  ([workspace path]
+   (g/with-auto-evaluation-context evaluation-context
+     (resolve-workspace-resource workspace path evaluation-context)))
+  ([workspace path evaluation-context]
+   (when (and path (not-empty path))
+     (or
+       (find-resource workspace path evaluation-context)
+       (file-resource workspace path evaluation-context)))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))

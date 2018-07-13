@@ -7,7 +7,6 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.settings-core :as settings-core]
-            [util.text-util :as text-util]
             [editor.workspace :as workspace]
             [editor.outline :as outline])
   (:import [org.apache.commons.codec.digest DigestUtils]
@@ -17,38 +16,37 @@
 
 (def unknown-icon "icons/32/Icons_29-AT-Unknown.png")
 
-(defn resource-dependencies [resource value]
-  (let [resource-type (resource/resource-type resource)
-        dependencies-fn (:dependencies-fn resource-type)]
-    (if dependencies-fn
-      (dependencies-fn value)
-      [])))
+(defn resource-node-dependencies [resource-node-id evaluation-context]
+  (let [resource (g/node-value resource-node-id :resource evaluation-context)]
+    (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
+      (let [source-value (g/node-value resource-node-id :source-value evaluation-context)]
+        (dependencies-fn source-value)))))
+
+(g/defnk produce-save-data [_node-id resource save-value dirty?]
+  (let [write-fn (:write-fn (resource/resource-type resource))]
+    (cond-> {:resource resource :dirty? dirty? :value save-value :node-id _node-id}
+            (and write-fn save-value) (assoc :content (write-fn save-value)))))
 
 (g/defnode ResourceNode
   (inherits core/Scope)
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
-  (output save-data g/Any :cached (g/fnk [_node-id resource save-value dirty?]
-                                    (let [write-fn (some-> resource
-                                                     (resource/resource-type)
-                                                     :write-fn)]
-                                      (cond-> {:resource resource :dirty? dirty? :value save-value :node-id _node-id}
-                                        (and write-fn save-value) (assoc :content (write-fn save-value))))))
-  (output source-value g/Any :cached (g/fnk [resource]
-                                       (when (and (some? resource) (resource/exists? resource))
-                                         (when-some [read-fn (some-> resource
-                                                                     (resource/resource-type)
-                                                                     :read-fn)]
+  (extern editable? g/Bool (default true) (dynamic visible (g/constantly false)))
+
+  (output save-data g/Any :cached produce-save-data)
+  (output source-value g/Any :cached (g/fnk [resource editable?]
+                                       (when-some [read-fn (:read-fn (resource/resource-type resource))]
+                                         (when (and editable? (resource/exists? resource))
                                            (read-fn resource)))))
-  
   (output reload-dependencies g/Any :cached (g/fnk [_node-id resource save-value]
-                                              (resource-dependencies resource save-value)))
+                                              (when-some [dependencies-fn (:dependencies-fn (resource/resource-type resource))]
+                                                (dependencies-fn save-value))))
   
   (output save-value g/Any (g/constantly nil))
 
-  (output cleaned-save-value g/Any (g/fnk [resource save-value]
-                                          (when resource
+  (output cleaned-save-value g/Any (g/fnk [resource save-value editable?]
+                                          (when editable?
                                             (let [resource-type (resource/resource-type resource)
                                                   read-fn (:read-fn resource-type)
                                                   write-fn (:write-fn resource-type)]
@@ -56,9 +54,9 @@
                                                 (with-open [reader (StringReader. (write-fn save-value))]
                                                   (read-fn reader))
                                                 save-value)))))
-  (output dirty? g/Bool (g/fnk [cleaned-save-value source-value]
-                                  (and cleaned-save-value (not= cleaned-save-value source-value))))
-  (output node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource]))
+  (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable?]
+                          (and editable? (some? cleaned-save-value) (not= cleaned-save-value source-value))))
+  (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
   (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
@@ -79,16 +77,6 @@
                                      (with-open [s (io/input-stream resource)]
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
-
-(defn dirty? [node-id]
-  (g/node-value node-id :dirty?))
-
-(g/defnode PlaceholderResourceNode
-  (inherits ResourceNode)
-
-  (output build-targets g/Any (g/fnk [_node-id resource]
-                                (g/error-fatal (format "Cannot build resource of type '%s'" (resource/ext resource)))))
-  (output save-value g/Any (g/constantly nil)))
 
 (defn make-ddf-dependencies-fn [ddf-type]
   (fn [source-value]
