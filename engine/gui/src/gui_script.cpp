@@ -262,6 +262,9 @@ namespace dmGui
             case NODE_TYPE_SPINE:
                 lua_pushfstring(L, "spine@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
                 break;
+            case NODE_TYPE_PARTICLEFX:
+                lua_pushfstring(L, "particlefx@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
+                break;
             default:
                 lua_pushfstring(L, "unknown@(%f, %f, %f)", pos.getX(), pos.getY(), pos.getZ());
                 break;
