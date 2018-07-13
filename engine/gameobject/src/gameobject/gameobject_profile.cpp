@@ -14,7 +14,7 @@ bool IterateCollections(HRegister regist, FCollectionIterator callback, void* us
         if(!collection->m_ToBeDeleted)
         {
             IteratorCollection iterator;
-            iterator.m_Collection = collection;
+            iterator.m_Collection = collection->m_HCollection;
             iterator.m_NameHash = collection->m_NameHash;
             iterator.m_Resource = 0;
             dmResource::GetPath(collection->m_Factory, collection, &iterator.m_Resource);
@@ -25,14 +25,14 @@ bool IterateCollections(HRegister regist, FCollectionIterator callback, void* us
     return true;
 }
 
-static bool IterateGameObject(HCollection collection, HInstance instance, FGameObjectIterator callback, void* user_ctx)
+static bool IterateGameObject(Collection* collection, HInstance instance, FGameObjectIterator callback, void* user_ctx)
 {
     IteratorGameObject iterator;
-    iterator.m_Collection = collection;
+    iterator.m_Collection = collection->m_HCollection;
     iterator.m_Instance = instance;
     iterator.m_NameHash = instance->m_Identifier;
     iterator.m_Resource = 0;
-    dmResource::GetPath(collection->m_Factory, instance->m_Prototype, &iterator.m_Resource);
+    dmResource::GetPath(dmGameObject::GetFactory(collection->m_HCollection), instance->m_Prototype, &iterator.m_Resource);
 
     if (!callback(&iterator, user_ctx))
         return false;
@@ -49,8 +49,9 @@ static bool IterateGameObject(HCollection collection, HInstance instance, FGameO
     return true;
 }
 
-bool IterateGameObjects(HCollection collection, FGameObjectIterator callback, void* user_ctx)
+bool IterateGameObjects(HCollection hcollection, FGameObjectIterator callback, void* user_ctx)
 {
+    Collection* collection = hcollection->m_Collection;
     const dmArray<uint16_t>& root_level = collection->m_LevelIndices[0];
     for (uint32_t j = 0; j < root_level.Size(); ++j)
     {
