@@ -12,46 +12,19 @@
 
 namespace dmGameObject
 {
-    dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams& params)
+    static dmResource::Result AcquireResources(const char* name, dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::CollectionDesc* collection_desc, const char* filename, HCollection* out_hcollection)
     {
-        dmGameObjectDDF::CollectionDesc* collection_desc;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
-        if ( e != dmDDF::RESULT_OK )
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-
-        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
-        {
-            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
-            if (instance_desc.m_Prototype != 0x0)
-            {
-                dmResource::PreloadHint(params.m_HintInfo, instance_desc.m_Prototype);
-            }
-        }
-
-        *params.m_PreloadData = collection_desc;
-        return dmResource::RESULT_OK;
-    }
-
-    dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams& params)
-    {
-        Register* regist = (Register*) params.m_Context;
+        // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
         dmResource::Result res = dmResource::RESULT_OK;
 
-        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params.m_PreloadData;
-
-        // NOTE: Be careful about control flow. See below with dmMutex::Unlock, return, etc
-        dmMutex::Lock(regist->m_Mutex);
-
         uint32_t collection_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
-        HCollection collection = NewCollection(collection_desc->m_Name, params.m_Factory, regist, collection_capacity);
-        if (collection == 0)
+
+        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, collection_capacity);
+        if (hcollection == 0)
         {
-            dmMutex::Unlock(regist->m_Mutex);
-            dmDDF::FreeMessage(collection_desc);
             return dmResource::RESULT_OUT_OF_RESOURCES;
         }
+        Collection* collection = hcollection->m_Collection;
         collection->m_ScaleAlongZ = collection_desc->m_ScaleAlongZ;
 
         uint32_t created_instances = 0;
@@ -59,11 +32,10 @@ namespace dmGameObject
         {
             const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
             Prototype* proto = 0x0;
-            dmResource::HFactory factory = collection->m_Factory;
             dmGameObject::HInstance instance = 0x0;
             if (instance_desc.m_Prototype != 0x0)
             {
-                dmResource::Result error = dmResource::Get(params.m_Factory, instance_desc.m_Prototype, (void**)&proto);
+                dmResource::Result error = dmResource::Get(factory, instance_desc.m_Prototype, (void**)&proto);
                 if (error == dmResource::RESULT_OK) {
                     instance = dmGameObject::NewInstance(collection, proto, instance_desc.m_Prototype);
                     if (instance == 0) {
@@ -77,8 +49,9 @@ namespace dmGameObject
 
                 // support legacy pipeline which outputs 0 for Scale3 and scale in Scale
                 Vector3 scale = instance_desc.m_Scale3;
-                if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0)
-                        scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+                if (scale.getX() == 0 && scale.getY() == 0 && scale.getZ() == 0) {
+                    scale = Vector3(instance_desc.m_Scale, instance_desc.m_Scale, instance_desc.m_Scale);
+                }
 
                 instance->m_Transform = dmTransform::Transform(Vector3(instance_desc.m_Position), instance_desc.m_Rotation, scale);
 
@@ -172,7 +145,7 @@ namespace dmGameObject
                                 bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &set_params.m_PropertySet.m_UserData);
                                 if (!r)
                                 {
-                                    dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, params.m_Filename);
+                                    dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, filename);
                                     res = dmResource::RESULT_FORMAT_ERROR;
                                     goto bail;
                                 }
@@ -201,33 +174,152 @@ namespace dmGameObject
         if (collection_desc->m_CollectionInstances.m_Count != 0)
             dmLogError("Sub collections must be merged before loading.");
 
-        params.m_Resource->m_Resource = (void*) collection;
-        {
-            uint32_t size = sizeof(Collection);
-            size += collection->m_InstanceIndices.Capacity()*sizeof(uint16_t);
-            size += collection->m_WorldTransforms.Capacity()*sizeof(Matrix4);
-            size += collection->m_IDToInstance.Capacity()*(sizeof(Instance*)+sizeof(dmhash_t));
-            size += collection->m_InputFocusStack.Capacity()*sizeof(Instance*);
-            size += collection->m_Instances.Capacity()*sizeof(Instance*);
-            params.m_Resource->m_ResourceSize = size;
-        }
 bail:
-        dmDDF::FreeMessage(collection_desc);
-
         if (res != dmResource::RESULT_OK)
         {
             // Loading of root-collection is responsible for deleting
             DeleteCollection(collection);
+            collection = 0;
+            hcollection = 0;
         }
 
-        dmMutex::Unlock(regist->m_Mutex);
+        *out_hcollection = hcollection;
+        return res;
+    }
+
+    dmResource::Result ResCollectionPreload(const dmResource::ResourcePreloadParams& params)
+    {
+        dmGameObjectDDF::CollectionDesc* collection_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        for (uint32_t i = 0; i < collection_desc->m_Instances.m_Count; ++i)
+        {
+            const dmGameObjectDDF::InstanceDesc& instance_desc = collection_desc->m_Instances[i];
+            if (instance_desc.m_Prototype != 0x0)
+            {
+                dmResource::PreloadHint(params.m_HintInfo, instance_desc.m_Prototype);
+            }
+        }
+
+        *params.m_PreloadData = collection_desc;
+        return dmResource::RESULT_OK;
+    }
+
+    static size_t CalcSize(Collection* collection)
+    {
+        size_t size = sizeof(Collection) + sizeof(CollectionHandle);
+        size += collection->m_InstanceIndices.Capacity()*sizeof(uint16_t);
+        size += collection->m_WorldTransforms.Capacity()*sizeof(Matrix4);
+        size += collection->m_IDToInstance.Capacity()*(sizeof(Instance*)+sizeof(dmhash_t));
+        size += collection->m_InputFocusStack.Capacity()*sizeof(Instance*);
+        size += collection->m_Instances.Capacity()*sizeof(Instance*);
+        return size;
+    }
+
+    dmResource::Result ResCollectionCreate(const dmResource::ResourceCreateParams& params)
+    {
+        Register* regist = (Register*) params.m_Context;
+        dmGameObjectDDF::CollectionDesc* collection_desc = (dmGameObjectDDF::CollectionDesc*) params.m_PreloadData;
+
+        HCollection hcollection = 0;
+        dmResource::Result res = AcquireResources(collection_desc->m_Name, params.m_Factory, regist, collection_desc, params.m_Filename, &hcollection);
+        dmDDF::FreeMessage(collection_desc);
+
+        if (res != dmResource::RESULT_OK)
+        {
+            return res;
+        }
+
+        params.m_Resource->m_Resource = hcollection;
+        params.m_Resource->m_ResourceSize = CalcSize(hcollection->m_Collection);
         return res;
     }
 
     dmResource::Result ResCollectionDestroy(const dmResource::ResourceDestroyParams& params)
     {
-        HCollection collection = (HCollection) params.m_Resource->m_Resource;
-        DeleteCollection(collection);
+        HCollection hcollection = (HCollection) params.m_Resource->m_Resource;
+        DeleteCollection(hcollection); // delay delete
         return dmResource::RESULT_OK;
     }
+
+    dmResource::Result ResCollectionRecreate(const dmResource::ResourceRecreateParams& params)
+    {
+        dmGameObjectDDF::CollectionDesc* collection_desc;
+        dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(params.m_Buffer, params.m_BufferSize, &collection_desc);
+        if ( e != dmDDF::RESULT_OK )
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        HCollection prev_hcollection = (HCollection) params.m_Resource->m_Resource;
+        Collection* prev_collection = prev_hcollection->m_Collection;
+        Register* regist = (Register*) params.m_Context;
+        bool was_initialized = IsCollectionInitialized(prev_collection);
+
+        if (was_initialized)
+        {
+            dmGameObject::Final(prev_hcollection);
+        }
+        dmGameObject::DetachCollection(prev_collection);
+
+        HCollection delete_hcollection = 0;
+        dmResource::Result res = AcquireResources(collection_desc->m_Name, params.m_Factory, regist, collection_desc, params.m_Filename, &delete_hcollection);
+        if (dmResource::RESULT_OK == res)
+        {
+            // We cannot simply swap the HCollection, since that's the resource that has been handed out
+            // so we swap the internal pointers, and tag the new hcollection for deletion
+            Collection* new_collection = delete_hcollection->m_Collection;
+
+            prev_hcollection->m_Collection = new_collection;
+            prev_collection->m_HCollection = delete_hcollection;
+            delete_hcollection->m_Collection = prev_collection;
+            new_collection->m_HCollection = prev_hcollection;
+
+            if( was_initialized )
+            {
+                if (!dmGameObject::Init(prev_hcollection) ) // this is the new collection
+                {
+                    dmLogWarning("Failed to initialize collection: %s", collection_desc->m_Name);
+
+                    // For those things that actually did manage to initialize (e.g. send events)
+                    dmGameObject::Final(prev_hcollection);
+
+                    // Swap them back
+                    prev_hcollection->m_Collection = prev_collection;
+                    prev_collection->m_HCollection = prev_hcollection;
+                    delete_hcollection->m_Collection = new_collection;
+                    new_collection->m_HCollection = delete_hcollection;
+
+                    dmGameObject::DeleteCollection(new_collection);
+
+                    // Reattach/reinit the collection
+                    dmGameObject::AttachCollection(prev_collection, collection_desc->m_Name, params.m_Factory, regist, prev_hcollection);
+                    if (was_initialized)
+                    {
+                        dmGameObject::Init(prev_hcollection);
+                    }
+
+                    dmDDF::FreeMessage(collection_desc);
+                    return dmResource::RESULT_UNKNOWN_ERROR;
+                }
+            }
+
+            dmGameObject::DeleteCollection(delete_hcollection->m_Collection);
+
+            params.m_Resource->m_PrevResource = 0;
+            params.m_Resource->m_ResourceSize = CalcSize(prev_hcollection->m_Collection);
+        }
+        else
+        {
+            dmGameObject::AttachCollection(prev_collection, collection_desc->m_Name, params.m_Factory, regist, prev_hcollection);
+        }
+        dmDDF::FreeMessage(collection_desc);
+        return res;
+    }
+
+
 }

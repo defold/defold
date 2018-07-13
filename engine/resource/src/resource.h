@@ -66,6 +66,7 @@ namespace dmResource
         RESULT_PENDING                   = -17,  //!< RESULT_PENDING
         RESULT_VERSION_MISMATCH          = -18,  //!< RESULT_VERSION_MISMATCH
         RESULT_SIGNATURE_MISMATCH        = -19,  //!< RESULT_SIGNATURE_MISMATCH
+        RESULT_UNKNOWN_ERROR             = -20,  //!< RESULT_UNKNOWN_ERROR
     };
 
     /**
