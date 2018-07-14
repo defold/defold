@@ -17,6 +17,396 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseColli
  	btStackAlloc*	m_stackAllocator;
  };
  
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btOverlappingPairCache.h c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btOverlappingPairCache.h
+--- a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btOverlappingPairCache.h	2010-01-18 23:10:28.000000000 +0100
++++ c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btOverlappingPairCache.h	2018-07-14 15:35:40.000000000 +0200
+@@ -4,8 +4,8 @@
+ 
+ This software is provided 'as-is', without any express or implied warranty.
+ In no event will the authors be held liable for any damages arising from the use of this software.
+-Permission is granted to anyone to use this software for any purpose, 
+-including commercial applications, and to alter it and redistribute it freely, 
++Permission is granted to anyone to use this software for any purpose,
++including commercial applications, and to alter it and redistribute it freely,
+ subject to the following restrictions:
+ 
+ 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+@@ -63,7 +63,7 @@
+ 	virtual ~btOverlappingPairCache() {} // this is needed so we can get to the derived class destructor
+ 
+ 	virtual btBroadphasePair*	getOverlappingPairArrayPtr() = 0;
+-	
++
+ 	virtual const btBroadphasePair*	getOverlappingPairArrayPtr() const = 0;
+ 
+ 	virtual btBroadphasePairArray&	getOverlappingPairArray() = 0;
+@@ -94,18 +94,17 @@
+ {
+ 	btBroadphasePairArray	m_overlappingPairArray;
+ 	btOverlapFilterCallback* m_overlapFilterCallback;
+-	bool		m_blockedForChanges;
+ 
+ 
+ public:
+ 	btHashedOverlappingPairCache();
+ 	virtual ~btHashedOverlappingPairCache();
+ 
+-	
++
+ 	void	removeOverlappingPairsContainingProxy(btBroadphaseProxy* proxy,btDispatcher* dispatcher);
+ 
+ 	virtual void*	removeOverlappingPair(btBroadphaseProxy* proxy0,btBroadphaseProxy* proxy1,btDispatcher* dispatcher);
+-	
++
+ 	SIMD_FORCE_INLINE bool needsBroadphaseCollision(btBroadphaseProxy* proxy0,btBroadphaseProxy* proxy1) const
+ 	{
+ 		if (m_overlapFilterCallback)
+@@ -113,7 +112,7 @@
+ 
+ 		bool collides = (proxy0->m_collisionFilterGroup & proxy1->m_collisionFilterMask) != 0;
+ 		collides = collides && (proxy1->m_collisionFilterGroup & proxy0->m_collisionFilterMask);
+-		
++
+ 		return collides;
+ 	}
+ 
+@@ -129,11 +128,11 @@
+ 		return internalAddPair(proxy0,proxy1);
+ 	}
+ 
+-	
++
+ 
+ 	void	cleanProxyFromPairs(btBroadphaseProxy* proxy,btDispatcher* dispatcher);
+ 
+-	
++
+ 	virtual void	processAllOverlappingPairs(btOverlapCallback*,btDispatcher* dispatcher);
+ 
+ 	virtual btBroadphasePair*	getOverlappingPairArrayPtr()
+@@ -180,13 +179,13 @@
+ 		return m_overlappingPairArray.size();
+ 	}
+ private:
+-	
++
+ 	btBroadphasePair* 	internalAddPair(btBroadphaseProxy* proxy0,btBroadphaseProxy* proxy1);
+ 
+ 	void	growTables();
+ 
+ 	SIMD_FORCE_INLINE bool equalsPair(const btBroadphasePair& pair, int proxyId1, int proxyId2)
+-	{	
++	{
+ 		return pair.m_pProxy0->getUid() == proxyId1 && pair.m_pProxy1->getUid() == proxyId2;
+ 	}
+ 
+@@ -207,7 +206,7 @@
+ 	*/
+ 
+ 
+-	
++
+ 	SIMD_FORCE_INLINE	unsigned int getHash(unsigned int proxyId1, unsigned int proxyId2)
+ 	{
+ 		int key = static_cast<int>(((unsigned int)proxyId1) | (((unsigned int)proxyId2) <<16));
+@@ -221,7 +220,7 @@
+ 		key ^=  (key >> 16);
+ 		return static_cast<unsigned int>(key);
+ 	}
+-	
++
+ 
+ 
+ 
+@@ -231,12 +230,12 @@
+ 		int proxyId1 = proxy0->getUid();
+ 		int proxyId2 = proxy1->getUid();
+ 		#if 0 // wrong, 'equalsPair' use unsorted uids, copy-past devil striked again. Nat.
+-		if (proxyId1 > proxyId2) 
++		if (proxyId1 > proxyId2)
+ 			btSwap(proxyId1, proxyId2);
+ 		#endif
+ 
+ 		int index = m_hashTable[hash];
+-		
++
+ 		while( index != BT_NULL_PAIR && equalsPair(m_overlappingPairArray[index], proxyId1, proxyId2) == false)
+ 		{
+ 			index = m_next[index];
+@@ -263,14 +262,14 @@
+ 	}
+ 
+ 	virtual void	sortOverlappingPairs(btDispatcher* dispatcher);
+-	
++
+ 
+ protected:
+-	
++
+ 	btAlignedObjectArray<int>	m_hashTable;
+ 	btAlignedObjectArray<int>	m_next;
+ 	btOverlappingPairCallback*	m_ghostPairCallback;
+-	
++
+ };
+ 
+ 
+@@ -289,15 +288,15 @@
+ 
+ 		///by default, do the removal during the pair traversal
+ 		bool		m_hasDeferredRemoval;
+-		
++
+ 		//if set, use the callback instead of the built in filter in needBroadphaseCollision
+ 		btOverlapFilterCallback* m_overlapFilterCallback;
+ 
+ 		btOverlappingPairCallback*	m_ghostPairCallback;
+ 
+ 	public:
+-			
+-		btSortedOverlappingPairCache();	
++
++		btSortedOverlappingPairCache();
+ 		virtual ~btSortedOverlappingPairCache();
+ 
+ 		virtual void	processAllOverlappingPairs(btOverlapCallback*,btDispatcher* dispatcher);
+@@ -305,12 +304,12 @@
+ 		void*	removeOverlappingPair(btBroadphaseProxy* proxy0,btBroadphaseProxy* proxy1,btDispatcher* dispatcher);
+ 
+ 		void	cleanOverlappingPair(btBroadphasePair& pair,btDispatcher* dispatcher);
+-		
++
+ 		btBroadphasePair*	addOverlappingPair(btBroadphaseProxy* proxy0,btBroadphaseProxy* proxy1);
+ 
+ 		btBroadphasePair*	findPair(btBroadphaseProxy* proxy0,btBroadphaseProxy* proxy1);
+-			
+-		
++
++
+ 		void	cleanProxyFromPairs(btBroadphaseProxy* proxy,btDispatcher* dispatcher);
+ 
+ 		void	removeOverlappingPairsContainingProxy(btBroadphaseProxy* proxy,btDispatcher* dispatcher);
+@@ -323,10 +322,10 @@
+ 
+ 			bool collides = (proxy0->m_collisionFilterGroup & proxy1->m_collisionFilterMask) != 0;
+ 			collides = collides && (proxy1->m_collisionFilterGroup & proxy0->m_collisionFilterMask);
+-			
++
+ 			return collides;
+ 		}
+-		
++
+ 		btBroadphasePairArray&	getOverlappingPairArray()
+ 		{
+ 			return m_overlappingPairArray;
+@@ -337,7 +336,7 @@
+ 			return m_overlappingPairArray;
+ 		}
+ 
+-		
++
+ 
+ 
+ 		btBroadphasePair*	getOverlappingPairArrayPtr()
+@@ -354,7 +353,7 @@
+ 		{
+ 			return m_overlappingPairArray.size();
+ 		}
+-		
++
+ 		btOverlapFilterCallback* getOverlapFilterCallback()
+ 		{
+ 			return m_overlapFilterCallback;
+@@ -376,7 +375,7 @@
+ 		}
+ 
+ 		virtual void	sortOverlappingPairs(btDispatcher* dispatcher);
+-		
++
+ 
+ };
+ 
+@@ -402,7 +401,7 @@
+ 	{
+ 		return m_overlappingPairArray;
+ 	}
+-	
++
+ 	virtual	void	cleanOverlappingPair(btBroadphasePair& /*pair*/,btDispatcher* /*dispatcher*/)
+ 	{
+ 
+@@ -454,7 +453,7 @@
+ 	virtual void	removeOverlappingPairsContainingProxy(btBroadphaseProxy* /*proxy0*/,btDispatcher* /*dispatcher*/)
+ 	{
+ 	}
+-	
++
+ 	virtual void	sortOverlappingPairs(btDispatcher* dispatcher)
+ 	{
+         (void) dispatcher;
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h
+--- a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h	2010-02-27 02:16:44.000000000 +0100
++++ c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h	2018-07-14 15:35:00.000000000 +0200
+@@ -4,8 +4,8 @@
+ 
+ This software is provided 'as-is', without any express or implied warranty.
+ In no event will the authors be held liable for any damages arising from the use of this software.
+-Permission is granted to anyone to use this software for any purpose, 
+-including commercial applications, and to alter it and redistribute it freely, 
++Permission is granted to anyone to use this software for any purpose,
++including commercial applications, and to alter it and redistribute it freely,
+ subject to the following restrictions:
+ 
+ 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+@@ -78,8 +78,10 @@
+ 	int	getTriangleIndex() const
+ 	{
+ 		btAssert(isLeafNode());
++		unsigned int x=0;
++		unsigned int y = (~(x&0))<<(31-MAX_NUM_PARTS_IN_BITS);
+ 		// Get only the lower bits where the triangle index is stored
+-		return (m_escapeIndexOrTriangleIndex&~((~0)<<(31-MAX_NUM_PARTS_IN_BITS)));
++		return (m_escapeIndexOrTriangleIndex&~(y));
+ 	}
+ 	int	getPartId() const
+ 	{
+@@ -198,14 +200,14 @@
+ 	NodeArray			m_contiguousNodes;
+ 	QuantizedNodeArray	m_quantizedLeafNodes;
+ 	QuantizedNodeArray	m_quantizedContiguousNodes;
+-	
++
+ 	btTraversalMode	m_traversalMode;
+ 	BvhSubtreeInfoArray		m_SubtreeHeaders;
+ 
+ 	//This is only used for serialization so we don't have to add serialization directly to btAlignedObjectArray
+ 	mutable int m_subtreeHeaderCount;
+ 
+-	
++
+ 
+ 
+ 
+@@ -248,19 +250,19 @@
+ 		if (m_useQuantization)
+ 		{
+ 			return unQuantize(&m_quantizedLeafNodes[nodeIndex].m_quantizedAabbMax[0]);
+-		} 
++		}
+ 		//non-quantized
+ 		return m_leafNodes[nodeIndex].m_aabbMaxOrg;
+-		
++
+ 	}
+ 
+-	
++
+ 	void	setInternalNodeEscapeIndex(int nodeIndex, int escapeIndex)
+ 	{
+ 		if (m_useQuantization)
+ 		{
+ 			m_quantizedContiguousNodes[nodeIndex].m_escapeIndexOrTriangleIndex = -escapeIndex;
+-		} 
++		}
+ 		else
+ 		{
+ 			m_contiguousNodes[nodeIndex].m_escapeIndex = escapeIndex;
+@@ -268,7 +270,7 @@
+ 
+ 	}
+ 
+-	void mergeInternalNodeAabb(int nodeIndex,const btVector3& newAabbMin,const btVector3& newAabbMax) 
++	void mergeInternalNodeAabb(int nodeIndex,const btVector3& newAabbMin,const btVector3& newAabbMax)
+ 	{
+ 		if (m_useQuantization)
+ 		{
+@@ -289,7 +291,7 @@
+ 		{
+ 			//non-quantized
+ 			m_contiguousNodes[nodeIndex].m_aabbMinOrg.setMin(newAabbMin);
+-			m_contiguousNodes[nodeIndex].m_aabbMaxOrg.setMax(newAabbMax);		
++			m_contiguousNodes[nodeIndex].m_aabbMaxOrg.setMax(newAabbMax);
+ 		}
+ 	}
+ 
+@@ -299,14 +301,14 @@
+ 
+ protected:
+ 
+-	
++
+ 
+ 	void	buildTree	(int startIndex,int endIndex);
+ 
+ 	int	calcSplittingAxis(int startIndex,int endIndex);
+ 
+ 	int	sortAndCalcSplittingIndex(int startIndex,int endIndex,int splitAxis);
+-	
++
+ 	void	walkStacklessTree(btNodeOverlapCallback* nodeCallback,const btVector3& aabbMin,const btVector3& aabbMax) const;
+ 
+ 	void	walkStacklessQuantizedTreeAgainstRay(btNodeOverlapCallback* nodeCallback, const btVector3& raySource, const btVector3& rayTarget, const btVector3& aabbMin, const btVector3& aabbMax, int startNodeIndex,int endNodeIndex) const;
+@@ -321,21 +323,21 @@
+ 
+ 	///use the 16-byte stackless 'skipindex' node tree to do a recursive traversal
+ 	void	walkRecursiveQuantizedTreeAgainstQuantizedTree(const btQuantizedBvhNode* treeNodeA,const btQuantizedBvhNode* treeNodeB,btNodeOverlapCallback* nodeCallback) const;
+-	
++
+ 
+ 
+ 
+ 	void	updateSubtreeHeaders(int leftChildNodexIndex,int rightChildNodexIndex);
+ 
+ public:
+-	
++
+ 	BT_DECLARE_ALIGNED_ALLOCATOR();
+ 
+ 	btQuantizedBvh();
+ 
+ 	virtual ~btQuantizedBvh();
+ 
+-	
++
+ 	///***************************************** expert/internal use only *************************
+ 	void	setQuantizationValues(const btVector3& bvhAabbMin,const btVector3& bvhAabbMax,btScalar quantizationMargin=btScalar(1.0));
+ 	QuantizedNodeArray&	getLeafNodeArray() {			return	m_quantizedLeafNodes;	}
+@@ -426,7 +428,7 @@
+ 		quantize(out,clampedPoint,isMax);
+ 
+ 	}
+-	
++
+ 	SIMD_FORCE_INLINE btVector3	unQuantize(const unsigned short* vecIn) const
+ 	{
+ 			btVector3	vecOut;
+@@ -446,7 +448,7 @@
+ 
+ 
+ 	SIMD_FORCE_INLINE QuantizedNodeArray&	getQuantizedNodeArray()
+-	{	
++	{
+ 		return	m_quantizedContiguousNodes;
+ 	}
+ 
+@@ -470,7 +472,7 @@
+ 	static unsigned int getAlignmentSerializationPadding();
+ //////////////////////////////////////////////////////////////////////
+ 
+-	
++
+ 	virtual	int	calculateSerializeBufferSizeNew() const;
+ 
+ 	///fills the dataBuffer and returns the struct name (and 0 on failure)
+@@ -548,7 +550,7 @@
+ 	btBvhSubtreeInfoData	*m_subTreeInfoPtr;
+ 	int					m_traversalMode;
+ 	int					m_numSubtreeHeaders;
+-	
++
+ };
+ 
+ struct	btQuantizedBvhDoubleData
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CMakeLists.txt c/bullet-2.77/src/BulletCollision/CMakeLists.txt
 --- a/bullet-2.77/src/BulletCollision/CMakeLists.txt	2010-09-07 16:40:18.000000000 +0200
 +++ c/bullet-2.77/src/BulletCollision/CMakeLists.txt	2018-07-14 11:04:54.000000000 +0200
@@ -40,6 +430,61 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CMakeLists.txt 
 -ENDIF (INSTALL_LIBS)
 +ENDIF (INSTALL_LIBS)
 \ No newline at end of file
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBox2dBox2dCollisionAlgorithm.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBox2dBox2dCollisionAlgorithm.cpp
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBox2dBox2dCollisionAlgorithm.cpp	2010-03-06 08:23:38.000000000 +0100
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBox2dBox2dCollisionAlgorithm.cpp	2018-07-14 15:37:47.000000000 +0200
+@@ -4,8 +4,8 @@
+ 
+ This software is provided 'as-is', without any express or implied warranty.
+ In no event will the authors be held liable for any damages arising from the use of this software.
+-Permission is granted to anyone to use this software for any purpose, 
+-including commercial applications, and to alter it and redistribute it freely, 
++Permission is granted to anyone to use this software for any purpose,
++including commercial applications, and to alter it and redistribute it freely,
+ subject to the following restrictions:
+ 
+ 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+@@ -39,13 +39,13 @@
+ 
+ btBox2dBox2dCollisionAlgorithm::~btBox2dBox2dCollisionAlgorithm()
+ {
+-	
++
+ 	if (m_ownManifold)
+ 	{
+ 		if (m_manifoldPtr)
+ 			m_dispatcher->releaseManifold(m_manifoldPtr);
+ 	}
+-	
++
+ }
+ 
+ 
+@@ -368,12 +368,12 @@
+ 	btVector3 v11 = vertices1[edge1];
+ 	btVector3 v12 = edge1 + 1 < count1 ? vertices1[edge1+1] : vertices1[0];
+ 
+-	btVector3 dv = v12 - v11;
++	//btVector3 dv = v12 - v11;
+ 	btVector3 sideNormal = b2Mul(xf1.getBasis(), v12 - v11);
+ 	sideNormal.normalize();
+ 	btVector3 frontNormal = btCrossS(sideNormal, 1.0f);
+-	
+-	
++
++
+ 	v11 = b2Mul(xf1, v11);
+ 	v12 = b2Mul(xf1, v12);
+ 
+@@ -417,7 +417,7 @@
+ 
+ 		if (separation <= 0.0f)
+ 		{
+-			
++
+ 			//b2ManifoldPoint* cp = manifold->points + pointCount;
+ 			//btScalar separation = separation;
+ 			//cp->localPoint1 = b2MulT(xfA, clipPoints2[i].v);
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp
 --- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp	2010-09-10 13:29:42.000000000 +0200
 +++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp	2018-07-14 11:04:54.000000000 +0200
@@ -215,9 +660,139 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
  
  	struct LocalConvexResult
  	{
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvex2dConvex2dAlgorithm.h c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvex2dConvex2dAlgorithm.h
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvex2dConvex2dAlgorithm.h	2010-03-06 08:23:38.000000000 +0100
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvex2dConvex2dAlgorithm.h	2018-07-14 15:38:49.000000000 +0200
+@@ -4,8 +4,8 @@
+ 
+ This software is provided 'as-is', without any express or implied warranty.
+ In no event will the authors be held liable for any damages arising from the use of this software.
+-Permission is granted to anyone to use this software for any purpose, 
+-including commercial applications, and to alter it and redistribute it freely, 
++Permission is granted to anyone to use this software for any purpose,
++including commercial applications, and to alter it and redistribute it freely,
+ subject to the following restrictions:
+ 
+ 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+@@ -35,13 +35,13 @@
+ 	btSimplexSolverInterface*		m_simplexSolver;
+ 	btConvexPenetrationDepthSolver* m_pdSolver;
+ 
+-	
++
+ 	bool	m_ownManifold;
+ 	btPersistentManifold*	m_manifoldPtr;
+ 	bool			m_lowLevelOfDetail;
+-	
+-	int m_numPerturbationIterations;
+-	int m_minimumPointsPerturbationThreshold;
++
++	// int m_numPerturbationIterations;
++	// int m_minimumPointsPerturbationThreshold;
+ 
+ public:
+ 
+@@ -79,7 +79,7 @@
+ 		int m_minimumPointsPerturbationThreshold;
+ 
+ 		CreateFunc(btSimplexSolverInterface*			simplexSolver, btConvexPenetrationDepthSolver* pdSolver);
+-		
++
+ 		virtual ~CreateFunc();
+ 
+ 		virtual	btCollisionAlgorithm* CreateCollisionAlgorithm(btCollisionAlgorithmConstructionInfo& ci, btCollisionObject* body0,btCollisionObject* body1)
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp
 --- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2010-08-24 18:28:48.000000000 +0200
-+++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2018-07-14 11:04:54.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2018-07-14 15:39:17.000000000 +0200
+@@ -4,8 +4,8 @@
+ 
+ This software is provided 'as-is', without any express or implied warranty.
+ In no event will the authors be held liable for any damages arising from the use of this software.
+-Permission is granted to anyone to use this software for any purpose, 
+-including commercial applications, and to alter it and redistribute it freely, 
++Permission is granted to anyone to use this software for any purpose,
++including commercial applications, and to alter it and redistribute it freely,
+ subject to the following restrictions:
+ 
+ 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+@@ -136,7 +136,7 @@
+ 	// compute the closest points of the capsule line segments
+ 
+ 	btVector3 ptsVector;           // the vector between the closest points
+-	
++
+ 	btVector3 offsetA, offsetB;    // offsets from segment centers to their closest points
+ 	btScalar tA, tB;              // parameters on line segment
+ 
+@@ -184,8 +184,8 @@
+ 	m_pdSolver = pdSolver;
+ }
+ 
+-btConvexConvexAlgorithm::CreateFunc::~CreateFunc() 
+-{ 
++btConvexConvexAlgorithm::CreateFunc::~CreateFunc()
++{
+ }
+ 
+ btConvexConvexAlgorithm::btConvexConvexAlgorithm(btPersistentManifold* mf,const btCollisionAlgorithmConstructionInfo& ci,btCollisionObject* body0,btCollisionObject* body1,btSimplexSolverInterface* simplexSolver, btConvexPenetrationDepthSolver* pdSolver,int numPerturbationIterations, int minimumPointsPerturbationThreshold)
+@@ -264,7 +264,7 @@
+ 			endPt = pointInWorld + normalOnBInWorld*orgDepth;
+ 			startPt = (m_unPerturbedTransform*m_transformB.inverse())(pointInWorld);
+ 			newDepth = (endPt -  startPt).dot(normalOnBInWorld);
+-			
++
+ 		}
+ 
+ //#define DEBUG_CONTACTS 1
+@@ -274,7 +274,7 @@
+ 		m_debugDrawer->drawSphere(endPt,0.05,btVector3(0,0,1));
+ #endif //DEBUG_CONTACTS
+ 
+-		
++
+ 		m_originalManifoldResult->addContactPoint(normalOnBInWorld,startPt,newDepth);
+ 	}
+ 
+@@ -299,7 +299,7 @@
+ 
+ 	//comment-out next line to test multi-contact generation
+ 	//resultOut->getPersistentManifold()->clearManifold();
+-	
++
+ 
+ 	btConvexShape* min0 = static_cast<btConvexShape*>(body0->getCollisionShape());
+ 	btConvexShape* min1 = static_cast<btConvexShape*>(body1->getCollisionShape());
+@@ -311,9 +311,9 @@
+ 	{
+ 		btCapsuleShape* capsuleA = (btCapsuleShape*) min0;
+ 		btCapsuleShape* capsuleB = (btCapsuleShape*) min1;
+-		btVector3 localScalingA = capsuleA->getLocalScaling();
+-		btVector3 localScalingB = capsuleB->getLocalScaling();
+-		
++		// btVector3 localScalingA = capsuleA->getLocalScaling();
++		// btVector3 localScalingB = capsuleB->getLocalScaling();
++
+ 		btScalar threshold = m_manifoldPtr->getContactBreakingThreshold();
+ 
+ 		btScalar dist = capsuleCapsuleDistance(normalOnB,	pointOnBWorld,capsuleA->getHalfHeight(),capsuleA->getRadius(),
+@@ -323,7 +323,7 @@
+ 		if (dist<threshold)
+ 		{
+ 			btAssert(normalOnB.length2()>=(SIMD_EPSILON*SIMD_EPSILON));
+-			resultOut->addContactPoint(normalOnB,pointOnBWorld,dist);	
++			resultOut->addContactPoint(normalOnB,pointOnBWorld,dist);
+ 		}
+ 		resultOut->refreshContactPoints();
+ 		return;
+@@ -342,7 +342,7 @@
+ 
+ 	{
+ 
+-	
++
+ 	btGjkPairDetector::ClosestPointInput input;
+ 
+ 	btGjkPairDetector	gjkPairDetector(min0,min1,m_simplexSolver,m_pdSolver);
 @@ -357,13 +357,7 @@
  	} else
  #endif //USE_SEPDISTANCE_UTIL2
@@ -232,6 +807,337 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispat
 +		input.m_maximumDistanceSquared = min0->getMargin() + min1->getMargin() + m_manifoldPtr->getContactBreakingThreshold();
  		input.m_maximumDistanceSquared*= input.m_maximumDistanceSquared;
  	}
+ 
+@@ -373,7 +367,7 @@
+ 
+ 	gjkPairDetector.getClosestPoints(input,*resultOut,dispatchInfo.m_debugDraw);
+ 
+-	
++
+ 
+ #ifdef USE_SEPDISTANCE_UTIL2
+ 	btScalar sepDist = 0.f;
+@@ -384,21 +378,21 @@
+ 		{
+ 			sepDist += dispatchInfo.m_convexConservativeDistanceThreshold;
+ 			//now perturbe directions to get multiple contact points
+-			
++
+ 		}
+ 	}
+ #endif //USE_SEPDISTANCE_UTIL2
+ 
+ 	//now perform 'm_numPerturbationIterations' collision queries with the perturbated collision objects
+-	
++
+ 	//perform perturbation when more then 'm_minimumPointsPerturbationThreshold' points
+ 	if (m_numPerturbationIterations && resultOut->getPersistentManifold()->getNumContacts() < m_minimumPointsPerturbationThreshold)
+ 	{
+-		
++
+ 		int i;
+ 		btVector3 v0,v1;
+ 		btVector3 sepNormalWorldSpace;
+-	
++
+ 		sepNormalWorldSpace = gjkPairDetector.getCachedSeparatingAxis().normalized();
+ 		btPlaneSpace1(sepNormalWorldSpace,v0,v1);
+ 
+@@ -417,7 +411,7 @@
+ 			perturbeAngle = gContactBreakingThreshold / radiusB;
+ 			perturbeA = false;
+ 		}
+-		if ( perturbeAngle > angleLimit ) 
++		if ( perturbeAngle > angleLimit )
+ 				perturbeAngle = angleLimit;
+ 
+ 		btTransform unPerturbedTransform;
+@@ -428,7 +422,7 @@
+ 		{
+ 			unPerturbedTransform = input.m_transformB;
+ 		}
+-		
++
+ 		for ( i=0;i<m_numPerturbationIterations;i++)
+ 		{
+ 			if (v0.length2()>SIMD_EPSILON)
+@@ -436,8 +430,8 @@
+ 			btQuaternion perturbeRot(v0,perturbeAngle);
+ 			btScalar iterationAngle = i*(SIMD_2_PI/btScalar(m_numPerturbationIterations));
+ 			btQuaternion rotq(sepNormalWorldSpace,iterationAngle);
+-			
+-			
++
++
+ 			if (perturbeA)
+ 			{
+ 				input.m_transformA.setBasis(  btMatrix3x3(rotq.inverse()*perturbeRot*rotq)*body0->getWorldTransform().getBasis());
+@@ -453,15 +447,15 @@
+ 				dispatchInfo.m_debugDraw->drawTransform(input.m_transformB,10.0);
+ #endif
+ 			}
+-			
++
+ 			btPerturbedContactResult perturbedResultOut(resultOut,input.m_transformA,input.m_transformB,unPerturbedTransform,perturbeA,dispatchInfo.m_debugDraw);
+ 			gjkPairDetector.getClosestPoints(input,perturbedResultOut,dispatchInfo.m_debugDraw);
+ 			}
+-			
++
+ 		}
+ 	}
+ 
+-	
++
+ 
+ #ifdef USE_SEPDISTANCE_UTIL2
+ 	if (dispatchInfo.m_useConvexConservativeDistanceUtil && (sepDist>SIMD_EPSILON))
+@@ -488,7 +482,7 @@
+ 	(void)resultOut;
+ 	(void)dispatchInfo;
+ 	///Rather then checking ALL pairs, only calculate TOI when motion exceeds threshold
+-    
++
+ 	///Linear motion for one of objects needs to exceed m_ccdSquareMotionThreshold
+ 	///col0->m_worldTransform,
+ 	btScalar resultFraction = btScalar(1.);
+@@ -496,7 +490,7 @@
+ 
+ 	btScalar squareMot0 = (col0->getInterpolationWorldTransform().getOrigin() - col0->getWorldTransform().getOrigin()).length2();
+ 	btScalar squareMot1 = (col1->getInterpolationWorldTransform().getOrigin() - col1->getWorldTransform().getOrigin()).length2();
+-    
++
+ 	if (squareMot0 < col0->getCcdSquareMotionThreshold() &&
+ 		squareMot1 < col1->getCcdSquareMotionThreshold())
+ 		return resultFraction;
+@@ -511,7 +505,7 @@
+ 	//For proper CCD, better accuracy and handling of 'allowed' penetration should be added
+ 	//also the mainloop of the physics should have a kind of toi queue (something like Brian Mirtich's application of Timewarp for Rigidbodies)
+ 
+-		
++
+ 	/// Convex0 against sphere for Convex1
+ 	{
+ 		btConvexShape* convex0 = static_cast<btConvexShape*>(col0->getCollisionShape());
+@@ -526,9 +520,9 @@
+ 		if (ccd1.calcTimeOfImpact(col0->getWorldTransform(),col0->getInterpolationWorldTransform(),
+ 			col1->getWorldTransform(),col1->getInterpolationWorldTransform(),result))
+ 		{
+-		
++
+ 			//store result.m_fraction in both bodies
+-		
++
+ 			if (col0->getHitFraction()> result.m_fraction)
+ 				col0->setHitFraction( result.m_fraction );
+ 
+@@ -539,8 +533,8 @@
+ 				resultFraction = result.m_fraction;
+ 
+ 		}
+-		
+-		
++
++
+ 
+ 
+ 	}
+@@ -559,9 +553,9 @@
+ 		if (ccd1.calcTimeOfImpact(col0->getWorldTransform(),col0->getInterpolationWorldTransform(),
+ 			col1->getWorldTransform(),col1->getInterpolationWorldTransform(),result))
+ 		{
+-		
++
+ 			//store result.m_fraction in both bodies
+-		
++
+ 			if (col0->getHitFraction()	> result.m_fraction)
+ 				col0->setHitFraction( result.m_fraction);
+ 
+@@ -573,7 +567,7 @@
+ 
+ 		}
+ 	}
+-	
++
+ 	return resultFraction;
+ 
+ }
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btInternalEdgeUtility.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btInternalEdgeUtility.cpp
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btInternalEdgeUtility.cpp	2010-03-06 08:23:38.000000000 +0100
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btInternalEdgeUtility.cpp	2018-07-14 15:39:58.000000000 +0200
+@@ -151,7 +151,7 @@
+ 				int sumvertsA = sharedVertsA[0]+sharedVertsA[1];
+ 				int otherIndexA = 3-sumvertsA;
+ 
+-				
++
+ 				btVector3 edge(m_triangleVerticesA[sharedVertsA[1]]-m_triangleVerticesA[sharedVertsA[0]]);
+ 
+ 				btTriangleShape tA(m_triangleVerticesA[0],m_triangleVerticesA[1],m_triangleVerticesA[2]);
+@@ -219,11 +219,11 @@
+ 
+ 				}
+ 
+-				
+ 
+-				
+-							
+-				//alternatively use 
++
++
++
++				//alternatively use
+ 				//btVector3 calculatedNormalB2 = quatRotate(orn,normalA);
+ 
+ 
+@@ -273,7 +273,7 @@
+ 						info->m_edgeV2V0Angle = -correctedAngle;
+ 						if (isConvex)
+ 							info->m_flags |= TRI_INFO_V2V0_CONVEX;
+-						break;	
++						break;
+ 					}
+ 				case 3:
+ 					{
+@@ -362,7 +362,7 @@
+ 				}
+ 			}
+ 			aabbMin.setValue(btScalar(BT_LARGE_FLOAT),btScalar(BT_LARGE_FLOAT),btScalar(BT_LARGE_FLOAT));
+-			aabbMax.setValue(btScalar(-BT_LARGE_FLOAT),btScalar(-BT_LARGE_FLOAT),btScalar(-BT_LARGE_FLOAT)); 
++			aabbMax.setValue(btScalar(-BT_LARGE_FLOAT),btScalar(-BT_LARGE_FLOAT),btScalar(-BT_LARGE_FLOAT));
+ 			aabbMin.setMin(triangleVerts[0]);
+ 			aabbMax.setMax(triangleVerts[0]);
+ 			aabbMin.setMin(triangleVerts[1]);
+@@ -469,14 +469,14 @@
+ 		return;
+ 
+ 	btScalar frontFacing = (normalAdjustFlags & BT_TRIANGLE_CONVEX_BACKFACE_MODE)==0? 1.f : -1.f;
+-	
++
+ 	const btTriangleShape* tri_shape = static_cast<const btTriangleShape*>(colObj0->getCollisionShape());
+ 	btVector3 v0,v1,v2;
+ 	tri_shape->getVertex(0,v0);
+ 	tri_shape->getVertex(1,v1);
+ 	tri_shape->getVertex(2,v2);
+ 
+-	btVector3 center = (v0+v1+v2)*btScalar(1./3.);
++	//btVector3 center = (v0+v1+v2)*btScalar(1./3.);
+ 
+ 	btVector3 red(1,0,0), green(0,1,0),blue(0,0,1),white(1,1,1),black(0,0,0);
+ 	btVector3 tri_normal;
+@@ -539,7 +539,7 @@
+ 
+ #ifdef DEBUG_INTERNAL_EDGE
+ 				{
+-					
++
+ 					btDebugDrawLine(cp.getPositionWorldOnB(),cp.getPositionWorldOnB()+tr.getBasis()*(nB*20),red);
+ 				}
+ #endif //DEBUG_INTERNAL_EDGE
+@@ -564,7 +564,7 @@
+ 							// Reproject collision point along normal. (what about cp.m_distance1?)
+ 							cp.m_positionWorldOnB = cp.m_positionWorldOnA - cp.m_normalWorldOnB * cp.m_distance1;
+ 							cp.m_localPointB = colObj0->getWorldTransform().invXform(cp.m_positionWorldOnB);
+-							
++
+ 						}
+ 					}
+ 				}
+@@ -609,7 +609,7 @@
+ 	#endif //BT_INTERNAL_EDGE_DEBUG_DRAW
+ 
+ 				btVector3 nA = swapFactor * tri_normal;
+-				
++
+ 				btQuaternion orn(edge,info->m_edgeV1V2Angle);
+ 				btVector3 computedNormalB = quatRotate(orn,tri_normal);
+ 				if (info->m_flags & TRI_INFO_V1V2_SWAP_NORMALB)
+@@ -730,9 +730,9 @@
+ 							cp.m_localPointB = colObj0->getWorldTransform().invXform(cp.m_positionWorldOnB);
+ 						}
+ 					}
+-				} 
++				}
+ 			}
+-			
++
+ 
+ 		}
+ 	}
+@@ -762,8 +762,8 @@
+ 				//modify the normal to be the triangle normal (or backfacing normal)
+ 				cp.m_normalWorldOnB = colObj0->getWorldTransform().getBasis() *(tri_normal *frontFacing);
+ 			}
+-			
+-			
++
++
+ 			// Reproject collision point along normal.
+ 			cp.m_positionWorldOnB = cp.m_positionWorldOnA - cp.m_normalWorldOnB * cp.m_distance1;
+ 			cp.m_localPointB = colObj0->getWorldTransform().invXform(cp.m_positionWorldOnB);
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h c/bullet-2.77/src/BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h
+--- a/bullet-2.77/src/BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h	2010-02-25 13:12:42.000000000 +0100
++++ c/bullet-2.77/src/BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h	2018-07-14 15:49:47.000000000 +0200
+@@ -4,8 +4,8 @@
+ 
+ This software is provided 'as-is', without any express or implied warranty.
+ In no event will the authors be held liable for any damages arising from the use of this software.
+-Permission is granted to anyone to use this software for any purpose, 
+-including commercial applications, and to alter it and redistribute it freely, 
++Permission is granted to anyone to use this software for any purpose,
++including commercial applications, and to alter it and redistribute it freely,
+ subject to the following restrictions:
+ 
+ 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+@@ -44,7 +44,7 @@
+ 
+ 	///optionally pass in a larger bvh aabb, used for quantization. This allows for deformations within this aabb
+ 	btBvhTriangleMeshShape(btStridingMeshInterface* meshInterface, bool useQuantizedAabbCompression,const btVector3& bvhAabbMin,const btVector3& bvhAabbMax, bool buildBvh = true);
+-	
++
+ 	virtual ~btBvhTriangleMeshShape();
+ 
+ 	bool getOwnsBvh () const
+@@ -53,7 +53,7 @@
+ 	}
+ 
+ 
+-	
++
+ 	void performRaycast (btTriangleCallback* callback, const btVector3& raySource, const btVector3& rayTarget);
+ 	void performConvexcast (btTriangleCallback* callback, const btVector3& boxSource, const btVector3& boxTarget, const btVector3& boxMin, const btVector3& boxMax);
+ 
+@@ -69,7 +69,7 @@
+ 
+ 
+ 	virtual void	setLocalScaling(const btVector3& scaling);
+-	
++
+ 	btOptimizedBvh*	getOptimizedBvh()
+ 	{
+ 		return m_bvh;
+@@ -93,7 +93,7 @@
+ 	{
+ 		return m_triangleInfoMap;
+ 	}
+-	
++
+ 	btTriangleInfoMap*	getTriangleInfoMap()
+ 	{
+ 		return m_triangleInfoMap;
+@@ -121,11 +121,11 @@
+ 	btQuantizedBvhDoubleData	*m_quantizedDoubleBvh;
+ 
+ 	btTriangleInfoMapData	*m_triangleInfoMap;
+-	
++
+ 	float	m_collisionMargin;
+ 
+ 	char m_pad3[4];
+-	
++
+ };
+ 
  
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/CMakeLists.txt c/bullet-2.77/src/BulletDynamics/CMakeLists.txt
 --- a/bullet-2.77/src/BulletDynamics/CMakeLists.txt	2010-09-21 16:14:12.000000000 +0200
@@ -1289,7 +2195,43 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btScalar.h c/bullet-
  	x = (btScalar(1.5)*x)-(x*x)*(x*z);
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btSerializer.h c/bullet-2.77/src/LinearMath/btSerializer.h
 --- a/bullet-2.77/src/LinearMath/btSerializer.h	2010-08-24 13:49:42.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btSerializer.h	2018-07-14 11:04:54.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btSerializer.h	2018-07-14 16:17:37.000000000 +0200
+@@ -4,8 +4,8 @@
+ 
+ This software is provided 'as-is', without any express or implied warranty.
+ In no event will the authors be held liable for any damages arising from the use of this software.
+-Permission is granted to anyone to use this software for any purpose, 
+-including commercial applications, and to alter it and redistribute it freely, 
++Permission is granted to anyone to use this software for any purpose,
++including commercial applications, and to alter it and redistribute it freely,
+ subject to the following restrictions:
+ 
+ 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+@@ -33,12 +33,12 @@
+ extern unsigned char sBulletDNAstr64[];
+ extern int sBulletDNAlen64;
+ 
+-SIMD_FORCE_INLINE	int btStrLen(const char* str) 
++SIMD_FORCE_INLINE	int btStrLen(const char* str)
+ {
+-    if (!str) 
++    if (!str)
+ 		return(0);
+ 	int len = 0;
+-    
++
+ 	while (*str != 0)
+ 	{
+         str++;
+@@ -86,7 +86,7 @@
+ 	virtual	void*	getUniquePointer(void*oldPtr) = 0;
+ 
+ 	virtual	void	startSerialization() = 0;
+-	
++
+ 	virtual	void	finishSerialization() = 0;
+ 
+ 	virtual	const char*	findNameForPointer(const void* ptr) const = 0;
 @@ -119,8 +119,6 @@
  #define BT_TRIANLGE_INFO_MAP	MAKE_ID('T','M','A','P')
  #define BT_SHAPE_CODE			MAKE_ID('S','H','A','P')
@@ -1299,7 +2241,46 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btSerializer.h c/bul
  
  
  struct	btPointerUid
-@@ -178,9 +176,9 @@
+@@ -143,15 +141,15 @@
+ 	btHashMap<btHashInt, int>			mStructReverse;
+ 	btHashMap<btHashString,int>	mTypeLookup;
+ 
+-	
++
+ 	btHashMap<btHashPtr,void*>	m_chunkP;
+-	
++
+ 	btHashMap<btHashPtr,const char*>	m_nameMap;
+ 
+ 	btHashMap<btHashPtr,btPointerUid>	m_uniquePointers;
+ 	int	m_uniqueIdGenerator;
+ 
+-	int					m_totalSize;
++	//int 				m_totalSize;
+ 	unsigned char*		m_buffer;
+ 	int					m_currentSize;
+ 	void*				m_dna;
+@@ -161,10 +159,10 @@
+ 
+ 
+ 	btAlignedObjectArray<btChunk*>	m_chunkPtrs;
+-	
++
+ protected:
+ 
+-	virtual	void*	findPointer(void* oldPtr) 
++	virtual	void*	findPointer(void* oldPtr)
+ 	{
+ 		void** ptr = m_chunkP.find(oldPtr);
+ 		if (ptr && *ptr)
+@@ -172,15 +170,15 @@
+ 		return 0;
+ 	}
+ 
+-	
++
+ 
+ 
  
  		void	writeDNA()
  		{
@@ -1312,27 +2293,312 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btSerializer.h c/bul
  		}
  
  		int getReverseType(const char *type) const
-@@ -453,7 +451,7 @@
+@@ -190,7 +188,7 @@
+ 			const int* valuePtr = mTypeLookup.find(key);
+ 			if (valuePtr)
+ 				return *valuePtr;
+-			
++
+ 			return -1;
+ 		}
+ 
+@@ -202,7 +200,7 @@
+ 
+ 			int littleEndian= 1;
+ 			littleEndian= ((char*)&littleEndian)[0];
+-			
++
+ 
+ 			m_dna = btAlignedAlloc(dnalen,16);
+ 			memcpy(m_dna,bdnaOrg,dnalen);
+@@ -230,16 +228,16 @@
+ 			// Parse names
+ 			if (!littleEndian)
+ 				*intPtr = btSwapEndian(*intPtr);
+-				
++
+ 			dataLen = *intPtr;
+-			
++
+ 			intPtr++;
+ 
+ 			cp = (char*)intPtr;
+ 			int i;
+ 			for ( i=0; i<dataLen; i++)
+ 			{
+-				
++
+ 				while (*cp)cp++;
+ 				cp++;
+ 			}
+@@ -265,11 +263,11 @@
+ 
+ 			if (!littleEndian)
+ 				*intPtr =  btSwapEndian(*intPtr);
+-			
++
+ 			dataLen = *intPtr;
+ 			intPtr++;
+ 
+-			
++
+ 			cp = (char*)intPtr;
+ 			for (i=0; i<dataLen; i++)
+ 			{
+@@ -328,7 +326,7 @@
+ 
+ 			if (!littleEndian)
+ 				*intPtr = btSwapEndian(*intPtr);
+-			dataLen = *intPtr ; 
++			dataLen = *intPtr ;
+ 			intPtr++;
+ 
+ 
+@@ -336,7 +334,7 @@
+ 			for (i=0; i<dataLen; i++)
+ 			{
+ 				mStructs.push_back (shtPtr);
+-				
++
+ 				if (!littleEndian)
+ 				{
+ 					shtPtr[0]= btSwapEndian(shtPtr[0]);
+@@ -366,20 +364,20 @@
+ 			}
+ 		}
+ 
+-public:	
+-	
++public:
++
++
+ 
+-	
+ 
+ 		btDefaultSerializer(int totalSize)
+-			:m_totalSize(totalSize),
+-			m_currentSize(0),
++			//:m_totalSize(totalSize),
++			:m_currentSize(0),
+ 			m_dna(0),
+ 			m_dnaLength(0),
+ 			m_serializationFlags(0)
+ 		{
+ 			m_buffer = (unsigned char*)btAlignedAlloc(totalSize, 16);
+-			
++
+ 			const bool VOID_IS_8 = ((sizeof(void*)==8));
+ 
+ #ifdef BT_INTERNAL_UPDATE_SERIALIZATION_STRUCTURES
+@@ -398,7 +396,7 @@
+ 				btAssert(0);
+ #endif
+ 			}
+-	
++
+ #else //BT_INTERNAL_UPDATE_SERIALIZATION_STRUCTURES
+ 			if (VOID_IS_8)
+ 			{
+@@ -408,10 +406,10 @@
+ 				initDNA((const char*)sBulletDNAstr,sBulletDNAlen);
+ 			}
+ #endif //BT_INTERNAL_UPDATE_SERIALIZATION_STRUCTURES
+-	
++
+ 		}
+ 
+-		virtual ~btDefaultSerializer() 
++		virtual ~btDefaultSerializer()
+ 		{
+ 			if (m_buffer)
+ 				btAlignedFree(m_buffer);
+@@ -430,7 +428,7 @@
+ #else
+ 			memcpy(m_buffer, "BULLETf", 7);
+ #endif //BT_USE_DOUBLE_PRECISION
+-	
++
+ 			int littleEndian= 1;
+ 			littleEndian= ((char*)&littleEndian)[0];
+ 
+@@ -444,7 +442,7 @@
+ 
+ 			if (littleEndian)
+ 			{
+-				m_buffer[8]='v';				
++				m_buffer[8]='v';
+ 			} else
+ 			{
+ 				m_buffer[8]='V';
+@@ -453,9 +451,9 @@
  
  			m_buffer[9] = '2';
  			m_buffer[10] = '7';
 -			m_buffer[11] = '7';
 +			m_buffer[11] = '6';
++
  
- 			
+-			
+ 		}
+ 
+ 		virtual	void	finishSerialization()
+@@ -484,7 +482,7 @@
+ 				return uptr->m_ptr;
+ 			}
+ 			m_uniqueIdGenerator++;
+-			
++
+ 			btPointerUid uid;
+ 			uid.m_uniqueIds[0] = m_uniqueIdGenerator;
+ 			uid.m_uniqueIds[1] = m_uniqueIdGenerator;
+@@ -511,37 +509,37 @@
+ 			}
+ 
+ 			chunk->m_dna_nr = getReverseType(structType);
+-			
++
+ 			chunk->m_chunkCode = chunkCode;
+-			
++
+ 			void* uniquePtr = getUniquePointer(oldPtr);
+-			
++
+ 			m_chunkP.insert(oldPtr,uniquePtr);//chunk->m_oldPtr);
+ 			chunk->m_oldPtr = uniquePtr;//oldPtr;
+-			
++
+ 		}
+ 
+-		
+ 
+-		
++
++
+ 
+ 		virtual	btChunk*	allocate(size_t size, int numElements)
+ 		{
+ 
+ 			unsigned char* ptr = m_buffer+m_currentSize;
+ 			m_currentSize += int(size)*numElements+sizeof(btChunk);
+-			btAssert(m_currentSize<m_totalSize);
++			//btAssert(m_currentSize<m_totalSize);
+ 
+ 			unsigned char* data = ptr + sizeof(btChunk);
+-			
++
+ 			btChunk* chunk = (btChunk*)ptr;
+ 			chunk->m_chunkCode = 0;
+ 			chunk->m_oldPtr = data;
+ 			chunk->m_length = int(size)*numElements;
+ 			chunk->m_number = numElements;
+-			
++
+ 			m_chunkPtrs.push_back(chunk);
+-			
++
+ 
+ 			return chunk;
  		}
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btTransformUtil.h c/bullet-2.77/src/LinearMath/btTransformUtil.h
 --- a/bullet-2.77/src/LinearMath/btTransformUtil.h	2010-09-07 17:38:16.000000000 +0200
-+++ c/bullet-2.77/src/LinearMath/btTransformUtil.h	2018-07-14 11:04:54.000000000 +0200
-@@ -186,7 +186,7 @@
++++ c/bullet-2.77/src/LinearMath/btTransformUtil.h	2018-07-14 15:37:16.000000000 +0200
+@@ -3,8 +3,8 @@
+ 
+ This software is provided 'as-is', without any express or implied warranty.
+ In no event will the authors be held liable for any damages arising from the use of this software.
+-Permission is granted to anyone to use this software for any purpose, 
+-including commercial applications, and to alter it and redistribute it freely, 
++Permission is granted to anyone to use this software for any purpose,
++including commercial applications, and to alter it and redistribute it freely,
+ subject to the following restrictions:
+ 
+ 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+@@ -26,7 +26,7 @@
+ {
+ 	return btVector3(supportDir.x() < btScalar(0.0) ? -halfExtents.x() : halfExtents.x(),
+       supportDir.y() < btScalar(0.0) ? -halfExtents.y() : halfExtents.y(),
+-      supportDir.z() < btScalar(0.0) ? -halfExtents.z() : halfExtents.z()); 
++      supportDir.z() < btScalar(0.0) ? -halfExtents.z() : halfExtents.z());
+ }
+ 
+ 
+@@ -53,7 +53,7 @@
+ 		//google for "Practical Parameterization of Rotations Using the Exponential Map", F. Sebastian Grassia
+ 
+ 		btVector3 axis;
+-		btScalar	fAngle = angvel.length(); 
++		btScalar	fAngle = angvel.length();
+ 		//limit the angular motion
+ 		if (fAngle*timeStep > ANGULAR_MOTION_THRESHOLD)
+ 		{
+@@ -124,9 +124,9 @@
+ 		btQuaternion dorn;
+ 		dmat.getRotation(dorn);
+ 
+-		///floating point inaccuracy can lead to w component > 1..., which breaks 
++		///floating point inaccuracy can lead to w component > 1..., which breaks
+ 		dorn.normalize();
+-		
++
+ 		angle = dorn.getAngle();
+ 		axis = btVector3(dorn.x(),dorn.y(),dorn.z());
+ 		axis[3] = btScalar(0.);
+@@ -141,7 +141,7 @@
+ };
+ 
+ 
+-///The btConvexSeparatingDistanceUtil can help speed up convex collision detection 
++///The btConvexSeparatingDistanceUtil can help speed up convex collision detection
+ ///by conservatively updating a cached separating distance/vector instead of re-calculating the closest distance
+ class	btConvexSeparatingDistanceUtil
+ {
+@@ -149,7 +149,7 @@
+ 	btQuaternion	m_ornB;
+ 	btVector3	m_posA;
+ 	btVector3	m_posB;
+-	
++
+ 	btVector3	m_separatingNormal;
+ 
+ 	btScalar	m_boundingRadiusA;
+@@ -179,23 +179,23 @@
+ 
+ 		if (m_separatingDistance>0.f)
+ 		{
+-			
++
+ 
+ 			btVector3 linVelA,angVelA,linVelB,angVelB;
+ 			btTransformUtil::calculateVelocityQuaternion(m_posA,toPosA,m_ornA,toOrnA,btScalar(1.),linVelA,angVelA);
  			btTransformUtil::calculateVelocityQuaternion(m_posB,toPosB,m_ornB,toOrnB,btScalar(1.),linVelB,angVelB);
  			btScalar maxAngularProjectedVelocity = angVelA.length() * m_boundingRadiusA + angVelB.length() * m_boundingRadiusB;
- 			btVector3 relLinVel = (linVelB-linVelA);
+-			btVector3 relLinVel = (linVelB-linVelA);
 -			btScalar relLinVelocLength = relLinVel.dot(m_separatingNormal);
++			//btVector3 relLinVel = (linVelB-linVelA);
 +			btScalar relLinVelocLength = (linVelB-linVelA).dot(m_separatingNormal);
  			if (relLinVelocLength<0.f)
  			{
  				relLinVelocLength = 0.f;
+ 			}
+-	
++
+ 			btScalar	projectedMotion = maxAngularProjectedVelocity +relLinVelocLength;
+ 			m_separatingDistance -= projectedMotion;
+ 		}
+-	
++
+ 		m_posA = toPosA;
+ 		m_posB = toPosB;
+ 		m_ornA = toOrnA;
+@@ -209,7 +209,7 @@
+ 		if (m_separatingDistance>0.f)
+ 		{
+ 			m_separatingNormal = separatingVector;
+-			
++
+ 			const btVector3& toPosA = transA.getOrigin();
+ 			const btVector3& toPosB = transB.getOrigin();
+ 			btQuaternion toOrnA = transA.getRotation();
 diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btVector3.h c/bullet-2.77/src/LinearMath/btVector3.h
 --- a/bullet-2.77/src/LinearMath/btVector3.h	2010-09-17 17:24:52.000000000 +0200
 +++ c/bullet-2.77/src/LinearMath/btVector3.h	2018-07-14 11:04:54.000000000 +0200

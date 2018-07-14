@@ -16,8 +16,6 @@ function cmi_unpack() {
     rm -rf Demos Demos Extras UnitTests msvc
 
     # Convert line endings to unix style
-    #find . -type f -name "*.*" -exec sh -c "tr -d '\015' <{} >UNIX-file; mv UNIX-file {}; echo {}" \;
-    #find . -type f -exec sh -c "tr -d '\015' <{} >UNIX-file; mv UNIX-file {}; echo {}" \;
     find . -type f -name "*.*" -exec dos2unix {} \;
 
     popd
