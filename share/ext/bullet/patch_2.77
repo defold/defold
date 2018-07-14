@@ -1,0 +1,1380 @@
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h
+--- a/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h	2010-08-24 18:28:48.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/BroadphaseCollision/btDispatcher.h	2018-07-14 11:04:54.000000000 +0200
+@@ -48,7 +48,6 @@
+ 		m_allowedCcdPenetration(btScalar(0.04)),
+ 		m_useConvexConservativeDistanceUtil(false),
+ 		m_convexConservativeDistanceThreshold(0.0f),
+-		m_convexMaxDistanceUseCPT(false),
+ 		m_stackAllocator(0)
+ 	{
+ 
+@@ -65,7 +64,6 @@
+ 	btScalar	m_allowedCcdPenetration;
+ 	bool		m_useConvexConservativeDistanceUtil;
+ 	btScalar	m_convexConservativeDistanceThreshold;
+-	bool		m_convexMaxDistanceUseCPT;
+ 	btStackAlloc*	m_stackAllocator;
+ };
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CMakeLists.txt c/bullet-2.77/src/BulletCollision/CMakeLists.txt
+--- a/bullet-2.77/src/BulletCollision/CMakeLists.txt	2010-09-07 16:40:18.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/CMakeLists.txt	2018-07-14 11:04:54.000000000 +0200
+@@ -252,10 +252,8 @@
+ 				INSTALL(TARGETS BulletCollision DESTINATION .)
+ 			ELSE (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 				INSTALL(TARGETS BulletCollision DESTINATION lib${LIB_SUFFIX})
+-				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.h" PATTERN ".svn" EXCLUDE PATTERN "CMakeFiles" EXCLUDE)
+-				INSTALL(FILES ../btBulletCollisionCommon.h
+-DESTINATION ${INCLUDE_INSTALL_DIR}/BulletCollision)
++				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DESTINATION include FILES_MATCHING PATTERN "*.h")
++				INSTALL(FILES ../btBulletCollisionCommon.h DESTINATION include/BulletCollision)
+ 			ENDIF (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 		ENDIF (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.5)
+ 		
+@@ -272,4 +270,4 @@
+ 		
+ 		ENDIF (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 	ENDIF (NOT INTERNAL_CREATE_DISTRIBUTABLE_MSVC_PROJECTFILES)
+-ENDIF (INSTALL_LIBS)
++ENDIF (INSTALL_LIBS)
+\ No newline at end of file
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp	2010-09-10 13:29:42.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -345,20 +345,6 @@
+     } \
+   }
+ 
+-  btScalar fudge2 (1.0e-5f);
+-
+-  Q11 += fudge2;
+-  Q12 += fudge2;
+-  Q13 += fudge2;
+-
+-  Q21 += fudge2;
+-  Q22 += fudge2;
+-  Q23 += fudge2;
+-
+-  Q31 += fudge2;
+-  Q32 += fudge2;
+-  Q33 += fudge2;
+-
+   // separating axis = u1 x (v1,v2,v3)
+   TST(pp[2]*R21-pp[1]*R31,(A[1]*Q31+A[2]*Q21+B[1]*Q13+B[2]*Q12),0,-R31,R21,7);
+   TST(pp[2]*R22-pp[1]*R32,(A[1]*Q32+A[2]*Q22+B[0]*Q13+B[2]*Q11),0,-R32,R22,8);
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h	2010-08-15 13:45:56.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionObject.h	2018-07-14 11:04:54.000000000 +0200
+@@ -128,13 +128,12 @@
+ 	enum	CollisionObjectTypes
+ 	{
+ 		CO_COLLISION_OBJECT =1,
+-		CO_RIGID_BODY=2,
++		CO_RIGID_BODY,
+ 		///CO_GHOST_OBJECT keeps track of all objects overlapping its AABB and that pass its collision filter
+ 		///It is useful for collision sensors, explosion objects, character controller etc.
+-		CO_GHOST_OBJECT=4,
+-		CO_SOFT_BODY=8,
+-		CO_HF_FLUID=16,
+-		CO_USER_TYPE=32
++		CO_GHOST_OBJECT,
++		CO_SOFT_BODY,
++		CO_HF_FLUID
+ 	};
+ 
+ 	SIMD_FORCE_INLINE bool mergesSimulationIslands() const
+@@ -298,6 +297,13 @@
+ 	}
+ 
+ 
++	// DEFOLD MOD only existed in btRigidBody before
++	//is this rigidbody added to a btCollisionWorld/btDynamicsWorld/btBroadphase?
++	bool isInWorld() const
++	{
++	    return m_broadphaseHandle != 0;
++	}
++
+ 	SIMD_FORCE_INLINE btBroadphaseProxy*	getBroadphaseHandle()
+ 	{
+ 		return m_broadphaseHandle;
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp	2010-08-25 12:23:10.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -434,13 +434,11 @@
+ 					btCollisionShape* saveCollisionShape = collisionObject->getCollisionShape();
+ 					collisionObject->internalSetTemporaryCollisionShape((btCollisionShape*)childCollisionShape);
+                     struct LocalInfoAdder2 : public RayResultCallback {
+-						RayResultCallback* m_userCallback;
+ 						int m_i;
++						RayResultCallback* m_userCallback;
+                         LocalInfoAdder2 (int i, RayResultCallback *user)
+-							: m_userCallback(user),
+-							m_i(i)
++							: m_i(i), m_userCallback(user) 
+ 						{ 
+-							m_closestHitFraction = m_userCallback->m_closestHitFraction;
+ 						}
+ 						virtual btScalar addSingleResult (btCollisionWorld::LocalRayResult &r, bool b)
+                             {
+@@ -449,14 +447,13 @@
+                                     shapeInfo.m_triangleIndex = m_i;
+                                     if (r.m_localShapeInfo == NULL)
+                                         r.m_localShapeInfo = &shapeInfo;
+-
+-									const btScalar result = m_userCallback->addSingleResult(r, b);
+-									m_closestHitFraction = m_userCallback->m_closestHitFraction;
+-									return result;
++                                    return m_userCallback->addSingleResult(r, b);
+                             }
+                     };
+ 
+                     LocalInfoAdder2 my_cb(i, &resultCallback);
++					my_cb.m_closestHitFraction = resultCallback.m_closestHitFraction;
++					
+ 
+ 					rayTestSingle(rayFromTrans,rayToTrans,
+ 						collisionObject,
+@@ -663,10 +660,7 @@
+ 							int m_i;
+ 
+                             LocalInfoAdder (int i, ConvexResultCallback *user)
+-								: m_userCallback(user), m_i(i)
+-							{
+-								m_closestHitFraction = m_userCallback->m_closestHitFraction;
+-							}
++                                : m_userCallback(user),m_i(i) { }
+                             virtual btScalar addSingleResult (btCollisionWorld::LocalConvexResult&	r,	bool b)
+                             {
+                                     btCollisionWorld::LocalShapeInfo	shapeInfo;
+@@ -674,15 +668,12 @@
+                                     shapeInfo.m_triangleIndex = m_i;
+                                     if (r.m_localShapeInfo == NULL)
+                                         r.m_localShapeInfo = &shapeInfo;
+-									const btScalar result = m_userCallback->addSingleResult(r, b);
+-									m_closestHitFraction = m_userCallback->m_closestHitFraction;
+-									return result;
+-                                    
++                                    return m_userCallback->addSingleResult(r, b);
+                             }
+                     };
+ 
+                     LocalInfoAdder my_cb(i, &resultCallback);
+-					
++					my_cb.m_closestHitFraction = resultCallback.m_closestHitFraction;
+ 
+ 					objectQuerySingle(castShape, convexFromTrans,convexToTrans,
+ 						collisionObject,
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h	2010-08-23 16:00:36.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btCollisionWorld.h	2018-07-14 11:04:54.000000000 +0200
+@@ -264,45 +264,6 @@
+ 		}
+ 	};
+ 
+-	struct	AllHitsRayResultCallback : public RayResultCallback
+-	{
+-		AllHitsRayResultCallback(const btVector3&	rayFromWorld,const btVector3&	rayToWorld)
+-		:m_rayFromWorld(rayFromWorld),
+-		m_rayToWorld(rayToWorld)
+-		{
+-		}
+-
+-		btAlignedObjectArray<btCollisionObject*>		m_collisionObjects;
+-
+-		btVector3	m_rayFromWorld;//used to calculate hitPointWorld from hitFraction
+-		btVector3	m_rayToWorld;
+-
+-		btAlignedObjectArray<btVector3>	m_hitNormalWorld;
+-		btAlignedObjectArray<btVector3>	m_hitPointWorld;
+-		btAlignedObjectArray<btScalar> m_hitFractions;
+-			
+-		virtual	btScalar	addSingleResult(LocalRayResult& rayResult,bool normalInWorldSpace)
+-		{
+-			m_collisionObject = rayResult.m_collisionObject;
+-			m_collisionObjects.push_back(rayResult.m_collisionObject);
+-			btVector3 hitNormalWorld;
+-			if (normalInWorldSpace)
+-			{
+-				hitNormalWorld = rayResult.m_hitNormalLocal;
+-			} else
+-			{
+-				///need to transform normal into worldspace
+-				hitNormalWorld = m_collisionObject->getWorldTransform().getBasis()*rayResult.m_hitNormalLocal;
+-			}
+-			m_hitNormalWorld.push_back(hitNormalWorld);
+-			btVector3 hitPointWorld;
+-			hitPointWorld.setInterpolate3(m_rayFromWorld,m_rayToWorld,rayResult.m_hitFraction);
+-			m_hitPointWorld.push_back(hitPointWorld);
+-			m_hitFractions.push_back(rayResult.m_hitFraction);
+-			return m_closestHitFraction;
+-		}
+-	};
+-
+ 
+ 	struct LocalConvexResult
+ 	{
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp
+--- a/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2010-08-24 18:28:48.000000000 +0200
++++ c/bullet-2.77/src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -357,13 +357,7 @@
+ 	} else
+ #endif //USE_SEPDISTANCE_UTIL2
+ 	{
+-		if (dispatchInfo.m_convexMaxDistanceUseCPT)
+-		{
+-			input.m_maximumDistanceSquared = min0->getMargin() + min1->getMargin() + m_manifoldPtr->getContactProcessingThreshold();
+-		} else
+-		{
+-			input.m_maximumDistanceSquared = min0->getMargin() + min1->getMargin() + m_manifoldPtr->getContactBreakingThreshold();
+-		}
++		input.m_maximumDistanceSquared = min0->getMargin() + min1->getMargin() + m_manifoldPtr->getContactBreakingThreshold();
+ 		input.m_maximumDistanceSquared*= input.m_maximumDistanceSquared;
+ 	}
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/CMakeLists.txt c/bullet-2.77/src/BulletDynamics/CMakeLists.txt
+--- a/bullet-2.77/src/BulletDynamics/CMakeLists.txt	2010-09-21 16:14:12.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/CMakeLists.txt	2018-07-14 11:04:54.000000000 +0200
+@@ -79,8 +79,6 @@
+ 
+ 
+ ADD_LIBRARY(BulletDynamics ${BulletDynamics_SRCS} ${BulletDynamics_HDRS})
+-SET_TARGET_PROPERTIES(BulletDynamics PROPERTIES VERSION ${BULLET_VERSION})
+-SET_TARGET_PROPERTIES(BulletDynamics PROPERTIES SOVERSION ${BULLET_VERSION})
+ IF (BUILD_SHARED_LIBS)
+ 	TARGET_LINK_LIBRARIES(BulletDynamics BulletCollision LinearMath)
+ ENDIF (BUILD_SHARED_LIBS)
+@@ -92,11 +90,8 @@
+ 				INSTALL(TARGETS BulletDynamics DESTINATION .)
+ 			ELSE (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 				INSTALL(TARGETS BulletDynamics DESTINATION lib${LIB_SUFFIX})
+-				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.h"  PATTERN
+-".svn" EXCLUDE PATTERN "CMakeFiles" EXCLUDE)
+-				INSTALL(FILES ../btBulletDynamicsCommon.h
+-DESTINATION ${INCLUDE_INSTALL_DIR}/BulletDynamics)
++				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DESTINATION include FILES_MATCHING PATTERN "*.h")
++				INSTALL(FILES ../btBulletDynamicsCommon.h DESTINATION include/BulletDynamics)
+ 			ENDIF (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 		ENDIF (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.5)
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h	2010-08-24 14:12:34.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h	2018-07-14 11:04:54.000000000 +0200
+@@ -35,7 +35,7 @@
+ 	
+ 
+ 	btScalar	m_tau;
+-	btScalar	m_damping;//global non-contact constraint damping, can be locally overridden by constraints during 'getInfo2'.
++	btScalar	m_damping;
+ 	btScalar	m_friction;
+ 	btScalar	m_timeStep;
+ 	btScalar	m_restitution;
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp	2010-07-30 15:57:50.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -773,23 +773,17 @@
+ 	for (i=0; i<3; i++) info->m_J1angularAxis[s2+i] = tmpA[i];
+     for (i=0; i<3; i++) info->m_J2angularAxis[s2+i] = -tmpB[i];
+ 
+-	btScalar k = info->fps * info->erp;
+-
+-	if (!m_angularOnly)
+-	{
+-		for (i=0; i<3; i++) info->m_J1linearAxis[s0+i] = p[i];
+-		for (i=0; i<3; i++) info->m_J1linearAxis[s1+i] = q[i];
+-		for (i=0; i<3; i++) info->m_J1linearAxis[s2+i] = ax1[i];
+-	
++	for (i=0; i<3; i++) info->m_J1linearAxis[s0+i] = p[i];
++	for (i=0; i<3; i++) info->m_J1linearAxis[s1+i] = q[i];
++	for (i=0; i<3; i++) info->m_J1linearAxis[s2+i] = ax1[i];
+ 	// compute three elements of right hand side
+-	
+-		btScalar rhs = k * p.dot(ofs);
+-		info->m_constraintError[s0] = rhs;
+-		rhs = k * q.dot(ofs);
+-		info->m_constraintError[s1] = rhs;
+-		rhs = k * ax1.dot(ofs);
+-		info->m_constraintError[s2] = rhs;
+-	}
++	btScalar k = info->fps * info->erp;
++	btScalar rhs = k * p.dot(ofs);
++	info->m_constraintError[s0] = rhs;
++	rhs = k * q.dot(ofs);
++	info->m_constraintError[s1] = rhs;
++	rhs = k * ax1.dot(ofs);
++	info->m_constraintError[s2] = rhs;
+ 	// the hinge axis should be the only unconstrained
+ 	// rotational axis, the angular velocity of the two bodies perpendicular to
+ 	// the hinge axis should be equal. thus the constraint equations are
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp	2010-08-24 14:12:34.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -159,7 +159,6 @@
+ 			info->m_upperLimit[j*info->rowskip] = impulseClamp;
+ 		}
+ 	}
+-	info->m_damping = m_setting.m_damping;
+ 	
+ }
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp	2010-09-07 17:38:16.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -852,7 +852,6 @@
+ 					btAssert(info2.rowskip*sizeof(btScalar)== sizeof(btSolverConstraint));
+ 					info2.m_constraintError = &currentConstraintRow->m_rhs;
+ 					currentConstraintRow->m_cfm = infoGlobal.m_globalCfm;
+-					info2.m_damping = infoGlobal.m_damping;
+ 					info2.cfm = &currentConstraintRow->m_cfm;
+ 					info2.m_lowerLimit = &currentConstraintRow->m_lowerLimit;
+ 					info2.m_upperLimit = &currentConstraintRow->m_upperLimit;
+@@ -900,7 +899,7 @@
+ 
+ 							btScalar restitution = 0.f;
+ 							btScalar positionalError = solverConstraint.m_rhs;//already filled in by getConstraintInfo2
+-							btScalar	velocityError = restitution - rel_vel * info2.m_damping;
++							btScalar	velocityError = restitution - rel_vel;// * damping;
+ 							btScalar	penetrationImpulse = positionalError*solverConstraint.m_jacDiagABInv;
+ 							btScalar	velocityImpulse = velocityError *solverConstraint.m_jacDiagABInv;
+ 							solverConstraint.m_rhs = penetrationImpulse+velocityImpulse;
+@@ -1199,10 +1198,4 @@
+ 	m_btSeed2 = 0;
+ }
+ 
+-btRigidBody& btSequentialImpulseConstraintSolver::getFixedBody()
+-{
+-	static btRigidBody s_fixed(0, 0,0);
+-	s_fixed.setMassProps(btScalar(0.),btVector3(btScalar(0.),btScalar(0.),btScalar(0.)));
+-	return s_fixed;
+-}
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h	2010-09-07 17:38:16.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h	2018-07-14 11:04:54.000000000 +0200
+@@ -81,8 +81,12 @@
+ 	void	resolveSingleConstraintRowLowerLimitSIMD(btRigidBody& body1,btRigidBody& body2,const btSolverConstraint& contactConstraint);
+ 		
+ protected:
+-	static btRigidBody& getFixedBody();
+-	
++	static btRigidBody& getFixedBody()
++	{
++		static btRigidBody s_fixed(0, 0,0);
++		s_fixed.setMassProps(btScalar(0.),btVector3(btScalar(0.),btScalar(0.),btScalar(0.)));
++		return s_fixed;
++	}	
+ 	virtual void solveGroupCacheFriendlySplitImpulseIterations(btCollisionObject** bodies,int numBodies,btPersistentManifold** manifoldPtr, int numManifolds,btTypedConstraint** constraints,int numConstraints,const btContactSolverInfo& infoGlobal,btIDebugDraw* debugDrawer,btStackAlloc* stackAlloc);
+ 	virtual btScalar solveGroupCacheFriendlyFinish(btCollisionObject** bodies ,int numBodies,btPersistentManifold** manifoldPtr, int numManifolds,btTypedConstraint** constraints,int numConstraints,const btContactSolverInfo& infoGlobal,btIDebugDraw* debugDrawer,btStackAlloc* stackAlloc);
+ 	btScalar solveSingleIteration(int iteration, btCollisionObject** bodies ,int numBodies,btPersistentManifold** manifoldPtr, int numManifolds,btTypedConstraint** constraints,int numConstraints,const btContactSolverInfo& infoGlobal,btIDebugDraw* debugDrawer,btStackAlloc* stackAlloc);
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp	2010-09-07 17:38:16.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -133,10 +133,4 @@
+ 	return "btTypedConstraintData";
+ }
+ 
+-btRigidBody& btTypedConstraint::getFixedBody()
+-{
+-	static btRigidBody s_fixed(0, 0,0);
+-	s_fixed.setMassProps(btScalar(0.),btVector3(btScalar(0.),btScalar(0.),btScalar(0.)));
+-	return s_fixed;
+-}
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h
+--- a/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h	2010-09-16 14:04:42.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/ConstraintSolver/btTypedConstraint.h	2018-07-14 11:04:54.000000000 +0200
+@@ -53,13 +53,7 @@
+ class btTypedConstraint : public btTypedObject
+ {
+ 	int	m_userConstraintType;
+-
+-	union
+-	{
+-		int	m_userConstraintId;
+-		void* m_userConstraintPtr;
+-	};
+-
++	int	m_userConstraintId;
+ 	bool m_needsFeedback;
+ 
+ 	btTypedConstraint&	operator=(btTypedConstraint&	other)
+@@ -78,7 +72,13 @@
+ 	///internal method used by the constraint solver, don't use them directly
+ 	btScalar getMotorFactor(btScalar pos, btScalar lowLim, btScalar uppLim, btScalar vel, btScalar timeFact);
+ 	
+-	static btRigidBody& getFixedBody();
++	static btRigidBody& getFixedBody()
++	{
++		static btRigidBody s_fixed(0, 0,0);
++		s_fixed.setMassProps(btScalar(0.),btVector3(btScalar(0.),btScalar(0.),btScalar(0.)));
++		return s_fixed;
++	}	
++
+ 
+ public:
+ 
+@@ -119,9 +119,6 @@
+ 		int *findex;
+ 		// number of solver iterations
+ 		int m_numIterations;
+-
+-		//damping of the velocity
+-		btScalar	m_damping;
+ 	};
+ 
+ 	///internal method used by the constraint solver, don't use them directly
+@@ -195,16 +192,6 @@
+ 		return m_userConstraintId;
+ 	}
+ 
+-	void	setUserConstraintPtr(void* ptr)
+-	{
+-		m_userConstraintPtr = ptr;
+-	}
+-
+-	void*	getUserConstraintPtr()
+-	{
+-		return m_userConstraintPtr;
+-	}
+-
+ 	int getUid() const
+ 	{
+ 		return m_userConstraintId;   
+@@ -268,13 +255,13 @@
+ 	}
+ 	else if(angleInRadians < angleLowerLimitInRadians)
+ 	{
+-		btScalar diffLo = btFabs(btNormalizeAngle(angleLowerLimitInRadians - angleInRadians));
++		btScalar diffLo = btNormalizeAngle(angleLowerLimitInRadians - angleInRadians); // this is positive
+ 		btScalar diffHi = btFabs(btNormalizeAngle(angleUpperLimitInRadians - angleInRadians));
+ 		return (diffLo < diffHi) ? angleInRadians : (angleInRadians + SIMD_2_PI);
+ 	}
+ 	else if(angleInRadians > angleUpperLimitInRadians)
+ 	{
+-		btScalar diffHi = btFabs(btNormalizeAngle(angleInRadians - angleUpperLimitInRadians));
++		btScalar diffHi = btNormalizeAngle(angleInRadians - angleUpperLimitInRadians); // this is positive
+ 		btScalar diffLo = btFabs(btNormalizeAngle(angleInRadians - angleLowerLimitInRadians));
+ 		return (diffLo < diffHi) ? (angleInRadians - SIMD_2_PI) : angleInRadians;
+ 	}
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h c/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h
+--- a/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h	2010-09-07 17:38:16.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/Dynamics/btActionInterface.h	2018-07-14 11:04:54.000000000 +0200
+@@ -27,8 +27,12 @@
+ {
+ protected:
+ 
+-	static btRigidBody& getFixedBody();
+-	
++	static btRigidBody& getFixedBody()
++	{
++		static btRigidBody s_fixed(0, 0,0);
++		s_fixed.setMassProps(btScalar(0.),btVector3(btScalar(0.),btScalar(0.),btScalar(0.)));
++		return s_fixed;
++	}	
+ 	
+ public:
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp c/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp
+--- a/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2010-08-15 13:45:56.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -52,7 +52,7 @@
+ :btDynamicsWorld(dispatcher,pairCache,collisionConfiguration),
+ m_constraintSolver(constraintSolver),
+ m_gravity(0,-10,0),
+-m_localTime(0),
++m_localTime(btScalar(1.)/btScalar(60.)),
+ m_synchronizeAllMotionStates(false),
+ m_profileTimings(0)
+ {
+@@ -1127,7 +1127,7 @@
+ 	for (i=0;i<m_collisionObjects.size();i++)
+ 	{
+ 		btCollisionObject* colObj = m_collisionObjects[i];
+-		if (colObj->getInternalType() & btCollisionObject::CO_RIGID_BODY)
++		if (colObj->getInternalType() == btCollisionObject::CO_RIGID_BODY)
+ 		{
+ 			int len = colObj->calculateSerializeBufferSize();
+ 			btChunk* chunk = serializer->allocate(len,1);
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h c/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h
+--- a/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h	2010-08-15 13:45:56.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/Dynamics/btRigidBody.h	2018-07-14 11:04:54.000000000 +0200
+@@ -188,13 +188,13 @@
+ 	///but a rigidbody is derived from btCollisionObject, so we can safely perform an upcast
+ 	static const btRigidBody*	upcast(const btCollisionObject* colObj)
+ 	{
+-		if (colObj->getInternalType()&btCollisionObject::CO_RIGID_BODY)
++		if (colObj->getInternalType()==btCollisionObject::CO_RIGID_BODY)
+ 			return (const btRigidBody*)colObj;
+ 		return 0;
+ 	}
+ 	static btRigidBody*	upcast(btCollisionObject* colObj)
+ 	{
+-		if (colObj->getInternalType()&btCollisionObject::CO_RIGID_BODY)
++		if (colObj->getInternalType()==btCollisionObject::CO_RIGID_BODY)
+ 			return (btRigidBody*)colObj;
+ 		return 0;
+ 	}
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp c/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp
+--- a/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp	2010-09-07 17:38:16.000000000 +0200
++++ c/bullet-2.77/src/BulletDynamics/Vehicle/btRaycastVehicle.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -22,12 +22,7 @@
+ #include "LinearMath/btIDebugDraw.h"
+ #include "BulletDynamics/ConstraintSolver/btContactConstraint.h"
+ 
+-btRigidBody& btActionInterface::getFixedBody()
+-{
+-	static btRigidBody s_fixed(0, 0,0);
+-	s_fixed.setMassProps(btScalar(0.),btVector3(btScalar(0.),btScalar(0.),btScalar(0.)));
+-	return s_fixed;
+-}
++
+ 
+ btRaycastVehicle::btRaycastVehicle(const btVehicleTuning& tuning,btRigidBody* chassis,	btVehicleRaycaster* raycaster )
+ :m_vehicleRaycaster(raycaster),
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h c/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h
+--- a/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h	2009-08-30 21:35:08.000000000 +0200
++++ c/bullet-2.77/src/BulletSoftBody/btSoftBodyInternals.h	2018-07-14 13:26:57.000000000 +0200
+@@ -40,7 +40,7 @@
+ 	const T&				operator()(int c,int r) const			{ return(store[index(c,r)]); }
+ 	btAlignedObjectArray<T>	store;
+ 	int						dim;
+-};	
++};
+ 
+ //
+ // btSoftBodyCollisionShape
+@@ -70,7 +70,7 @@
+ 	///getAabb returns the axis aligned bounding box in the coordinate frame of the given transform t.
+ 	virtual void getAabb(const btTransform& t,btVector3& aabbMin,btVector3& aabbMax) const
+ 	{
+-		/* t should be identity, but better be safe than...fast? */ 
++		/* t should be identity, but better be safe than...fast? */
+ 		const btVector3	mins=m_body->m_bounds[0];
+ 		const btVector3	maxs=m_body->m_bounds[1];
+ 		const btVector3	crns[]={t*btVector3(mins.x(),mins.y(),mins.z()),
+@@ -91,7 +91,7 @@
+ 
+ 
+ 	virtual void	setLocalScaling(const btVector3& /*scaling*/)
+-	{		
++	{
+ 		///na
+ 	}
+ 	virtual const btVector3& getLocalScaling() const
+@@ -172,8 +172,7 @@
+ template <typename T>
+ static inline void			ZeroInitialize(T& value)
+ {
+-	static const T	zerodummy;
+-	value=zerodummy;
++	memset(&value,0,sizeof(T));
+ }
+ //
+ template <typename T>
+@@ -320,7 +319,7 @@
+ 
+ //
+ static inline btMatrix3x3	ImpulseMatrix(	btScalar ima,const btMatrix3x3& iia,const btVector3& ra,
+-										  btScalar imb,const btMatrix3x3& iib,const btVector3& rb)	
++										  btScalar imb,const btMatrix3x3& iib,const btVector3& rb)
+ {
+ 	return(Add(MassMatrix(ima,iia,ra),MassMatrix(imb,iib,rb)).inverse());
+ }
+@@ -354,7 +353,7 @@
+ 	const btVector3	d=b-a;
+ 	const btScalar	m2=d.length2();
+ 	if(m2>SIMD_EPSILON)
+-	{	
++	{
+ 		const btScalar	t=Clamp<btScalar>(-btDot(a,d)/m2,0,1);
+ 		const btVector3	p=a+d*t;
+ 		const btScalar	l2=p.length2();
+@@ -385,7 +384,7 @@
+ 			if(	(btDot(btCross(a-p,b-p),q)>0)&&
+ 				(btDot(btCross(b-p,c-p),q)>0)&&
+ 				(btDot(btCross(c-p,a-p),q)>0))
+-			{			
++			{
+ 				prj=p;
+ 				sqd=k2;
+ 			}
+@@ -529,11 +528,11 @@
+ {
+ 	const btScalar	dtim=dt*n.m_im;
+ 	if((f*dtim).length2()>n.m_v.length2())
+-	{/* Clamp	*/ 
+-		n.m_f-=ProjectOnAxis(n.m_v,f.normalized())/dtim;						
++	{/* Clamp	*/
++		n.m_f-=ProjectOnAxis(n.m_v,f.normalized())/dtim;
+ 	}
+ 	else
+-	{/* Apply	*/ 
++	{/* Apply	*/
+ 		n.m_f+=f;
+ 	}
+ }
+@@ -572,7 +571,7 @@
+ 				const btScalar	w=(a[q][q]-a[p][p])/(2*a[p][q]);
+ 				const btScalar	z=btFabs(w);
+ 				const btScalar	t=w/(z*(btSqrt(1+w*w)+z));
+-				if(t==t)/* [WARNING] let hope that one does not get thrown aways by some compilers... */ 
++				if(t==t)/* [WARNING] let hope that one does not get thrown aways by some compilers... */
+ 				{
+ 					const btScalar	c=1/btSqrt(t*t+1);
+ 					const btScalar	s=c*t;
+@@ -630,9 +629,9 @@
+ 			const btScalar	ndet=q.determinant();
+ 			if(Sq(ndet-det)>accuracy) det=ndet; else break;
+ 		}
+-		/* Final orthogonalization	*/ 
++		/* Final orthogonalization	*/
+ 		Orthogonalize(q);
+-		/* Compute 'S'				*/ 
++		/* Compute 'S'				*/
+ 		s=q.transpose()*m;
+ 	}
+ 	else
+@@ -682,7 +681,7 @@
+ 				const btVector3		vrel=va-vb;
+ 				const btScalar		rvac=btDot(vrel,norm);
+ 				 btScalar		depth=res.distance-m_margin;
+-				
++
+ //				printf("depth=%f\n",depth);
+ 				const btVector3		iv=norm*rvac;
+ 				const btVector3		fv=vrel-iv;
+@@ -697,7 +696,7 @@
+ 				joint.m_life		=	0;
+ 				joint.m_maxlife		=	0;
+ 				joint.m_split		=	1;
+-				
++
+ 				joint.m_drift		=	depth*norm;
+ 
+ 				joint.m_normal		=	norm;
+@@ -718,20 +717,20 @@
+ 	struct	CollideCL_RS : ClusterBase
+ 	{
+ 		btSoftBody*		psb;
+-		
++
+ 		btCollisionObject*	m_colObj;
+ 		void		Process(const btDbvtNode* leaf)
+ 		{
+ 			btSoftBody::Cluster*		cluster=(btSoftBody::Cluster*)leaf->data;
+ 			btSoftClusterCollisionShape	cshape(cluster);
+-			
++
+ 			const btConvexShape*		rshape=(const btConvexShape*)m_colObj->getCollisionShape();
+ 
+ 			///don't collide an anchored cluster with a static/kinematic object
+ 			if(m_colObj->isStaticOrKinematicObject() && cluster->m_containsAnchor)
+ 				return;
+ 
+-			btGjkEpaSolver2::sResults	res;		
++			btGjkEpaSolver2::sResults	res;
+ 			if(btGjkEpaSolver2::SignedDistance(	&cshape,btTransform::getIdentity(),
+ 				rshape,m_colObj->getInterpolationWorldTransform(),
+ 				btVector3(1,0,0),res))
+@@ -770,7 +769,7 @@
+ 			volume=btDbvtVolume::FromMM(mins,maxs);
+ 			volume.Expand(btVector3(1,1,1)*m_margin);
+ 			ps->m_cdbvt.collideTV(ps->m_cdbvt.m_root,volume,*this);
+-		}	
++		}
+ 	};
+ 	//
+ 	// CollideCL_SS
+@@ -794,7 +793,7 @@
+ 			{
+ 				btSoftClusterCollisionShape	csa(cla);
+ 				btSoftClusterCollisionShape	csb(clb);
+-				btGjkEpaSolver2::sResults	res;		
++				btGjkEpaSolver2::sResults	res;
+ 				if(btGjkEpaSolver2::SignedDistance(	&csa,btTransform::getIdentity(),
+ 					&csb,btTransform::getIdentity(),
+ 					cla->m_com-clb->m_com,res))
+@@ -813,7 +812,7 @@
+ 				static int count=0;
+ 				count++;
+ 				//printf("count=%d\n",count);
+-				
++
+ 			}
+ 		}
+ 		void		Process(btSoftBody* psa,btSoftBody* psb)
+@@ -825,7 +824,7 @@
+ 			bodies[0]	=	psa;
+ 			bodies[1]	=	psb;
+ 			psa->m_cdbvt.collideTT(psa->m_cdbvt.m_root,psb->m_cdbvt.m_root,*this);
+-		}	
++		}
+ 	};
+ 	//
+ 	// CollideSDF_RS
+@@ -854,7 +853,7 @@
+ 					const btMatrix3x3&	iwi=m_rigidBody?m_rigidBody->getInvInertiaTensorWorld() : iwiStatic;
+ 					const btVector3		ra=n.m_x-wtr.getOrigin();
+ 					const btVector3		va=m_rigidBody ? m_rigidBody->getVelocityInLocalPoint(ra)*psb->m_sst.sdt : btVector3(0,0,0);
+-					const btVector3		vb=n.m_x-n.m_q;	
++					const btVector3		vb=n.m_x-n.m_q;
+ 					const btVector3		vr=vb-va;
+ 					const btScalar		dn=btDot(vr,c.m_cti.m_normal);
+ 					const btVector3		fv=vr-c.m_cti.m_normal*dn;
+@@ -921,7 +920,7 @@
+ 					c.m_cfm[1]		=	mb/ms*psb[1]->m_cfg.kSHR;
+ 					psb[0]->m_scontacts.push_back(c);
+ 				}
+-			}	
++			}
+ 		}
+ 		btSoftBody*		psb[2];
+ 		btScalar		mrg;
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/CMakeLists.txt c/bullet-2.77/src/LinearMath/CMakeLists.txt
+--- a/bullet-2.77/src/LinearMath/CMakeLists.txt	2010-09-07 16:40:18.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/CMakeLists.txt	2018-07-14 11:04:54.000000000 +0200
+@@ -49,9 +49,7 @@
+ 				INSTALL(TARGETS LinearMath DESTINATION .)
+ 			ELSE (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 				INSTALL(TARGETS LinearMath DESTINATION lib${LIB_SUFFIX})
+-				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+-DESTINATION ${INCLUDE_INSTALL_DIR} FILES_MATCHING PATTERN "*.h"  PATTERN
+-".svn" EXCLUDE PATTERN "CMakeFiles" EXCLUDE)
++				INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} DESTINATION include FILES_MATCHING PATTERN "*.h")
+ 			ENDIF (APPLE AND BUILD_SHARED_LIBS AND FRAMEWORK)
+ 		ENDIF (${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION} GREATER 2.5)
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp c/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp
+--- a/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp	2010-09-20 15:33:26.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btAlignedAllocator.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -160,8 +160,22 @@
+ void*	btAlignedAllocInternal	(size_t size, int alignment)
+ {
+ 	gNumAlignedAllocs++;
+-	void* ptr;
++  void* ptr;
++#if defined (BT_HAS_ALIGNED_ALLOCATOR) || defined(__CELLOS_LV2__)
+ 	ptr = sAlignedAllocFunc(size, alignment);
++#else
++  char *real;
++  unsigned long offset;
++
++  real = (char *)sAllocFunc(size + sizeof(void *) + (alignment-1));
++  if (real) {
++    offset = (alignment - (unsigned long)(real + sizeof(void *))) & (alignment-1);
++    ptr = (void *)((real + sizeof(void *)) + offset);
++    *((void **)(ptr)-1) = (void *)(real);
++  } else {
++    ptr = (void *)(real);
++  }
++#endif  // defined (BT_HAS_ALIGNED_ALLOCATOR) || defined(__CELLOS_LV2__)
+ //	printf("btAlignedAllocInternal %d, %x\n",size,ptr);
+ 	return ptr;
+ }
+@@ -175,7 +189,16 @@
+ 
+ 	gNumAlignedFree++;
+ //	printf("btAlignedFreeInternal %x\n",ptr);
++#if defined (BT_HAS_ALIGNED_ALLOCATOR) || defined(__CELLOS_LV2__)
+ 	sAlignedFreeFunc(ptr);
++#else
++  void* real;
++
++  if (ptr) {
++    real = *((void **)(ptr)-1);
++    sFreeFunc(real);
++  }
++#endif  // defined (BT_HAS_ALIGNED_ALLOCATOR) || defined(__CELLOS_LV2__)
+ }
+ 
+ #endif //BT_DEBUG_MEMORY_ALLOCATIONS
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btIDebugDraw.h c/bullet-2.77/src/LinearMath/btIDebugDraw.h
+--- a/bullet-2.77/src/LinearMath/btIDebugDraw.h	2010-07-22 13:24:04.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btIDebugDraw.h	2018-07-14 11:04:54.000000000 +0200
+@@ -59,7 +59,7 @@
+ 		drawLine (from, to, fromColor);
+ 	}
+ 
+-	virtual void	drawSphere(btScalar radius, const btTransform& transform, const btVector3& color)
++	void	drawSphere(btScalar radius, const btTransform& transform, const btVector3& color)
+ 	{
+ 		btVector3 start = transform.getOrigin();
+ 
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btQuickprof.cpp c/bullet-2.77/src/LinearMath/btQuickprof.cpp
+--- a/bullet-2.77/src/LinearMath/btQuickprof.cpp	2010-09-17 17:24:52.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btQuickprof.cpp	2018-07-14 11:04:54.000000000 +0200
+@@ -15,230 +15,11 @@
+ 
+ #include "btQuickprof.h"
+ 
+-#ifndef BT_NO_PROFILE
+ 
++#ifdef USE_BT_CLOCK
+ 
+ static btClock gProfileClock;
+ 
+-
+-#ifdef __CELLOS_LV2__
+-#include <sys/sys_time.h>
+-#include <sys/time_util.h>
+-#include <stdio.h>
+-#endif
+-
+-#if defined (SUNOS) || defined (__SUNOS__) 
+-#include <stdio.h> 
+-#endif
+-
+-#if defined(WIN32) || defined(_WIN32)
+-
+-#define BT_USE_WINDOWS_TIMERS
+-#define WIN32_LEAN_AND_MEAN
+-#define NOWINRES
+-#define NOMCX
+-#define NOIME 
+-
+-#ifdef _XBOX
+-	#include <Xtl.h>
+-#else //_XBOX
+-	#include <windows.h>
+-#endif //_XBOX
+-
+-#include <time.h>
+-
+-
+-#else //_WIN32
+-#include <sys/time.h>
+-#endif //_WIN32
+-
+-#define mymin(a,b) (a > b ? a : b)
+-
+-struct btClockData
+-{
+-
+-#ifdef BT_USE_WINDOWS_TIMERS
+-	LARGE_INTEGER mClockFrequency;
+-	DWORD mStartTick;
+-	LONGLONG mPrevElapsedTime;
+-	LARGE_INTEGER mStartTime;
+-#else
+-#ifdef __CELLOS_LV2__
+-	uint64_t	mStartTime;
+-#else
+-	struct timeval mStartTime;
+-#endif
+-#endif //__CELLOS_LV2__
+-
+-};
+-
+-///The btClock is a portable basic clock that measures accurate time in seconds, use for profiling.
+-btClock::btClock()
+-{
+-	m_data = new btClockData;
+-#ifdef BT_USE_WINDOWS_TIMERS
+-	QueryPerformanceFrequency(&m_data->mClockFrequency);
+-#endif
+-	reset();
+-}
+-
+-btClock::~btClock()
+-{
+-	delete m_data;
+-}
+-
+-btClock::btClock(const btClock& other)
+-{
+-	m_data = new btClockData;
+-	*m_data = *other.m_data;
+-}
+-
+-btClock& btClock::operator=(const btClock& other)
+-{
+-	*m_data = *other.m_data;
+-	return *this;
+-}
+-
+-
+-	/// Resets the initial reference time.
+-void btClock::reset()
+-{
+-#ifdef BT_USE_WINDOWS_TIMERS
+-	QueryPerformanceCounter(&m_data->mStartTime);
+-	m_data->mStartTick = GetTickCount();
+-	m_data->mPrevElapsedTime = 0;
+-#else
+-#ifdef __CELLOS_LV2__
+-
+-	typedef uint64_t  ClockSize;
+-	ClockSize newTime;
+-	//__asm __volatile__( "mftb %0" : "=r" (newTime) : : "memory");
+-	SYS_TIMEBASE_GET( newTime );
+-	m_data->mStartTime = newTime;
+-#else
+-	gettimeofday(&m_data->mStartTime, 0);
+-#endif
+-#endif
+-}
+-
+-/// Returns the time in ms since the last call to reset or since 
+-/// the btClock was created.
+-unsigned long int btClock::getTimeMilliseconds()
+-{
+-#ifdef BT_USE_WINDOWS_TIMERS
+-	LARGE_INTEGER currentTime;
+-	QueryPerformanceCounter(&currentTime);
+-	LONGLONG elapsedTime = currentTime.QuadPart - 
+-		m_data->mStartTime.QuadPart;
+-		// Compute the number of millisecond ticks elapsed.
+-	unsigned long msecTicks = (unsigned long)(1000 * elapsedTime / 
+-		m_data->mClockFrequency.QuadPart);
+-		// Check for unexpected leaps in the Win32 performance counter.  
+-	// (This is caused by unexpected data across the PCI to ISA 
+-		// bridge, aka south bridge.  See Microsoft KB274323.)
+-		unsigned long elapsedTicks = GetTickCount() - m_data->mStartTick;
+-		signed long msecOff = (signed long)(msecTicks - elapsedTicks);
+-		if (msecOff < -100 || msecOff > 100)
+-		{
+-			// Adjust the starting time forwards.
+-			LONGLONG msecAdjustment = mymin(msecOff * 
+-				m_data->mClockFrequency.QuadPart / 1000, elapsedTime - 
+-				m_data->mPrevElapsedTime);
+-			m_data->mStartTime.QuadPart += msecAdjustment;
+-			elapsedTime -= msecAdjustment;
+-
+-			// Recompute the number of millisecond ticks elapsed.
+-			msecTicks = (unsigned long)(1000 * elapsedTime / 
+-				m_data->mClockFrequency.QuadPart);
+-		}
+-
+-		// Store the current elapsed time for adjustments next time.
+-		m_data->mPrevElapsedTime = elapsedTime;
+-
+-		return msecTicks;
+-#else
+-
+-#ifdef __CELLOS_LV2__
+-		uint64_t freq=sys_time_get_timebase_frequency();
+-		double dFreq=((double) freq) / 1000.0;
+-		typedef uint64_t  ClockSize;
+-		ClockSize newTime;
+-		SYS_TIMEBASE_GET( newTime );
+-		//__asm __volatile__( "mftb %0" : "=r" (newTime) : : "memory");
+-
+-		return (unsigned long int)((double(newTime-m_data->mStartTime)) / dFreq);
+-#else
+-
+-		struct timeval currentTime;
+-		gettimeofday(&currentTime, 0);
+-		return (currentTime.tv_sec - m_data->mStartTime.tv_sec) * 1000 + 
+-			(currentTime.tv_usec - m_data->mStartTime.tv_usec) / 1000;
+-#endif //__CELLOS_LV2__
+-#endif
+-}
+-
+-	/// Returns the time in us since the last call to reset or since 
+-	/// the Clock was created.
+-unsigned long int btClock::getTimeMicroseconds()
+-{
+-#ifdef BT_USE_WINDOWS_TIMERS
+-		LARGE_INTEGER currentTime;
+-		QueryPerformanceCounter(&currentTime);
+-		LONGLONG elapsedTime = currentTime.QuadPart - 
+-			m_data->mStartTime.QuadPart;
+-
+-		// Compute the number of millisecond ticks elapsed.
+-		unsigned long msecTicks = (unsigned long)(1000 * elapsedTime / 
+-			m_data->mClockFrequency.QuadPart);
+-
+-		// Check for unexpected leaps in the Win32 performance counter.  
+-		// (This is caused by unexpected data across the PCI to ISA 
+-		// bridge, aka south bridge.  See Microsoft KB274323.)
+-		unsigned long elapsedTicks = GetTickCount() - m_data->mStartTick;
+-		signed long msecOff = (signed long)(msecTicks - elapsedTicks);
+-		if (msecOff < -100 || msecOff > 100)
+-		{
+-			// Adjust the starting time forwards.
+-			LONGLONG msecAdjustment = mymin(msecOff * 
+-				m_data->mClockFrequency.QuadPart / 1000, elapsedTime - 
+-				m_data->mPrevElapsedTime);
+-			m_data->mStartTime.QuadPart += msecAdjustment;
+-			elapsedTime -= msecAdjustment;
+-		}
+-
+-		// Store the current elapsed time for adjustments next time.
+-		m_data->mPrevElapsedTime = elapsedTime;
+-
+-		// Convert to microseconds.
+-		unsigned long usecTicks = (unsigned long)(1000000 * elapsedTime / 
+-			m_data->mClockFrequency.QuadPart);
+-
+-		return usecTicks;
+-#else
+-
+-#ifdef __CELLOS_LV2__
+-		uint64_t freq=sys_time_get_timebase_frequency();
+-		double dFreq=((double) freq)/ 1000000.0;
+-		typedef uint64_t  ClockSize;
+-		ClockSize newTime;
+-		//__asm __volatile__( "mftb %0" : "=r" (newTime) : : "memory");
+-		SYS_TIMEBASE_GET( newTime );
+-
+-		return (unsigned long int)((double(newTime-m_data->mStartTime)) / dFreq);
+-#else
+-
+-		struct timeval currentTime;
+-		gettimeofday(&currentTime, 0);
+-		return (currentTime.tv_sec - m_data->mStartTime.tv_sec) * 1000000 + 
+-			(currentTime.tv_usec - m_data->mStartTime.tv_usec);
+-#endif//__CELLOS_LV2__
+-#endif 
+-}
+-
+-
+-
+-
+-
+ inline void Profile_Get_Ticks(unsigned long int * ticks)
+ {
+ 	*ticks = gProfileClock.getTimeMicroseconds();
+@@ -561,5 +342,5 @@
+ 
+ 
+ 
++#endif //USE_BT_CLOCK
+ 
+-#endif //BT_NO_PROFILE
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btQuickprof.h c/bullet-2.77/src/LinearMath/btQuickprof.h
+--- a/bullet-2.77/src/LinearMath/btQuickprof.h	2010-09-17 17:24:52.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btQuickprof.h	2018-07-14 11:04:54.000000000 +0200
+@@ -18,7 +18,7 @@
+ //To disable built-in profiling, please comment out next line
+ //#define BT_NO_PROFILE 1
+ #ifndef BT_NO_PROFILE
+-#include <stdio.h>//@todo remove this, backwards compatibility
++
+ #include "btScalar.h"
+ #include "btAlignedAllocator.h"
+ #include <new>
+@@ -26,34 +26,208 @@
+ 
+ 
+ 
+-
++//if you don't need btClock, you can comment next line
+ #define USE_BT_CLOCK 1
+ 
+ #ifdef USE_BT_CLOCK
++#ifdef __CELLOS_LV2__
++#include <sys/sys_time.h>
++#include <sys/time_util.h>
++#include <stdio.h>
++#endif
++
++#if defined (SUNOS) || defined (__SUNOS__) 
++#include <stdio.h> 
++#endif
++
++#if defined(WIN32) || defined(_WIN32)
++
++#define USE_WINDOWS_TIMERS 
++#define WIN32_LEAN_AND_MEAN 
++#define NOWINRES 
++#define NOMCX 
++#define NOIME 
++#ifdef _XBOX
++#include <Xtl.h>
++#else
++#include <windows.h>
++#endif
++#include <time.h>
++
++#else
++#include <sys/time.h>
++#endif
++
++#define mymin(a,b) (a > b ? a : b)
+ 
+ ///The btClock is a portable basic clock that measures accurate time in seconds, use for profiling.
+ class btClock
+ {
+ public:
+-	btClock();
+-
+-	btClock(const btClock& other);
+-	btClock& operator=(const btClock& other);
++	btClock()
++	{
++#ifdef USE_WINDOWS_TIMERS
++		QueryPerformanceFrequency(&mClockFrequency);
++#endif
++		reset();
++	}
+ 
+-	~btClock();
++	~btClock()
++	{
++	}
+ 
+ 	/// Resets the initial reference time.
+-	void reset();
++	void reset()
++	{
++#ifdef USE_WINDOWS_TIMERS
++		QueryPerformanceCounter(&mStartTime);
++		mStartTick = GetTickCount();
++		mPrevElapsedTime = 0;
++#else
++#ifdef __CELLOS_LV2__
++
++		typedef uint64_t  ClockSize;
++		ClockSize newTime;
++		//__asm __volatile__( "mftb %0" : "=r" (newTime) : : "memory");
++		SYS_TIMEBASE_GET( newTime );
++		mStartTime = newTime;
++#else
++		gettimeofday(&mStartTime, 0);
++#endif
++
++#endif
++	}
+ 
+ 	/// Returns the time in ms since the last call to reset or since 
+ 	/// the btClock was created.
+-	unsigned long int getTimeMilliseconds();
++	unsigned long int getTimeMilliseconds()
++	{
++#ifdef USE_WINDOWS_TIMERS
++		LARGE_INTEGER currentTime;
++		QueryPerformanceCounter(&currentTime);
++		LONGLONG elapsedTime = currentTime.QuadPart - 
++			mStartTime.QuadPart;
++
++		// Compute the number of millisecond ticks elapsed.
++		unsigned long msecTicks = (unsigned long)(1000 * elapsedTime / 
++			mClockFrequency.QuadPart);
++
++		// Check for unexpected leaps in the Win32 performance counter.  
++		// (This is caused by unexpected data across the PCI to ISA 
++		// bridge, aka south bridge.  See Microsoft KB274323.)
++		unsigned long elapsedTicks = GetTickCount() - mStartTick;
++		signed long msecOff = (signed long)(msecTicks - elapsedTicks);
++		if (msecOff < -100 || msecOff > 100)
++		{
++			// Adjust the starting time forwards.
++			LONGLONG msecAdjustment = mymin(msecOff * 
++				mClockFrequency.QuadPart / 1000, elapsedTime - 
++				mPrevElapsedTime);
++			mStartTime.QuadPart += msecAdjustment;
++			elapsedTime -= msecAdjustment;
++
++			// Recompute the number of millisecond ticks elapsed.
++			msecTicks = (unsigned long)(1000 * elapsedTime / 
++				mClockFrequency.QuadPart);
++		}
++
++		// Store the current elapsed time for adjustments next time.
++		mPrevElapsedTime = elapsedTime;
++
++		return msecTicks;
++#else
++
++#ifdef __CELLOS_LV2__
++		uint64_t freq=sys_time_get_timebase_frequency();
++		double dFreq=((double) freq) / 1000.0;
++		typedef uint64_t  ClockSize;
++		ClockSize newTime;
++		SYS_TIMEBASE_GET( newTime );
++		//__asm __volatile__( "mftb %0" : "=r" (newTime) : : "memory");
++
++		return (unsigned long int)((double(newTime-mStartTime)) / dFreq);
++#else
++
++		struct timeval currentTime;
++		gettimeofday(&currentTime, 0);
++		return (currentTime.tv_sec - mStartTime.tv_sec) * 1000 + 
++			(currentTime.tv_usec - mStartTime.tv_usec) / 1000;
++#endif //__CELLOS_LV2__
++#endif
++	}
+ 
+ 	/// Returns the time in us since the last call to reset or since 
+ 	/// the Clock was created.
+-	unsigned long int getTimeMicroseconds();
++	unsigned long int getTimeMicroseconds()
++	{
++#ifdef USE_WINDOWS_TIMERS
++		LARGE_INTEGER currentTime;
++		QueryPerformanceCounter(&currentTime);
++		LONGLONG elapsedTime = currentTime.QuadPart - 
++			mStartTime.QuadPart;
++
++		// Compute the number of millisecond ticks elapsed.
++		unsigned long msecTicks = (unsigned long)(1000 * elapsedTime / 
++			mClockFrequency.QuadPart);
++
++		// Check for unexpected leaps in the Win32 performance counter.  
++		// (This is caused by unexpected data across the PCI to ISA 
++		// bridge, aka south bridge.  See Microsoft KB274323.)
++		unsigned long elapsedTicks = GetTickCount() - mStartTick;
++		signed long msecOff = (signed long)(msecTicks - elapsedTicks);
++		if (msecOff < -100 || msecOff > 100)
++		{
++			// Adjust the starting time forwards.
++			LONGLONG msecAdjustment = mymin(msecOff * 
++				mClockFrequency.QuadPart / 1000, elapsedTime - 
++				mPrevElapsedTime);
++			mStartTime.QuadPart += msecAdjustment;
++			elapsedTime -= msecAdjustment;
++		}
++
++		// Store the current elapsed time for adjustments next time.
++		mPrevElapsedTime = elapsedTime;
++
++		// Convert to microseconds.
++		unsigned long usecTicks = (unsigned long)(1000000 * elapsedTime / 
++			mClockFrequency.QuadPart);
++
++		return usecTicks;
++#else
++
++#ifdef __CELLOS_LV2__
++		uint64_t freq=sys_time_get_timebase_frequency();
++		double dFreq=((double) freq)/ 1000000.0;
++		typedef uint64_t  ClockSize;
++		ClockSize newTime;
++		//__asm __volatile__( "mftb %0" : "=r" (newTime) : : "memory");
++		SYS_TIMEBASE_GET( newTime );
++
++		return (unsigned long int)((double(newTime-mStartTime)) / dFreq);
++#else
++
++		struct timeval currentTime;
++		gettimeofday(&currentTime, 0);
++		return (currentTime.tv_sec - mStartTime.tv_sec) * 1000000 + 
++			(currentTime.tv_usec - mStartTime.tv_usec);
++#endif//__CELLOS_LV2__
++#endif 
++	}
++
+ private:
+-	struct btClockData* m_data;
++#ifdef USE_WINDOWS_TIMERS
++	LARGE_INTEGER mClockFrequency;
++	DWORD mStartTick;
++	LONGLONG mPrevElapsedTime;
++	LARGE_INTEGER mStartTime;
++#else
++#ifdef __CELLOS_LV2__
++	uint64_t	mStartTime;
++#else
++	struct timeval mStartTime;
++#endif
++#endif //__CELLOS_LV2__
++
+ };
+ 
+ #endif //USE_BT_CLOCK
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btScalar.h c/bullet-2.77/src/LinearMath/btScalar.h
+--- a/bullet-2.77/src/LinearMath/btScalar.h	2010-08-10 12:19:44.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btScalar.h	2018-07-14 11:04:54.000000000 +0200
+@@ -253,7 +253,7 @@
+ 	tempf = y;
+ 	*tfptr = (0xbfcdd90a - *tfptr)>>1; /* estimate of 1/sqrt(y) */
+ 	x =  tempf;
+-	z =  y*btScalar(0.5);
++	z =  y*btScalar(0.5);                        /* hoist out the “/2”    */
+ 	x = (btScalar(1.5)*x)-(x*x)*(x*z);         /* iteration formula     */
+ 	x = (btScalar(1.5)*x)-(x*x)*(x*z);
+ 	x = (btScalar(1.5)*x)-(x*x)*(x*z);
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btSerializer.h c/bullet-2.77/src/LinearMath/btSerializer.h
+--- a/bullet-2.77/src/LinearMath/btSerializer.h	2010-08-24 13:49:42.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btSerializer.h	2018-07-14 11:04:54.000000000 +0200
+@@ -119,8 +119,6 @@
+ #define BT_TRIANLGE_INFO_MAP	MAKE_ID('T','M','A','P')
+ #define BT_SHAPE_CODE			MAKE_ID('S','H','A','P')
+ #define BT_ARRAY_CODE			MAKE_ID('A','R','A','Y')
+-#define BT_DNA_CODE				MAKE_ID('D','N','A','1')
+-
+ 
+ 
+ struct	btPointerUid
+@@ -178,9 +176,9 @@
+ 
+ 		void	writeDNA()
+ 		{
+-			btChunk* dnaChunk = allocate(m_dnaLength,1);
+-			memcpy(dnaChunk->m_oldPtr,m_dna,m_dnaLength);
+-			finalizeChunk(dnaChunk,"DNA1",BT_DNA_CODE, m_dna);
++			unsigned char* dnaTarget = m_buffer+m_currentSize;
++			memcpy(dnaTarget,m_dna,m_dnaLength);
++			m_currentSize += m_dnaLength;
+ 		}
+ 
+ 		int getReverseType(const char *type) const
+@@ -453,7 +451,7 @@
+ 
+ 			m_buffer[9] = '2';
+ 			m_buffer[10] = '7';
+-			m_buffer[11] = '7';
++			m_buffer[11] = '6';
+ 
+ 			
+ 		}
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btTransformUtil.h c/bullet-2.77/src/LinearMath/btTransformUtil.h
+--- a/bullet-2.77/src/LinearMath/btTransformUtil.h	2010-09-07 17:38:16.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btTransformUtil.h	2018-07-14 11:04:54.000000000 +0200
+@@ -186,7 +186,7 @@
+ 			btTransformUtil::calculateVelocityQuaternion(m_posB,toPosB,m_ornB,toOrnB,btScalar(1.),linVelB,angVelB);
+ 			btScalar maxAngularProjectedVelocity = angVelA.length() * m_boundingRadiusA + angVelB.length() * m_boundingRadiusB;
+ 			btVector3 relLinVel = (linVelB-linVelA);
+-			btScalar relLinVelocLength = relLinVel.dot(m_separatingNormal);
++			btScalar relLinVelocLength = (linVelB-linVelA).dot(m_separatingNormal);
+ 			if (relLinVelocLength<0.f)
+ 			{
+ 				relLinVelocLength = 0.f;
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btVector3.h c/bullet-2.77/src/LinearMath/btVector3.h
+--- a/bullet-2.77/src/LinearMath/btVector3.h	2010-09-17 17:24:52.000000000 +0200
++++ c/bullet-2.77/src/LinearMath/btVector3.h	2018-07-14 11:04:54.000000000 +0200
+@@ -148,19 +148,6 @@
+    * This is symantically treating the vector like a point */
+ 	SIMD_FORCE_INLINE btScalar distance(const btVector3& v) const;
+ 
+-	SIMD_FORCE_INLINE btVector3& safeNormalize() 
+-	{
+-		btVector3 absVec = this->absolute();
+-		int maxIndex = absVec.maxAxis();
+-		if (absVec[maxIndex]>0)
+-		{
+-			*this /= absVec[maxIndex];
+-			return *this /= length();
+-		}
+-		setValue(1,0,0);
+-		return *this;
+-	}
+-
+   /**@brief Normalize this vector 
+    * x^2 + y^2 + z^2 = 1 */
+ 	SIMD_FORCE_INLINE btVector3& normalize() 
+@@ -171,10 +158,10 @@
+   /**@brief Return a normalized version of this vector */
+ 	SIMD_FORCE_INLINE btVector3 normalized() const;
+ 
+-  /**@brief Return a rotated version of this vector
++  /**@brief Rotate this vector 
+    * @param wAxis The axis to rotate about 
+    * @param angle The angle to rotate by */
+-	SIMD_FORCE_INLINE btVector3 rotate( const btVector3& wAxis, const btScalar angle ) const;
++	SIMD_FORCE_INLINE btVector3 rotate( const btVector3& wAxis, const btScalar angle );
+ 
+   /**@brief Return the angle between this and another vector
+    * @param v The other vector */
+@@ -491,7 +478,7 @@
+ 	return *this / length();
+ } 
+ 
+-SIMD_FORCE_INLINE btVector3 btVector3::rotate( const btVector3& wAxis, const btScalar angle ) const
++SIMD_FORCE_INLINE btVector3 btVector3::rotate( const btVector3& wAxis, const btScalar angle )
+ {
+ 	// wAxis must be a unit lenght vector
+ 
