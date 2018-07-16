@@ -704,6 +704,16 @@ TEST_F(ParticleTest, EmissionSpace)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, GetInstanceEmitterCount)
+{
+    float dt = 1.2f;
+    ASSERT_TRUE(LoadPrototype("anim.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, &m_CallbackData);
+    ASSERT_EQ(7, dmParticle::GetInstanceEmitterCount(m_Context, instance));
+    ASSERT_EQ(0, dmParticle::GetInstanceEmitterCount(m_Context, dmParticle::INVALID_INSTANCE));
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 /**
  * Verify particle life time
  */
