@@ -9,6 +9,22 @@ export CONF_TARGET=$1
 
 . ../common.sh
 
+
+function convert_line_endings() {
+    local platform=$1
+    local folder=$2
+    case $platform in
+         *linux)
+            DOS2UNIX=fromdos
+            ;;
+         *)
+            DOS2UNIX=dos2unix
+            ;;
+    esac
+
+    find $folder -type f -name "*.*" -exec $DOS2UNIX {} \;
+}
+
 function cmi_unpack() {
     unzip ../../download/$FILE_URL
 
@@ -16,7 +32,7 @@ function cmi_unpack() {
     rm -rf Demos Demos Extras UnitTests msvc
 
     # Convert line endings to unix style
-    find . -type f -name "*.*" -exec dos2unix {} \;
+    convert_line_endings $CONF_TARGET .
 
     popd
 }
@@ -24,7 +40,17 @@ function cmi_unpack() {
 function cmi_configure() {
     pushd ${PRODUCT}-${VERSION}
 
-    PREFIX=$PREFIX cmake -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+    case $1 in
+         *linux)
+            # tested with cmake 3.5.0
+            echo "MAWE: "
+            cmake -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            ;;
+         *)
+            # tested with cmake 3.7.1
+            cmake -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            ;;
+    esac
 
     popd
 }
