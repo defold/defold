@@ -92,8 +92,10 @@ case $CONF_TARGET in
             mkdir -p $PREFIX/share/$CONF_TARGET
             mkdir -p $PREFIX/include/
 
-            find ./lib/ -iname "*${LIB_SUFFIX}" -print0 | xargs -0 -I {} cp -v {} $PREFIX/lib/$CONF_TARGET
-
+            find ./lib -iname "*${LIB_SUFFIX}" -print0 | xargs -0 -I {} cp -v {} $PREFIX/lib/$CONF_TARGET
+            popd
+            pushd $PREFIX/lib/$CONF_TARGET
+            find . -iname "*${LIB_SUFFIX}" -exec sh -c 'x="{}"; mv {} lib$(basename $x)' \;
             popd
         }
         ;;
