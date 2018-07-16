@@ -29,7 +29,8 @@ function cmi_unpack() {
     unzip ../../download/$FILE_URL
 
     pushd ${PRODUCT}-${VERSION}
-    rm -rf Demos Demos Extras UnitTests msvc
+
+    rm -rf Demos Extras UnitTests msvc
 
     # Convert line endings to unix style
     convert_line_endings $CONF_TARGET .
@@ -43,12 +44,21 @@ function cmi_configure() {
     case $1 in
          *linux)
             # tested with cmake 3.5.0
-            echo "MAWE: "
             cmake -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            ;;
+
+         *win32)
+            # tested with cmake 3.9
+            if [ "$CONF_TARGET" == "win32" ]; then
+                ARCH=""
+            else
+                ARCH=" Win64"
+            fi
+            cmake -G "Visual Studio 14 2015${ARCH}" . -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
             ;;
          *)
             # tested with cmake 3.7.1
-            cmake -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            cmake -G "Unix Makefiles" -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
             ;;
     esac
 
@@ -65,28 +75,52 @@ case $1 in
         ;;
 esac
 
-function cmi_make() {
-    set -e
-    pushd ${PRODUCT}-${VERSION}
-    echo cmi_make
-    pwd
-    make -j8 VERBOSE=1
-    #make install
+case $CONF_TARGET in
+    *win32)
+        # visual studio projects can be built with cmake: https://stackoverflow.com/a/28370892
+        function cmi_make() {
+            set -e
 
-    set +e
+            pushd ${PRODUCT}-${VERSION}
+            cmake  --build . --config Release
 
-    # "install"
-    mkdir -p $PREFIX/lib/$CONF_TARGET
-    mkdir -p $PREFIX/include/
+            set +e
 
-    pushd src
-    find . -name "*.h" -print0 | cpio -pmd0 $PREFIX/include/
-    popd
-    find . -iname "*${LIB_SUFFIX}" -print0 | xargs -0 -I {} cp -v {} $PREFIX/lib/$CONF_TARGET
+            # "install"
+            mkdir -p $PREFIX/lib/$CONF_TARGET
+            mkdir -p $PREFIX/bin/$CONF_TARGET
+            mkdir -p $PREFIX/share/$CONF_TARGET
+            mkdir -p $PREFIX/include/
 
-    popd
-}
+            find ./lib/ -iname "*${LIB_SUFFIX}" -print0 | xargs -0 -I {} cp -v {} $PREFIX/lib/$CONF_TARGET
 
+            popd
+        }
+        ;;
+    *)
+        function cmi_make() {
+            set -e
+            pushd ${PRODUCT}-${VERSION}
+            echo cmi_make
+            pwd
+            make -j8 VERBOSE=1
+            #make install
+
+            set +e
+
+            # "install"
+            mkdir -p $PREFIX/lib/$CONF_TARGET
+            mkdir -p $PREFIX/include/
+
+            pushd src
+            find . -name "*.h" -print0 | cpio -pmd0 $PREFIX/include/
+            popd
+            find . -iname "*${LIB_SUFFIX}" -print0 | xargs -0 -I {} cp -v {} $PREFIX/lib/$CONF_TARGET
+
+            popd
+        }
+        ;;
+esac
 
 download
 cmi $1

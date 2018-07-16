@@ -197,10 +197,12 @@ If eclipse doesn’t get the JDK setup automatically:
         * MSYS Base System: `msys-base`, `msys-bash`
 
         Select the menu option `Installation -> Apply Changes`
-        
+
         You also need to install wget, from a cmd command line run
 
-            mingw-get install msys-wget-bin.
+            mingw-get install msys-wget-bin msys-zip msys-unzip
+
+            # optional packages [msys-dos2unix]
 
     - [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) - [download](https://drive.google.com/a/king.com/file/d/0BxFxQdv6jzsedTRiazdWaE5NZkU/view?usp=sharing)
 
