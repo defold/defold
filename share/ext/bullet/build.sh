@@ -23,8 +23,8 @@ function cmi_unpack() {
 
 function cmi_configure() {
     pushd ${PRODUCT}-${VERSION}
-    
-    cmake -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+
+    PREFIX=$PREFIX cmake -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_AR=$AR -DCMAKE_LD=$LD -DCMAKE_RANLIB=$RANLIB -DCMAKE_BUILD_TYPE=RELEASE -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
 
     popd
 }
@@ -40,22 +40,23 @@ case $1 in
 esac
 
 function cmi_make() {
+    set -e
     pushd ${PRODUCT}-${VERSION}
     echo cmi_make
     pwd
     make -j8 VERBOSE=1
+    #make install
 
-    echo $PWD
-    echo $PREFIX/lib/$CONF_TARGET
+    set +e
 
     # "install"
     mkdir -p $PREFIX/lib/$CONF_TARGET
     mkdir -p $PREFIX/include/
 
-    find . -iname "*${LIB_SUFFIX}" -print0 | xargs -0 -I {} cp -v {} $PREFIX/lib/$CONF_TARGET
     pushd src
     find . -name "*.h" -print0 | cpio -pmd0 $PREFIX/include/
     popd
+    find . -iname "*${LIB_SUFFIX}" -print0 | xargs -0 -I {} cp -v {} $PREFIX/lib/$CONF_TARGET
 
     popd
 }
