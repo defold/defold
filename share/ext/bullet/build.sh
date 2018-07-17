@@ -54,7 +54,9 @@ function cmi_configure() {
             else
                 ARCH=" Win64"
             fi
-            cmake -G "Visual Studio 14 2015${ARCH}" . -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
+            CXXFLAGS="${CXXFLAGS} /NODEFAULTLIB:library"
+            CFLAGS="${CXXFLAGS} /NODEFAULTLIB:library"
+            cmake -G "Visual Studio 14 2015${ARCH}" . -DCMAKE_BUILD_TYPE=RELEASE -DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF -DUSE_GRAPHICAL_BENCHMARK=OFF -DBUILD_DEMOS=OFF -DBUILD_EXTRAS=OFF
             ;;
          *)
             # tested with cmake 3.7.1
