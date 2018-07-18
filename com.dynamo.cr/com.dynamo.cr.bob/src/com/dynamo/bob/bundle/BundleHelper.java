@@ -344,6 +344,8 @@ public class BundleHelper {
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", line));
             }
         }
+
+        parseLogClang(lines, issues);
     }
 
     public static void parseLog(String platform, String log, List<ResourceInfo> issues) {

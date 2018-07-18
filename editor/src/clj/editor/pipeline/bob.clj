@@ -91,7 +91,7 @@
               bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
           (doseq [[key val] bob-args]
             (.setOption bob-project key val))
-          (.createPublisher bob-project (.hasOption bob-project "liveupdate"))
+          (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
           (let [scanner (ClassLoaderScanner.)]
             (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
               (.scan bob-project scanner pkg)))

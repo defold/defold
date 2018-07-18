@@ -990,7 +990,7 @@ TEST_F(dmGuiClippingTest, TestOverflow) {
         last = AddClipperBox("x", last);
     }
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1015,7 +1015,7 @@ TEST_F(dmGuiClippingTest, TestOverflowInverteds) {
         AddInvClipperBox("x", a);
     }
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1053,7 +1053,7 @@ TEST_F(dmGuiClippingTest, TestOverflowClearStart) {
     (void)h;
     (void)k;
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1091,7 +1091,7 @@ TEST_F(dmGuiClippingTest, TestOverflowClearStart2) {
     (void)h;
     (void)k;
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 
@@ -1129,7 +1129,7 @@ TEST_F(dmGuiClippingTest, TestOverflowClearEnd) {
     (void)h;
     (void)k;
 
-    dmLogInfo("Expected warning in test");
+    dmLogInfo("Expected issues in test"); // The jenkins build picks up all mentions of "warning" in the output log
     Render();
 }
 

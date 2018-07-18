@@ -19,13 +19,34 @@
    :default "",
    :presentation-category "Amazon"
    :path ["liveupdate" "amazon-prefix"]}
-  {:type :string
+  {:type :directory
+   :title "Select Zip output directory"
    :help "Zip directory"
    :default ""
    :presentation-category "Zip"
-   :path ["liveupdate" "zip-filepath"]}]
+   :path ["liveupdate" "zip-filepath"]}
+  {:type :file,
+   :title "Select Manifest Public Key"
+   :filter [["Public key (*.der)" "*.der"]]
+   :help "Public key for manifest signing",
+   :default "",
+   :presentation-category "Manifest"
+   :path ["liveupdate" "publickey"]}
+  {:type :file,
+   :title "Select Manifest Private Key"
+   :filter [["Private key (*.der)" "*.der"]]
+   :help "Private key for manifest signing",
+   :default "",
+   :presentation-category "Manifest"
+   :path ["liveupdate" "privatekey"]}
+  {:type :comma-separated-list,
+   :help "List of supported engine versions",
+   :default "0.0.0",
+   :presentation-category "Manifest"
+   :path ["liveupdate" "supported-versions"]}]
  :categories
  {"liveupdate" {:title "Live Update"}
   "Amazon" {}
-  "Zip" {}}}
+  "Zip" {}
+  "Manifest" {}}}
 

@@ -43,6 +43,7 @@
             [util.profiler :as profiler]
             [util.http-server :as http-server]
             [editor.scene :as scene]
+            [editor.live-update-settings :as live-update-settings]
             [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
@@ -673,7 +674,7 @@ If you do not specifically require different script states, consider changing th
                        (when-not (handle-bob-error! render-error! project result)
                          (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))
 
-(def ^:private unreloadable-resource-build-exts #{"collectionc" "tilemapc"})
+(def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view debug-view selection prefs]
@@ -1486,7 +1487,7 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :live-update-settings :global
   (run [app-view prefs workspace project]
-    (some->> (or (workspace/find-resource workspace "/liveupdate.settings")
+    (some->> (or (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))
                  (create-live-update-settings! workspace))
       (open-resource app-view prefs workspace project))))
 
