@@ -1,0 +1,5 @@
+go.property("tmp_prop", 1)
+
+function update(self)
+end
+

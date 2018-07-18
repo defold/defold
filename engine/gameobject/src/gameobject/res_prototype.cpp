@@ -20,7 +20,7 @@ namespace dmGameObject
         }
     }
 
-    dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::PrototypeDesc* proto_desc, Prototype* proto, const char* filename) {
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, dmGameObject::HRegister regist, dmGameObjectDDF::PrototypeDesc* proto_desc, Prototype* proto, const char* filename) {
         proto->m_Components.SetCapacity(proto_desc->m_Components.m_Count);
 
         for (uint32_t i = 0; i < proto_desc->m_Components.m_Count; ++i)

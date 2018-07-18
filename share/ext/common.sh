@@ -2,7 +2,10 @@
 
 IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain
 ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
-IOS_SDK_VERSION=10.3
+IOS_SDK_VERSION=11.2
+
+IOS_MIN_SDK_VERSION=6.0
+OSX_MIN_SDK_VERSION=10.7
 
 ANDROID_ROOT=~/android
 ANDROID_NDK_VERSION=10e
@@ -109,6 +112,13 @@ function cmi_buildplatform() {
     rm -rf $PREFIX
 }
 
+# Trick to override functions
+function save_function() {
+    local ORIG_FUNC=$(declare -f $1)
+    local NEWNAME_FUNC="$2${ORIG_FUNC#$1}"
+    eval "$NEWNAME_FUNC"
+}
+
 function windows_path_to_posix() {
     #echo $1
     echo "/$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
@@ -167,7 +177,7 @@ function cmi() {
             export CPPFLAGS="-arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libstdc++ -arch armv7 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -189,7 +199,7 @@ function cmi() {
             export CPPFLAGS="-arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -miphoneos-version-min=${IOS_MIN_SDK_VERSION} -stdlib=libstdc++ -arch arm64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneOS${IOS_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -229,8 +239,8 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -m32 -stdlib=libstdc++ "
-            export CFLAGS="${CFLAGS} -m32"
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libstdc++ "
+            export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32"
             export LDFLAGS="-m32"
             cmi_buildplatform $1
             ;;
@@ -238,7 +248,7 @@ function cmi() {
         x86_64-darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++"
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libstdc++"
             cmi_buildplatform $1
             ;;
 

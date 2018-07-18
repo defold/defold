@@ -194,11 +194,11 @@ TEST_F(DeleteTest, TestScriptDelete)
 {
     dmGameObject::HInstance instance = dmGameObject::New(m_Collection, "/delete.goc");
     ASSERT_NE((void*)0, (void*)instance);
-    ASSERT_NE(0, m_Collection->m_InstanceIndices.Size());
+    ASSERT_NE(0, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(0, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteMultiple)
@@ -212,11 +212,11 @@ TEST_F(DeleteTest, TestScriptDeleteMultiple)
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
     ASSERT_NE((void*)0, (void*)instance);
 
-    ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(3, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(1, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteOther)
@@ -227,11 +227,11 @@ TEST_F(DeleteTest, TestScriptDeleteOther)
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
     ASSERT_NE((void*)0, (void*)instance);
 
-    ASSERT_NE(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_NE(1, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(1, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteRecursive)
@@ -243,11 +243,11 @@ TEST_F(DeleteTest, TestScriptDeleteRecursive)
     dmGameObject::SetIdentifier(m_Collection, instance, "child_id");
     dmGameObject::SetParent(instance, parent_instance);
 
-    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(2, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(0, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteMultipleRecursive)
@@ -272,11 +272,11 @@ TEST_F(DeleteTest, TestScriptDeleteMultipleRecursive)
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
     dmGameObject::SetParent(child_instance[1], instance);
 
-    ASSERT_EQ(5, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(5, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(1, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteOtherRecursive)
@@ -292,11 +292,11 @@ TEST_F(DeleteTest, TestScriptDeleteOtherRecursive)
     dmGameObject::SetIdentifier(m_Collection, instance, "child_id");
     dmGameObject::SetParent(instance, parent_instance);
 
-    ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(3, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(1, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteRecursiveOrder)
@@ -328,13 +328,13 @@ TEST_F(DeleteTest, TestScriptDeleteRecursiveOrder)
     dmGameObject::SetIdentifier(m_Collection, instance, "child_2_1");
     dmGameObject::SetParent(instance, child_instance_2);
 
-    ASSERT_EQ(6, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(6, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(0, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(0, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 
@@ -348,12 +348,12 @@ TEST_F(DeleteTest, TestScriptDeleteAllDeprecated)
     instance = dmGameObject::New(m_Collection, "/go.goc");
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id_2");
     ASSERT_NE((void*)0, (void*)instance);
-    ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(3, m_Collection->m_Collection->m_InstanceIndices.Size());
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(1, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteBone)
@@ -364,12 +364,12 @@ TEST_F(DeleteTest, TestScriptDeleteBone)
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
     ASSERT_NE((void*)0, (void*)instance);
     dmGameObject::SetBone(instance, true);
-    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(2, m_Collection->m_Collection->m_InstanceIndices.Size());
 
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(2, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteAllBone)
@@ -384,11 +384,11 @@ TEST_F(DeleteTest, TestScriptDeleteAllBone)
     ASSERT_NE((void*)0, (void*)instance);
     dmGameObject::SetBone(instance, true);
 
-    ASSERT_EQ(3, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(3, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(2, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 TEST_F(DeleteTest, TestScriptDeleteNonExistent)
@@ -399,11 +399,11 @@ TEST_F(DeleteTest, TestScriptDeleteNonExistent)
     dmGameObject::SetIdentifier(m_Collection, instance, "test_id");
     ASSERT_NE((void*)0, (void*)instance);
 
-    ASSERT_NE(1, m_Collection->m_InstanceIndices.Size());
+    ASSERT_NE(1, m_Collection->m_Collection->m_InstanceIndices.Size());
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_FALSE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-    ASSERT_EQ(2, m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(2, m_Collection->m_Collection->m_InstanceIndices.Size());
 }
 
 int main(int argc, char **argv)
