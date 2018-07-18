@@ -1770,8 +1770,10 @@ instructions.configure=\
 
         if sys.stdout.isatty():
             # If not on CI, we want the colored output, and we get the output as it runs
-            process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, **kwargs)
+            process = subprocess.Popen(arg_list, **kwargs)
             output = process.communicate()[0]
+            if process.returncode != 0:
+                self._log(output)
         else:
             # On the CI machines, we make sure we produce a steady stream of output
             process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
