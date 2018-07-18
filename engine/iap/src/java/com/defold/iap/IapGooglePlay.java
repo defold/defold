@@ -176,7 +176,8 @@ public class IapGooglePlay implements Handler.Callback {
         Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
         // Limit intent to vending package
         serviceIntent.setPackage("com.android.vending");
-        if (!activity.getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
+        List<ResolveInfo> intentServices = activity.getPackageManager().queryIntentServices(serviceIntent, 0);
+        if (intentServices != null && !intentServices.isEmpty()) {
             // service available to handle that Intent
             activity.bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
         } else {
@@ -461,6 +462,11 @@ public class IapGooglePlay implements Handler.Callback {
             purchaseListener.onPurchaseResult(responseCode, purchaseData);
         } else if (action == Action.RESTORE) {
             Bundle items = bundle.getBundle("items");
+
+            if (!items.containsKey(RESPONSE_INAPP_ITEM_LIST)) {
+                return false;
+            }
+
             ArrayList<String> ownedSkus = items.getStringArrayList(RESPONSE_INAPP_ITEM_LIST);
             ArrayList<String> purchaseDataList = items.getStringArrayList(RESPONSE_INAPP_PURCHASE_DATA_LIST);
             ArrayList<String> signatureList = items.getStringArrayList(RESPONSE_INAPP_SIGNATURE_LIST);
