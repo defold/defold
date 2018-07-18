@@ -3,15 +3,13 @@
 
 namespace dmExtension
 {
-
-    void RegisterOnActivityResultListener(OnActivityResult listener)
+    void RegisterAndroidOnActivityResultListener(OnActivityResult listener)
     {
         glfwRegisterOnActivityResultListener(listener);
     }
 
-    void UnregisterOnActivityResultListener(OnActivityResult listener)
+    void UnregisterAndroidOnActivityResultListener(OnActivityResult listener)
     {
         glfwUnregisterOnActivityResultListener(listener);
     }
-
 }
