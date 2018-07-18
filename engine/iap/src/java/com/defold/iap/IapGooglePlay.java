@@ -466,7 +466,8 @@ public class IapGooglePlay implements Handler.Callback {
             Bundle items = bundle.getBundle("items");
 
             if (!items.containsKey(RESPONSE_INAPP_ITEM_LIST)) {
-                return false;
+                purchaseListener.onPurchaseResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, "");
+                return true;
             }
 
             ArrayList<String> ownedSkus = items.getStringArrayList(RESPONSE_INAPP_ITEM_LIST);
