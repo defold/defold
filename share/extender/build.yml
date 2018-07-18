@@ -231,7 +231,7 @@ platforms:
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE", "_CRT_SECURE_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld"]
-        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "openal32", "WS2_32", "IPHlpApi", "DbgHelp"]
+        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp"]
         symbols:    ["GameroomExt"]
 
     exePrefix:      ''
@@ -259,7 +259,7 @@ platforms:
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE", "_CRT_SECURE_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld"]
-        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "openal32", "WS2_32", "IPHlpApi", "DbgHelp"]
+        libs:       ["OpenGL32", "Delayimp", "User32", "shell32", "Xinput9_1_0", "OpenAL32", "WS2_32", "IPHlpApi", "DbgHelp"]
         symbols:    ["GameroomExt"]
 
     exePrefix:      ''
@@ -288,7 +288,7 @@ platforms:
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE"]
         flags:      []
         linkFlags:  []
-        libs:       ["OpenGL32.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
+        libs:       ["OpenGL32.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "OpenAL32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
         symbols:    ["GameroomExt"]
 
     exePrefix:      ''
@@ -317,7 +317,7 @@ platforms:
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE"]
         flags:      []
         linkFlags:  []
-        libs:       ["OpenGL32.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "openal32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
+        libs:       ["OpenGL32.lib", "User32.lib", "shell32.lib", "Xinput9_1_0.lib", "OpenAL32.lib", "WS2_32.lib", "IPHlpApi.lib", "DbgHelp.lib"]
         symbols:    ["GameroomExt"]
 
     exePrefix:      ''
