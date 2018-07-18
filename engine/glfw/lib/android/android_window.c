@@ -479,4 +479,43 @@ void _glfwPlatformUnacquireAuxContext(void* context)
 }
 
 
+#define MAX_ACTIVITY_LISTENERS (32)
+static glfwactivityresultfun g_Listeners[MAX_ACTIVITY_LISTENERS];
+static int g_ListenersCount = 0;
+
+GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun listener)
+{
+    if (g_ListenersCount >= MAX_ACTIVITY_LISTENERS) {
+        LOGW("Max activity listeners reached (%d)", MAX_ACTIVITY_LISTENERS);
+    } else {
+        g_Listeners[g_ListenersCount++] = listener;
+    }
+}
+
+GLFWAPI void glfwUnregisterOnActivityResultListener(glfwactivityresultfun listener)
+{
+    int i;
+    for (i = 0; i < g_ListenersCount; ++i)
+    {
+        if (g_Listeners[i] == listener)
+        {
+            g_Listeners[i] = g_Listeners[g_ListenersCount - 1];
+            g_ListenersCount--;
+            return;
+        }
+    }
+    LOGW("activity listener not found");
+}
+
+JNIEXPORT void
+Java_com_dynamo_android_DefoldActivity_nativeOnActivityResult(
+    JNIEnv *env, jobject thiz, jobject activity, jint requestCode,
+    jint resultCode, jobject data) {
+
+    int i;
+    for (i = 0; i < g_ListenersCount; ++i)
+    {
+        g_Listeners[i](env, activity, requestCode, resultCode, data);
+    }
+}
 

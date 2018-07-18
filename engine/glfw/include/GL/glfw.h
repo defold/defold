@@ -556,6 +556,11 @@ GLFWAPI void glfwUnregisterUIApplicationDelegate(void* delegate);
 // Accelerometer control
 GLFWAPI void glfwAccelerometerEnable();
 
+// Activity control
+typedef void (*glfwactivityresultfun)(void *env, void* activity, int32_t request_code, int32_t result_code, void* result);
+GLFWAPI void glfwRegisterOnActivityResultListener(glfwactivityresultfun fun);
+GLFWAPI void glfwUnregisterOnActivityResultListener(glfwactivityresultfun fun);
+
 // context control
 GLFWAPI int   GLFWAPIENTRY glfwQueryAuxContext();
 GLFWAPI void* GLFWAPIENTRY glfwAcquireAuxContext();

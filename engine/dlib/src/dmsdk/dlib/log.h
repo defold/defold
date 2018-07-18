@@ -33,6 +33,18 @@
  *
  */
 
+/*# macro for debug category logging
+ *
+ * Debug messages are temporary log instances used when debugging a certain behavior
+ * Use dmLogOnceUserDebug for one-shot logging
+ *
+ * @macro
+ * @name dmLogUserDebug
+ * @param format [type:const char*] Format string
+ * @param args [type:...] Format string args (variable arg list)
+ *
+ */
+
 /*# macro for info category logging
  *
  * Info messages are used to inform the developers of relevant information
