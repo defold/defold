@@ -1471,14 +1471,15 @@ def detect(conf):
         conf.env['shlib_CCFLAGS'] = []
         conf.env['shlib_CXXFLAGS'] = []
 
-    if Options.options.with_scan_build:
-        conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list = ['/usr/local/opt/llvm/bin'])
+    if Options.options.static_analyze:
+        conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
+        output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
         for t in ['CC', 'CXX']:
             c = conf.env[t]
             if type(c) == list:
-                conf.env[t] = [conf.env.SCANBUILD, '-analyze-headers'] + c
+                conf.env[t] = [conf.env.SCANBUILD, '-k','-o',output_dir] + c
             else:
-                conf.env[t] = [conf.env.SCANBUILD, '-analyze-headers', c]
+                conf.env[t] = [conf.env.SCANBUILD, '-k','-o',output_dir, c]
 
     if conf.env['CCACHE'] and not 'win' == build_util.get_target_os():
         if not Options.options.disable_ccache:
@@ -1556,4 +1557,4 @@ def set_options(opt):
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
-    opt.add_option('--with-scan-build', action='store_true', default=False, dest='with_scan_build', help='Enables static code analyzer')
+    opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')

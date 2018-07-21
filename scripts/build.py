@@ -785,6 +785,12 @@ class Configuration(object):
             self.build_docs()
         if not self.skip_builtins:
             self.build_builtins()
+        if '--static-analyze' in self.waf_options:
+            scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
+            report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
+            self.exec_command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
+            print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
+            shutil.rmtree(scan_output_dir)
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
