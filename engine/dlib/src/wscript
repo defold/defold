@@ -88,7 +88,7 @@ def build(bld):
     if 'js-web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/js-web/js', 'dlib/js/library_sys.js')
 
-    source_dirs = 'dlib dlib/jsmn zlib lz4 jpgd'.split(' ')
+    source_dirs = 'dlib dlib/jsmn zlib lz4'.split(' ')
     axtls_dirs = 'axtls/crypto axtls/ssl'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):

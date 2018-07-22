@@ -135,10 +135,39 @@ TEST(dmImage, Premult)
 
 TEST(dmImage, Png16Color)
 {
-    // 16-bit images are not supported.
-    dmImage::Image image;
-    dmImage::Result r =  dmImage::Load(COLOR16_CHECK_2X2_PNG, COLOR16_CHECK_2X2_PNG_SIZE, false, &image);
-    ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
+    // // 16-bit images are not supported.
+    // dmImage::Image image;
+    // dmImage::Result r =  dmImage::Load(COLOR16_CHECK_2X2_PNG, COLOR16_CHECK_2X2_PNG_SIZE, false, &image);
+    // ASSERT_EQ(dmImage::RESULT_IMAGE_ERROR, r);
+    for (int iter = 0; iter < 2; iter++) {
+        dmImage::Image image;
+        dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_PNG, COLOR_CHECK_2X2_PNG_SIZE, iter == 0, &image);
+        ASSERT_EQ(dmImage::RESULT_OK, r);
+        ASSERT_EQ(2U, image.m_Width);
+        ASSERT_EQ(2U, image.m_Height);
+        ASSERT_EQ(dmImage::TYPE_RGBA, image.m_Type);
+        ASSERT_NE((void*) 0, image.m_Buffer);
+
+        const uint8_t* b = (const uint8_t*) image.m_Buffer;
+        int i = 0;
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(255U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(0U, (uint32_t) b[i++]);
+        ASSERT_EQ(127U, (uint32_t) b[i++]);
+        dmImage::Free(&image);
+    }
 }
 
 TEST(dmImage, PngGray)
