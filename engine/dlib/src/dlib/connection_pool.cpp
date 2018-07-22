@@ -313,7 +313,6 @@ namespace dmConnectionPool
         uint64_t handshakestart = dmTime::GetTime();
         if( timeout > 0 && (handshakestart - connectstart) > timeout )
         {
-            r = RESULT_SOCKET_ERROR;
             dmSocket::Delete(c->m_Socket);
             c->m_Socket = dmSocket::INVALID_SOCKET_HANDLE;
             return RESULT_SOCKET_ERROR;

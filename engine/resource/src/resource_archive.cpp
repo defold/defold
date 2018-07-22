@@ -585,8 +585,8 @@ namespace dmResourceArchive
         {
             /// --- WRITE RESOURCE START
             // Write buf to resource file before creating EntryData instance
-            uint32_t bytes_written;
-            uint32_t offs;
+            uint32_t bytes_written = 0;
+            uint32_t offs = 0;
             Result write_res = WriteResourceToArchive(archive_container, (uint8_t*)resource->m_Data, resource->m_Count, bytes_written, offs);
             if (write_res != RESULT_OK)
             {

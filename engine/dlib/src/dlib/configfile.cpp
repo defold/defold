@@ -363,6 +363,7 @@ namespace dmConfigFile
             context->m_Buffer.SetCapacity(new_capacity);
         }
 
+        assert(content_data);
         buffer.PushArray((const char*) content_data, content_data_size);
     }
 

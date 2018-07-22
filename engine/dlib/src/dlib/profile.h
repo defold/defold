@@ -13,6 +13,7 @@
 #include <dlib/log.h>
 #include <dlib/atomic.h>
 #include <dlib/dlib.h>
+#include <dlib/static_assert.h>
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
@@ -321,6 +322,8 @@ namespace dmProfile
             m_Sample = s;
         }
 
+
+
         inline ~ProfileScope()
         {
             if (!g_IsInitialized)
@@ -338,6 +341,7 @@ namespace dmProfile
             gettimeofday(&tv, 0);
             end = tv.tv_sec * 1000000 + tv.tv_usec;
 #endif
+            ANALYZE_USE_POINTER(m_Sample);
             m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
         }
     };

@@ -57,7 +57,7 @@ namespace dmSSDP
         {
             memset(this, 0, sizeof(*this));
             m_DiscoveredDevices.SetCapacity(983, 1024);
-            m_RegistredEntries.SetCapacity(17, 32);
+            m_RegisteredEntries.SetCapacity(17, 32);
             m_MCastSocket = dmSocket::INVALID_SOCKET_HANDLE;
         }
 
@@ -81,7 +81,7 @@ namespace dmSSDP
         dmHashTable64<Device>   m_DiscoveredDevices;
 
         // All registered devices
-        dmHashTable64<Device*>  m_RegistredEntries;
+        dmHashTable64<Device*>  m_RegisteredEntries;
 
         // Port for m_Socket
         uint16_t                m_Port;
@@ -232,8 +232,8 @@ namespace dmSSDP
     bool DispatchSocket(SSDP* ssdp, dmSocket::Socket socket, bool response);
     void VisitDiscoveredExpireDevice(ExpireContext* context, const dmhash_t* key, Device* device);
     void ExpireDiscovered(SSDP* ssdp);
-    void VisitRegistredAnnounceDevice(SSDP* ssdp, const dmhash_t* key, Device** device);
-    void AnnounceRegistred(SSDP* ssdp);
+    void VisitRegisteredAnnounceDevice(SSDP* ssdp, const dmhash_t* key, Device** device);
+    void AnnounceRegistered(SSDP* ssdp);
 
 };
 
