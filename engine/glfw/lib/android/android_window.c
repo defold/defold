@@ -453,6 +453,10 @@ GLFWAPI jobject glfwGetAndroidActivity()
     return g_AndroidApp->activity->clazz;
 }
 
+GLFWAPI struct android_app* glfwGetAndroidApp(void)
+{
+    return g_AndroidApp;
+}
 
 //========================================================================
 // Query auxillary context
