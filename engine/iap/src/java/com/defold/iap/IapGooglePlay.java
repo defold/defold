@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -15,6 +16,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.ResolveInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -176,7 +178,8 @@ public class IapGooglePlay implements Handler.Callback {
         Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
         // Limit intent to vending package
         serviceIntent.setPackage("com.android.vending");
-        if (!activity.getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
+        List<ResolveInfo> intentServices = activity.getPackageManager().queryIntentServices(serviceIntent, 0);
+        if (intentServices != null && !intentServices.isEmpty()) {
             // service available to handle that Intent
             activity.bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
         } else {
@@ -461,6 +464,12 @@ public class IapGooglePlay implements Handler.Callback {
             purchaseListener.onPurchaseResult(responseCode, purchaseData);
         } else if (action == Action.RESTORE) {
             Bundle items = bundle.getBundle("items");
+
+            if (!items.containsKey(RESPONSE_INAPP_ITEM_LIST)) {
+                purchaseListener.onPurchaseResult(IapJNI.BILLING_RESPONSE_RESULT_ERROR, "");
+                return true;
+            }
+
             ArrayList<String> ownedSkus = items.getStringArrayList(RESPONSE_INAPP_ITEM_LIST);
             ArrayList<String> purchaseDataList = items.getStringArrayList(RESPONSE_INAPP_PURCHASE_DATA_LIST);
             ArrayList<String> signatureList = items.getStringArrayList(RESPONSE_INAPP_SIGNATURE_LIST);
