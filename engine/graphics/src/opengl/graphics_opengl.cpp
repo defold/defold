@@ -810,6 +810,7 @@ static void LogFrameBufferError(GLenum status)
     WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
     WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
     WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
     WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
     WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
 

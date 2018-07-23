@@ -273,6 +273,7 @@ namespace dmGraphics
     NATIVE_HANDLE_IMPL(EGLSurface, AndroidEGLSurface);
     NATIVE_HANDLE_IMPL(JavaVM*, AndroidJavaVM);
     NATIVE_HANDLE_IMPL(jobject, AndroidActivity);
+    NATIVE_HANDLE_IMPL(android_app*, AndroidApp);
     NATIVE_HANDLE_IMPL(Window, X11Window);
     NATIVE_HANDLE_IMPL(GLXContext, X11GLXContext);
 
