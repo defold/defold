@@ -1733,6 +1733,19 @@ static void LogFrameBufferError(GLenum status)
         JobQueuePush(j);
     }
 
+    NativeHandleResult GetNativeTextureHandle(HTexture texture, void** out_handle)
+    {
+        *out_handle = 0x0;
+
+        if (!texture) {
+            return HANDLE_RESULT_ERROR;
+        }
+
+        *out_handle = &texture->m_Texture;
+
+        return HANDLE_RESULT_OK;
+    }
+
     static inline uint32_t GetTextureFormatBPP(TextureFormat format)
     {
         static TextureFormatToBPP g_TextureFormatToBPP;
