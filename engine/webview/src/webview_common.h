@@ -6,13 +6,13 @@
 namespace dmWebView
 {
 
-static const int MAX_NUM_WEBVIEWS = 1;
+static const int MAX_NUM_WEBVIEWS = 4;
 
 enum CallbackResult
 {
     CALLBACK_RESULT_URL_OK = 0,
     CALLBACK_RESULT_URL_ERROR = -1,
-    CALLBACK_RESULT_EVAL_OK = 1, 
+    CALLBACK_RESULT_EVAL_OK = 1,
     CALLBACK_RESULT_EVAL_ERROR = -2,
 };
 
@@ -60,6 +60,7 @@ int Platform_OpenRaw(lua_State* L, int webview_id, const char* html, dmWebView::
 int Platform_Eval(lua_State* L, int webview_id, const char* code);
 int Platform_SetVisible(lua_State* L, int webview_id, int visible);
 int Platform_IsVisible(lua_State* L, int webview_id);
+int Platform_SetPosition(lua_State* L, int webview_id, int x, int y, int width, int height);
 
 } // namespace
 

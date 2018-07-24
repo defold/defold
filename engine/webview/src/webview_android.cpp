@@ -73,6 +73,7 @@ struct WebView
     jmethodID               m_Eval;
     jmethodID               m_SetVisible;
     jmethodID               m_IsVisible;
+    jmethodID               m_SetPosition;
     dmMutex::Mutex          m_Mutex;
     dmArray<Command>        m_CmdQueue;
 };
@@ -180,6 +181,15 @@ int Platform_IsVisible(lua_State* L, int webview_id)
     return visible;
 }
 
+int Platform_SetPosition(lua_State* L, int webview_id, int x, int y, int width, int height)
+{
+    CHECK_WEBVIEW_AND_RETURN();
+    JNIEnv* env = Attach();
+    int visible = env->CallIntMethod(g_WebView.m_WebViewJNI, g_WebView.m_SetPosition, webview_id, x, y, width, height);
+    Detach();
+    return visible;
+}
+
 #undef CHECK_WEBVIEW_AND_RETURN
 
 } // namespace dmWebView
@@ -259,7 +269,7 @@ dmExtension::Result UpdateWebView(dmExtension::Params* params)
 {
     if (g_WebView.m_CmdQueue.Empty())
         return dmExtension::RESULT_OK; // avoid a lock (~300us on iPhone 4s)
-    
+
     dmMutex::ScopedLock lk(g_WebView.m_Mutex);
     for (uint32_t i=0; i != g_WebView.m_CmdQueue.Size(); ++i)
     {
@@ -345,7 +355,8 @@ dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
     g_WebView.m_Eval = env->GetMethodID(webview_class, "eval", "(Ljava/lang/String;II)V");
     g_WebView.m_SetVisible = env->GetMethodID(webview_class, "setVisible", "(II)V");
     g_WebView.m_IsVisible = env->GetMethodID(webview_class, "isVisible", "(I)I");
-    
+    g_WebView.m_SetPosition = env->GetMethodID(webview_class, "setPosition", "(IIIII)V");
+
     jmethodID jni_constructor = env->GetMethodID(webview_class, "<init>", "(Landroid/app/Activity;I)V");
     g_WebView.m_WebViewJNI = env->NewGlobalRef(env->NewObject(webview_class, jni_constructor, g_AndroidApp->activity->clazz, dmWebView::MAX_NUM_WEBVIEWS));
 
