@@ -534,10 +534,10 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     ASSERT_NE((dmGraphics::HTexture)0x0, texture);
 
     char* texture_data = 0x0;
-    dmGraphics::NativeHandleResult res = dmGraphics::GetNativeTextureHandle(0x0, (void**)&texture_data);
+    dmGraphics::NativeHandleResult res = dmGraphics::GetTextureHandle(0x0, (void**)&texture_data);
     ASSERT_EQ(dmGraphics::HANDLE_RESULT_ERROR, res);
 
-    res = dmGraphics::GetNativeTextureHandle(texture, (void**)&texture_data);
+    res = dmGraphics::GetTextureHandle(texture, (void**)&texture_data);
     ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, res);
     ASSERT_NE((char*)0x0, texture_data);
 

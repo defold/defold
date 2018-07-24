@@ -908,7 +908,7 @@ namespace dmGraphics
         delete t;
     }
 
-    NativeHandleResult GetNativeTextureHandle(HTexture texture, void** out_handle)
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
     {
         *out_handle = 0x0;
 
