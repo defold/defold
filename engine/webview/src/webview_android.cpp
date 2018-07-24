@@ -192,9 +192,6 @@ int Platform_SetPosition(lua_State* L, int webview_id, int x, int y, int width, 
 
 #undef CHECK_WEBVIEW_AND_RETURN
 
-} // namespace dmWebView
-
-
 static char* CopyString(JNIEnv* env, jstring s)
 {
     const char* javastring = env->GetStringUTFChars(s, 0);
@@ -265,7 +262,7 @@ JNIEXPORT void JNICALL Java_com_defold_webview_WebViewJNI_onEvalFailed(JNIEnv* e
 }
 #endif
 
-dmExtension::Result UpdateWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Update(dmExtension::Params* params)
 {
     if (g_WebView.m_CmdQueue.Empty())
         return dmExtension::RESULT_OK; // avoid a lock (~300us on iPhone 4s)
@@ -332,7 +329,7 @@ dmExtension::Result UpdateWebView(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
+dmExtension::Result Platform_AppInitialize(dmExtension::AppParams* params)
 {
     g_WebView.m_Mutex = dmMutex::New();
     g_WebView.m_CmdQueue.SetCapacity(8);
@@ -365,14 +362,12 @@ dmExtension::Result AppInitializeWebView(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result InitializeWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Initialize(dmExtension::Params* params)
 {
-    dmWebView::LuaInit(params->m_L);
-
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppFinalizeWebView(dmExtension::AppParams* params)
+dmExtension::Result Platform_AppFinalize(dmExtension::AppParams* params)
 {
     JNIEnv* env = Attach();
     env->DeleteGlobalRef(g_WebView.m_WebViewJNI);
@@ -384,9 +379,11 @@ dmExtension::Result AppFinalizeWebView(dmExtension::AppParams* params)
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result FinalizeWebView(dmExtension::Params* params)
+dmExtension::Result Platform_Finalize(dmExtension::Params* params)
 {
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(WebViewExt, "WebView", AppInitializeWebView, AppFinalizeWebView, InitializeWebView, UpdateWebView, 0, FinalizeWebView)
+
+} // namespace dmWebView
+

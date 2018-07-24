@@ -237,7 +237,7 @@ static const luaL_reg WebView_methods[] =
     {0, 0}
 };
 
-void LuaInit(lua_State* L)
+static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
     luaL_register(L, "webview", WebView_methods);
@@ -256,5 +256,35 @@ void LuaInit(lua_State* L)
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
 }
+
+static dmExtension::Result WebView_AppInitialize(dmExtension::AppParams* params)
+{
+    return Platform_AppInitialize(params);
+}
+
+static dmExtension::Result WebView_AppFinalize(dmExtension::AppParams* params)
+{
+    return Platform_AppFinalize(params);
+}
+
+static dmExtension::Result WebView_Initialize(dmExtension::Params* params)
+{
+    LuaInit(params->m_L);
+
+    return Platform_Initialize(params);
+}
+
+static dmExtension::Result WebView_Finalize(dmExtension::Params* params)
+{
+    return Platform_Finalize(params);
+}
+
+static dmExtension::Result WebView_Update(dmExtension::Params* params)
+{
+    return Platform_Update(params);
+}
+
+DM_DECLARE_EXTENSION(WebViewExt, "WebView", WebView_AppInitialize, WebView_AppFinalize, WebView_Initialize, WebView_Update, 0, WebView_Finalize)
+
 
 } // namespace
