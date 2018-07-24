@@ -503,6 +503,54 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(target);
 }
 
+TEST_F(dmGraphicsTest, TestGetRTAttachment)
+{
+    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
+    {
+        creation_params[i].m_Width = WIDTH;
+        creation_params[i].m_Height = HEIGHT;
+        params[i].m_Width = WIDTH;
+        params[i].m_Height = HEIGHT;
+    }
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 3);
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+    dmGraphics::EnableRenderTarget(m_Context, target);
+    dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
+
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_DEPTH);
+    ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
+
+    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_STENCIL);
+    ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
+
+    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_COLOR);
+    ASSERT_NE((dmGraphics::HTexture)0x0, texture);
+
+    char* texture_data = 0x0;
+    dmGraphics::NativeHandleResult res = dmGraphics::GetNativeTextureHandle(0x0, (void**)&texture_data);
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_ERROR, res);
+
+    res = dmGraphics::GetNativeTextureHandle(texture, (void**)&texture_data);
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, res);
+    ASSERT_NE((char*)0x0, texture_data);
+
+    uint32_t data_size = sizeof(uint32_t) * WIDTH * HEIGHT;
+    char* data = new char[data_size];
+    memset(data, 1, data_size);
+    ASSERT_EQ(0, memcmp(data, texture_data, data_size));
+    delete [] data;
+
+    dmGraphics::DisableRenderTarget(m_Context, target);
+    dmGraphics::DeleteRenderTarget(target);
+}
+
 TEST_F(dmGraphicsTest, TestMasks)
 {
     dmGraphics::SetColorMask(m_Context, false, false, false, false);
