@@ -93,8 +93,8 @@ namespace dmPhysics
     }
 
     OverlapCache::OverlapCache(uint32_t trigger_overlap_capacity)
-    : m_TriggerOverlapCapacity(trigger_overlap_capacity)
-    , m_OverlapCache()
+    : m_OverlapCache()
+    , m_TriggerOverlapCapacity(trigger_overlap_capacity)
     {
 
     }

@@ -3,7 +3,7 @@ def configure(conf):
 
 def build(bld):
     physics = bld.new_task_gen(features = 'cxx cstaticlib',
-                               use_lib = 'DLIB',
+                               use_lib = 'DLIB  BULLET',
                                includes = '. ../bullet ../box2d',
                                proto_gen_py = True,
                                target = 'physics')
@@ -12,9 +12,9 @@ def build(bld):
 
     physics_null = bld.new_task_gen(features = 'cxx cstaticlib',
                                     use_lib = 'DLIB',
-                                    includes = '. ../bullet ../box2d',
+                                    includes = '.',
                                     proto_gen_py = True,
-                                    source = ['physics.cpp', 'physics_null.cpp'],
+                                    source = ['physics_null.cpp'],
                                     target = 'physics_null')
 
     bld.install_files('${PREFIX}/include/physics', 'physics.h')
