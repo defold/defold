@@ -43,9 +43,9 @@ struct Command
 }
 @end
 
-struct WebView
+struct WebViewExtensionState
 {
-    WebView()
+    WebViewExtensionState()
     {
         Clear();
     }
@@ -68,7 +68,7 @@ struct WebView
     dmArray<Command>        m_CmdQueue;
 };
 
-WebView g_WebView;
+WebViewExtensionState g_WebView;
 
 
 @implementation WebViewDelegate
