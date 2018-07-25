@@ -47,9 +47,9 @@ static void Detach()
     g_AndroidApp->activity->vm->DetachCurrentThread();
 }
 
-struct WebView
+struct WebViewExtensionState
 {
-    WebView()
+    WebViewExtensionState()
     {
         memset(this, 0, sizeof(*this));
     }
@@ -64,6 +64,7 @@ struct WebView
     }
 
     dmWebView::WebViewInfo  m_Info[dmWebView::MAX_NUM_WEBVIEWS];
+    bool                    m_Used[dmWebView::MAX_NUM_WEBVIEWS];
     int                     m_RequestIds[dmWebView::MAX_NUM_WEBVIEWS];
     jobject                 m_WebViewJNI;
     jmethodID               m_Create;
@@ -78,7 +79,7 @@ struct WebView
     dmArray<Command>        m_CmdQueue;
 };
 
-WebView g_WebView;
+WebViewExtensionState g_WebView;
 
 namespace dmWebView
 {
@@ -91,7 +92,7 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* _info)
     int webview_id = -1;
     for( int i = 0; i < MAX_NUM_WEBVIEWS; ++i )
     {
-        if( g_WebView.m_Info[i].m_L == 0 )
+        if( !g_WebView.m_Used[i] )
         {
             webview_id = i;
             break;
@@ -104,6 +105,7 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* _info)
         return -1;
     }
 
+    g_WebView.m_Used[webview_id] = true;
     g_WebView.m_Info[webview_id] = *_info;
 
     JNIEnv* env = Attach();
@@ -113,15 +115,19 @@ int Platform_Create(lua_State* L, dmWebView::WebViewInfo* _info)
     return webview_id;
 }
 
+static void DestroyWebView(int webview_id)
+{
+    ClearWebViewInfo(&g_WebView.m_Info[webview_id]);
+    g_WebView.m_Used[webview_id] = false;
+}
+
 int Platform_Destroy(lua_State* L, int webview_id)
 {
     CHECK_WEBVIEW_AND_RETURN();
     JNIEnv* env = Attach();
     env->CallVoidMethod(g_WebView.m_WebViewJNI, g_WebView.m_Destroy, webview_id);
     Detach();
-    g_WebView.m_Info[webview_id].m_L = 0;
-    g_WebView.m_Info[webview_id].m_Self = LUA_NOREF;
-    g_WebView.m_Info[webview_id].m_Callback = LUA_NOREF;
+    DestroyWebView(webview_id);
     return 0;
 }
 
@@ -381,6 +387,22 @@ dmExtension::Result Platform_AppFinalize(dmExtension::AppParams* params)
 
 dmExtension::Result Platform_Finalize(dmExtension::Params* params)
 {
+    for( int i = 0; i < dmWebView::MAX_NUM_WEBVIEWS; ++i )
+    {
+        if (g_WebView.m_Used[i]) {
+            DestroyWebView(i);
+        }
+    }
+
+    dmMutex::ScopedLock lk(g_WebView.m_Mutex);
+    for (uint32_t i=0; i != g_WebView.m_CmdQueue.Size(); ++i)
+    {
+        const Command& cmd = g_WebView.m_CmdQueue[i];
+        if (cmd.m_Url) {
+            free((void*)cmd.m_Url);
+        }
+    }
+    g_WebView.m_CmdQueue.SetSize(0);
     return dmExtension::RESULT_OK;
 }
 
