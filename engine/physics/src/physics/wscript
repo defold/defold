@@ -14,7 +14,7 @@ def build(bld):
                                     use_lib = 'DLIB',
                                     includes = '.',
                                     proto_gen_py = True,
-                                    source = ['physics_null.cpp'],
+                                    source = ['physics_common.cpp', 'physics_null.cpp'],
                                     target = 'physics_null')
 
     bld.install_files('${PREFIX}/include/physics', 'physics.h')
