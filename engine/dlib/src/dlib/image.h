@@ -1,6 +1,8 @@
 #ifndef DM_IMAGE_H
 #define DM_IMAGE_H
 
+#include <stdint.h>
+
 namespace dmImage
 {
     enum Result
