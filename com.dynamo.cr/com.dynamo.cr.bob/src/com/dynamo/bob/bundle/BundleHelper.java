@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -44,6 +46,8 @@ public class BundleHelper {
     private File buildDir;
     private File appDir;
     private Map<String, Map<String, Object>> propertiesMap;
+
+    private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
     public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
         BobProjectProperties projectProperties = project.getProjectProperties();
@@ -428,6 +432,9 @@ public class BundleHelper {
                         IResource exceptionResource = issueResource == null ? extManifestResource : issueResource;
                         int severity = info.severity.contains("error") ? Info.SEVERITY_ERROR : info.severity.equals("warning") ? Info.SEVERITY_WARNING : Info.SEVERITY_INFO;
                         exception.addIssue(severity, exceptionResource, info.message, info.lineNumber);
+
+                        String msg = String.format("%s(%d): %s", info.resource != null ? info.resource : "<unknown>", info.lineNumber, info.message);
+                        logger.log(severity == Info.SEVERITY_ERROR ? Level.SEVERE : Level.WARNING, msg);
 
                         // The first resource generating errors should be related - we can use it to give context to the raw log.
                         if (contextResource == null && issueResource != null) {
