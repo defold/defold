@@ -1785,6 +1785,8 @@ instructions.configure=\
         else:
             # On the CI machines, we make sure we produce a steady stream of output
             # However, this also makes us lose the color information
+            if 'stdout' in kwargs:
+                del kwargs['stdout']
             process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
 
             output = ''
