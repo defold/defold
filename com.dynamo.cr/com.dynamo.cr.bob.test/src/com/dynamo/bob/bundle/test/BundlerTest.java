@@ -137,8 +137,10 @@ public class BundlerTest {
         archiveIndex.close();
         return entries;
     }
-    
-    protected int createBuiltins() throws IOException {
+
+    // Returns the number of files that will be put into the DARC file
+    // Note that the game.project isn't put in the archive either
+    protected int createDefaultFiles() throws IOException {
         int count = 0;
         createFile(contentRoot, "logic/main.collection", "name: \"default\"\nscale_along_z: 0\n");
         count++;
@@ -152,13 +154,18 @@ public class BundlerTest {
         count++;
         createFile(contentRoot, "input/game.input_binding", "");
         count++;
-        
+
+        // These aren't put in the DARC file, so we don't count up
+        createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
+        createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
+        createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", "<?xml version=\"1.0\" encoding=\"utf-8\"?><manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\"><application android:label=\"Minimal Android Application\"><activity android:name=\".MainActivity\" android:label=\"Hello World\"><intent-filter><action android:name=\"android.intent.action.MAIN\" /><category android:name=\"android.intent.category.DEFAULT\" /><category android:name=\"android.intent.category.LAUNCHER\" /></intent-filter></activity></application></manifest>");
+
         return count;
     }
 
     @Test
     public void testBundle() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        createBuiltins();
+        createDefaultFiles();
         createFile(contentRoot, "test.icns", "test_icon");
         build();
     }
@@ -198,7 +205,7 @@ public class BundlerTest {
 
     @Test
     public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        int numBuiltins = createBuiltins();
+        int numBuiltins = createDefaultFiles();
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", "dummy");
         build();
@@ -215,7 +222,7 @@ public class BundlerTest {
         File sub2 = new File(cust, "sub2");
         sub1.mkdir();
         sub2.mkdir();
-        int numBuiltins = createBuiltins();
+        int numBuiltins = createDefaultFiles();
         createFile(contentRoot, "m.txt", "dummy");
         createFile(sub1.getAbsolutePath(), "s1-1.txt", "dummy");
         createFile(sub1.getAbsolutePath(), "s1-2.txt", "dummy");
@@ -242,7 +249,7 @@ public class BundlerTest {
         final byte[] expectedHash = ManifestBuilder.CryptographicOperations.hash(expectedData.getBytes(), hashAlgo);
         final int hlen = ManifestBuilder.CryptographicOperations.getHashSize(hashAlgo);
 
-        int numBuiltins = createBuiltins();
+        int numBuiltins = createDefaultFiles();
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=/m.txt\n[display]\nwidth=640\nheight=480\n");
         createFile(contentRoot, "m.txt", expectedData);
         build();
