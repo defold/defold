@@ -20,7 +20,8 @@
    :integer 0
    :number 0.0
    :vec4 [0.0 0.0 0.0 0.0]
-   :2panel []})
+   :2panel [],
+   :list []})
 
 (defn has-default? [field-info]
   (or (contains? field-info :default)
