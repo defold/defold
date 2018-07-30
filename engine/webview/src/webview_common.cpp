@@ -76,7 +76,7 @@ void ClearWebViewInfo(WebViewInfo* info)
 @param callback callback to use for requests
 @return the web view id
 */
-int Create(lua_State* L)
+static int Create(lua_State* L)
 {
     int top = lua_gettop(L);
 
@@ -100,7 +100,7 @@ int Create(lua_State* L)
 @param id the web view id
 @return -1 if an error occurred. 0 if it was destroyed
 */
-int Destroy(lua_State* L)
+static int Destroy(lua_State* L)
 {
     int top = lua_gettop(L);
 
@@ -113,7 +113,7 @@ int Destroy(lua_State* L)
     return 1;
 }
 
-static void ParseOptions(lua_State* L, int argumentindex, RequestInfo* requestinfo)
+void ParseOptions(lua_State* L, int argumentindex, RequestInfo* requestinfo)
 {
     luaL_checktype(L, argumentindex, LUA_TTABLE);
     lua_pushvalue(L, argumentindex);
@@ -134,7 +134,7 @@ static void ParseOptions(lua_State* L, int argumentindex, RequestInfo* requestin
 @param url url
 @return the request id
 */
-int Open(lua_State* L)
+static int Open(lua_State* L)
 {
     int top = lua_gettop(L);
     const int webview_id = luaL_checknumber(L, 1);
@@ -153,7 +153,7 @@ int Open(lua_State* L)
     return 1;
 }
 
-int OpenRaw(lua_State* L)
+static int OpenRaw(lua_State* L)
 {
     int top = lua_gettop(L);
     const int webview_id = luaL_checknumber(L, 1);
@@ -172,7 +172,7 @@ int OpenRaw(lua_State* L)
     return 1;
 }
 
-int Eval(lua_State* L)
+static int Eval(lua_State* L)
 {
     int top = lua_gettop(L);
     const int webview_id = luaL_checknumber(L, 1);
@@ -185,8 +185,7 @@ int Eval(lua_State* L)
     return 1;
 }
 
-
-int SetVisible(lua_State* L)
+static int SetVisible(lua_State* L)
 {
     int top = lua_gettop(L);
     const int webview_id = luaL_checknumber(L, 1);
@@ -198,8 +197,7 @@ int SetVisible(lua_State* L)
     return 0;
 }
 
-
-int IsVisible(lua_State* L)
+static int IsVisible(lua_State* L)
 {
     int top = lua_gettop(L);
     const int webview_id = luaL_checknumber(L, 1);
@@ -211,6 +209,20 @@ int IsVisible(lua_State* L)
     return 1;
 }
 
+static int SetPosition(lua_State* L)
+{
+    int top = lua_gettop(L);
+    const int webview_id = luaL_checknumber(L, 1);
+    const int x = luaL_checknumber(L, 2);
+    const int y = luaL_checknumber(L, 3);
+    const int width = luaL_checknumber(L, 4);
+    const int height = luaL_checknumber(L, 5);
+
+    Platform_SetPosition(L, webview_id, x, y, width, height);
+
+    assert(top == lua_gettop(L));
+    return 0;
+}
 
 static const luaL_reg WebView_methods[] =
 {
@@ -220,11 +232,12 @@ static const luaL_reg WebView_methods[] =
     {"open_raw", OpenRaw},
     {"eval", Eval},
     {"set_visible", SetVisible},
+    {"set_position", SetPosition},
     {"is_visible", IsVisible},
     {0, 0}
 };
 
-void LuaInit(lua_State* L)
+static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
     luaL_register(L, "webview", WebView_methods);
@@ -243,5 +256,35 @@ void LuaInit(lua_State* L)
     lua_pop(L, 1);
     assert(top == lua_gettop(L));
 }
+
+static dmExtension::Result WebView_AppInitialize(dmExtension::AppParams* params)
+{
+    return Platform_AppInitialize(params);
+}
+
+static dmExtension::Result WebView_AppFinalize(dmExtension::AppParams* params)
+{
+    return Platform_AppFinalize(params);
+}
+
+static dmExtension::Result WebView_Initialize(dmExtension::Params* params)
+{
+    LuaInit(params->m_L);
+
+    return Platform_Initialize(params);
+}
+
+static dmExtension::Result WebView_Finalize(dmExtension::Params* params)
+{
+    return Platform_Finalize(params);
+}
+
+static dmExtension::Result WebView_Update(dmExtension::Params* params)
+{
+    return Platform_Update(params);
+}
+
+DM_DECLARE_EXTENSION(WebViewExt, "WebView", WebView_AppInitialize, WebView_AppFinalize, WebView_Initialize, WebView_Update, 0, WebView_Finalize)
+
 
 } // namespace

@@ -35,6 +35,7 @@
     GLFW_EXPOSE_NATIVE_STUB(EGLSurface, AndroidEGLSurface);
     GLFW_EXPOSE_NATIVE_STUB(JavaVM*, AndroidJavaVM);
     GLFW_EXPOSE_NATIVE_STUB(jobject, AndroidActivity);
+    GLFW_EXPOSE_NATIVE_STUB(android_app*, AndroidApp);
 #endif
 
 #if !defined(__linux__) || defined(__EMSCRIPTEN__) || defined(ANDROID)
