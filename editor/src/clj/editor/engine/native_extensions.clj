@@ -163,9 +163,6 @@
 
 (def ^:private resource-node-upload-path (comp fs/without-leading-slash resource/proj-path resource-node-resource))
 
-(defn has-extensions? [project]
-  (not (empty? (extension-roots project))))
-
 (defn supported-platform? [platform]
   (contains? extender-platforms platform))
 
@@ -260,6 +257,9 @@
   (into {}
         (map (juxt resource-node-upload-path identity))
         (extension-resource-nodes project roots platform)))
+
+(defn has-extensions? [project]
+  (not (empty? (merge (extension-roots project) (global-resource-nodes-by-upload-path project)))))
 
 (defn get-engine
   [project roots platform build-server]
