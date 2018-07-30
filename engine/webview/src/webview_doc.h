@@ -12,7 +12,7 @@
 /*# Creates a webview
 
  * Creates a webview instance. It can show HTML pages as well as evaluate Javascript.
- * The view remains hidden until the first call.
+ * The view remains hidden until the first call. There can exist a maximum of 4 webviews at the same time.
  *
  * [icon:ios] On iOS, the callback will never get a webview.CALLBACK_RESULT_EVAL_ERROR,
  * due to the iOS SDK implementation.
@@ -160,6 +160,19 @@
  * @param webview_id [type:number] The webview id (returned by the webview.create() call)
  * @return visibility [type:number] Returns 0 if not visible, 1 if it is visible
  */
+
+
+/*# Sets the size of the webview
+ *
+ * Sets the size of the webview
+ *
+ * @name webview.set_size
+ *
+ * @param webview_id [type:number] The webview id (returned by the webview.create() call)
+ * @return width [type:number] The width of the webview
+ * @return height [type:number] The height of the webview
+ */
+
 
 
 
