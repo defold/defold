@@ -322,6 +322,18 @@ TEST(dmResourceArchive, ManifestHeader)
     delete manifest;
 }
 
+void PrintHash(const uint8_t* hash, uint32_t len)
+{
+    char* buf = new char[len*2+1];
+    buf[len] = '\0';
+    for (int i = 0; i < len; ++i)
+    {
+        sprintf(buf+i*2, "%02X", hash[i]);
+    }
+    printf("HASH: %s\n", buf);
+    delete[] buf;
+}
+
 TEST(dmResourceArchive, ManifestSignatureVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
@@ -333,6 +345,14 @@ TEST(dmResourceArchive, ManifestSignatureVerification)
     char* hex_digest = 0x0;
     uint32_t hex_digest_len;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::DecryptSignatureHash(manifest, RESOURCES_PUBLIC, RESOURCES_PUBLIC_SIZE, hex_digest, hex_digest_len));
+
+    // debug prints to determine cause of intermittent test fail on linux 32-bit
+    printf("Expected digest (%u bytes):\n", expected_digest_len);
+    PrintHash((const uint8_t*)expected_digest, expected_digest_len);
+    printf("Actual digest (%u bytes):\n", hex_digest_len);
+    PrintHash((const uint8_t*)hex_digest, hex_digest_len);
+    // end debug
+
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::HashCompare((const uint8_t*) hex_digest, hex_digest_len, (const uint8_t*) expected_digest, expected_digest_len));
 
     free(hex_digest);
