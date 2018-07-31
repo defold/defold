@@ -162,15 +162,17 @@
  */
 
 
-/*# Sets the size of the webview
+/*# Sets the position and size of the webview
  *
- * Sets the size of the webview
+ * Sets the position and size of the webview
  *
- * @name webview.set_size
+ * @name webview.set_position
  *
  * @param webview_id [type:number] The webview id (returned by the webview.create() call)
- * @return width [type:number] The width of the webview
- * @return height [type:number] The height of the webview
+ * @return x [type:number] The x position of the webview
+ * @return y [type:number] The y position of the webview
+ * @return width [type:number] The width of the webview (-1 to match screen width)
+ * @return height [type:number] The height of the webview (-1 to match screen height)
  */
 
 

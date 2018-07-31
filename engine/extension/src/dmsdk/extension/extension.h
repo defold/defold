@@ -148,21 +148,34 @@ namespace dmExtension
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
 
-    /**
+    /*# onActivityResult callback typedef
+     *
      * Activity result callback function type. Monitors events from the main activity.
      * Used with RegisterOnActivityResultListener() and UnregisterOnActivityResultListener()
+     *
+     * @typedef
+     * @name OnActivityResult
+     * @param env [type:void*]
+     * @param activity [type:void*]
+     * @param request_code [type:int32_t]
+     * @param result_code [type:int32_t]
+     * @param result [type:void*]
      */
     typedef void (*OnActivityResult)(void* env, void* activity, int32_t request_code, int32_t result_code, void* result);
 
-    /**
+    /*# register Android activity result callback
+     *
      * Registers an activity result callback. Multiple listeners are allowed.
+     *
      * @note [icon:android] Only available on Android
      * @param [type:OnActivityResult] listener
      */
     void RegisterAndroidOnActivityResultListener(OnActivityResult listener);
 
-    /**
+    /*# unregister Android activity result callback
+     *
      * Unregisters an activity result callback
+     *
      * @note [icon:android] Only available on Android
      * @param [type:OnActivityResult] listener
      */
@@ -298,29 +311,43 @@ namespace dmExtension
 /*# Platform defines
  *
  * The platform defines are specified automatically by the build server
+ */
+
+/*#
  *
  * @macro
  * @name DM_PLATFORM_IOS            Set if the platform is iPhoneOS [icon:ios]
+ *
+ */
+
+/*#
  * @macro
  * @name DM_PLATFORM_ANDROID        Set if the platform is Android [icon:android]
+ *
+ */
+
+/*#
  * @macro
  * @name DM_PLATFORM_HTML5          Set if the platform is Html5 [icon:html5]
+ *
+ */
+
+/*#
  * @macro
- * @define DM_PLATFORM_OSX          Set if the platform is OSX [icon:maxos]
+ * @name DM_PLATFORM_OSX            Set if the platform is OSX [icon:maxos]
+ *
+ */
+
+/*#
  * @macro
- * @define DM_PLATFORM_LINUX        Set if the platform is Linux [icon:linux]
+ * @name DM_PLATFORM_LINUX          Set if the platform is Linux [icon:linux]
+ *
+ */
+
+/*#
  * @macro
  * @name DM_PLATFORM_WIN32          Set if the platform is Windows  [icon:windows] (on both x86 and x86_64)
  *
- * @examples
- *
- * ```cpp
- * #if defined(DM_PLATFORM_WIN32) || defined(DM_PLATFORM_LINUX)
- *     // ..do platform specific stuff
- * #else
- *     // ..do default stuff
- * #endif
- * ```
  */
 
 
