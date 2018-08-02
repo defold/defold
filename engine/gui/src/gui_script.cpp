@@ -3008,6 +3008,7 @@ namespace dmGui
      * @name gui.set_parent
      * @param node [type:node] node for which to set its parent
      * @param parent [type:node] parent node to set
+     * @param keep_scene_transform [type:boolean] optional flag to make the scene position being perserved
      */
     static int LuaSetParent(lua_State* L)
     {
