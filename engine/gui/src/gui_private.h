@@ -311,13 +311,6 @@ namespace dmGui
      */
     void CalculateNodeTransform(HScene scene, InternalNode* node, const CalculateNodeTransformFlags flags, Matrix4& out_transform);
 
-    // void CalculateSceneTransform(HScene scene, InternalNode* n, dmTransform::Transform& out_transform);
-    void CalculateSceneTransform(HScene scene, InternalNode* n, Matrix4& out_transform);
-
-    Vector3 CalculateNodeScenePosition(HScene scene, InternalNode* n);
-    Quat CalculateNodeSceneRotation(HScene scene, InternalNode* n);
-    Vector3 CalculateNodeSceneScale(HScene scene, InternalNode* n);
-
     /** Updates the local transform of the node. Requires the parent node(s) to have been updated beforehand.
      * @param scene scene of the node
      * @param node node for which to calculate the transform

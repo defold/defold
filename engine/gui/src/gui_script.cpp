@@ -3456,7 +3456,6 @@ namespace dmGui
     LUASET(name, property)\
 
     LUAGETSETV3(Position, PROPERTY_POSITION)
-    // LUAGETSETV3(Rotation, PROPERTY_ROTATION)
     LUAGETSETV3(Scale, PROPERTY_SCALE)
     LUAGETSETV4(Color, PROPERTY_COLOR)
     LUAGETSETV4(Outline, PROPERTY_OUTLINE)
@@ -3464,7 +3463,8 @@ namespace dmGui
 
 #undef LUAGETSET
 
-    // Custom setter for gui.set_rotation
+    // Custom setter and getter for gui.set_rotation to be able to handle
+    // pass a quaternion for rotations of GUI nodes.
     int LuaGetRotation(lua_State* L)
     {
         InternalNode* n = LuaCheckNode(L, 1, 0);

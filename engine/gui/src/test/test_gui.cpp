@@ -269,7 +269,6 @@ public:
         params.m_FetchTextureSetAnimCallback = FetchTextureSetAnimCallback;
         params.m_FetchRigSceneDataCallback = FetchRigSceneDataCallback;
         params.m_RigEventDataCallback = RigEventDataCallback;
-        // params.m_OnWindowResizeCallback = OnWindowResizeCallback;
         params.m_OnWindowResizeCallback = 0x0;
         m_Scene = dmGui::NewScene(m_Context, &params);
         dmGui::SetSceneResolution(m_Scene, 1, 1);
