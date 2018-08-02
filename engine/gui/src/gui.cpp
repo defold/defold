@@ -3828,8 +3828,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 Vector4 adjust_scale;
                 Vector4 offset(0.0f);
 
-                // Calculate the node and (new) parent scene transforms
+                // Calculate the nodes current scene transform
                 CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), node_m);
+
+                // Calculate the new parents scene transform
+                // We also need to calculate values relative to adjustments and offset
+                // corresponding to the values that would be used in AdjustPosScale (see reasoning below).
                 if (parent_node != 0x0)
                 {
                     CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
@@ -3846,6 +3850,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     offset = (ref_size - adjusted_dims) * 0.5f;
                 }
 
+                // We calculate a new position that will be the relative position once
+                // the node has been childed to the new parent.
+                Vector3 position = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ();
+
+                // We need to perform the inverse of what AdjustPosScale will do to counteract when
+                // it will be applied during next call to CalculateNodeTransform.
+                // See AdjustPosScale for comparison on the steps being performed/inversed.
                 if (n->m_Node.m_XAnchor == XANCHOR_LEFT || n->m_Node.m_XAnchor == XANCHOR_RIGHT) {
                     offset.setX(0.0f);
                 }
@@ -3853,8 +3864,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     offset.setY(0.0f);
                 }
 
-                Vector3 scaled_position = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ() - offset.getXYZ();
-                Vector3 position = mulPerElem(recipPerElem(adjust_scale.getXYZ()), scaled_position);
+                Vector3 scaled_position = position - offset.getXYZ();
+                position = mulPerElem(recipPerElem(adjust_scale.getXYZ()), scaled_position);
 
                 if (n->m_Node.m_XAnchor == dmGui::XANCHOR_LEFT || n->m_Node.m_XAnchor == dmGui::XANCHOR_RIGHT) {
                     position.setX(scaled_position.getX() / reference_scale.getX());

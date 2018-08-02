@@ -3296,7 +3296,23 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
     ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
 }
 
-static Vector4 _GET_NODE_POSITION(dmGui::HScene scene, dmGui::HNode node)
+// Helper LUT to get readable form of adjustment mode.
+static const char* g_AdjustModeString[] = {
+    "FIT",
+    "ZOOM",
+    "STRETCH"
+};
+
+// Log parent and node adjustment mode.
+// Makes it easier to see when and for what setup parenting might fail.
+#define _LOG_PARENTING_INFO(parent, node) \
+    { \
+        dmLogInfo("Parent: %s, Child: %s", g_AdjustModeString[GetNode(m_Scene, parent)->m_Node.m_AdjustMode], g_AdjustModeString[GetNode(m_Scene, node)->m_Node.m_AdjustMode]); \
+    }
+
+// Helper function to get the scene position of a node.
+// Same functionality as in gui_script.cpp: dmGui::LuaGetScreenPosition.
+static Vector4 _GET_NODE_SCENE_POSITION(dmGui::HScene scene, dmGui::HNode node)
 {
     dmGui::InternalNode* n = dmGui::GetNode(scene, node);
     Matrix4 node_transform;
@@ -3305,27 +3321,21 @@ static Vector4 _GET_NODE_POSITION(dmGui::HScene scene, dmGui::HNode node)
     return node_transform * center;
 }
 
-static const char* g_AdjustModeString[] = {
-    "FIT",
-    "ZOOM",
-    "STRETCH"
-};
-
-#define _LOG_PARENTING_INFO(parent, node) \
+// Assert that the scene position for a node stays the same during;
+// - parenting
+// - unparenting (to root)
+#define _ASSERT_PARENTING_POSITION(parent, node) \
     { \
-        dmLogInfo("Parent: %s, Child: %s", g_AdjustModeString[GetNode(m_Scene, parent)->m_Node.m_AdjustMode], g_AdjustModeString[GetNode(m_Scene, node)->m_Node.m_AdjustMode]); \
+        Vector4 expected = _GET_NODE_SCENE_POSITION(m_Scene, node); \
+        dmGui::SetNodeParent(m_Scene, node, parent, true); \
+        Vector4 actual_parented = _GET_NODE_SCENE_POSITION(m_Scene, node); \
+        ASSERT_TRUE( IsEqual( expected, actual_parented) ); \
+        dmGui::SetNodeParent(m_Scene, node, dmGui::INVALID_HANDLE, true); \
+        Vector4 actual_unparented = _GET_NODE_SCENE_POSITION(m_Scene, node); \
+        ASSERT_TRUE( IsEqual( expected, actual_unparented) ); \
     }
 
-#define _RESET_NODES() \
-    dmGui::SetNodeParent(m_Scene, n_top, dmGui::INVALID_HANDLE, false); \
-    dmGui::SetNodeParent(m_Scene, n_right, dmGui::INVALID_HANDLE, false); \
-    dmGui::SetNodeParent(m_Scene, n_bottom, dmGui::INVALID_HANDLE, false); \
-    dmGui::SetNodeParent(m_Scene, n_left, dmGui::INVALID_HANDLE, false); \
-    dmGui::SetNodePosition(m_Scene, n_top, pos_top); \
-    dmGui::SetNodePosition(m_Scene, n_right, pos_right); \
-    dmGui::SetNodePosition(m_Scene, n_bottom, pos_bottom); \
-    dmGui::SetNodePosition(m_Scene, n_left, pos_left);
-
+// Set adjustment mode for all "box sides" in dmGuiTest::ReparentKeepTrans
 #define _SET_NODE_ADJUSTS(adjust_mode) \
     dmGui::SetNodeAdjustMode(m_Scene, n_root, adjust_mode); \
     dmGui::SetNodeAdjustMode(m_Scene, n_top, adjust_mode); \
@@ -3333,20 +3343,23 @@ static const char* g_AdjustModeString[] = {
     dmGui::SetNodeAdjustMode(m_Scene, n_bottom, adjust_mode); \
     dmGui::SetNodeAdjustMode(m_Scene, n_left, adjust_mode);
 
-#define _ASSERT_NODE_POS(parent, node) \
-    { \
-        Vector4 expected = _GET_NODE_POSITION(m_Scene, node); \
-        dmGui::SetNodeParent(m_Scene, node, parent, true); \
-        Vector4 actual_parented = _GET_NODE_POSITION(m_Scene, node); \
-        ASSERT_TRUE( IsEqual( expected, actual_parented) ); \
-        dmGui::SetNodeParent(m_Scene, node, dmGui::INVALID_HANDLE, true); \
-        Vector4 actual_unparented = _GET_NODE_POSITION(m_Scene, node); \
-        ASSERT_TRUE( IsEqual( expected, actual_unparented) ); \
-    }
 
 TEST_F(dmGuiTest, ReparentKeepTrans)
 {
-    // TODO comment describing what we are testing here
+    // Test parenting with keep transform for GUI nodes.
+    // Setup a root node (centered) and four nodes at each side of the window.
+    //
+    //    +-----top---+
+    //    |           |
+    //  left   root  right
+    //    |           |
+    //    +---bottom--+
+    //
+    // Goes through a combination of different window resizes and adjustment modes.
+    //
+    // Verifies that the scene position for all nodes are the same as before and after
+    // the parenting with the keep transform flag set.
+    //
     dmGui::SetPhysicalResolution(m_Context, 100, 100);
     dmGui::SetDefaultResolution(m_Context, 100, 100);
     dmGui::SetSceneResolution(m_Scene, 100, 100);
@@ -3382,29 +3395,26 @@ TEST_F(dmGuiTest, ReparentKeepTrans)
     // Adjust mode: STRETCH
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_STRETCH);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
     // Adjust mode: FIT
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_FIT);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
     // Adjust mode: ZOOM
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_ZOOM);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
 
     //////////////////////////////////////////////////////////////////////////////////////
@@ -3414,29 +3424,26 @@ TEST_F(dmGuiTest, ReparentKeepTrans)
     // Adjust mode: STRETCH
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_STRETCH);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
     // Adjust mode: FIT
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_FIT);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
     // Adjust mode: ZOOM
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_ZOOM);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
 
     //////////////////////////////////////////////////////////////////////////////////////
@@ -3446,29 +3453,26 @@ TEST_F(dmGuiTest, ReparentKeepTrans)
     // Adjust mode: STRETCH
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_STRETCH);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
     // Adjust mode: FIT
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_FIT);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
     // Adjust mode: ZOOM
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_ZOOM);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
 
     //////////////////////////////////////////////////////////////////////////////////////
@@ -3478,36 +3482,49 @@ TEST_F(dmGuiTest, ReparentKeepTrans)
     // Adjust mode: STRETCH
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_STRETCH);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
     // Adjust mode: FIT
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_FIT);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
     // Adjust mode: ZOOM
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_ZOOM);
     _LOG_PARENTING_INFO(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_top);
-    _ASSERT_NODE_POS(n_root, n_right);
-    _ASSERT_NODE_POS(n_root, n_bottom);
-    _ASSERT_NODE_POS(n_root, n_left);
-    _RESET_NODES();
+    _ASSERT_PARENTING_POSITION(n_root, n_top);
+    _ASSERT_PARENTING_POSITION(n_root, n_right);
+    _ASSERT_PARENTING_POSITION(n_root, n_bottom);
+    _ASSERT_PARENTING_POSITION(n_root, n_left);
 
 }
 
+#undef _SET_NODE_ADJUSTS // Undef here, no need for it in remaining parenting tests
 
 TEST_F(dmGuiTest, ReparentKeepTransDifferentAdjust)
 {
-    // TODO comment describing what we are testing here
+    // Test parenting with keep transform for GUI nodes, using different
+    // adjust modes for child and parent.
+    //
+    // Setup a root node (centered) and a child node at right side.
+    //
+    //    +-----------+
+    //    |           |
+    //    |   root  right
+    //    |           |
+    //    +-----------+
+    //
+    // Goes through a combination of different window resizes and adjustment modes combinations
+    //
+    // Verifies that the scene position for all nodes are the same as before and after
+    // the parenting with the keep transform flag set.
+    //
     dmGui::SetPhysicalResolution(m_Context, 100, 100);
     dmGui::SetDefaultResolution(m_Context, 100, 100);
     dmGui::SetSceneResolution(m_Scene, 100, 100);
@@ -3523,70 +3540,53 @@ TEST_F(dmGuiTest, ReparentKeepTransDifferentAdjust)
     dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, n_child, 0x2);
 
-
-    //////////////////////////////////////////////////////////////////////////////////////
-    // Window resolution: 2:1
     dmGui::SetPhysicalResolution(m_Context, 200, 100);
 
-    // Root: STRETCH
-    // Child: FIT
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_FIT);
     _LOG_PARENTING_INFO(n_root, n_child);
-    _ASSERT_NODE_POS(n_root, n_child);
-    dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
-    dmGui::SetNodePosition(m_Scene, n_child, pos_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Root: FIT
-    // Child: STRETCH
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_FIT);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_STRETCH);
     _LOG_PARENTING_INFO(n_root, n_child);
-    _ASSERT_NODE_POS(n_root, n_child);
-    dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
-    dmGui::SetNodePosition(m_Scene, n_child, pos_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Root: STRETCH
-    // Child: ZOOM
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_ZOOM);
     _LOG_PARENTING_INFO(n_root, n_child);
-    _ASSERT_NODE_POS(n_root, n_child);
-    dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
-    dmGui::SetNodePosition(m_Scene, n_child, pos_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Root: ZOOM
-    // Child: STRETCH
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_ZOOM);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_STRETCH);
     _LOG_PARENTING_INFO(n_root, n_child);
-    _ASSERT_NODE_POS(n_root, n_child);
-    dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
-    dmGui::SetNodePosition(m_Scene, n_child, pos_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Root: FIT
-    // Child: ZOOM
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_FIT);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_ZOOM);
     _LOG_PARENTING_INFO(n_root, n_child);
-    _ASSERT_NODE_POS(n_root, n_child);
-    dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
-    dmGui::SetNodePosition(m_Scene, n_child, pos_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Root: ZOOM
-    // Child: FIT
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_ZOOM);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_FIT);
     _LOG_PARENTING_INFO(n_root, n_child);
-    _ASSERT_NODE_POS(n_root, n_child);
-    dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
-    dmGui::SetNodePosition(m_Scene, n_child, pos_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
 }
 
 TEST_F(dmGuiTest, ReparentKeepTransComplexTree)
 {
-    // TODO comment describing what we are testing here
+    // Test parenting with keep transform for GUI nodes by parenting
+    // to a tree of nodes with different adjustment modes.
+    //
+    // Setup a tree of nodes, each offsetted by (10,10) and the following modes:
+    // STRETCH, ZOOM and FIT.
+    //
+    // Goes through different window resizes.
+    //
+    // Verifies that the scene position for all nodes are the same as before and after
+    // the parenting with the keep transform flag set.
+    //
     dmGui::SetPhysicalResolution(m_Context, 100, 100);
     dmGui::SetDefaultResolution(m_Context, 100, 100);
     dmGui::SetSceneResolution(m_Scene, 100, 100);
@@ -3612,31 +3612,47 @@ TEST_F(dmGuiTest, ReparentKeepTransComplexTree)
     dmGui::SetNodeId(m_Scene, n_child, 0x4);
 
     dmGui::SetPhysicalResolution(m_Context, 100, 100);
-    _ASSERT_NODE_POS(n1, n_child);
-    _ASSERT_NODE_POS(n2, n_child);
-    _ASSERT_NODE_POS(n3, n_child);
+    _ASSERT_PARENTING_POSITION(n1, n_child);
+    _ASSERT_PARENTING_POSITION(n2, n_child);
+    _ASSERT_PARENTING_POSITION(n3, n_child);
 
     dmGui::SetPhysicalResolution(m_Context, 200, 100);
-    _ASSERT_NODE_POS(n1, n_child);
-    _ASSERT_NODE_POS(n2, n_child);
-    _ASSERT_NODE_POS(n3, n_child);
+    _ASSERT_PARENTING_POSITION(n1, n_child);
+    _ASSERT_PARENTING_POSITION(n2, n_child);
+    _ASSERT_PARENTING_POSITION(n3, n_child);
 
     dmGui::SetPhysicalResolution(m_Context, 100, 200);
-    _ASSERT_NODE_POS(n1, n_child);
-    _ASSERT_NODE_POS(n2, n_child);
-    _ASSERT_NODE_POS(n3, n_child);
+    _ASSERT_PARENTING_POSITION(n1, n_child);
+    _ASSERT_PARENTING_POSITION(n2, n_child);
+    _ASSERT_PARENTING_POSITION(n3, n_child);
 
     dmGui::SetPhysicalResolution(m_Context, 200, 200);
-    _ASSERT_NODE_POS(n1, n_child);
-    _ASSERT_NODE_POS(n2, n_child);
-    _ASSERT_NODE_POS(n3, n_child);
+    _ASSERT_PARENTING_POSITION(n1, n_child);
+    _ASSERT_PARENTING_POSITION(n2, n_child);
+    _ASSERT_PARENTING_POSITION(n3, n_child);
 
 }
 
 
 TEST_F(dmGuiTest, ReparentKeepTransAnchoring)
 {
-    // TODO comment describing what we are testing here
+    // Test parenting with keep transform for GUI nodes,
+    // using different X and Y anchoring points.
+    //
+    // Setup a root node (centered) and a child node at right side for XAnchoring,
+    // and top side YAnchoring.
+    //
+    //    +---(top)---+
+    //    |           |
+    //    |   root (right)
+    //    |           |
+    //    +-----------+
+    //
+    // Goes through a combination of different window resizes and anchoring settings.
+    //
+    // Verifies that the scene position for all nodes are the same as before and after
+    // the parenting with the keep transform flag set.
+    //
     dmGui::SetPhysicalResolution(m_Context, 100, 100);
     dmGui::SetDefaultResolution(m_Context, 100, 100);
     dmGui::SetSceneResolution(m_Scene, 100, 100);
@@ -3647,48 +3663,38 @@ TEST_F(dmGuiTest, ReparentKeepTransAnchoring)
     Vector3 size(10, 10, 0);
     dmGui::HNode n_root = dmGui::NewNode(m_Scene, pos_root, size, dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, n_root, 0x1);
+    dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
 
     Point3 pos_child(100, 50, 0);
     dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, n_child, 0x2);
-
-
-    dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_FIT);
 
     //////////////////////////////////////////////////////////////////////////////////////
     // Verify parenting with XAnchoring: LEFT
     dmGui::SetNodeXAnchor(m_Scene, n_child, dmGui::XANCHOR_LEFT);
 
-    // Window resolution: 2:1
     dmGui::SetPhysicalResolution(m_Context, 200, 100);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Window resolution: 1:2
     dmGui::SetPhysicalResolution(m_Context, 100, 200);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Window resolution: 2:2
     dmGui::SetPhysicalResolution(m_Context, 200, 200);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
     //////////////////////////////////////////////////////////////////////////////////////
     // Verify parenting with XAnchoring: RIGHT
     dmGui::SetNodeXAnchor(m_Scene, n_child, dmGui::XANCHOR_RIGHT);
 
-    // Window resolution: 2:1
     dmGui::SetPhysicalResolution(m_Context, 200, 100);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Window resolution: 1:2
     dmGui::SetPhysicalResolution(m_Context, 100, 200);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Window resolution: 2:2
     dmGui::SetPhysicalResolution(m_Context, 200, 200);
-    _ASSERT_NODE_POS(n_root, n_child);
-
-
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
     //////////////////////////////////////////////////////////////////////////////////////
     // Verify parenting with YAnchoring: TOP
@@ -3696,38 +3702,31 @@ TEST_F(dmGuiTest, ReparentKeepTransAnchoring)
     dmGui::SetNodeYAnchor(m_Scene, n_child, dmGui::YANCHOR_TOP);
     dmGui::SetNodePosition(m_Scene, n_child, Point3(50, 100, 0));
 
-    // Window resolution: 2:1
     dmGui::SetPhysicalResolution(m_Context, 200, 100);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Window resolution: 1:2
     dmGui::SetPhysicalResolution(m_Context, 100, 200);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Window resolution: 2:2
     dmGui::SetPhysicalResolution(m_Context, 200, 200);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
     //////////////////////////////////////////////////////////////////////////////////////
     // Verify parenting with YAnchoring: BOTTOM
     dmGui::SetNodeYAnchor(m_Scene, n_child, dmGui::YANCHOR_BOTTOM);
 
-    // Window resolution: 2:1
     dmGui::SetPhysicalResolution(m_Context, 200, 100);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Window resolution: 1:2
     dmGui::SetPhysicalResolution(m_Context, 100, 200);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
-    // Window resolution: 2:2
     dmGui::SetPhysicalResolution(m_Context, 200, 200);
-    _ASSERT_NODE_POS(n_root, n_child);
+    _ASSERT_PARENTING_POSITION(n_root, n_child);
 
 }
 
-#undef _RESET_NODES
-#undef _SET_NODE_ADJUSTS
+#undef _ASSERT_PARENTING_POSITION
 #undef _LOG_PARENTING_INFO
 
 // This render function simply flags a provided boolean when called
