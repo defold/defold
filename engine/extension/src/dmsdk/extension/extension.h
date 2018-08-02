@@ -313,40 +313,57 @@ namespace dmExtension
  * The platform defines are specified automatically by the build server
  */
 
-/*#
+/*# Set if the platform is iPhoneOS [icon:ios]
+ *
+ * Set if the platform is iPhoneOS [icon:ios]
  *
  * @macro
- * @name DM_PLATFORM_IOS            Set if the platform is iPhoneOS [icon:ios]
- *
- */
-
-/*#
- * @macro
- * @name DM_PLATFORM_ANDROID        Set if the platform is Android [icon:android]
+ * @name DM_PLATFORM_IOS
  *
  */
 
-/*#
+/*# Set if the platform is Android [icon:android]
+ *
+ * Set if the platform is Android [icon:android]
+ *
  * @macro
- * @name DM_PLATFORM_HTML5          Set if the platform is Html5 [icon:html5]
+ * @name DM_PLATFORM_ANDROID
  *
  */
 
-/*#
+/*# Set if the platform is Html5 [icon:html5]
+ *
+ * Set if the platform is Html5 [icon:html5]
+ *
  * @macro
- * @name DM_PLATFORM_OSX            Set if the platform is OSX [icon:maxos]
+ * @name DM_PLATFORM_HTML5
  *
  */
 
-/*#
+/*# Set if the platform is OSX [icon:maxos]
+ *
+ * Set if the platform is OSX [icon:maxos]
+ *
  * @macro
- * @name DM_PLATFORM_LINUX          Set if the platform is Linux [icon:linux]
+ * @name DM_PLATFORM_OSX
  *
  */
 
-/*#
+/*# Set if the platform is Linux [icon:linux]
+ *
+ * Set if the platform is Linux [icon:linux]
+ *
  * @macro
- * @name DM_PLATFORM_WIN32          Set if the platform is Windows  [icon:windows] (on both x86 and x86_64)
+ * @name DM_PLATFORM_LINUX
+ *
+ */
+
+/*# Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
+ *
+ * Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
+ *
+ * @macro
+ * @name DM_PLATFORM_WIN32
  *
  */
 
