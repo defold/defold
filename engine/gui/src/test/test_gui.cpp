@@ -2890,8 +2890,9 @@ TEST_F(dmGuiTest, ScriptAnchoring)
     ASSERT_EQ(10 * ref_scale.getY(), pos1.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT));
 
     Point3 pos2 = m_NodeTextToRenderedPosition["n2"];
-    ASSERT_EQ(physical_width - 10 * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH);
-    ASSERT_EQ(physical_height - 10 * ref_scale.getY(), pos2.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT));
+    const float EPSILON = 0.0001f;
+    ASSERT_NEAR(physical_width - 10.0f * ref_scale.getX(), pos2.getX() + ref_factor * TEXT_GLYPH_WIDTH, EPSILON);
+    ASSERT_NEAR(physical_height - 10.0f * ref_scale.getY(), pos2.getY() + ref_factor * 0.5f * (TEXT_MAX_DESCENT + TEXT_MAX_ASCENT), EPSILON);
 }
 
 TEST_F(dmGuiTest, ScriptPivot)
@@ -3215,9 +3216,9 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
 }
 
 TEST_F(dmGuiTest, CalculateNodeTransformCached)
@@ -3290,21 +3291,30 @@ TEST_F(dmGuiTest, CalculateNodeTransformCached)
 
     dmGui::CalculateNodeTransformAndAlphaCached(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform, opacity);
 
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn1->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn2->m_Node.m_LocalAdjustScale ) );
-    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
 }
 
 static Vector4 _GET_NODE_POSITION(dmGui::HScene scene, dmGui::HNode node)
 {
     dmGui::InternalNode* n = dmGui::GetNode(scene, node);
     Matrix4 node_transform;
-    // Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
-    // CalculateNodeTransform(scene, n, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), node_transform);
-    CalculateNodeTransform(scene, n, dmGui::CalculateNodeTransformFlags(), node_transform);
-    // return node_transform * center;
-    return node_transform.getCol3();
+    Vector4 center(0.5f, 0.5f, 0.0f, 1.0f);
+    CalculateNodeTransform(scene, n, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), node_transform);
+    return node_transform * center;
 }
+
+static const char* g_AdjustModeString[] = {
+    "FIT",
+    "ZOOM",
+    "STRETCH"
+};
+
+#define _LOG_PARENTING_INFO(parent, node) \
+    { \
+        dmLogInfo("Parent: %s, Child: %s", g_AdjustModeString[GetNode(m_Scene, parent)->m_Node.m_AdjustMode], g_AdjustModeString[GetNode(m_Scene, node)->m_Node.m_AdjustMode]); \
+    }
 
 #define _RESET_NODES() \
     dmGui::SetNodeParent(m_Scene, n_top, dmGui::INVALID_HANDLE, false); \
@@ -3323,15 +3333,18 @@ static Vector4 _GET_NODE_POSITION(dmGui::HScene scene, dmGui::HNode node)
     dmGui::SetNodeAdjustMode(m_Scene, n_bottom, adjust_mode); \
     dmGui::SetNodeAdjustMode(m_Scene, n_left, adjust_mode);
 
-#define _CHECK_NODE_POS(parent, node) \
+#define _ASSERT_NODE_POS(parent, node) \
     { \
         Vector4 expected = _GET_NODE_POSITION(m_Scene, node); \
         dmGui::SetNodeParent(m_Scene, node, parent, true); \
-        Vector4 actual = _GET_NODE_POSITION(m_Scene, node); \
-        ASSERT_TRUE( IsEqual( expected, actual) ); \
+        Vector4 actual_parented = _GET_NODE_POSITION(m_Scene, node); \
+        ASSERT_TRUE( IsEqual( expected, actual_parented) ); \
+        dmGui::SetNodeParent(m_Scene, node, dmGui::INVALID_HANDLE, true); \
+        Vector4 actual_unparented = _GET_NODE_POSITION(m_Scene, node); \
+        ASSERT_TRUE( IsEqual( expected, actual_unparented) ); \
     }
 
-TEST_F(dmGuiTest, ReparentKeepRenderPosition)
+TEST_F(dmGuiTest, ReparentKeepTrans)
 {
     // TODO comment describing what we are testing here
     dmGui::SetPhysicalResolution(m_Context, 100, 100);
@@ -3368,26 +3381,29 @@ TEST_F(dmGuiTest, ReparentKeepRenderPosition)
 
     // Adjust mode: STRETCH
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_STRETCH);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
     // Adjust mode: FIT
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_FIT);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
     // Adjust mode: ZOOM
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_ZOOM);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
 
@@ -3397,26 +3413,29 @@ TEST_F(dmGuiTest, ReparentKeepRenderPosition)
 
     // Adjust mode: STRETCH
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_STRETCH);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
     // Adjust mode: FIT
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_FIT);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
     // Adjust mode: ZOOM
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_ZOOM);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
 
@@ -3426,26 +3445,29 @@ TEST_F(dmGuiTest, ReparentKeepRenderPosition)
 
     // Adjust mode: STRETCH
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_STRETCH);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
     // Adjust mode: FIT
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_FIT);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
     // Adjust mode: ZOOM
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_ZOOM);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
 
@@ -3455,32 +3477,35 @@ TEST_F(dmGuiTest, ReparentKeepRenderPosition)
 
     // Adjust mode: STRETCH
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_STRETCH);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
     // Adjust mode: FIT
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_FIT);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
     // Adjust mode: ZOOM
     _SET_NODE_ADJUSTS(dmGui::ADJUST_MODE_ZOOM);
-    _CHECK_NODE_POS(n_root, n_top);
-    _CHECK_NODE_POS(n_root, n_right);
-    _CHECK_NODE_POS(n_root, n_bottom);
-    _CHECK_NODE_POS(n_root, n_left);
+    _LOG_PARENTING_INFO(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_top);
+    _ASSERT_NODE_POS(n_root, n_right);
+    _ASSERT_NODE_POS(n_root, n_bottom);
+    _ASSERT_NODE_POS(n_root, n_left);
     _RESET_NODES();
 
 }
 
 
-TEST_F(dmGuiTest, ReparentKeepRenderPositionComplex)
+TEST_F(dmGuiTest, ReparentKeepTransDifferentAdjust)
 {
     // TODO comment describing what we are testing here
     dmGui::SetPhysicalResolution(m_Context, 100, 100);
@@ -3503,51 +3528,207 @@ TEST_F(dmGuiTest, ReparentKeepRenderPositionComplex)
     // Window resolution: 2:1
     dmGui::SetPhysicalResolution(m_Context, 200, 100);
 
-
-    dmGui::InternalNode* n = dmGui::GetNode(m_Scene, n_child);
-
     // Root: STRETCH
     // Child: FIT
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_FIT);
-    _CHECK_NODE_POS(n_root, n_child);
+    _LOG_PARENTING_INFO(n_root, n_child);
+    _ASSERT_NODE_POS(n_root, n_child);
     dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
     dmGui::SetNodePosition(m_Scene, n_child, pos_child);
-    n->m_Node.m_Properties[dmGui::PROPERTY_SCALE].setX(1.0f);
-    n->m_Node.m_Properties[dmGui::PROPERTY_SCALE].setY(1.0f);
 
     // Root: FIT
     // Child: STRETCH
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_FIT);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_STRETCH);
-    _CHECK_NODE_POS(n_root, n_child);
+    _LOG_PARENTING_INFO(n_root, n_child);
+    _ASSERT_NODE_POS(n_root, n_child);
     dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
     dmGui::SetNodePosition(m_Scene, n_child, pos_child);
-    n->m_Node.m_Properties[dmGui::PROPERTY_SCALE].setX(1.0f);
-    n->m_Node.m_Properties[dmGui::PROPERTY_SCALE].setY(1.0f);
 
     // Root: STRETCH
     // Child: ZOOM
     dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_ZOOM);
-    _CHECK_NODE_POS(n_root, n_child);
+    _LOG_PARENTING_INFO(n_root, n_child);
+    _ASSERT_NODE_POS(n_root, n_child);
     dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
     dmGui::SetNodePosition(m_Scene, n_child, pos_child);
 
-    // ----------
-    // Root: STRETCH
+    // Root: ZOOM
+    // Child: STRETCH
+    dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_ZOOM);
+    dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_STRETCH);
+    _LOG_PARENTING_INFO(n_root, n_child);
+    _ASSERT_NODE_POS(n_root, n_child);
+    dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
+    dmGui::SetNodePosition(m_Scene, n_child, pos_child);
+
+    // Root: FIT
+    // Child: ZOOM
+    dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_ZOOM);
+    _LOG_PARENTING_INFO(n_root, n_child);
+    _ASSERT_NODE_POS(n_root, n_child);
+    dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
+    dmGui::SetNodePosition(m_Scene, n_child, pos_child);
+
+    // Root: ZOOM
     // Child: FIT
-    dmGui::SetNodePosition(m_Scene, n_root, Point3(0,0,0));
-    dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_ZOOM);
     dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_FIT);
-    _CHECK_NODE_POS(n_root, n_child);
+    _LOG_PARENTING_INFO(n_root, n_child);
+    _ASSERT_NODE_POS(n_root, n_child);
     dmGui::SetNodeParent(m_Scene, n_child, dmGui::INVALID_HANDLE, false);
     dmGui::SetNodePosition(m_Scene, n_child, pos_child);
 
 }
 
+TEST_F(dmGuiTest, ReparentKeepTransComplexTree)
+{
+    // TODO comment describing what we are testing here
+    dmGui::SetPhysicalResolution(m_Context, 100, 100);
+    dmGui::SetDefaultResolution(m_Context, 100, 100);
+    dmGui::SetSceneResolution(m_Scene, 100, 100);
+
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+
+    Point3 pos_offset(10, 10, 0);
+    Vector3 size(10, 10, 0);
+    dmGui::HNode n1 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeId(m_Scene, n1, 0x1);
+
+    dmGui::HNode n2 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
+    dmGui::SetNodeId(m_Scene, n2, 0x2);
+
+    dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos_offset, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeId(m_Scene, n3, 0x3);
+
+    Point3 pos_child(75, 75, 0);
+    dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n_child, 0x4);
+
+    dmGui::SetPhysicalResolution(m_Context, 100, 100);
+    _ASSERT_NODE_POS(n1, n_child);
+    _ASSERT_NODE_POS(n2, n_child);
+    _ASSERT_NODE_POS(n3, n_child);
+
+    dmGui::SetPhysicalResolution(m_Context, 200, 100);
+    _ASSERT_NODE_POS(n1, n_child);
+    _ASSERT_NODE_POS(n2, n_child);
+    _ASSERT_NODE_POS(n3, n_child);
+
+    dmGui::SetPhysicalResolution(m_Context, 100, 200);
+    _ASSERT_NODE_POS(n1, n_child);
+    _ASSERT_NODE_POS(n2, n_child);
+    _ASSERT_NODE_POS(n3, n_child);
+
+    dmGui::SetPhysicalResolution(m_Context, 200, 200);
+    _ASSERT_NODE_POS(n1, n_child);
+    _ASSERT_NODE_POS(n2, n_child);
+    _ASSERT_NODE_POS(n3, n_child);
+
+}
+
+
+TEST_F(dmGuiTest, ReparentKeepTransAnchoring)
+{
+    // TODO comment describing what we are testing here
+    dmGui::SetPhysicalResolution(m_Context, 100, 100);
+    dmGui::SetDefaultResolution(m_Context, 100, 100);
+    dmGui::SetSceneResolution(m_Scene, 100, 100);
+
+    dmGui::SetSceneAdjustReference(m_Scene, dmGui::ADJUST_REFERENCE_PARENT);
+
+    Point3 pos_root(50, 50, 0);
+    Vector3 size(10, 10, 0);
+    dmGui::HNode n_root = dmGui::NewNode(m_Scene, pos_root, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n_root, 0x1);
+
+    Point3 pos_child(100, 50, 0);
+    dmGui::HNode n_child = dmGui::NewNode(m_Scene, pos_child, size, dmGui::NODE_TYPE_BOX);
+    dmGui::SetNodeId(m_Scene, n_child, 0x2);
+
+
+    dmGui::SetNodeAdjustMode(m_Scene, n_root, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeAdjustMode(m_Scene, n_child, dmGui::ADJUST_MODE_FIT);
+
+    //////////////////////////////////////////////////////////////////////////////////////
+    // Verify parenting with XAnchoring: LEFT
+    dmGui::SetNodeXAnchor(m_Scene, n_child, dmGui::XANCHOR_LEFT);
+
+    // Window resolution: 2:1
+    dmGui::SetPhysicalResolution(m_Context, 200, 100);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    // Window resolution: 1:2
+    dmGui::SetPhysicalResolution(m_Context, 100, 200);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    // Window resolution: 2:2
+    dmGui::SetPhysicalResolution(m_Context, 200, 200);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    //////////////////////////////////////////////////////////////////////////////////////
+    // Verify parenting with XAnchoring: RIGHT
+    dmGui::SetNodeXAnchor(m_Scene, n_child, dmGui::XANCHOR_RIGHT);
+
+    // Window resolution: 2:1
+    dmGui::SetPhysicalResolution(m_Context, 200, 100);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    // Window resolution: 1:2
+    dmGui::SetPhysicalResolution(m_Context, 100, 200);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    // Window resolution: 2:2
+    dmGui::SetPhysicalResolution(m_Context, 200, 200);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+
+
+    //////////////////////////////////////////////////////////////////////////////////////
+    // Verify parenting with YAnchoring: TOP
+    dmGui::SetNodeXAnchor(m_Scene, n_child, dmGui::XANCHOR_NONE);
+    dmGui::SetNodeYAnchor(m_Scene, n_child, dmGui::YANCHOR_TOP);
+    dmGui::SetNodePosition(m_Scene, n_child, Point3(50, 100, 0));
+
+    // Window resolution: 2:1
+    dmGui::SetPhysicalResolution(m_Context, 200, 100);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    // Window resolution: 1:2
+    dmGui::SetPhysicalResolution(m_Context, 100, 200);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    // Window resolution: 2:2
+    dmGui::SetPhysicalResolution(m_Context, 200, 200);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    //////////////////////////////////////////////////////////////////////////////////////
+    // Verify parenting with YAnchoring: BOTTOM
+    dmGui::SetNodeYAnchor(m_Scene, n_child, dmGui::YANCHOR_BOTTOM);
+
+    // Window resolution: 2:1
+    dmGui::SetPhysicalResolution(m_Context, 200, 100);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    // Window resolution: 1:2
+    dmGui::SetPhysicalResolution(m_Context, 100, 200);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+    // Window resolution: 2:2
+    dmGui::SetPhysicalResolution(m_Context, 200, 200);
+    _ASSERT_NODE_POS(n_root, n_child);
+
+}
+
 #undef _RESET_NODES
 #undef _SET_NODE_ADJUSTS
+#undef _LOG_PARENTING_INFO
 
 // This render function simply flags a provided boolean when called
 static void RenderEnabledNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const Vectormath::Aos::Matrix4* node_transforms, const float* node_opacities,

@@ -2305,24 +2305,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         // Apply anchoring
         Vector4 scaled_position = mulPerElem(position, adjust_scale);
-        if (node.m_XAnchor == XANCHOR_LEFT)
+        if (node.m_XAnchor == XANCHOR_LEFT || node.m_XAnchor == XANCHOR_RIGHT)
         {
             offset.setX(0.0f);
             scaled_position.setX(position.getX() * reference_scale.getX());
         }
-        else if (node.m_XAnchor == XANCHOR_RIGHT)
-        {
-            offset.setX(0.0f);
-            float distance = (parent_dims.getX() - position.getX()) * reference_scale.getX();
-            scaled_position.setX(ref_size.getX() - distance);
-        }
-        if (node.m_YAnchor == YANCHOR_TOP)
-        {
-            offset.setY(0.0f);
-            float distance = (parent_dims.getY() - position.getY()) * reference_scale.getY();
-            scaled_position.setY(ref_size.getY() - distance);
-        }
-        else if (node.m_YAnchor == YANCHOR_BOTTOM)
+
+        if (node.m_YAnchor == YANCHOR_TOP || node.m_YAnchor == YANCHOR_BOTTOM)
         {
             offset.setY(0.0f);
             scaled_position.setY(position.getY() * reference_scale.getY());
@@ -3810,7 +3799,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)
     {
-        dmLogError("---");
         if (node == parent)
             return RESULT_INF_RECURSION;
         InternalNode* n = GetNode(scene, node);
@@ -3831,14 +3819,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
         if (parent_index != n->m_ParentIndex)
         {
-            dmLogError("keep_scene_transform: %x", keep_scene_transform);
             if (keep_scene_transform) {
 
-#if 1
                 Matrix4 node_m;
                 Matrix4 parent_m;
 
-                Vector4 parent_adjust_scale;
+                Vector4 reference_scale;
+                Vector4 adjust_scale;
                 Vector4 offset(0.0f);
 
                 // Calculate the node and (new) parent scene transforms
@@ -3846,97 +3833,38 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 if (parent_node != 0x0)
                 {
                     CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
-                    parent_adjust_scale = ApplyAdjustOnReferenceScale(parent_node->m_Node.m_LocalAdjustScale, n->m_Node.m_AdjustMode);
+                    reference_scale = parent_node->m_Node.m_LocalAdjustScale;
+                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
                 } else {
-                    parent_adjust_scale = ApplyAdjustOnReferenceScale(CalculateReferenceScale(scene, 0x0), n->m_Node.m_AdjustMode);
-                    parent_m = Matrix4::scale(parent_adjust_scale.getXYZ());
-                    // parent_m = Matrix4::identity();
+                    reference_scale = CalculateReferenceScale(scene, 0x0);
+                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
+                    parent_m = Matrix4::scale(adjust_scale.getXYZ());
 
                     Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
-                    Vector4 adjusted_dims = mulPerElem(parent_dims, parent_adjust_scale);
+                    Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
                     Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
                     offset = (ref_size - adjusted_dims) * 0.5f;
                 }
-                Matrix4 new_m = inverse(parent_m) * node_m;
 
-                // Use a Transform to more easily get the scale and rotation from the resulting matrix
-                dmTransform::Transform t = dmTransform::ToTransform(new_m);
-
-                // Calculate the relative position from node to new parent
-                Vector3 p = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ() - offset.getXYZ();
-                p = mulPerElem(recipPerElem(parent_adjust_scale.getXYZ()), p);
-                n->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(p, 1.0f);
-
-#else
-                if (parent_index != INVALID_INDEX)
-                {
-                    Matrix4 node_m;
-                    Matrix4 parent_m;
-
-                    // Calculate the node and (new) parent scene transforms
-                    CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), node_m);
-                    CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
-                    Matrix4 new_m = inverse(parent_m) * node_m;
-
-                    // Use a Transform to more easily get the scale and rotation from the resulting matrix
-                    dmTransform::Transform t = dmTransform::ToTransform(new_m);
-                    Quat q = t.GetRotation();
-
-                    // Calculate the relative position from node to new parent
-                    Vector3 p = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ();
-
-                    // Apply the inverse of the parents adjust scale to the new position
-                    Vector4 parent_adjust_scale = ApplyAdjustOnReferenceScale(parent_node->m_Node.m_LocalAdjustScale, n->m_Node.m_AdjustMode);
-                    p = mulPerElem(recipPerElem(parent_adjust_scale.getXYZ()), p);
-
-                    // Take into account the parents rotation
-                    p = rotate(q, p);
-
-                    n->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(p, 1.0f);
-                    n->m_Node.m_Properties[dmGui::PROPERTY_SCALE] = Vector4(t.GetScale(), 1.0f);
-                    n->m_Node.m_Properties[dmGui::PROPERTY_ROTATION] = Vector4(dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW()), 1.0f);
-                } else {
-                    Matrix4 node_m;
-                    Matrix4 parent_m = Matrix4::identity();
-                    Vector4 ref_scale = CalculateReferenceScale(scene, 0x0);
-                    Vector4 parent_adjust_scale = ApplyAdjustOnReferenceScale(ref_scale, n->m_Node.m_AdjustMode);
-                    parent_m = Matrix4::scale(parent_adjust_scale.getXYZ());
-                    // parent_m.setCol3(Vector4(scene->m_Width / 2.0, scene->m_Height / 2.0, 0.0, 1.0));
-
-                    // Calculate the node and (new) parent scene transforms
-                    CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), node_m);
-                    // CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
-                    Matrix4 new_m = inverse(parent_m) * node_m;
-
-                    // Use a Transform to more easily get the scale and rotation from the resulting matrix
-                    dmTransform::Transform t = dmTransform::ToTransform(new_m);
-                    Quat q = t.GetRotation();
-
-                    // Calculate the relative position from node to new parent
-                    Vector3 p = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ();
-
-                    // Apply the inverse of the parents adjust scale to the new position
-
-
-                    {
-                        Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
-                        Vector4 adjusted_dims = mulPerElem(parent_dims, parent_adjust_scale);
-                        Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
-                        Vector4 offset = (ref_size - adjusted_dims) * 0.5f;
-                        p = p - offset.getXYZ();
-                    }
-
-                    p = mulPerElem(recipPerElem(parent_adjust_scale.getXYZ()), p);
-
-                    // Take into account the parents rotation
-                    p = rotate(q, p);
-
-                    n->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(p, 1.0f);
-                    n->m_Node.m_Properties[dmGui::PROPERTY_SCALE] = Vector4(t.GetScale(), 1.0f);
-                    n->m_Node.m_Properties[dmGui::PROPERTY_ROTATION] = Vector4(dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW()), 1.0f);
+                if (n->m_Node.m_XAnchor == XANCHOR_LEFT || n->m_Node.m_XAnchor == XANCHOR_RIGHT) {
+                    offset.setX(0.0f);
                 }
-#endif
+                if (n->m_Node.m_YAnchor == YANCHOR_TOP || n->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
+                    offset.setY(0.0f);
+                }
 
+                Vector3 scaled_position = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ() - offset.getXYZ();
+                Vector3 position = mulPerElem(recipPerElem(adjust_scale.getXYZ()), scaled_position);
+
+                if (n->m_Node.m_XAnchor == dmGui::XANCHOR_LEFT || n->m_Node.m_XAnchor == dmGui::XANCHOR_RIGHT) {
+                    position.setX(scaled_position.getX() / reference_scale.getX());
+                }
+
+                if (n->m_Node.m_YAnchor == dmGui::YANCHOR_BOTTOM || n->m_Node.m_YAnchor == dmGui::YANCHOR_TOP) {
+                    position.setY(scaled_position.getY() / reference_scale.getY());
+                }
+
+                n->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(position, 1.0f);
                 n->m_Node.m_DirtyLocal = 1;
             }
 
