@@ -254,10 +254,11 @@ namespace dmExtension
      * This function is only available on iOS. [icon:ios]
      *
      * @name RegisteriOSUIApplicationDelegate
-     * @param delegate an id<UIApplicationDelegate> See https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
+     * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
      *
      * @examples
      * ```cpp
+     *
      * // myextension_ios.mm
      *
      * id<UIApplicationDelegate> g_MyApplicationDelegate;
@@ -340,9 +341,9 @@ namespace dmExtension
  *
  */
 
-/*# Set if the platform is OSX [icon:maxos]
+/*# Set if the platform is OSX [icon:macos]
  *
- * Set if the platform is OSX [icon:maxos]
+ * Set if the platform is OSX [icon:macos]
  *
  * @macro
  * @name DM_PLATFORM_OSX
