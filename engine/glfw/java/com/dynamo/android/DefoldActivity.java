@@ -16,6 +16,7 @@ import android.os.IBinder;
 import android.view.KeyEvent;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -92,6 +93,7 @@ public class DefoldActivity extends NativeActivity {
      * Therefore it is implemented in android_window.c so that the characters can be sent to glfw.
      */
     public native void FakeBackspace();
+    public native void FakeEnter();
     public native void glfwInputCharNative(int unicode);
     public native void glfwSetMarkedTextNative(String text);
 
@@ -171,7 +173,7 @@ public class DefoldActivity extends NativeActivity {
             return super.deleteSurroundingText(beforeLength, afterLength);
         }
 
-        }
+    }
 
     public synchronized void sendInputText(final String text) {
         int charCount = text.length();
@@ -375,6 +377,16 @@ public class DefoldActivity extends NativeActivity {
                         }
                     };
 
+                    // Register an action listener to catch ENTER keys being pressed.
+                    mTextEdit.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+                        @Override
+                        public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                                self.FakeEnter();
+                            }
+                            return false;
+                        }
+                    });
 
                     // Disable the fullscreen keyboard mode (present in landscape)
                     // If we don't do this, we get a large grey input box above the keyboard

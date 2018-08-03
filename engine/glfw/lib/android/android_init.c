@@ -527,7 +527,6 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
         case AKEYCODE_TAB: _glfwInputKey( GLFW_KEY_TAB, glfw_action ); return 1;
         case AKEYCODE_INSERT: _glfwInputKey( GLFW_KEY_INSERT, glfw_action ); return 1;
         case AKEYCODE_DEL: _glfwInputKey( GLFW_KEY_DEL, glfw_action ); return 1;
-        case AKEYCODE_ENTER: _glfwInputKey( GLFW_KEY_ENTER, glfw_action ); return 1;
         case AKEYCODE_PAGE_UP: _glfwInputKey( GLFW_KEY_PAGEUP, glfw_action ); return 1;
         case AKEYCODE_PAGE_DOWN: _glfwInputKey( GLFW_KEY_PAGEDOWN, glfw_action ); return 1;
         case AKEYCODE_MOVE_HOME: _glfwInputKey( GLFW_KEY_HOME, glfw_action ); return 1;
