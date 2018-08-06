@@ -501,7 +501,7 @@ namespace dmResource
         return 0;
     }
 
-    uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index);
+    static uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index);
 
     // Returns 1 if anything completed
     static uint32_t PreloaderUpdateOneItem(HPreloader preloader, int32_t index)
@@ -523,7 +523,7 @@ namespace dmResource
     }
 
     // Returns 1 if anything completed
-    uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index)
+    static uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index)
     {
         DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
 
