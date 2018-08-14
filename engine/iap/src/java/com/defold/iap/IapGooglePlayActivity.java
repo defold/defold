@@ -29,6 +29,7 @@ public class IapGooglePlayActivity extends Activity {
     private boolean hasPendingPurchases = false;
     private boolean autoFinishTransactions = true;
     private boolean isDone = false;
+    private boolean serviceBound = false;
     private Messenger messenger;
     ServiceConnection serviceConn;
     IInAppBillingService service;
@@ -218,37 +219,36 @@ public class IapGooglePlayActivity extends Activity {
         final Action action = Action.valueOf(intent.getAction());
         this.autoFinishTransactions = extras.getBoolean(IapGooglePlay.PARAM_AUTOFINISH_TRANSACTIONS);
 
-        serviceConn = new ServiceConnection() {
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-                service = null;
-            }
-
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder serviceBinder) {
-                service = IInAppBillingService.Stub.asInterface(serviceBinder);
-                if (action == Action.BUY) {
-                    buy(extras.getString(IapGooglePlay.PARAM_PRODUCT), extras.getString(IapGooglePlay.PARAM_PRODUCT_TYPE));
-                } else if (action == Action.RESTORE) {
-                    restore();
-                } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {
-                    processPendingConsumables();
-                    finish();
-                } else if (action == Action.FINISH_TRANSACTION) {
-                    consume(extras.getString(IapGooglePlay.PARAM_PURCHASE_DATA));
-                    finish();
-                }
-            }
-        };
-
         Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
         serviceIntent.setPackage("com.android.vending");
         if (!getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
             // service available to handle that Intent
+            serviceConn = new ServiceConnection() {
+                @Override
+                public void onServiceDisconnected(ComponentName name) {
+                    service = null;
+                }
+    
+                @Override
+                public void onServiceConnected(ComponentName name, IBinder serviceBinder) {
+                    service = IInAppBillingService.Stub.asInterface(serviceBinder);
+                    if (action == Action.BUY) {
+                        buy(extras.getString(IapGooglePlay.PARAM_PRODUCT), extras.getString(IapGooglePlay.PARAM_PRODUCT_TYPE));
+                    } else if (action == Action.RESTORE) {
+                        restore();
+                    } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {
+                        processPendingConsumables();
+                        finish();
+                    } else if (action == Action.FINISH_TRANSACTION) {
+                        consume(extras.getString(IapGooglePlay.PARAM_PURCHASE_DATA));
+                        finish();
+                    }
+                }
+            };
+    
             bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
         } else {
             // Service will never be connected; just send unavailability message
-            serviceConn = null;
             Bundle bundle = new Bundle();
             bundle.putString("action", intent.getAction());
             bundle.putInt(IapGooglePlay.RESPONSE_CODE, IapJNI.BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE);
@@ -292,10 +292,15 @@ public class IapGooglePlayActivity extends Activity {
             }
         }
 
-        super.onDestroy();
         if (serviceConn != null) {
-            unbindService(serviceConn);
+            try
+            {
+                unbindService(serviceConn);
+            } catch(IllegalArgumentException e) {
+                Log.wtf(IapGooglePlay.TAG, "Unable to unbind service", e);
+            }
         }
+        super.onDestroy();
     }
 
     // NOTE: Code from "trivialdrivesample"
