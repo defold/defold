@@ -198,7 +198,6 @@
   (let [node-id (project/get-resource-node project path)
         views-by-node-id (let [views (g/node-value app-view :open-views)]
                            (zipmap (map :resource-node (vals views)) (keys views)))
-        resource (g/node-value node-id :resource)
         view (get views-by-node-id node-id)]
     (if view
       (do
@@ -209,7 +208,7 @@
         (g/transact
           (concat
             (g/connect node-id :_node-id view :resource-node)
-            (g/connect node-id :node-id+resource view :node-id+resource)
+            (g/connect node-id :valid-node-id+resource view :node-id+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])
