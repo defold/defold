@@ -555,7 +555,7 @@
   (input settings g/Any :substitute (constantly (gpc/default-settings)))
   (input display-profiles g/Any)
   (input texture-profiles g/Any)
-  (input collision-group-nodes g/Any :array)
+  (input collision-group-nodes g/Any :array :substitute gu/array-subst-remove-errors)
   (input build-settings g/Any)
   (input breakpoints Breakpoints :array :substitute gu/array-subst-remove-errors)
 
