@@ -29,7 +29,6 @@ public class IapGooglePlayActivity extends Activity {
     private boolean hasPendingPurchases = false;
     private boolean autoFinishTransactions = true;
     private boolean isDone = false;
-    private boolean serviceBound = false;
     private Messenger messenger;
     ServiceConnection serviceConn;
     IInAppBillingService service;
@@ -296,7 +295,7 @@ public class IapGooglePlayActivity extends Activity {
             try
             {
                 unbindService(serviceConn);
-            } catch(IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 Log.wtf(IapGooglePlay.TAG, "Unable to unbind service", e);
             }
         }
