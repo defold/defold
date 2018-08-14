@@ -146,7 +146,6 @@
                                 (get sub-selections-by-resource-node active-resource-node)))
   (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views]
                                             (let [tab-panes (.getItems editor-tabs-split)]
-                                              (remove-invalid-tabs! tab-panes open-views)
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
@@ -190,10 +189,11 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed! [app-view resource-node]
+(defn- on-selected-tab-changed! [app-view app-scene resource-node]
   (g/transact
     (replace-connection resource-node :node-outline app-view :outline))
-  (g/invalidate-outputs! [[app-view :active-tab]]))
+  (g/invalidate-outputs! [[app-view :active-tab]])
+  (ui/user-data! app-scene ::ui/refresh-requested? true))
 
 (handler/defhandler :move-tool :workbench
   (enabled? [app-view] true)
@@ -1037,19 +1037,17 @@ If you do not specifically require different script states, consider changing th
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
-(defn- refresh-ui! [app-view ^Stage stage project]
-  (when-not (ui/ui-disabled?)
-    (let [scene (.getScene stage)]
-      (ui/user-data! scene :command->shortcut (keymap/command->shortcut (g/node-value app-view :keymap)))
-      (ui/refresh scene))
-    (refresh-app-title! stage project)))
+(defn- refresh-menus-and-toolbars! [app-view ^Scene scene]
+  (let [keymap (g/node-value app-view :keymap)
+        command->shortcut (keymap/command->shortcut keymap)]
+    (ui/user-data! scene :command->shortcut command->shortcut)
+    (ui/refresh scene)))
 
 (defn- refresh-views! [app-view]
-  (when-not (ui/ui-disabled?)
-    (let [auto-pulls (g/node-value app-view :auto-pulls)]
-      (doseq [[node label] auto-pulls]
-        (profiler/profile "view" (:name @(g/node-type* node))
-                          (g/node-value node label))))))
+  (let [auto-pulls (g/node-value app-view :auto-pulls)]
+    (doseq [[node label] auto-pulls]
+      (profiler/profile "view" (:name @(g/node-type* node))
+        (g/node-value node label)))))
 
 (defn- refresh-scene-views! [app-view]
   (profiler/begin-frame)
@@ -1083,8 +1081,7 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (on-selected-tab-changed! app-view (tab->resource-node new-val))
-            (ui/refresh app-scene)))))
+            (on-selected-tab-changed! app-view app-scene (tab->resource-node new-val))))))
   (-> tab-pane
       (.getTabs)
       (.addListener
@@ -1108,7 +1105,7 @@ If you do not specifically require different script states, consider changing th
                                                               (TabPaneBehavior/isTraversalEvent event))
                                                      (.consume event)))))
 
-(defn- handle-focus-owner-change! [app-view new-focus-owner]
+(defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]
   (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
         new-editor-tab-pane (editor-tab-pane new-focus-owner)]
     (when (and (some? new-editor-tab-pane)
@@ -1118,7 +1115,7 @@ If you do not specifically require different script states, consider changing th
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (on-selected-tab-changed! app-view resource-node)))))
+        (on-selected-tab-changed! app-view app-scene resource-node)))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
@@ -1139,18 +1136,31 @@ If you do not specifically require different script states, consider changing th
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
-                    (handle-focus-owner-change! app-view new-focus-owner)))
+                    (handle-focus-owner-change! app-view app-scene new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
-      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ _] (refresh-ui! app-view stage project)))
-                            (ui/->timer 13 "refresh-views" (fn [_ _] (refresh-views! app-view)))
-                            (ui/->timer "refresh-scene-views" (fn [_ _] (refresh-scene-views! app-view)))]]
-        (doseq [timer refresh-timers]
-          (ui/timer-stop-on-closed! stage timer)
-          (ui/timer-start! timer)))
+      (let [refresh-tick (java.util.concurrent.atomic.AtomicInteger. 0)
+            refresh-timer (ui/->timer "refresh-app-view"
+                                      (fn [_ _]
+                                        (when-not (ui/ui-disabled?)
+                                          (let [tab-panes (.getItems editor-tabs-split)
+                                                open-views (g/node-value app-view :open-views)]
+                                            (remove-invalid-tabs! tab-panes open-views))
+                                          (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)
+                                                tick (.getAndIncrement refresh-tick)]
+                                            (when refresh-requested?
+                                              (ui/user-data! app-scene ::ui/refresh-requested? false))
+                                            (when (or refresh-requested? (zero? (mod tick 20)))
+                                              (refresh-menus-and-toolbars! app-view app-scene))
+                                            (when (or refresh-requested? (zero? (mod tick 5)))
+                                              (refresh-views! app-view))
+                                            (refresh-scene-views! app-view)
+                                            (refresh-app-title! stage project)))))]
+        (ui/timer-stop-on-closed! stage refresh-timer)
+        (ui/timer-start! refresh-timer))
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
       app-view)))
 
@@ -1202,7 +1212,7 @@ If you do not specifically require different script states, consider changing th
     tmpl args))
 
 (defn- defective-resource-node? [resource-node]
-  (let [value (g/node-value resource-node :node-id+resource)]
+  (let [value (g/node-value resource-node :valid-node-id+resource)]
     (and (g/error? value)
          (g/error-fatal? value))))
 
