@@ -57,6 +57,7 @@
   (output dirty? g/Bool (g/fnk [cleaned-save-value source-value editable?]
                           (and editable? (some? cleaned-save-value) (not= cleaned-save-value source-value))))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
+  (output valid-node-id+resource g/Any (g/fnk [_node-id resource] [_node-id resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))
   (output node-outline outline/OutlineData :cached
