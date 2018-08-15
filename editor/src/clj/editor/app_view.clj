@@ -1146,9 +1146,6 @@ If you do not specifically require different script states, consider changing th
             refresh-timer (ui/->timer "refresh-app-view"
                                       (fn [_ _]
                                         (when-not (ui/ui-disabled?)
-                                          (let [tab-panes (.getItems editor-tabs-split)
-                                                open-views (g/node-value app-view :open-views)]
-                                            (remove-invalid-tabs! tab-panes open-views))
                                           (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)
                                                 tick (.getAndIncrement refresh-tick)]
                                             (when refresh-requested?
