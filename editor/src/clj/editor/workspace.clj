@@ -301,11 +301,16 @@ ordinary paths."
                     (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
          (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
-         (let [listeners @(g/node-value workspace :resource-listeners)
-               parent-progress (atom (progress/make "" (count listeners)))]
-           (doseq [listener listeners]
-             (resource/handle-changes listener changes-with-moved
-                                      (progress/nest-render-progress render-progress! @parent-progress))))))
+         (try
+           (loop [listeners @(g/node-value workspace :resource-listeners)
+                  parent-progress (progress/make "" (count listeners))]
+             (when-some [listener (first listeners)]
+               (resource/handle-changes listener changes-with-moved
+                                        (progress/nest-render-progress render-progress! parent-progress))
+               (recur (next listeners)
+                      (progress/advance parent-progress))))
+           (finally
+             (render-progress! progress/done)))))
      changes)))
 
 (defn fetch-and-validate-libraries [workspace library-uris render-fn]
