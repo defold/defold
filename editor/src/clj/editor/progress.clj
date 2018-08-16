@@ -29,8 +29,8 @@
   ([p n msg]
    (with-message (advance p n) msg)))
 
-(defn fraction [progress]
-  (/ (:pos progress) (:size progress)))
+(defn fraction [{:keys [pos size] :as _progress}]
+  (if (zero? size) 1 (/ pos size)))
 
 (defn percentage [progress]
   (int (* 100 (fraction progress))))

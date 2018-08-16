@@ -108,6 +108,9 @@
   (property visibility-filters-enabled g/Any)
   (property hidden-renderable-tags g/Any)
 
+  (property loading-external-changes? g/Bool (default false))
+  (property loading-external-changes-complete-callbacks g/Any (default []) (dynamic visible (g/constantly false)))
+
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
@@ -664,7 +667,7 @@ If you do not specifically require different script states, consider changing th
       (console/clear-console!)
       ;; We need to save because bob reads from FS
       (project/save-all! project)
-      (changes-view/refresh! changes-view)
+      (changes-view/refresh! changes-view render-main-task-progress!)
       (clear-errors!)
       (render-main-task-progress! (progress/make "Building..."))
       (ui/->future 0.01
@@ -1302,10 +1305,28 @@ If you do not specifically require different script states, consider changing th
                        :user-data {:selected-view-type vt}})
                     (:view-types resource-type))))))
 
+(defn set-loading-external-changes! [app-view loading-in-progress?]
+  (if loading-in-progress?
+    (g/set-property! app-view :loading-external-changes? true)
+    (let [complete-callbacks (g/node-value app-view :loading-external-changes-complete-callbacks)]
+      (g/set-property! app-view :loading-external-changes? false :loading-external-changes-complete-callbacks [])
+      (doseq [callback! complete-callbacks]
+        (callback!)))))
+
+(defn- save-all! [project changes-view render-progress!]
+  (project/save-all! project render-progress!)
+  (changes-view/refresh! changes-view render-main-task-progress!))
+
+(defn- deferred-save-all! [app-view project changes-view render-progress!]
+  (render-progress! (progress/make "Save awaiting external changes..."))
+  (g/update-property! app-view :loading-external-changes-complete-callbacks conj (partial save-all! project changes-view render-progress!)))
+
 (handler/defhandler :save-all :global
-  (run [project changes-view]
-    (project/save-all! project)
-    (changes-view/refresh! changes-view)))
+  (run [app-view changes-view project]
+       (let [render-progress! (progress/throttle-render-progress (make-render-task-progress :save-all))]
+         (if (g/node-value app-view :loading-external-changes?)
+           (deferred-save-all! app-view project changes-view render-progress!)
+           (save-all! project changes-view render-progress!)))))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection] (context-resource app-view selection))
@@ -1444,7 +1465,7 @@ If you do not specifically require different script states, consider changing th
     ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
     (workspace/resource-sync! (project/workspace project))
     (project/save-all! project)
-    (changes-view/refresh! changes-view)
+    (changes-view/refresh! changes-view render-main-task-progress!)
     (clear-errors!)
     (render-main-task-progress! (progress/make "Bundling..."))
     (ui/->future 0.01

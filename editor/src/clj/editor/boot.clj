@@ -46,9 +46,9 @@
   (ui/modal-progress
    "Loading project" 100
    (fn [render-progress!]
-     (let [namespace-progress (progress/make "Loading editor" 1304) ; magic number from reading namespace-counter after load.
-           render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 2))
-           render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 2 1))
+     (let [namespace-progress (progress/make "Loading editor" 1322) ; magic number from reading namespace-counter after load.
+           render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 2)
+           render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 2) 3)
            project-file (io/file project)]
        (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
        ;; ensure that namespace loading has completed

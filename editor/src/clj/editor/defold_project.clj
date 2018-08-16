@@ -160,7 +160,14 @@
     load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
-  (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies)))
+  (let [render-node-progress! (when render-progress!
+                                (progress/nest-render-progress render-progress! (progress/make "" 5 0) 4))
+        load-txs (load-resource-nodes project node-ids render-node-progress! resource-node-dependencies)]
+    (when render-progress!
+      (render-progress! (progress/make "Building graph..." 5 4)))
+    (g/transact load-txs)
+    (when render-progress!
+      (render-progress! progress/done))))
 
 (defn connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -723,20 +730,20 @@
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [dependencies (read-dependencies game-project-resource)
-        progress (atom (progress/make "Updating dependencies..." 3))]
+        progress (atom (progress/make "Updating dependencies..." 13 0))]
     (render-progress! @progress)
 
     ;; Fetch+install libs if we have network, otherwise fallback to disk state
     (if (workspace/dependencies-reachable? dependencies login-fn)
-      (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
+      (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
            (workspace/install-validated-libraries! workspace-id dependencies))
       (workspace/set-project-dependencies! workspace-id dependencies))
 
-    (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
+    (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
-    (render-progress! (swap! progress progress/advance 1 "Loading project"))
+    (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id)
-          populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress))]
+          populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
       (cache-save-data! populated-project)
       populated-project)))
 

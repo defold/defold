@@ -5,6 +5,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
+            [editor.error-reporting :as error-reporting]
             [editor.git :as git]
             [editor.handler :as handler]
             [editor.login :as login]
@@ -26,7 +27,7 @@
 (defn- refresh-list-view! [list-view unified-status]
   (ui/items! list-view unified-status))
 
-(defn refresh! [changes-view]
+(defn refresh! [changes-view render-progress!]
   (let [list-view (g/node-value changes-view :list-view)
         unconfigured-git (g/node-value changes-view :unconfigured-git)
         refresh-pending (ui/user-data list-view :refresh-pending)
@@ -36,19 +37,26 @@
         (ref-set schedule-refresh (not @refresh-pending))
         (ref-set refresh-pending true))
       (when @schedule-refresh
+        (render-progress! (progress/make "Refreshing file status..."))
         (future
-          (dosync (ref-set refresh-pending false))
-          (let [unified-status (git/unified-status unconfigured-git)]
-            (ui/run-later (refresh-list-view! list-view unified-status))))))))
+          (try
+            (dosync (ref-set refresh-pending false))
+            (let [unified-status (git/unified-status unconfigured-git)]
+              (ui/run-later
+                (ui/with-progress [render-progress! render-progress!]
+                  (refresh-list-view! list-view unified-status))))
+            (catch Throwable error
+              (render-progress! progress/done)
+              (error-reporting/report-exception! error))))))))
 
-(defn refresh-after-resource-sync! [changes-view diff]
+(defn refresh-after-resource-sync! [changes-view render-progress! diff]
   ;; The call to resource-sync! will refresh the changes view if it detected changes,
   ;; but committing a file from the command line will not actually change the file
   ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
   ;; the current Git state, we explicitly refresh the changes view here if the the
   ;; call to resource-sync! would not have already done so.
   (when (resource-watch/empty-diff? diff)
-    (refresh! changes-view)))
+    (refresh! changes-view render-progress!)))
 
 (defn resource-sync-after-git-change!
   ([changes-view workspace]
@@ -57,7 +65,7 @@
    (resource-sync-after-git-change! changes-view workspace moved-files progress/null-render-progress!))
   ([changes-view workspace moved-files render-progress!]
    (->> (workspace/resource-sync! workspace moved-files render-progress!)
-        (refresh-after-resource-sync! changes-view))))
+        (refresh-after-resource-sync! changes-view render-progress!))))
 
 (ui/extend-menu ::changes-menu nil
                 [{:label "Open"
