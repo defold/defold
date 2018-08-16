@@ -76,30 +76,40 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-(defn- handle-application-focused! [workspace changes-view]
+(defn- handle-application-focused! [workspace changes-view set-loading-external-changes!]
   (when-not (sync/sync-dialog-open?)
+    (set-loading-external-changes! true)
     (let [project-path (workspace/project-path workspace)
           dependencies (workspace/dependencies workspace)
-          snapshot-cache (workspace/snapshot-cache workspace)]
+          snapshot-cache (workspace/snapshot-cache workspace)
+          render-progress! (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))]
+      (render-progress! (progress/make "Loading external changes..."))
       (future
-        (error-reporting/catch-all!
+        (try
           (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
             (ui/run-later
-              (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
-              (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))
-                    new-snapshot (:snapshot snapshot-info)
-                    new-map (:map snapshot-info)]
-                (ui/with-progress [render-fn render-fn]
-                  (->> (workspace/resource-sync! workspace [] render-fn new-snapshot new-map)
-                       (changes-view/refresh-after-resource-sync! changes-view)))))))))))
+              (try
+                (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
+                (->> (workspace/resource-sync! workspace [] render-progress! (:snapshot snapshot-info) (:map snapshot-info))
+                     (changes-view/refresh-after-resource-sync! changes-view render-progress!))
+                (catch Throwable error
+                  (render-progress! progress/done)
+                  (error-reporting/report-exception! error))
+                (finally
+                  (set-loading-external-changes! false)))))
+          (catch Throwable error
+            (render-progress! progress/done)
+            (error-reporting/report-exception! error)
+            (ui/run-later
+              (set-loading-external-changes! false))))))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view]
+(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view render-progress!]
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
-  (changes-view/refresh! changes-view))
+  (changes-view/refresh! changes-view render-progress!))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (ui/visible! label (let [update (updater/pending-update update-context)]
@@ -204,7 +214,7 @@
                                                       project
                                                       root
                                                       open-resource)]
-      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
+      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view (partial app-view/set-loading-external-changes! app-view))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)
@@ -213,10 +223,10 @@
         (.setManaged menu-bar-space collapse-menu-bar?))
 
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
-                                                    (handle-changes [_ _ _]
+                                                    (handle-changes [_ _ render-progress!]
                                                       (let [open-views (g/node-value app-view :open-views)
                                                             panes (.getItems ^SplitPane editor-tabs-split)]
-                                                        (handle-resource-changes! scene panes open-views changes-view)))))
+                                                        (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
@@ -312,7 +322,7 @@
             (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
                   internal-files-are-tracked? (git/internal-files-are-tracked? git)]
               (if gitignore-was-modified?
-                (do (changes-view/refresh! changes-view)
+                (do (changes-view/refresh! changes-view app-view/render-main-task-progress!)
                     (ui/run-later
                       (dialogs/make-message-box "Updated .gitignore File"
                                                 (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
