@@ -1546,7 +1546,7 @@
                                                                                       (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
                                                                                         (when (handler/enabled? handler-ctx)
                                                                                           (handler/run handler-ctx)
-                                                                                          (refresh scene)))))))
+                                                                                          (user-data! scene ::refresh-requested? true)))))))
                                                    (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
@@ -1569,7 +1569,7 @@
                                                                             (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                                                               (when (handler/enabled? handler-ctx)
                                                                                 (handler/run handler-ctx)
-                                                                                (refresh scene)))))))
+                                                                                (user-data! scene ::refresh-requested? true)))))))
                                                    button)))]
                           (when command
                             (.setId child (name command)))
