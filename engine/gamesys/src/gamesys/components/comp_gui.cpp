@@ -473,7 +473,7 @@ namespace dmGameSystem
                         result = false;
                     }
                 }
-                dmGui::SetNodeParent(scene, n, p);
+                dmGui::SetNodeParent(scene, n, p, false);
             }
         }
 
