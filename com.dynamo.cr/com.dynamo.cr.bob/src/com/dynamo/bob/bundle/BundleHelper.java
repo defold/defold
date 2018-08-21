@@ -115,24 +115,25 @@ public class BundleHelper {
         return map;
     }
 
-    URL getResource(String category, String key, String defaultValue) {
-        BobProjectProperties projectProperties = project.getProjectProperties();
+    private IResource getResource(String category, String key) throws IOException {
         File projectRoot = new File(project.getRootDirectory());
-        String s = projectProperties.getStringValue(category, key);
-        if (s != null && s.trim().length() > 0) {
-            try {
-                return new File(projectRoot, s).toURI().toURL();
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
+        Map<String, Object> c = propertiesMap.get(category);
+        if (c != null) {
+            Object o = c.get(key);
+            if (o != null && o instanceof String) {
+                String s = (String)o;
+                if (s != null && s.trim().length() > 0) {
+                    return project.getResource(s);
+                }
             }
-        } else {
-            return getClass().getResource(defaultValue);
         }
+        throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
-    public BundleHelper format(Map<String, Object> properties, String templateCategory, String templateKey, String defaultTemplate, File toFile) throws IOException {
-        URL templateURL = getResource(templateCategory, templateKey, defaultTemplate);
-        Template template = Mustache.compiler().compile(IOUtils.toString(templateURL));
+    public BundleHelper format(Map<String, Object> properties, String templateCategory, String templateKey, File toFile) throws IOException {
+        IResource resource = getResource(templateCategory, templateKey);
+        String data = new String(resource.getContent());
+        Template template = Mustache.compiler().compile(data);
         StringWriter sw = new StringWriter();
         template.execute(this.propertiesMap, properties, sw);
         sw.flush();
@@ -140,10 +141,9 @@ public class BundleHelper {
         return this;
     }
 
-    public BundleHelper format(String templateCategory, String templateKey, String defaultTemplate, File toFile) throws IOException {
-        return format(new HashMap<String, Object>(), templateCategory, templateKey, defaultTemplate, toFile);
+    public BundleHelper format(String templateCategory, String templateKey, File toFile) throws IOException {
+        return format(new HashMap<String, Object>(), templateCategory, templateKey, toFile);
     }
-
 
     public BundleHelper copyBuilt(String name) throws IOException {
         FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
@@ -218,7 +218,7 @@ public class BundleHelper {
         } else {
             properties.put("orientation-support", "sensor");
         }
-        format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
+        format(properties, "android", "manifest", manifestFile);
     }
 
     public static class ResourceInfo
