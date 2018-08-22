@@ -1,120 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
-        <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+	<!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
 
-		<title>{{DEFOLD_APP_TITLE}}</title>
-		<style>
-			/* Disable user selection to avoid strange bug in Chrome on Windows:
-			 * Selecting a text outside the canvas, then clicking+draging would
-			 * drag the selected text but block mouse down/up events to the engine.
-			 */
-			body {
-				-webkit-touch-callout: none;
-				-webkit-user-select: none;
-				-khtml-user-select: none;
-				-moz-user-select: none;
-				-ms-user-select: none;
-				user-select: none;
-			}
+	<title>{{DEFOLD_APP_TITLE}}</title>
+	<style>
+	/* Disable user selection to avoid strange bug in Chrome on Windows:
+	* Selecting a text outside the canvas, then clicking+draging would
+	* drag the selected text but block mouse down/up events to the engine.
+	*/
+	body {
+		-webkit-touch-callout: none;
+		-webkit-user-select: none;
+		-khtml-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
+		user-select: none;
+	}
 
-            /* DEF-3413
-            * The Facebook container will be populated with the Facebook SDK content
-            * when a Facebook App Id is provided in game.project.
-            * This caused problems with selections in Chrome on Windows, just like
-            * above. Explicitly disabling selection on the root div fixes the issue.
-            */
-            .fb-root {
-                -webkit-touch-callout: none;
-                -webkit-user-select: none;
-                -khtml-user-select: none;
-                -moz-user-select: none;
-                -ms-user-select: none;
-                user-select: none;
-            }
+	/* DEF-3413
+	* The Facebook container will be populated with the Facebook SDK content
+	* when a Facebook App Id is provided in game.project.
+	* This caused problems with selections in Chrome on Windows, just like
+	* above. Explicitly disabling selection on the root div fixes the issue.
+	*/
+	.fb-root {
+		-webkit-touch-callout: none;
+		-webkit-user-select: none;
+		-khtml-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
+		user-select: none;
+	}
 
-			.canvas-app-container {
-			  background: rgb(255,255,255) no-repeat center url("try_game.png");
-			  /* A positioned parent for loading visuals */
-			  position: relative;
-			}
+	.canvas-app-container {
+		background: rgb(255,255,255) no-repeat center url("try_game.png");
+		/* A positioned parent for loading visuals */
+		position: relative;
+	}
 
-			.canvas-app-container:-webkit-full-screen {
-			  /* Auto width and height in Safari/Chrome fullscreen. */
-			  width: auto;
-			  height: auto;
-			}
+	.canvas-app-container:-webkit-full-screen {
+		/* Auto width and height in Safari/Chrome fullscreen. */
+		width: auto;
+		height: auto;
+	}
 
-			.canvas-app-canvas {
-				max-height: 100vh;
-				max-width: 100%;
-			}
+	.canvas-app-canvas {
+		max-height: 100vh;
+		max-width: 100%;
+	}
 
-			.canvas-app-progress {
-			  position: absolute;
-			  background-color: rgb(245, 245, 245);
-			  height: 20px;
-			  /* Progress same width as canvas. */
-			  width: {{DEFOLD_DISPLAY_WIDTH}}px;
-			  bottom: 0px;
-			}
+	.canvas-app-progress {
+		position: absolute;
+		background-color: rgb(245, 245, 245);
+		height: 20px;
+		/* Progress same width as canvas. */
+		width: {{DEFOLD_DISPLAY_WIDTH}}px;
+		bottom: 0px;
+	}
 
-			.canvas-app-progress-bar {
-			  font-size: 12px;
-			  height: 20px;
-			  color: rgb(255, 255, 255);
-			  background-color: rgb(30, 100, 234);
-			  text-align: center;
-			  line-height: 20px;
-			}
+	.canvas-app-progress-bar {
+		font-size: 12px;
+		height: 20px;
+		color: rgb(255, 255, 255);
+		background-color: rgb(30, 100, 234);
+		text-align: center;
+		line-height: 20px;
+	}
 
-			.button {
-			  color: #fff;
-			  background-color: #1e64ea;
-			  border-color: transparent;
-			  padding: 10px 20px;
-			}
-		</style>
+	.button {
+		color: #fff;
+		background-color: #1e64ea;
+		border-color: transparent;
+		padding: 10px 20px;
+	}
+	</style>
 
-		{{{DEFOLD_DEV_HEAD}}}
-	</head>
+	{{{DEFOLD_DEV_HEAD}}}
+</head>
 
-	<body>
-    <div id="fb-root" class="fb-root"></div>
+<body>
+	<div id="fb-root" class="fb-root"></div>
 
 	<div id="app-container" class="canvas-app-container">
-	    <canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{DEFOLD_DISPLAY_WIDTH}}" height="{{DEFOLD_DISPLAY_HEIGHT}}"></canvas>
+		<canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{DEFOLD_DISPLAY_WIDTH}}" height="{{DEFOLD_DISPLAY_HEIGHT}}"></canvas>
 	</div>
 
 	<button id="fullscreen" class="button">Fullscreen</button>
 
 	<!-- -->
-	  {{{DEFOLD_DEV_INLINE}}}
-	  <script type='text/javascript' src="dmloader.js"></script>
-	  <script type='text/javascript' src="{{DEFOLD_ENGINE}}" async onload="{{DEFOLD_DEV_INIT}}"></script>
+	{{{DEFOLD_DEV_INLINE}}}
+	<script type='text/javascript' src="dmloader.js"></script>
+	<script type='text/javascript' src="{{DEFOLD_ENGINE}}" async onload="{{DEFOLD_DEV_INIT}}"></script>
 	<!-- -->
 
 	<script type='text/javascript'>
-		var extra_params = {
-			archive_location_filter: function( path ) {
-				return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
-			},
-            {{#HAS_DEFOLD_ENGINE_ARGUMENTS}}
-			engine_arguments: ["{{DEFOLD_ENGINE_ARGUMENTS}}"],
-			{{/HAS_DEFOLD_ENGINE_ARGUMENTS}}
-			splash_image: "{{DEFOLD_SPLASH_IMAGE}}",
-			custom_heap_size: {{DEFOLD_HEAP_SIZE}}
-		}
+	var extra_params = {
+		archive_location_filter: function( path ) {
+			return ("{{DEFOLD_ARCHIVE_LOCATION_PREFIX}}" + path + "{{DEFOLD_ARCHIVE_LOCATION_SUFFIX}}");
+		},
+		{{#HAS_DEFOLD_ENGINE_ARGUMENTS}}
+		engine_arguments: ["{{DEFOLD_ENGINE_ARGUMENTS}}"],
+		{{/HAS_DEFOLD_ENGINE_ARGUMENTS}}
+		splash_image: "{{DEFOLD_SPLASH_IMAGE}}",
+		custom_heap_size: {{DEFOLD_HEAP_SIZE}}
+	}
 
-        Module.runApp("canvas", extra_params);
+	Module.runApp("canvas", extra_params);
 
-	    /* Fullscreen button */
-	    document.getElementById("fullscreen").onclick = function (e) {
-	      Module.toggleFullscreen();
-	    };
+	/* Fullscreen button */
+	document.getElementById("fullscreen").onclick = function (e) {
+		Module.toggleFullscreen();
+	};
 	</script>
 </body>
 </html>
