@@ -29,7 +29,9 @@ namespace dmURI
         int m_Port;
 
         /// Path part, eg index.html
-        char m_Path[512];
+        // Increased from 512 to 2048 (DEF-3410). 2048 seems like a reasonable
+        // number based on the following SO answer: https://stackoverflow.com/a/417184/1266551
+        char m_Path[2048];
     };
 
     /**
