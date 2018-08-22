@@ -29,7 +29,7 @@ var LibrarySoundDevice =
             }                
             // Construct web audio device.
             device = {
-                sampleRate: 44100,
+                sampleRate: shared.audioCtx.sampleRate,
                 bufferedTo: 0,
                 bufferDuration: 0,
                 // functions
@@ -85,6 +85,7 @@ var LibrarySoundDevice =
                 el.innerHTML = "<div style=\"position:fixed;right:0px;bottom:0px\"> <object id=\"defold_sound_swf\" style=\"display: block;\" classid=\"clsid:D27CDB6E-AE6D-11cf-96B8-444553540000\" codebase=\"http:\/\/download.macromedia.com\/pub\/shockwave\/cabs\/flash\/swflash.cab#version=4,0,0,0\" width=\"1\" height=\"1\"><param name=\"movie\" value=\"defold_sound.swf\"><param name=\"LOOP\" value=\"false\"><param name=\"quality\" value=\"high\"><param name=\"allowScriptAccess\" value=\"always\"><embed src=\"defold_sound.swf\" width=\"1\" height=\"1\" loop=\"false\" quality=\"high\" pluginspage=\"http:\/\/www.macromedia.com\/shockwave\/download\/index.cgi?P1_Prod_Version=ShockwaveFlash\" type=\"application\/x-shockwave-flash\" allowscriptaccess=\"always\"><\/object><\/div>";
             }
             device = {
+                sampleRate: 44100,
                 buffered: [],
                 bufferSize: 0,
                 flashMinSize: 4096,
@@ -143,6 +144,10 @@ var LibrarySoundDevice =
     
     dmDeviceJSFreeBufferSlots: function(id) {
         return window._dmJSDeviceShared.devices[id]._freeBufferSlots();
+    },
+
+    dmDeviceSampleRate: function(id) {
+        return window._dmJSDeviceShared.devices[id].sampleRate;
     }
 }
 
