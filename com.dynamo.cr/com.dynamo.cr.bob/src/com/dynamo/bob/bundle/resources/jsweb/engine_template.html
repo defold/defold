@@ -21,6 +21,21 @@
 				user-select: none;
 			}
 
+            /* DEF-3413
+            * The Facebook container will be populated with the Facebook SDK content
+            * when a Facebook App Id is provided in game.project.
+            * This caused problems with selections in Chrome on Windows, just like
+            * above. Explicitly disabling selection on the root div fixes the issue.
+            */
+            .fb-root {
+                -webkit-touch-callout: none;
+                -webkit-user-select: none;
+                -khtml-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
+            }
+
 			.canvas-app-container {
 			  background: rgb(255,255,255) no-repeat center url("try_game.png");
 			  /* A positioned parent for loading visuals */
@@ -68,7 +83,7 @@
 	</head>
 
 	<body>
-    <div id="fb-root"></div>
+    <div id="fb-root" class="fb-root"></div>
 
 	<div id="app-container" class="canvas-app-container">
 	    <canvas id="canvas" class="canvas-app-canvas" tabindex="1" width="{{DEFOLD_DISPLAY_WIDTH}}" height="{{DEFOLD_DISPLAY_HEIGHT}}"></canvas>
