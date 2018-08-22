@@ -146,7 +146,7 @@ var LibrarySoundDevice =
         return window._dmJSDeviceShared.devices[id]._freeBufferSlots();
     },
 
-    dmDeviceSampleRate: function(id) {
+    dmGetDeviceSampleRate: function(id) {
         return window._dmJSDeviceShared.devices[id].sampleRate;
     }
 }
