@@ -12,7 +12,6 @@
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
-            [editor.error-reporting :as error-reporting]
             [editor.form-view :as form-view]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -21,7 +20,6 @@
             [editor.html-view :as html-view]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
-            [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
@@ -31,6 +29,7 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.save :as save]
             [editor.search-results-view :as search-results-view]
             [editor.sync :as sync]
             [editor.system :as system]
@@ -76,32 +75,10 @@
     (workspace/resource-sync! workspace)
     workspace))
 
-(defn- handle-application-focused! [workspace changes-view set-loading-external-changes!]
+(defn- handle-application-focused! [workspace changes-view]
   (when-not (sync/sync-dialog-open?)
-    (set-loading-external-changes! true)
-    (let [project-path (workspace/project-path workspace)
-          dependencies (workspace/dependencies workspace)
-          snapshot-cache (workspace/snapshot-cache workspace)
-          render-progress! (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))]
-      (render-progress! (progress/make "Loading external changes..."))
-      (future
-        (try
-          (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
-            (ui/run-later
-              (try
-                (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
-                (->> (workspace/resource-sync! workspace [] render-progress! (:snapshot snapshot-info) (:map snapshot-info))
-                     (changes-view/refresh-after-resource-sync! changes-view render-progress!))
-                (catch Throwable error
-                  (render-progress! progress/done)
-                  (error-reporting/report-exception! error))
-                (finally
-                  (set-loading-external-changes! false)))))
-          (catch Throwable error
-            (render-progress! progress/done)
-            (error-reporting/report-exception! error)
-            (ui/run-later
-              (set-loading-external-changes! false))))))))
+    (let [render-progress! (app-view/make-render-task-progress :resource-sync)]
+      (save/async-reload! render-progress! workspace changes-view))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -120,16 +97,21 @@
     (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
     (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
 
-(defn- init-pending-update-indicator! [^Stage stage ^Label label project update-context]
+(defn- init-pending-update-indicator! [^Stage stage ^Label label project changes-view update-context]
   (.setOnMouseClicked label
                       (ui/event-handler event
-                                        (when (dialogs/make-pending-update-dialog stage)
-                                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                                            ;; Save the project and block until complete. Before saving, perform a
-                                            ;; resource sync to ensure we do not overwrite external changes.
-                                            (workspace/resource-sync! (project/workspace project))
-                                            (project/save-all! project)
-                                            (updater/restart!)))))
+                        (when (dialogs/make-pending-update-dialog stage)
+                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
+                            (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
+                                  render-save-progress! (app-view/make-render-task-progress :save-all)
+                                  focus-owner (ui/disable-ui)]
+                              (save/async-save! render-reload-progress! render-save-progress! project nil
+                                                (fn [successful?]
+                                                  (if successful?
+                                                    (updater/restart!)
+                                                    (do
+                                                      (ui/enable-ui focus-owner)
+                                                      (changes-view/refresh! changes-view render-reload-progress!))))))))))
   (install-pending-update-check-timer! stage label update-context))
 
 (defn- update-status-pane-contents! [^AnchorPane status-pane content-prospects]
@@ -160,9 +142,6 @@
         update-available-label (doto (Label. "Update Available")
                                  (ui/visible! false)
                                  (ui/add-style! "link-label"))]
-
-    (when update-context
-      (init-pending-update-indicator! stage update-available-label project update-context))
 
     (init-status-pane-timer! stage status-pane
                              [app-view/progress-hbox
@@ -214,7 +193,10 @@
                                                       project
                                                       root
                                                       open-resource)]
-      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view (partial app-view/set-loading-external-changes! app-view))
+      (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
+
+      (when update-context
+        (init-pending-update-indicator! stage update-available-label project changes-view update-context))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)

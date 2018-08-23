@@ -102,7 +102,7 @@
 (defn- file-resource-status [r]
   {:version (str (.lastModified ^File (io/file r))) :source :directory})
 
-(defn- file-resource-status-map-entry [r]
+(defn file-resource-status-map-entry [r]
   [(resource/proj-path r)
    (file-resource-status r)])
 

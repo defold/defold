@@ -283,11 +283,17 @@
     (doseq [^ListChangeListener l listeners]
       (.removeListener observable l))))
 
+(defn on-ui-thread? []
+  (Platform/isFxApplicationThread))
+
+(defn do-run-later [f]
+  (Platform/runLater f))
+
 (defn do-run-now [f]
-  (if (Platform/isFxApplicationThread)
+  (if (on-ui-thread?)
     (f)
     (let [p (promise)]
-      (Platform/runLater
+      (do-run-later
         (fn []
           (try
             (deliver p (f))
@@ -302,9 +308,6 @@
   [& body]
   `(do-run-now
      (fn [] ~@body)))
-
-(defn do-run-later [f]
-  (Platform/runLater f))
 
 (defmacro run-later
   [& body]
@@ -1740,29 +1743,6 @@
        ~@body
        (finally
          (run-now (enable-ui focus-owner#))))))
-
-(defn- on-ui-thread?
-  []
-  (Platform/isFxApplicationThread))
-
-(defmacro on-app-thread
-  [& body]
-  `(if (on-ui-thread?)
-     (do ~@body)
-     (Platform/runLater
-      (bound-fn [] (do ~@body)))))
-
-(defn run-wait
-  [f]
-  (let [result (promise)]
-    (on-app-thread
-     (deliver result (f)))
-    @result))
-
-(defmacro run-safe
-  [& body]
-  `(Platform/runLater
-    (fn [] ~@body)))
 
 (defn handle
   [f]
