@@ -480,6 +480,7 @@ void PlatformFacebookLoginWithReadPermissions(lua_State* L, const char** permiss
     }
 }
 
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_RequestReadPermissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
@@ -515,6 +516,7 @@ int Facebook_RequestReadPermissions(lua_State* L)
     return 0;
 }
 
+// This function has been deprecated, it is still available but no longer documented.
 int Facebook_RequestPublishPermissions(lua_State* L)
 {
     if(!g_Facebook.m_FBApp)
