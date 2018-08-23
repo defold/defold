@@ -231,8 +231,10 @@
   (g/node-value project :save-data))
 
 (defn dirty-save-data
-  [project]
-  (g/node-value project :dirty-save-data))
+  ([project]
+   (g/node-value project :dirty-save-data))
+  ([project evaluation-context]
+   (g/node-value project :dirty-save-data evaluation-context)))
 
 (defn textual-resource-type? [resource-type]
   ;; Unregistered resources that are connected to the project
@@ -243,7 +245,7 @@
 (defn write-save-data-to-disk! [save-data {:keys [render-progress!]
                                            :or {render-progress! progress/null-render-progress!}
                                            :as opts}]
-  (render-progress! (progress/make "Saving..."))
+  (render-progress! (progress/make "Writing files..."))
   (if (g/error? save-data)
     (throw (Exception. ^String (properties/error-message save-data)))
     (do
@@ -259,8 +261,10 @@
               (spit resource content))))
         save-data
         render-progress!
-        (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-      (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))))
+        (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
+
+(defn invalidate-save-data-source-values! [save-data]
+  (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))
 
 (defn workspace
   ([project]
@@ -268,19 +272,6 @@
      (workspace project evaluation-context)))
   ([project evaluation-context]
    (g/node-value project :workspace evaluation-context)))
-
-(defn save-all!
-  ([project]
-   ;; TODO: We call save-all! from build-html5, when bundling, when updating and when actually saving all.
-   ;; In all those cases we probably want to pass in a properly nested render-progress!, but for now we default
-   ;; to no progress reporting.
-   (save-all! project (progress/throttle-render-progress progress/null-render-progress!)))
-  ([project render-progress!]
-   (let [workspace (workspace project)
-         save-data (dirty-save-data project)]
-     (ui/with-progress [render-progress! render-progress!]
-       (write-save-data-to-disk! save-data {:render-progress! render-progress!}))
-     (workspace/update-snapshot-status! workspace (map :resource save-data)))))
 
 (defn make-collect-progress-steps-tracer [steps-atom]
   (fn [state node output-type label]
