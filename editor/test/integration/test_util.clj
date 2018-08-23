@@ -24,9 +24,10 @@
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.util UUID]
+           [java.util.concurrent LinkedBlockingQueue]
+           [java.util.zip ZipEntry ZipOutputStream]
            [javax.imageio ImageIO]
-           [org.apache.commons.io FilenameUtils IOUtils]
-           [java.util.zip ZipOutputStream ZipEntry]))
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (def project-path "test/resources/test_project")
 
@@ -270,6 +271,22 @@
        (let [result# (do ~@forms)]
          (doseq [f# @laters#] (f#))
          result#))))
+
+(defn run-event-loop! [f]
+  (let [ui-thread (Thread/currentThread)
+        action-queue (LinkedBlockingQueue.)
+        enqueue-action! (fn [action!]
+                          (.add action-queue action!)
+                          nil)
+        exit-event-loop! #(enqueue-action! ::exit-event-loop)]
+    (with-redefs [ui/on-ui-thread? #(= ui-thread (Thread/currentThread))
+                  ui/do-run-later enqueue-action!]
+      (enqueue-action! (fn [] (f exit-event-loop!)))
+      (loop []
+        (let [action! (.take action-queue)]
+          (when (not= ::exit-event-loop action!)
+            (action!)
+            (recur)))))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))

@@ -219,10 +219,6 @@ ordinary paths."
                 (map :uri))
           (library/current-library-state project-directory dependencies))))
 
-(defn update-snapshot-status!
-  [workspace resources]
-  (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status resources))
-
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
     (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))

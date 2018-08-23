@@ -44,6 +44,7 @@
             [util.http-server :as http-server]
             [editor.scene :as scene]
             [editor.live-update-settings :as live-update-settings]
+            [editor.save :as save]
             [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
@@ -107,9 +108,6 @@
 
   (property visibility-filters-enabled g/Any)
   (property hidden-renderable-tags g/Any)
-
-  (property loading-external-changes? g/Bool (default false))
-  (property loading-external-changes-complete-callbacks g/Any (default []) (dynamic visible (g/constantly false)))
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -451,7 +449,8 @@
 
 (defn make-render-task-progress [key]
   (assert (contains? app-task-progress key))
-  (fn [progress] (render-task-progress! key progress)))
+  (progress/throttle-render-progress
+    (fn [progress] (render-task-progress! key progress))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
@@ -663,19 +662,23 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
     (let [clear-errors! (make-clear-build-errors build-errors-view)
-          render-error! (make-render-build-error build-errors-view)]
-      (console/clear-console!)
-      ;; We need to save because bob reads from FS
-      (project/save-all! project)
-      (changes-view/refresh! changes-view render-main-task-progress!)
+          render-error! (make-render-build-error build-errors-view)
+          render-reload-progress! (make-render-task-progress :resource-sync)
+          render-save-progress! (make-render-task-progress :save-all)
+          render-build-progress! (make-render-task-progress :build)]
       (clear-errors!)
-      (render-main-task-progress! (progress/make "Building..."))
-      (ui/->future 0.01
-                   (fn []
-                     (let [result (deref (bob/build-html5! project prefs))]
-                       (render-main-task-progress! progress/done)
-                       (when-not (handle-bob-error! render-error! project result)
-                         (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))
+      (console/clear-console!)
+      ;; We need to save because bob reads from FS.
+      (save/async-save! render-reload-progress! render-save-progress! project changes-view
+                        (fn [successful?]
+                          (when successful?
+                            (render-build-progress! (progress/make "Building..."))
+                            (ui/->future 0.01
+                                         (fn []
+                                           (let [result (ui/with-progress [render-build-progress! render-build-progress!]
+                                                          (deref (bob/build-html5! project prefs)))]
+                                             (when-not (handle-bob-error! render-error! project result)
+                                               (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))))
 
 (def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
@@ -866,6 +869,9 @@ If you do not specifically require different script states, consider changing th
                              {:label "Open"
                               :id ::open
                               :command :open}
+                             {:label "Synchronize..."
+                              :id ::synchronize
+                              :command :synchronize}
                              {:label "Save All"
                               :id ::save-all
                               :command :save-all}
@@ -1305,28 +1311,32 @@ If you do not specifically require different script states, consider changing th
                        :user-data {:selected-view-type vt}})
                     (:view-types resource-type))))))
 
-(defn set-loading-external-changes! [app-view loading-in-progress?]
-  (if loading-in-progress?
-    (g/set-property! app-view :loading-external-changes? true)
-    (let [complete-callbacks (g/node-value app-view :loading-external-changes-complete-callbacks)]
-      (g/set-property! app-view :loading-external-changes? false :loading-external-changes-complete-callbacks [])
-      (doseq [callback! complete-callbacks]
-        (callback!)))))
+(handler/defhandler :synchronize :global
+  (run [changes-view project]
+       (let [render-reload-progress! (make-render-task-progress :resource-sync)
+             render-save-progress! (make-render-task-progress :save-all)]
+         (if (changes-view/project-is-git-repo? changes-view)
 
-(defn- save-all! [project changes-view render-progress!]
-  (project/save-all! project render-progress!)
-  (changes-view/refresh! changes-view render-main-task-progress!))
+           ;; The project is a Git repo. Assume the project is hosted by us.
+           ;; Check if there are locked files below the project folder before proceeding.
+           ;; If so, we abort the sync and notify the user, since this could cause problems.
+           (when (changes-view/ensure-no-locked-files! changes-view)
+             (save/async-save! render-reload-progress! render-save-progress! project changes-view
+                               (fn [successful?]
+                                 (when successful?
+                                   (changes-view/regular-sync! changes-view project)))))
 
-(defn- deferred-save-all! [app-view project changes-view render-progress!]
-  (render-progress! (progress/make "Save awaiting external changes..."))
-  (g/update-property! app-view :loading-external-changes-complete-callbacks conj (partial save-all! project changes-view render-progress!)))
+           ;; The project is not a Git repo. Offer to push it to our servers.
+           (save/async-save! render-reload-progress! render-save-progress! project changes-view
+                             (fn [successful?]
+                               (when successful?
+                                 (changes-view/first-sync! changes-view project))))))))
 
 (handler/defhandler :save-all :global
   (run [app-view changes-view project]
-       (let [render-progress! (progress/throttle-render-progress (make-render-task-progress :save-all))]
-         (if (g/node-value app-view :loading-external-changes?)
-           (deferred-save-all! app-view project changes-view render-progress!)
-           (save-all! project changes-view render-progress!)))))
+       (let [render-reload-progress! (make-render-task-progress :resource-sync)
+             render-save-progress! (make-render-task-progress :save-all)]
+         (save/async-save! render-reload-progress! render-save-progress! project changes-view))))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection] (context-resource app-view selection))
@@ -1460,23 +1470,25 @@ If you do not specifically require different script states, consider changing th
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
-        render-error! (make-render-build-error build-errors-view)]
-    ;; We need to save because bob reads from FS.
-    ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
-    (workspace/resource-sync! (project/workspace project))
-    (project/save-all! project)
-    (changes-view/refresh! changes-view render-main-task-progress!)
+        render-error! (make-render-build-error build-errors-view)
+        render-reload-progress! (make-render-task-progress :resource-sync)
+        render-save-progress! (make-render-task-progress :save-all)
+        render-build-progress! (make-render-task-progress :build)]
     (clear-errors!)
-    (render-main-task-progress! (progress/make "Bundling..."))
-    (ui/->future 0.01
-                 (fn []
-                   (let [result (deref (bob/bundle! project prefs platform bundle-options))]
-                     (render-main-task-progress! progress/done)
-                     (when-not (handle-bob-error! render-error! project result)
-                       (if (some-> output-directory .isDirectory)
-                         (ui/open-file output-directory)
-                         (ui/run-later
-                           (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))))
+    ;; We need to save because bob reads from FS.
+    (save/async-save! render-reload-progress! render-save-progress! project changes-view
+                      (fn [successful?]
+                        (when successful?
+                          (render-build-progress! (progress/make "Bundling..."))
+                          (ui/->future 0.01
+                                       (fn []
+                                         (let [result (ui/with-progress [render-build-progress! render-build-progress!]
+                                                        (deref (bob/bundle! project prefs platform bundle-options)))]
+                                           (when-not (handle-bob-error! render-error! project result)
+                                             (if (some-> output-directory .isDirectory)
+                                               (ui/open-file output-directory)
+                                               (ui/run-later
+                                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]

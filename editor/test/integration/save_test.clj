@@ -4,15 +4,17 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [dynamo.graph :as g]
-            [support.test-support :refer [with-clean-system touch-until-new-mtime]]
+            [support.test-support :refer [with-clean-system spit-until-new-mtime touch-until-new-mtime]]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.git :as git]
             [editor.git-test :refer [with-git]]
             [editor.workspace :as workspace]
+            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.asset-browser :as asset-browser]
+            [editor.save :as save]
             [integration.test-util :as test-util]
             [util.text-util :as text-util]
             [service.log :as log])
@@ -144,7 +146,9 @@
             (is (= file (:content save)))))))))
 
 (defn- save-all! [project]
-  (project/write-save-data-to-disk! (project/dirty-save-data project) nil))
+  (let [save-data (project/dirty-save-data project)]
+    (project/write-save-data-to-disk! save-data nil)
+    (project/invalidate-save-data-source-values! save-data)))
 
 (defn- dirty? [node-id]
   (some-> (g/node-value node-id :save-data)
@@ -328,32 +332,97 @@
           (project/write-save-data-to-disk! (project/dirty-save-data project) nil)
           (is (= line-endings-before (line-endings-by-resource project))))))))
 
-(defn- touch-file
-  [workspace name]
-  (let [f (File. (workspace/project-path workspace) name)]
+(defn- workspace-file
+  ^File [workspace proj-path]
+  (assert (= \/ (first proj-path)))
+  (File. (workspace/project-path workspace) (subs proj-path 1)))
+
+(defn- spit-file!
+  [workspace proj-path content]
+  (let [f (workspace-file workspace proj-path)]
+    (fs/create-parent-directories! f)
+    (spit-until-new-mtime f content)))
+
+(def ^:private slurp-file (comp slurp workspace-file))
+
+(defn- touch-file!
+  [workspace proj-path]
+  (let [f (workspace-file workspace proj-path)]
     (fs/create-parent-directories! f)
     (touch-until-new-mtime f)))
 
-(defn- delete-file [workspace name]
-  (let [f (File. (workspace/project-path workspace) name)]
-    (fs/delete-file! f)))
+(def ^:private delete-file! (comp fs/delete-file! workspace-file))
 
-(deftest save-all-does-not-perform-resource-sync
-  ;; During save-all! we used to perform a partial resource-sync! that
-  ;; would detect file additions/removes on the workspace level - new
-  ;; files would be added to the resource-snapshot and appear in the
-  ;; asset browser - but not create new resource nodes for them.
-  ;; This could cause havoc during later, complete, resource-sync!'s.
-  ;; The file deletion below would cause an assert that an unknown
-  ;; resource was deleted.
+(deftest async-reload-test
   (with-clean-system
-    (let [[workspace project] (setup-scratch world)
-          script (test-util/resource-node project "/script/props.script")]
-      (append-lua-code-line! script)
-      (touch-file workspace "boom.md")
-      (project/save-all! project)
-      (is (nil? (workspace/find-resource workspace "/boom.md"))) ; this test used to fail - the resource was found during partial resource sync
-      (is (nil? (project/get-resource-node project "boom.md"))) ; this would succeed - no corresponding resource node
-      (delete-file workspace "boom.md")
-      (workspace/resource-sync! workspace) ; here, the assert would say a resource was removed but no corresponding resource node was found
-      (is (not (seq (g/node-value project :dirty-save-data)))))))
+    (let [[workspace project] (setup-scratch world)]
+      (test-util/run-event-loop!
+        (fn [exit-event-loop!]
+          (let [dirty-save-data-before (project/dirty-save-data project)]
+
+            ;; Edited externally.
+            (touch-file! workspace "/added_externally.md")
+            (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
+
+            (save/async-reload! progress/null-render-progress! workspace nil
+                                (fn [successful?]
+                                  (when (is successful?)
+
+                                    (testing "Save data unaffected."
+                                      (is (= dirty-save-data-before (project/dirty-save-data project))))
+
+                                    (testing "External modifications are seen by the editor."
+                                      (is (= ["-- Edited externally"] (g/node-value (project/get-resource-node project "/script/test_module.lua") :lines))))
+
+                                    (testing "Externally added files are seen by the editor."
+                                      (is (some? (workspace/find-resource workspace "/added_externally.md")))
+                                      (is (some? (project/get-resource-node project "/added_externally.md"))))
+
+                                    (testing "Can delete externally added files from within the editor."
+                                      (delete-file! workspace "/added_externally.md")
+                                      (workspace/resource-sync! workspace)
+                                      (is (nil? (workspace/find-resource workspace "/added_externally.md")))
+                                      (is (nil? (project/get-resource-node project "/added_externally.md")))))
+
+                                  (exit-event-loop!)))))))))
+
+(deftest async-save-test
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (test-util/run-event-loop!
+        (fn [exit-event-loop!]
+
+          ;; Edited by us.
+          (test-util/code-editor-source! (test-util/resource-node project "/script/props.script") "-- Edited by us")
+
+          ;; Edited externally.
+          (touch-file! workspace "/added_externally.md")
+          (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
+
+          (save/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+                            (fn [successful?]
+                              (when (is successful?)
+
+                                (testing "No files are still in need of saving."
+                                  (let [dirty-proj-paths (into #{} (map (comp resource/proj-path :resource)) (project/dirty-save-data project))]
+                                    (is (not (contains? dirty-proj-paths "/added_externally.md")))
+                                    (is (not (contains? dirty-proj-paths "/script/props.script")))
+                                    (is (not (contains? dirty-proj-paths "/script/test_module.lua")))))
+
+                                (testing "Externally modified files are not overwritten by the editor."
+                                  (is (= "-- Edited externally" (slurp (workspace/find-resource workspace "/script/test_module.lua")))))
+
+                                (testing "External modifications are seen by the editor."
+                                  (is (= ["-- Edited externally"] (g/node-value (project/get-resource-node project "/script/test_module.lua") :lines))))
+
+                                (testing "Externally added files are seen by the editor."
+                                  (is (some? (workspace/find-resource workspace "/added_externally.md")))
+                                  (is (some? (project/get-resource-node project "/added_externally.md"))))
+
+                                (testing "Can delete externally added files from within the editor."
+                                  (delete-file! workspace "/added_externally.md")
+                                  (workspace/resource-sync! workspace)
+                                  (is (nil? (workspace/find-resource workspace "/added_externally.md")))
+                                  (is (nil? (project/get-resource-node project "/added_externally.md")))))
+
+                              (exit-event-loop!))))))))

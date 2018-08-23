@@ -14,6 +14,7 @@
             [editor.progress :as progress]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
+            [editor.save :as save]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log])
@@ -232,15 +233,20 @@
 (deftest save-no-reload
   (with-clean-system
     (let [[workspace project] (setup-scratch world)]
-      (testing "Add internal file"
-        (add-file workspace "/test.collection")
-        (let [node (project/get-resource-node project "/test.collection")]
-          (g/transact
-            (g/set-property node :name "new_name"))
-          (is (has-undo? project))
-          (project/save-all! project progress/null-render-progress!)
-          (sync! workspace)
-          (is (has-undo? project)))))))
+      (test-util/run-event-loop!
+        (fn [exit-event-loop!]
+          (testing "Add internal file"
+            (add-file workspace "/test.collection")
+            (let [node (project/get-resource-node project "/test.collection")]
+              (g/transact
+                (g/set-property node :name "new_name"))
+              (is (has-undo? project))
+              (save/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+                                (fn [successful?]
+                                  (when (is successful?)
+                                    (sync! workspace)
+                                    (is (has-undo? project)))
+                                  (exit-event-loop!))))))))))
 
 (defn- find-error [type v]
   (if (= type (get-in v [:user-data :type]))
