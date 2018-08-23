@@ -274,7 +274,7 @@ platforms:
     compileCmd:     'clang++ -target i386-pc-win32-msvc -m32 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target i386-pc-win32-msvc -m32 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff -o {{tgt}}'
+    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
 
   x86_64-wine32:
     env:
