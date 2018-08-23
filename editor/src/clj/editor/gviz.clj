@@ -1,6 +1,7 @@
 (ns editor.gviz
   (:require [dynamo.graph :as g]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [editor.ui :as ui]
             [editor.fs :as fs])
   (:import [java.io File BufferedWriter StringWriter IOException]))
@@ -34,7 +35,7 @@
   (.write w s)
   (.newLine w))
 
-(defn- node-label [basis node-id]
+(defn- node-type-name [basis node-id]
   (when-let [t (g/node-type* basis node-id)]
     (:name @t)))
 
@@ -48,20 +49,31 @@
                             (concat (filter (fn [a] (or (nodes (:source a)) (nodes (:target a)))) (flatten-arcs (:sarcs graph)))
                                     (filter #(or (nodes (:source %)) (nodes (:target %))) (flatten-arcs (:tarcs graph))))
                             (map (fn [a] [(:source a) (:sourceLabel a) (:target a) (:targetLabel a)]))))
-                        (:graphs basis))))))
+                           (:graphs basis))))))
+
+(defn escape-field-label [label]
+  (-> label
+      (string/replace " " "\\ ")
+      (string/replace "<" "\\<")
+      (string/replace ">" "\\>")
+      (string/replace "|" "\\|")))
 
 (defn write-node [w basis node-id color inputs outputs]
   (let [inputs (map name (set (inputs node-id)))
         outputs (map name (set (outputs node-id)))
-        label (node-label basis node-id)
-        color (if label color "red")
-        label (or label "Unknown")
-        label (format "%s|<_nid>%s%s" label node-id
-                      (if (or (not (empty? inputs)) (not (empty? outputs)))
-                        (format "|{{%s}|{%s}}"
-                                (clojure.string/join "|" (map (fn [x] (format "<_in-%s> %s" x x)) inputs))
-                                (clojure.string/join "|" (map (fn [x] (format "<_out-%s> %s" x x)) outputs)))
-                        ""))]
+        node-label (node-type-name basis node-id)
+        color (if node-label color "red")
+        node-label (or node-label "Unknown")
+        label (let [input-fields (clojure.string/join "|" (map (fn [x] (format "<_in-%s>%s" (escape-field-label x) (escape-field-label x))) inputs))
+                    input-fields (when-not (string/blank? input-fields)
+                                   (str "{" input-fields "}"))
+                    output-fields (clojure.string/join "|" (map (fn [x] (format "<_out-%s>%s" (escape-field-label x) (escape-field-label x))) outputs))
+                    output-fields (when-not (string/blank? output-fields)
+                                    (str "{" output-fields "}"))
+                    fields (string/join "|" (remove string/blank? [input-fields output-fields]))
+                    fields (when-not (string/blank? fields)
+                             (str "{" fields "}"))]
+                (str node-label "|<_nid>" node-id (when-not (string/blank? fields) "|") fields))]
     (write w (format "%s [shape=record, label=\"%s\", color=\"%s\", fontcolor=\"%s\"];" node-id label color color))))
 
 (defn- include-overrides [basis nodes]
