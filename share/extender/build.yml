@@ -332,7 +332,7 @@ platforms:
     compileCmd:     'wine cl.exe /nologo /TP /O2 /Oy- /Z7 /MT /D__STDC_LIMIT_MACROS /DWINVER=0x0600 /D_WIN32_WINNT=0x0600 /DWIN32 /D_CRT_SECURE_NO_WARNINGS /wd4200 /W3 /EHsc {{#defines}}/D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}/I{{{.}}} {{/ext.includes}} {{#includes}}/I{{{.}}} {{/includes}} {{src}} /c /Fo{{tgt}}'
     linkCmd:        'wine link.exe {{#src}}{{{.}}} {{/src}} /OUT:{{tgt}} /NOLOGO /MANIFEST {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}/LIBPATH:{{{.}}} {{/ext.libPaths}} {{#libPaths}}/LIBPATH:{{{.}}} {{/libPaths}} {{#libs}}{{{.}}} {{/libs}} {{#ext.libs}}{{{.}}}.lib {{/ext.libs}} {{#engineLibs}}{{{.}}}.lib {{/engineLibs}}'
     libCmd:         'wine lib.exe /nologo /OUT:{{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff -o {{tgt}}'
+    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
 
   x86_64-linux:
     context:
