@@ -230,24 +230,6 @@
                      (log/without-logging
                        (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))))))))
 
-(deftest save-no-reload
-  (with-clean-system
-    (let [[workspace project] (setup-scratch world)]
-      (test-util/run-event-loop!
-        (fn [exit-event-loop!]
-          (testing "Add internal file"
-            (add-file workspace "/test.collection")
-            (let [node (project/get-resource-node project "/test.collection")]
-              (g/transact
-                (g/set-property node :name "new_name"))
-              (is (has-undo? project))
-              (save/async-save! progress/null-render-progress! progress/null-render-progress! project nil
-                                (fn [successful?]
-                                  (when (is successful?)
-                                    (sync! workspace)
-                                    (is (has-undo? project)))
-                                  (exit-event-loop!))))))))))
-
 (defn- find-error [type v]
   (if (= type (get-in v [:user-data :type]))
     true
