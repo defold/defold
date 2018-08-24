@@ -228,15 +228,16 @@
             </AnchorPane>
         </items>
       </SplitPane>
-      <HBox>
+      <HBox id="status-bar">
         <children>
           <Label id="status-label" text="Ready" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308"/>
-	  <AnchorPane id="status-pane"/>
-	  <!--
-	      status-pane will contain either:
-	      - update available label
-	      - progress controls
-	  -->
+          <StackPane id="status-pane">
+            <Label id="update-available-label" styleClass="link-label" text="Update Available" visible="false" StackPane.alignment="CENTER_RIGHT"/>
+            <HBox id="progress-hbox" visible="false">
+              <Label id="progress-percentage-label"/>
+              <ProgressBar id="progress-bar" styleClass="really-small-progress-bar"/>
+            </HBox>
+          </StackPane>
         </children>
       </HBox>
    </children>

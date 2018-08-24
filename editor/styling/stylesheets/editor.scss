@@ -97,7 +97,7 @@ Links:
   -fx-text-fill: $bright-grey;
 }
 
-.progress-hbox {
+#progress-hbox {
   .label {
     -fx-text-fill: $grey;
   }
@@ -120,4 +120,14 @@ Links:
 
 #status-pane {
   -fx-padding: 7 15 7 0;
+
+  #progress-percentage-label {
+    -fx-alignment: center-right;
+    -fx-min-width: 40px;
+    -fx-text-alignment: right;
+  }
+}
+
+#status-pane #progress-hbox {
+  -fx-background-color: $dark-grey;
 }
