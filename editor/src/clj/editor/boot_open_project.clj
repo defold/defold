@@ -76,6 +76,7 @@
     workspace))
 
 (defn- handle-application-focused! [workspace changes-view]
+  (app-view/clear-build-launch-progress!)
   (when-not (sync/sync-dialog-open?)
     (let [render-progress! (app-view/make-render-task-progress :resource-sync)]
       (save/async-reload! render-progress! workspace changes-view))))
@@ -114,20 +115,6 @@
                                                       (changes-view/refresh! changes-view render-reload-progress!))))))))))
   (install-pending-update-check-timer! stage label update-context))
 
-(defn- update-status-pane-contents! [^AnchorPane status-pane content-prospects]
-  (let [content (first (.getChildren status-pane))
-        new-content (first (filter ui/visible? content-prospects))]
-    (when (not= content new-content)
-      (ui/children! status-pane (when new-content [new-content]))
-      (when new-content
-        (ui/fill-control new-content)))))
-
-(defn- init-status-pane-timer! [^Stage stage ^AnchorPane status-pane content-prospects]
-  (let [timer (ui/->timer 5 "update-status-pane" (fn [_ _] (update-status-pane-contents! status-pane content-prospects)))]
-    (update-status-pane-contents! status-pane content-prospects)
-    (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
-    (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
-
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
                                   "This can happen if a commit was made when the .gitignore file was not properly configured.\n"
@@ -137,15 +124,7 @@
 (defn load-stage [workspace project prefs update-context newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
-        scene      (Scene. root)
-        status-pane (.lookup root "#status-pane")
-        update-available-label (doto (Label. "Update Available")
-                                 (ui/visible! false)
-                                 (ui/add-style! "link-label"))]
-
-    (init-status-pane-timer! stage status-pane
-                             [app-view/progress-hbox
-                              update-available-label])
+        scene      (Scene. root)]
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -196,7 +175,8 @@
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
       (when update-context
-        (init-pending-update-indicator! stage update-available-label project changes-view update-context))
+        (let [update-available-label (.lookup root "#status-pane #update-available-label")]
+          (init-pending-update-indicator! stage update-available-label project changes-view update-context)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)

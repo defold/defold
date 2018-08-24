@@ -400,43 +400,33 @@
 
 (def ^:private render-task-progress-ui-inflight (ref false))
 
-(defonce ^:private progress-controls [(Label.)
-                                      (doto (ProgressBar.)
-                                        (ui/add-style! "really-small-progress-bar"))])
-
-(defonce progress-hbox (doto (HBox.)
-                         (ui/visible! false)
-                         (ui/children! progress-controls)
-                         (ui/add-style! "progress-hbox")))
-
-(defn- task-progress-controls [key]
-  (case key
-    :build (reverse progress-controls)
-    [nil nil]))
-
 (defn- render-task-progress-ui! []
   (let [task-progress-snapshot (ref nil)]
     (dosync
       (ref-set render-task-progress-ui-inflight false)
       (ref-set task-progress-snapshot
                (into {} (map (juxt first (comp deref second))) app-task-progress)))
-    (let [[key progress] (first (filter (comp (complement progress/done?) second)
+    (let [status-bar (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
+          [key progress] (first (filter (comp (complement progress/done?) second)
                                         (map (juxt identity @task-progress-snapshot)
-                                             app-task-ui-priority)))]
-      (when key
-        (let [[bar percentage-label] (task-progress-controls key)]
-          (when bar (ui/render-progress-bar! progress bar))
-          (when percentage-label (ui/render-progress-percentage! progress percentage-label))))
-      ;; app-view uses first visible of progress-hbox and update-status-label to determine
-      ;; what to show in bottom right corner status pane
-      (let [show-progress-hbox? (boolean (and (not= key :main)
-                                              progress
-                                              (not (progress/done? progress))))]
-        (ui/visible! progress-hbox show-progress-hbox?))
+                                             app-task-ui-priority)))
+          show-progress-hbox? (boolean (and (not= key :main)
+                                            progress
+                                            (not (progress/done? progress))))]
+      (ui/with-controls status-bar [progress-bar progress-hbox progress-percentage-label status-label]
+        (ui/render-progress-message!
+          (if key progress (@task-progress-snapshot :main))
+          status-label)
 
-      (ui/render-progress-message!
-        (if key progress (@task-progress-snapshot :main))
-        (.lookup (.. (ui/main-stage) (getScene) (getRoot)) "#status-label")))))
+        ;; The bottom right of the status bar can show either the progress-hbox
+        ;; or the update-available-label, or both. The progress-hbox will cover
+        ;; the update-available-label if both are visible.
+        (if-not show-progress-hbox?
+          (ui/visible! progress-hbox false)
+          (do
+            (ui/visible! progress-hbox true)
+            (ui/render-progress-bar! progress progress-bar)
+            (ui/render-progress-percentage! progress progress-percentage-label)))))))
 
 (defn- render-task-progress! [key progress]
   (let [schedule-render-task-progress-ui (ref false)]
@@ -457,6 +447,9 @@
 
 (defn- report-build-launch-progress! [message]
   (render-main-task-progress! (progress/make message)))
+
+(defn clear-build-launch-progress! []
+  (render-main-task-progress! progress/done))
 
 (defn- launch-engine! [project prefs debug?]
   (try
