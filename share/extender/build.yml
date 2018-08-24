@@ -227,7 +227,7 @@ platforms:
     context:
         engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libadtruthext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx","libFBGPlatform"]
         libPaths:   ["{{dynamo_home}}/lib/x86_64-win32", "{{dynamo_home}}/ext/lib/x86_64-win32", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/amd64", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/lib/amd64", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Lib/10.0.10240.0/ucrt/x64", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x64"]
-        includes:   ["/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/include", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/include", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Include/10.0.10240.0/ucrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/winrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/um", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared"]
+        platformIncludes:   ["/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/include", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/include", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Include/10.0.10240.0/ucrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/winrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/um", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld"]
@@ -243,7 +243,7 @@ platforms:
     writeExePattern: 'dmengine.exe'
     allowedLibs:    ["(\\w[\\w\\.-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-]+"]
-    compileCmd:     'clang++ -target x86_64-pc-win32-msvc -m64 -g -gcodeview  {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
+    compileCmd:     'clang++ -target x86_64-pc-win32-msvc -m64 -g -gcodeview  {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#platformIncludes}}-isystem {{{.}}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target x86_64-pc-win32-msvc -m64 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
     windresCmd:     'windres -i {{dynamo_home}}/lib/x86_64-win32/engine.rc -O coff -o {{tgt}}'
@@ -255,7 +255,7 @@ platforms:
     context:
         engineLibs: ["libengine","libengine_service","libaxtls","libwebviewext","libadtruthext","libprofilerext","libfacebookext","libgameroomext","libiapext","libpushext","libiacext","librecord","libgameobject","libddf","libresource","libgamesys","libgraphics","libphysics","libBulletDynamics","libBulletCollision","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib","libdmglfw","libgui","libtracking","libcrashext","libliveupdate","libsound","vpx","libFBGPlatform"]
         libPaths:   ["{{dynamo_home}}/lib/win32","{{dynamo_home}}/ext/lib/win32","/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/lib", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86"]
-        includes:   ["/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/include", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/include", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Include/10.0.10240.0/ucrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/winrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/um", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared"]
+        platformIncludes:   ["/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/include", "/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/include", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Include/10.0.10240.0/ucrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/winrt", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/um", "/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared"]
         defines:    ["DM_PLATFORM_WINDOWS", "LUA_BYTECODE_ENABLE", "_CRT_SECURE_NO_WARNINGS", "_WINSOCK_DEPRECATED_NO_WARNINGS", "__STDC_LIMIT_MACROS", "WINVER=0x0600", "WIN32"]
         flags:      ["-O2", "-Wall", "-Werror=format", "-fvisibility=hidden"]
         linkFlags:  ["-O2", "-fuse-ld=lld"]
@@ -271,10 +271,10 @@ platforms:
     writeExePattern: 'dmengine.exe'
     allowedLibs:    ["(\\w[\\w\\.-]+)"]
     allowedFlags:   ["-Wa,{{comma_separated_arg}}","-W{{warning}}","-Wno-{{warning}}","-ansi","--ansi","-std-default={{arg}}","-stdlib=(libstdc\\+\\+|libc\\+\\+)","-w","-std=(c89|c99|c\\+\\+98|c\\+\\+0x|c\\+\\+11|c\\+\\+14|c\\+\\+17)","-Wp,{{comma_separated_arg}}","--extra-warnings","--warn-{{warning}}","--warn-={{warning}}","-ferror-limit={{number}}","-O([0-4]?|fast|s|z)","-rdynamic","-Wl,[-_a-zA-Z0-9,]+","-fno-rtti","-fpermissive","-Wl,/subsystem:(console|windows)","-Wl,/entry:\\w+","-f\\w[\\w-]+"]
-    compileCmd:     'clang++ -target i386-pc-win32-msvc -m32 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
+    compileCmd:     'clang++ -target i386-pc-win32-msvc -m32 -g -gcodeview {{#defines}}-D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#platformIncludes}}-isystem {{{.}}} {{/platformIncludes}} {{#ext.includes}}-I{{{.}}} {{/ext.includes}} {{#includes}}-I{{{.}}} {{/includes}} {{src}} -c -o {{tgt}}'
     linkCmd:        'clang++ -target i386-pc-win32-msvc -m32 -g -o {{tgt}} {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#libPaths}}-L{{{.}}} {{/libPaths}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} {{#src}}{{{.}}} {{/src}}'
     libCmd:         '/usr/bin/ar rcs {{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff -o {{tgt}}'
+    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
 
   x86_64-wine32:
     env:
@@ -332,7 +332,7 @@ platforms:
     compileCmd:     'wine cl.exe /nologo /TP /O2 /Oy- /Z7 /MT /D__STDC_LIMIT_MACROS /DWINVER=0x0600 /D_WIN32_WINNT=0x0600 /DWIN32 /D_CRT_SECURE_NO_WARNINGS /wd4200 /W3 /EHsc {{#defines}}/D{{{.}}} {{/defines}} {{#flags}}{{{.}}} {{/flags}} {{#ext.includes}}/I{{{.}}} {{/ext.includes}} {{#includes}}/I{{{.}}} {{/includes}} {{src}} /c /Fo{{tgt}}'
     linkCmd:        'wine link.exe {{#src}}{{{.}}} {{/src}} /OUT:{{tgt}} /NOLOGO /MANIFEST {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#ext.libPaths}}/LIBPATH:{{{.}}} {{/ext.libPaths}} {{#libPaths}}/LIBPATH:{{{.}}} {{/libPaths}} {{#libs}}{{{.}}} {{/libs}} {{#ext.libs}}{{{.}}}.lib {{/ext.libs}} {{#engineLibs}}{{{.}}}.lib {{/engineLibs}}'
     libCmd:         'wine lib.exe /nologo /OUT:{{tgt}} {{#objs}}{{{.}}} {{/objs}}'
-    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff -o {{tgt}}'
+    windresCmd:     'windres -i {{dynamo_home}}/lib/win32/engine.rc -O coff --target=pe-i386 -o {{tgt}}'
 
   x86_64-linux:
     context:
