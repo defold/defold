@@ -260,8 +260,8 @@ public class IOSBundler implements IBundler {
 
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width");
-            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
+            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
                 orientationSupport.add("LandscapeRight");
             } else {
