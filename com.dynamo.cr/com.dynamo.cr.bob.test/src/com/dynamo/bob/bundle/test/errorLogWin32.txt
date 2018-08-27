@@ -22,3 +22,4 @@ upload/king_device_id/src/kdid.cpp(4): fatal error C1083: Cannot open include fi
 
 /var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h:905:16: error: pasting formed '"Use ""ADDRINFOEXW"', an invalid preprocessing token [-Winvalid-token-paste]
 
+/usr/local/bin/lld-link: error: 9cc45f19-9064-4342-bd00-39e6e9965c82.lib(dsocket.cpp_1.o): undefined symbol: _ERR_reason_error_string

@@ -107,7 +107,9 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
 
             // Clang errors
-            assertEquals(true, checkIssue(issues, "ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h", 905, "error", "pasting formed '\"Use \"\"ADDRINFOEXW\"', an invalid preprocessing token [-Winvalid-token-paste]"));
+            assertEquals(true, checkIssue(issues, "ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h", 905, "error", "pasting formed '\"Use \"\"ADDRINFOEXW\"', an invalid preprocessing token [-Winvalid-token-paste]\n"));
+            // lld-link error
+            assertEquals(true, checkIssue(issues, "9cc45f19-9064-4342-bd00-39e6e9965c82.lib", 1, "error", "undefined symbol: _ERR_reason_error_string"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogOSX.txt");
