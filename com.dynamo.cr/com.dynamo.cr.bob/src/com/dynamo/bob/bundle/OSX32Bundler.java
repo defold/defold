@@ -28,7 +28,7 @@ public class OSX32Bundler implements IBundler {
             FileUtils.copyFile(inFile, outFile);
         }
     }
-    
+
     @Override
     public void bundleApplication(Project project, File bundleDir)
             throws IOException, CompileExceptionError {
@@ -48,7 +48,7 @@ public class OSX32Bundler implements IBundler {
         File macosDir = new File(contentsDir, "MacOS");
 
         boolean debug = project.hasOption("debug");
-        
+
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
         File defaultExe = new File(Bob.getDmengineExe(platform, debug));
@@ -76,7 +76,7 @@ public class OSX32Bundler implements IBundler {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
         }
 
-        helper.format("osx", "infoplist", "resources/osx/Info.plist", new File(contentsDir, "Info.plist"));
+        helper.format("osx", "infoplist", new File(contentsDir, "Info.plist"));
 
         // Copy icon
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);

@@ -42,6 +42,12 @@ def build(bld):
     for d in ['fonts', 'input', 'render', 'materials', 'graphics', 'scripts']:
         bld.install_files('${PREFIX}/content/builtins/%s' % d, 'builtins/%s/*' % d)
 
+    for d in ['manifests']:
+        bld.install_files('${PREFIX}/content',
+                  bld.path.ant_glob('builtins/%s/**' % d),
+                  cwd=bld.path.find_dir('builtins'),
+                  relative_trick=True)
+
     if not Options.options.skip_build_tests:
         bld.new_task_gen(name = 'bob-engine',
                          source = bld.path.ant_glob('builtins/**'),
