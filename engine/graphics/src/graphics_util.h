@@ -2,10 +2,11 @@
 #define DM_GRAPHICS_UTIL_H
 
 #include <dlib/endian.h>
+#include <vectormath/cpp/vectormath_aos.h>
 
 namespace dmGraphics
 {
-    static uint32_t PackRGBA(const Vectormath::Aos::Vector4& in_color)
+    inline uint32_t PackRGBA(const Vectormath::Aos::Vector4& in_color)
     {
         uint8_t r = (uint8_t)(in_color.getX() * 255.0f);
         uint8_t g = (uint8_t)(in_color.getY() * 255.0f);

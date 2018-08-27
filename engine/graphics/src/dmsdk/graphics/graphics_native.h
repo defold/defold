@@ -18,10 +18,11 @@
     typedef void* EGLSurface;
     typedef void* JavaVM;
     typedef void* jobject;
+    typedef void* android_app;
 #endif
 
 #if defined(_WIN32)
-    #include <windows.h>
+    #include <Windows.h>
 #else
     typedef void* HWND;
     typedef void* HGLRC;
@@ -158,6 +159,15 @@ namespace dmGraphics
      * @return jobject [type:jobject] native handle
      */
     jobject GetNativeAndroidActivity(void);
+
+    /*# get Android app object
+     *
+     * Get Android app object. Any other platform return zero.
+     *
+     * @name dmGraphics::GetNativeAndroidApp
+     * @return app [type:struct android_app*] native handle
+     */
+    android_app* GetNativeAndroidApp(void);
 
     /*# get Linux X11Window
      *

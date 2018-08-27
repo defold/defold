@@ -189,7 +189,7 @@ var LibraryGLFW = {
       // This logic comes directly from the sdl implementation. We cannot
       // call preventDefault on all keydown events otherwise onKeyPress will
       // not get called
-      if (event.keyCode === 8 /* backspace */ || event.keyCode === 9 /* tab */) {
+      if (event.keyCode === 8 /* backspace */ || event.keyCode === 9 /* tab */ || event.keyCode === 13 /* enter */) {
         event.preventDefault();
       }
     },
@@ -253,7 +253,10 @@ var LibraryGLFW = {
 
         // Audio is blocked by default in some browsers until a user performs an interaction,
         // so we need to try to resume it here (on mouse button up and touch end).
-        DefoldSoundDevice.TryResumeAudio();
+        // We must also check that the sound device is not null since it could have been stripped
+        if (DefoldSoundDevice != null) {
+            DefoldSoundDevice.TryResumeAudio();
+        }
 
         event.preventDefault();
     },
@@ -330,7 +333,10 @@ var LibraryGLFW = {
 
       // Audio is blocked by default in some browsers until a user performs an interaction,
       // so we need to try to resume it here (on mouse button up and touch end).
-      DefoldSoundDevice.TryResumeAudio();
+      // We must also check that the sound device is not null since it could have been stripped
+      if (DefoldSoundDevice != null) {
+          DefoldSoundDevice.TryResumeAudio();
+      }
     },
 
     onMouseWheel: function(event) {

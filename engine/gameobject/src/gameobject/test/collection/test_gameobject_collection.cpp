@@ -427,14 +427,14 @@ TEST_F(CollectionTest, CollectionInCollectionChildFail)
 
 TEST_F(CollectionTest, DefaultValues)
 {
-    dmGameObject::HCollection coll;
-    dmResource::Result r = dmResource::Get(m_Factory, "/defaults.collectionc", (void**) &coll);
+    dmGameObject::HCollection hcollection;
+    dmResource::Result r = dmResource::Get(m_Factory, "/defaults.collectionc", (void**) &hcollection);
     ASSERT_EQ(dmResource::RESULT_OK, r);
-    uint32_t instance_count = coll->m_LevelIndices[0].Size();
+    uint32_t instance_count = hcollection->m_Collection->m_LevelIndices[0].Size();
     ASSERT_EQ(2U, instance_count);
     for (uint32_t i = 0; i < instance_count; ++i)
     {
-        dmGameObject::HInstance instance = coll->m_Instances[coll->m_LevelIndices[0][i]];
+        dmGameObject::HInstance instance = hcollection->m_Collection->m_Instances[hcollection->m_Collection->m_LevelIndices[0][i]];
         ASSERT_NE((void*)0, instance);
         Vectormath::Aos::Point3 p = dmGameObject::GetPosition(instance);
         ASSERT_EQ(0.0f, p.getX());
@@ -446,7 +446,7 @@ TEST_F(CollectionTest, DefaultValues)
         ASSERT_EQ(0.0f, r.getZ());
         ASSERT_EQ(1.0f, r.getW());
     }
-    dmResource::Release(m_Factory, (void*) coll);
+    dmResource::Release(m_Factory, (void*) hcollection);
 
     dmGameObject::PostUpdate(m_Register);
 }

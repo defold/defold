@@ -16,23 +16,27 @@ Build utility for installing external packages, building engine, editor and cr
 Run build.py --help for help
 """
 
-PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0".split()
+PACKAGES_ALL="protobuf-2.3.0 waf-1.5.9 gtest-1.8.0 vectormathlibrary-r1649 junit-4.6 protobuf-java-2.3.0 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-v0.9.7-p1 facebook-4.7.0 facebook-gameroom-2017-08-14 luajit-2.0.5 tremolo-0.0.8 PVRTexLib-4.18.0 webp-0.5.0 defold-robot-0.1.0 bullet-2.77".split()
 PACKAGES_HOST="protobuf-2.3.0 gtest-1.8.0 cg-3.1 vpx-v0.9.7-p1 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 tremolo-0.0.8".split()
 PACKAGES_EGGS="protobuf-2.3.0-py2.5.egg pyglet-1.1.3-py2.5.egg gdata-2.0.6-py2.6.egg Jinja2-2.6-py2.6.egg Markdown-2.6.7-py2.7.egg".split()
-PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8".split()
-PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8".split()
-PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8".split()
-PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0".split()
-PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0".split()
-PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-23 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16".split()
-PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0".split()
+PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 bullet-2.77".split()
+PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-23 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77".split()
+PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
+
 PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
 PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
+PACKAGES_WIN32_TOOLCHAIN="Microsoft-Visual-Studio-14-0"
+PACKAGES_WIN32_SDK_8="WindowsKits-8.1"
+PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -403,6 +407,16 @@ class Configuration(object):
         xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
 
+        def download_sdk(url, targetfolder, tmpname=None): # tmpname is the top folder name inside the archive, which you wish to rename
+            if not os.path.exists(targetfolder):
+                dlpath = self._download(url)
+                parent_folder = os.path.split(targetfolder)[0]
+                if tmpname is None:
+                    self._extract_tgz(dlpath, parent_folder)
+                else:
+                    tmpfolder = os.path.join(parent_folder, tmpname)
+                    os.rename(tmpfolder, targetfolder)
+
         if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
             # macOS SDK
             tgtfolder = join(self.ext, 'SDKs', PACKAGES_MACOS_SDK)
@@ -429,6 +443,15 @@ class Configuration(object):
                 tmpfolder = join(self.ext, 'SDKs')
                 self._extract_tgz(dlpath, tmpfolder)
                 os.rename(join(tmpfolder, 'iPhoneOS.sdk'), tgtfolder)
+
+        if 'win32' in target_platform and not ('win32' in self.host):
+            win32_sdk_folder = join(self.ext, 'SDKs', 'Win32')
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
+            targetfolder = join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') # let's avoid spaces in the paths
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), targetfolder, 'Microsoft Visual Studio 14.0' )
+
+            # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
     def _form_ems_path(self):
         path = ''
@@ -763,6 +786,12 @@ class Configuration(object):
             self.build_docs()
         if not self.skip_builtins:
             self.build_builtins()
+        if '--static-analyze' in self.waf_options:
+            scan_output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
+            report_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'report'))
+            self.exec_command(['python', './scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
+            print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
+            shutil.rmtree(scan_output_dir)
 
     def build_go(self):
         exe_ext = '.exe' if 'win32' in self.target_platform else ''
@@ -1747,11 +1776,18 @@ instructions.configure=\
         self._log('[exec] %s' % arg_str)
 
         if sys.stdout.isatty():
-            # If not on CI, we want the colored output, and we get the output as it runs
-            process = subprocess.Popen(arg_list, stdout = sys.stdout, stderr = sys.stderr, **kwargs)
+            # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
+            if not 'stdout' in kwargs:
+                kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
+            process = subprocess.Popen(arg_list, **kwargs)
             output = process.communicate()[0]
+            if process.returncode != 0:
+                self._log(output)
         else:
             # On the CI machines, we make sure we produce a steady stream of output
+            # However, this also makes us lose the color information
+            if 'stdout' in kwargs:
+                del kwargs['stdout']
             process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
 
             output = ''
@@ -1835,7 +1871,7 @@ instructions.configure=\
         return env
 
     def exec_env_command(self, args, **kwargs):
-        return self._exec_command(args, shell = False, env = self._form_env(), **kwargs)
+        return self._exec_command(args, shell = False, stdout = None, env = self._form_env(), **kwargs)
 
     def exec_env_shell_command(self, args, **kwargs):
         return self._exec_command(args, shell = True, env = self._form_env(), **kwargs)

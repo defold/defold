@@ -301,6 +301,7 @@ namespace dmProfile
         {
             if (!g_IsInitialized)
             {
+                m_Sample = 0;
                 return;
             }
 
@@ -323,7 +324,7 @@ namespace dmProfile
 
         inline ~ProfileScope()
         {
-            if (!g_IsInitialized)
+            if (m_Sample == 0)
             {
                 return;
             }
