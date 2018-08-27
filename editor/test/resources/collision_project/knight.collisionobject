@@ -1,0 +1,30 @@
+collision_shape: ""
+type: COLLISION_OBJECT_TYPE_KINEMATIC
+mass: 0.0
+friction: 0.1
+restitution: 0.5
+group: "enemy"
+mask: "projectile"
+mask: "enemy"
+embedded_collision_shape {
+  shapes {
+    shape_type: TYPE_SPHERE
+    position {
+      x: 0.0
+      y: 5.0
+      z: 0.0
+    }
+    rotation {
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    }
+    index: 0
+    count: 1
+  }
+  data: 10.0
+}
+linear_damping: 0.0
+angular_damping: 0.0
+locked_rotation: false
