@@ -674,36 +674,25 @@ public class SpineSceneUtil {
                 MeshAttachment mesh = new MeshAttachment();
                 mesh.path = path;
 
-                if ((scene.spineVersion != null) && (scene.spineVersion.compareTo("3.3.07") >= 0)) {
-                    // spineVersion >= 3.3.07
-                    if (type.equals("region")) {
-                        scene.loadRegion(attNode, mesh, bone);
-                    } else if (type.equals("mesh")) {
-                        // For each vertex either an x,y pair or, for a weighted mesh, first
-                        // the number of bones which influence the vertex, then for that
-                        // many bones: bone index, bind position X, bind position Y, weight.
-                        // A mesh is weighted if the number of vertices > number of UVs.
-                        // http://esotericsoftware.com/spine-json-format
-                        long verticesSize = getIteratorSize(attNode.get("vertices").getElements());
-                        long uvSize = getIteratorSize(attNode.get("uvs").getElements());
-                        if (verticesSize > uvSize) {
-                            scene.loadMesh(attNode, mesh, bone, true);
-                        } else {
-                            scene.loadMesh(attNode, mesh, bone, false);
-                        }
-                    } else {
-                        mesh = null;
-                    }
-                } else {
-                    if (type.equals("region")) {
-                        scene.loadRegion(attNode, mesh, bone);
-                    } else if (type.equals("mesh")) {
-                        scene.loadMesh(attNode, mesh, bone, false);
-                    } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
+                if (type.equals("region")) {
+                    scene.loadRegion(attNode, mesh, bone);
+                } else if (type.equals("mesh")) {
+                    // For each vertex either an x,y pair or, for a weighted mesh, first
+                    // the number of bones which influence the vertex, then for that
+                    // many bones: bone index, bind position X, bind position Y, weight.
+                    // A mesh is weighted if the number of vertices > number of UVs.
+                    // http://esotericsoftware.com/spine-json-format
+                    long verticesSize = getIteratorSize(attNode.get("vertices").getElements());
+                    long uvSize = getIteratorSize(attNode.get("uvs").getElements());
+                    if (verticesSize > uvSize) {
                         scene.loadMesh(attNode, mesh, bone, true);
                     } else {
-                        mesh = null;
+                        scene.loadMesh(attNode, mesh, bone, false);
                     }
+                } else if (type.equals("skinnedmesh") || type.equals("weightedmesh")) {
+                    scene.loadMesh(attNode, mesh, bone, true);
+                } else {
+                    mesh = null;
                 }
 
                 // Silently ignore unsupported types
