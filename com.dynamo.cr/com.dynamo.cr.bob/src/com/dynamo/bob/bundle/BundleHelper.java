@@ -241,6 +241,7 @@ public class BundleHelper {
     private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(fatal error|error|warning|note).*?:\\s*(.+)"); // CL.exe
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
+    private static Pattern resourceIssueLinkerLLDLINKre = Pattern.compile("^(?:.*lld-link): (warning|error): ([\\w-.]+)\\([\\w.]+\\): (.*)");
 
     // Some errors/warning have an extra line before or after the the reported error, which is also very good to have
     private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
@@ -350,6 +351,15 @@ public class BundleHelper {
         }
 
         parseLogClang(lines, issues);
+
+        for (int count = 0; count < lines.length; ++count) {
+            String line = lines[count];
+            Matcher m = resourceIssueLinkerLLDLINKre.matcher(line);
+            if (m.matches()) {
+                // Groups: severity, resource, message
+                issues.add(new BundleHelper.ResourceInfo(m.group(1), m.group(2), "", m.group(3)));
+            }
+        }
     }
 
     public static void parseLog(String platform, String log, List<ResourceInfo> issues) {
