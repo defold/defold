@@ -354,10 +354,6 @@ public class BundleHelper {
 
         for (int count = 0; count < lines.length; ++count) {
             String line = lines[count];
-            // Compare with some lookahead if it matches
-            for (int i = 1; i <= 2 && (count+i) < lines.length; ++i) {
-                line += "\n" + lines[count+i];
-            }
             Matcher m = resourceIssueLinkerLLDLINKre.matcher(line);
             if (m.matches()) {
                 // Groups: severity, resource, message

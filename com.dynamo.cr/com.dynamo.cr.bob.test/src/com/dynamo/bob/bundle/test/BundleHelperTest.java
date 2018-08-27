@@ -109,7 +109,9 @@ public class BundleHelperTest {
             // Clang errors
             assertEquals(true, checkIssue(issues, "ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h", 905, "error", "pasting formed '\"Use \"\"ADDRINFOEXW\"', an invalid preprocessing token [-Winvalid-token-paste]\n"));
             // lld-link error
-            assertEquals(true, checkIssue(issues, "9cc45f19-9064-4342-bd00-39e6e9965c82.lib", 1, "error", "undefined symbol: _ERR_reason_error_string"));
+            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _ERR_reason_error_string"));
+            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _ERR_clear_error"));
+            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _BIO_new_mem_buf"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogOSX.txt");
