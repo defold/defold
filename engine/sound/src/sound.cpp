@@ -1031,7 +1031,7 @@ namespace dmSound
         }
     }
 
-    static Result MixInstances(const MixContext* mix_context) {
+    static void MixInstances(const MixContext* mix_context) {
         DM_PROFILE(Sound, "MixInstances")
         SoundSystem* sound = g_SoundSystem;
 
@@ -1067,23 +1067,18 @@ namespace dmSound
             }
         }
 
-        uint32_t num_playing = 0;
         uint32_t instances = sound->m_Instances.Size();
         for (uint32_t i = 0; i < instances; ++i) {
             SoundInstance* instance = &sound->m_Instances[i];
             if (instance->m_Playing || instance->m_FrameCount > 0)
             {
                 MixInstance(mix_context, instance);
-                num_playing += dmSound::IsMuted(instance) ? 0 : 1;
             }
 
             if (instance->m_EndOfStream && instance->m_FrameCount == 0) {
                 instance->m_Playing = 0;
             }
-
         }
-
-        return num_playing > 0 ? RESULT_OK : RESULT_NOTHING_TO_PLAY;
     }
 
     static void Master(const MixContext* mix_context) {
@@ -1190,7 +1185,7 @@ namespace dmSound
         uint32_t total_buffers = free_slots;
         while (free_slots > 0) {
             MixContext mix_context(current_buffer, total_buffers);
-            Result result = MixInstances(&mix_context);
+            MixInstances(&mix_context);
 
             // DEF-3130 Don't request the audio focus when we know nothing it being played
             // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
