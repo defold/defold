@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
@@ -44,6 +46,8 @@ public class BundleHelper {
     private File buildDir;
     private File appDir;
     private Map<String, Map<String, Object>> propertiesMap;
+
+    private static Logger logger = Logger.getLogger(BundleHelper.class.getName());
 
     public BundleHelper(Project project, Platform platform, File bundleDir, String appDirSuffix) throws IOException {
         BobProjectProperties projectProperties = project.getProjectProperties();
@@ -111,24 +115,25 @@ public class BundleHelper {
         return map;
     }
 
-    URL getResource(String category, String key, String defaultValue) {
-        BobProjectProperties projectProperties = project.getProjectProperties();
+    private IResource getResource(String category, String key) throws IOException {
         File projectRoot = new File(project.getRootDirectory());
-        String s = projectProperties.getStringValue(category, key);
-        if (s != null && s.trim().length() > 0) {
-            try {
-                return new File(projectRoot, s).toURI().toURL();
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
+        Map<String, Object> c = propertiesMap.get(category);
+        if (c != null) {
+            Object o = c.get(key);
+            if (o != null && o instanceof String) {
+                String s = (String)o;
+                if (s != null && s.trim().length() > 0) {
+                    return project.getResource(s);
+                }
             }
-        } else {
-            return getClass().getResource(defaultValue);
         }
+        throw new IOException(String.format("No resource found for %s.%s", category, key));
     }
 
-    public BundleHelper format(Map<String, Object> properties, String templateCategory, String templateKey, String defaultTemplate, File toFile) throws IOException {
-        URL templateURL = getResource(templateCategory, templateKey, defaultTemplate);
-        Template template = Mustache.compiler().compile(IOUtils.toString(templateURL));
+    public BundleHelper format(Map<String, Object> properties, String templateCategory, String templateKey, File toFile) throws IOException {
+        IResource resource = getResource(templateCategory, templateKey);
+        String data = new String(resource.getContent());
+        Template template = Mustache.compiler().compile(data);
         StringWriter sw = new StringWriter();
         template.execute(this.propertiesMap, properties, sw);
         sw.flush();
@@ -136,10 +141,9 @@ public class BundleHelper {
         return this;
     }
 
-    public BundleHelper format(String templateCategory, String templateKey, String defaultTemplate, File toFile) throws IOException {
-        return format(new HashMap<String, Object>(), templateCategory, templateKey, defaultTemplate, toFile);
+    public BundleHelper format(String templateCategory, String templateKey, File toFile) throws IOException {
+        return format(new HashMap<String, Object>(), templateCategory, templateKey, toFile);
     }
-
 
     public BundleHelper copyBuilt(String name) throws IOException {
         FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
@@ -214,7 +218,7 @@ public class BundleHelper {
         } else {
             properties.put("orientation-support", "sensor");
         }
-        format(properties, "android", "manifest", "resources/android/AndroidManifest.xml", manifestFile);
+        format(properties, "android", "manifest", manifestFile);
     }
 
     public static class ResourceInfo
@@ -233,10 +237,11 @@ public class BundleHelper {
     };
 
     // These regexp's works for both cpp and javac errors, warnings and note entries associated with a resource.
-    private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:\\/tmp\\/job[0-9]*\\/)?(?:upload|build)\\/([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
+    private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload|build)\\/)|(?:.*\\/drive_c\\/))?([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
     private static Pattern resourceIssueCLRe = Pattern.compile("^(?:upload|build)\\/([^:]+)\\(([0-9]+)\\)([0-9]*):\\s*(fatal error|error|warning|note).*?:\\s*(.+)"); // CL.exe
     private static Pattern resourceIssueLinkerLINKRe = Pattern.compile("^.+?\\.lib\\((.+?)\\)\\s:([0-9]*)([0-9]*)\\s*(error|warning|note).*?:\\s*(.+)"); // LINK.exe (the line/column numbers won't really match anything)
     private static Pattern resourceIssueLinkerCLANGRe = Pattern.compile("^(Undefined symbols for architecture [\\w]+:\\n.*?referenced from:\\n.*)");
+    private static Pattern resourceIssueLinkerLLDLINKre = Pattern.compile("^(?:.*lld-link): (warning|error): ([\\w-.]+)\\([\\w.]+\\): (.*)");
 
     // Some errors/warning have an extra line before or after the the reported error, which is also very good to have
     private static Pattern resourceIssueLineBeforeRe = Pattern.compile("^.*upload\\/([^:]+):\\s*(.+)");
@@ -346,6 +351,15 @@ public class BundleHelper {
         }
 
         parseLogClang(lines, issues);
+
+        for (int count = 0; count < lines.length; ++count) {
+            String line = lines[count];
+            Matcher m = resourceIssueLinkerLLDLINKre.matcher(line);
+            if (m.matches()) {
+                // Groups: severity, resource, message
+                issues.add(new BundleHelper.ResourceInfo(m.group(1), m.group(2), "", m.group(3)));
+            }
+        }
     }
 
     public static void parseLog(String platform, String log, List<ResourceInfo> issues) {
@@ -428,6 +442,9 @@ public class BundleHelper {
                         IResource exceptionResource = issueResource == null ? extManifestResource : issueResource;
                         int severity = info.severity.contains("error") ? Info.SEVERITY_ERROR : info.severity.equals("warning") ? Info.SEVERITY_WARNING : Info.SEVERITY_INFO;
                         exception.addIssue(severity, exceptionResource, info.message, info.lineNumber);
+
+                        String msg = String.format("%s(%d): %s", info.resource != null ? info.resource : "<unknown>", info.lineNumber, info.message);
+                        logger.log(severity == Info.SEVERITY_ERROR ? Level.SEVERE : Level.WARNING, msg);
 
                         // The first resource generating errors should be related - we can use it to give context to the raw log.
                         if (contextResource == null && issueResource != null) {

@@ -59,9 +59,12 @@ public class OSXBundlerTest {
         createFile(contentRoot, "builtins/render/default.render_script", "");
         createFile(contentRoot, "builtins/render/default.display_profiles", "");
         createFile(contentRoot, "builtins/input/default.gamepads", "");
+        createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
+        createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
+        createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", "");
         createFile(contentRoot, "input/game.input_binding", "");
     }
-    
+
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
         Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
         project.setPublisher(new NullPublisher(new PublisherSettings()));
