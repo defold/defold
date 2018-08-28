@@ -1586,10 +1586,9 @@ namespace dmGameObject
         return 0;
     }
 
-    /* deletes a set of game object instance
+    /* DEPRECATED deletes a set of game object instance
      * Delete all game objects simultaneously as listed in table.
      * The table values (not keys) should be game object ids (hashes).
-     * Note: Deprecated, use go.delete instead.
      *
      * @name go.delete_all
      * @param [ids] [type:table] table with values of instance ids (hashes) to be deleted
