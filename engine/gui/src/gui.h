@@ -1129,7 +1129,7 @@ namespace dmGui
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
 
-    Result SetNodeParent(HScene scene, HNode node, HNode parent);
+    Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform);
 
     Result CloneNode(HScene scene, HNode node, HNode* out_node);
 
