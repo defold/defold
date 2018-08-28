@@ -545,8 +545,29 @@ namespace dmSound
             return RESULT_NO_SUCH_GROUP;
         }
 
+        // If all playing sounds is currently at gain zero
+        // we can safely do a hard reset of the group gain
+        bool reset = true;
+        uint32_t instances = sound->m_Instances.Size();
+        for (uint32_t i = 0; i < instances; ++i)
+        {
+            SoundInstance* instance = &sound->m_Instances[i];
+            if (instance->m_Group != group_hash)
+            {
+                continue;
+            }
+            if (instance->m_Playing || instance->m_FrameCount > 0)
+            {
+                if (instance->m_Gain.m_Prev == 0.0)
+                {
+                    continue;
+                }
+                reset = false;
+                break;
+            }
+        }
         SoundGroup* group = &sound->m_Groups[*index];
-        group->m_Gain.m_Next = gain;
+        group->m_Gain.Set(gain, reset);
         return RESULT_OK;
     }
 
@@ -1173,7 +1194,10 @@ namespace dmSound
 
             // DEF-3130 Don't request the audio focus when we know nothing it being played
             // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
-            if (result == RESULT_OK && sound->m_IsSoundActive == false)
+            // DEF-3138 If you queue silent audio to the device it will still be registered by Android
+            // as music is playing, therefore we need to acquire the audio focus even if the resulting
+            // sound of our mix is silence.
+            if (sound->m_IsSoundActive == false)
             {
                 sound->m_IsSoundActive = true;
                 (void) PlatformAcquireAudioFocus();
@@ -1181,7 +1205,7 @@ namespace dmSound
 
             Master(&mix_context);
 
-            // DEF-2540: By not feeding the sound device, you'll get more slots free,
+            // DEF-2540: Make sure to keep feeding the sound device, if you don't you'll get more slots free,
             // thus updating sound (redundantly) every call, resulting in a huge performance hit.
             // Also, you'll fast forward the sounds.
             sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
