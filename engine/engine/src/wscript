@@ -118,7 +118,11 @@ def build(bld):
         jars = android_jar_paths)
 
     if 'win32' in bld.env.BUILD_PLATFORM:
-        obj.source.append('engine.rc')
+        obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
+
+    if 'win32' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'defold.ico')
+        bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'engine.rc')
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
