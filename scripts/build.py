@@ -612,6 +612,11 @@ class Configuration(object):
             paths = _findjars(jardir, external_jars)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
+            # Win32 resource files
+            engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
+            defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
+            self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
+
             # JavaScript files
             # js-web-pre-x files
             jsdir = os.path.join(self.dynamo_home, 'share')
