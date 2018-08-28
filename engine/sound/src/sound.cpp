@@ -1091,19 +1091,35 @@ namespace dmSound
         SoundGroup* master = &sound->m_Groups[*master_index];
         float* mix_buffer = master->m_MixBuffer;
 
+        if (master->m_Gain.IsZero())
+        {
+            memset(out, 0, n * sizeof(float) * 2);
+            return;
+        }
+
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
+            if (g->m_MixBuffer == 0x0)
+            {
+                continue;
+            }
+            if (g->m_NameHash == MASTER_GROUP_HASH)
+            {
+                continue;
+            }
+            if (g->m_Gain.IsZero())
+            {
+                continue;
+            }
             Ramp ramp = GetRamp(mix_context, &g->m_Gain, n);
-            if (g->m_MixBuffer && g->m_NameHash != MASTER_GROUP_HASH) {
-                for (uint32_t i = 0; i < n; i++) {
-                    float gain = ramp.GetValue(i);
-                    gain = dmMath::Clamp(gain, 0.0f, 1.0f);
+            for (uint32_t i = 0; i < n; i++) {
+                float gain = ramp.GetValue(i);
+                gain = dmMath::Clamp(gain, 0.0f, 1.0f);
 
-                    float s1 = g->m_MixBuffer[2 * i];
-                    float s2 = g->m_MixBuffer[2 * i + 1];
-                    mix_buffer[2 * i] += s1 * gain;
-                    mix_buffer[2 * i + 1] += s2 * gain;
-                }
+                float s1 = g->m_MixBuffer[2 * i];
+                float s2 = g->m_MixBuffer[2 * i + 1];
+                mix_buffer[2 * i] += s1 * gain;
+                mix_buffer[2 * i + 1] += s2 * gain;
             }
         }
 
