@@ -198,7 +198,7 @@ public:
             uint32_t entry_ptr = m_HashTable[bucket_index];
             if (entry_ptr == 0xffffffff)
             {
-                m_HashTable[bucket_index] = entry - m_InitialEntries; // Store the index of the entry
+                m_HashTable[bucket_index] = (uint32_t)(uintptr_t)(entry - m_InitialEntries); // Store the index of the entry
             }
             else
             {
@@ -212,7 +212,7 @@ public:
                 assert(prev_entry->m_Next == 0xffffffff);
 
                 // Link prev entry to this
-                prev_entry->m_Next = entry - m_InitialEntries;
+                prev_entry->m_Next = (uint32_t)(uintptr_t)(entry - m_InitialEntries);
             }
         }
 
@@ -297,7 +297,7 @@ public:
                 if (prev_e == 0)
                 {
                     // Relink
-                    m_HashTable[bucket_index] = e->m_Next;;
+                    m_HashTable[bucket_index] = e->m_Next;
                 }
                 else
                 {
