@@ -27,6 +27,9 @@
 
 namespace dmGui
 {
+    const dmhash_t DEFAULT_LAYER = dmHashString64("");
+    const dmhash_t DEFAULT_LAYOUT = dmHashString64("");
+
     const uint16_t INVALID_INDEX = 0xffff;
 
     const uint32_t INITIAL_SCENE_COUNT = 32;

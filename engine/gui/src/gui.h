@@ -44,12 +44,12 @@ namespace dmGui
     /**
      * Default layer id
      */
-    const dmhash_t DEFAULT_LAYER = dmHashString64("");
+    extern const dmhash_t DEFAULT_LAYER;
 
     /**
      * Default layout id
      */
-    const dmhash_t DEFAULT_LAYOUT = dmHashString64("");
+    extern const dmhash_t DEFAULT_LAYOUT;
 
     /**
      * Animation
