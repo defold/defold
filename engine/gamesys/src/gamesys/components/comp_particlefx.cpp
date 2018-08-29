@@ -300,7 +300,7 @@ namespace dmGameSystem
             if (c.m_AddedToUpdate)
             {
                 uint32_t emitter_count = dmParticle::GetEmitterCount(c.m_ParticlePrototype);
-                for (int j = 0; j < emitter_count; ++j)
+                for (uint32_t j = 0; j < emitter_count; ++j)
                 {
                     dmParticle::EmitterRenderData* render_data;
                     dmParticle::GetEmitterRenderData(particle_context, c.m_ParticleInstance, j, &render_data);

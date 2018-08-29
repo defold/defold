@@ -523,7 +523,7 @@ namespace dmGui
         }
 
         const uint8_t* read_buffer = buffer+buffer_size;
-        for (int y = 0; y < height; ++y)
+        for (uint32_t y = 0; y < height; ++y)
         {
             read_buffer -= stride;
             memcpy(out_buffer, read_buffer, stride);
