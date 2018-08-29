@@ -37,6 +37,7 @@ namespace dmGameSystem
                 return dmWebP::TEXTURE_ENCODE_FORMAT_L8A8;
             default:
                 assert(0);
+                return (dmWebP::TextureEncodeFormat)-1;
         }
     }
 
@@ -80,6 +81,7 @@ namespace dmGameSystem
             */
             default:
                 assert(0);
+                return (dmGraphics::TextureFormat)-1;
         }
     }
 
