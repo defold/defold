@@ -102,7 +102,7 @@ public:
      */
     uint32_t Capacity()
     {
-        return m_InitialEntriesEnd - m_InitialEntries;
+        return (uint32_t)(uintptr_t)(m_InitialEntriesEnd - m_InitialEntries);
     }
 
     /**
@@ -430,13 +430,13 @@ private:
         // Empty list of entries?
         if (m_FreeEntries == 0xffffffff)
         {
-            m_FreeEntries = e - m_InitialEntries;
+            m_FreeEntries = (uint32_t)(uintptr_t)(e - m_InitialEntries);
             e->m_Next = 0xffffffff;
         }
         else
         {
             e->m_Next = m_FreeEntries;
-            m_FreeEntries = e - m_InitialEntries;
+            m_FreeEntries = (uint32_t)(uintptr_t)(e - m_InitialEntries);
         }
     }
 
