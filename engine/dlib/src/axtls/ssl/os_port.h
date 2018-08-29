@@ -160,7 +160,9 @@ EXP_FUNC int STDCALL ax_open(const char *pathname, int flags);
 	#else
 		#error "Unsupported platform"
 	#endif
-	#define be64toh(x) ((((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32))
+	#if !defined(be64toh)
+		#define be64toh(x) ((((uint64_t)ntohl(x)) << 32) | ntohl(x >> 32))
+	#endif
 #else
 	#define be64toh(x) (x)
 #endif
