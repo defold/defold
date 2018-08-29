@@ -323,7 +323,6 @@ namespace dmGameObject
         HRegister regist = collection->m_Register;
 
         dmMutex::Lock(regist->m_Mutex);
-        bool found = false;
         for (uint32_t i = 0; i < regist->m_Collections.Size(); ++i)
         {
             // TODO This design is not really thought through, since it modifies the m_Collections
@@ -339,7 +338,6 @@ namespace dmGameObject
                     regist->m_Collections[j] = regist->m_Collections[j+1];
                 }
                 regist->m_Collections.SetSize(regist->m_Collections.Size() - 1);
-                found = true;
                 break;
             }
         }
