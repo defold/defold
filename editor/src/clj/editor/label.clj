@@ -179,7 +179,7 @@
             offset (pivot-offset pivot size)
             lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))]
         (assoc scene :renderable {:render-fn render-tris
-                                  :tags #{:label}
+                                  :tags #{:text}
                                   :batch-key {:blend-mode blend-mode :gpu-texture gpu-texture :material-shader material-shader}
                                   :select-batch-key _node-id
                                   :user-data {:material-shader material-shader
@@ -190,7 +190,7 @@
                                   :passes [pass/transparent pass/selection]}
                :children [{:node-id _node-id
                            :renderable {:render-fn render-lines
-                                        :tags #{:label :outline}
+                                        :tags #{:text :outline}
                                         :batch-key ::outline
                                         :user-data {:line-data lines}
                                         :passes [pass/outline]}}]))
