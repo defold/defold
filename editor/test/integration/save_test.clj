@@ -14,7 +14,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.asset-browser :as asset-browser]
-            [editor.save :as save]
+            [editor.disk :as disk]
             [integration.test-util :as test-util]
             [util.text-util :as text-util]
             [service.log :as log])
@@ -364,7 +364,7 @@
             (touch-file! workspace "/added_externally.md")
             (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
 
-            (save/async-reload! progress/null-render-progress! workspace nil
+            (disk/async-reload! progress/null-render-progress! workspace nil
                                 (fn [successful?]
                                   (when (is successful?)
 
@@ -399,7 +399,7 @@
           (touch-file! workspace "/added_externally.md")
           (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
 
-          (save/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+          (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
                             (fn [successful?]
                               (when (is successful?)
 
