@@ -104,14 +104,14 @@
                         (when (dialogs/make-pending-update-dialog stage)
                           (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
                             (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
-                                  render-save-progress! (app-view/make-render-task-progress :save-all)
-                                  focus-owner (ui/disable-ui)]
+                                  render-save-progress! (app-view/make-render-task-progress :save-all)]
+                              (ui/disable-ui!)
                               (disk/async-save! render-reload-progress! render-save-progress! project nil
                                                 (fn [successful?]
                                                   (if successful?
                                                     (updater/restart!)
                                                     (do
-                                                      (ui/enable-ui focus-owner)
+                                                      (ui/enable-ui!)
                                                       (changes-view/refresh! changes-view render-reload-progress!))))))))))
   (install-pending-update-check-timer! stage label update-context))
 
