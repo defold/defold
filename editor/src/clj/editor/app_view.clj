@@ -44,7 +44,7 @@
             [util.http-server :as http-server]
             [editor.scene :as scene]
             [editor.live-update-settings :as live-update-settings]
-            [editor.save :as save]
+            [editor.disk :as disk]
             [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
@@ -662,7 +662,7 @@ If you do not specifically require different script states, consider changing th
       (clear-errors!)
       (console/clear-console!)
       ;; We need to save because bob reads from FS.
-      (save/async-save! render-reload-progress! render-save-progress! project changes-view
+      (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                         (fn [successful?]
                           (when successful?
                             (render-build-progress! (progress/make "Building..."))
@@ -1314,13 +1314,13 @@ If you do not specifically require different script states, consider changing th
            ;; Check if there are locked files below the project folder before proceeding.
            ;; If so, we abort the sync and notify the user, since this could cause problems.
            (when (changes-view/ensure-no-locked-files! changes-view)
-             (save/async-save! render-reload-progress! render-save-progress! project changes-view
+             (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                                (fn [successful?]
                                  (when successful?
                                    (changes-view/regular-sync! changes-view project)))))
 
            ;; The project is not a Git repo. Offer to push it to our servers.
-           (save/async-save! render-reload-progress! render-save-progress! project changes-view
+           (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                              (fn [successful?]
                                (when successful?
                                  (changes-view/first-sync! changes-view project))))))))
@@ -1329,7 +1329,7 @@ If you do not specifically require different script states, consider changing th
   (run [app-view changes-view project]
        (let [render-reload-progress! (make-render-task-progress :resource-sync)
              render-save-progress! (make-render-task-progress :save-all)]
-         (save/async-save! render-reload-progress! render-save-progress! project changes-view))))
+         (disk/async-save! render-reload-progress! render-save-progress! project changes-view))))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection] (context-resource app-view selection))
@@ -1469,7 +1469,7 @@ If you do not specifically require different script states, consider changing th
         render-build-progress! (make-render-task-progress :build)]
     (clear-errors!)
     ;; We need to save because bob reads from FS.
-    (save/async-save! render-reload-progress! render-save-progress! project changes-view
+    (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                       (fn [successful?]
                         (when successful?
                           (render-build-progress! (progress/make "Bundling..."))
