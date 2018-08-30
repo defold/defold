@@ -1714,35 +1714,44 @@
           (throw @return)
           @return))))
 
-(defn ui-disabled?
-  []
-  (run-now (.. (main-stage) getScene getRoot isDisabled)))
+(defn- set-scene-disable! [^Scene scene disable?]
+  (when-some [root (.getRoot scene)]
+    (.setDisable root disable?)
+    ;; Menus are unaffected by the disabled root, so we must explicitly disable them.
+    (doseq [^Menu menu (mapcat #(.getMenus ^MenuBar %) (.lookupAll root "MenuBar"))]
+      (.setDisable menu disable?))))
 
-(def disabled-ui-event-filter
-  (event-handler e (.consume e)))
+(defn- push-disable-ui! [disable-ui-focus-owner-stack]
+  (assert (on-ui-thread?))
+  (let [scene (some-> (main-stage) .getScene)
+        focus-owner (some-> scene focus-owner)]
+    (when (and (some? scene)
+               (empty? disable-ui-focus-owner-stack))
+      (set-scene-disable! scene true))
+    (conj disable-ui-focus-owner-stack focus-owner)))
 
-(defn disable-ui
-  []
-  (let [scene       (.getScene (main-stage))
-        focus-owner (focus-owner scene)
-        root        (.getRoot scene)]
-    (.setDisable root true)
-    focus-owner))
+(defn- pop-disable-ui! [disable-ui-focus-owner-stack]
+  (assert (on-ui-thread?))
+  (when (= 1 (count disable-ui-focus-owner-stack))
+    (when-some [scene (some-> (main-stage) .getScene)]
+      (set-scene-disable! scene false)
+      (when-some [^Node focus-owner (peek disable-ui-focus-owner-stack)]
+        (.requestFocus focus-owner))))
+  (pop disable-ui-focus-owner-stack))
 
-(defn enable-ui
-  [^Node focus-owner]
-  (let [scene       (.getScene (main-stage))
-        root        (.getRoot scene)]
-    (.setDisable root false)
-    (when focus-owner
-      (.requestFocus focus-owner))))
+(def ^:private disable-ui-focus-owner-stack-volatile (volatile! []))
 
-(defmacro with-disabled-ui [& body]
-  `(let [focus-owner# (run-now (disable-ui))]
-     (try
-       ~@body
-       (finally
-         (run-now (enable-ui focus-owner#))))))
+(defn ui-disabled? []
+  (run-now
+    (not (empty? (deref disable-ui-focus-owner-stack-volatile)))))
+
+(defn disable-ui! []
+  (run-later
+    (vswap! disable-ui-focus-owner-stack-volatile push-disable-ui!)))
+
+(defn enable-ui! []
+  (run-later
+    (vswap! disable-ui-focus-owner-stack-volatile pop-disable-ui!)))
 
 (defn handle
   [f]

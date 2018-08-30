@@ -40,29 +40,32 @@
   (let [project-path (workspace/project-path workspace)
         dependencies (workspace/dependencies workspace)
         snapshot-cache (workspace/snapshot-cache workspace)
-        success-promise (promise)]
+        success-promise (promise)
+        complete! (fn [success?]
+                    (ui/enable-ui!)
+                    (render-progress! progress/done)
+                    (reset! reload-job-atom nil)
+                    (deliver success-promise success?))
+        fail! (fn [error]
+                (error-reporting/report-exception! error)
+                (complete! false))]
     (future
       (try
+        (ui/disable-ui!)
         (render-progress! (progress/make "Loading external changes..."))
         (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
           (render-progress! progress/done)
           (ui/run-later
-            (let [success? (try
-                             (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
-                             (let [diff (workspace/resource-sync! workspace [] render-progress! (:snapshot snapshot-info) (:map snapshot-info))]
-                               (when (some? changes-view)
-                                 (changes-view/refresh-after-resource-sync! changes-view render-progress! diff)))
-                             true
-                             (catch Throwable error
-                               (error-reporting/report-exception! error)
-                               false))]
-              (reset! reload-job-atom nil)
-              (deliver success-promise success?))))
+            (try
+              (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
+              (let [diff (workspace/resource-sync! workspace [] render-progress! (:snapshot snapshot-info) (:map snapshot-info))]
+                (when (some? changes-view)
+                  (changes-view/refresh-after-resource-sync! changes-view render-progress! diff)))
+              (complete! true)
+              (catch Throwable error
+                (fail! error)))))
         (catch Throwable error
-          (render-progress! progress/done)
-          (error-reporting/report-exception! error)
-          (reset! reload-job-atom nil)
-          (deliver success-promise false))))
+          (fail! error))))
     success-promise))
 
 (defn async-reload!
