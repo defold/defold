@@ -47,7 +47,7 @@ public class LocalNotificationReceiver extends WakefulBroadcastReceiver {
 
                 ApplicationInfo info = context.getApplicationInfo();
 
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(context, Push.NOTIFICATION_CHANNEL_ID)
                     .setContentTitle(extras.getString("title"))
                     .setContentText(extras.getString("message"))
                     .setWhen(System.currentTimeMillis())

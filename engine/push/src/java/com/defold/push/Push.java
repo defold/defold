@@ -23,6 +23,7 @@ import org.json.JSONObject;
 import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.NotificationChannel;
 import android.app.PendingIntent;
 import android.app.AlarmManager;
 import android.content.ComponentName;
@@ -36,6 +37,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Build;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
@@ -50,6 +52,7 @@ public class Push {
     public static final String ACTION_FORWARD_PUSH = "com.defold.push.FORWARD";
     public static final String SAVED_PUSH_MESSAGE_NAME = "saved_push_message";
     public static final String SAVED_LOCAL_MESSAGE_NAME = "saved_local_message";
+    public static final String NOTIFICATION_CHANNEL_ID = "com.dynamo.android.notificaion_channel";
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
     private String senderId = "";
@@ -62,8 +65,19 @@ public class Push {
 
     private Activity activity;
 
-    public void start(Activity activity, IPushListener listener, String senderId) {
+    public void start(Activity activity, IPushListener listener, String senderId, String projectTitle) {
         Log.d(TAG, String.format("Push started (%s %s)", listener, senderId));
+
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, projectTitle, NotificationManager.IMPORTANCE_DEFAULT);
+            channel.enableVibration(true);
+            channel.setDescription("");
+
+            NotificationManager notificationManager = (NotificationManager)activity.getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+        }
         this.activity = activity;
         this.listener = listener;
         this.senderId = senderId;
@@ -531,9 +545,10 @@ public class Push {
                 text = "New message";
             }
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
                     .setContentTitle(title)
                     .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                     .setContentText(text);
 
             // Find icons if they were supplied, fallback to app icon
