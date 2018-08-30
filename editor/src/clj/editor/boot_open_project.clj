@@ -29,7 +29,7 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
-            [editor.save :as save]
+            [editor.disk :as disk]
             [editor.search-results-view :as search-results-view]
             [editor.sync :as sync]
             [editor.system :as system]
@@ -79,7 +79,7 @@
   (app-view/clear-build-launch-progress!)
   (when-not (sync/sync-dialog-open?)
     (let [render-progress! (app-view/make-render-task-progress :resource-sync)]
-      (save/async-reload! render-progress! workspace changes-view))))
+      (disk/async-reload! render-progress! workspace changes-view))))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -106,7 +106,7 @@
                             (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
                                   render-save-progress! (app-view/make-render-task-progress :save-all)
                                   focus-owner (ui/disable-ui)]
-                              (save/async-save! render-reload-progress! render-save-progress! project nil
+                              (disk/async-save! render-reload-progress! render-save-progress! project nil
                                                 (fn [successful?]
                                                   (if successful?
                                                     (updater/restart!)
