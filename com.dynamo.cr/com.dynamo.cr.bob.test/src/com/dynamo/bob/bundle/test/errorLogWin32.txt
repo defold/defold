@@ -19,3 +19,13 @@ LINK : fatal error LNK1257: code generation failed
 
 kdid.cpp
 upload/king_device_id/src/kdid.cpp(4): fatal error C1083: Cannot open include file: 'unistd.h': No such file or directory
+
+/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h:905:16: error: pasting formed '"Use ""ADDRINFOEXW"', an invalid preprocessing token [-Winvalid-token-paste]
+
+/usr/local/bin/lld-link: error: 975380ca-f446-4945-87db-070ee587b91c.lib(dopenssl.cpp_0.o): undefined symbol: _RAND_poll
+/usr/local/bin/lld-link: error: 975380ca-f446-4945-87db-070ee587b91c.lib(dopenssl.cpp_0.o): undefined symbol: _RAND_bytes
+/usr/local/bin/lld-link: warning: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): locally defined symbol imported: ___std_terminate (defined in libvcruntime.lib(frame.obj))
+/usr/local/bin/lld-link: warning: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): locally defined symbol imported: __CxxThrowException@8 (defined in libvcruntime.lib(throw.obj))
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _ERR_reason_error_string
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _ERR_clear_error
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _BIO_new_mem_buf
