@@ -36,13 +36,18 @@
 
 (def ^:private tag-toggles-info
   [{:label "Collision Shapes" :tag :collision-shape}
-   {:label "GUI Elements" :tag :gui}
+   #_{:label "GUI Elements" :tag :gui}
+   {:label "GUI Bounds" :tag :gui-bounds}
+   {:label "GUI Shapes" :tag :gui-shape}
+   {:label "GUI Particle Effects" :tag :gui-particlefx}
+   {:label "GUI Spine Scenes" :tag :gui-spine}
+   {:label "GUI Text" :tag :gui-text}
    {:label "Models" :tag :model}
    {:label "Particle Effects" :tag :particlefx}
    {:label "Skeletons" :tag :skeleton}
    {:label "Spine Scenes" :tag :spine}
    {:label "Sprites" :tag :sprite}
-   {:label "Text" :tag :label}
+   {:label "Text" :tag :text}
    {:label "Tile Maps" :tag :tilemap}])
 
 (def toggleable-tags (into #{} (map :tag) tag-toggles-info))
