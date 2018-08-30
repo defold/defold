@@ -827,7 +827,8 @@
                        user-data {:geom-data vs
                                   :line-data lines
                                   :uv-data uvs
-                                  :color color+alpha}]
+                                  :color color+alpha
+                                  :renderable-tags #{:gui-shape}}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
                      (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
@@ -907,7 +908,8 @@
                        user-data {:geom-data vs
                                   :line-data lines
                                   :uv-data uvs
-                                  :color color+alpha}]
+                                  :color color+alpha
+                                  :renderable-tags #{:gui-shape}}]
                    (cond-> user-data
                      (not= :clipping-mode-none clipping-mode)
                      (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible})))))
@@ -973,7 +975,7 @@
                    {:line-data lines
                     :text-data text-data
                     :override-material-shader font-shader
-                    :renderable-tags #{:label}})))
+                    :renderable-tags #{:gui-text}})))
   (output text-layout g/Any :cached (g/fnk [size font-data text line-break text-leading text-tracking]
                                            (font/layout-text (:font-map font-data) text line-break (first size) text-tracking text-leading)))
   (output aabb-size g/Any :cached (g/fnk [text-layout]
@@ -1022,13 +1024,23 @@
    :icon ""
    :label ""})
 
-(defn- add-renderable-tags [scene tags]
+(defn- update-scene-tree [scene pred transform]
   (cond-> scene
     (contains? scene :children)
-    (update :children (partial mapv (fn [child] (add-renderable-tags child tags))))
+    (update :children (partial mapv (fn [child] (update-scene-tree child pred transform))))
 
-    (contains? scene :renderable)
-    (update-in [:renderable :tags] set/union tags)))
+    (pred scene)
+    (transform)))
+
+(defn- add-renderable-tags [scene tags]
+  (update-scene-tree scene
+                     #(contains? % :renderable)
+                     #(update-in % [:renderable :tags] set/union tags)))
+
+(defn- replace-renderable-tags [scene replacements]
+  (update-scene-tree scene
+                     #(contains? % :renderable)
+                     #(update-in % [:renderable :tags] (fn [tags] (set (map (fn [tag] (get replacements tag tag)) tags))))))
 
 (g/defnode TemplateNode
   (inherits GuiNode)
@@ -1216,7 +1228,7 @@
     (g/fnk [spine-scene-scene color+alpha clipping-mode clipping-inverted clipping-visible]
       (let [user-data (-> spine-scene-scene
                         (get-in [:renderable :user-data])
-                        (assoc :renderable-tags #{:spine})
+                        (assoc :renderable-tags #{:gui-spine})
                         (assoc :color (premul color+alpha)))]
         (cond-> user-data
           (not= :clipping-mode-none clipping-mode)
@@ -1295,6 +1307,7 @@
                                               (-> source-scene
                                                   (move-topmost)
                                                   (add-renderable-tags #{:gui})
+                                                  (replace-renderable-tags {:particlefx :gui-particlefx})
                                                   (update :renderable
                                                           (fn [r]
                                                             (-> r
@@ -1865,7 +1878,7 @@
         scene {:node-id _node-id
                :aabb aabb
                :renderable {:render-fn render-lines
-                            :tags #{:gui :gui-layout-guide}
+                            :tags #{:gui :gui-bounds}
                             :passes [pass/transparent]
                             :batch-key nil
                             :user-data {:line-data [[0 0 0] [w 0 0] [w 0 0] [w h 0] [w h 0] [0 h 0] [0 h 0] [0 0 0]]
