@@ -1490,7 +1490,7 @@ If you do not specifically require different script states, consider changing th
              bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
          (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
-(defn- fetch-libraries [workspace project prefs]
+(defn- fetch-libraries [workspace project prefs changes-view]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -1499,17 +1499,18 @@ If you do not specifically require different script states, consider changing th
                                                     ""
                                                     "Please verify internet connection and try again."]))
       (future
-        (ui/with-disabled-ui
-          (ui/with-progress [render-fn (make-render-task-progress :fetch-libraries)]
-            (error-reporting/catch-all!
-              (when (workspace/dependencies-reachable? library-uris (partial login/login prefs))
-                (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fn)]
-                  (ui/run-later
-                    (workspace/install-validated-libraries! workspace library-uris lib-states)
-                    (workspace/resource-sync! workspace)))))))))))
+        (error-reporting/catch-all!
+          (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
+            (when (workspace/dependencies-reachable? library-uris (partial login/login prefs))
+              (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fetch-progress!)
+                    render-install-progress! (make-render-task-progress :resource-sync)]
+                (render-install-progress! (progress/make "Installing updated libraries..."))
+                (ui/run-later
+                  (workspace/install-validated-libraries! workspace library-uris lib-states)
+                  (disk/async-reload! render-install-progress! workspace changes-view))))))))))
 
 (handler/defhandler :fetch-libraries :global
-  (run [workspace project prefs] (fetch-libraries workspace project prefs)))
+  (run [workspace project prefs changes-view] (fetch-libraries workspace project prefs changes-view)))
 
 (defn- create-live-update-settings! [workspace]
   (let [project-path (workspace/project-path workspace)
