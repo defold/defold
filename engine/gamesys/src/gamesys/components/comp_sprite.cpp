@@ -27,7 +27,6 @@
 using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
-    const uint32_t MAX_CONSTANTS = 4;
 
     struct SpriteComponent
     {

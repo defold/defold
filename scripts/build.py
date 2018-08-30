@@ -611,6 +611,11 @@ class Configuration(object):
             paths = _findjars(jardir, external_jars)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
+            # Win32 resource files
+            engine_rc = os.path.join(self.dynamo_home, 'lib/%s/defold.ico' % platform)
+            defold_ico = os.path.join(self.dynamo_home, 'lib/%s/engine.rc' % platform)
+            self._add_files_to_zip(zip, [engine_rc, defold_ico], self.dynamo_home, topfolder)
+
             # JavaScript files
             # js-web-pre-x files
             jsdir = os.path.join(self.dynamo_home, 'share')
@@ -1775,13 +1780,18 @@ instructions.configure=\
         self._log('[exec] %s' % arg_str)
 
         if sys.stdout.isatty():
-            # If not on CI, we want the colored output, and we get the output as it runs
+            # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
+            if not 'stdout' in kwargs:
+                kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
             process = subprocess.Popen(arg_list, **kwargs)
             output = process.communicate()[0]
             if process.returncode != 0:
                 self._log(output)
         else:
             # On the CI machines, we make sure we produce a steady stream of output
+            # However, this also makes us lose the color information
+            if 'stdout' in kwargs:
+                del kwargs['stdout']
             process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
 
             output = ''
@@ -1865,7 +1875,7 @@ instructions.configure=\
         return env
 
     def exec_env_command(self, args, **kwargs):
-        return self._exec_command(args, shell = False, env = self._form_env(), **kwargs)
+        return self._exec_command(args, shell = False, stdout = None, env = self._form_env(), **kwargs)
 
     def exec_env_shell_command(self, args, **kwargs):
         return self._exec_command(args, shell = True, env = self._form_env(), **kwargs)

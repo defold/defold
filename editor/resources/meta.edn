@@ -471,6 +471,7 @@
    :preserve-extension true,
    :help "custom Info.plist template file",
    :label "Info.plist"
+   :default "/builtins/manifests/ios/Info.plist",
    :path ["ios" "infoplist"]}
   {:type :resource,
    :filter "png",
@@ -597,6 +598,7 @@
    :filter "xml",
    :preserve-extension true,
    :help "custom AndroidManifest.xml template file",
+   :default "/builtins/manifests/android/AndroidManifest.xml",
    :path ["android" "manifest"]}
   {:type :string,
    :help
@@ -628,6 +630,7 @@
    :preserve-extension true,
    :help "custom Info.plist template file",
    :label "Info.plist",
+   :default "/builtins/manifests/osx/Info.plist",
    :path ["osx" "infoplist"]}
   {:type :resource,
    :filter "ico",
