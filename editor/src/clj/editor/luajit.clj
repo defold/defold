@@ -29,7 +29,11 @@
   [proj-path ^File input ^File output]
   (let [{:keys [exit out err]} (shell/sh (luajit-exec-path)
                                          "-bgf"
-                                         (str "=" proj-path)
+                                         ; Take the last 59 chars from the path as Lua chunkname.
+                                         ; Prefix "=" which tells Lua this is a literal file path,
+                                         ; the total length is now at maximum 60 chars (which is the
+                                         ; maximum length of chunknames in Lua).
+                                         (str "=" (subs proj-path (max 0 (- (count proj-path) 59) )))
                                          (.getAbsolutePath input)
                                          (.getAbsolutePath output)
                                          :env {"LUA_PATH" (str (luajit-lua-path) "/?.lua")})]

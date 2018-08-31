@@ -66,12 +66,12 @@ public class IapGooglePlayActivity extends Activity {
         this.finish();
     }
 
-    private void buy(String product) {
+    private void buy(String product, String productType) {
     	// Flush any pending items, in order to be able to buy the same (new) product again
     	processPendingConsumables();
 
         try {
-            Bundle buyIntentBundle = service.getBuyIntent(3, getPackageName(), product, "inapp", "");
+            Bundle buyIntentBundle = service.getBuyIntent(3, getPackageName(), product, productType, "");
             int response = getResponseCodeFromBundle(buyIntentBundle);
             if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
                 hasPendingPurchases = true;
@@ -100,6 +100,10 @@ public class IapGooglePlayActivity extends Activity {
             }
 
             JSONObject pd = new JSONObject(purchaseData);
+            if (!pd.isNull("autoRenewing")) {
+                Log.i(IapGooglePlay.TAG, "Will not consume purchase since it is a subscription.");
+                return true;
+            }
             String token = pd.getString("purchaseToken");
             int consumeResponse = service.consumePurchase(3, getPackageName(), token);
             if (consumeResponse == IapJNI.BILLING_RESPONSE_RESULT_OK) {
@@ -145,6 +149,8 @@ public class IapGooglePlayActivity extends Activity {
     // Make buy response codes for all consumables not yet processed.
     private void processPendingConsumables() {
         try {
+            // Note: subscriptions cannot be consumed
+            // https://developer.android.com/google/play/billing/api.html#subs
             Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
             int response = getResponseCodeFromBundle(items);
             if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
@@ -170,12 +176,19 @@ public class IapGooglePlayActivity extends Activity {
         bundle.putString("action", Action.RESTORE.toString());
 
         try {
-            Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
-            response = getResponseCodeFromBundle(items);
+            Bundle allItems = new Bundle();
 
-            if (response == IapJNI.BILLING_RESPONSE_RESULT_OK) {
-                bundle.putBundle("items", items);
+            Bundle items = service.getPurchases(3, getPackageName(), "inapp", null);
+            if (getResponseCodeFromBundle(items) == IapJNI.BILLING_RESPONSE_RESULT_OK) {
+                allItems.putAll(items);
             }
+
+            Bundle subscriptions = service.getPurchases(3, getPackageName(), "subs", null);
+            if (getResponseCodeFromBundle(subscriptions) == IapJNI.BILLING_RESPONSE_RESULT_OK) {
+                allItems.putAll(subscriptions);
+            }
+
+            bundle.putBundle("items", allItems);
         } catch (RemoteException e) {
             Log.e(IapGooglePlay.TAG, "Failed to restore purchases", e);
         }
@@ -205,37 +218,36 @@ public class IapGooglePlayActivity extends Activity {
         final Action action = Action.valueOf(intent.getAction());
         this.autoFinishTransactions = extras.getBoolean(IapGooglePlay.PARAM_AUTOFINISH_TRANSACTIONS);
 
-        serviceConn = new ServiceConnection() {
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-                service = null;
-            }
-
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder serviceBinder) {
-                service = IInAppBillingService.Stub.asInterface(serviceBinder);
-                if (action == Action.BUY) {
-                    buy(extras.getString(IapGooglePlay.PARAM_PRODUCT));
-                } else if (action == Action.RESTORE) {
-                    restore();
-                } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {
-                    processPendingConsumables();
-                    finish();
-                } else if (action == Action.FINISH_TRANSACTION) {
-                    consume(extras.getString(IapGooglePlay.PARAM_PURCHASE_DATA));
-                    finish();
-                }
-            }
-        };
-
         Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
         serviceIntent.setPackage("com.android.vending");
         if (!getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
             // service available to handle that Intent
+            serviceConn = new ServiceConnection() {
+                @Override
+                public void onServiceDisconnected(ComponentName name) {
+                    service = null;
+                }
+    
+                @Override
+                public void onServiceConnected(ComponentName name, IBinder serviceBinder) {
+                    service = IInAppBillingService.Stub.asInterface(serviceBinder);
+                    if (action == Action.BUY) {
+                        buy(extras.getString(IapGooglePlay.PARAM_PRODUCT), extras.getString(IapGooglePlay.PARAM_PRODUCT_TYPE));
+                    } else if (action == Action.RESTORE) {
+                        restore();
+                    } else if (action == Action.PROCESS_PENDING_CONSUMABLES) {
+                        processPendingConsumables();
+                        finish();
+                    } else if (action == Action.FINISH_TRANSACTION) {
+                        consume(extras.getString(IapGooglePlay.PARAM_PURCHASE_DATA));
+                        finish();
+                    }
+                }
+            };
+    
             bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
         } else {
             // Service will never be connected; just send unavailability message
-            serviceConn = null;
             Bundle bundle = new Bundle();
             bundle.putString("action", intent.getAction());
             bundle.putInt(IapGooglePlay.RESPONSE_CODE, IapJNI.BILLING_RESPONSE_RESULT_BILLING_UNAVAILABLE);
@@ -271,7 +283,7 @@ public class IapGooglePlayActivity extends Activity {
         if( !isDone )
         {
             Intent intent = getIntent();
-            
+
             if( intent != null && intent.getComponent().getClassName().equals( getClass().getName() ) )
             {
                 Log.v(IapGooglePlay.TAG, "There's still an intent left: " + intent.getAction() );
@@ -279,10 +291,15 @@ public class IapGooglePlayActivity extends Activity {
             }
         }
 
-        super.onDestroy();
         if (serviceConn != null) {
-            unbindService(serviceConn);
+            try
+            {
+                unbindService(serviceConn);
+            } catch (IllegalArgumentException e) {
+                Log.wtf(IapGooglePlay.TAG, "Unable to unbind service", e);
+            }
         }
+        super.onDestroy();
     }
 
     // NOTE: Code from "trivialdrivesample"

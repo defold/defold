@@ -39,13 +39,18 @@
   ([project scene parent]
     (add-inv-clipper! project scene parent false))
   ([project scene parent visible?]
-    (add-clipper! project scene parent true visible?)))
+   (add-clipper! project scene parent true visible?)))
+
+(defn- make-counter []
+  (let [n (atom -1)]
+    #(swap! n inc)))
 
 (defn- add-layers! [project scene layers]
-  (let [parent (g/node-value scene :layers-node)]
+  (let [parent (g/node-value scene :layers-node)
+        counter (make-counter)]
     (g/transact
       (for [layer layers]
-        (gui/add-layer project scene parent layer nil)))))
+        (gui/add-layer project scene parent layer (counter) nil)))))
 
 (defn- set-layer! [node-id layer]
   (g/set-property! node-id :layer layer))
@@ -61,23 +66,23 @@
         gpu {:sb (->stencil-buffer)
              :fb (->frame-buffer)}
         scenes (filter #(contains? shapes (:node-id %)) (tree-seq (constantly true) :children scene))]
-    (-> (reduce (fn [gpu s]
-                  (let [colors (shapes (:node-id s))
+    (-> (reduce (fn [gpu scene]
+                  (let [colors (shapes (:node-id scene))
                         shape (reduce bit-or colors)
-                        c (get-in s [:renderable :user-data :clipping-state])
-                        ref (bit-and (:ref-val c) (:mask c))
-                        test (mapv (fn [t p] (and t (= ref (bit-and p (:mask c)))))
+                        clipping-state (get-in scene [:renderable :user-data :clipping-state])
+                        ref (bit-and (:ref-val clipping-state) (:mask clipping-state))
+                        test (mapv (fn [t p] (and t (= ref (bit-and p (:mask clipping-state)))))
                                    (map #(bit-test shape %) (reverse (range 8)))
                                    (:sb gpu))]
                     (cond-> gpu
-                      (:clear c)
+                      (:clear clipping-state)
                       (assoc :sb (->stencil-buffer))
 
                       (reduce #(or %1 %2) test)
                       (->
                         (update :sb (partial mapv (fn [t v] (if t
-                                                              (bit-or (bit-and (:ref-val c) (:write-mask c))
-                                                                      (bit-and v (bit-not (:write-mask c))))
+                                                              (bit-or (bit-and (:ref-val clipping-state) (:write-mask clipping-state))
+                                                                      (bit-and v (bit-not (:write-mask clipping-state))))
                                                               v))
                                              test))
                         (update :fb (fn [fb]
@@ -86,25 +91,38 @@
                                                              (bit-or (bit-and test p)
                                                                      (bit-and (bit-not test) fb))
                                                              fb))
-                                              (:color-mask c) fb colors))))))))
-                gpu scenes)
+                                              (:color-mask clipping-state) fb colors))))))))
+                gpu
+                scenes)
       :fb)))
 
 (defn- clipping-states [s]
-  (into {} (map (fn [s] (let [ud (get-in s [:renderable :user-data])]
-                          [(:node-id s) [(:clipping-state ud) (:clipping-child-state ud)]]))
-                (tree-seq (constantly true) :children s))))
+  (into {}
+        (map (fn [s]
+               (let [ud (get-in s [:renderable :user-data])]
+                 [(:node-id s) [(:clipping-state ud) (:clipping-child-state ud)]])))
+        (tree-seq (comp seq :children) :children s)))
 
-(defn- scene->clipping-states [scene-id]
+(defn- clipper-clipping-states [s]
+  (into {}
+        (keep (fn [s]
+                (let [ud (get-in s [:renderable :user-data])]
+                  (when (contains? ud :clipping) ; we only test actual clipper scenes
+                    [(:node-id s) [(:clipping-state ud) (:clipping-child-state ud)]]))))
+        (tree-seq (comp seq :children) :children s)))
+
+(defn- scene->clipper-clipping-states [scene-id]
   (-> (g/node-value scene-id :scene)
-    clipping-states))
+    clipper-clipping-states))
 
 (defn- assert-clipping [scene-id states]
+  ;; states is {node-id [ref-val mask write-mask child-ref child-mask child-write-mask]
+  ;;            ...}
   (let [expected (into {} (map (fn [[nid [ref mask write-mask child-ref child-mask child-write-mask]]]
                                  [nid [{:ref-val ref :mask mask :write-mask write-mask :color-mask [false false false false]}
                                        {:ref-val child-ref :mask child-mask :write-mask child-write-mask :color-mask [true true true true]}]])
                                states))
-        actual (-> (scene->clipping-states scene-id)
+        actual (-> (scene->clipper-clipping-states scene-id)
                  (select-keys (keys expected)))
         [exp act both] (data/diff expected actual)]
     (is (nil? exp))
@@ -113,7 +131,7 @@
 (defn- assert-ref-vals [scene-id ref-vals]
   (let [expected ref-vals
         actual (into {} (map (fn [[nid [s cs]]] [nid (:ref-val s)])
-                             (-> (scene->clipping-states scene-id)
+                             (-> (scene->clipper-clipping-states scene-id)
                                (select-keys (keys expected)))))
         [exp act both] (data/diff expected actual)]
     (is (nil? exp))
@@ -124,9 +142,10 @@
 
 (defn- visual-seq [scene]
   (->> scene
-    scene-seq
-    (filter (fn [s] (let [wm (get-in s [:renderable :user-data :clipping-state :write-mask])]
-                      (or (nil? wm) (= 0 wm)))))))
+       scene-seq
+       (filter (fn [s]
+                 (let [wm (get-in s [:renderable :user-data :clipping-state :write-mask])]
+                         (or (nil? wm) (= 0 wm)))))))
 
 (defn- clipper-seq [scene]
   (->> scene
@@ -137,27 +156,31 @@
 (defn- seq->render-order [scene-seq]
   (into {} (map (fn [s] [(:node-id s) (get-in s [:renderable :index])]) scene-seq)))
 
+
+
 (defn- assert-render-order [scene-id order]
-  (let [actual (-> (g/node-value scene-id :scene)
-                 visual-seq
-                 seq->render-order
-                 (select-keys order)
-                 ((partial sort-by (fn [[nid order]] order)))
-                 ((partial map first))
-                 vec)]
-    (is (= actual order))))
+  (testing "render order"
+    (let [actual (-> (g/node-value scene-id :scene)
+                     visual-seq
+                     seq->render-order
+                     (select-keys order)
+                     ((partial sort-by (fn [[nid order]] order)))
+                     ((partial map first))
+                     vec)]
+      (is (= actual order)))))
 
 (defn- assert-clipping-order [scene-id clipper visual]
-  (let [scene (g/node-value scene-id :scene)
-        clipper-order (-> scene
-                        clipper-seq
-                        seq->render-order
-                        (get clipper))
-        visual-order (-> scene
-                       visual-seq
-                       seq->render-order
-                       (get visual))]
-    (is (< clipper-order visual-order))))
+  (testing "clipping order"
+    (let [scene (g/node-value scene-id :scene)
+          clipper-order (-> scene
+                            clipper-seq
+                            seq->render-order
+                            (get clipper))
+          visual-order (-> scene
+                           visual-seq
+                           seq->render-order
+                           (get visual))]
+      (is (< clipper-order visual-order)))))
 
 ;; Test the clipping states of the following hierarchy:
 ;; - a (inv)
@@ -172,6 +195,15 @@
       (assert-clipping scene {a [2r10000000 2r00000000 2r11111111 2r00000000 2r10000000 0x0]
                               b [2r00000001 2r10000000 2r11111111 2r00000001 2r10000011 0x0]
                               c [2r00000010 2r00000000 2r11111111 2r00000010 2r00000011 0x0]}))))
+
+;; Test clipping states of the following hierarchy:
+;; - a
+;; That is, no clipping of a.
+(deftest no-clipping
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
+          a (add-box! project scene nil)]
+      (is (= (get (clipping-states (g/node-value scene :scene)) a) [nil nil])))))
 
 ;; Test the clipping states of the following hierarchy:
 ;; - a
@@ -291,7 +323,7 @@
           b (add-clipper! project scene a)
           c (add-inv-clipper! project scene nil)
           d (add-inv-clipper! project scene c)
-          states (scene->clipping-states scene)
+          states (scene->clipper-clipping-states scene)
           prev (first (get states b))
           inv (second (get states d))]
       (is (= (bit-and (:ref-val inv) (:mask inv)) (bit-and (:ref-val prev) (:mask inv)))))))
@@ -338,6 +370,28 @@
                             b [0          2r00011000 0         ]
                             c [0          0          2r00110000]})]
       (is (= fb [2r11000000 2r00011000 2r00100000])))))
+
+;; Hierarchy:
+;;
+;; - a (non-inv)
+;;   - b (box)
+;;     - c (box) <--- c should be clipped according to a
+;;
+;; Shapes:
+;;
+;; a [RRRR    ]
+;; b [  GG    ]
+;; c [   BB   ]
+(deftest render-non-inv-box
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
+          a (add-clipper! project scene nil false true)
+          b (add-box! project scene a)
+          c (add-box! project scene b)
+          fb (render scene {a [2r11110000 0          0         ]
+                            b [0          2r00110000 0         ]
+                            c [0          0          2r00011000]})]
+      (is (= fb [2r11000000 2r00100000 2r00010000])))))
 
 ;; Hierarchy:
 ;;
@@ -559,7 +613,7 @@
 ;;   - b (layer1)
 ;;
 ;; Expected order: c, b, a
-(deftest render-order-both-layers
+(deftest render-order-both-layers-2
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
           c (add-box! project scene nil)
@@ -661,6 +715,25 @@
       (assert-render-order scene [b c a]))))
 
 ;; Render order for the following hierarchy:
+;; - a (layer 2)
+;;   - b (clipper, no layer, not visible)
+;;     - c (layer 1)
+;;     - d (no layer)
+;;
+;; Expected order: c, d, a
+(deftest render-order-complex-3
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/gui/empty.gui")
+          a (add-box! project scene nil)
+          b (add-clipper! project scene a false false)
+          c (add-box! project scene b)
+          d (add-box! project scene b)]
+      (add-layers! project scene ["layer1" "layer2"])
+      (set-layer! a "layer2")
+      (set-layer! c "layer1")
+      (assert-render-order scene [c d a]))))
+
+;; Render order for the following hierarchy:
 ;; - a
 ;;   - b
 ;;   - c (clipper)
@@ -695,7 +768,7 @@
 ;; Render order for the following hierarchy:
 ;; - a (clipper)
 ;;   - b (inv-clipper)
-;;     - c (clipper)
+;;   - c (clipper)
 ;;   - d (inv-clipper)
 ;;
 ;; Expected order: a, b, c, d
@@ -749,12 +822,14 @@
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
           a (add-clipper! project scene nil false true)
-          b (add-clipper! project scene nil false true)]
-      (loop [i 7
-             parent b]
-        (when (> i 0)
-          (let [x (add-clipper! project scene parent false true)]
-            (recur (dec i) x))))
+          b (add-clipper! project scene nil false true)
+          c (add-clipper! project scene b false true)
+          d (add-clipper! project scene c false true)
+          e (add-clipper! project scene d false true)
+          f (add-clipper! project scene e false true)
+          g (add-clipper! project scene f false true)
+          h (add-clipper! project scene g false true)
+          i (add-clipper! project scene h false true)]
       (is (get-in (scene->clipper-states scene) [b :clear])))))
 
 ;; Same as above, but with inverteds.
@@ -791,13 +866,16 @@
 (deftest overflow
   (test-util/with-loaded-project
     (let [scene (test-util/resource-node project "/gui/empty.gui")
-          a (add-clipper! project scene nil false true)]
-      (loop [i 9
-             parent a]
-        (when (> i 0)
-          (let [x (add-clipper! project scene parent false true)]
-            (recur (dec i) x))))
-      (is (g/error-fatal? (g/node-value scene :scene))))))
+          a (add-clipper! project scene nil false true)
+          b (add-clipper! project scene a false true)
+          c (add-clipper! project scene b false true)
+          d (add-clipper! project scene c false true)
+          e (add-clipper! project scene d false true)
+          f (add-clipper! project scene e false true)
+          g (add-clipper! project scene f false true)
+          h (add-clipper! project scene g false true)
+          i (add-clipper! project scene h false true)]
+      (is (g/error-fatal? (g/error? (g/node-value scene :scene)))))))
 
 ;; Verify that an overflow is handled with an error.
 ;;

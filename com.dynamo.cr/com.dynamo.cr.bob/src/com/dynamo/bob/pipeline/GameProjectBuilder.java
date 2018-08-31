@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -135,6 +136,8 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        boolean shouldPublish = project.option("liveupdate", "false").equals("true");
+        project.createPublisher(shouldPublish);
         TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
@@ -208,7 +211,7 @@ public class GameProjectBuilder extends Builder<Void> {
         return builder.build();
     }
 
-    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(Collection<String> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, ManifestBuilder manifestBuilder, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder);
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
@@ -220,27 +223,20 @@ public class GameProjectBuilder extends Builder<Void> {
             archiveBuilder.add(s, compress);
         }
 
-        Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
         archiveIndex.close();
         archiveData.close();
 
-        // Populate the zip archive with the resource pack
+        // Populate publisher with the resource pack
         for (File fhandle : (new File(resourcePackDirectory.toAbsolutePath().toString())).listFiles()) {
             if (fhandle.isFile()) {
                 project.getPublisher().AddEntry(fhandle.getName(), fhandle);
             }
         }
-
-        project.getPublisher().Publish();
-        File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
-        if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
-            FileUtils.deleteDirectory(resourcePackDirectoryHandle);
-        }
     }
 
-    private static void findResources(Project project, Message node, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
+    private static void findResources(Project project, Message node, Collection<String> resources) throws CompileExceptionError {
         List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
 
         for (FieldDescriptor fieldDescriptor : fields) {
@@ -249,32 +245,108 @@ public class GameProjectBuilder extends Builder<Void> {
             boolean isResource = (Boolean) options.getField(resourceDesc);
             Object value = node.getField(fieldDescriptor);
             if (value instanceof Message) {
-                findResources(project, (Message) value, resources, parentNode);
+                findResources(project, (Message) value, resources);
             } else if (value instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> list = (List<Object>) value;
                 for (Object v : list) {
                     if (v instanceof Message) {
-                        findResources(project, (Message) v, resources, parentNode);
+                        findResources(project, (Message) v, resources);
                     } else if (isResource && v instanceof String) {
-                        findResources(project, project.getResource((String) v), resources, parentNode);
+                        findResources(project, project.getResource((String) v), resources);
                     }
                 }
             } else if (isResource && value instanceof String) {
-                findResources(project, project.getResource((String) value), resources, parentNode);
+                findResources(project, project.getResource((String) value), resources);
             }
         }
     }
 
-    private static void findResources(Project project, IResource resource, Collection<String> resources, ResourceNode parentNode) throws CompileExceptionError {
-        if (resource.getPath().equals("") ) {
+    /*  Adds unique resources to list 'resources'. Each resource should once occur
+        once in the list regardless if the resource appears in several collections
+        or collectionproxies.
+    */
+    private static void findResources(Project project, IResource resource, Collection<String> resources) throws CompileExceptionError {
+        if (resource.getPath().equals("") || resources.contains(resource.output().getAbsPath())) {
             return;
         }
 
-        if (!resources.contains(resource.output().getAbsPath())) {
-            resources.add(resource.output().getAbsPath());
+        resources.add(resource.output().getAbsPath());
+
+        int i = resource.getPath().lastIndexOf(".");
+        if (i == -1) {
+            return;
+        }
+        String ext = resource.getPath().substring(i);
+
+        if (leafResourceTypes.contains(ext)) {
+            return;
         }
 
+        Class<? extends GeneratedMessage> klass = extToMessageClass.get(ext);
+        if (klass != null) {
+            GeneratedMessage.Builder<?> builder;
+            try {
+                Method newBuilder = klass.getDeclaredMethod("newBuilder");
+                builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(null);
+                final byte[] content = resource.output().getContent();
+                if(content == null) {
+                    throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
+                }
+                builder.mergeFrom(content);
+                Object message = builder.build();
+                findResources(project, (Message) message, resources);
+            } catch(CompileExceptionError e) {
+                throw e;
+            } catch(Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
+        }
+    }
+
+    private static void buildResourceGraph(Project project, Message node, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
+        List<FieldDescriptor> fields = node.getDescriptorForType().getFields();
+        for (FieldDescriptor fieldDescriptor : fields) {
+            FieldOptions options = fieldDescriptor.getOptions();
+            FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
+            boolean isResource = (Boolean) options.getField(resourceDesc);
+            Object value = node.getField(fieldDescriptor);
+            if (value instanceof Message) {
+                buildResourceGraph(project, (Message) value, parentNode, visitedNodes);
+            } else if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                for (Object v : list) {
+                    if (v instanceof Message) {
+                        buildResourceGraph(project, (Message) v, parentNode, visitedNodes);
+                    } else if (isResource && v instanceof String) {
+                        buildResourceGraph(project, project.getResource((String) v), parentNode, visitedNodes);
+                    }
+                }
+            } else if (isResource && value instanceof String) {
+                buildResourceGraph(project, project.getResource((String) value), parentNode, visitedNodes);
+            }
+        }
+    }
+
+    /*  Build a graph of resources. The graph is later used when writing archive to disk
+        to determine whether the resource should be bundled with the application or
+        excluded with liveupdate. Since liveupdate works on collectionproxies a resource
+        will appear as a single node per collectionproxy, but can still have a other nodes
+        in other collections/collectionproxies.
+    */
+    private static void buildResourceGraph(Project project, IResource resource, ResourceNode parentNode, Collection<String> visitedNodes) throws CompileExceptionError {
+        if (resource.getPath().equals("") || visitedNodes.contains(resource.output().getAbsPath())) {
+            return;
+        }
+
+        if (resource.output().getPath().endsWith(".collectionproxyc")) {
+            visitedNodes = new HashSet<String>();
+        }
+
+        visitedNodes.add(resource.output().getAbsPath());
         ResourceNode currentNode = new ResourceNode(resource.getPath(), resource.output().getAbsPath());
         parentNode.addChild(currentNode);
 
@@ -300,8 +372,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
                 builder.mergeFrom(content);
                 Object message = builder.build();
-                findResources(project, (Message) message, resources, currentNode);
-
+                buildResourceGraph(project, (Message) message, currentNode, visitedNodes);
             } catch(CompileExceptionError e) {
                 throw e;
             } catch(Exception e) {
@@ -311,7 +382,6 @@ public class GameProjectBuilder extends Builder<Void> {
             throw new CompileExceptionError(resource, -1, "No mapping for " + ext);
         }
     }
-
 
     public static HashSet<String> findResources(Project project, ResourceNode rootNode) throws CompileExceptionError {
         HashSet<String> resources = new HashSet<String>();
@@ -333,8 +403,10 @@ public class GameProjectBuilder extends Builder<Void> {
                                                     {"input", "gamepads", "/builtins/input/default.gamepadsc"},
                                                     {"display", "display_profiles", "/builtins/render/default.display_profilesc"}}) {
                 String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
+                HashSet<String> visitedNodes = new HashSet<String>();
                 if (path != null) {
-                    findResources(project, project.getResource(path), resources, rootNode);
+                    findResources(project, project.getResource(path), resources);
+                    buildResourceGraph(project, project.getResource(path), rootNode, visitedNodes);
                 }
             }
 
@@ -359,18 +431,40 @@ public class GameProjectBuilder extends Builder<Void> {
 
     private ManifestBuilder prepareManifestBuilder(ResourceNode rootNode, List<String> excludedResourcesList) throws IOException {
         String projectIdentifier = project.getProjectProperties().getStringValue("project", "title", "<anonymous>");
-        String supportedEngineVersionsString = project.getProjectProperties().getStringValue("liveupdate", "supported_versions", null);
-        String privateKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "privatekey", null);
-        String publicKeyFilepath = project.getProjectProperties().getStringValue("liveupdate", "publickey", null);
+        String supportedEngineVersionsString = project.getPublisher().getSupportedVersions();
+        String privateKeyFilepath = project.getPublisher().getManifestPrivateKey();
+        String publicKeyFilepath = project.getPublisher().getManifestPublicKey();
 
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setDependencies(rootNode);
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
-        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA1);
+        manifestBuilder.setSignatureHashAlgorithm(HashAlgorithm.HASH_SHA256);
         manifestBuilder.setSignatureSignAlgorithm(SignAlgorithm.SIGN_RSA);
         manifestBuilder.setProjectIdentifier(projectIdentifier);
 
-        if (privateKeyFilepath == null || publicKeyFilepath == null) {
+
+        // If manifest signing keys are specified, use them instead of generating them.
+        if (!privateKeyFilepath.isEmpty() && !publicKeyFilepath.isEmpty() ) {
+            if (!Files.exists(Paths.get(privateKeyFilepath))) {
+                privateKeyFilepath = Paths.get(project.getRootDirectory(), privateKeyFilepath).toString();
+                if (!Files.exists(Paths.get(privateKeyFilepath))) {
+                    privateKeyFilepath = "";
+                }
+            }
+
+            if (!Files.exists(Paths.get(publicKeyFilepath))) {
+                publicKeyFilepath = Paths.get(project.getRootDirectory(), publicKeyFilepath).toString();
+                if (!Files.exists(Paths.get(publicKeyFilepath))) {
+                    publicKeyFilepath = "";
+                }
+            }
+        }
+
+        // If loading supplied keys failed or none were supplied, generate them instead.
+        if (privateKeyFilepath.isEmpty() || publicKeyFilepath.isEmpty()) {
+            if (project.option("liveupdate", "false").equals("true")) {
+                System.err.println("Warning! No public or private key for manifest signing set in liveupdate settings, generating keys instead.");
+            }
             File privateKeyFileHandle = File.createTempFile("defold.private_", ".der");
             privateKeyFileHandle.deleteOnExit();
 
@@ -389,7 +483,7 @@ public class GameProjectBuilder extends Builder<Void> {
         manifestBuilder.setPrivateKeyFilepath(privateKeyFilepath);
         manifestBuilder.setPublicKeyFilepath(publicKeyFilepath);
 
-        manifestBuilder.addSupportedEngineVersion(EngineVersion.sha1);
+        manifestBuilder.addSupportedEngineVersion(EngineVersion.version);
         if (supportedEngineVersionsString != null) {
             String[] supportedEngineVersions = supportedEngineVersionsString.split("\\s*,\\s*");
             for (String supportedEngineVersion : supportedEngineVersions) {
@@ -461,7 +555,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
-                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources);
+                Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
+                createArchive(resources, archiveIndex, archiveData, manifestBuilder, excludedResources, resourcePackDirectory);
 
                 // Create manifest
                 byte[] manifestFile = manifestBuilder.buildManifest();
@@ -477,6 +572,20 @@ public class GameProjectBuilder extends Builder<Void> {
 
                 publicKeyInputStream = new FileInputStream(manifestBuilder.getPublicKeyFilepath());
                 task.getOutputs().get(4).setContent(publicKeyInputStream);
+
+                // Add copy of game.dmanifest to be published with liveuodate resources
+                File manifestFileHandle = new File(task.getOutputs().get(3).getAbsPath());
+                String liveupdateManifestFilename = "liveupdate.game.dmanifest";
+                File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
+                FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
+                project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
+                project.getPublisher().Publish();
+                
+                manifestTmpFileHandle.delete();
+                File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
+                if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
+                    FileUtils.deleteDirectory(resourcePackDirectoryHandle);
+                }
 
                 List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
                 for (int i = 0; i < publisherOutputs.size(); ++i) {

@@ -221,6 +221,143 @@
       (.close reader)
       (is (thrown? IOException (.read reader))))))
 
+(deftest guess-indent-type-test
+  (are [expected lines]
+    (= expected (data/guess-indent-type lines 4))
+
+    ;; Indeterminate. Used for nil or binary-looking input.
+    nil nil
+    nil [(apply str (map char [0x89 0x50 0x4E 0x47 0x0D 0x0A 0x1A 0x0A]))]
+
+    ;; Empty or no indentation.
+    nil [""]
+    nil ["{"]
+    nil ["{"
+         "{"]
+
+    ;; Pure-whitespace lines are ignored.
+    nil ["\t"]
+    nil ["  "]
+    nil ["    "]
+
+    ;; Uniformly tabs.
+    :tabs ["\t{"]
+    :tabs ["{"
+           "\t{"]
+    :tabs ["{"
+           "\t{"
+           "\t\t{"]
+
+    ;; Uniformly two spaces.
+    :two-spaces ["  {"]
+    :two-spaces ["{"
+                 "  {"]
+    :two-spaces ["{"
+                 "  {"
+                 "    {"]
+    :two-spaces ["  {"
+                 "    {"
+                 "    {"]
+
+    ;; Uniformly four spaces.
+    :four-spaces ["    {"]
+    :four-spaces ["{"
+                  "    {"]
+    :four-spaces ["{"
+                  "    {"
+                  "        {"]
+    :four-spaces ["    {"
+                  "    {"
+                  "        {"]
+
+    ;; Spaces mixed with tabs.
+    :tabs ["\t{"
+           "  {"
+           "\t{"]
+    :two-spaces ["  {"
+                 "\t{"
+                 "    {"]
+    :four-spaces ["    {"
+                  "\t{"
+                  "        {"]
+
+    ;; Two spaces mixed with four spaces.
+    :two-spaces ["{"
+                 "  {"
+                 "    {"
+                 "        {" ; <- rogue indent
+                 "    {"
+                 "    {"]
+    :two-spaces ["{"
+                 "  {"
+                 "    {"
+                 "      {"
+                 "    {"
+                 "    {"]
+    :four-spaces ["{"
+                  "    {"
+                  "    {"
+                  "      {" ; <- rogue indent
+                  "    {"
+                  "        {"]))
+
+(defn- convert-indentation [from-indent-type to-indent-type lines]
+  (select-keys (data/convert-indentation from-indent-type to-indent-type lines [] [])
+               [:lines :indent-type]))
+
+(deftest convert-indentation-test
+  (is (= {:indent-type :tabs}
+         (convert-indentation :four-spaces :tabs ["{"])))
+
+  (is (= {:lines ["    {"]
+          :indent-type :two-spaces}
+         (convert-indentation :tabs :two-spaces ["\t\t{"])))
+
+  (is (= {:lines ["        {"]
+          :indent-type :four-spaces}
+         (convert-indentation :tabs :four-spaces ["\t\t{"])))
+
+  (is (= {:lines ["\t\t\t\t{"]
+          :indent-type :tabs}
+         (convert-indentation :two-spaces :tabs ["        {"])))
+
+  (is (= {:lines ["\t\t{"]
+          :indent-type :tabs}
+         (convert-indentation :four-spaces :tabs ["        {"])))
+
+  (is (= {:lines ["    {"]
+          :indent-type :two-spaces}
+         (convert-indentation :four-spaces :two-spaces ["        {"])))
+
+  (is (= {:lines ["        {"]
+          :indent-type :four-spaces}
+         (convert-indentation :two-spaces :four-spaces ["    {"])))
+
+  (is (= {:lines ["\t{"
+                  "\t{"
+                  "\t{"]
+          :indent-type :tabs}
+         (convert-indentation :tabs :tabs ["\t{"
+                                           "    {"
+                                           "\t{"])))
+  (is (= {:lines ["\t{"
+                  "\t{"
+                  "\t\t{"]
+          :indent-type :tabs}
+         (convert-indentation :two-spaces :tabs ["  {"
+                                                 "\t{"
+                                                 "    {"])))
+  (is (= {:lines ["  {"
+                  "\t{"
+                  "\t{"]
+          :indent-type :tabs}
+         (convert-indentation :four-spaces :tabs ["  {"
+                                                  "\t{"
+                                                  "    {"])))
+  (is (= {:lines ["\t  {"]
+          :indent-type :tabs}
+         (convert-indentation :four-spaces :tabs ["      {"]))))
+
 (deftest move-cursors-test
   (testing "Basic movement"
     (is (= [(c 0 0)] (data/move-cursors [(c 1 0)] #'data/cursor-up ["a" "b" "c"])))
@@ -967,6 +1104,10 @@
       (is (= (cr [0 start-col] [0 end-col])
              (word-cursor-range-at-cursor [line] (->Cursor 0 col)))))
 
+    (testing "Empty line"
+      (is (= (cr [1 0] [1 0])
+             (word-cursor-range-at-cursor ["" ""] (->Cursor 1 0)))))
+
     (testing "Whitespace"
       (let [lines ["\t  \t  word  \t  \t"]]
         (doseq [col (range 6)]
@@ -978,6 +1119,16 @@
         (doseq [col (range 11 16)] ;; 11 because the end of "word" has priority.
           (is (= (cr [0 10] [0 16])
                  (word-cursor-range-at-cursor lines (->Cursor 0 col)))))))))
+
+(deftest word-cursor-range-test
+  (is (true? (data/word-cursor-range? ["one" "two" "three"] (cr [0 0] [0 3]))))
+  (is (true? (data/word-cursor-range? ["one" "two" "three"] (cr [1 0] [1 3]))))
+  (is (true? (data/word-cursor-range? ["one" "two" "three"] (cr [2 0] [2 5]))))
+  (is (false? (data/word-cursor-range? [""] (cr [0 0] [0 0]))))
+  (is (false? (data/word-cursor-range? ["one" "" "three"] (cr [1 0] [1 0]))))
+  (is (false? (data/word-cursor-range? ["one" "two" "three"] (cr [0 0] [1 3]))))
+  (is (false? (data/word-cursor-range? ["one"] (cr [0 1] [0 3]))))
+  (is (false? (data/word-cursor-range? ["one"] (cr [0 0] [0 2])))))
 
 (defn- find-prev-occurrence [haystack-lines needle-lines from-cursor]
   (data/find-prev-occurrence haystack-lines needle-lines from-cursor false false))

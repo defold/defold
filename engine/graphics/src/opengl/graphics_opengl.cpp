@@ -170,7 +170,11 @@ void LogGLError(GLint err)
 #define CLEAR_GL_ERROR \
     { \
         if(g_Context->m_VerifyGraphicsCalls) { \
-            glGetError(); \
+            GLint err = glGetError(); \
+            while (err != 0) \
+            { \
+                err = glGetError(); \
+            } \
         } \
     }\
 
@@ -615,9 +619,28 @@ static void LogFrameBufferError(GLenum status)
         context->m_DepthBufferBits = (uint32_t) depth_buffer_bits;
 #endif
 
-        GLint max_texture_size;
-        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
-        context->m_MaxTextureSize = max_texture_size;
+        GLint gl_max_texture_size = 1024;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_max_texture_size);
+        context->m_MaxTextureSize = gl_max_texture_size;
+        CLEAR_GL_ERROR
+
+#if (defined(__arm__) || defined(__arm64__)) || defined(ANDROID) || defined(IOS_SIMULATOR)
+        // Hardcoded values for iOS and Android for now. The value is a hint, max number of vertices will still work with performance penalty
+        // The below seems to be the reported sweet spot for modern or semi-modern hardware
+        context->m_MaxElementVertices = 1024*1024;
+        context->m_MaxElementIndices = 1024*1024;
+#else
+        // We don't accept values lower than 65k. It's a trade-off on drawcalls vs bufferdata upload
+        GLint gl_max_elem_verts = 65536;
+        glGetIntegerv(GL_MAX_ELEMENTS_VERTICES, &gl_max_elem_verts);
+        context->m_MaxElementVertices = dmMath::Max(65536, gl_max_elem_verts);
+        CLEAR_GL_ERROR
+
+        GLint gl_max_elem_indices = 65536;
+        glGetIntegerv(GL_MAX_ELEMENTS_INDICES, &gl_max_elem_indices);
+        context->m_MaxElementIndices = dmMath::Max(65536, gl_max_elem_indices);
+        CLEAR_GL_ERROR
+#endif
 
         JobQueueInitialize();
         if(JobQueueIsAsync())
@@ -787,6 +810,7 @@ static void LogFrameBufferError(GLenum status)
     WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
     WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
     WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
     WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
     WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
 
@@ -834,6 +858,11 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
     }
 
+    uint32_t GetMaxElementsVertices(HContext context)
+    {
+        return context->m_MaxElementVertices;
+    }
+
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         uint32_t buffer = 0;
@@ -870,6 +899,11 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR
+    }
+
+    uint32_t GetMaxElementIndices(HContext context)
+    {
+        return context->m_MaxElementIndices;
     }
 
     static uint32_t GetTypeSize(Type type)
@@ -1591,6 +1625,7 @@ static void LogFrameBufferError(GLenum status)
             tex->m_OriginalHeight = params.m_OriginalHeight;
         }
 
+        tex->m_MipMapCount = 0;
         tex->m_DataState = 0;
         return (HTexture) tex;
     }
@@ -1698,6 +1733,26 @@ static void LogFrameBufferError(GLenum status)
         JobQueuePush(j);
     }
 
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
+    {
+        *out_handle = 0x0;
+
+        if (!texture) {
+            return HANDLE_RESULT_ERROR;
+        }
+
+        *out_handle = &texture->m_Texture;
+
+        return HANDLE_RESULT_OK;
+    }
+
+    static inline uint32_t GetTextureFormatBPP(TextureFormat format)
+    {
+        static TextureFormatToBPP g_TextureFormatToBPP;
+        assert(format < TEXTURE_FORMAT_COUNT);
+        return g_TextureFormatToBPP.m_FormatToBPP[format];
+    }
+
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         // validate write accessibility for format. Some format are not garuanteed to be writeable
@@ -1724,56 +1779,7 @@ static void LogFrameBufferError(GLenum status)
          */
         if (params.m_Format != TEXTURE_FORMAT_RGBA)
         {
-            uint32_t bytes_per_row = 1;
-
-            switch(params.m_Format)
-            {
-                case TEXTURE_FORMAT_RGB:
-                    bytes_per_row = params.m_Width * 3;
-                    break;
-
-                case TEXTURE_FORMAT_LUMINANCE_ALPHA:
-                case TEXTURE_FORMAT_RGB_16BPP:
-                case TEXTURE_FORMAT_RGBA_16BPP:
-                    bytes_per_row = params.m_Width * 2;
-                    break;
-
-                case TEXTURE_FORMAT_RGB16F:
-                    bytes_per_row = params.m_Width * 6;
-                    break;
-
-                case TEXTURE_FORMAT_RGB32F:
-                    bytes_per_row = params.m_Width * 12;
-                    break;
-
-                case TEXTURE_FORMAT_RGBA16F:
-                    bytes_per_row = params.m_Width * 8;
-                    break;
-
-                case TEXTURE_FORMAT_RGBA32F:
-                    bytes_per_row = params.m_Width * 16;
-                    break;
-
-                case TEXTURE_FORMAT_R16F:
-                    bytes_per_row = params.m_Width * 2;
-                    break;
-
-                case TEXTURE_FORMAT_R32F:
-                    bytes_per_row = params.m_Width * 4;
-                    break;
-
-                case TEXTURE_FORMAT_RG16F:
-                    bytes_per_row = params.m_Width * 4;
-                    break;
-
-                case TEXTURE_FORMAT_RG32F:
-                    bytes_per_row = params.m_Width * 8;
-                    break;
-
-                default:
-                    break;
-            }
-
+            uint32_t bytes_per_row = params.m_Width * dmMath::Max(1U, GetTextureFormatBPP(params.m_Format)) >> 3;
             if (bytes_per_row % 4 == 0) {
                 // Ok
             } else if (bytes_per_row % 2 == 0) {
@@ -1787,6 +1793,7 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, unpackAlignment);
             CHECK_GL_ERROR
         }
+        texture->m_MipMapCount = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
 
         GLenum type = (GLenum) texture->m_Type;
         glBindTexture(type, texture->m_Texture);
@@ -2029,6 +2036,22 @@ static void LogFrameBufferError(GLenum status)
             glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
             CHECK_GL_ERROR
         }
+    }
+
+    uint32_t GetTextureResourceSize(HTexture texture)
+    {
+        uint32_t size_total = 0;
+        uint32_t size = (texture->m_Width * texture->m_Height * GetTextureFormatBPP(texture->m_Params.m_Format)) >> 3;
+        for(uint32_t i = 0; i < texture->m_MipMapCount; ++i)
+        {
+            size_total += size;
+            size >>= 2;
+        }
+        if (texture->m_Type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            size_total *= 6;
+        }
+        return size_total + sizeof(Texture);
     }
 
     uint16_t GetTextureWidth(HTexture texture)

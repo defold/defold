@@ -1,4 +1,4 @@
-import os, sys, subprocess, shutil, re, stat, glob
+import os, sys, subprocess, shutil, re, stat, glob, zipfile
 import Build, Options, Utils, Task, Logs
 import Configure
 from Configure import conf
@@ -7,6 +7,10 @@ from Logs import error
 import cc, cxx
 from Constants import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
+
+if not 'DYNAMO_HOME' in os.environ:
+    print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
+    sys.exit(1)
 
 HOME=os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
 ANDROID_ROOT=os.path.join(HOME, 'android')
@@ -17,6 +21,17 @@ ANDROID_TARGET_API_LEVEL='23'
 ANDROID_MIN_API_LEVEL='9'
 ANDROID_GCC_VERSION='4.8'
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
+
+DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
+IOS_SDK_VERSION="11.2"
+IOS_SIMULATOR_SDK_VERSION="11.4"
+# NOTE: Minimum iOS-version is also specified in Info.plist-files
+# (MinimumOSVersion and perhaps DTPlatformVersion)
+# Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
+MIN_IOS_SDK_VERSION="6.0"
+
+OSX_SDK_VERSION="10.13"
+MIN_OSX_SDK_VERSION="10.7"
 
 # TODO: HACK
 FLASCC_ROOT=os.path.join(HOME, 'local', 'FlasCC1.0', 'sdk')
@@ -159,20 +174,6 @@ def dmsdk_add_files(bld, target, source):
     apidoc_extract_task(bld, doc_files)
 
 
-if not 'DYNAMO_HOME' in os.environ:
-    print >>sys.stderr, "You must define DYNAMO_HOME. Have you run './script/build.py shell' ?"
-    sys.exit(1)
-
-DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
-IOS_SDK_VERSION="10.3"
-IOS_SIMULATOR_SDK_VERSION="11.1"
-# NOTE: Minimum iOS-version is also specified in Info.plist-files
-# (MinimumOSVersion and perhaps DTPlatformVersion)
-# Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
-MIN_IOS_SDK_VERSION="6.0"
-
-OSX_SDK_VERSION="10.12"
-MIN_OSX_SDK_VERSION="10.7"
 
 @feature('cc', 'cxx')
 # We must apply this before the objc_hook below
@@ -185,6 +186,8 @@ def default_flags(self):
     opt_level = Options.options.opt_level
     if opt_level == "2" and 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         opt_level = "3" # emscripten highest opt level
+    elif opt_level == "0" and 'win' in build_util.get_target_os():
+        opt_level = "d" # how to disable optimizations in windows
 
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
@@ -206,7 +209,14 @@ def default_flags(self):
 
     if "linux" == build_util.get_target_os() or "osx" == build_util.get_target_os():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-rtti'])
+
+            if Options.options.with_asan and "osx" == build_util.get_target_os():
+                self.env.append_value(f, ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
+
             # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
             # some tests after we switched to -02 optimisations. We should refine these tests so that they
             # don't rely on equal-compare floating point values, and/or verify that underlaying engine
@@ -229,7 +239,9 @@ def default_flags(self):
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
+        if Options.options.with_asan:
+            self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer'])
     elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture() or 'x86_64' == build_util.get_target_architecture()):
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
         for f in ['CCFLAGS', 'CXXFLAGS']:
@@ -237,9 +249,13 @@ def default_flags(self):
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             if 'x86_64' == build_util.get_target_architecture():
-                self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-DIOS_SIMULATOR', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)])
+                self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-DIOS_SIMULATOR', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
+                                            '-isysroot', '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION)])
             else:
-                self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall', '-fno-exceptions', '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION, '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
+                self.env.append_value(f, ['-g', '-stdlib=libstdc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+                                            '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION,
+                                            '-isysroot', '%s/iPhoneOS%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SDK_VERSION)])
 
         if 'x86_64' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', [ '-arch', build_util.get_target_architecture(), '-stdlib=libstdc++', '-fobjc-link-runtime', '-isysroot', '%s/iPhoneSimulator%s.sdk' % (build_util.get_dynamo_ext('SDKs'), IOS_SIMULATOR_SDK_VERSION), '-dead_strip', '-miphoneos-version-min=%s' % MIN_IOS_SDK_VERSION])
@@ -259,9 +275,9 @@ def default_flags(self):
             # -fno-exceptions added
             self.env.append_value(f, ['-g', '-gdwarf-2', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-Wall',
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
-                                      '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__',
-                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp',
-                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
+                                      '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI',
+                                      '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden',
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-fno-rtti', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
@@ -279,7 +295,7 @@ def default_flags(self):
                 '-L%s' % stl_lib])
     elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-fno-exceptions', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
+            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
                                       '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
@@ -892,34 +908,37 @@ def android_package(task):
         f.write(task.classes_dex.abspath(task.env), 'classes.dex')
         f.close()
 
-    sdklibPath = '%s/android-sdk/tools/lib/sdklib.jar' % (ANDROID_ROOT)
     apk_unaligned = task.apk_unaligned.abspath(task.env)
     libs_dir = task.native_lib.parent.parent.abspath(task.env)
-    apkBuilderArgs = [ 'java',
-                       '-Xmx128M',
-                       '-classpath',
-                       '\"' + sdklibPath + '\"',
-                       'com.android.sdklib.build.ApkBuilderMain',
-                       apk_unaligned,
-                       '-v',
-                       '-z',
-                       ap_,
-                       '-nf',
-                       libs_dir,
-                       '-d'
-                      ]
 
-    ret = bld.exec_command(' '.join(apkBuilderArgs))
+    # add library files
+    with zipfile.ZipFile(ap_, 'a', zipfile.ZIP_DEFLATED) as zip:
+        for root, dirs, files in os.walk(libs_dir):
+            for f in files:
+                full_path = os.path.join(root, f)
+                relative_path = os.path.relpath(full_path, libs_dir)
+                if relative_path.startswith('armeabi-v7a'):
+                    relative_path = os.path.join('lib', relative_path)
+                zip.write(full_path, relative_path)
 
-    if ret != 0:
-        error('Error running apkbuilder')
-        return 1
+    shutil.copy(ap_, apk_unaligned)
 
     apk = task.apk.abspath(task.env)
+
     zipalign = '%s/android-sdk/build-tools/%s/zipalign' % (ANDROID_ROOT, ANDROID_BUILD_TOOLS_VERSION)
-    ret = bld.exec_command('%s -f 4 %s %s' % (zipalign, apk_unaligned, apk))
+    ret = bld.exec_command('%s -f 4 %s %s' % (zipalign, apk_unaligned, ap_))
     if ret != 0:
         error('Error running zipalign')
+        return 1
+
+    apkc = '%s/../../com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-%s/apkc' % (os.environ['DYNAMO_HOME'], task.env.BUILD_PLATFORM)
+    if not os.path.exists(apkc):
+        error("file doesn't exist: %s" % apkc)
+        return 1
+
+    ret = bld.exec_command('%s --in="%s" --out="%s"' % (apkc, ap_, apk))
+    if ret != 0:
+        error('Error running apkc')
         return 1
 
     with open(task.android_mk.abspath(task.env), 'wb') as f:
@@ -1422,6 +1441,21 @@ def detect(conf):
     conf.check_tool('compiler_cc')
     conf.check_tool('compiler_cxx')
 
+    # Since we're using an old waf version, we remove unused arguments
+    def remove_flag(arr, flag, nargs):
+        if not flag in arr:
+            return
+        index = arr.index(flag)
+        if index >= 0:
+            del arr[index]
+            for i in range(nargs):
+                del arr[index]
+
+    remove_flag(conf.env['shlib_CCFLAGS'], '-compatibility_version', 1)
+    remove_flag(conf.env['shlib_CCFLAGS'], '-current_version', 1)
+    remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
+    remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
+
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
     if 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         bin = os.environ.get('EMSCRIPTEN')
@@ -1450,6 +1484,16 @@ def detect(conf):
         # flascc got confused by -compatibility_version 1 and -current_version 1
         conf.env['shlib_CCFLAGS'] = []
         conf.env['shlib_CXXFLAGS'] = []
+
+    if Options.options.static_analyze:
+        conf.find_program('scan-build', var='SCANBUILD', mandatory = True, path_list=['/usr/local/opt/llvm/bin'])
+        output_dir = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'static_analyze'))
+        for t in ['CC', 'CXX']:
+            c = conf.env[t]
+            if type(c) == list:
+                conf.env[t] = [conf.env.SCANBUILD, '-k','-o',output_dir] + c
+            else:
+                conf.env[t] = [conf.env.SCANBUILD, '-k','-o',output_dir, c]
 
     if conf.env['CCACHE'] and not 'win' == build_util.get_target_os():
         if not Options.options.disable_ccache:
@@ -1528,3 +1572,5 @@ def set_options(opt):
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
+    opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
+    opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')

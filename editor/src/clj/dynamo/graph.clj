@@ -50,6 +50,9 @@
   ([] (clone-system @*the-system*))
   ([sys] (is/clone-system sys)))
 
+(defn system= [s1 s2]
+  (is/system= s1 s2))
+
 (defmacro with-system [sys & body]
   `(binding [*the-system* (atom ~sys)]
      ~@body))
@@ -82,6 +85,13 @@
 (defn cache "The system cache of node values"
   []
   (is/system-cache @*the-system*))
+
+(defn clear-system-cache!
+  "Clears a cache (default *the-system* cache), useful when debugging"
+  ([] (clear-system-cache! *the-system*))
+  ([sys-atom]
+   (swap! sys-atom assoc :cache (ref (is/make-cache {})))
+   nil))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
@@ -123,6 +133,18 @@
     (when (= :ok (:status tx-result))
       (is/merge-graphs! @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
+
+;; ---------------------------------------------------------------------------
+;; Using transaction data
+;; ---------------------------------------------------------------------------
+(defn tx-data-nodes-added
+  "Returns a list of the node-ids added given a list of transaction steps, (tx-data)."
+  [txs]
+  (keep (fn [tx-data]
+          (case (:type tx-data)
+            :create-node (-> tx-data :node :_node-id)
+            nil))
+        (flatten txs)))
 
 ;; ---------------------------------------------------------------------------
 ;; Using transaction values
@@ -671,11 +693,10 @@
    (mark-defective node-id (node-type* node-id) defective-value))
   ([node-id node-type defective-value]
    (assert node-id)
-   (let [outputs   (in/output-labels node-type)
-         externs   (in/externs node-type)]
+   (let [jammable-outputs (in/jammable-output-labels node-type)]
      (list
       (set-property node-id :_output-jammers
-                    (zipmap (remove externs outputs)
+                    (zipmap jammable-outputs
                             (repeat (clojure.core/constantly defective-value))))
       (invalidate node-id)))))
 
@@ -692,11 +713,78 @@
   (transact (mark-defective node-id defective-value)))
 
 ;; ---------------------------------------------------------------------------
+;; Tracing
+;; ---------------------------------------------------------------------------
+;;
+;; Run several tracers using (juxt (g/make-print-tracer) (g/make-tree-tracer result))
+;;
+
+(defn make-print-tracer
+  "Prints an indented tree of all eval steps taken."
+  []
+  (let [depth (atom 0)]
+    (fn [state node output-type label]
+      (when (or (= :end state) (= :fail state))
+        (swap! depth dec))
+      (println (str (apply str (take @depth (repeat "  "))) state " " node " " output-type " " label))
+      (when (= :begin state)
+        (swap! depth inc)))))
+
+(defn make-tree-tracer
+  "Creates a tree trace of the evaluation of the form
+  {:node-id ... :output-type ... :label ... :state ... :dependencies [{...} ...]}
+
+  You can also pass in a function to decorate the steps.
+
+    Timing:
+    (defn timing-decorator [step state]
+      (case state
+        :begin (assoc step :start-time (System/currentTimeMillis))
+        (:end :fail) (-> step
+                         (assoc :elapsed (- (System/currentTimeMillis) (:start-time step)))
+                         (dissoc :start-time))))
+
+    Weight:
+    (defn weight-decorator [step state]
+      (case state
+        :begin step
+        :end (assoc step :weight (+ 1 (reduce + 0 (map :weight (:dependencies step)))))
+        :fail (assoc step :weight 0)))
+
+    Depth:
+    (defn- depth-decorator [step state]
+      (case state
+        :begin step
+        :end (assoc step :depth (+ 1 (or (:depth (first (:dependencies step))) 0)))
+        :fail (assoc step :depth 0)))
+
+    (g/node-value node :output (g/make-evaluation-context {:tracer (g/make-tree-tracer result-atom timing-decorator)}))"
+  ([result-atom]
+   (make-tree-tracer result-atom (fn [step _] step)))
+  ([result-atom step-decorator]
+   (let [stack (atom '())]
+     (fn [state node output-type label]
+       (case state
+         :begin
+         (swap! stack conj (step-decorator {:node-id node :output-type output-type :label label :dependencies []} state))
+
+         (:end :fail)
+         (let [step (step-decorator (assoc (first @stack) :state state) state)]
+           (swap! stack rest)
+           (let [parent (first @stack)]
+             (if parent
+               (swap! stack #(conj (rest %) (update parent :dependencies conj step)))
+               (reset! result-atom step)))))))))
+
+(defn tree-trace-seq [result]
+  (tree-seq :dependencies :dependencies result))
+
+;; ---------------------------------------------------------------------------
 ;; Values
 ;; ---------------------------------------------------------------------------
 (defn make-evaluation-context
-  ([] (make-evaluation-context {}))
-  ([options] (is/make-evaluation-context @*the-system* options)))
+  ([] (is/default-evaluation-context @*the-system*))
+  ([options] (is/custom-evaluation-context @*the-system* options)))
 
 (defn- do-node-value [node-id label evaluation-context]
   (is/node-value @*the-system* node-id label evaluation-context))
@@ -705,6 +793,12 @@
   [evaluation-context]
   (is/update-cache-from-evaluation-context! @*the-system* evaluation-context)
   nil)
+
+(defmacro with-auto-evaluation-context [ec & body]
+  `(let [~ec (make-evaluation-context)
+         result# (do ~@body)]
+     (update-cache-from-evaluation-context! ~ec)
+     result#))
 
 (defn node-value
   "Pull a value from a node's output, identified by `label`.

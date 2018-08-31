@@ -1,10 +1,16 @@
 #! /usr/bin/env python
-import os
+import os, re
+
+EXTRA_DEFINES = []
+
+# if re.match('arm.*?darwin', bld.env.PLATFORM):
+    # Note: LUA_NO_SYSTEM is our own invention, mimicking the LJ_NO_SYSTEM
+EXTRA_DEFINES = ['LUA_NO_SYSTEM']
 
 lua_lib = bld.new_task_gen(features = 'cc cxx cstaticlib',
                            includes = '.',
                            target = 'lua',
-                           defines = 'LUA_ANSI')
+                           defines = ['LUA_ANSI'] + EXTRA_DEFINES)
 
 lua_lib.source = ['lapi.c', 'lcode.c', 'ldebug.c', 'ldo.c', 'ldump.c', 'lfunc.c', 'lgc.c', 'llex.c', 'lmem.c', 'lobject.c', 'lopcodes.c', 'lparser.c', 'lstate.c', 'lstring.c', 'ltable.c', 'ltm.c', 'lundump.c', 'lvm.c', 'lzio.c', 'lauxlib.c', 'lbaselib.c', 'ldblib.c', 'liolib.c', 'lmathlib.c', 'loslib.c', 'ltablib.c', 'lstrlib.c', 'loadlib.c', 'linit.c']
 
@@ -13,14 +19,14 @@ lua = bld.new_task_gen(features = 'cc cxx cprogram',
                        source = 'lua.c',
                        target = 'lua',
                        uselib_local = 'lua',
-                       defines = 'LUA_ANSI')
+                       defines = ['LUA_ANSI'] + EXTRA_DEFINES)
 
 luac = bld.new_task_gen(features = 'cc cxx cprogram',
                         includes = '.',
                         source = 'luac.c print.c',
                         target = 'luac',
                         uselib_local = 'lua',
-                        defines = 'LUA_ANSI')
+                        defines = ['LUA_ANSI'] + EXTRA_DEFINES)
 
 bld.install_files('${PREFIX}/include/lua', 'lua.h')
 bld.install_files('${PREFIX}/include/lua', 'lauxlib.h')

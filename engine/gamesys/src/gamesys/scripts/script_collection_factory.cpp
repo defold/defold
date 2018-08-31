@@ -264,7 +264,7 @@ namespace dmGameSystem
      * How to delete a spawned collection:
      *
      * ```lua
-     * go.delete_all(self.enemy_ids)
+     * go.delete(self.enemy_ids)
      * ```
      */
 
@@ -306,7 +306,7 @@ namespace dmGameSystem
         dmGameObject::InstancePropertyBuffers prop_bufs;
         prop_bufs.SetCapacity(8, 32);
 
-        if (top >= 4)
+        if (top >= 4 && !lua_isnil(L, 4))
         {
             //
             if (lua_istable(L, 4))

@@ -176,7 +176,8 @@ namespace dmRender
                 uint32_t m_BatchKey:24;
                 uint32_t m_Dispatch:8;
                 uint32_t m_Order:24;
-                uint32_t m_MajorOrder:8;
+                uint32_t m_MajorOrder:4;        // currently only 2 bits used (dmRender::RenderOrder)
+                uint32_t m_MinorOrder:4;
             };
             // only temporarily used
             float m_ZW;
@@ -201,6 +202,7 @@ namespace dmRender
         RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderTargetSetup>  m_RenderTargets;
         dmArray<RenderObject*>      m_RenderObjects;
+        dmScript::ScriptWorld*      m_ScriptWorld;
 
         dmArray<RenderListEntry>    m_RenderList;
         dmArray<RenderListDispatch> m_RenderListDispatch;

@@ -93,8 +93,8 @@ namespace dmGui
             {
                 uint64_t m_Start : 13;
                 uint64_t m_End : 13;
-                uint64_t m_TextureWidth : 13;
-                uint64_t m_TextureHeight : 13;
+                uint64_t m_OriginalTextureWidth : 13;
+                uint64_t m_OriginalTextureHeight : 13;
                 uint64_t m_FPS : 8;
                 uint64_t m_Playback : 4;
             };
@@ -147,6 +147,13 @@ namespace dmGui
     typedef void (*OnWindowResizeCallback)(const HScene scene, uint32_t width, uint32_t height);
 
     /**
+     * Callback for rig events
+     */
+    typedef void (*RigEventDataCallback)(HScene scene,
+                                      void* node_ref,
+                                      void* event_data);
+
+    /**
      * Scene creation
      */
     struct NewSceneParams;
@@ -167,8 +174,10 @@ namespace dmGui
         void*    m_UserData;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
         FetchRigSceneDataCallback m_FetchRigSceneDataCallback;
+        RigEventDataCallback m_RigEventDataCallback;
         OnWindowResizeCallback m_OnWindowResizeCallback;
         AdjustReference m_AdjustReference;
+        dmScript::ScriptWorld* m_ScriptWorld;
 
         NewSceneParams()
         {
@@ -535,11 +544,11 @@ namespace dmGui
      * @param texture_name Name of the texture that will be used in the gui scripts
      * @param texture The texture to add
      * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
-     * @param width With of the texture
-     * @param height Height of the texture
+     * @param original_width Original With of the texture
+     * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t width, uint32_t height);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.
@@ -934,6 +943,7 @@ namespace dmGui
     dmhash_t GetNodeSpineScene(HScene scene, HNode node);
     Result SetNodeSpineSkin(HScene scene, HNode node, dmhash_t skin_id);
     dmhash_t GetNodeSpineSkin(HScene scene, HNode node);
+    Result SetNodeSpineSkinSlot(HScene scene, HNode node, dmhash_t skin_id, dmhash_t slot_id);
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node);
     HNode GetNodeSpineBone(HScene scene, HNode node, dmhash_t bone_id);
 
@@ -956,12 +966,14 @@ namespace dmGui
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
+    bool GetNodeInheritAlpha(HScene scene, HNode node);
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha);
 
     Result SetNodeSpineCursor(HScene scene, HNode node, float cursor);
     float GetNodeSpineCursor(HScene scene, HNode node);
     Result SetNodeSpinePlaybackRate(HScene scene, HNode node, float playback_rate);
     float GetNodeSpinePlaybackRate(HScene scene, HNode node);
+    dmhash_t GetNodeSpineAnimation(HScene scene, HNode node);
     Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2);
     Result CancelNodeSpineAnim(HScene scene, HNode node);
 
@@ -1117,7 +1129,7 @@ namespace dmGui
      */
     void SetNodeEnabled(HScene scene, HNode node, bool enabled);
 
-    Result SetNodeParent(HScene scene, HNode node, HNode parent);
+    Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform);
 
     Result CloneNode(HScene scene, HNode node, HNode* out_node);
 
@@ -1150,6 +1162,11 @@ namespace dmGui
      * @return lua state
      */
     lua_State* GetLuaState(HContext context);
+
+    /** Gets reference to the lua reference table used for gui scripts.
+     * @return lua reference table reference
+     */
+    int GetContextTableRef(HScene scene);
 
     /** Gets the gui scene currently connected to the lua state.
      * A scene is connected while any of the callbacks in the associated gui script is being run.

@@ -14,7 +14,7 @@ ordinary paths."
             [editor.url :as url]
             [service.log :as log])
   (:import [java.io ByteArrayOutputStream File FilterOutputStream]
-           [java.net URL]
+           [java.net URI]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils]
            [editor.resource FileResource]))
@@ -27,7 +27,7 @@ ordinary paths."
   (io/as-file (g/node-value workspace :root)))
 
 (defn build-path [workspace]
-  (str (project-path workspace) build-dir))
+  (io/file (project-path workspace) "build/default/"))
 
 (defrecord BuildResource [resource prefix]
   resource/Resource
@@ -41,7 +41,7 @@ ordinary paths."
                  (if-let [path (resource/path resource)]
                    (str (FilenameUtils/removeExtension path) "." ext)
                    (str prefix "_generated_" suffix "." ext))))
-  (abs-path [this] (.getAbsolutePath (File. (str (build-path (resource/workspace this)) (resource/path this)))))
+  (abs-path [this] (.getAbsolutePath (io/file (build-path (resource/workspace this)) (resource/path this))))
   (proj-path [this] (str "/" (resource/path this)))
   (resource-name [this] (resource/resource-name resource))
   (workspace [this] (resource/workspace resource))
@@ -65,7 +65,7 @@ ordinary paths."
 
 (defn sort-resource-tree [{:keys [children] :as tree}]
   (let [sorted-children (sort-by (fn [r]
-                                   [(not (resource/read-only? r))
+                                   [(resource/file-resource? r)
                                     ({:folder 0 :file 1} (resource/source-type r))
                                     (when-let [node-name (resource/resource-name r)]
                                       (string/lower-case node-name))])
@@ -85,9 +85,14 @@ ordinary paths."
 (defn get-view-type [workspace id]
   (get (g/node-value workspace :view-types) id))
 
-(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless?]}]
+(defn- editable-view-type? [view-type]
+  (case view-type
+    (:default :text) false
+    true))
+
+(defn register-resource-type [workspace & {:keys [textual? ext build-ext node-type load-fn dependencies-fn read-fn write-fn icon view-types view-opts tags tag-opts template label stateless? auto-connect-save-data?]}]
   (let [resource-type {:textual? (true? textual?)
-                       :ext ext
+                       :editable? (some? (some editable-view-type? view-types))
                        :build-ext (if (nil? build-ext) (str ext "c") build-ext)
                        :node-type node-type
                        :load-fn load-fn
@@ -101,10 +106,12 @@ ordinary paths."
                        :tag-opts tag-opts
                        :template template
                        :label label
-                       :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)}
+                       :stateless? (if (nil? stateless?) (nil? load-fn) stateless?)
+                       :auto-connect-save-data? (and (some? write-fn)
+                                                     (not (false? auto-connect-save-data?)))}
         resource-types (if (string? ext)
-                         [(assoc resource-type :ext ext)]
-                         (map (fn [ext] (assoc resource-type :ext ext)) ext))]
+                         [(assoc resource-type :ext (string/lower-case ext))]
+                         (map (fn [ext] (assoc resource-type :ext (string/lower-case ext))) ext))]
     (for [resource-type resource-types]
       (g/update-property workspace :resource-types assoc (:ext resource-type) resource-type))))
 
@@ -144,21 +151,33 @@ ordinary paths."
         :folder
         "icons/32/Icons_01-Folder-closed.png"))))
 
-(defn file-resource [workspace path-or-file]
-  (let [root (g/node-value workspace :root)
-        f (if (instance? File path-or-file)
-            path-or-file
-            (File. (str root path-or-file)))]
-    (resource/make-file-resource workspace root f [])))
+(defn file-resource
+  ([workspace path-or-file]
+   (g/with-auto-evaluation-context evaluation-context
+     (file-resource workspace path-or-file evaluation-context)))
+  ([workspace path-or-file evaluation-context]
+   (let [root (g/node-value workspace :root evaluation-context)
+         f (if (instance? File path-or-file)
+             path-or-file
+             (File. (str root path-or-file)))]
+     (resource/make-file-resource workspace root f []))))
 
-(defn find-resource [workspace proj-path]
-  (get (g/node-value workspace :resource-map) proj-path))
+(defn find-resource
+  ([workspace proj-path]
+   (g/with-auto-evaluation-context evaluation-context
+     (find-resource workspace proj-path evaluation-context)))
+  ([workspace proj-path evaluation-context]
+   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
 
-(defn resolve-workspace-resource [workspace path]
-  (when (and path (not-empty path))
-    (or
-      (find-resource workspace path)
-      (file-resource workspace path))))
+(defn resolve-workspace-resource
+  ([workspace path]
+   (g/with-auto-evaluation-context evaluation-context
+     (resolve-workspace-resource workspace path evaluation-context)))
+  ([workspace path evaluation-context]
+   (when (and path (not-empty path))
+     (or
+       (find-resource workspace path evaluation-context)
+       (file-resource workspace path evaluation-context)))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))
@@ -178,9 +197,9 @@ ordinary paths."
       (when-let [workspace (:workspace base-resource)]
         (resolve-workspace-resource workspace path)))))
 
-(defn set-project-dependencies! [workspace library-urls]
-  (g/set-property! workspace :dependencies library-urls)
-  library-urls)
+(defn set-project-dependencies! [workspace library-uris]
+  (g/set-property! workspace :dependencies library-uris)
+  library-uris)
 
 (defn dependencies [workspace]
   (g/node-value workspace :dependencies))
@@ -197,17 +216,34 @@ ordinary paths."
         dependencies (g/node-value workspace :dependencies)]
     (into #{}
           (comp (remove :file)
-                (map :url))
+                (map :uri))
           (library/current-library-state project-directory dependencies))))
+
+(defn update-snapshot-status!
+  [workspace resources]
+  (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status resources))
+
+(defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
+  (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
+    (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
+
+(defn update-snapshot-cache! [workspace snapshot-cache]
+  (g/set-property! workspace :snapshot-cache snapshot-cache))
+
+(defn snapshot-cache [workspace]
+  (g/node-value workspace :snapshot-cache))
 
 (defn resource-sync!
   ([workspace]
-   (resource-sync! workspace true []))
-  ([workspace notify-listeners?]
-   (resource-sync! workspace notify-listeners? []))
-  ([workspace notify-listeners? moved-files]
-   (resource-sync! workspace notify-listeners? moved-files progress/null-render-progress!))
-  ([workspace notify-listeners? moved-files render-progress!]
+   (resource-sync! workspace []))
+  ([workspace moved-files]
+   (resource-sync! workspace moved-files progress/null-render-progress!))
+  ([workspace moved-files render-progress!]
+   (let [snapshot-info (make-snapshot-info workspace (project-path workspace) (dependencies workspace) (snapshot-cache workspace))
+         {new-snapshot :snapshot new-map :map new-snapshot-cache :snapshot-cache} snapshot-info]
+     (update-snapshot-cache! workspace new-snapshot-cache)
+     (resource-sync! workspace moved-files render-progress! new-snapshot new-map)))
+  ([workspace moved-files render-progress! new-snapshot new-map]
    (let [project-path (project-path workspace)
          moved-proj-paths (keep (fn [[src tgt]]
                                   (let [src-path (resource/file->proj-path project-path src)
@@ -219,86 +255,83 @@ ordinary paths."
                                 moved-files)
          old-snapshot (g/node-value workspace :resource-snapshot)
          old-map      (resource-watch/make-resource-map old-snapshot)
-         _            (render-progress! (progress/make "Finding resources..."))
-         new-snapshot (resource-watch/make-snapshot workspace
-                                                    project-path
-                                                    (g/node-value workspace :dependencies))
-         new-map      (resource-watch/make-resource-map new-snapshot)
          changes      (resource-watch/diff old-snapshot new-snapshot)]
      (when (or (not (resource-watch/empty-diff? changes)) (seq moved-proj-paths))
        (g/set-property! workspace :resource-snapshot new-snapshot)
-       (when notify-listeners?
-         (let [changes (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
-               move-source-paths (map first moved-proj-paths)
-               move-target-paths (map second moved-proj-paths)
-               chain-moved-paths (set/intersection (set move-source-paths) (set move-target-paths))
-               merged-target-paths (set (map first (filter (fn [[k v]] (> v 1)) (frequencies move-target-paths))))
-               moved (keep (fn [[source-path target-path]]
-                             (when-not (or
-                                         ;; resource sync currently can't handle chained moves, so refactoring is
-                                         ;; temporarily disabled for those cases (no move pair)
-                                         (chain-moved-paths source-path) (chain-moved-paths target-path)
-                                         ;; also can't handle merged targets, multiple files with same name moved to same dir
-                                         (merged-target-paths target-path))
-                               (let [src-resource (old-map source-path)
-                                     tgt-resource (new-map target-path)]
-                                 ;; We used to (assert (some? src-resource)), but this could fail for instance if
-                                 ;; * source-path refers to a .dotfile (like .DS_Store) that we ignore in resource/make-snapshot
-                                 ;; * Some external process has created a file in a to-be-moved directory and we haven't run a resource-sync! before the move
-                                 ;; We handle these cases by ignoring the move. Any .dotfiles will stay ignored, and any new files will pop up as :added
-                                 ;;
-                                 ;; We also used to (assert (some? tgt-resource)) but an arguably very unlikely case is that the target of the move is
-                                 ;; deleted from disk after the move but before the snapshot.
-                                 ;; We handle that by ignoring the move and effectively treating target as just :removed.
-                                 ;; The source will be :removed or :changed (if a library snuck in).
-                                 (cond
-                                   (nil? src-resource)
-                                   (do (log/warn :msg (str "can't find source of move " source-path)) nil)
+       (let [changes (into {} (map (fn [[type resources]] [type (filter #(= :file (resource/source-type %)) resources)]) changes))
+             move-source-paths (map first moved-proj-paths)
+             move-target-paths (map second moved-proj-paths)
+             chain-moved-paths (set/intersection (set move-source-paths) (set move-target-paths))
+             merged-target-paths (set (map first (filter (fn [[k v]] (> v 1)) (frequencies move-target-paths))))
+             moved (keep (fn [[source-path target-path]]
+                           (when-not (or
+                                       ;; resource sync currently can't handle chained moves, so refactoring is
+                                       ;; temporarily disabled for those cases (no move pair)
+                                       (chain-moved-paths source-path) (chain-moved-paths target-path)
+                                       ;; also can't handle merged targets, multiple files with same name moved to same dir
+                                       (merged-target-paths target-path))
+                             (let [src-resource (old-map source-path)
+                                   tgt-resource (new-map target-path)]
+                               ;; We used to (assert (some? src-resource)), but this could fail for instance if
+                               ;; * source-path refers to a .dotfile (like .DS_Store) that we ignore in resource-watch
+                               ;; * Some external process has created a file in a to-be-moved directory and we haven't run a resource-sync! before the move
+                               ;; We handle these cases by ignoring the move. Any .dotfiles will stay ignored, and any new files will pop up as :added
+                               ;;
+                               ;; We also used to (assert (some? tgt-resource)) but an arguably very unlikely case is that the target of the move is
+                               ;; deleted from disk after the move but before the snapshot.
+                               ;; We handle that by ignoring the move and effectively treating target as just :removed.
+                               ;; The source will be :removed or :changed (if a library snuck in).
+                               (cond
+                                 (nil? src-resource)
+                                 (do (log/warn :msg (str "can't find source of move " source-path)) nil)
 
-                                   (nil? tgt-resource)
-                                   (do (log/warn :msg (str "can't find target of move " target-path)) nil)
+                                 (nil? tgt-resource)
+                                 (do (log/warn :msg (str "can't find target of move " target-path)) nil)
 
-                                   (and (= :file (resource/source-type src-resource))
-                                        (= :file (resource/source-type tgt-resource))) ; paranoia
-                                   [src-resource tgt-resource]))))
-                           moved-proj-paths)
-               changes-with-moved (assoc changes :moved moved)]
-           (assert (= (count (distinct (map (comp resource/proj-path first) moved)))
-                      (count (distinct (map (comp resource/proj-path second) moved)))
-                      (count moved))) ; no overlapping sources, dito targets
-           (assert (= (count (distinct (concat (map (comp resource/proj-path first) moved)
-                                               (map (comp resource/proj-path second) moved))))
-                      (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
-           (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
-                                             (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
-           (doseq [listener @(g/node-value workspace :resource-listeners)]
-             (resource/handle-changes listener changes-with-moved render-progress!)))))
+                                 (and (= :file (resource/source-type src-resource))
+                                      (= :file (resource/source-type tgt-resource))) ; paranoia
+                                 [src-resource tgt-resource]))))
+                         moved-proj-paths)
+             changes-with-moved (assoc changes :moved moved)]
+         (assert (= (count (distinct (map (comp resource/proj-path first) moved)))
+                    (count (distinct (map (comp resource/proj-path second) moved)))
+                    (count moved))) ; no overlapping sources, dito targets
+         (assert (= (count (distinct (concat (map (comp resource/proj-path first) moved)
+                                             (map (comp resource/proj-path second) moved))))
+                    (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
+         (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
+                                           (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
+         (let [listeners @(g/node-value workspace :resource-listeners)
+               parent-progress (atom (progress/make "" (count listeners)))]
+           (doseq [listener listeners]
+             (resource/handle-changes listener changes-with-moved
+                                      (progress/nest-render-progress render-progress! @parent-progress))))))
      changes)))
 
-(defn fetch-and-validate-libraries [workspace library-urls render-fn]
-  (->> (library/current-library-state (project-path workspace) library-urls)
+(defn fetch-and-validate-libraries [workspace library-uris render-fn]
+  (->> (library/current-library-state (project-path workspace) library-uris)
        (library/fetch-library-updates library/default-http-resolver render-fn)
        (library/validate-updated-libraries)))
 
-(defn install-validated-libraries! [workspace library-urls lib-states]
-  (set-project-dependencies! workspace library-urls)
+(defn install-validated-libraries! [workspace library-uris lib-states]
+  (set-project-dependencies! workspace library-uris)
   (library/install-validated-libraries! (project-path workspace) lib-states))
 
 (defn add-resource-listener! [workspace listener]
   (swap! (g/node-value workspace :resource-listeners) conj listener))
 
 
-(g/deftype UrlVec [URL])
+(g/deftype UriVec [URI])
 
 (g/defnode Workspace
   (property root g/Str)
-  (property dependencies UrlVec)
+  (property dependencies UriVec)
   (property opened-files g/Any (default (atom #{})))
   (property resource-snapshot g/Any)
   (property resource-listeners g/Any (default (atom [])))
   (property view-types g/Any)
   (property resource-types g/Any)
-  (property library-snapshot-cache g/Any (default {}))
+  (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)
 
   (output resource-tree FileResource :cached produce-resource-tree)
@@ -313,6 +346,25 @@ ordinary paths."
   [workspace prefs]
   (g/set-property! workspace :build-settings (make-build-settings prefs)))
 
+(defn artifact-map [workspace]
+  (g/user-data workspace ::artifact-map))
+
+(defn artifact-map! [workspace artifact-map]
+  (g/user-data! workspace ::artifact-map artifact-map))
+
+(defn etags [workspace]
+  (g/user-data workspace ::etags))
+
+(defn etag [workspace path]
+  (get (etags workspace) path))
+
+(defn etags! [workspace etags]
+  (g/user-data! workspace ::etags etags))
+
+(defn reset-cache! [workspace]
+  (g/user-data! workspace ::artifact-map nil)
+  (g/user-data! workspace ::etags nil))
+
 (defn make-workspace [graph project-path build-settings]
   (g/make-node! graph Workspace
                 :root project-path
@@ -321,13 +373,15 @@ ordinary paths."
                 :resource-listeners (atom [])
                 :build-settings build-settings))
 
-(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn focus-fn text-selection-fn]}]
+(defn register-view-type [workspace & {:keys [id label make-view-fn make-preview-fn dispose-preview-fn focus-fn text-selection-fn]}]
   (let [view-type (merge {:id    id
                           :label label}
                          (when make-view-fn
                            {:make-view-fn make-view-fn})
                          (when make-preview-fn
                            {:make-preview-fn make-preview-fn})
+                         (when dispose-preview-fn
+                           {:dispose-preview-fn dispose-preview-fn})
                          (when focus-fn
                            {:focus-fn focus-fn})
                          (when text-selection-fn

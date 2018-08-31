@@ -25,7 +25,7 @@ def configure(conf):
 
     conf.env.append_value('CPPPATH', "default/src")
     conf.env['LIB_GTEST'] = 'gtest'
-    conf.env['STATICLIB_DLIB'] = 'dlib'
+    conf.env['STATICLIB_DLIB'] = ['dlib', 'axtls']
     conf.env['STATICLIB_DMGLFW'] = 'dmglfw'
     conf.env['STATICLIB_SCRIPT'] = 'script'
     conf.env['STATICLIB_TREMOLO'] = 'tremolo'

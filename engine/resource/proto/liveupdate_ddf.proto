@@ -1,0 +1,121 @@
+package dmLiveUpdateDDF;
+
+import "ddf/ddf_extensions.proto";
+import "ddf/ddf_math.proto";
+
+option java_package = "com.dynamo.liveupdate.proto";
+option java_outer_classname = "Manifest";
+
+/*
+ * This enum specifies the supported hashing algorithms both for resource
+ * verification and signature generation.
+ *
+ * The HASH_UNKNOWN value is used as a default that cannot be used to create
+ * a manifest. This forces every call to explicitly specify the hashing
+ * algorithm in order to avoid accidentally downgrading the strength of a hash
+ * or unnecessarily using a too expensive hash.
+ */
+enum HashAlgorithm {
+    HASH_UNKNOWN    = 0;
+    HASH_MD5        = 1;
+    HASH_SHA1       = 2;
+    HASH_SHA256     = 3;
+    HASH_SHA512     = 4;
+}
+
+/*
+ * This enum specifies the supported encryption algorithms used for signature
+ * generation.
+ *
+ * The SIGN_UNKNOWN value is used as a default that cannot be used to create
+ * a manifest. This forces every call to explicitly specify the encryption
+ * algorithm.
+ */
+enum SignAlgorithm {
+    SIGN_UNKNOWN    = 0;
+    SIGN_RSA        = 1;
+}
+
+/*
+ * Stores a hashdigest
+ */
+message HashDigest {
+    required bytes              data = 1;
+}
+
+/*
+ * The manifest header specifies general information about the manifest.
+ *
+ * - magic_number             : An identifier used to uniquely a manifest
+ * - version                  : The version of the manifest format
+ * - resource_hash_algorithm  : The algorithm that should be used when hashing
+ *                              resources
+ * - signature_hash_algorithm : The algorithm that should be used when hashing
+ *                              content for signature verification
+ * - signature_sign_algorithm : The algorithm that should be used for
+ *                              encryption and decryption for signature
+ *                              verification
+ * - project_identifier       : An identifier meant to uniquely identify a
+ *                              project to avoid loading a manifest for a
+ *                              different project. This is implemented as the
+ *                              SHA-1 hash of the project title
+ */
+message ManifestHeader {
+    required int32              magic_number = 1                [default = 0];
+    required int32              version = 2                     [default = 0];
+    required HashAlgorithm      resource_hash_algorithm = 3     [default = HASH_SHA256];
+    required HashAlgorithm      signature_hash_algorithm = 4    [default = HASH_SHA256];
+    required SignAlgorithm      signature_sign_algorithm = 5    [default = SIGN_RSA];
+    required HashDigest         project_identifier = 6;
+}
+
+/*
+ * An entry that is produced for each resource that is part of the manifest.
+ *
+ * - url                      : The URL that is used by the engine to identify
+ *                              a resource
+ * - hash                     : The hash of the resource data. This is used to
+ *                              index each resource in the archive with their
+ *                              actual hash.
+ * - dependants               : A list of resources (hashes) that are required
+ *                              to load the current resource. A Collection that
+ *                              is childed to a CollectionProxy is not
+ *                              considered a dependant since it is not required
+ *                              to load the parent Collection of the
+ *                              CollectionProxy.
+ */
+message ResourceEntry {
+    required string             url = 1;
+    required uint64             url_hash = 2;
+    required HashDigest         hash = 3;
+    repeated HashDigest         dependants = 4;
+}
+
+/*
+ * The manifest data that contains all information about the project.
+ *
+ * - header                   : The manifest header
+ * - engine_versions          : A list of engine versions (specified by their
+ *                              hash and same as sys.engine_info) that are able
+ *                              to support the manifest. An engine should only
+ *                              attempt to initialize with a manifest that has
+ *                              that version of the engine listed as a
+ *                              supported engine.
+ * - resources                : The resources that are part of the manifest.
+ */
+message ManifestData {
+    required ManifestHeader     header = 1;
+    repeated HashDigest         engine_versions = 2;
+    repeated ResourceEntry      resources = 3;
+}
+
+/*
+ * The Manifest. This is separate from ManifestData to easily create a
+ * signature of the manifest content. Nothing other than a single ManifestData
+ * entry and a single signature should be part of this entity.
+ */
+message ManifestFile {
+    required bytes              data = 1;
+    required bytes              signature = 2;
+    required bytes              archive_identifier = 3;
+}

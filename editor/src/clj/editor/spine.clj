@@ -20,7 +20,6 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.pipeline.spine-scene-gen :as spine-scene-gen]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.types :as types]
@@ -28,7 +27,8 @@
             [editor.outline :as outline]
             [editor.properties :as properties]
             [editor.rig :as rig]
-            [service.log :as log])
+            [service.log :as log]
+            [internal.util :as util])
   (:import [com.dynamo.spine.proto Spine$SpineSceneDesc Spine$SpineModelDesc Spine$SpineModelDesc$BlendMode]
            [com.defold.editor.pipeline BezierUtil RigUtil$Transform TextureSetGenerator$UVTransform]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
@@ -44,6 +44,14 @@
 
 (def spine-scene-ext "spinescene")
 (def spine-model-ext "spinemodel")
+
+(def slot-signal-unchanged 0x10CCED)
+
+; Helper to do an .indexOf with a type checked first arg.
+(defn- index-of
+  [^java.util.List list value]
+  (.indexOf list value))
+
 
 ; Node defs
 
@@ -80,18 +88,18 @@
     :positions (doto (Point3d.) (math/clj->vecmath v))
     :rotations (doto (Quat4d. 0 0 0 1) (math/clj->vecmath v))
     :scale     (doto (Vector3d.) (math/clj->vecmath v))
-    :colors    (doto (Vector4d.) (math/clj->vecmath v))
+    :slot-colors (doto (Vector4d.) (math/clj->vecmath v))
     :mix       v))
 
 (defn- interpolatable-> [pb-field interpolatable]
   (case pb-field
-    (:positions :rotations :scale :colors) (math/vecmath->clj interpolatable)
-    :mix                                   interpolatable))
+    (:positions :rotations :scale :slot-colors) (math/vecmath->clj interpolatable)
+    :mix                                        interpolatable))
 
 (def default-vals {:positions [0 0 0]
                    :rotations [0 0 0 1]
                    :scale [1 1 1]
-                   :colors [1 1 1 1]
+                   :slot-colors [1 1 1 1]
                    :attachment true
                    :order-offset 0
                    :mix 1.0
@@ -128,7 +136,7 @@
     "translate"    [(get key "x" 0) (get key "y" 0) 0]
     "rotate"       (angle->clj-quat (get key "angle" 0))
     "scale"        [(get key "x" 1) (get key "y" 1) 1]
-    "color"        (hex->color (get key "color" "FFFFFFFF"))
+    "color"        (hex->color (get key "color" "ffffffff"))
     "drawOrder"    (get key "offset")
     "mix"          (get key "mix")
     "bendPositive" (get key "bendPositive")))
@@ -136,8 +144,8 @@
 (def timeline-type->pb-field {"translate" :positions
                               "rotate" :rotations
                               "scale" :scale
-                              "color" :colors
-                              "attachment" :visible
+                              "color" :slot-colors
+                              "attachment" :mesh-attachment
                               "drawOrder" :order-offset
                               "mix" :mix
                               "bendPositive" :positive})
@@ -146,10 +154,19 @@
                                  "rotate" :double
                                  "scale" :double
                                  "color" :double
-                                 "attachment" :boolean
+                                 "attachment" :long
                                  "drawOrder" :long
                                  "mix" :double
                                  "bendPositive" :boolean})
+
+(def timeline-type->key-stride {"translate" 3
+                                "rotate" 4
+                                "scale" 3
+                                "color" 4
+                                "attachment" 1
+                                "drawOrder" 1
+                                "mix" 1
+                                "bendPositive" 1})
 
 (defn key->curve-data
   [key]
@@ -221,6 +238,12 @@
             (vector-of (timeline-type->vector-type type))
             (range sample-count))))
 
+; Calls the regular sample function then duplicates the last keyframe so that
+; the linear interpolation works correctly in runtime.
+(defn- sample-with-dup-frame [type keys duration sample-rate spf val-fn default-val interpolate?]
+  (let [keyframes (sample type keys duration sample-rate spf val-fn default-val interpolate?)]
+    (into keyframes (take-last (timeline-type->key-stride type) keyframes))))
+
 ; This value is used to counter how the key values for rotations are interpreted in spine:
 ; * All values are modulated into the interval 0 <= x < 360
 ; * If keys k0 and k1 have a difference > 180, the second key is adjusted with +/- 360 to lessen the difference to < 180
@@ -247,7 +270,7 @@
                                     (let [bone-index (bone-id->index (murmur/hash64 bone-name))]
                                       (reduce-kv (fn [m type keys]
                                                    (if-let [field (timeline-type->pb-field type)]
-                                                     (let [pb-track {field (sample type (wrap-angles type keys) duration sample-rate spf nil nil true)
+                                                     (let [pb-track {field (sample-with-dup-frame type (wrap-angles type keys) duration sample-rate spf nil nil true)
                                                                      :bone-index bone-index}]
                                                        (update-in m [bone-index] merge pb-track))
                                                      m))
@@ -255,7 +278,7 @@
                                   {} timelines)]
     (sort-by :bone-index (vals tracks-by-bone))))
 
-(defn- build-mesh-tracks [slot-timelines do-timelines duration sample-rate spf slots-data slot->track-data]
+(defn- build-mesh-tracks [slot-timelines do-timelines duration sample-rate spf base-slots]
   (let [; Reshape do-timelines into slot-timelines
         do-by-slot (into {} (map (fn [[slot timeline]]
                                    [slot {"drawOrder" timeline}])
@@ -265,33 +288,41 @@
                                                                (assoc m (get offset "slot") [{"time" t "offset" (get offset "offset")}]))
                                                              {} (get timeline "offsets"))
                                             ; Supply implicit slots with 0 in offset
+                                            ; We set them to the constant slot-signal-unchanged which signal
+                                            ; to the runtime that these slots were not changed.
+                                            ; (We can't set them to 0 here, since this would mean that they
+                                            ;  MUST not change/move at runtime.)
                                             all (reduce (fn [m slot]
                                                           (if (not (contains? m slot))
-                                                            (assoc m slot [{"time" t "offset" 0}])
+                                                            (assoc m slot [{"time" t "offset" slot-signal-unchanged}])
                                                             m))
                                                         explicit (keys m))]
                                         (merge-with into m all)))
                                     {} do-timelines)))
         slot-timelines (merge-with merge slot-timelines do-by-slot)
         tracks-by-slot (reduce-kv (fn [m slot timeline]
-                                    (let [slot-data (get slots-data slot)
-                                          tracks (mapv (fn [{:keys [skin-id mesh-index attachment]}]
-                                                         (reduce-kv (fn [track type keys]
-                                                                      (let [interpolate? (= type "color")
-                                                                            val-fn (when (= type "attachment")
-                                                                                     (fn [type key]
-                                                                                       (= attachment (get key "name"))))
-                                                                            default-val (when (= type "attachment")
-                                                                                          (= (:attachment slot-data) attachment))
-                                                                            field (timeline-type->pb-field type)
-                                                                            pb-track {:mesh-index mesh-index
-                                                                                      :mesh-id skin-id
-                                                                                      field (sample type keys duration sample-rate spf val-fn default-val interpolate?)}]
-                                                                        (merge track pb-track)))
-                                                                    {} timeline))
-                                                       (slot->track-data slot))]
+                                    (let [slot-data (get base-slots slot)
+                                          default-attachment-name (:default-attachment slot-data)
+                                          ^java.util.List attachment-names (:attachment-names slot-data)
+                                          default-attachment-index (index-of attachment-names default-attachment-name)
+                                          tracks (reduce-kv (fn [track type keys]
+                                                              (let [interpolate? (= type "color")
+                                                                    val-fn (when (= type "attachment")
+                                                                             (fn [_ key]
+                                                                               (index-of attachment-names (get key "name"))))
+                                                                    default-val (when (= type "attachment")
+                                                                                  default-attachment-index)
+                                                                    field (timeline-type->pb-field type)
+                                                                    ; Below :mesh-slot should point to the slot index that the track will change,
+                                                                    ; this is stored in the :draw-order of a slot. The :draw-order is essentially
+                                                                    ; just an increasing integer from 0 created when we read the base slots from
+                                                                    ; the input file.
+                                                                    pb-track {:mesh-slot (:draw-order slot-data)
+                                                                              field (sample-with-dup-frame type keys duration sample-rate spf val-fn default-val interpolate?)}]
+                                                                (merge track pb-track)))
+                                                            {} timeline)]
                                       (assoc m slot tracks)))
-                               {} slot-timelines)]
+                                  {} slot-timelines)]
     (flatten (vals tracks-by-slot))))
 
 (defn- build-event-tracks
@@ -314,8 +345,8 @@
   (->> ik-timelines
        (map (fn [[ik-name key-frames]]
               {:ik-index (ik-id->index (murmur/hash64 ik-name))
-               :mix      (sample "mix" key-frames duration sample-rate spf nil nil true)
-               :positive (sample "bendPositive" key-frames duration sample-rate spf nil nil false)}))
+               :mix      (sample-with-dup-frame "mix" key-frames duration sample-rate spf nil nil true)
+               :positive (sample-with-dup-frame "bendPositive" key-frames duration sample-rate spf nil nil false)}))
        (sort-by :ik-index)
        (vec)))
 
@@ -353,11 +384,13 @@
 
 (def ^:private ^TextureSetGenerator$UVTransform uv-identity (TextureSetGenerator$UVTransform.))
 
-(defn- attachment->mesh [attachment att-name slot-data anim-data bones-remap bone-index->world]
+(defn- attachment->mesh [attachment base-slots anim-data bones-remap bone-index->world]
   (when anim-data
     (let [type (get attachment "type" "region")
+          slot-name (get attachment "slot-name")
+          slot-data (get base-slots slot-name)
           world ^RigUtil$Transform (:bone-world slot-data)
-          anim-id (get attachment "name" att-name)
+          anim-id (get attachment "name")
           uv-trans (or ^TextureSetGenerator$UVTransform (first (get-in anim-data [anim-id :uv-transforms])) uv-identity)
           mesh (case type
                  "region"
@@ -382,7 +415,7 @@
                     :indices [0 1 2 2 1 3]
                     :weights (take 16 (cycle [1 0 0 0]))
                     :bone-indices (take 16 (cycle [(:bone-index slot-data) 0 0 0]))
-                    :skin-color (hex->color (get attachment "color" "ffffffff"))})
+                    :mesh-color (hex->color (get attachment "color" "ffffffff"))})
                  ("mesh" "skinnedmesh" "weightedmesh")
                  (let [vertices (get attachment "vertices" [])
                        uvs (get attachment "uvs" [])
@@ -428,7 +461,7 @@
                         :indices (get attachment "triangles")
                         :weights bone-weights
                         :bone-indices bone-indices
-                        :skin-color (hex->color (get attachment "color" "ffffffff"))})
+                        :mesh-color (hex->color (get attachment "color" "ffffffff"))})
                      (let [weight-count (* vertex-count 4)]
                        {:positions (mapcat (fn [[x y]]
                                              (let [p (Point3d. x y 0)]
@@ -443,25 +476,11 @@
                         :indices (get attachment "triangles")
                         :weights (take weight-count (cycle [1 0 0 0]))
                         :bone-indices (take weight-count (cycle [(:bone-index slot-data) 0 0 0]))
-                        :skin-color (hex->color (get attachment "color" "ffffffff"))})))
+                        :mesh-color (hex->color (get attachment "color" "ffffffff"))})))
                  ; Ignore other types
                  nil)]
       (some-> mesh
-              (assoc :color (:color slot-data)
-                     :visible (= att-name (:attachment slot-data))
-                     :draw-order (:draw-order slot-data))))))
-
-(defn skin->meshes [skin slots-data anim-data bones-remap bone-index->world]
-  (reduce-kv (fn [m slot attachments]
-               (let [mesh-pairs (mapcat (fn [[att-name att]]
-                                          (if-let [mesh (attachment->mesh att att-name (get slots-data slot) anim-data bones-remap bone-index->world)]
-                                            [[slot att-name] mesh]
-                                            []))
-                                        attachments)]
-                 (if (empty? mesh-pairs)
-                   m
-                   (apply assoc m mesh-pairs))))
-             {} skin))
+              (assoc :slot-color (get slot-data :slot-color [1.0 1.0 1.0 1.0]))))))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
@@ -536,17 +555,82 @@
              :mix (get ik "mix" 1.0)}))
         (get spine-scene "ik")))
 
-(defn- read-slots
+(defn- read-base-slots
   [spine-scene bone-id->index bone-index->world-transform]
-  (into {} (map-indexed (fn [i slot]
-                          (let [bone-index (bone-id->index (murmur/hash64 (get slot "bone")))]
-                            [(get slot "name")
-                             {:bone-index bone-index
-                              :bone-world (get bone-index->world-transform bone-index)
-                              :draw-order i
-                              :color (hex->color (get slot "color" "FFFFFFFF"))
-                              :attachment (get slot "attachment")}]))
-                        (get spine-scene "slots"))))
+  (let [skins (get spine-scene "skins")
+        attachment-points-by-slot-name (transduce (comp (mapcat second)
+                                                        (map (fn [[slot-name attachment-points]]
+                                                               {slot-name (into (sorted-set)
+                                                                                (map first)
+                                                                                attachment-points)})))
+                                                  (partial merge-with into)
+                                                  {}
+                                                  skins)]
+    (into {}
+          (map-indexed (fn [i slot]
+                         (let [slot-name (get slot "name")
+                               ^java.util.List attachment-names (into [] (get attachment-points-by-slot-name slot-name))
+                               attachment-points (zipmap attachment-names (repeat (count attachment-names) -1))
+                               bone-index (bone-id->index (murmur/hash64 (get slot "bone")))
+                               default-attachment (get slot "attachment")]
+                           [slot-name
+                            {:id (murmur/hash64 slot-name)
+                             :bone-index bone-index
+                             :bone-world (get bone-index->world-transform bone-index)
+                             :draw-order i
+                             :slot-color (hex->color (get slot "color" "ffffffff"))
+                             :attachment-points attachment-points
+                             :attachment-names attachment-names
+                             :default-attachment default-attachment
+                             :active-attachment (index-of attachment-names default-attachment)}])))
+
+          (get spine-scene "slots"))))
+
+(defn- attachment-entry->named-attachment [[attachment-name attachment slot-name]]
+  (assoc attachment
+    "name" (get attachment "name" attachment-name)
+    "slot-name" slot-name))
+
+(defn- read-distinct-meshes
+  [skins]
+  (vec (sort-by util/map->sort-key
+                (into #{}
+                      (comp (mapcat second)
+                            (mapcat (fn [[slot-name attachments]]
+                                      (map (fn [[attachment-point attachment]]
+                                             [attachment-point attachment slot-name])
+                                           attachments)))
+                            (map attachment-entry->named-attachment))
+                      skins))))
+
+(defn- update-slot-attachment-indices
+  [slot-attachments-x slot-name slot-attachments-j meshes]
+  (reduce-kv (fn [attachment attachment-id attachment-index]
+               (let [mesh-entry (attachment-entry->named-attachment [attachment-id (get slot-attachments-j attachment-id) slot-name])
+                     mesh-index (index-of meshes mesh-entry)
+                     mesh-index (if (not= mesh-index -1) mesh-index attachment-index)]
+                   (assoc attachment attachment-id mesh-index)))
+             {}
+             slot-attachments-x))
+
+(defn- update-skin-attachment-indices
+  [skin-x skin-j meshes]
+  (reduce-kv (fn [skin slot-name slot]
+               (assoc skin
+                 slot-name
+                 (update slot :attachment-points update-slot-attachment-indices slot-name (get skin-j slot-name {}) meshes)))
+             {}
+             skin-x))
+
+(defn- load-default-skin
+  [skin-j base-slots meshes]
+  (update-skin-attachment-indices base-slots skin-j meshes))
+
+(defn- load-rest-skins
+  [skins-j default-skin-x meshes]
+  (map (fn [[skin-name skin-j]]
+         [skin-name (update-skin-attachment-indices default-skin-x skin-j meshes)])
+       skins-j))
 
 (defn- bone-world-transforms
   [bones]
@@ -586,30 +670,20 @@
         ik-id->index (zipmap (map :id iks) (range))
 
         ;; Slot data
-        slots-data (read-slots spine-scene bone-id->index bone-index->world-transform)
+        base-slots (read-base-slots spine-scene bone-id->index bone-index->world-transform)
         slot-count (count (get spine-scene "slots"))
 
-        ;; Skin data
-        mesh-sort-fn (fn [[k v]] (:draw-order v))
-        sort-meshes (partial sort-by mesh-sort-fn)
-        skins (get spine-scene "skins" {})
-        generic-meshes (skin->meshes (get skins "default" {}) slots-data anim-data bones-remap bone-index->world-transform)
-        new-skins {"default" (sort-meshes generic-meshes)}
-        new-skins (reduce (fn [m [skin slots]]
-                            (let [specific-meshes (skin->meshes slots slots-data anim-data bones-remap bone-index->world-transform)]
-                              (assoc m skin (sort-meshes (merge generic-meshes specific-meshes)))))
-                          new-skins (filter (fn [[skin _]] (not= "default" skin)) skins))
-        slot->track-data (reduce-kv (fn [m skin meshes]
-                                      (let [skin-id (murmur/hash64 skin)]
-                                        (reduce-kv (fn [m i [[slot att]]]
-                                                     (update m slot conj {:skin-id skin-id :mesh-index i :attachment att}))
-                                                   m (vec meshes))))
-                                    {} new-skins)
+        ;; Skin and mesh data
+        skins-j (get spine-scene "skins" {})
+        meshes (read-distinct-meshes skins-j)
+        default-skin-x (load-default-skin (get skins-j "default") base-slots meshes)
+        skins-x (load-rest-skins (filter (fn [[skin _]] (not= "default" skin)) skins-j) default-skin-x meshes)
+        all-skins (conj skins-x ["" default-skin-x])
 
         ;; Protobuf
         pb (try
              {:skeleton {:bones bones
-                         :iks iks}
+                         :iks   iks}
               :animation-set (let [event-name->event-props (get spine-scene "events" {})
                                    animations (mapv (fn [[name a]]
                                                       (let [duration (anim-duration a)]
@@ -617,15 +691,29 @@
                                                          :sample-rate sample-rate
                                                          :duration duration
                                                          :tracks (build-tracks (get a "bones") duration sample-rate spf bone-id->index)
-                                                         :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf slots-data slot->track-data)
-                                                         :event-tracks (build-event-tracks (get a "events") event-name->event-props )
+                                                         :mesh-tracks (build-mesh-tracks (get a "slots") (get a "drawOrder") duration sample-rate spf base-slots)
+                                                         :event-tracks (build-event-tracks (get a "events") event-name->event-props)
                                                          :ik-tracks (build-ik-tracks (get a "ik") duration sample-rate spf ik-id->index)}))
                                                     (get spine-scene "animations"))]
                                {:animations animations})
               :mesh-set {:slot-count slot-count
-                         :mesh-entries (mapv (fn [[skin meshes]]
-                                               {:id (murmur/hash64 skin)
-                                                :meshes (mapv second meshes)}) new-skins)}}
+                         :mesh-attachments (mapv (fn [mesh]
+                                                   (attachment->mesh mesh base-slots anim-data bones-remap bone-index->world-transform))
+                                                 meshes)
+                         :mesh-entries (mapv (fn [[skin-name slots]]
+                                               {:id (murmur/hash64 skin-name)
+                                                :mesh-slots (mapv (fn [slot]
+                                                                    (let [slot-data (val slot)
+                                                                          attachment-points (get slot-data :attachment-points)]
+                                                                      {:id (:id slot-data)
+                                                                       :mesh-attachments (mapv (fn [attachment-name] (get attachment-points attachment-name))
+                                                                                               (:attachment-names slot-data))
+                                                                       :active-index (get slot-data :active-attachment -1)
+                                                                       :slot-color (:slot-color slot-data)}))
+                                                                  (sort-by (fn [[_ slot-data]]
+                                                                             (:draw-order slot-data))
+                                                                           slots))})
+                                             all-skins)}}
              (catch Exception e
                (log/error :exception e)
                (g/->error _node-id :spine-json :fatal spine-json (str "Incompatible data found in spine json " (resource/resource->proj-path spine-json)))))]
@@ -642,17 +730,23 @@
                                           [(.x p) (.y p) (.z p)])))))))
 
 (defn- renderable->meshes [renderable]
-  (let [mesh-entries (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])
+  (let [meshes (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-attachments])
+        skins (get-in renderable [:user-data :spine-scene-pb :mesh-set :mesh-entries])
         skin-id (some-> renderable :user-data :skin murmur/hash64)
-        mesh-entry (or (first (filter #(= (:id %) skin-id) mesh-entries))
-                       (first mesh-entries))]
-    (->> (:meshes mesh-entry)
-         (filter :visible)
-         (sort-by :draw-order)
-         (map (partial transform-positions (:world-transform renderable)))
-         (map (fn [mesh]
-                (let [color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])]
-                  (update mesh :color (fn [src tint] (mapv * src tint)) color)))))))
+        skin (or (first (filter #(= (:id %) skin-id) skins))
+                 (first skins))]
+    (into []
+          (comp (keep #(get meshes (get (get % :mesh-attachments) (get % :active-index) -1)))
+                (map (partial transform-positions (:world-transform renderable)))
+                (map (fn [mesh]
+                       (let [tint-color (get-in renderable [:user-data :color] [1.0 1.0 1.0 1.0])
+                             skin-color (:slot-color mesh)
+                             mesh-color (:mesh-color mesh)
+                             final-color (mapv * skin-color tint-color mesh-color)
+                             alpha (nth final-color 3)
+                             final-color (assoc (mapv #(* % alpha) final-color) 1 alpha)]
+                         (assoc mesh :color final-color)))))
+          (:mesh-slots skin))))
 
 (defn- mesh->verts [mesh]
   (let [verts (mapv concat (partition 3 (:positions mesh)) (partition 2 (:texcoord0 mesh)) (repeat (:color mesh)))]
@@ -691,51 +785,67 @@
       (let [vb (render/->vtx-pos-col vcount)]
         (persistent! (reduce conj! vb vs))))))
 
-(defn render-spine-scenes [^GL2 gl render-args renderables rcount]
+(defn- render-spine-scenes [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
-    (cond
-      (= pass pass/outline)
-      (render/render-aabb-outline gl render-args ::spine-outline renderables rcount)
+    (condp = pass
+      pass/transparent
+      (when-let [vb (gen-vb renderables)]
+        (let [user-data (:user-data (first renderables))
+              blend-mode (:blend-mode user-data)
+              gpu-texture (:gpu-texture user-data)
+              shader (get user-data :shader render/shader-tex-tint)
+              vertex-binding (vtx/use-with ::spine-trans vb shader)]
+          (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
+            (gl/set-blend-mode gl blend-mode)
+            (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
+            (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
 
-      (= pass pass/transparent)
-      (do (when-let [vb (gen-vb renderables)]
-            (let [user-data (:user-data (first renderables))
-                  blend-mode (:blend-mode user-data)
-                  gpu-texture (:gpu-texture user-data)
-                  shader (get user-data :shader render/shader-tex-tint)
-                  vertex-binding (vtx/use-with ::spine-trans vb shader)]
-              (gl/with-gl-bindings gl render-args [gpu-texture shader vertex-binding]
-                (case blend-mode
-                  :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-                  (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-                  :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-                (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))
-                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA))))
-          (when-let [vb (gen-skeleton-vb renderables)]
-            (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
-              (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
-                (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
-
-      (= pass pass/selection)
+      pass/selection
       (when-let [vb (gen-vb renderables)]
         (let [vertex-binding (vtx/use-with ::spine-selection vb render/shader-tex-tint)]
           (gl/with-gl-bindings gl render-args [render/shader-tex-tint vertex-binding]
             (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 (count vb))))))))
+
+(defn- render-spine-skeletons [^GL2 gl render-args renderables rcount]
+  (assert (= (:pass render-args) pass/transparent))
+  (when-let [vb (gen-skeleton-vb renderables)]
+    (let [vertex-binding (vtx/use-with ::spine-skeleton vb render/shader-outline)]
+      (gl/with-gl-bindings gl render-args [render/shader-outline vertex-binding]
+        (gl/gl-draw-arrays gl GL/GL_LINES 0 (count vb))))))
+
+(defn- render-spine-outlines [^GL2 gl render-args renderables rcount]
+  (assert (= (:pass render-args) pass/outline))
+  (render/render-aabb-outline gl render-args ::spine-outline renderables rcount))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture default-tex-params spine-scene-pb scene-structure]
   (let [scene {:node-id _node-id
                :aabb aabb}]
     (if (and gpu-texture scene-structure)
       (let [blend-mode :blend-mode-alpha]
-        (assoc scene :renderable {:render-fn render-spine-scenes
-                                  :batch-key gpu-texture
-                                  :select-batch-key _node-id
-                                  :user-data {:spine-scene-pb spine-scene-pb
-                                              :scene-structure scene-structure
-                                              :gpu-texture gpu-texture
-                                              :tex-params default-tex-params
-                                              :blend-mode blend-mode}
-                                  :passes [pass/transparent pass/selection pass/outline]}))
+        (assoc scene
+               :renderable {:render-fn render-spine-scenes
+                            :tags #{:spine}
+                            :batch-key gpu-texture
+                            :select-batch-key _node-id
+                            :user-data {:spine-scene-pb spine-scene-pb
+                                        :scene-structure scene-structure
+                                        :gpu-texture gpu-texture
+                                        :tex-params default-tex-params
+                                        :blend-mode blend-mode}
+                            :passes [pass/transparent pass/selection]}
+               :children [{:aabb aabb
+                           :node-id _node-id
+                           :renderable {:render-fn render-spine-skeletons
+                                        :tags #{:spine :skeleton :outline}
+                                        :batch-key gpu-texture
+                                        :user-data {:scene-structure scene-structure}
+                                        :passes [pass/transparent]}}
+                          {:aabb aabb
+                           :node-id _node-id
+                           :renderable {:render-fn render-spine-outlines
+                                        :tags #{:spine :outline}
+                                        :batch-key ::outline
+                                        :passes [pass/outline]}}]))
       scene)))
 
 (defn- mesh->aabb [aabb mesh]
@@ -747,11 +857,11 @@
 
   (property spine-json resource/Resource
             (value (gu/passthrough spine-json-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :spine-json-resource]
                                             [:content :spine-scene]
-                                            [:structure :scene-structure]
+                                            [:consumer-passthrough :scene-structure]
                                             [:node-outline :source-outline])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext "json"}))
             (dynamic error (g/fnk [_node-id spine-json]
@@ -759,8 +869,8 @@
 
   (property atlas resource/Resource
             (value (gu/passthrough atlas-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :atlas-resource]
                                             [:anim-data :anim-data]
                                             [:gpu-texture :gpu-texture]
@@ -781,16 +891,15 @@
   (input spine-scene g/Any)
   (input scene-structure g/Any)
 
-  (output save-value g/Any :cached produce-save-value)
+  (output save-value g/Any produce-save-value)
   (output own-build-errors g/Any :cached produce-scene-own-build-errors)
   (output build-targets g/Any :cached produce-scene-build-targets)
   (output spine-scene-pb g/Any :cached produce-spine-scene-pb)
   (output scene g/Any :cached produce-scene)
-  (output aabb AABB :cached (g/fnk [spine-scene-pb] (let [meshes (mapcat :meshes (get-in spine-scene-pb [:mesh-set :mesh-entries]))]
-                                                      (reduce mesh->aabb (geom/null-aabb) meshes))))
+  (output aabb AABB :cached (g/fnk [spine-scene-pb] (reduce mesh->aabb (geom/null-aabb) (get-in spine-scene-pb [:mesh-set :mesh-attachments]))))
   (output anim-data g/Any (gu/passthrough anim-data))
   (output scene-structure g/Any (gu/passthrough scene-structure))
-  (output spine-anim-ids g/Any (g/fnk [spine-scene] (keys (get spine-scene "animations")))))
+  (output spine-anim-ids g/Any (g/fnk [scene-structure] (:animations scene-structure))))
 
 (defn load-spine-scene [project self resource spine]
   (let [spine-resource (workspace/resolve-resource resource (:spine-json spine))
@@ -852,15 +961,12 @@
         pb (reduce #(assoc %1 (first %2) (second %2)) pb (map (fn [[label res]] [label (resource/proj-path (get dep-resources res))]) (:dep-resources user-data)))]
     {:resource resource :content (protobuf/map->bytes Spine$SpineModelDesc pb)}))
 
-(g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets scene-structure]
+(g/defnk produce-model-build-targets [_node-id own-build-errors resource model-pb spine-scene-resource material-resource dep-build-targets]
   (g/precluding-errors own-build-errors
     (let [dep-build-targets (flatten dep-build-targets)
           deps-by-source (into {} (map #(let [res (:resource %)] [(:resource res) res]) dep-build-targets))
           dep-resources (map (fn [[label resource]] [label (get deps-by-source resource)]) [[:spine-scene spine-scene-resource] [:material material-resource]])
-          model-pb (update model-pb :skin (fn [skin] (or (not-empty skin)
-                                                         (when (some (partial = "default") (:skins scene-structure))
-                                                           "default")
-                                                         (first (:skins scene-structure)))))]
+          model-pb (update model-pb :skin (fn [skin] (or skin "")))]
       [{:node-id _node-id
         :resource (workspace/make-build-resource resource)
         :build-fn build-spine-model
@@ -873,8 +979,8 @@
 
   (property spine-scene resource/Resource
             (value (gu/passthrough spine-scene-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :spine-scene-resource]
                                             [:scene :spine-scene-scene]
                                             [:spine-anim-ids :spine-anim-ids]
@@ -891,8 +997,8 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Spine$SpineModelDesc$BlendMode))))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
@@ -934,7 +1040,7 @@
                                         (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
                                         (assoc-in [:renderable :user-data :skin] skin))
                                     spine-scene-scene))))
-  (output model-pb g/Any :cached produce-model-pb)
+  (output model-pb g/Any produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
   (output own-build-errors g/Any :cached produce-model-own-build-errors)
   (output build-targets g/Any :cached produce-model-build-targets)
@@ -1023,7 +1129,8 @@
   (input content g/Any)
   (output structure g/Any :cached (g/fnk [skeleton content]
                                          {:skeleton (update-transforms (math/->mat4) skeleton)
-                                          :skins (vec (sort (keys (get content "skins"))))})))
+                                          :skins (vec (sort (keys (get content "skins"))))
+                                          :animations (keys (get content "animations"))})))
 
 (defn accept-spine-scene-json [content]
   (when (or (get-in content ["skeleton" "spine"])
@@ -1039,7 +1146,7 @@
         scene-tx-data (g/make-nodes graph [scene SpineSceneJson]
                                     (g/connect scene :_node-id node-id :nodes)
                                     (g/connect scene :node-outline node-id :child-outlines)
-                                    (g/connect scene :structure node-id :structure)
+                                    (g/connect scene :structure node-id :consumer-passthrough)
                                     (g/connect node-id :content scene :content))
         scene-id (tx-first-created scene-tx-data)]
     (concat

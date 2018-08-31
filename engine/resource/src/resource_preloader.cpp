@@ -90,6 +90,7 @@ namespace dmResource
         ResourcePostCreateParams m_Params;
         SResourceDescriptor m_ResourceDesc;
         bool m_Removed;
+        bool m_Destroy;
     };
 
     // The preloader will function even down to a value of 1 here (the root object)
@@ -281,6 +282,7 @@ namespace dmResource
             if (!buffer)
             {
                 assert(req->m_Buffer);
+                tmp_resource.m_ResourceSizeOnDisc = req->m_BufferSize;
                 params.m_Buffer = req->m_Buffer;
                 params.m_BufferSize = req->m_BufferSize;
                 req->m_LoadResult = resource_type->m_CreateFunction(params);
@@ -295,6 +297,7 @@ namespace dmResource
             }
             else
             {
+                tmp_resource.m_ResourceSizeOnDisc = buffer_size;
                 params.m_Buffer = buffer;
                 params.m_BufferSize = buffer_size;
                 req->m_LoadResult = resource_type->m_CreateFunction(params);
@@ -311,6 +314,7 @@ namespace dmResource
                     preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()+1);
                     ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
                     ip.m_Removed = false;
+                    ip.m_Destroy = false;
                     ip.m_Params.m_Factory = preloader->m_Factory;
                     ip.m_Params.m_Context = resource_type->m_Context;
                     ip.m_Params.m_PreloadData = req->m_PreloadData;
@@ -373,23 +377,36 @@ namespace dmResource
             assert(tmp_resource.m_Resource != 0);
             assert(resource_type != 0);
 
-
+            bool found = false;
             // Remove from the post create callbacks if necessary
             for( uint32_t i = 0; i < preloader->m_PostCreateCallbacks.Size(); ++i )
             {
                 ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[i];
                 if (ip.m_ResourceDesc.m_Resource == tmp_resource.m_Resource)
                 {
-                    ip.m_Removed = true;
+                    // Mark resource that is should be destroyed once postcreate has run.
+                    ip.m_Destroy = true;
+                    found = true;
+
+                    // NOTE: Loading multiple collection proxies with shared resources at the same
+                    // time can result in these resources being loading more than once.
+                    // We should fix so that this cannot happen since this is wasteful of both performance
+                    // and memory usage. There is an issue filed for this: DEF-3088
+                    // Once that has been implemented, the delayed destroy (m_Destroy) can be removed,
+                    // it would no longer be needed since each resource would only be created/loaded once.
+
                     break;
                 }
             }
 
-            ResourceDestroyParams params;
-            params.m_Factory = preloader->m_Factory;
-            params.m_Context = resource_type->m_Context;
-            params.m_Resource = &tmp_resource;
-            resource_type->m_DestroyFunction(params);
+            // Is the resource wasn't found in the PostCreate callbacks, we can destroy it right away.
+            if (!found) {
+                ResourceDestroyParams params;
+                params.m_Factory = preloader->m_Factory;
+                params.m_Context = resource_type->m_Context;
+                params.m_Resource = &tmp_resource;
+                resource_type->m_DestroyFunction(params);
+            }
         }
 
         req->m_ResourceType = 0;
@@ -484,24 +501,33 @@ namespace dmResource
         return 0;
     }
 
-    // Returns if anything completed
+    static uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index);
+
+    // Returns 1 if an item is found that has completed its loading from the load queue
     static uint32_t PreloaderUpdateOneItem(HPreloader preloader, int32_t index)
     {
-        if (index < 0)
-        {
-            // becuase we do recursion
-            return 0;
-        }
-
         DM_PROFILE(Resource, "PreloaderUpdateOneItem");
-        PreloadRequest *req = &preloader->m_Request[index];
-
-        if (req->m_LoadResult != RESULT_PENDING)
+        while (index >= 0)
         {
-            // Done means no children to worry about; go to sibling.
-            return PreloaderUpdateOneItem(preloader, req->m_NextSibling);
+            PreloadRequest *req = &preloader->m_Request[index];
+            if (req->m_LoadResult == RESULT_PENDING)
+            {
+                if (DoPreloaderUpdateOneReq(preloader, index))
+                {
+                    return 1;
+                }
+            }
+            index = req->m_NextSibling;
         }
+        return 0;
+    }
 
+    // Returns 1 if the item or any of its children is found that has completed its loading from the load queue
+    static uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index)
+    {
+        DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
+
+        PreloadRequest *req = &preloader->m_Request[index];
         // If it does not have a load request, it would have a buffer if it
         // had started a load.
         if (!req->m_LoadRequest && !req->m_Buffer && !req->m_Resource)
@@ -509,7 +535,7 @@ namespace dmResource
             if (!req->m_CanonicalPathHash)
             {
                 char canonical_path[RESOURCE_PATH_MAX];
-                GetCanonicalPath(preloader->m_Factory, req->m_Path, canonical_path);
+                GetCanonicalPath(req->m_Path, canonical_path);
                 req->m_CanonicalPathHash = dmHashBuffer64(canonical_path, strlen(canonical_path));
             }
 
@@ -518,7 +544,7 @@ namespace dmResource
             {
                 // Already being loaded elsewhere; we can wait on that to complete, unless the item
                 // exists above us in the tree; then the loop is infinite and we can abort
-                int32_t parent = preloader->m_Request[index].m_Parent;
+                int32_t parent = req->m_Parent;
                 int32_t go_up = parent;
                 while (go_up != -1)
                 {
@@ -595,7 +621,7 @@ namespace dmResource
                 return 1;
         }
 
-        return PreloaderUpdateOneItem(preloader, req->m_NextSibling);
+        return 0;
     }
 
     static Result PostCreateUpdateOneItem(HPreloader preloader, bool& empty_run)
@@ -633,6 +659,18 @@ namespace dmResource
         ++preloader->m_PostCreateCallbackIndex;
         if (ret == RESULT_OK)
         {
+            // Resource has been marked for delayed destroy after PostCreate function has been run.
+            if (ip.m_Destroy)
+            {
+                ResourceDestroyParams params;
+                params.m_Factory = preloader->m_Factory;
+                params.m_Context = resource_type->m_Context;
+                params.m_Resource = &ip.m_ResourceDesc;
+                resource_type->m_DestroyFunction(params);
+                ip.m_Removed = true;
+                ip.m_Destroy = false;
+            }
+
             if(preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
             {
                 return RESULT_PENDING;

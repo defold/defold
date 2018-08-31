@@ -43,11 +43,11 @@ Here are some commands to help out with the process:
 
     # You can list all the packages contained (not just the latest versions)
     # and see their aliases (e.g. "tools")
-    ./android-sdk/tools/android list sdk --all --extended
+    ./android-sdk/tools/bin/sdkmanager --verbose --list --include_obsolete
 
     # you can use some aliases to install them
     # Note the API level version: E.g. "android-23"
-    ./android-sdk/tools/android update sdk -a -u -t tools,android-23,extra-android-support,platform-tools,build-tools-20.0.0
+    ./android-sdk/tools/bin/sdkmanager --verbose "tools" "platform-tools" "extras;android;m2repository" "platforms;android-23" "build-tools;23.0.2"
 
 After installing SDK and NDK check that the PATH env variable contains the path to the android sdk. If not, add it manually.
 

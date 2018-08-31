@@ -423,6 +423,13 @@ namespace dmGameSystem
     {
         LabelWorld* world = (LabelWorld*)params.m_World;
         LabelComponent* component = &world->m_Components.Get(*params.m_UserData);
+
+        if (params.m_Message->m_Descriptor != 0)
+        {
+            dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)params.m_Message->m_Descriptor;
+            dmDDF::ResolvePointers(descriptor, params.m_Message->m_Data);
+        }
+
         if (params.m_Message->m_Id == dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash)
         {
             component->m_Enabled = 1;
@@ -448,6 +455,25 @@ namespace dmGameSystem
     void CompLabelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         (void)params;
+    }
+
+    void* CompLabelGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        LabelWorld* world = (LabelWorld*)params.m_World;
+        uint32_t index = (uint32_t)*params.m_UserData;
+        return &world->m_Components.Get(index);
+    }
+
+    void CompLabelGetTextMetrics(const LabelComponent* component, struct dmRender::TextMetrics& metrics)
+    {
+        dmGameSystemDDF::LabelDesc* ddf = component->m_Resource->m_DDF;
+        dmRender::GetTextMetrics(component->m_Resource->m_FontMap, component->m_Text, component->m_Size.getX(),
+                                    ddf->m_LineBreak, ddf->m_Leading, ddf->m_Tracking, &metrics);
+
+        metrics.m_Width      = metrics.m_Width;
+        metrics.m_Height     = metrics.m_Height;
+        metrics.m_MaxAscent  = metrics.m_MaxAscent;
+        metrics.m_MaxDescent = metrics.m_MaxDescent;
     }
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)

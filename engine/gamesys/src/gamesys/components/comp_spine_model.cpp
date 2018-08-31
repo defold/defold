@@ -61,8 +61,17 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         SpineModelWorld* world = new SpineModelWorld();
 
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &world->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = context->m_MaxSpineModelCount;
+        dmRig::Result rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::RESULT_OK)
+        {
+            dmLogFatal("Unable to create spine rig context: %d", rr);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         world->m_Components.SetCapacity(context->m_MaxSpineModelCount);
-        // world->m_RigContext = context->m_RigContext;
         world->m_RenderObjects.SetCapacity(context->m_MaxSpineModelCount);
 
         dmGraphics::VertexElement ve[] =
@@ -92,6 +101,8 @@ namespace dmGameSystem
         dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
 
         dmResource::UnregisterResourceReloadedCallback(((SpineModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
+
+        dmRig::DeleteContext(world->m_RigContext);
 
         delete world;
 
@@ -156,7 +167,7 @@ namespace dmGameSystem
                 {
                     return;
                 }
-                receiver.m_Function = 0;
+                receiver.m_FunctionRef = 0;
 
                 if (!dmMessage::IsSocketValid(receiver.m_Socket))
                 {
@@ -175,6 +186,8 @@ namespace dmGameSystem
                 event.m_Integer     = keyframe_event->m_Integer;
                 event.m_Float       = keyframe_event->m_Float;
                 event.m_String      = keyframe_event->m_String;
+                event.m_Node.m_Ref  = 0;
+                event.m_Node.m_ContextTableRef = 0;
 
                 uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::SpineEvent::m_DDFDescriptor;
                 uint32_t data_size = sizeof(dmGameSystemDDF::SpineEvent);
@@ -200,7 +213,7 @@ namespace dmGameSystem
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
         if (!pose.Empty()) {
-            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], pose.Begin(), pose.Size());
+            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], component->m_Transform, pose.Begin(), pose.Size());
         }
     }
 
@@ -321,9 +334,18 @@ namespace dmGameSystem
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
 
+        // Create GO<->bone representation
+        // We need to make sure that bone GOs are created before we start the default animation.
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in spine model. Consider increasing collection max instances (collection.max_instances).");
+            DestroyComponent(world, index);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompSpineModelPoseCallback;
@@ -346,18 +368,14 @@ namespace dmGameSystem
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by spine model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the spine.max_count value in game.project");
+            }
+            DestroyComponent(world, index);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
         ReHash(component);
-
-        // Create GO<->bone representation
-        if (!CreateGOBones(world, component))
-        {
-            dmLogError("Failed to create game objects for bones in spine model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
-            DestroyComponent(world, index);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -371,8 +389,7 @@ namespace dmGameSystem
         component->m_NodeInstances.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params = {0};
-        // params.m_Context = world->m_RigContext;
-        params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        params.m_Context = world->m_RigContext;
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
@@ -410,10 +427,10 @@ namespace dmGameSystem
         // Fill in vertex buffer
         dmRig::RigSpineModelVertex *vb_begin = vertex_buffer.End();
         dmRig::RigSpineModelVertex *vb_end = vb_begin;
+        dmRig::HRigContext rig_context = world->m_RigContext;
         for (uint32_t *i=begin;i!=end;i++)
         {
             const SpineModelComponent* c = (SpineModelComponent*) buf[*i].m_UserData;
-            dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(c->m_Instance));
             vb_end = (dmRig::RigSpineModelVertex*)dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, Matrix4::identity(), Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_SPINE, (void*)vb_end);
         }
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
@@ -430,7 +447,6 @@ namespace dmGameSystem
         ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_Textures[0] = texture_set->m_Texture;
-        ro.m_WorldTransform = first->m_World;
 
         const dmArray<dmRender::Constant>& constants = first->m_RenderConstants;
         uint32_t size = constants.Size();
@@ -512,6 +528,8 @@ namespace dmGameSystem
     {
         SpineModelWorld* world = (SpineModelWorld*)params.m_World;
 
+        dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
+
         dmArray<SpineModelComponent*>& components = world->m_Components.m_Objects;
         const uint32_t count = components.Size();
 
@@ -536,7 +554,7 @@ namespace dmGameSystem
             component.m_DoRender = 1;
         }
 
-        update_result.m_TransformsUpdated = count != 0;
+        update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -600,6 +618,7 @@ namespace dmGameSystem
             write_ptr->m_BatchKey = component.m_MixedHash;
             write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
             write_ptr->m_Dispatch = dispatch;
+            write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
         }
@@ -727,13 +746,23 @@ namespace dmGameSystem
 
     static bool OnResourceReloaded(SpineModelWorld* world, SpineModelComponent* component, int index)
     {
-        dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        dmRig::HRigContext rig_context = world->m_RigContext;
 
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = rig_context;
         destroy_params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(destroy_params);
+
+        // Delete old bones, then recreate with new data.
+        // We need to make sure that bone GOs are created before we start the default animation.
+        dmGameObject::DeleteBones(component->m_Instance);
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in spine model. Consider increasing collection max instances (collection.max_instances).");
+            DestroyComponent(world, index);
+            return false;
+        }
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
@@ -760,19 +789,14 @@ namespace dmGameSystem
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by spine model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the spine.max_count value in game.project");
+            }
+            DestroyComponent(world, index);
             return false;
         }
 
         ReHash(component);
-
-        // Create GO<->bone representation
-        dmGameObject::DeleteBones(component->m_Instance);
-        if(!CreateGOBones(world, component))
-        {
-            dmLogError("Failed to create game objects during reload for bones in spine model. Consider removing unneeded gameobjects elsewhere or increasing collection max instances.");
-            DestroyComponent(world, index);
-            return false;
-        }
 
         return true;
     }
@@ -900,6 +924,7 @@ namespace dmGameSystem
         if (!target) {
             return false;
         }
+
         target->m_Callback = UpdateIKInstanceCallback;
         target->m_Mix = mix;
         target->m_UserPtr = component;
@@ -918,6 +943,23 @@ namespace dmGameSystem
         target->m_UserPtr = component;
         target->m_Position = (Vector3)position;
         return true;
+    }
+
+    bool CompSpineModelResetIKTarget(SpineModelComponent* component, dmhash_t constraint_id)
+    {
+        return dmRig::ResetIKTarget(component->m_RigInstance, constraint_id);
+    }
+
+    bool CompSpineModelSetSkin(SpineModelComponent* component, dmhash_t skin_id)
+    {
+        dmRig::Result r = dmRig::SetMesh(component->m_RigInstance, skin_id);
+        return r == dmRig::RESULT_OK;
+    }
+
+    bool CompSpineModelSetSkinSlot(SpineModelComponent* component, dmhash_t skin_id, dmhash_t slot_id)
+    {
+        dmRig::Result r = dmRig::SetMeshSlot(component->m_RigInstance, skin_id, slot_id);
+        return r == dmRig::RESULT_OK;
     }
 
 }

@@ -1,3 +1,7 @@
+/*
+ * This has been replaced by fontc.clj but is kept around for reference should we've botched up the port :)
+ */
+
 package com.defold.editor.pipeline;
 
 import java.awt.BasicStroke;
@@ -156,7 +160,7 @@ public class Fontc {
 
 
         if (fontDesc.getOutlineWidth() > 0.0f) {
-            outlineStroke = new BasicStroke(fontDesc.getOutlineWidth());
+            outlineStroke = new BasicStroke(fontDesc.getOutlineWidth() * 2.0f);
         }
 
         font = Font.createFont(Font.TRUETYPE_FONT, fontStream);
@@ -286,7 +290,7 @@ public class Fontc {
         float edge = 0.75f;
         int shadowBlur = fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD ? 0 : fontDesc.getShadowBlur();
         if (fontDesc.getAntialias() != 0)
-            padding = Math.min(4, shadowBlur) + (int)Math.ceil(fontDesc.getOutlineWidth() * 0.5f);
+            padding = Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             padding++; // to give extra range for the outline.
 
@@ -375,6 +379,13 @@ public class Fontc {
             cell_width = Math.max(cell_width, width);
             cell_height = Math.max(cell_height, height);
         }
+
+        // FROM BOB
+        // Some hardware don't like doing subimage updates on non-aligned cell positions.
+        if (channelCount == 3) {
+            cell_width = (int)Math.ceil((double)cell_width / 4.0) * 4;
+        }
+	
 
         // We do an early cache size calculation before we create the glyph bitmaps
         // This is so that we can know when we have created enough glyphs to fill

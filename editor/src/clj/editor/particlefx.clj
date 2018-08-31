@@ -112,8 +112,8 @@
 
 (def line-shader (shader/make-shader ::line-shader line-vertex-shader line-fragment-shader))
 
-(def color (scene/select-color pass/outline false [1.0 1.0 1.0]))
-(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0]))
+(def color (scene/select-color pass/outline false [1.0 1.0 1.0 1.0]))
+(def selected-color (scene/select-color pass/outline true [1.0 1.0 1.0 1.0]))
 
 (def mod-type->properties {:modifier-type-acceleration [:modifier-key-magnitude]
                            :modifier-type-drag [:modifier-key-magnitude]
@@ -173,8 +173,7 @@
             :when (> vcount 0)]
       (let [^Matrix4d world-transform (:world-transform renderable)
             world-transform-no-scale (orthonormalize world-transform)
-            color (-> (if (:selected renderable) selected-color color)
-                    (conj 1))
+            color (if (:selected renderable) selected-color color)
             vs (into (vec (geom/transf-p world-transform-no-scale (geom/scale scale-f vs-screen)))
                  (geom/transf-p world-transform vs-world))
             vertex-binding (vtx/use-with ::lines (->vb vs vcount color) line-shader)]
@@ -282,6 +281,7 @@
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-lines
+                  :tags #{:particlefx :outline}
                   :batch-key nil
                   :select-batch-key _node-id
                   :user-data {:geom-data-screen ((:geom-data-screen mod-type) magnitude max-distance)
@@ -299,7 +299,7 @@
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
 
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
-  (output pb-msg g/Any :cached produce-modifier-pb)
+  (output pb-msg g/Any produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id type]
       (let [mod-type (mod-types type)]
@@ -308,33 +308,6 @@
   (output scene g/Any :cached produce-modifier-scene))
 
 (def ^:private circle-steps 32)
-
-(defn- gen-vertex [^Matrix4d wt ^Point3d pt x y [cr cg cb]]
-  (.set pt x y 0)
-  (.transform wt pt)
-  [(.x pt) (.y pt) (.z pt) cr cg cb 1])
-
-(defn- conj-2d-cone! [vbuf ^Matrix4d wt ^Point3d pt type size color]
-  (let [[sx sy _] size
-        hsx (* sx 0.5)
-        xl (gen-vertex wt pt (- hsx) sy color)
-        xr (gen-vertex wt pt hsx sy color)
-        c (gen-vertex wt pt 0.0 0.0 color)]
-    (-> vbuf (conj! c) (conj! xr) (conj! xr) (conj! xl) (conj! xl) (conj! c))))
-
-(defn- gen-vertex-buffer
-  [vcount renderables count]
-  (let [tmp-point (Point3d.)]
-    (loop [renderables renderables
-           vbuf (->color-vtx vcount)]
-      (if-let [renderable (first renderables)]
-        (let [color (if (:selected renderable) selected-color color)
-              world-transform (:world-transform renderable)
-              user-data (:user-data renderable)
-              type (:type user-data)
-              size (:size user-data)]
-          (recur (rest renderables) (conj-2d-cone! vbuf world-transform tmp-point type size color)))
-        (persistent! vbuf)))))
 
 (def circle-geom-data (let [ps (->> geom/origin-geom
                                  (geom/transl [0 0.5 0])
@@ -363,22 +336,63 @@
                                                              (geom/scale [size-x size-y 1] cone-geom-data))}
                     :emitter-type-box {:label "Box"
                                        :geom-data-world (fn [size-x size-y _]
-                                                     (geom/scale [size-x size-y 1] box-geom-data))}})
+                                                          (geom/scale [size-x size-y 1] box-geom-data))}})
+
+(defn- convert-blend-mode [blend-mode-index]
+  (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
+
+(defn- render-emitters-sim [^GL2 gl render-args renderables rcount]
+  (doseq [renderable renderables]
+    (let [{:keys [emitter-sim-data emitter-index color]} (:user-data renderable)
+          pfx-sim-request-id (some-> renderable :updatable :node-id)]
+      (when-let [pfx-sim (when (and emitter-sim-data pfx-sim-request-id)
+                           (some-> (:pfx-sim (scene-cache/lookup-object ::pfx-sim pfx-sim-request-id nil)) deref))]
+        (plib/gen-emitter-vertex-data pfx-sim emitter-index color)
+        (let [context (:context pfx-sim)
+              vbuf (plib/get-emitter-vertex-data pfx-sim emitter-index)]
+          (when-let [render-data (plib/render-emitter pfx-sim emitter-index)]
+            (let [gpu-texture (:gpu-texture emitter-sim-data)
+                  shader (:shader emitter-sim-data)
+                  vtx-binding (vtx/use-with context vbuf shader)
+                  blend-mode (convert-blend-mode (:blend-mode render-data))]
+              (gl/with-gl-bindings gl render-args [gpu-texture shader vtx-binding]
+                (gl/set-blend-mode gl blend-mode)
+                (gl/gl-draw-arrays gl GL/GL_TRIANGLES (:v-index render-data) (:v-count render-data))
+                (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))))))
+
+(defn- render-emitters [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)]
+    (condp = pass
+      pass/selection (render-lines gl render-args renderables count)
+      pass/transparent (render-emitters-sim gl render-args renderables count))))
 
 (g/defnk produce-emitter-scene
-  [_node-id transform aabb type emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
-  (let [emitter-type (emitter-types type)]
+  [_node-id transform aabb type emitter-sim-data emitter-index emitter-key-size-x emitter-key-size-y emitter-key-size-z child-scenes]
+  (let [emitter-type (emitter-types type)
+        user-data {:type type
+                   :emitter-sim-data emitter-sim-data
+                   :emitter-index emitter-index
+                   :color [1.0 1.0 1.0 1.0]
+                   :geom-data-world (apply (:geom-data-world emitter-type)
+                                           (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
     {:node-id _node-id
      :transform transform
      :aabb aabb
-     :renderable {:render-fn render-lines
+     :renderable {:render-fn render-emitters
                   :batch-key nil
+                  :tags #{:particlefx}
                   :select-batch-key _node-id
-                  :user-data {:type type
-                              :geom-data-world (apply (:geom-data-world emitter-type)
-                                                 (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}
-                  :passes [pass/outline pass/selection]}
-     :children child-scenes}))
+                  :user-data user-data
+                  :passes [pass/selection pass/transparent]}
+     :children (into [{:node-id _node-id
+                       :aabb aabb
+                       :renderable {:render-fn render-lines
+                                    :batch-key nil
+                                    :tags #{:particlefx :outline}
+                                    :select-batch-key _node-id
+                                    :user-data user-data
+                                    :passes [pass/outline]}}]
+                     child-scenes)}))
 
 (g/defnode EmitterProperties
   (property emitter-key-spawn-rate CurveSpread (dynamic label (g/constantly "Spawn Rate")))
@@ -427,7 +441,7 @@
           (concat
             (mapcat (fn [kw] (get-property properties kw))
                  [:id :mode :duration :space :tile-source :animation :material :blend-mode :particle-orientation
-                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity])
+                  :inherit-velocity :max-particle-count :type :start-delay :size-mode :stretch-with-velocity :start-offset])
             [[:properties (into []
                                 (comp (map first)
                                       (keep (fn [kw]
@@ -484,8 +498,8 @@
   (property tile-source resource/Resource
             (dynamic label (g/constantly "Image"))
             (value (gu/passthrough tile-source-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:texture-set :texture-set]
@@ -508,8 +522,8 @@
 
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:shader :material-shader]
                                             [:samplers :material-samplers]
@@ -536,8 +550,9 @@
             (dynamic edit-type (g/constantly (props/->pb-choicebox Particle$SizeMode)))
             (dynamic label (g/constantly "Size Mode")))
   (property stretch-with-velocity g/Bool)
+  (property start-offset g/Num)
 
-  (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :tile-source :animation :material :blend-mode
+  (display-order [:id scene/SceneNode :mode :size-mode :space :duration :start-delay :start-offset :tile-source :animation :material :blend-mode
                   :max-particle-count :type :particle-orientation :inherit-velocity ["Particle" ParticleProperties]])
 
   (input tile-source-resource resource/Resource)
@@ -548,6 +563,8 @@
   (input texture-set g/Any)
   (input gpu-texture g/Any)
   (input dep-build-targets g/Any :array)
+  (input emitter-indices g/Any)
+  (output emitter-index g/Any (g/fnk [_node-id emitter-indices] (emitter-indices _node-id)))
   (output build-targets g/Any (g/fnk [_node-id tile-source material animation anim-ids dep-build-targets]
                                 (or (when-let [errors (->> [(validation/prop-error :fatal _node-id :tile-source validation/prop-nil? tile-source "Image")
                                                             (validation/prop-error :fatal _node-id :material validation/prop-nil? material "Material")
@@ -567,7 +584,7 @@
   (output gpu-texture g/Any (g/fnk [gpu-texture tex-params] (texture/set-params gpu-texture tex-params)))
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output scene g/Any :cached produce-emitter-scene)
-  (output pb-msg g/Any :cached produce-emitter-pb)
+  (output pb-msg g/Any produce-emitter-pb)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id child-outlines]
                                                      {:node-id _node-id
                                                       :label id
@@ -631,40 +648,12 @@
                   :dep-resources dep-resources}
       :deps dep-build-targets}]))
 
-(defn- convert-blend-mode [blend-mode-index]
-  (protobuf/pb-enum->val (.getValueDescriptor (Particle$BlendMode/valueOf ^int blend-mode-index))))
+(defn- render-pfx [^GL2 gl render-args renderables count])
 
-(defn- render-emitter [emitter-sim-data ^GL gl render-args context vbuf emitter-index blend-mode v-index v-count]
-  (when-some [sim-data (get emitter-sim-data emitter-index)]
-    (let [gpu-texture (:gpu-texture sim-data)
-          shader (:shader sim-data)
-          vtx-binding (vtx/use-with context vbuf shader)
-          blend-mode (convert-blend-mode blend-mode)]
-      (gl/with-gl-bindings gl render-args [gpu-texture shader vtx-binding]
-        (case blend-mode
-          :blend-mode-alpha (.glBlendFunc gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
-          (:blend-mode-add :blend-mode-add-alpha) (.glBlendFunc gl GL/GL_ONE GL/GL_ONE)
-          :blend-mode-mult (.glBlendFunc gl GL/GL_ZERO GL/GL_SRC_COLOR))
-        (gl/gl-draw-arrays gl GL/GL_TRIANGLES v-index v-count)
-        (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
-
-(defn- render-pfx [^GL2 gl render-args renderables count]
-  (doseq [renderable renderables]
-    (when-let [node-id (some-> renderable :updatable :node-id)]
-      (when-let [pfx-sim-ref (:pfx-sim (scene-cache/lookup-object ::pfx-sim node-id nil))]
-        (let [user-data (:user-data renderable)
-              pfx-sim (swap! pfx-sim-ref plib/gen-vertex-data (:color user-data))
-              emitter-sim-data (:emitter-sim-data user-data)
-              context (:context pfx-sim)
-              vbuf (:vbuf pfx-sim)]
-          (plib/render pfx-sim (partial render-emitter emitter-sim-data gl render-args context vbuf)))))))
-
-(g/defnk produce-scene [_node-id child-scenes emitter-sim-data scene-updatable]
+(g/defnk produce-scene [_node-id child-scenes scene-updatable]
   (let [scene {:node-id _node-id
                :renderable {:render-fn render-pfx
                             :batch-key nil
-                            :user-data {:emitter-sim-data emitter-sim-data
-                                        :color [1.0 1.0 1.0 1.0]}
                             :passes [pass/transparent pass/selection]}
                :aabb (reduce geom/aabb-union (geom/null-aabb) (filter #(not (nil? %)) (map :aabb child-scenes)))
                :children child-scenes}]
@@ -691,7 +680,8 @@
                      [:id :ids]
                      [:build-targets :dep-build-targets]]]
       (g/connect emitter-id from self-id to))
-    (for [[from to] [[:default-tex-params :default-tex-params]]]
+    (for [[from to] [[:default-tex-params :default-tex-params]
+                     [:emitter-indices :emitter-indices]]]
       (g/connect self-id from emitter-id to))
     (when resolve-id?
       (g/update-property emitter-id :id outline/resolve-id (g/node-value self-id :ids)))))
@@ -710,10 +700,18 @@
 
   (output default-tex-params g/Any (gu/passthrough default-tex-params))
   (output save-value g/Any (gu/passthrough pb-data))
-  (output pb-data g/Any :cached (g/fnk [emitter-msgs modifier-msgs]
-                                       {:emitters emitter-msgs :modifiers modifier-msgs}))
+  (output pb-data g/Any (g/fnk [emitter-msgs modifier-msgs]
+                               {:emitters emitter-msgs :modifiers modifier-msgs}))
   (output rt-pb-data g/Any :cached (g/fnk [pb-data] (particle-fx-transform pb-data)))
   (output emitter-sim-data g/Any :cached (gu/passthrough emitter-sim-data))
+  (output emitter-indices g/Any :cached (g/fnk [nodes]
+                                               (into {}
+                                                     (comp
+                                                       (filter #(g/node-instance? EmitterNode %))
+                                                       (map-indexed (fn [index emitter-node]
+                                                                      [emitter-node index])))
+                                                     nodes)))
+                                                 
   (output build-targets g/Any :cached produce-build-targets)
   (output scene g/Any :cached produce-scene)
   (output scene-updatable g/Any :cached produce-scene-updatable)
@@ -806,7 +804,7 @@
                                    :blend-mode (:blend-mode emitter) :particle-orientation (:particle-orientation emitter)
                                    :inherit-velocity (:inherit-velocity emitter) :max-particle-count (:max-particle-count emitter)
                                    :type (:type emitter) :start-delay [(:start-delay emitter) (:start-delay-spread emitter)] :size-mode (:size-mode emitter)
-                                   :stretch-with-velocity (:stretch-with-velocity emitter)]]
+                                   :stretch-with-velocity (:stretch-with-velocity emitter) :start-offset (:start-offset emitter)]]
                     (let [emitter-properties (into {} (map #(do [(:key %) (select-keys % [:points :spread])]) (:properties emitter)))]
                       (for [key (g/declared-property-labels EmitterProperties)
                             :when (contains? emitter-properties key)
@@ -899,6 +897,12 @@
       (for [modifier (:modifiers pb)]
         (make-modifier self self modifier)))))
 
+(defn- add-default-properties-to-modifier [mod-pb]
+  (update mod-pb :properties #(or (not-empty %) (get-in mod-types [(:type mod-pb) :template :properties]))))
+
+(defn- add-default-properties-to-modifiers [pb]
+  (update pb :modifiers (partial mapv add-default-properties-to-modifier)))
+
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext particlefx-ext
@@ -906,6 +910,7 @@
     :node-type ParticleFXNode
     :ddf-type Particle$ParticleFX
     :load-fn load-particle-fx
+    :sanitize-fn add-default-properties-to-modifiers
     :icon particle-fx-icon
     :tags #{:component :non-embeddable}
     :tag-opts {:component {:transform-properties #{:position :rotation}}}
@@ -915,14 +920,16 @@
 (defn- make-pfx-sim [_ data]
   (let [[max-emitter-count max-particle-count rt-pb-data world-transform] data]
     {:pfx-sim (atom (plib/make-sim max-emitter-count max-particle-count rt-pb-data [world-transform]))
-     :protobuf-msg rt-pb-data}))
+     :protobuf-msg rt-pb-data
+     :max-particle-count max-particle-count}))
 
 (defn- update-pfx-sim [_ pfx-sim data]
-  (let [[max-emitter-count max-particle-count rt-pb-data world-transform] data
+  (let [[_max-emitter-count max-particle-count rt-pb-data _world-transform] data
         pfx-sim-ref (:pfx-sim pfx-sim)]
-    (when (not= rt-pb-data (:protobuf-msg pfx-sim))
-      (swap! pfx-sim-ref plib/reload rt-pb-data))
-    (assoc pfx-sim :protobuf-msg rt-pb-data)))
+    (when (or (not= rt-pb-data (:protobuf-msg pfx-sim))
+              (not= max-particle-count (:max-particle-count pfx-sim)))
+      (swap! pfx-sim-ref plib/reload rt-pb-data max-particle-count))
+    (assoc pfx-sim :protobuf-msg rt-pb-data :max-particle-count max-particle-count)))
 
 (defn- destroy-pfx-sims [_ pfx-sims _]
   (doseq [pfx-sim pfx-sims]

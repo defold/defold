@@ -1,6 +1,6 @@
 (defproject defold-editor "2.0.0-SNAPSHOT"
   :description      "Defold game editor"
-  :url              "http://doc.defold.com"
+  :url              "https://www.defold.com/learn/"
 
   :repositories     {"local" ~(str (.toURI (java.io.File. "localjars")))}
 
@@ -19,7 +19,6 @@
                       :exclusions [com.fasterxml.jackson.core/jackson-core]] ; transit-clj -> 2.3.2, amazonica -> 2.6.6
                      [prismatic/schema                            "1.0.4"]
                      [prismatic/plumbing                          "0.5.2"]
-                     [at.bestsolution.eclipse/org.eclipse.fx.code.editor.fx "2.2.0"]
                      [com.google.protobuf/protobuf-java           "2.3.0"]
                      [ch.qos.logback/logback-classic              "1.2.1"]
                      [org.slf4j/jul-to-slf4j                      "1.7.22"]

@@ -4,6 +4,7 @@
 #include <dlib/log.h>
 
 #include "graphics.h"
+#include "graphics_private.h"
 #include "null/graphics_null.h"
 
 #define APP_TITLE "GraphicsTest"
@@ -502,6 +503,54 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     dmGraphics::DeleteRenderTarget(target);
 }
 
+TEST_F(dmGraphicsTest, TestGetRTAttachment)
+{
+    dmGraphics::TextureCreationParams creation_params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    dmGraphics::TextureParams params[dmGraphics::MAX_BUFFER_TYPE_COUNT];
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_TYPE_COUNT; ++i)
+    {
+        creation_params[i].m_Width = WIDTH;
+        creation_params[i].m_Height = HEIGHT;
+        params[i].m_Width = WIDTH;
+        params[i].m_Height = HEIGHT;
+    }
+    assert(dmGraphics::MAX_BUFFER_TYPE_COUNT == 3);
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_COLOR_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_DEPTH_BIT)].m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
+    params[dmGraphics::GetBufferTypeIndex(dmGraphics::BUFFER_TYPE_STENCIL_BIT)].m_Format = dmGraphics::TEXTURE_FORMAT_STENCIL;
+
+    uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
+    dmGraphics::EnableRenderTarget(m_Context, target);
+    dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
+
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_DEPTH);
+    ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
+
+    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_STENCIL);
+    ASSERT_EQ((dmGraphics::HTexture)0x0, texture);
+
+    texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_COLOR);
+    ASSERT_NE((dmGraphics::HTexture)0x0, texture);
+
+    char* texture_data = 0x0;
+    dmGraphics::HandleResult res = dmGraphics::GetTextureHandle(0x0, (void**)&texture_data);
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_ERROR, res);
+
+    res = dmGraphics::GetTextureHandle(texture, (void**)&texture_data);
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, res);
+    ASSERT_NE((char*)0x0, texture_data);
+
+    uint32_t data_size = sizeof(uint32_t) * WIDTH * HEIGHT;
+    char* data = new char[data_size];
+    memset(data, 1, data_size);
+    ASSERT_EQ(0, memcmp(data, texture_data, data_size));
+    delete [] data;
+
+    dmGraphics::DisableRenderTarget(m_Context, target);
+    dmGraphics::DeleteRenderTarget(target);
+}
+
 TEST_F(dmGraphicsTest, TestMasks)
 {
     dmGraphics::SetColorMask(m_Context, false, false, false, false);
@@ -566,6 +615,14 @@ TEST_F(dmGraphicsTest, TestTextureSupport)
 {
     ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_LUMINANCE));
     ASSERT_FALSE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA_DXT1));
+}
+
+TEST_F(dmGraphicsTest, TestTextureFormatBPP)
+{
+    for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
+    {
+        ASSERT_NE(0, dmGraphics::GetTextureFormatBPP((dmGraphics::TextureFormat) i));
+    }
 }
 
 int main(int argc, char **argv)

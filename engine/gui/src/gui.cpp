@@ -124,16 +124,30 @@ namespace dmGui
 
     static void RigEventCallback(dmRig::RigEventType event_type, void* event_data, void* user_data1, void* user_data2)
     {
-        if (!user_data2) {
+        if (!user_data1 || !user_data2) 
+        {
             return;
         }
 
         HScene scene = (HScene)user_data1;
         SpineAnimation* animation = (SpineAnimation*)user_data2;
 
-        // We ignore rig keyframe events for now, only completed events are handled.
-        if  (event_type == dmRig::RIG_EVENT_TYPE_COMPLETED) {
-            animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
+        switch (event_type)
+        {
+            case dmRig::RIG_EVENT_TYPE_COMPLETED:
+            {
+                if (animation->m_AnimationComplete)
+                    animation->m_AnimationComplete(scene, animation->m_Node, true, animation->m_Userdata1, animation->m_Userdata2);
+                break;
+            }
+            case dmRig::RIG_EVENT_TYPE_KEYFRAME:
+            {
+                scene->m_RigEventDataCallback(scene, animation->m_Userdata2, event_data);
+                break;
+            }
+            default:
+                dmLogError("Unknown rig event received (%d).", event_type);
+                break;
         }
     }
 
@@ -292,13 +306,15 @@ namespace dmGui
         // 16 is hard cap for the same reason as above
         params->m_MaxLayers = 16;
         params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
+
+        params->m_ScriptWorld = 0x0;
     }
 
     static void ResetScene(HScene scene) {
         memset(scene, 0, sizeof(Scene));
         scene->m_InstanceReference = LUA_NOREF;
         scene->m_DataReference = LUA_NOREF;
-        scene->m_RefTableReference = LUA_NOREF;
+        scene->m_ContextTableReference = LUA_NOREF;
     }
 
     HScene NewScene(HContext context, const NewSceneParams* params)
@@ -321,9 +337,10 @@ namespace dmGui
         scene->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
 
         // Here we create a custom table to hold the references created by this gui scene
-        // Don't interact with this table with other functions than dmScript::Ref/dmScript::Unref
+        // It is also the "Instance Context Table" used to by META_TABLE_SET_CONTEXT_VALUE
+        // and META_TABLE_GET_CONTEXT_VALUE implementaion
         lua_newtable(L);
-        scene->m_RefTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        scene->m_ContextTableReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         lua_newtable(L);
         scene->m_DataReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
@@ -357,7 +374,9 @@ namespace dmGui
         scene->m_Height = context->m_DefaultProjectHeight;
         scene->m_FetchTextureSetAnimCallback = params->m_FetchTextureSetAnimCallback;
         scene->m_FetchRigSceneDataCallback = params->m_FetchRigSceneDataCallback;
+        scene->m_RigEventDataCallback = params->m_RigEventDataCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
+        scene->m_ScriptWorld = params->m_ScriptWorld;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
 
@@ -373,7 +392,10 @@ namespace dmGui
         luaL_getmetatable(L, GUI_SCRIPT_INSTANCE);
         lua_setmetatable(L, -2);
 
-        lua_pop(L, 1);
+        dmScript::SetInstance(L);
+        dmScript::InitializeInstance(scene->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         assert(top == lua_gettop(L));
 
@@ -383,6 +405,12 @@ namespace dmGui
     void DeleteScene(HScene scene)
     {
         lua_State*L = scene->m_Context->m_LuaState;
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
+        dmScript::SetInstance(L);
+        dmScript::FinalizeInstance(scene->m_ScriptWorld);
+        lua_pushnil(L);
+        dmScript::SetInstance(L);
 
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
@@ -400,7 +428,7 @@ namespace dmGui
 
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
         dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_DataReference);
-        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_RefTableReference);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, scene->m_ContextTableReference);
 
         dmArray<HScene>& scenes = scene->m_Context->m_Scenes;
         uint32_t scene_count = scenes.Size();
@@ -428,13 +456,13 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t width, uint32_t height)
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t original_width, uint32_t original_height)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
         uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Put(texture_hash, TextureInfo(texture, textureset, width, height));
+        scene->m_Textures.Put(texture_hash, TextureInfo(texture, textureset, original_width, original_height));
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
@@ -882,15 +910,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             // uv-rotated
             w = tc[2]-tc[0];
             h = tc[1]-tc[5];
-            n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_TextureHeight;
-            n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_TextureWidth;
+            n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_OriginalTextureHeight;
+            n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_OriginalTextureWidth;
         }
         else
         {
             w = tc[4]-tc[0];
             h = tc[3]-tc[1];
-            n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_TextureWidth;
-            n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_TextureHeight;
+            n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_OriginalTextureWidth;
+            n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_OriginalTextureHeight;
         }
     }
 
@@ -1505,8 +1533,26 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
             dmScript::SetInstance(L);
 
-            lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
+            if (custom_ref != LUA_NOREF) {
+                dmScript::ResolveInInstance(L, custom_ref);
+                if (!lua_isfunction(L, -1))
+                {
+                    // If the script instance is dead we just ignore the callback
+                    lua_pop(L, 1);
+                    lua_pushnil(L);
+                    dmScript::SetInstance(L);
+                    dmLogWarning("Failed to call message response callback function, has it been deleted?");
+                    return RESULT_OK;
+                }
+                dmScript::UnrefInInstance(L, custom_ref);
+            }
+            else
+            {
+                lua_rawgeti(L, LUA_REGISTRYINDEX, lua_ref);
+            }
+
             assert(lua_isfunction(L, -1));
+
             lua_rawgeti(L, LUA_REGISTRYINDEX, scene->m_InstanceReference);
 
             uint32_t arg_count = 1;
@@ -1742,6 +1788,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     break;
                 }
             }
+
             lua_pushnil(L);
             dmScript::SetInstance(L);
             assert(top == lua_gettop(L));
@@ -1855,19 +1902,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     Result DispatchMessage(HScene scene, dmMessage::Message* message)
     {
         int custom_ref = LUA_NOREF;
-        bool is_callback = false;
-        if (message->m_Receiver.m_Function) {
-            // NOTE: By convention m_Function is the ref + 2, see message.h in dlib
-            custom_ref = message->m_Receiver.m_Function - 2;
-            is_callback = true;
+        if (message->m_Receiver.m_FunctionRef) {
+            // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+            custom_ref = message->m_Receiver.m_FunctionRef + LUA_NOREF;
+            // RunScript method will DeRef the custom_ref if it is not LUA_NOREF
         }
 
         Result r = RunScript(scene, SCRIPT_FUNCTION_ONMESSAGE, custom_ref, (void*)message);
 
-        if (is_callback) {
-            lua_State* L = scene->m_Context->m_LuaState;
-            dmScript::Unref(L, LUA_REGISTRYINDEX, custom_ref);
-        }
         return r;
     }
 
@@ -2207,6 +2249,26 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         scene->m_Animations.SetSize(0);
     }
 
+    static Vector4 ApplyAdjustOnReferenceScale(const Vector4& reference_scale, uint32_t adjust_mode)
+    {
+        Vector4 parent_adjust_scale = reference_scale;
+        if (adjust_mode == dmGui::ADJUST_MODE_FIT)
+        {
+            float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
+            parent_adjust_scale.setX(uniform);
+            parent_adjust_scale.setY(uniform);
+        }
+        else if (adjust_mode == dmGui::ADJUST_MODE_ZOOM)
+        {
+            float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
+            parent_adjust_scale.setX(uniform);
+            parent_adjust_scale.setY(uniform);
+        }
+        parent_adjust_scale.setZ(1.0f);
+        parent_adjust_scale.setW(1.0f);
+        return parent_adjust_scale;
+    }
+
     static void AdjustPosScale(HScene scene, InternalNode* n, const Vector4& reference_scale, Vector4& position, Vector4& scale)
     {
         if (scene->m_AdjustReference == ADJUST_REFERENCE_LEGACY && n->m_ParentIndex != INVALID_INDEX)
@@ -2216,20 +2278,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         Node& node = n->m_Node;
         // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
-        Vector4 adjust_scale = reference_scale;
-        if (node.m_AdjustMode == dmGui::ADJUST_MODE_FIT)
-        {
-            float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
-            adjust_scale.setX(uniform);
-            adjust_scale.setY(uniform);
-        }
-        else if (node.m_AdjustMode == dmGui::ADJUST_MODE_ZOOM)
-        {
-            float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
-            adjust_scale.setX(uniform);
-            adjust_scale.setY(uniform);
-            adjust_scale.setZ(uniform);
-        }
+        Vector4 adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node.m_AdjustMode);
 
         Context* context = scene->m_Context;
         Vector4 parent_dims;
@@ -2256,24 +2305,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         // Apply anchoring
         Vector4 scaled_position = mulPerElem(position, adjust_scale);
-        if (node.m_XAnchor == XANCHOR_LEFT)
+        if (node.m_XAnchor == XANCHOR_LEFT || node.m_XAnchor == XANCHOR_RIGHT)
         {
             offset.setX(0.0f);
             scaled_position.setX(position.getX() * reference_scale.getX());
         }
-        else if (node.m_XAnchor == XANCHOR_RIGHT)
-        {
-            offset.setX(0.0f);
-            float distance = (parent_dims.getX() - position.getX()) * reference_scale.getX();
-            scaled_position.setX(ref_size.getX() - distance);
-        }
-        if (node.m_YAnchor == YANCHOR_TOP)
-        {
-            offset.setY(0.0f);
-            float distance = (parent_dims.getY() - position.getY()) * reference_scale.getY();
-            scaled_position.setY(ref_size.getY() - distance);
-        }
-        else if (node.m_YAnchor == YANCHOR_BOTTOM)
+
+        if (node.m_YAnchor == YANCHOR_TOP || node.m_YAnchor == YANCHOR_BOTTOM)
         {
             offset.setY(0.0f);
             scaled_position.setY(position.getY() * reference_scale.getY());
@@ -2496,8 +2534,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_TextureSet = texture_info->m_TextureSet;
             if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) && (texture_info->m_Texture))
             {
-                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_Width;
-                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_Height;
+                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_OriginalWidth;
+                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_OriginalHeight;
             }
             return RESULT_OK;
         } else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(texture_id)) {
@@ -2621,7 +2659,11 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
-            dmLogError("Could not create the node, failed to create rig instance: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the gui.max_spine_count value in game.project");
+            } else {
+                dmLogError("Could not create the node, failed to create rig instance: %d.", res);
+            }
             return RESULT_DATA_ERROR;
         }
 
@@ -2651,7 +2693,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                     parent = scene->m_Context->m_ScratchBoneNodes[skeleton->m_Bones[i].m_Parent];
                 }
                 SetNodeAdjustMode(scene, bone_node, (AdjustMode)n->m_Node.m_AdjustMode);
-                SetNodeParent(scene, bone_node, parent);
+                SetNodeParent(scene, bone_node, parent, false);
                 SetNodeIsBone(scene, bone_node, true);
             }
         }
@@ -2685,6 +2727,13 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
         dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
         return dmRig::GetMesh(rig_instance);
+    }
+
+    Result SetNodeSpineSkinSlot(HScene scene, HNode node, dmhash_t skin_id, dmhash_t slot_id)
+    {
+        dmRig::HRigInstance rig_instance = GetNodeRigInstance(scene, node);
+        dmRig::Result result = dmRig::SetMeshSlot(rig_instance, skin_id, slot_id);
+        return (result == dmRig::RESULT_OK) ? RESULT_OK : RESULT_INVAL_ERROR;
     }
 
     dmRig::HRigInstance GetNodeRigInstance(HScene scene, HNode node)
@@ -2877,6 +2926,12 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return SetNodeLayer(scene, node, dmHashString64(layer_id));
     }
 
+    bool GetNodeInheritAlpha(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_InheritAlpha != 0;
+    }
+
     void SetNodeInheritAlpha(HScene scene, HNode node, bool inherit_alpha)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2939,6 +2994,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         return playback_rate;
     }
 
+    dmhash_t GetNodeSpineAnimation(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        if (n->m_Node.m_NodeType != NODE_TYPE_SPINE)
+        {
+            dmLogError("Can only get animation for spine node");
+            return 0;
+        }
+
+        dmRig::HRigInstance rig_instance = n->m_Node.m_RigInstance;
+        dmhash_t animation_id = dmRig::GetAnimation(rig_instance);
+        return animation_id;
+    }
+
     Result PlayNodeSpineAnim(HScene scene, HNode node, dmhash_t animation_id, Playback playback, float blend, float offset, float playback_rate, AnimationComplete animation_complete, void* userdata1, void* userdata2)
     {
         InternalNode* n = GetNode(scene, node);
@@ -2983,17 +3052,17 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             animation.m_Userdata1 = userdata1;
             animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-            SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
         }
         else
         {
             animation.m_Node = node;
             animation.m_AnimationComplete = 0;
             animation.m_Userdata1 = 0;
-            animation.m_Userdata2 = 0;
+            animation.m_Userdata2 = userdata2;
             scene->m_SpineAnimations[animation_index] = animation;
-            SetEventCallback(rig_instance, 0, 0, 0);
         }
+
+        SetEventCallback(rig_instance, RigEventCallback, scene, &scene->m_SpineAnimations[animation_index]);
 
         return RESULT_OK;
     }
@@ -3067,8 +3136,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_WRONG_TYPE;
         }
 
-        dmParticle::HInstance inst = n->m_Node.m_ParticleInstance;
-        dmParticle::StopInstance(scene->m_ParticlefxContext, inst);
+        uint32_t alive_count = scene->m_AliveParticlefxs.Size();
+        for (uint32_t i = 0; i < alive_count; ++i)
+        {
+            ParticlefxComponent* component = &scene->m_AliveParticlefxs[i];
+            if (component->m_Node == node)
+            {
+                dmParticle::StopInstance(scene->m_ParticlefxContext, component->m_Instance);
+            }
+        }
 
         return RESULT_OK;
     }
@@ -3251,8 +3327,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             {
                 if(texture_info->m_Texture)
                 {
-                    n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_Width;
-                    n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_Height;
+                    n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_OriginalWidth;
+                    n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_OriginalHeight;
                 }
             }
             else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(n->m_Node.m_TextureHash))
@@ -3721,7 +3797,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
     }
 
-    Result SetNodeParent(HScene scene, HNode node, HNode parent)
+    Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)
     {
         if (node == parent)
             return RESULT_INF_RECURSION;
@@ -3743,6 +3819,66 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         }
         if (parent_index != n->m_ParentIndex)
         {
+            if (keep_scene_transform) {
+
+                Matrix4 node_m;
+                Matrix4 parent_m;
+
+                Vector4 reference_scale;
+                Vector4 adjust_scale;
+                Vector4 offset(0.0f);
+
+                // Calculate the nodes current scene transform
+                CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(), node_m);
+
+                // Calculate the new parents scene transform
+                // We also need to calculate values relative to adjustments and offset
+                // corresponding to the values that would be used in AdjustPosScale (see reasoning below).
+                if (parent_node != 0x0)
+                {
+                    CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
+                    reference_scale = parent_node->m_Node.m_LocalAdjustScale;
+                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
+                } else {
+                    reference_scale = CalculateReferenceScale(scene, 0x0);
+                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
+                    parent_m = Matrix4::scale(adjust_scale.getXYZ());
+
+                    Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
+                    Vector4 adjusted_dims = mulPerElem(parent_dims, adjust_scale);
+                    Vector4 ref_size = Vector4((float) scene->m_Context->m_PhysicalWidth, (float) scene->m_Context->m_PhysicalHeight, 0.0f, 1.0f);
+                    offset = (ref_size - adjusted_dims) * 0.5f;
+                }
+
+                // We calculate a new position that will be the relative position once
+                // the node has been childed to the new parent.
+                Vector3 position = node_m.getCol3().getXYZ() - parent_m.getCol3().getXYZ();
+
+                // We need to perform the inverse of what AdjustPosScale will do to counteract when
+                // it will be applied during next call to CalculateNodeTransform.
+                // See AdjustPosScale for comparison on the steps being performed/inversed.
+                if (n->m_Node.m_XAnchor == XANCHOR_LEFT || n->m_Node.m_XAnchor == XANCHOR_RIGHT) {
+                    offset.setX(0.0f);
+                }
+                if (n->m_Node.m_YAnchor == YANCHOR_TOP || n->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
+                    offset.setY(0.0f);
+                }
+
+                Vector3 scaled_position = position - offset.getXYZ();
+                position = mulPerElem(recipPerElem(adjust_scale.getXYZ()), scaled_position);
+
+                if (n->m_Node.m_XAnchor == dmGui::XANCHOR_LEFT || n->m_Node.m_XAnchor == dmGui::XANCHOR_RIGHT) {
+                    position.setX(scaled_position.getX() / reference_scale.getX());
+                }
+
+                if (n->m_Node.m_YAnchor == dmGui::YANCHOR_BOTTOM || n->m_Node.m_YAnchor == dmGui::YANCHOR_TOP) {
+                    position.setY(scaled_position.getY() / reference_scale.getY());
+                }
+
+                n->m_Node.m_Properties[dmGui::PROPERTY_POSITION] = Vector4(position, 1.0f);
+                n->m_Node.m_DirtyLocal = 1;
+            }
+
             RemoveFromNodeList(scene, n);
             InternalNode* prev = 0x0;
             uint16_t prev_index = scene->m_RenderTail;
@@ -3955,6 +4091,11 @@ bail:
     lua_State* GetLuaState(HContext context)
     {
         return context->m_LuaState;
+    }
+
+    int GetContextTableRef(HScene scene)
+    {
+        return scene->m_ContextTableReference;
     }
 
 }  // namespace dmGui

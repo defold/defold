@@ -18,12 +18,6 @@ using namespace Vectormath::Aos;
 
 namespace dmRig
 {
-    /// Config key to use for tweaking the total maximum number of rig instances in a context.
-    extern const char* RIG_MAX_INSTANCES_KEY;
-
-    /// Default max rig instances in each context
-    const uint32_t DEFAULT_MAX_RIG_CAPACITY = 128;
-
     using namespace dmRigDDF;
 
     typedef struct RigContext*  HRigContext;
@@ -33,7 +27,9 @@ namespace dmRig
     {
         RESULT_OK             = 0,
         RESULT_ERROR          = 1,
-        RESULT_ANIM_NOT_FOUND = 2
+        RESULT_ERROR_BUFFER_FULL = 2,
+        RESULT_ANIM_NOT_FOUND = 3,
+        RESULT_UPDATED_POSE   = 4
     };
 
     enum RigMeshType
@@ -61,7 +57,8 @@ namespace dmRig
                       m_Cursor(0.0f),
                       m_Playback(dmRig::PLAYBACK_ONCE_FORWARD),
                       m_Playing(0x0),
-                      m_Backwards(0x0) {};
+                      m_Backwards(0x0),
+                      m_Initial(0x1) {};
         /// Currently playing animation
         const dmRigDDF::RigAnimation* m_Animation;
         dmhash_t                      m_AnimationId;
@@ -75,6 +72,10 @@ namespace dmRig
         uint16_t                      m_Playing : 1;
         /// Whether the animation is playing backwards (e.g. ping pong)
         uint16_t                      m_Backwards : 1;
+        /// Flag used to handle initial setup, resetting pose with UpdateMeshProperties in DoAnimate
+        uint16_t                      m_Initial : 1;
+        /// Flag used to handle blending players, resetting pose to avoid lingering slot attachment changes from previous animation.
+        uint16_t                      m_BlendFinished : 1;
     };
 
     struct RigBone
@@ -91,17 +92,11 @@ namespace dmRig
         float m_Length;
     };
 
-    struct MeshProperties
+    struct MeshSlotPose
     {
-        float m_Color[4];
-        uint32_t m_Order;
-        int32_t m_OrderOffset;
-        int32_t m_Slot;
-        int32_t m_MeshId;
-        bool m_Visible : 1;
-        bool m_ColorFromTrack : 1;
-        bool m_VisibleFromTrack : 1;
-        bool m_OffsetFromTrack : 1;
+       float m_SlotColor[4];
+       int32_t m_ActiveAttachment;
+       const dmRigDDF::MeshSlot* m_MeshSlot;
     };
 
     struct IKAnimation
@@ -123,7 +118,7 @@ namespace dmRig
         float               m_Mix;
         /// Static IK target position
         Vector3             m_Position;
-        /// Callback to dynamically set the IK target position.
+        /// Callback to dynamically set the IK target position. If NULL then the target isn't active.
         RigIKTargetCallback m_Callback;
         void*               m_UserPtr;
         dmhash_t            m_UserHash;
@@ -195,7 +190,6 @@ namespace dmRig
     struct RigContext
     {
         dmObjectPool<HRigInstance>      m_Instances;
-        dmArray<int32_t>                m_ScratchSlotsBuffer;
         // Temporary scratch buffers used for store pose as transform and matrices
         // (avoids modifying the real pose transform data during rendering).
         dmArray<dmTransform::Transform> m_ScratchPoseTransformBuffer;
@@ -205,6 +199,9 @@ namespace dmRig
         // used to creating primitives from indices.
         dmArray<Vector3>                m_ScratchPositionBuffer;
         dmArray<Vector3>                m_ScratchNormalBuffer;
+        // Temporary scratch buffers to handle draw order changes.
+        dmArray<int32_t>                m_ScratchDrawOrderDeltas;
+        dmArray<int32_t>                m_ScratchDrawOrderUnchanged;
     };
 
     struct NewContextParams {
@@ -229,7 +226,7 @@ namespace dmRig
         RigPoseCallback               m_PoseCallback;
         void*                         m_PoseCBUserData1;
         void*                         m_PoseCBUserData2;
-        dmArray<uint32_t>             m_DrawOrderToMesh;
+        dmArray<int32_t>              m_DrawOrder;
         /// Event handling
         RigEventCallback              m_EventCallback;
         void*                         m_EventCBUserData1;
@@ -240,8 +237,8 @@ namespace dmRig
         dmArray<IKAnimation>          m_IKAnimation;
         /// User IK constraint targets
         dmArray<IKTarget>             m_IKTargets;
-        /// Animated mesh properties
-        dmArray<MeshProperties>       m_MeshProperties;
+        /// Slot pose state (active mesh attachment index and color) that can be animated.
+        dmArray<MeshSlotPose>         m_MeshSlotPose;
         /// Currently used mesh
         const dmRigDDF::MeshEntry*    m_MeshEntry;
         dmhash_t                      m_MeshId;
@@ -306,12 +303,15 @@ namespace dmRig
 
     Result SetMesh(HRigInstance instance, dmhash_t mesh_id);
     dmhash_t GetMesh(HRigInstance instance);
+    Result SetMeshSlot(HRigInstance instance, dmhash_t mesh_id, dmhash_t slot_id);
+
     float GetCursor(HRigInstance instance, bool normalized);
     Result SetCursor(HRigInstance instance, float cursor, bool normalized);
     float GetPlaybackRate(HRigInstance instance);
     Result SetPlaybackRate(HRigInstance instance, float playback_rate);
     dmArray<dmTransform::Transform>* GetPose(HRigInstance instance);
     IKTarget* GetIKTarget(HRigInstance instance, dmhash_t constraint_id);
+    bool ResetIKTarget(HRigInstance instance, dmhash_t constraint_id);
     void SetEnabled(HRigInstance instance, bool enabled);
     bool GetEnabled(HRigInstance instance);
     bool IsValid(HRigInstance instance);

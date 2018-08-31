@@ -9,13 +9,9 @@
 #include "math.h"
 #include "time.h"
 #include "thread.h"
-#include "http_server.h"
 #include "dstrings.h"
 #include "array.h"
 #include "profile.h"
-
-extern unsigned char PROFILER_HTML[];
-extern uint32_t PROFILER_HTML_SIZE;
 
 namespace dmProfile
 {
@@ -59,7 +55,6 @@ namespace dmProfile
     bool g_IsInitialized = false;
     bool g_Paused = false;
     dmSpinlock::lock_t g_ProfileLock;
-    dmHttpServer::HServer g_HttpServer = 0;
 
     dmThread::TlsKey g_TlsKey = dmThread::AllocTls();
     uint32_t g_ThreadCount = 0;
@@ -78,152 +73,6 @@ namespace dmProfile
 
     InitSpinLocks g_InitSpinlocks;
 
-    static void HttpHeader(void* user_data, const char* key, const char* value)
-    {
-    }
-
-#define SEND_LOG_RETURN(data, size) \
-        r = dmHttpServer::Send(request, data, size); \
-        if (r != dmHttpServer::RESULT_OK)\
-        {\
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);\
-            return;\
-        }\
-
-    static void SendSamples(const dmHttpServer::Request* request)
-    {
-        Profile* profile = g_ActiveProfile;
-
-        dmHttpServer::Result r;
-        uint32_t n_samples = profile->m_Samples.Size();
-        SEND_LOG_RETURN(&n_samples, sizeof(n_samples))
-
-        if (n_samples > 0)
-        {
-            SEND_LOG_RETURN(&profile->m_Samples[0], sizeof(profile->m_Samples[0]) * n_samples)
-        }
-    }
-
-    static void SendScopesData(const dmHttpServer::Request* request)
-    {
-        Profile* profile = g_ActiveProfile;
-
-        dmHttpServer::Result r;
-        uint32_t n_scopes = g_Scopes.Size();
-        SEND_LOG_RETURN(&n_scopes, sizeof(n_scopes))
-        if (n_scopes > 0)
-        {
-            SEND_LOG_RETURN(&profile->m_ScopesData[0], sizeof(profile->m_ScopesData[0]) * n_scopes)
-        }
-    }
-
-    static void SendCountersData(const dmHttpServer::Request* request)
-    {
-        Profile* profile = g_ActiveProfile;
-
-        dmHttpServer::Result r;
-        uint32_t n_counters = g_Counters.Size();
-        SEND_LOG_RETURN(&n_counters, sizeof(n_counters))
-        if (n_counters > 0)
-        {
-            SEND_LOG_RETURN(&profile->m_CountersData[0], sizeof(profile->m_CountersData[0]) * n_counters)
-        }
-    }
-
-    void SendStringCallback(const dmHttpServer::Request* request, const uintptr_t* key, const char** value)
-    {
-        dmHttpServer::Result r;
-        uint16_t str_len = 0;
-
-        SEND_LOG_RETURN(key, sizeof(key))
-        str_len = strlen(*value);
-        SEND_LOG_RETURN(&str_len, sizeof(str_len))
-        SEND_LOG_RETURN(*value, str_len)
-    }
-
-    static void SendStrings(const dmHttpServer::Request* request)
-    {
-        dmHttpServer::Result r;
-
-        SEND_LOG_RETURN("STRS", 4)
-
-        const uint16_t ptr_size = sizeof(void*);
-        SEND_LOG_RETURN(&ptr_size, 2);
-
-        uint32_t n_scopes = g_Scopes.Size();
-        uint32_t n_counters = g_Counters.Size();
-
-        uint32_t n_strings = n_scopes + g_StringTable.Size() + n_counters;
-
-        SEND_LOG_RETURN(&n_strings, sizeof(n_strings))
-
-        g_StringTable.Iterate(SendStringCallback, request);
-
-        uint16_t str_len = 0;
-        for (uint32_t i = 0; i < n_scopes; ++i) {
-            Scope* scope = &g_Scopes[i];
-            // Map of Scope* to Scope->m_Name
-            SEND_LOG_RETURN(&scope, sizeof(scope))
-            str_len = strlen(scope->m_Name);
-            SEND_LOG_RETURN(&str_len, sizeof(str_len))
-            SEND_LOG_RETURN(scope->m_Name, str_len)
-        }
-
-        for (uint32_t i = 0; i < n_counters; ++i) {
-            Counter* counter = &g_Counters[i];
-            // Map of Counter* to Counter->m_Name
-            SEND_LOG_RETURN(&counter, sizeof(counter))
-            str_len = strlen(counter->m_Name);
-            SEND_LOG_RETURN(&str_len, sizeof(str_len))
-            SEND_LOG_RETURN(counter->m_Name, str_len)
-        }
-    }
-
-    static void SendProfile(const dmHttpServer::Request* request)
-    {
-        dmHttpServer::Result r;
-        SEND_LOG_RETURN("PROF", 4)
-
-        const uint16_t ptr_size = sizeof(void*);
-        SEND_LOG_RETURN(&ptr_size, 2);
-
-        const uint32_t tps = g_TicksPerSecond;
-        SEND_LOG_RETURN(&tps, 4);
-
-        SendSamples(request);
-        SendScopesData(request);
-        SendCountersData(request);
-    }
-
-    static void HttpResponse(void* user_data, const dmHttpServer::Request* request)
-    {
-        dmHttpServer::Result r;
-
-        // NOTE: The uri-mapping is sensitive. Must match exactly.
-        if (strcmp(request->m_Resource, "/") == 0)
-        {
-            dmHttpServer::SendAttribute(request, "Content-Type", "text/html");
-            SEND_LOG_RETURN(PROFILER_HTML, PROFILER_HTML_SIZE);
-        }
-        else if (strcmp(request->m_Resource, "/profile") == 0)
-        {
-            dmHttpServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
-            SendProfile(request);
-        }
-        else if (strcmp(request->m_Resource, "/strings") == 0)
-        {
-            dmHttpServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
-            SendStrings(request);
-        }
-        else
-        {
-            dmHttpServer::SetStatusCode(request, 404);
-            const char* not_found = "Resource not found\n";
-            dmHttpServer::Send(request, not_found, strlen(not_found));
-            dmHttpServer::Send(request, request->m_Resource, strlen(request->m_Resource));
-        }
-    }
-
     void Initialize(uint32_t max_scopes, uint32_t max_samples, uint32_t max_counters)
     {
         if (!dLib::IsDebugMode())
@@ -238,19 +87,6 @@ namespace dmProfile
 
         g_StringTable.SetCapacity(1024, 1200); // Rather arbitrary...
         g_StringPool = dmStringPool::New();
-
-        g_HttpServer = 0;
-        if(dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
-        {
-            dmHttpServer::NewParams params;
-            params.m_HttpHeader = HttpHeader;
-            params.m_HttpResponse = HttpResponse;
-            dmHttpServer::Result result = dmHttpServer::New(&params, 8002, &g_HttpServer);
-            if (result != dmHttpServer::RESULT_OK)
-            {
-                dmLogWarning("Unable to start profile http-server (%d)", result);
-            }
-        }
 
         if (g_Scopes.Capacity() == 0)
         {
@@ -332,11 +168,6 @@ namespace dmProfile
         g_Counters.SetCapacity(0);
 
         g_ActiveProfile = &g_EmptyProfile;
-        if (g_HttpServer)
-        {
-            dmHttpServer::Delete(g_HttpServer);
-            g_HttpServer = 0;
-        }
 
         g_StringTable.Clear();
         if (g_StringPool != 0)
@@ -494,14 +325,6 @@ namespace dmProfile
         ret->m_ScopeCount = g_Scopes.Size();
         ret->m_CounterCount = g_Counters.Size();
 
-        bool last_pause = g_Paused;
-        g_Paused = true;
-        if (g_HttpServer)
-        {
-            dmHttpServer::Update(g_HttpServer);
-        }
-        g_Paused = last_pause;
-
         int wait_count = 0;
         while (g_FreeProfiles.Size() == 0)
         {
@@ -643,10 +466,10 @@ namespace dmProfile
             if (tls_data == 0)
             {
                 // NOTE: We store thread_id + 1. Otherwise we can't differentiate between thread-id 0 and not initialized
-                int32_t thread_id = g_ThreadCount + 1;
-                g_ThreadCount++;
-                dmThread::SetTlsValue(g_TlsKey, (void*) thread_id);
-                tls_data = (void*) thread_id;
+                int32_t next_thread_id = ++g_ThreadCount;
+                void* thread_id = (void*)((uintptr_t)next_thread_id);
+                dmThread::SetTlsValue(g_TlsKey, thread_id);
+                tls_data = thread_id;
             }
             intptr_t thread_id = ((intptr_t) tls_data) - 1;
             assert(thread_id >= 0);
@@ -744,7 +567,22 @@ namespace dmProfile
         return g_OutOfSamples;
     }
 
-    void IterateScopes(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data))
+    void IterateStrings(HProfile profile, void* context, void (*call_back)(void* context, const uintptr_t* key, const char** value))
+    {
+        g_StringTable.Iterate(call_back, context);
+    }
+
+    void IterateScopes(HProfile profile, void* context, void (*call_back)(void* context, const Scope* scope_data))
+    {
+        uint32_t n = g_Scopes.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            Scope* scope = &g_Scopes[i];
+            call_back(context, scope);
+        }
+    }
+
+    void IterateScopeData(HProfile profile, void* context, void (*call_back)(void* context, const ScopeData* scope_data))
     {
         uint32_t n = profile->m_ScopeCount;
         for (uint32_t i = 0; i < n; ++i)
@@ -762,7 +600,17 @@ namespace dmProfile
         }
     }
 
-    void IterateCounters(HProfile profile, void* context, void (*call_back)(void* context, const CounterData* counter))
+    void IterateCounters(HProfile profile, void* context, void (*call_back)(void* context, const Counter* counter))
+    {
+        uint32_t n = g_Counters.Size();
+        for (uint32_t i = 0; i < n; ++i)
+        {
+            Counter* counter = &g_Counters[i];
+            call_back(context, counter);
+        }
+    }
+
+    void IterateCounterData(HProfile profile, void* context, void (*call_back)(void* context, const CounterData* counter))
     {
         uint32_t n = profile->m_CounterCount;
         for (uint32_t i = 0; i < n; ++i)

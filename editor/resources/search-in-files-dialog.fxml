@@ -29,7 +29,7 @@
                </children>
             </HBox>
         <Pane maxWidth="+Infinity" HBox.hgrow="ALWAYS" />
-      <Button id="ok" focusTraversable="false" minWidth="80.0" mnemonicParsing="false" text="OK" HBox.hgrow="NEVER">
+      <Button id="ok" focusTraversable="false" minWidth="80.0" mnemonicParsing="false" text="Keep Results" HBox.hgrow="NEVER">
         <HBox.margin>
           <Insets left="14.0" />
         </HBox.margin>

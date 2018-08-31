@@ -109,6 +109,7 @@ namespace dmRender
 
         context->m_ScriptContext = params.m_ScriptContext;
         InitializeRenderScriptContext(context->m_RenderScriptContext, params.m_ScriptContext, params.m_CommandBufferSize);
+        context->m_ScriptWorld = dmScript::NewScriptWorld(context->m_ScriptContext);
 
         context->m_DebugRenderer.m_RenderContext = 0;
         if (params.m_VertexProgramData != 0 && params.m_VertexProgramDataSize != 0 &&
@@ -137,6 +138,7 @@ namespace dmRender
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
         FinalizeRenderScriptContext(render_context->m_RenderScriptContext, script_context);
+        dmScript::DeleteScriptWorld(render_context->m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         dmMessage::DeleteSocket(render_context->m_Socket);
@@ -208,6 +210,9 @@ namespace dmRender
             *insert++ = i - base;
 
         render_context->m_RenderListSortIndices.SetSize(render_context->m_RenderListSortIndices.Size() + (end - begin));
+
+        // invalidate the ranges if this is a call to the debug rendering (happening in the middle of the frame)
+        render_context->m_RenderListRanges.SetSize(0);
     }
 
     struct RenderListSorter
@@ -455,6 +460,7 @@ namespace dmRender
                     // use the integer value provided.
                     sort_values[idx].m_Order = entry->m_Order;
                 }
+                sort_values[idx].m_MinorOrder = entry->m_MinorOrder;
                 sort_values[idx].m_BatchKey = entry->m_BatchKey & 0xffffff;
                 sort_values[idx].m_Dispatch = entry->m_Dispatch;
                 context->m_RenderListSortBuffer.Push(idx);
@@ -569,7 +575,7 @@ namespace dmRender
         params.m_Operation = RENDER_LIST_OPERATION_BATCH;
         params.m_Buf = context->m_RenderList.Begin();
 
-        // Make batches for matching dispatch & batch key
+        // Make batches for matching dispatch, batch key & minor order
         RenderListEntry *base = context->m_RenderList.Begin();
         uint32_t *last = context->m_RenderListSortBuffer.Begin();
         uint32_t count = context->m_RenderListSortBuffer.Size();
@@ -578,9 +584,10 @@ namespace dmRender
         {
             uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
             const RenderListEntry *last_entry = &base[*last];
+            const RenderListEntry *current_entry = &base[*idx];
 
             // continue batch on match, or dispatch
-            if (i < count && (last_entry->m_Dispatch == base[*idx].m_Dispatch && last_entry->m_BatchKey == base[*idx].m_BatchKey))
+            if (i < count && (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder))
                 continue;
 
             if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)

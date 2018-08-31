@@ -4,8 +4,7 @@
             [dynamo.graph :as g]
             [editor.pipeline :as pipeline]
             [editor.workspace :as workspace]
-            [editor.resource :as resource]
-            [util.digest :as digest])
+            [editor.resource :as resource])
   (:import [java.io FileNotFoundException]
            [java.net URI]
            [org.apache.commons.io FilenameUtils IOUtils]))
@@ -22,12 +21,12 @@
   (-> content io/input-stream IOUtils/toByteArray))
 
 (defn- handler [workspace project {:keys [url method headers]}]
-  (let [build-path (FilenameUtils/normalize (workspace/build-path workspace))
+  (let [build-path (FilenameUtils/normalize (str (workspace/build-path workspace)))
         path (subs url (count url-prefix))
         full-path (format "%s%s" build-path path)]
    ;; Avoid going outside the build path with '..'
    (if (string/starts-with? full-path build-path)
-     (let [etag (pipeline/etag workspace path)
+     (let [etag (workspace/etag workspace path)
            remote-etag (first (get headers "If-none-match"))
            cached? (when remote-etag (= etag remote-etag))
            content (when (not cached?)
@@ -60,7 +59,7 @@
                                            (.normalize)
                                            (.getPath))
                                     local-path (subs path (count url-prefix))]
-                                (when (= etag (pipeline/etag workspace local-path))
+                                (when (= etag (workspace/etag workspace local-path))
                                   path))))))
           out-body (string/join "\n" entries)]
       {:code 200

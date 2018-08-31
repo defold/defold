@@ -30,13 +30,13 @@ protected:
         m_Factory = dmResource::NewFactory(&params, m_Path);
         m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ModuleContext.m_ScriptContexts.SetCapacity(1);
         m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
         dmMessage::Result result = dmMessage::NewSocket("@system", &m_Socket);
         assert(result == dmMessage::RESULT_OK);
     }
@@ -457,6 +457,78 @@ TEST_F(ScriptTest, TestScriptMany)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
+int TestSetInstanceContext(lua_State* L)
+{
+    if(!dmScript::IsInstanceValid(L))
+    {
+        return 0;
+    }
+
+    lua_pushstring(L, "__my_context_value");
+    lua_pushnumber(L, 81233);
+    if(!dmScript::SetInstanceContextValue(L))
+    {
+        return 0;
+    }
+
+    return 0;
+}
+
+int TestGetInstanceContext(lua_State* L)
+{
+    if(!dmScript::IsInstanceValid(L))
+    {
+        return 0;
+    }
+
+    lua_pushstring(L, "__my_context_value");
+    dmScript::GetInstanceContextValue(L);
+    if (lua_isnil(L, -1))
+    {
+        lua_pop(L, 1);
+        return 0;
+    }
+    lua_Number number = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    if (81233 != number)
+    {
+        return 0;
+    }
+
+    lua_pushboolean(L, 1);
+    lua_setglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
+
+    return 0;
+}
+
+TEST_F(ScriptTest, TestInstanceContext)
+{
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    lua_register(L, "test_set_instance_context", TestSetInstanceContext);
+    lua_register(L, "test_get_instance_context", TestGetInstanceContext);
+
+    lua_pushboolean(L, 0);
+    lua_setglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
+
+    dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/instance_context.goc");
+    ASSERT_NE((void*) 0, (void*) go);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    lua_getglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
+    ASSERT_EQ(0, lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    lua_getglobal(L, "INSTANCE_CONTEXT_SUCCESFUL");
+    ASSERT_EQ(1, lua_toboolean(L, -1));
+    lua_pop(L, 1);
+
+    dmGameObject::Delete(m_Collection, go, false);
+
+    dmGameObject::PostUpdate(m_Collection);
+}
 
 int main(int argc, char **argv)
 {

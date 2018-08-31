@@ -4,7 +4,6 @@
 #include <resource/resource.h>
 #include <resource/resource_archive.h>
 #include <dlib/log.h>
-#include <dlib/dstrings.h>
 #include <axtls/crypto/crypto.h>
 
 namespace dmLiveUpdate
@@ -15,12 +14,12 @@ namespace dmLiveUpdate
         return dmResource::HashLength(algorithm) * 2U;
     }
 
-    HResourceEntry FindResourceEntry(const HManifestFile manifest, const dmhash_t urlHash)
+    HResourceEntry FindResourceEntry(const dmResource::Manifest* manifest, const dmhash_t urlHash)
     {
-        HResourceEntry entries = manifest->m_Data.m_Resources.m_Data;
+        HResourceEntry entries = manifest->m_DDFData->m_Resources.m_Data;
 
         int first = 0;
-        int last = manifest->m_Data.m_Resources.m_Count - 1;
+        int last = manifest->m_DDFData->m_Resources.m_Count - 1;
         while (first <= last)
         {
             int mid = first + (last - first) / 2;
@@ -51,7 +50,7 @@ namespace dmLiveUpdate
             return 0;
         }
 
-        HResourceEntry entry = FindResourceEntry(manifest->m_DDF, urlHash);
+        HResourceEntry entry = FindResourceEntry(manifest, urlHash);
         if (entry != NULL)
         {
             for (uint32_t i = 0; i < entry->m_Dependants.m_Count; ++i)
@@ -77,19 +76,19 @@ namespace dmLiveUpdate
     {
         if (algorithm == dmLiveUpdateDDF::HASH_MD5)
         {
-            MD5_CTX context;
+            dmAxTls::MD5_CTX context;
 
-            MD5_Init(&context);
-            MD5_Update(&context, (const uint8_t*) buf, buflen);
-            MD5_Final(digest, &context);
+            dmAxTls::MD5_Init(&context);
+            dmAxTls::MD5_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::MD5_Final(digest, &context);
         }
         else if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
         {
-            SHA1_CTX context;
+            dmAxTls::SHA1_CTX context;
 
-            SHA1_Init(&context);
-            SHA1_Update(&context, (const uint8_t*) buf, buflen);
-            SHA1_Final(digest, &context);
+            dmAxTls::SHA1_Init(&context);
+            dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::SHA1_Final(digest, &context);
         }
         else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
         {
@@ -102,6 +101,35 @@ namespace dmLiveUpdate
         else
         {
             dmLogError("The algorithm specified for resource hashing is not supported");
+        }
+    }
+
+    void CreateManifestHash(dmLiveUpdateDDF::HashAlgorithm algorithm, const uint8_t* buf, size_t buflen, uint8_t* digest)
+    {
+        if (algorithm == dmLiveUpdateDDF::HASH_SHA1)
+        {
+            dmAxTls::SHA1_CTX context;
+            dmAxTls::SHA1_Init(&context);
+            dmAxTls::SHA1_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::SHA1_Final(digest, &context);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA256)
+        {
+            dmAxTls::SHA256_CTX context;
+            dmAxTls::SHA256_Init(&context);
+            dmAxTls::SHA256_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::SHA256_Final(digest, &context);
+        }
+        else if (algorithm == dmLiveUpdateDDF::HASH_SHA512)
+        {
+            dmAxTls::SHA512_CTX context;
+            dmAxTls::SHA512_Init(&context);
+            dmAxTls::SHA512_Update(&context, (const uint8_t*) buf, buflen);
+            dmAxTls::SHA512_Final(digest, &context);
+        }
+        else
+        {
+            dmLogError("The algorithm specified for manfiest verification hashing is not supported (%i)", algorithm);
         }
     }
 

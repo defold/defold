@@ -287,8 +287,8 @@ public class IOSBundler implements IBundler {
 
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width");
-            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
+            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
                 orientationSupport.add("LandscapeRight");
             } else {
@@ -303,10 +303,17 @@ public class IOSBundler implements IBundler {
         properties.put("orientation-support", orientationSupport);
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
-        helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
+        helper.format(properties, "ios", "infoplist", new File(appDir, "Info.plist"));
 
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
+
+        // Copy Provisioning Profile
+        File provisioningProfileFile = new File(provisioningProfile);
+        if (!provisioningProfileFile.exists()) {
+            throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
+        }
+        FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
 
         // Create fat/universal binary
         File tmpFile = File.createTempFile("dmengine", "");

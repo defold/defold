@@ -1,19 +1,73 @@
 body {
-    color: #dddddd;
-    background-color: #292c30;
-    font-family: "Source Sans Pro", Arial, Helvetica, san-serif;
+    margin: 2em;
+    color: #c3cad1;
+    background-color: #27292d;
+    font-family: "Source Sans Pro", sans-serif;
+    font-size: 1.1em;
 }
 
-h1 {
+h1, h2 {
+    font-family: "Source Sans Pro Light", sans-serif;
+    color: #cfdae6;
+}
 
+h2 {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
 }
 
 a {
-    color: #0084ff;
+    color: #5bc0ff;
 }
 
-code, pre {
-    font-family: "Dejavu Sans Mono";
+strong,b {
+    font-family: "Source Sans Pro Semibold";
+}
+
+kbd {
+    font-family: "Source Sans Pro", sans-serif;
+    padding: 0 0.3em;
+    border: 1px solid #515458;
+}
+
+code {
+    font-family: "Dejavu Sans Mono", monospace;
+    color: #eeeeee;
+    background-color: #27292d;
+    border: 1px solid #515458;
+    font-size: 0.9em;
+}
+
+pre {
     padding: 1em;
-    background-color: #232529;
+    background-color: #27292d;
+}
+
+pre > code {
+    border: none;
+}
+
+img {
+    max-width: 100%;
+}
+
+::-webkit-scrollbar
+{
+    background-color: #27292d;
+    width: 14px;
+}
+
+::-webkit-scrollbar-thumb
+{
+    background-color: #393c41;
+    border-radius: 2em;
+    border: 3px solid #27292d;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #8f9296;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background-color: #dddddd;
 }

@@ -82,7 +82,7 @@
                  {:label "Open As"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open-as}
-                 {:label "Show In Desktop"
+                 {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
                  {:label "Copy Project Path"
@@ -345,7 +345,7 @@
         (when dest-file
           (let [src-files (doall (file-seq src-file))]
             (fs/move! src-file dest-file)
-            (workspace/resource-sync! workspace true (moved-files src-file dest-file src-files))))))))
+            (workspace/resource-sync! workspace (moved-files src-file dest-file src-files))))))))
 
 (defn rename? [resources]
   (and (= 1 (count resources))
@@ -362,7 +362,7 @@
   (run [selection workspace]
     (let [resource (first selection)
           dir? (= :folder (resource/source-type resource))
-          extension (:ext (resource/resource-type resource))
+          extension (resource/ext resource)
           name (if dir?
                  (resource/resource-name resource)
                  (if (seq extension)
@@ -654,7 +654,7 @@
         (when (seq pairs)
           (let [moved (drop-files! workspace pairs move?)]
             (select-files! workspace tree-view (mapv second pairs))
-            (workspace/resource-sync! workspace true moved))))))
+            (workspace/resource-sync! workspace moved))))))
   (.setDropCompleted e true)
   (.consume e))
 

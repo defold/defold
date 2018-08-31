@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include <dmsdk/graphics/graphics.h>
+
 #if defined(__AVM2__)
 #include "flash/graphics_flash_defines.h"
 #else
@@ -131,6 +133,22 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG16F                = 22,
         TEXTURE_FORMAT_R32F                 = 23,
         TEXTURE_FORMAT_RG32F                = 24,
+
+        TEXTURE_FORMAT_COUNT
+    };
+
+    // Translation table to translate TextureFormat texture to BPP
+    struct TextureFormatToBPP
+    {
+        uint8_t m_FormatToBPP[TEXTURE_FORMAT_COUNT];
+        TextureFormatToBPP();
+    };
+
+    // Translation table to translate RenderTargetAttachment to BufferType
+    struct AttachmentToBufferType
+    {
+        BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
+        AttachmentToBufferType();
     };
 
     // Texture type
@@ -521,6 +539,8 @@ namespace dmGraphics
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
     void* MapVertexBuffer(HVertexBuffer buffer, BufferAccess access);
     bool UnmapVertexBuffer(HVertexBuffer buffer);
+    uint32_t GetMaxElementsVertices(HContext context);
+
 
     HIndexBuffer NewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
     void DeleteIndexBuffer(HIndexBuffer buffer);
@@ -528,6 +548,7 @@ namespace dmGraphics
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
     void* MapIndexBuffer(HIndexBuffer buffer, BufferAccess access);
     bool UnmapIndexBuffer(HIndexBuffer buffer);
+    uint32_t GetMaxElementsIndices(HContext context);
 
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count);
     HVertexDeclaration NewVertexDeclaration(HContext context, VertexElement* element, uint32_t count, uint32_t stride);
@@ -609,6 +630,7 @@ namespace dmGraphics
 
     uint8_t* GetTextureData(HTexture texture);
     void SetTextureParams(HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap);
+    uint32_t GetTextureResourceSize(HTexture texture);
     uint16_t GetTextureWidth(HTexture texture);
     uint16_t GetTextureHeight(HTexture texture);
     uint16_t GetOriginalTextureWidth(HTexture texture);

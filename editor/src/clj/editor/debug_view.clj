@@ -8,13 +8,15 @@
    [editor.core :as core]
    [editor.debugging.mobdebug :as mobdebug]
    [editor.defold-project :as project]
+   [editor.dialogs :as dialogs]
    [editor.engine :as engine]
    [editor.handler :as handler]
    [editor.lua :as lua]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.ui :as ui]
-   [editor.workspace :as workspace])
+   [editor.workspace :as workspace]
+   [service.log :as log])
   (:import
    (com.dynamo.lua.proto Lua$LuaModule)
    (java.nio.file Files)
@@ -194,7 +196,7 @@
   [[k v]]
   (if (map? k)
     (-> k meta :tostring)
-    k))
+    (str k)))
 
 (defn- lua-str
   [v]
@@ -204,7 +206,7 @@
 
 (defn- make-variable-tree-item
   [[name value]]
-  (let [variable {:name name
+  (let [variable {:name (lua-str name)
                   :display-name (lua-str name)
                   :value value
                   :display-value (lua-str value)}
@@ -305,10 +307,12 @@
   [project debug-view]
   (let [state   (volatile! {})
         tick-fn (fn [timer _]
-                  (let [breakpoints (set (g/node-value project :breakpoints))]
-                    (when-some [debug-session (g/node-value debug-view :debug-session)]
-                      (update-breakpoints! debug-session (:breakpoints @state) breakpoints))
-                    (vreset! state {:breakpoints breakpoints})))]
+                  ;; if we don't have a debug session going on, there is no point in pulling
+                  ;; project/breakpoints or updating the "last breakpoints" state.
+                  (when-some [debug-session (g/node-value debug-view :debug-session)]
+                    (let [breakpoints (set (g/node-value project :breakpoints))]
+                      (update-breakpoints! debug-session (:breakpoints @state) breakpoints)
+                      (vreset! state {:breakpoints breakpoints}))))]
     (ui/->timer 4 "debugger-update-timer" tick-fn)))
 
 (defn- setup-view! [debug-view app-view]
@@ -354,22 +358,26 @@
    :on-resumed   (fn [debug-session]
                    (ui/run-later (g/set-property! debug-view :suspension-state nil)))})
 
+(def ^:private mobdebug-port 8172)
+
 (defn start-debugger!
   [debug-view project target-address]
-  (mobdebug/connect! target-address 8172
+  (mobdebug/connect! target-address mobdebug-port
                      (fn [debug-session]
-                       (ui/run-now (g/update-property! debug-view :debug-session
-                                                       (fn [old new]
-                                                         (when old (mobdebug/close! old))
-                                                         new)
-                                                       debug-session))
-                       (update-breakpoints! debug-session (g/node-value project :breakpoints))
-                       (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
-                       (show! debug-view))
+                       (ui/run-now
+                         (g/update-property! debug-view :debug-session
+                                             (fn [old new]
+                                               (when old (mobdebug/close! old))
+                                               new)
+                                             debug-session)
+                         (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                         (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
+                         (show! debug-view)))
                      (fn [debug-session]
-                       (ui/run-now (g/set-property! debug-view
-                                                    :debug-session nil
-                                                    :suspension-state nil)))))
+                       (ui/run-now
+                         (g/set-property! debug-view
+                                          :debug-session nil
+                                          :suspension-state nil)))))
 
 (defn current-session
   [debug-view]
@@ -384,15 +392,15 @@
 
 (defn build-targets
   [project evaluation-context]
-  (let [start-script (project/get-resource-node project debugger-init-script)]
-    (g/node-value start-script :build-targets)))
+  (let [start-script (project/get-resource-node project debugger-init-script evaluation-context)]
+    (g/node-value start-script :build-targets evaluation-context)))
 
 (defn- built-lua-module
-  [build-results path]
-  (let [build-result (->> build-results
-                          (filter #(= (some-> % :resource :resource resource/proj-path) path))
-                          (first))]
-    (some->> build-result
+  [build-artifacts path]
+  (let [build-artifact (->> build-artifacts
+                            (filter #(= (some-> % :resource :resource resource/proj-path) path))
+                            (first))]
+    (some->> build-artifact
              :resource
              io/file
              .toPath
@@ -400,15 +408,21 @@
              (protobuf/bytes->map Lua$LuaModule))))
 
 (defn attach!
-  [debug-view project target build-options]
-  (let [evaluation-context (g/make-evaluation-context)
-        extra-build-targets (build-targets project evaluation-context)]
-    (when-some [build-results (project/build-and-write-project project evaluation-context extra-build-targets build-options)]
-      (let [target-address (:address target "localhost")
-            lua-module (built-lua-module build-results debugger-init-script)]
-        (assert lua-module)
-        (start-debugger! debug-view project target-address)
-        (engine/run-script target lua-module)))))
+  [debug-view project target build-artifacts]
+  (let [target-address (:address target "localhost")
+        lua-module (built-lua-module build-artifacts debugger-init-script)]
+    (assert lua-module)
+    (let [attach-successful? (try
+                               (engine/run-script! target lua-module)
+                               true
+                               (catch Exception exception
+                                 (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
+                                                "Check that the game is running and is reachable over the network.")]
+                                   (log/error :msg msg :exception exception)
+                                   (dialogs/make-alert-dialog msg)
+                                   false)))]
+      (when attach-successful?
+        (start-debugger! debug-view project target-address)))))
 
 (defn detach!
   [debug-view]

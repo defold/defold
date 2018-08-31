@@ -36,10 +36,13 @@ static int os_pushresult (lua_State *L, int i, const char *filename) {
 
 
 static int os_execute (lua_State *L) {
-#ifndef IOS_SIMULATOR
+#if defined(LUA_NO_SYSTEM)
+  // As seen in LuaJit, when no system() is available (http://repo.or.cz/luajit-2.0.git/blob_plain/HEAD:/src/lib_os.c)
+  lua_pushinteger(L, -1);
+#else
   lua_pushinteger(L, system(luaL_optstring(L, 1, NULL)));
-  return 1;
 #endif
+  return 1;
 }
 
 

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.Group?>
+
+<VBox id="home-pane" HBox.hgrow="ALWAYS" xmlns="http://javafx.com/javafx">
+    <HBox styleClass="header-pane">
+        <Label styleClass="header" text="Recent Projects" HBox.hgrow="ALWAYS" />
+    </HBox>
+
+    <!-- User has never opened a project state -->
+    <VBox id="state-empty-recent-projects-list" styleClass="empty-list-overlay" translateY="149" VBox.vgrow="ALWAYS">
+        <Group styleClass="defold-logo-container, gray" style="-defold-logo-size: 110px 105px;" translateY="-24" />
+        <Label styleClass="hero-text" text="Welcome! As soon as you start working with Defold, all your recent projects will appear here." maxWidth="340" minHeight="-Infinity" />
+        <Button id="open-from-disk-button" styleClass="df-button" text="Open From Disk...">
+            <VBox.margin>
+                <Insets>
+                    <top>40</top>
+                    <bottom>14</bottom>
+                </Insets>
+            </VBox.margin>
+        </Button>
+        <Hyperlink id="show-new-project-pane-button" text="Create New Project" />
+    </VBox>
+
+    <!-- User has recently opened projects state -->
+    <VBox id="state-non-empty-recent-projects-list" VBox.vgrow="ALWAYS">
+        <ListView id="recent-projects-list" styleClass="project-list-view" VBox.vgrow="ALWAYS" />
+        <AnchorPane styleClass="form-pane">
+            <Button id="open-from-disk-button" styleClass="df-button, dim" text="Open From Disk..." AnchorPane.leftAnchor="0" AnchorPane.bottomAnchor="0" />
+            <Button id="open-selected-project-button" styleClass="df-button" text="Open Selected" AnchorPane.rightAnchor="0" AnchorPane.bottomAnchor="0" />
+        </AnchorPane>
+    </VBox>
+</VBox>

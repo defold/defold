@@ -14,57 +14,6 @@ namespace dmLiveUpdate
         return 1;
     }
 
-    int Resource_CreateManifest(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        size_t manifestLength = 0;
-        const char* manifestData = luaL_checklstring(L, 1, &manifestLength);
-
-        dmResource::Manifest* manifest = new dmResource::Manifest();
-        dmResource::Result result = dmResource::ParseManifestDDF((uint8_t*) manifestData, manifestLength, manifest->m_DDF);
-
-        if (result != dmResource::RESULT_OK)
-        {
-            delete manifest;
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "The manifest could not be parsed");
-        }
-
-        int manifestIndex = dmLiveUpdate::AddManifest(manifest);
-
-        if (manifestIndex == -1)
-        {
-            delete manifest;
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "The manifest buffer is full (%d/%d)", MAX_MANIFEST_COUNT, MAX_MANIFEST_COUNT);
-        }
-
-        lua_pushnumber(L, manifestIndex);
-        assert(lua_gettop(L) == (top + 1));
-        return 1;
-    }
-
-    int Resource_DestroyManifest(lua_State* L)
-    {
-        int top = lua_gettop(L);
-        int manifestIndex = luaL_checkint(L, 1);
-
-        if (manifestIndex == dmLiveUpdate::CURRENT_MANIFEST)
-        {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "Cannot destroy the current manifest");
-        }
-
-        if (!dmLiveUpdate::RemoveManifest(manifestIndex))
-        {
-            assert(top == lua_gettop(L));
-            return luaL_error(L, "The manifest identifier does not exist");
-        }
-
-        assert(lua_gettop(L) == top);
-        return 0;
-    }
-
     static void Callback_StoreResource(StoreResourceCallbackData* callback_data)
     {
         lua_State* L = (lua_State*) callback_data->m_L;
@@ -100,8 +49,8 @@ namespace dmLiveUpdate
     {
         int top = lua_gettop(L);
 
-        int manifestIndex = luaL_checkint(L, 1);
-        dmResource::Manifest* manifest = dmLiveUpdate::GetManifest(manifestIndex);
+        // manifest index in first arg [luaL_checkint(L, 1)] deprecated
+        dmResource::Manifest* manifest = dmLiveUpdate::GetCurrentManifest();
         if (manifest == 0x0)
         {
             assert(top == lua_gettop(L));
@@ -160,10 +109,84 @@ namespace dmLiveUpdate
         return 0;
     }
 
+    static void Callback_StoreManifest(StoreManifestCallbackData* callback_data)
+    {
+        lua_State* L = (lua_State*) callback_data->m_L;
+        DM_LUA_STACK_CHECK(L, 0);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_Callback);
+        lua_rawgeti(L, LUA_REGISTRYINDEX, callback_data->m_Self);
+        lua_pushvalue(L, -1);
+
+        dmScript::SetInstance(L);
+        if (dmScript::IsInstanceValid(L))
+        {
+            lua_pushinteger(L, callback_data->m_Status);
+            int ret = lua_pcall(L, 2, 0, 0);
+            if (ret != 0)
+            {
+                dmLogError("Error while running store_manifest callback");
+            }
+        }
+        else
+        {
+            dmLogError("Could not run store_manifest callback since the instance has been deleted.");
+            lua_pop(L, 1);
+        }
+
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_Callback);
+        dmScript::Unref(L, LUA_REGISTRYINDEX, callback_data->m_Self);
+    }
+
     int Resource_StoreManifest(lua_State* L)
     {
-        DM_LUA_STACK_CHECK(L, 0);
+        int top = lua_gettop(L);
+        size_t manifest_len = 0;
+        const char* manifest_data = luaL_checklstring(L, 1, &manifest_len);
 
+        luaL_checktype(L, 2, LUA_TFUNCTION);
+        lua_pushvalue(L, 2);
+        int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+
+        dmLiveUpdate::StoreManifestCallbackData cb;
+        cb.m_L = dmScript::GetMainThread(L);
+        dmScript::GetInstance(L);
+        cb.m_Callback = callback;
+        cb.m_Self = dmScript::Ref(L, LUA_REGISTRYINDEX);
+        
+        dmResource::Manifest* manifest = new dmResource::Manifest();
+
+        // Create
+        Result result = ParseManifestBin((uint8_t*) manifest_data, manifest_len, manifest);
+        if (result == RESULT_OK)
+        {
+            // Verify
+            result = dmLiveUpdate::VerifyManifest(manifest);
+            if (result == RESULT_SCHEME_MISMATCH)
+            {
+                dmLogWarning("Scheme mismatch, manifest storage is only supported for bundled package. Manifest was not stored.");
+            }
+            else if (result != RESULT_OK)
+            {
+                dmLogError("Manifest verification failed. Manifest was not stored.");
+            }
+        }
+        else
+        {
+            dmLogError("Failed to parse manifest, result: %i", result);
+        }
+
+        // Store
+        if (result == RESULT_OK)
+            result = dmLiveUpdate::StoreManifest(manifest);
+
+        dmDDF::FreeMessage(manifest->m_DDFData);
+        dmDDF::FreeMessage(manifest->m_DDF);
+        delete manifest;
+
+        cb.m_Status = result;
+        Callback_StoreManifest(&cb);
+
+        assert(top == lua_gettop(L));
         return 0;
     }
 

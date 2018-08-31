@@ -252,8 +252,14 @@ TEST_F(dmHttpServerParserTest, TestHeaders)
 int g_PythonTestResult;
 void RunPythonThread(void*)
 {
+#if !defined(DM_NO_SYSTEM_FUNCTION)
     g_PythonTestResult = system("python src/test/test_httpserver.py");
+#else
+    g_PythonTestResult = -1;
+#endif
 }
+
+#if !(defined(SANITIZE_ADDRESS) || defined(SANITIZE_MEMORY)) // until we can load the dylibs properly
 
 TEST_F(dmHttpServerTest, TestServer)
 {
@@ -269,6 +275,8 @@ TEST_F(dmHttpServerTest, TestServer)
     dmThread::Join(thread);
     ASSERT_EQ(0, g_PythonTestResult);
 }
+
+#endif
 
 TEST_F(dmHttpServerTest, TestServerClient)
 {

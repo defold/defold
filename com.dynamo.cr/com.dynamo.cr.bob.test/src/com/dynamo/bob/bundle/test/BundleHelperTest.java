@@ -99,6 +99,19 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "missing type specifier - int assumed. Note: C++ does not support default-int"));
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "syntax error: missing ';' before identifier 'g_foo'"));
             assertEquals(true, checkIssue(issues, "main.cpp_0.o", 1, "error", "unresolved external symbol \"void __cdecl Foobar(void)\" (?Foobar@@YAXXZ) referenced in function \"enum dmExtension::Result __cdecl AppInitializeExtension(struct dmExtension::AppParams * __ptr64)\" (?AppInitializeExtension@@YA?AW4Result@dmExtension@@PEAUAppParams@2@@Z)"));
+
+            assertEquals(true, checkIssue(issues, "MathFuncsLib.lib", 1, "error", "MathFuncsLib.lib(MathFuncsLib.obj) : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "fatal error C1900: Il mismatch between 'P1' version '20161212' and 'P2' version '20150812'"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "LINK : fatal error LNK1257: code generation failed"));
+
+            assertEquals(true, checkIssue(issues, "king_device_id/src/kdid.cpp", 4, "fatal error", "Cannot open include file: 'unistd.h': No such file or directory"));
+
+            // Clang errors
+            assertEquals(true, checkIssue(issues, "ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h", 905, "error", "pasting formed '\"Use \"\"ADDRINFOEXW\"', an invalid preprocessing token [-Winvalid-token-paste]\n"));
+            // lld-link error
+            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _ERR_reason_error_string"));
+            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _ERR_clear_error"));
+            assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _BIO_new_mem_buf"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogOSX.txt");

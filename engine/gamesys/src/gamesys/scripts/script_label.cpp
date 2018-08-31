@@ -7,8 +7,14 @@
 
 
 #include "script_label.h"
+#include "../components/comp_label.h"
 #include "gamesys_ddf.h"
 #include "label_ddf.h"
+
+#if defined(_WIN32)
+#include <malloc.h>
+#define alloca(_SIZE) _alloca(_SIZE)
+#endif
 
 namespace dmGameSystem
 {
@@ -127,11 +133,6 @@ namespace dmGameSystem
  * ```
  */
 
-static void FreeLabelString(dmMessage::Message* message)
-{
-    dmGameSystemDDF::SetText* textmsg = (dmGameSystemDDF::SetText*) message->m_Data;
-    free( (void*)textmsg->m_Text );
-}
 
 /*# set the text for a label
  *
@@ -157,29 +158,91 @@ static int SetText(lua_State* L)
     const char* text = luaL_checkstring(L, 2);
     if (!text)
     {
-        luaL_error(L, "Expected string as first argument");
-        return 0;
+        return DM_LUA_ERROR("Expected string as second argument");
     }
 
+    size_t len = strlen(text)+1;
+    size_t size = sizeof(dmGameSystemDDF::SetText);
+    uint8_t* mem = (uint8_t*)alloca(size+len);
+
     dmGameSystemDDF::SetText msg;
-    msg.m_Text = strdup(text);
+    msg.m_Text = (const char*)(uintptr_t)size; // The text is directory behind the message
+
+    memcpy(mem, &msg, size);
+    memcpy(mem+size, text, len);
 
     dmMessage::URL receiver;
     dmMessage::URL sender;
+    dmScript::GetURL(L, &sender);
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, &msg, sizeof(msg), FreeLabelString) )
+    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, mem, size+len, 0) )
     {
-        free((void*)msg.m_Text);
-        luaL_error(L, "Failed to send label string as message!");
+        return DM_LUA_ERROR("Failed to send label string as message!");
     }
     return 0;
 }
 
 
+/*# gets the text metrics for a label
+ *
+ * Gets the text metrics from a label component
+ *
+ * @name label.get_text_metrics
+ * @param url [type:string|hash|url] the label to get the (unscaled) metrics from
+ * @return metrics [type:table] a table with the following fields:
+ *
+ * - width
+ * - height
+ * - max_ascent
+ * - max_descent
+ *
+ * ```lua
+ * function init(self)
+ *     local metrics = label.get_text_metrics("#label")
+ *     pprint(metrics)
+ * end
+ * ```
+ */
+static int GetTextMetrics(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    CheckGoInstance(L);
+
+    dmMessage::URL receiver;
+    dmMessage::URL sender;
+    dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+    dmGameSystem::LabelComponent* component = (dmGameSystem::LabelComponent*)dmGameObject::GetComponentFromURL(receiver);
+    if (!component) {
+        return DM_LUA_ERROR("Could not find instance %s:%s#%s", dmHashReverseSafe64(receiver.m_Socket), dmHashReverseSafe64(receiver.m_Path), dmHashReverseSafe64(receiver.m_Fragment));
+    }
+
+    dmRender::TextMetrics metrics;
+    dmGameSystem::CompLabelGetTextMetrics(component, metrics);
+
+    lua_createtable(L, 0, 4);
+    lua_pushliteral(L, "width");
+    lua_pushnumber(L, metrics.m_Width);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "height");
+    lua_pushnumber(L, metrics.m_Height);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "max_ascent");
+    lua_pushnumber(L, metrics.m_MaxAscent);
+    lua_rawset(L, -3);
+    lua_pushliteral(L, "max_descent");
+    lua_pushnumber(L, metrics.m_MaxDescent);
+    lua_rawset(L, -3);
+
+    return 1;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set_text", SetText},
+    {"get_text_metrics", GetTextMetrics},
     {0, 0}
 };
 

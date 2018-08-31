@@ -14,7 +14,7 @@
             [editor.defold-project :as project]
             [editor.scene :as scene]
             [editor.scene-tools :as scene-tools]
-            [editor.script :as script]
+            [editor.code.script :as script]
             [editor.outline :as outline]
             [editor.types :as types]
             [editor.workspace :as workspace]
@@ -256,14 +256,15 @@
                        (g/delete-node old-source)
                        [])
                      (let [new-resource (:resource new-value)]
-                       (let [project (project/get-project self)]
-                         (project/connect-resource-node project new-resource self []
+                       (let [basis (:basis evaluation-context)
+                             project (project/get-project basis self)]
+                         (project/connect-resource-node evaluation-context project new-resource self []
                                                         (fn [go-node]
                                                           (let [component-overrides (into {} (map (fn [m]
                                                                                                     [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                                                                                            (:properties m)))])
                                                                                                   (:overrides new-value)))
-                                                                override (g/override (:basis evaluation-context) go-node {:traverse? or-go-traverse?})
+                                                                override (g/override basis go-node {:traverse? or-go-traverse?})
                                                                 id-mapping (:id-mapping override)
                                                                 or-node (get id-mapping go-node)
                                                                 component-ids (g/node-value go-node :component-ids evaluation-context)
@@ -495,10 +496,11 @@
                (g/delete-node old-source)
                [])
              (let [new-resource (:resource new-value)]
-               (let [project (project/get-project self)]
-                 (project/connect-resource-node project new-resource self []
+               (let [basis (:basis evaluation-context)
+                     project (project/get-project basis self)]
+                 (project/connect-resource-node evaluation-context project new-resource self []
                                                 (fn [coll-node]
-                                                  (let [override (g/override (:basis evaluation-context) coll-node {:traverse? or-coll-traverse?})
+                                                  (let [override (g/override basis coll-node {:traverse? or-coll-traverse?})
                                                         id-mapping (:id-mapping override)
                                                         go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
                                                         component-overrides (for [{:keys [id properties]} (:overrides new-value)
@@ -629,33 +631,29 @@
 
 (defn- make-embedded-go [self project type data id position rotation scale parent select-fn]
   (let [graph (g/node-id->graph-id self)
-        resource (project/make-embedded-resource project type data)]
-    (g/make-nodes graph [go-node [EmbeddedGOInstanceNode :id id :position position :rotation rotation :scale scale]]
-      (if select-fn
-        (select-fn [go-node])
-        [])
-      (let [tx-data (project/make-resource-node graph project resource true
-                                                {go-node [[:_node-id :source-id]
-                                                          [:resource :source-resource]
-                                                          [:node-outline :source-outline]
-                                                          [:proto-msg :proto-msg]
-                                                          [:save-data :source-save-data]
-                                                          [:build-targets :source-build-targets]
-                                                          [:scene :scene]
-                                                          [:ddf-component-properties :ddf-component-properties]]
-                                                 self [[:_node-id :nodes]]}
-                                                (fn [n] (g/connect go-node :url n :base-url)))]
-        (concat
-          tx-data
-          (if (empty? tx-data)
-            []
-            (concat
-              (attach-coll-embedded-go self go-node)
-              (if parent
-                (if (= parent self)
-                  (child-coll-any self go-node)
-                  (child-go-go parent go-node))
-                []))))))))
+        resource (project/make-embedded-resource project type data)
+        node-type (project/resource-node-type resource)]
+    (g/make-nodes graph [go-node [EmbeddedGOInstanceNode :id id :position position :rotation rotation :scale scale]
+                         resource-node [node-type :resource resource]]
+                  (g/connect resource-node :_node-id self :nodes)
+                  (g/connect go-node :url resource-node :base-url)
+                  (project/load-node project resource-node node-type resource)
+                  (project/connect-if-output node-type resource-node go-node
+                                             [[:_node-id :source-id]
+                                              [:resource :source-resource]
+                                              [:node-outline :source-outline]
+                                              [:proto-msg :proto-msg]
+                                              [:save-data :source-save-data]
+                                              [:build-targets :source-build-targets]
+                                              [:scene :scene]
+                                              [:ddf-component-properties :ddf-component-properties]])
+                  (attach-coll-embedded-go self go-node)
+                  (when parent
+                    (if (= parent self)
+                      (child-coll-any self go-node)
+                      (child-go-go parent go-node)))
+                  (when select-fn
+                    (select-fn [go-node])))))
 
 (defn add-game-object [workspace project coll-node parent select-fn]
   (let [ext           "go"

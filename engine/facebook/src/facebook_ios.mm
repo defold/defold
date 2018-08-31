@@ -1,6 +1,6 @@
 #include <dlib/log.h>
 #include <script/script.h>
-#include <extension/extension.h>
+#include <dmsdk/extension/extension.h>
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <FBSDKCoreKit/FBSDKCoreKit.h>
@@ -1555,7 +1555,7 @@ static dmExtension::Result AppInitializeFacebook(dmExtension::AppParams* params)
         return dmExtension::RESULT_OK;
     }
     g_Facebook.m_Delegate = [[FacebookAppDelegate alloc] init];
-    dmExtension::RegisterUIApplicationDelegate(g_Facebook.m_Delegate);
+    dmExtension::RegisteriOSUIApplicationDelegate(g_Facebook.m_Delegate);
 
     g_Facebook.m_DisableFaceBookEvents = dmConfigFile::GetInt(params->m_ConfigFile, "facebook.disable_events", 0);
 
@@ -1573,7 +1573,7 @@ static dmExtension::Result AppFinalizeFacebook(dmExtension::AppParams* params)
         return dmExtension::RESULT_OK;
     }
 
-    dmExtension::UnregisterUIApplicationDelegate(g_Facebook.m_Delegate);
+    dmExtension::UnregisteriOSUIApplicationDelegate(g_Facebook.m_Delegate);
     [g_Facebook.m_Login release];
     return dmExtension::RESULT_OK;
 }

@@ -2,10 +2,8 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [clojure.set :as set]
-            [clojure.java.io :as io]
             [dynamo.graph :as g]
-            [support.test-support :as test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime]]
-            [editor.math :as math]
+            [support.test-support :as test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.library :as library]
@@ -14,26 +12,14 @@
             [editor.game-object :as game-object]
             [editor.asset-browser :as asset-browser]
             [editor.progress :as progress]
-            [editor.protobuf :as protobuf]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [service.log :as log])
-  (:import [com.dynamo.gameobject.proto GameObject GameObject$CollectionDesc GameObject$CollectionInstanceDesc GameObject$InstanceDesc
-            GameObject$EmbeddedInstanceDesc GameObject$PrototypeDesc]
-           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
-           [com.dynamo.render.proto Font$FontMap]
-           [com.dynamo.particle.proto Particle$ParticleFX]
-           [com.dynamo.sound.proto Sound$SoundDesc]
-           [com.dynamo.rig.proto Rig$RigScene]
-           [editor.types Region]
-           [editor.workspace BuildResource]
-           [editor.resource FileResource]
-           [java.awt.image BufferedImage]
+  (:import [java.awt.image BufferedImage]
            [java.io File]
            [javax.imageio ImageIO]
-           [javax.vecmath Point3d Matrix4d]
            [org.apache.commons.io FilenameUtils]))
 
 (def ^:private reload-project-path "test/resources/reload_project")
@@ -74,20 +60,10 @@
 ;; │   └── test.sprite
 ;; └── test.particlefx
 
-(def ^:private lib-urls (library/parse-library-urls "file:/scriptlib file:/imagelib1 file:/imagelib2"))
+(def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2"))
 
-(def ^:private scriptlib-url (first lib-urls)) ; /scripts/main.script
-(def ^:private imagelib1-url (second lib-urls)) ; /images/{pow,paddle}.png
-
-;; Temporary hack to run tests in both implementations of the code editor resource nodes.
-(defmacro with-clean-system [& forms]
-  `(do
-     (with-bindings {#'test-util/use-new-code-editor? false}
-       (test-support/with-clean-system
-         ~@forms))
-     (with-bindings {#'test-util/use-new-code-editor? true}
-       (test-support/with-clean-system
-         ~@forms))))
+(def ^:private scriptlib-uri (first lib-uris)) ; /scripts/main.script
+(def ^:private imagelib1-uri (second lib-uris)) ; /images/{pow,paddle}.png
 
 (defn- setup-scratch
   ([ws-graph] (setup-scratch ws-graph reload-project-path))
@@ -102,24 +78,21 @@
 
 (def ^:dynamic *no-sync* nil)
 (def ^:dynamic *moved-files* nil)
-(def ^:dynamic *notify-listeners?* nil)
 
 (defn- sync!
   ([workspace]
     (when (not *no-sync*) (workspace/resource-sync! workspace)))
-  ([workspace notify-listeners? moved-files]
+  ([workspace moved-files]
     (if (not *no-sync*)
-      (workspace/resource-sync! workspace notify-listeners? moved-files)
+      (workspace/resource-sync! workspace moved-files)
       (do
-        (swap! *moved-files* into moved-files)
-        (swap! *notify-listeners?* #(and %1 %2) notify-listeners?)))))
+        (swap! *moved-files* into moved-files)))))
 
 (defmacro bulk-change [workspace & forms]
  `(with-bindings {#'*no-sync* true
-                  #'*moved-files* (atom [])
-                  #'*notify-listeners?* (atom true)}
+                  #'*moved-files* (atom [])}
     ~@forms
-    (workspace/resource-sync! ~workspace @*notify-listeners?* @*moved-files*)))
+    (workspace/resource-sync! ~workspace @*moved-files*)))
 
 (defn- touch-file
   ([workspace name]
@@ -166,7 +139,7 @@
 (defn- move-file [workspace name new-name]
   (let [[f new-f] (mapv #(File. (workspace/project-path workspace) %) [name new-name])]
     (fs/move-file! f new-f)
-    (sync! workspace true [[f new-f]])))
+    (sync! workspace [[f new-f]])))
 
 (defn- add-img [workspace name width height]
   (let [img (BufferedImage. width height BufferedImage/TYPE_INT_ARGB)
@@ -498,7 +471,7 @@
         (is (= initial-graph-nodes (graph-nodes project)))
 
         ;; actual test
-        (workspace/set-project-dependencies! workspace [imagelib1-url])
+        (workspace/set-project-dependencies! workspace [imagelib1-uri])
         (let [images-dir-resource (workspace/find-resource workspace "/images")]
           (asset-browser/rename images-dir-resource "graphics"))
 
@@ -540,7 +513,7 @@
         (is (= (map g/override-original game_object>main-go-scripts)
                [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [scriptlib-url])
+        (workspace/set-project-dependencies! workspace [scriptlib-uri])
         (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
           (asset-browser/rename scripts-dir-resource "project_scripts"))
 
@@ -575,7 +548,7 @@
             images>pow-resource (resource images>pow)
             image>ball (project/get-resource-node project "/images/ball.png")
             initial-graph-nodes (graph-nodes project)]
-        (workspace/set-project-dependencies! workspace [imagelib1-url])
+        (workspace/set-project-dependencies! workspace [imagelib1-uri])
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [images-dir-resource (workspace/find-resource workspace "/images")]
             (asset-browser/rename images-dir-resource "graphics")))
@@ -614,7 +587,7 @@
             initial-graph-nodes (graph-nodes project)]
         (is (= (map g/override-original game_object>main-scripts) [scripts>main]))
 
-        (workspace/set-project-dependencies! workspace [scriptlib-url]) ; /scripts/main.script
+        (workspace/set-project-dependencies! workspace [scriptlib-uri]) ; /scripts/main.script
         (binding [dialogs/make-resolve-file-conflicts-dialog (fn [src-dest-pairs] :overwrite)]
           (let [scripts-dir-resource (workspace/find-resource workspace "/scripts")]
             (asset-browser/rename scripts-dir-resource "main")))
@@ -665,13 +638,12 @@
   ;; We used to end up with two resource nodes referring to the same resource (/graphics/ball.png)
   (with-clean-system
     (let [[workspace project] (setup-scratch world)
-          initial-node-resources (g/node-value project :node-resources)]
+          initial-node-resources (test-util/project-node-resources project)]
       (copy-file workspace "/graphics/ball.png" "/ball.png")
       (delete-file workspace "/graphics/ball.png")
       (move-file workspace "/ball.png" "/graphics/ball.png")
-      (let [node-resources (g/node-value project :node-resources)]
-        (is (= (sort-by resource/proj-path initial-node-resources)
-               (sort-by resource/proj-path node-resources)))))))
+      (let [node-resources (test-util/project-node-resources project)]
+        (is (= initial-node-resources node-resources))))))
 
 (defn- coll-link [coll]
   (get-in (g/node-value coll :node-outline) [:children 0 :link]))

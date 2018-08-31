@@ -75,10 +75,11 @@
             <proto dir="../../engine/render/proto/render" file="font_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="material_ddf.proto"/>
             <proto dir="../../engine/render/proto/render" file="render_ddf.proto"/>
-            <proto dir="../../engine/resource/proto" file="manifest_ddf.proto"/>
+            <proto dir="../../engine/resource/proto" file="liveupdate_ddf.proto"/>
             <proto dir="../../engine/resource/proto" file="resource_ddf.proto"/>
             <proto dir="../../engine/script/src" file="script/lua_source_ddf.proto"/>
             <proto dir="../../engine/script/src/script" file="script_doc_ddf.proto"/>
+            <proto dir="../../engine/script/src" file="script/ddf_script.proto"/>
             <proto dir="../../engine/vscript/proto" file="vscript_ddf.proto"/>
         </parallel>
 

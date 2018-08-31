@@ -1,11 +1,12 @@
 (ns editor.pipeline
   (:require
    [clojure.java.io :as io]
-   [dynamo.graph :as g]
    [editor.fs :as fs]
    [editor.resource :as resource]
+   [editor.progress :as progress]
    [editor.protobuf :as protobuf]
    [editor.workspace :as workspace]
+   [dynamo.graph :as g]
    [util.digest :as digest])
   (:import
    (java.io File)
@@ -79,7 +80,10 @@
   [build-targets]
   (into {} (map #(let [key (target-key %)] [key (assoc % :key key)])) build-targets))
 
-(defn- build-targets-deep [build-targets]
+(defn- flatten-build-targets
+  "Breadth first traversal / collection of build-targets and their child :deps,
+  skipping seen targets identified by target-key."
+  [build-targets]
   (loop [targets build-targets
          queue []
          seen #{}
@@ -96,7 +100,7 @@
 (defn- make-build-targets-by-key
   [build-targets]
   (->> build-targets
-       build-targets-deep
+       flatten-build-targets
        build-targets-by-key))
 
 (defn- make-dep-resources
@@ -111,9 +115,6 @@
   (into {}
         (filter (fn [[resource result]] (contains? build-targets-by-key (:key result))))
         artifacts))
-
-(defn- workspace->artifacts [workspace]
-  (or (g/user-data workspace ::artifacts) {}))
 
 (defn- valid? [artifact]
   (when-let [^File f (io/as-file (:resource artifact))]
@@ -135,43 +136,61 @@
           :key key
           :mtime mtime
           :size size
-          :etag (digest/sha1->hex content))))))
+          :etag (digest/sha1-hex content))))))
 
-(defn- prune-build-dir! [workspace build-targets-by-key]
-  (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)
-        dir (io/as-file (workspace/build-path workspace))]
-    (fs/create-directories! dir)
-    (doseq [^File f (file-seq dir)]
+(defn- prune-build-dir! [build-dir build-targets-by-key]
+  (let [targets (into #{} (map (fn [[_ target]] (io/as-file (:resource target)))) build-targets-by-key)]
+    (fs/create-directories! build-dir)
+    (doseq [^File f (file-seq build-dir)]
       (when (and (not (.isDirectory f)) (not (contains? targets f)))
         (fs/delete! f)))))
 
+(defn- expensive? [build-target]
+  (contains? #{"fontc"} (resource/ext (:resource build-target))))
+
+(defn- batched-pmap [f batches]
+  (->> batches
+       (pmap (fn [batch] (doall (map f batch))))
+       (reduce concat)
+       doall))
+
+(def ^:private cheap-batch-size 500)
+(def ^:private expensive-batch-size 5)
+
 (defn build!
-  [workspace build-targets]
+  [build-targets build-dir old-artifact-map render-progress!]
   (let [build-targets-by-key (make-build-targets-by-key build-targets)
-        artifacts (-> (workspace->artifacts workspace)
-                      (prune-artifacts build-targets-by-key))]
-    (prune-build-dir! workspace build-targets-by-key)
-    (let [results (into []
-                        (map (fn [[key {:keys [resource] :as build-target}]]
-                               (or (when-let [artifact (get artifacts resource)]
-                                     (and (valid? artifact) artifact))
-                                   (let [{:keys [resource deps build-fn user-data]} build-target
-                                         dep-resources (make-dep-resources deps build-targets-by-key)]
-                                     (-> (build-fn resource dep-resources user-data)
-                                         (to-disk! key))))))
-                        build-targets-by-key)
-          new-artifacts (into {} (map (fn [a] [(:resource a) a])) results)
-          etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) results)]
-      (g/user-data! workspace ::artifacts new-artifacts)
-      (g/user-data! workspace ::etags etags)
-      results)))
-
-(defn reset-cache! [workspace]
-  (g/user-data! workspace ::artifacts nil)
-  (g/user-data! workspace ::etags nil))
-
-(defn etags [workspace]
-  (g/user-data workspace ::etags))
-
-(defn etag [workspace path]
-  (get (etags workspace) path))
+        pruned-old-artifacts (prune-artifacts old-artifact-map build-targets-by-key)
+        progress (atom (progress/make "" (count build-targets-by-key)))]
+    (prune-build-dir! build-dir build-targets-by-key)
+    (let [{cheap-build-targets false expensive-build-targets true} (group-by expensive? (vals build-targets-by-key))
+          build-target-batches (into (partition-all cheap-batch-size cheap-build-targets)
+                                     (partition-all expensive-batch-size expensive-build-targets))
+          results (batched-pmap
+                    (fn [build-target]
+                      (let [{:keys [key node-id resource deps build-fn user-data]} build-target
+                            cached-artifact (when-let [artifact (get pruned-old-artifacts resource)]
+                                              (and (valid? artifact) artifact))
+                            message (str "Building " (resource/proj-path resource))]
+                        (render-progress! (swap! progress progress/with-message message))
+                        (let [result (or cached-artifact
+                                         (let [dep-resources (make-dep-resources deps build-targets-by-key)
+                                               build-result (build-fn resource dep-resources user-data)]
+                                           ;; Error results are assumed to be error-aggregates.
+                                           ;; We need to inject the node-id of the source build
+                                           ;; target into the causes, since the build-fn will
+                                           ;; not have access to the node-id.
+                                           (if (g/error? build-result)
+                                             (update build-result :causes (partial map #(assoc % :_node-id node-id)))
+                                             (to-disk! build-result key))))]
+                          (render-progress! (swap! progress progress/advance))
+                          result)))
+                    build-target-batches)
+          {successful-results false error-results true} (group-by #(boolean (g/error? %)) results)
+          new-artifact-map (into {} (map (fn [a] [(:resource a) a])) successful-results)
+          etags (into {} (map (fn [a] [(resource/proj-path (:resource a)) (:etag a)])) successful-results)]
+      (cond-> {:artifacts successful-results
+               :artifact-map new-artifact-map
+               :etags etags}
+        (seq error-results)
+        (assoc :error (g/error-aggregate error-results))))))

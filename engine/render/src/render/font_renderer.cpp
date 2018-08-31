@@ -753,6 +753,7 @@ namespace dmRender
                 {
                     TextEntry& te = text_context.m_TextEntries[text_context.m_TextEntriesFlushed + i];
                     write_ptr->m_WorldPosition = Point3(te.m_Transform.getTranslation());
+                    write_ptr->m_MinorOrder = 0;
                     write_ptr->m_MajorOrder = major_order;
                     write_ptr->m_Order = render_order;
                     write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
@@ -818,5 +819,13 @@ namespace dmRender
         uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm);
         metrics->m_Width = layout_width;
         metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
+    }
+
+    uint32_t GetFontMapResourceSize(HFontMap font_map)
+    {
+        uint32_t size = sizeof(FontMap);
+        size += font_map->m_Glyphs.Capacity()*(sizeof(Glyph)+sizeof(uint32_t));
+        size += dmGraphics::GetTextureResourceSize(font_map->m_Texture);
+        return size;
     }
 }

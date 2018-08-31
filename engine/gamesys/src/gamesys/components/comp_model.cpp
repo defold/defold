@@ -29,6 +29,8 @@ namespace dmGameSystem
     using namespace Vectormath::Aos;
     using namespace dmGameSystemDDF;
 
+    static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
+
     static const dmhash_t PROP_SKIN = dmHashString64("skin");
     static const dmhash_t PROP_ANIMATION = dmHashString64("animation");
     static const dmhash_t PROP_CURSOR = dmHashString64("cursor");
@@ -46,8 +48,17 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = context->m_RenderContext;
         ModelWorld* world = new ModelWorld();
 
+        dmRig::NewContextParams rig_params = {0};
+        rig_params.m_Context = &world->m_RigContext;
+        rig_params.m_MaxRigInstanceCount = context->m_MaxModelCount;
+        dmRig::Result rr = dmRig::NewContext(rig_params);
+        if (rr != dmRig::RESULT_OK)
+        {
+            dmLogFatal("Unable to create model rig context: %d", rr);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         world->m_Components.SetCapacity(context->m_MaxModelCount);
-        // world->m_RigContext = context->m_RigContext;
         world->m_RenderObjects.SetCapacity(context->m_MaxModelCount);
 
         dmGraphics::VertexElement ve[] =
@@ -56,9 +67,16 @@ namespace dmGameSystem
                 {"texcoord0", 1, 2, dmGraphics::TYPE_FLOAT, false},
                 {"normal", 2, 3, dmGraphics::TYPE_FLOAT, false},
         };
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
+        world->m_MaxElementsVertices = dmGraphics::GetMaxElementsVertices(graphics_context);
+        world->m_VertexBuffers = new dmGraphics::HVertexBuffer[VERTEX_BUFFER_MAX_BATCHES];
+        world->m_VertexBufferData = new dmArray<dmRig::RigModelVertex>[VERTEX_BUFFER_MAX_BATCHES];
+        for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
+        {
+            world->m_VertexBuffers[i] = dmGraphics::NewVertexBuffer(graphics_context, 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        }
 
-        world->m_VertexDeclaration = dmGraphics::NewVertexDeclaration(dmRender::GetGraphicsContext(render_context), ve, sizeof(ve) / sizeof(dmGraphics::VertexElement));
-        world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
         *params.m_World = world;
 
         dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
@@ -70,9 +88,17 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
         dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
-        dmGraphics::DeleteVertexBuffer(world->m_VertexBuffer);
+        for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
+        {
+            dmGraphics::DeleteVertexBuffer(world->m_VertexBuffers[i]);
+        }
 
         dmResource::UnregisterResourceReloadedCallback(((ModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
+
+        dmRig::DeleteContext(world->m_RigContext);
+
+        delete [] world->m_VertexBufferData;
+        delete [] world->m_VertexBuffers;
 
         delete world;
 
@@ -143,7 +169,7 @@ namespace dmGameSystem
         // Include instance transform in the GO instance reflecting the root bone
         dmArray<dmTransform::Transform>& pose = *dmRig::GetPose(component->m_RigInstance);
         if (!pose.Empty()) {
-            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], pose.Begin(), pose.Size());
+            dmGameObject::SetBoneTransforms(component->m_NodeInstances[0], component->m_Transform, pose.Begin(), pose.Size());
         }
     }
 
@@ -279,9 +305,18 @@ namespace dmGameSystem
         component->m_World = Matrix4::identity();
         component->m_DoRender = 0;
 
+        // Create GO<->bone representation
+        // We need to make sure that bone GOs are created before we start the default animation.
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
+            DestroyComponent(world, index);
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
-        create_params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        create_params.m_Context = world->m_RigContext;
         create_params.m_Instance = &component->m_RigInstance;
 
         create_params.m_PoseCallback = CompModelPoseCallback;
@@ -304,13 +339,14 @@ namespace dmGameSystem
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the model.max_count value in game.project");
+            }
+            DestroyComponent(world, index);
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
         ReHash(component);
-
-        // Create GO<->bone representation
-        CreateGOBones(world, component);
 
         *params.m_UserData = (uintptr_t)index;
         return dmGameObject::CREATE_RESULT_OK;
@@ -324,7 +360,7 @@ namespace dmGameSystem
         component->m_NodeInstances.SetCapacity(0);
 
         dmRig::InstanceDestroyParams params = {0};
-        params.m_Context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        params.m_Context = world->m_RigContext;
         params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(params);
 
@@ -343,6 +379,8 @@ namespace dmGameSystem
     {
         DM_PROFILE(Model, "RenderBatch");
 
+        uint32_t batchIndex = buf[*begin].m_MinorOrder;
+
         const ModelComponent* first = (ModelComponent*) buf[*begin].m_UserData;
         uint32_t vertex_count = 0;
         uint32_t max_component_vertices = 0;
@@ -359,9 +397,11 @@ namespace dmGameSystem
             return;
         }
 
-        dmArray<dmRig::RigModelVertex> &vertex_buffer = world->m_VertexBufferData;
+        dmArray<dmRig::RigModelVertex>& vertex_buffer = world->m_VertexBufferData[batchIndex];
         if (vertex_buffer.Remaining() < vertex_count)
             vertex_buffer.OffsetCapacity(vertex_count - vertex_buffer.Remaining());
+
+        dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batchIndex];
 
         // Fill in vertex buffer
         dmRig::RigModelVertex *vb_begin = vertex_buffer.End();
@@ -369,7 +409,7 @@ namespace dmGameSystem
         for (uint32_t *i=begin;i!=end;i++)
         {
             const ModelComponent* c = (ModelComponent*) buf[*i].m_UserData;
-            dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(c->m_Instance));
+            dmRig::HRigContext rig_context = world->m_RigContext;
             Matrix4 normal_matrix = inverse(c->m_World);
             normal_matrix = transpose(normal_matrix);
             vb_end = (dmRig::RigModelVertex *)dmRig::GenerateVertexData(rig_context, c->m_RigInstance, c->m_World, normal_matrix, Vector4(1.0), dmRig::RIG_VERTEX_FORMAT_MODEL, (void*)vb_end);
@@ -382,12 +422,11 @@ namespace dmGameSystem
 
         ro.Init();
         ro.m_VertexDeclaration = world->m_VertexDeclaration;
-        ro.m_VertexBuffer = world->m_VertexBuffer;
+        ro.m_VertexBuffer = gfx_vertex_buffer;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
         ro.m_VertexStart = vb_begin - vertex_buffer.Begin();
         ro.m_VertexCount = vb_end - vb_begin;
         ro.m_Material = first->m_Resource->m_Material;
-        ro.m_WorldTransform = first->m_World;
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
             ro.m_Textures[i] = first->m_Resource->m_Textures[i];
 
@@ -445,6 +484,8 @@ namespace dmGameSystem
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
 
+        dmRig::Result rig_res = dmRig::Update(world->m_RigContext, params.m_UpdateContext->m_DT);
+
         dmArray<ModelComponent*>& components = world->m_Components.m_Objects;
         const uint32_t count = components.Size();
 
@@ -469,6 +510,7 @@ namespace dmGameSystem
             component.m_DoRender = 1;
         }
 
+        update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
@@ -480,10 +522,11 @@ namespace dmGameSystem
         {
             case dmRender::RENDER_LIST_OPERATION_BEGIN:
             {
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
                 world->m_RenderObjects.SetSize(0);
-                dmArray<dmRig::RigModelVertex>& vertex_buffer = world->m_VertexBufferData;
-                vertex_buffer.SetSize(0);
+                for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
+                {
+                    world->m_VertexBufferData[batch_index].SetSize(0);
+                }
                 break;
             }
             case dmRender::RENDER_LIST_OPERATION_BATCH:
@@ -493,9 +536,20 @@ namespace dmGameSystem
             }
             case dmRender::RENDER_LIST_OPERATION_END:
             {
-                dmGraphics::SetVertexBufferData(world->m_VertexBuffer, sizeof(dmRig::RigModelVertex) * world->m_VertexBufferData.Size(),
-                                                world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-                DM_COUNTER("ModelVertexBuffer", world->m_VertexBufferData.Size() * sizeof(dmRig::RigModelVertex));
+                uint32_t total_size = 0;
+                for (uint32_t batch_index = 0; batch_index < VERTEX_BUFFER_MAX_BATCHES; ++batch_index)
+                {
+                    dmArray<dmRig::RigModelVertex>& vertex_buffer_data = world->m_VertexBufferData[batch_index];
+                    if (vertex_buffer_data.Empty())
+                    {
+                        continue;
+                    }
+                    uint32_t vb_size = sizeof(dmRig::RigModelVertex) * vertex_buffer_data.Size();
+                    dmGraphics::HVertexBuffer& gfx_vertex_buffer = world->m_VertexBuffers[batch_index];
+                    dmGraphics::SetVertexBufferData(gfx_vertex_buffer, vb_size, vertex_buffer_data.Begin(), dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+                    total_size += vb_size;
+                }
+                DM_COUNTER("ModelVertexBuffer", total_size);
                 break;
             }
             default:
@@ -520,11 +574,22 @@ namespace dmGameSystem
         dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, world);
         dmRender::RenderListEntry* write_ptr = render_list;
 
+        const uint32_t max_elements_vertices = world->m_MaxElementsVertices;
+        uint32_t minor_order = 0; // Will translate to vb index.
+        uint32_t vertex_count_total = 0;
         for (uint32_t i = 0; i < count; ++i)
         {
             ModelComponent& component = *components[i];
             if (!component.m_DoRender)
                 continue;
+
+            uint32_t vertex_count = dmRig::GetVertexCount(component.m_RigInstance);
+            if(vertex_count_total + vertex_count >= max_elements_vertices)
+            {
+                vertex_count_total = 0;
+                minor_order = dmMath::Min(minor_order + 1, VERTEX_BUFFER_MAX_BATCHES-1);
+            }
+            vertex_count_total += vertex_count;
 
             const Vector4 trans = component.m_World.getCol(3);
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
@@ -532,6 +597,7 @@ namespace dmGameSystem
             write_ptr->m_BatchKey = component.m_MixedHash;
             write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
             write_ptr->m_Dispatch = dispatch;
+            write_ptr->m_MinorOrder = minor_order;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
         }
@@ -657,15 +723,25 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component)
+    static bool OnResourceReloaded(ModelWorld* world, ModelComponent* component, int index)
     {
-        dmRig::HRigContext rig_context = dmGameObject::GetRigContext(dmGameObject::GetCollection(component->m_Instance));
+        dmRig::HRigContext rig_context = world->m_RigContext;
 
         // Destroy old rig
         dmRig::InstanceDestroyParams destroy_params = {0};
         destroy_params.m_Context = rig_context;
         destroy_params.m_Instance = component->m_RigInstance;
         dmRig::InstanceDestroy(destroy_params);
+
+        // Delete old bones, recreate with new data.
+        // Make sure that bone GOs are created before we start the default animation.
+        dmGameObject::DeleteBones(component->m_Instance);
+        if (!CreateGOBones(world, component))
+        {
+            dmLogError("Failed to create game objects for bones in model. Consider increasing collection max instances (collection.max_instances).");
+            DestroyComponent(world, index);
+            return false;
+        }
 
         // Create rig instance
         dmRig::InstanceCreateParams create_params = {0};
@@ -692,13 +768,14 @@ namespace dmGameSystem
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
             dmLogError("Failed to create a rig instance needed by model: %d.", res);
+            if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
+                dmLogError("Try increasing the model.max_count value in game.project");
+            }
+            DestroyComponent(world, index);
             return false;
         }
 
         ReHash(component);
-
-        // Create GO<->bone representation
-        CreateGOBones(world, component);
         return true;
     }
 
@@ -706,9 +783,10 @@ namespace dmGameSystem
     void CompModelOnReload(const dmGameObject::ComponentOnReloadParams& params)
     {
         ModelWorld* world = (ModelWorld*)params.m_World;
-        ModelComponent* component = world->m_Components.Get(*params.m_UserData);
+        int index = *params.m_UserData;
+        ModelComponent* component = world->m_Components.Get(index);
         component->m_Resource = (ModelResource*)params.m_Resource;
-        (void)OnResourceReloaded(world, component);
+        (void)OnResourceReloaded(world, component, index);
     }
 
     dmGameObject::PropertyResult CompModelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -806,14 +884,14 @@ namespace dmGameSystem
                 if(component->m_Resource == params.m_Resource->m_Resource)
                 {
                     // Model resource reload
-                    OnResourceReloaded(world, component);
+                    OnResourceReloaded(world, component, i);
                     continue;
                 }
                 RigSceneResource *rig_scene_res = component->m_Resource->m_RigScene;
                 if((rig_scene_res) && (rig_scene_res->m_AnimationSetRes == params.m_Resource->m_Resource))
                 {
                     // Model resource reload because animset used in rig was reloaded
-                    OnResourceReloaded(world, component);
+                    OnResourceReloaded(world, component, i);
                 }
             }
         }

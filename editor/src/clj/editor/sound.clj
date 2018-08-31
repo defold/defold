@@ -41,7 +41,7 @@
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-sound-source
-      :user-data {:content-hash (vec (digest/sha1 (resource->bytes resource)))}}]
+      :user-data {:content-hash (resource/resource->sha1-hex resource)}}]
     (catch IOException e
       (g/->error _node-id :resource :fatal resource (format "Couldn't read audio file %s" (resource/resource->proj-path resource))))))
 
@@ -134,8 +134,8 @@
 
   (property sound resource/Resource
             (value (gu/passthrough sound-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :sound-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id sound]
@@ -150,7 +150,7 @@
 
   (output form-data g/Any :cached produce-form-data)
   (output node-outline outline/OutlineData :cached produce-outline-data)
-  (output pb-msg g/Any :cached produce-pb-msg)
+  (output pb-msg g/Any produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
   (output build-targets g/Any :cached produce-build-targets))
 

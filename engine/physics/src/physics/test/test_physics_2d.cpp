@@ -441,6 +441,7 @@ struct CrackUserData
 
     VisualObject* m_Target;
     Vector3 m_Normal;
+    Vector3 m_AccumNormal;
     float m_Distance;
     uint32_t m_Count;
 };
@@ -450,6 +451,7 @@ bool CrackContactPointCallback(const dmPhysics::ContactPoint& contact_point, voi
     CrackUserData* data = (CrackUserData*)user_data;
     data->m_Normal = contact_point.m_Normal;
     data->m_Distance = contact_point.m_Distance;
+    data->m_AccumNormal += contact_point.m_Normal;
     ++data->m_Count;
     if (data->m_Target == contact_point.m_UserDataA)
     {
@@ -459,6 +461,8 @@ bool CrackContactPointCallback(const dmPhysics::ContactPoint& contact_point, voi
 }
 
 // Tests colliding a thin box between two cells of a grid shape, due to a bug that disregards such collisions
+// Note: We changed the implementation of the tilegrid to only do polygon checks (as opposed to edge checks when this test was written)
+// The current implementation makes the resolve normals point sideways instead
 TYPED_TEST(PhysicsTest, GridShapeCrack)
 {
     /*
@@ -514,23 +518,125 @@ TYPED_TEST(PhysicsTest, GridShapeCrack)
 
     float eps = 0.000001f;
     ASSERT_EQ(2u, crack_data.m_Count);
-    ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
-    ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
+    ASSERT_EQ(1.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
-    ASSERT_NEAR(4.0f, crack_data.m_Distance, eps);
+    // We get two conflicting normals (left + right x axis)
+    ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getX());
+    ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getY());
+    ASSERT_EQ(0.0f, crack_data.m_AccumNormal.getZ());
+    ASSERT_NEAR(2.0f, crack_data.m_Distance, eps);
     ASSERT_EQ(2, vo_a.m_CollisionCount);
     ASSERT_EQ(2, vo_b.m_CollisionCount);
 
     vo_b.m_Position = Point3(0.0f, 8.1f, 0.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
+    vo_b.m_Position = Point3(0.0f, 7.9f, 0.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
+
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
+    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape);
+    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(grid_shape);
+    dmPhysics::DeleteHullSet2D(hull_set);
+}
+
+// We changed tilegrids from doind edge checks to polygon checks
+// in order to get more solid collisions
+TYPED_TEST(PhysicsTest, PolygonShape)
+{
+    int32_t rows = 1;
+    int32_t columns = 2;
+    int32_t cell_width = 16;
+    int32_t cell_height = 16;
+
+    VisualObject vo_a;
+    vo_a.m_Position = Point3(0, 0, 0);
+    dmPhysics::CollisionObjectData data;
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_a;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+
+    const float hull_vertices[] = {-0.5f, -0.5f,
+                                    0.5f, -0.5f,
+                                    0.5f,  0.5f,
+                                   -0.5f,  0.5f};
+
+    const dmPhysics::HullDesc hulls[] = { {0, 4}, {0, 4} };
+    dmPhysics::HHullSet2D hull_set = dmPhysics::NewHullSet2D(TestFixture::m_Context, hull_vertices, 4, hulls, 2);
+    dmPhysics::HCollisionShape2D grid_shape = dmPhysics::NewGridShape2D(TestFixture::m_Context, hull_set, Point3(0,0,0), cell_width, cell_height, rows, columns);
+    typename TypeParam::CollisionObjectType grid_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &grid_shape, 1u);
+
+    for (int32_t row = 0; row < rows; ++row)
+    {
+        for (int32_t col = 0; col < columns; ++col)
+        {
+            dmPhysics::SetGridShapeHull(grid_co, 0, row, col, 0, EMPTY_FLAGS);
+        }
+    }
+
+    VisualObject vo_b;
+    vo_b.m_Position = Point3(5.0f, 8.0f, 0.0f);
+    data.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
+    data.m_Mass = 0.0f;
+    data.m_UserData = &vo_b;
+    data.m_Group = 0xffff;
+    data.m_Mask = 0xffff;
+    typename TypeParam::CollisionShapeType shape = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, Vector3(2.0f, 2.0f, 8.0f));
+    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data, &shape, 1u);
+
+    CrackUserData crack_data;
+    crack_data.m_Target = &vo_b;
+    TestFixture::m_StepWorldContext.m_ContactPointCallback = CrackContactPointCallback;
+    TestFixture::m_StepWorldContext.m_ContactPointUserData = &crack_data;
+
+    float eps = 0.000001f;
+
+    // Put it completely within one cell, but closer to one of the non-shared edges, and it should resolve that direction
+    vo_b.m_Position = Point3(5.0f, 7.9f, 0.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1u, crack_data.m_Count);
     ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
     ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
-    vo_b.m_Position = Point3(0.0f, 7.9f, 0.0f);
+    ASSERT_NEAR(2.1f, crack_data.m_Distance, eps);
+    ASSERT_EQ(1, vo_a.m_CollisionCount);
+    ASSERT_EQ(1, vo_b.m_CollisionCount);
+
+    vo_b.m_Position = Point3(5.0f, 0.0f, 0.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(-1.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
+    ASSERT_NEAR(7.0f, crack_data.m_Distance, eps);
+
+    vo_b.m_Position = Point3(16.0f - 5.0f, 0.0f, 0.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(1.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getY());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
+    ASSERT_NEAR(7.0f, crack_data.m_Distance, eps);
+
+    vo_b.m_Position = Point3(8.0f, 7.0f, 0.0f);
+    (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
+    ASSERT_EQ(1.0f, crack_data.m_Normal.getY());
+    ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
+    ASSERT_NEAR(3.0f, crack_data.m_Distance, eps);
+    vo_b.m_Position = Point3(8.0f, -7.0f, 0.0f);
     (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
     ASSERT_EQ(0.0f, crack_data.m_Normal.getX());
     ASSERT_EQ(-1.0f, crack_data.m_Normal.getY());
     ASSERT_EQ(0.0f, crack_data.m_Normal.getZ());
+    ASSERT_NEAR(3.0f, crack_data.m_Distance, eps);
 
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, grid_co);
     (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);

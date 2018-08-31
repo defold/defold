@@ -27,7 +27,6 @@
 using namespace Vectormath::Aos;
 namespace dmGameSystem
 {
-    const uint32_t MAX_CONSTANTS = 4;
 
     struct SpriteComponent
     {
@@ -40,6 +39,7 @@ namespace dmGameSystem
         // Hash of the m_Resource-pointer. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
         uint32_t                    m_MixedHash;
+        dmMessage::URL              m_Listener;
         uint32_t                    m_AnimationID;
         dmGameObject::HInstance     m_ListenerInstance;
         dmhash_t                    m_ListenerComponent;
@@ -79,6 +79,7 @@ namespace dmGameSystem
         SpriteVertex*                   m_VertexBufferData;
         SpriteVertex*                   m_VertexBufferWritePtr;
         dmGraphics::HIndexBuffer        m_IndexBuffer;
+        uint32_t                        m_Is16BitIndex : 1;
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -88,12 +89,6 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
-        if(sprite_context->m_MaxSpriteCount > 16384)
-        {
-            // We use 4 vertices per sprite and use 16bit index buffers, so max sprite count is 65536/4
-            dmLogError("Max sprite count (%d) exceeds max value (16384).", sprite_context->m_MaxSpriteCount);
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
         dmRender::HRenderContext render_context = sprite_context->m_RenderContext;
         SpriteWorld* sprite_world = new SpriteWorld();
 
@@ -112,21 +107,39 @@ namespace dmGameSystem
         sprite_world->m_VertexBuffer = dmGraphics::NewVertexBuffer(dmRender::GetGraphicsContext(render_context), 0, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
         sprite_world->m_VertexBufferData = (SpriteVertex*) malloc(sizeof(SpriteVertex) * 4 * sprite_world->m_Components.Capacity());
         {
+            uint32_t vertex_count = 4*sprite_context->m_MaxSpriteCount;
+            uint32_t size_type = vertex_count <= 65536 ? sizeof(uint16_t) : sizeof(uint32_t);
+            sprite_world->m_Is16BitIndex = size_type == sizeof(uint16_t) ? 1 : 0;
+
             uint32_t indices_count = 6*sprite_context->m_MaxSpriteCount;
-            uint16_t* indices = new uint16_t[indices_count];
-            uint16_t* index = indices;
-            for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
-            {
-                *index++ = v;
-                *index++ = v+1;
-                *index++ = v+2;
-                *index++ = v+2;
-                *index++ = v+3;
-                *index++ = v;
+            size_t indices_size = indices_count * size_type;
+            void* indices = (void*)malloc(indices_count * size_type);
+            if (sprite_world->m_Is16BitIndex) {
+                uint16_t* index = (uint16_t*)indices;
+                for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+                {
+                    *index++ = v;
+                    *index++ = v+1;
+                    *index++ = v+2;
+                    *index++ = v+2;
+                    *index++ = v+3;
+                    *index++ = v;
+                }
+            } else {
+                uint32_t* index = (uint32_t*)indices;
+                for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+                {
+                    *index++ = v;
+                    *index++ = v+1;
+                    *index++ = v+2;
+                    *index++ = v+2;
+                    *index++ = v+3;
+                    *index++ = v;
+                }
             }
 
-            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_count*sizeof(uint16_t), indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-            delete[] indices;
+            sprite_world->m_IndexBuffer = dmGraphics::NewIndexBuffer(dmRender::GetGraphicsContext(render_context), indices_size, indices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            free(indices);
         }
 
 
@@ -226,6 +239,7 @@ namespace dmGameSystem
         component->m_Position = Vector3(params.m_Position);
         component->m_Rotation = params.m_Rotation;
         component->m_Resource = (SpriteResource*)params.m_Resource;
+        dmMessage::ResetURL(component->m_Listener);
         component->m_ListenerInstance = 0x0;
         component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
@@ -346,9 +360,9 @@ namespace dmGameSystem
         ro.m_Material = first->m_Resource->m_Material;
         ro.m_Textures[0] = texture_set->m_Texture;
         ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-        ro.m_IndexType = dmGraphics::TYPE_UNSIGNED_SHORT;
-        ro.m_VertexStart = (vb_begin - sprite_world->m_VertexBufferData)*3;             // Element arrays: offset in bytes into element buffer. Triangles is 3 elements = 6 bytes (16bit)
-        ro.m_VertexCount = ((sprite_world->m_VertexBufferWritePtr - vb_begin)>>1)*3;    // Element arrays: number of elements to draw, which is triangles * 3
+        ro.m_IndexType = sprite_world->m_Is16BitIndex ? dmGraphics::TYPE_UNSIGNED_SHORT : dmGraphics::TYPE_UNSIGNED_INT;
+        ro.m_VertexStart = (vb_begin - sprite_world->m_VertexBufferData)*3*(sprite_world->m_Is16BitIndex?1:2);  // Element arrays: offset in bytes into element buffer. Triangles is 3 elements = 6 bytes (16bit)
+        ro.m_VertexCount = ((sprite_world->m_VertexBufferWritePtr - vb_begin)>>1)*3;                            // Element arrays: number of elements to draw, which is triangles * 3
 
         const dmRender::Constant* constants = first->m_RenderConstants.m_RenderConstants;
         uint32_t size = first->m_RenderConstants.m_ConstantCount;
@@ -437,6 +451,23 @@ namespace dmGameSystem
         }
     }
 
+    static bool GetSender(SpriteComponent* component, dmMessage::URL* out_sender)
+    {
+        dmMessage::URL sender;
+        sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
+        if (dmMessage::IsSocketValid(sender.m_Socket))
+        {
+            dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
+            if (go_result == dmGameObject::RESULT_OK)
+            {
+                sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
+                *out_sender = sender;
+                return true;
+            }
+        }
+        return false;
+    }
+
     static void PostMessages(SpriteWorld* sprite_world)
     {
         DM_PROFILE(Sprite, "PostMessages");
@@ -463,14 +494,20 @@ namespace dmGameSystem
                 component->m_Playing = 0;
                 if (component->m_ListenerInstance != 0x0)
                 {
+                    dmMessage::URL sender;
+                    dmMessage::URL receiver = component->m_Listener;
+                    if (!GetSender(component, &sender))
+                    {
+                        dmLogError("Could not send animation_done to listener.");
+                        return;
+                    }
+
                     dmhash_t message_id = dmGameSystemDDF::AnimationDone::m_DDFDescriptor->m_NameHash;
                     dmGameSystemDDF::AnimationDone message;
                     // Engine has 0-based indices, scripts use 1-based
                     message.m_CurrentTile = component->m_CurrentAnimationFrame + 1;
                     message.m_Id = component->m_CurrentAnimation;
-                    dmMessage::URL receiver;
                     receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_ListenerInstance));
-                    dmMessage::URL sender;
                     sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
                     if (dmMessage::IsSocketValid(receiver.m_Socket) && dmMessage::IsSocketValid(sender.m_Socket))
                     {
@@ -485,6 +522,7 @@ namespace dmGameSystem
                             dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
                             component->m_ListenerInstance = 0x0;
                             component->m_ListenerComponent = 0xff;
+                            dmMessage::ResetURL(component->m_Listener);
                             if (result != dmMessage::RESULT_OK)
                             {
                                 dmLogError("Could not send animation_done to listener.");
@@ -656,6 +694,7 @@ namespace dmGameSystem
             write_ptr->m_BatchKey = component.m_MixedHash;
             write_ptr->m_TagMask = dmRender::GetMaterialTagMask(component.m_Resource->m_Material);
             write_ptr->m_Dispatch = sprite_dispatch;
+            write_ptr->m_MinorOrder = 0;
             write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
             ++write_ptr;
         }
@@ -698,6 +737,7 @@ namespace dmGameSystem
                 {
                     component->m_ListenerInstance = dmGameObject::GetInstanceFromIdentifier(dmGameObject::GetCollection(component->m_Instance), params.m_Message->m_Sender.m_Path);
                     component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
+                    component->m_Listener = params.m_Message->m_Sender;
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetFlipHorizontal::m_DDFDescriptor->m_NameHash)

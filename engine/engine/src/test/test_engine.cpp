@@ -6,24 +6,11 @@
 #include <dlib/thread.h>
 #include <dlib/dstrings.h>
 #include <dlib/profile.h>
-#include "../engine.h"
+#include "test_engine.h"
+#include "../../../graphics/src/graphics_private.h"
 
 #define CONTENT_ROOT "src/test/build/default"
 
-class EngineTest : public ::testing::Test
-{
-protected:
-    virtual void SetUp()
-    {
-        m_DT = 1.0f / 60.0f;
-    }
-
-    virtual void TearDown()
-    {
-    }
-
-    float m_DT;
-};
 
 /*
  * TODO:
@@ -106,7 +93,9 @@ void HttpPostThread(void* params)
     HttpTestContext* http_ctx = (HttpTestContext*) params;
     char cmd[256];
     DM_SNPRINTF(cmd, sizeof(cmd), "python src/test/%s %d", http_ctx->m_Script, http_ctx->m_Port);
+#if !defined(DM_NO_SYSTEM_FUNCTION)
     g_PostExitResult = system(cmd);
+#endif
 }
 
 static void PreRunHttpPort(dmEngine::HEngine engine, void* ctx)
@@ -172,9 +161,28 @@ TEST_F(EngineTest, DEF_1480)
     ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
+TEST_F(EngineTest, DEF_3086)
+{
+    // DEF-3086: Loading two collectionproxies asnyc with same texture might leak memory.
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3086/main.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+}
+
+TEST_F(EngineTest, DEF_3154)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/def-3154/def-3154.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+}
+
 TEST_F(EngineTest, SpineAnim)
 {
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/spine_anim/spine.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
+    ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
+}
+
+TEST_F(EngineTest, SpineIK)
+{
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/spine_ik/spine_ik.collectionc", "--config=dmengine.unload_builtins=0", CONTENT_ROOT "/game.projectc"};
     ASSERT_EQ(0, dmEngine::Launch(sizeof(argv)/sizeof(argv[0]), (char**)argv, 0, 0, 0));
 }
 
@@ -236,11 +244,43 @@ TEST_F(EngineTest, ConnectionRunScript)
     ASSERT_EQ(0, g_PostExitResult);
 }
 
+/* Draw Count */
+
+TEST_P(DrawCountTest, DrawCount)
+{
+    const DrawCountParams& p = GetParam();
+
+    char name[] = {"dmengine"};
+    char state[] = {"--config=script.shared_state=1"};
+    char dont_unload[] = {"--config=dmengine.unload_builtins=0"};
+    char project[512];
+    DM_SNPRINTF(project, sizeof(project), "%s%s", CONTENT_ROOT, p.m_ProjectPath);
+    char* argv[] = {name, state, dont_unload, project};
+
+    ASSERT_TRUE(dmEngine::Init(m_Engine, sizeof(argv)/sizeof(argv[0]), argv));
+
+    for( int i = 0; i < p.m_NumSkipFrames; ++i )
+    {
+        dmEngine::Step(m_Engine);
+    }
+
+    dmEngine::Step(m_Engine);
+    ASSERT_EQ(p.m_ExpectedDrawCount, dmGraphics::GetDrawCount());
+}
+
+DrawCountParams draw_count_params[] =
+{
+    {"/render/drawcall.projectc", 2, 2},    // 1 draw call for sprite, 1 for debug physics
+};
+INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count_params));
+
+
 int main(int argc, char **argv)
 {
     dmProfile::Initialize(256, 1024 * 16, 128);
     dmDDF::RegisterAllTypes();
     testing::InitGoogleTest(&argc, argv);
+    dmHashEnableReverseHash(true);
 
     int ret = RUN_ALL_TESTS();
     dmProfile::Finalize();

@@ -12,7 +12,8 @@
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.validation :as validation]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.digest :as digest])
   (:import [com.dynamo.model.proto ModelProto$Model ModelProto$ModelDesc]
            [editor.gl.shader ShaderLifecycle]
            [editor.types AABB]
@@ -68,7 +69,8 @@
                g/error-aggregate)
       (let [workspace (resource/workspace resource)
             rig-scene-type (workspace/get-resource-type workspace "rigscene")
-            rig-scene-resource (resource/make-memory-resource workspace rig-scene-type (str (gensym)))
+            rig-scene-pseudo-data (digest/string->sha1-hex (str/join (map #(-> % :resource :resource :data) [animation-set-build-target mesh-set-build-target skeleton-build-target])))
+            rig-scene-resource (resource/make-memory-resource workspace rig-scene-type rig-scene-pseudo-data)
             rig-scene-dep-build-targets {:animation-set animation-set-build-target
                                          :mesh-set mesh-set-build-target
                                          :skeleton skeleton-build-target}
@@ -88,10 +90,10 @@
           :deps dep-build-targets}])))
 
 (g/defnk produce-gpu-textures [_node-id samplers gpu-texture-generators]
-  (into {} (map (fn [unit-index sampler {:keys [generate-fn user-data]}]
+  (into {} (map (fn [unit-index sampler {tex-fn :f tex-args :args}]
                   (let [request-id [_node-id unit-index]
-                        params (material/sampler->tex-params sampler)
-                        texture (generate-fn user-data request-id params unit-index)]
+                        params     (material/sampler->tex-params sampler)
+                        texture    (tex-fn tex-args request-id params unit-index)]
                     [(:name sampler) texture]))
                 (range)
                 samplers
@@ -115,8 +117,8 @@
   (property name g/Str (dynamic visible (g/constantly false)))
   (property mesh resource/Resource
             (value (gu/passthrough mesh-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :mesh-resource]
                                             [:aabb :aabb]
                                             [:mesh-set-build-target :mesh-set-build-target]
@@ -127,8 +129,8 @@
                                               :ext "dae"})))
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:samplers :samplers]
                                             [:build-targets :dep-build-targets]
@@ -139,25 +141,25 @@
                                               :ext "material"})))
   (property textures resource/ResourceVec
             (value (gu/passthrough texture-resources))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (let [project (project/get-project self)
+            (set (fn [evaluation-context self old-value new-value]
+                   (let [project (project/get-project (:basis evaluation-context) self)
                          connections [[:resource :texture-resources]
                                       [:build-targets :dep-build-targets]
                                       [:gpu-texture-generator :gpu-texture-generators]]]
                      (concat
                        (for [r old-value]
                          (if r
-                           (project/disconnect-resource-node project r self connections)
+                           (project/disconnect-resource-node evaluation-context project r self connections)
                            (g/disconnect project :nil-resource self :texture-resources)))
                        (for [r new-value]
                          (if r
-                           (project/connect-resource-node project r self connections)
+                           (project/connect-resource-node evaluation-context project r self connections)
                            (g/connect project :nil-resource self :texture-resources)))))))
             (dynamic visible (g/constantly false)))
   (property skeleton resource/Resource
             (value (gu/passthrough skeleton-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :skeleton-resource]
                                             [:skeleton-build-target :skeleton-build-target])))
             (dynamic error (g/fnk [_node-id skeleton]
@@ -166,8 +168,8 @@
                                               :ext "dae"})))
   (property animations resource/Resource
             (value (gu/passthrough animations-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :animations-resource]
                                             [:animation-set :animation-set]
                                             [:animation-set-build-target :animation-set-build-target])))

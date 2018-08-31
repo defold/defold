@@ -1,26 +1,41 @@
 #! /usr/bin/env python
 import os, re
 from waf_dynamo import copy_file_task, apidoc_extract_task
+import Options
 
 def set_options(opt):
     pass
 
 def build(bld):
+    obj = bld.new_task_gen(features = 'cxx cstaticlib embed',
+                           includes = '. ..',
+                           source = 'engine_service.cpp',
+                           target = 'engine_service',
+                           embed_source = '../content/profiler.html')
+
+    obj = bld.new_task_gen(features = 'cxx cstaticlib',
+                           includes = '. ..',
+                           source = 'engine_service_null.cpp',
+                           target = 'engine_service_null')
+
     obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
                           includes = '../proto . ..',
                           target = 'engine',
                           proto_gen_py = True,
                           protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
                           embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins/connect/connect.project ../content/builtins.arci ../content/builtins.arcd ../content/builtins.dmanifest',
-                          source='engine.cpp engine_main.cpp engine_service.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto')
+                          source='engine.cpp engine_main.cpp physics_debug_render.cpp profile_render.cpp ../proto/engine_ddf.proto',
+                          uselib_local = 'engine_service')
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
+    obj = bld.new_task_gen(features = 'cxx cstaticlib ddf embed',
                           includes = '../proto . ..',
                           target = 'engine_release',
                           defines = 'DM_RELEASE=1',
                           proto_gen_py = True,
                           protoc_includes = ['../proto', bld.env['PREFIX'] + '/share'],
-                          source='engine.cpp engine_main.cpp ../proto/engine_ddf.proto')
+                          embed_source='../content/materials/debug.vpc ../content/materials/debug.fpc ../content/builtins_release.arci ../content/builtins_release.arcd ../content/builtins_release.dmanifest', # for draw_line/draw_text
+                          source='engine.cpp engine_main.cpp ../proto/engine_ddf.proto',
+                          uselib_local = 'engine_service_null')
 
     bld.install_files('${PREFIX}/include/engine', 'engine.h')
     bld.install_files('${PREFIX}/share/proto', '../proto/engine_ddf.proto')
@@ -37,7 +52,6 @@ def build(bld):
         additional_libs.append('TREMOLO')
 
     if 'win32' in bld.env['PLATFORM']:
-        additional_libs.append('FBGPLATFORM')
         exported_symbols.append('GameroomExt')
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
@@ -74,6 +88,7 @@ def build(bld):
               '%s/ext/share/java/bolts-android-1.2.0.jar' % (dynamo_home),
               '%s/ext/share/java/google-play-services.jar' % (dynamo_home),
               '%s/ext/share/java/android-support-v4.jar' % (dynamo_home),
+              '%s/ext/share/java/android-support-multidex.jar' % (dynamo_home),
               '%s/ext/share/java/in-app-purchasing-2.0.61.jar' % (dynamo_home),
               '%s/share/java/glfw_android.jar' % (dynamo_home),
               '%s/share/java/facebook_android.jar' % (dynamo_home),
@@ -88,7 +103,7 @@ def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
         uselib = 'WEBVIEWEXT ADTRUTHEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
-        uselib_local = 'engine',
+        uselib_local = 'engine engine_service',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -103,7 +118,11 @@ def build(bld):
         jars = android_jar_paths)
 
     if 'win32' in bld.env.BUILD_PLATFORM:
-        obj.source.append('engine.rc')
+        obj.source.append('engine.rc') # Needs to bundle with icons, or IconExe.java won't be able to replace them (it cannot add them)
+
+    if 'win32' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'defold.ico')
+        bld.install_files('${PREFIX}/lib/%s' % bld.env['PLATFORM'], 'engine.rc')
 
     if 'android' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/share/java', 'dmengine.android/classes.dex')
@@ -113,7 +132,7 @@ def build(bld):
     obj = bld.new_task_gen(
         features = 'cc cxx cprogram apk web',
         uselib = 'WEBVIEWEXT ADTRUTHEXT PROFILEREXT GAMEROOMEXT FACEBOOKEXT IAPEXT PUSHEXT IACEXT RECORD VPX GAMEOBJECT DDF RESOURCE GAMESYS GRAPHICS GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB DMGLFW GUI TRACKING CRASH LIVEUPDATE %s X %s' % (sound_lib, additional_libs),
-        uselib_local = 'engine_release',
+        uselib_local = 'engine_release engine_service_null',
         exported_symbols = exported_symbols,
         includes = '../build ../proto . ..',
         #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
@@ -144,7 +163,7 @@ def build(bld):
         features = 'cc cxx cprogram apk web',
         uselib = 'RECORD_NULL GAMEOBJECT PROFILEREXT DDF RESOURCE GAMESYS GRAPHICS_NULL GRAPHICS_UTIL PHYSICS RENDER PLATFORM_SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE RIG GUI TRACKING CRASH DLIB LIVEUPDATE SOUND_NULL CRASH %s' % (additional_libs,),
         exported_symbols = ['ProfilerExt'],
-        uselib_local = 'engine',
+        uselib_local = 'engine engine_service',
         includes = '../build ../proto . ..',
         proto_gen_py = True,
         protoc_includes = '../proto',
@@ -164,7 +183,8 @@ def build(bld):
         task = copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)
         task.install_path = install_path
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')
 
 def configure(conf):
     pass

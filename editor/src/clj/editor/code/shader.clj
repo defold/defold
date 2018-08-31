@@ -51,33 +51,36 @@
               {:match #"\b(asm|enum|extern|goto|inline|long|short|sizeof|static|typedef|union|unsigned|volatile)\b"
                :name "invalid.illegal.glsl"}]})
 
-(def ^:private glsl-opts {:new-code {:grammar glsl-grammar}})
+(def ^:private glsl-opts {:code {:grammar glsl-grammar}})
 
 (def shader-defs [{:ext "vp"
                    :label "Vertex Program"
                    :icon "icons/32/Icons_32-Vertex-shader.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts glsl-opts}
                   {:ext "fp"
                    :label "Fragment Program"
                    :icon "icons/32/Icons_33-Fragment-shader.png"
-                   :view-types [:new-code :default]
+                   :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn- build-shader [resource _dep-resources user-data]
-  {:resource resource :content user-data})
-
-(g/defnk produce-build-targets [_node-id resource ^String full-source]
-  (let [content (.getBytes full-source "UTF-8")]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-shader
-      :user-data content}]))
-
-(g/defnk produce-full-source [resource lines]
-  (string/join "\n" (if-some [compat-directive-lines (get shader/compat-directives (resource/ext resource))]
+(defn- make-full-source ^String [resource-ext lines]
+  (string/join "\n" (if-some [compat-directive-lines (get shader/compat-directives resource-ext)]
                       (shader/insert-directives lines compat-directive-lines)
                       lines)))
+
+(defn- build-shader [resource _dep-resources user-data]
+  (let [{:keys [resource-ext lines]} user-data]
+    {:resource resource :content (.getBytes (make-full-source resource-ext lines) "UTF-8")}))
+
+(g/defnk produce-build-targets [_node-id resource lines]
+  [{:node-id _node-id
+    :resource (workspace/make-build-resource resource)
+    :build-fn build-shader
+    :user-data {:lines lines :resource-ext (resource/type-ext resource)}}])
+
+(g/defnk produce-full-source [resource lines]
+  (make-full-source (resource/type-ext resource) lines))
 
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)

@@ -582,6 +582,11 @@
                                (inc (.row (cursor-range-end cursor-range)))))))
         cursor-ranges))
 
+(defn cursor-ranges->start-rows [lines cursor-ranges]
+  (into (sorted-set)
+        (map #(.row (cursor-range-start (adjust-cursor-range lines %))))
+        cursor-ranges))
+
 (defn- cursor-ranges->row-runs-xform [lines]
   (comp (map (partial adjust-cursor-range lines))
         (map (fn [cursor-range]
@@ -665,8 +670,7 @@
 
 (defn- prev-occurrence-search-cursor
   ^Cursor [cursor-ranges]
-  (or (::prev-occurrence-search-cursor (meta cursor-ranges))
-      (cursor-range-start (first cursor-ranges))))
+  (::prev-occurrence-search-cursor (meta cursor-ranges)))
 
 (defn- with-prev-occurrence-search-cursor [cursor-ranges cursor]
   (assert (instance? Cursor cursor))
@@ -674,8 +678,7 @@
 
 (defn- next-occurrence-search-cursor
   ^Cursor [cursor-ranges]
-  (or (::next-occurrence-search-cursor (meta cursor-ranges))
-      (cursor-range-end (peek cursor-ranges))))
+  (::next-occurrence-search-cursor (meta cursor-ranges)))
 
 (defn- with-next-occurrence-search-cursor [cursor-ranges cursor]
   (assert (instance? Cursor cursor))
@@ -719,9 +722,9 @@
      (edge-to-col-pattern (needle-lines 2) case-sensitive? whole-word?)]))
 
 (defn find-prev-occurrence
-  ^CursorRange [haystack-lines needle-lines ^Cursor from-cursor case-sensitive? whole-word?]
+  ^CursorRange [haystack-lines needle-lines ^Cursor adjusted-from-cursor case-sensitive? whole-word?]
   (let [needle-patterns (needle-patterns needle-lines case-sensitive? whole-word?)]
-    (loop [cursor from-cursor
+    (loop [cursor adjusted-from-cursor
            needles needle-patterns
            ^CursorRange matched-range nil]
       (if-some [needle (peek needles)]
@@ -743,14 +746,12 @@
                             (->Cursor row col))
                           cursor)]
             (recur cursor' needles' matched-range')))
-        (when (or (not whole-word?)
-                  (word-boundary-after-index? (haystack-lines (.row from-cursor)) (.col from-cursor)))
-          matched-range)))))
+        matched-range))))
 
 (defn find-next-occurrence
-  ^CursorRange [haystack-lines needle-lines ^Cursor from-cursor case-sensitive? whole-word?]
+  ^CursorRange [haystack-lines needle-lines ^Cursor adjusted-from-cursor case-sensitive? whole-word?]
   (let [needle-patterns (needle-patterns needle-lines case-sensitive? whole-word?)]
-    (loop [cursor from-cursor
+    (loop [cursor adjusted-from-cursor
            needles needle-patterns
            ^CursorRange matched-range nil]
       (if-some [needle (first needles)]
@@ -769,9 +770,7 @@
                           (->Cursor (inc (.row cursor)) 0)
                           cursor)]
             (recur cursor' needles' matched-range')))
-        (when (or (not whole-word?)
-                  (word-boundary-before-index? (haystack-lines (.row from-cursor)) (.col from-cursor)))
-          matched-range)))))
+        matched-range))))
 
 (defn find-sequential-words-in-scope [haystack-lines needle-words ^CursorRange scope]
   (let [scope-end (cursor-range-end scope)]
@@ -791,30 +790,33 @@
         (persistent! matching-cursor-ranges)))))
 
 (defn- word-cursor-range-at-cursor
-  ^CursorRange [lines ^Cursor cursor]
-  (let [line (lines (.row cursor))
-        line-length (count line)
-        on-whitespace? (and (whitespace-character-at-index? line (.col cursor))
-                            (or (zero? (.col cursor))
-                                (whitespace-character-at-index? line (dec (.col cursor)))))
-        same-word? (if on-whitespace?
-                     (partial whitespace-character-at-index? line)
-                     (partial identifier-character-at-index? line))
-        col (if (or (= line-length (.col cursor))
-                    (not (same-word? (.col cursor))))
-              (max 0 (dec (.col cursor)))
-              (.col cursor))
-        start-col (inc (or (long (first (drop-while same-word? (iterate dec col)))) -1))
-        end-col (or (first (drop-while same-word? (iterate inc col))) line-length)]
-    (->CursorRange (->Cursor (.row cursor) start-col)
-                   (->Cursor (.row cursor) end-col))))
+  ^CursorRange [lines ^Cursor adjusted-cursor]
+  (let [row (.row adjusted-cursor)
+        line (lines row)
+        line-length (count line)]
+    (if (zero? line-length)
+      (Cursor->CursorRange (->Cursor row 0))
+      (let [on-whitespace? (and (whitespace-character-at-index? line (.col adjusted-cursor))
+                                (or (zero? (.col adjusted-cursor))
+                                    (whitespace-character-at-index? line (dec (.col adjusted-cursor)))))
+            same-word? (if on-whitespace?
+                         (partial whitespace-character-at-index? line)
+                         (partial identifier-character-at-index? line))
+            col (if (or (= line-length (.col adjusted-cursor))
+                        (not (same-word? (.col adjusted-cursor))))
+                  (max 0 (dec (.col adjusted-cursor)))
+                  (.col adjusted-cursor))
+            start-col (inc (or (long (first (drop-while same-word? (iterate dec col)))) -1))
+            end-col (or (first (drop-while same-word? (iterate inc col))) line-length)]
+        (->CursorRange (->Cursor row start-col)
+                       (->Cursor row end-col))))))
 
 (defn word-cursor-range? [lines ^CursorRange adjusted-cursor-range]
   (let [cursor (cursor-range-start adjusted-cursor-range)
         word-cursor-range (word-cursor-range-at-cursor lines cursor)]
-    (when (and (cursor-range-equals? word-cursor-range adjusted-cursor-range)
-               (not (Character/isWhitespace (.charAt ^String (lines (.row cursor)) (.col cursor)))))
-      adjusted-cursor-range)))
+    (and (not (cursor-range-empty? word-cursor-range))
+         (cursor-range-equals? word-cursor-range adjusted-cursor-range)
+         (not (Character/isWhitespace (.charAt ^String (lines (.row cursor)) (.col cursor)))))))
 
 (defn selected-word-cursor-range
   ^CursorRange [lines cursor-ranges]
@@ -1533,6 +1535,108 @@
       (and (not (ends-indentation? grammar line))
            (ends-indentation? grammar (str (subs line 0 (.col cursor)) typed (subs line (.col cursor))))))))
 
+(defn guess-indent-type [lines ^long tab-spaces]
+  (when-not (empty? lines)
+    (loop [prev-line-visual-width 0
+           sum-visual-width-from-spaces 0
+           sum-visual-width-from-tabs 0
+           sum-two-space-occurrences 0
+           sum-four-space-occurrences 0
+           lines lines]
+      (if-some [^String line (first lines)]
+        (let [line-length (count line)]
+          (if-some [[visual-width from-spaces from-tabs] (loop [index 0
+                                                                visual-width 0
+                                                                from-spaces 0
+                                                                from-tabs 0]
+                                                           (when (< index line-length)
+                                                             (let [character (.charAt line index)]
+                                                               (case character
+                                                                 \space (recur (inc index) (inc visual-width) (inc from-spaces) from-tabs)
+                                                                 \tab (let [visual-width-increase (- tab-spaces ^long (mod visual-width tab-spaces))]
+                                                                        (recur (inc index) (+ visual-width visual-width-increase) from-spaces (+ from-tabs visual-width-increase)))
+                                                                 [visual-width from-spaces from-tabs]))))]
+            ;; Indented line.
+            (let [visual-width (long visual-width)
+                  indent-width (- visual-width prev-line-visual-width)]
+              (recur (long visual-width)
+                     (+ sum-visual-width-from-spaces ^long from-spaces)
+                     (+ sum-visual-width-from-tabs ^long from-tabs)
+                     (case indent-width 2 (inc sum-two-space-occurrences) sum-two-space-occurrences)
+                     (case indent-width 4 (inc sum-four-space-occurrences) sum-four-space-occurrences)
+                     (next lines)))
+
+            ;; Empty line or nothing but whitespace. Ignore.
+            (recur prev-line-visual-width
+                   sum-visual-width-from-spaces
+                   sum-visual-width-from-tabs
+                   sum-two-space-occurrences
+                   sum-four-space-occurrences
+                   (next lines))))
+        (let [uses-spaces? (pos? sum-visual-width-from-spaces)
+              uses-tabs? (pos? sum-visual-width-from-tabs)]
+          (cond
+            (and (not uses-spaces?) (not uses-tabs?))
+            nil
+
+            (not uses-spaces?)
+            :tabs
+
+            :else
+            (let [^double tab-certainty (/ sum-visual-width-from-tabs sum-visual-width-from-spaces)]
+              (cond
+                ;; Too close to call?
+                (< 1.0 tab-certainty 1.1)
+                nil
+
+                ;; More indentation from tabs?
+                (< 1.0 tab-certainty)
+                :tabs
+
+                ;; More indentation from two spaces?
+                (< sum-four-space-occurrences sum-two-space-occurrences)
+                :two-spaces
+
+                :else
+                :four-spaces))))))))
+
+(declare ^:private transform-indentation)
+
+(defn indent-type->indent-string
+  ^String [indent-type]
+  (case indent-type
+    :tabs "\t"
+    :two-spaces "  "
+    :four-spaces "    "))
+
+(defn indent-type->tab-spaces
+  ^long [indent-type]
+  (case indent-type
+    :two-spaces 2
+    (:tabs :four-spaces) 4))
+
+(defn convert-indentation [from-indent-type to-indent-type lines cursor-ranges regions]
+  (let [rows (range (count lines))
+        from-tab-spaces (indent-type->tab-spaces from-indent-type)
+        to-indent-string (indent-type->indent-string to-indent-type)]
+    (assoc (transform-indentation rows lines cursor-ranges regions
+                                  (fn [^String line]
+                                    (let [line-length (count line)
+                                          [indent-width text] (loop [index 0
+                                                                     visual-width 0]
+                                                                (if (<= line-length index)
+                                                                  [visual-width nil]
+                                                                  (case (.charAt line index)
+                                                                    \space (recur (inc index) (inc visual-width))
+                                                                    \tab (recur (inc index) (+ visual-width (- from-tab-spaces ^long (mod visual-width from-tab-spaces))))
+                                                                    [visual-width (subs line index)])))
+                                          indent-level (unchecked-divide-int indent-width from-tab-spaces)
+                                          indent-rest (- ^long indent-width (* indent-level from-tab-spaces))]
+                                      (str (string/join (repeat indent-level to-indent-string))
+                                           (string/join (repeat indent-rest \space))
+                                           text))))
+      :indent-type to-indent-type)))
+
 (defn indent-level-pattern
   ^Pattern [^long tab-spaces]
   (re-pattern (str "(?:^|\\G)(?:\\t|" (string/join (repeat tab-spaces \space)) ")")))
@@ -1706,9 +1810,11 @@
   (when (some? splice-properties)
     (assert (vector? lines))
     (assert (vector? cursor-ranges))
-    (let [indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)]
-      (merge splice-properties
-             (dissoc indentation-properties :invalidated-row)))))
+    (if (nil? (:indent grammar))
+      splice-properties
+      (let [indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)]
+        (merge splice-properties
+               (dissoc indentation-properties :invalidated-row))))))
 
 (defn- update-document-width-after-splice [{:keys [lines cursor-ranges] :as splice-properties} ^LayoutInfo pre-splice-layout]
   (when (some? splice-properties)
@@ -2085,7 +2191,9 @@
                                (if (cursor-range-midpoint-follows? reference-cursor-range unadjusted-mouse-cursor)
                                  (assoc reference-cursor-range
                                    :from (cursor-range-end reference-cursor-range)
-                                   :to (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range)))
+                                   :to (if (= (.col mouse-cursor) (count (lines (.row mouse-cursor))))
+                                         mouse-cursor
+                                         (min-cursor (cursor-range-start word-cursor-range) (cursor-range-start reference-cursor-range))))
                                  (assoc reference-cursor-range
                                    :from (cursor-range-start reference-cursor-range)
                                    :to (max-cursor (cursor-range-end word-cursor-range) (cursor-range-end reference-cursor-range)))))
@@ -2228,7 +2336,10 @@
   (if-some [replaced-cursor-ranges-by-index (not-empty (into []
                                                              (keep-indexed (fn [index cursor-range]
                                                                              (when (cursor-range-empty? cursor-range)
-                                                                               (let [cursor-range' (word-cursor-range-at-cursor lines (CursorRange->Cursor cursor-range))]
+                                                                               (let [cursor-range' (word-cursor-range-at-cursor lines
+                                                                                                                                (->> cursor-range
+                                                                                                                                     CursorRange->Cursor
+                                                                                                                                     (adjust-cursor lines)))]
                                                                                  [index cursor-range']))))
                                                              cursor-ranges))]
     ;; There are one or more non-range cursors. Select the words under the cursors.
@@ -2244,7 +2355,8 @@
     ;; Add next occurrence of the bottom selected range to selection.
     (when-some [^CursorRange needle-cursor-range (peek cursor-ranges)]
       (let [needle-lines (subsequence->lines (cursor-range-subsequence lines needle-cursor-range))
-            from-cursor (next-occurrence-search-cursor cursor-ranges)]
+            from-cursor (or (next-occurrence-search-cursor cursor-ranges)
+                            (adjust-cursor lines (cursor-range-end (peek cursor-ranges))))]
         (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor false false)]
           (let [added-cursor-range (if (pos? (compare-cursor-position (.from needle-cursor-range) (.to needle-cursor-range)))
                                      (->CursorRange (.to matching-cursor-range) (.from matching-cursor-range))
@@ -2327,19 +2439,21 @@
       {:cursor-ranges [cursor-range]})))
 
 (defn find-next [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
-  (let [from-cursor (next-occurrence-search-cursor cursor-ranges)]
-    (if-some [matching-cursor-range (find-next-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
+  (let [adjusted-from-cursor (or (next-occurrence-search-cursor cursor-ranges)
+                                 (adjust-cursor lines (cursor-range-end (peek cursor-ranges))))]
+    (if-some [matching-cursor-range (find-next-occurrence lines needle-lines adjusted-from-cursor case-sensitive? whole-word?)]
       (select-and-frame lines layout matching-cursor-range)
-      (when (and wrap? (not= from-cursor document-start-cursor))
+      (when (and wrap? (not= adjusted-from-cursor document-start-cursor))
         (recur lines (with-next-occurrence-search-cursor cursor-ranges document-start-cursor) layout needle-lines case-sensitive? whole-word? wrap?)))))
 
 (defn find-prev [lines cursor-ranges ^LayoutInfo layout needle-lines case-sensitive? whole-word? wrap?]
-  (let [from-cursor (prev-occurrence-search-cursor cursor-ranges)]
-    (if-some [matching-cursor-range (find-prev-occurrence lines needle-lines from-cursor case-sensitive? whole-word?)]
+  (let [adjusted-from-cursor (or (prev-occurrence-search-cursor cursor-ranges)
+                                 (adjust-cursor lines (cursor-range-start (peek cursor-ranges))))]
+    (if-some [matching-cursor-range (find-prev-occurrence lines needle-lines adjusted-from-cursor case-sensitive? whole-word?)]
       (select-and-frame lines layout matching-cursor-range)
       (when wrap?
         (let [document-end-cursor (document-end-cursor lines)]
-          (when (not= from-cursor document-end-cursor)
+          (when (not= adjusted-from-cursor document-end-cursor)
             (recur lines (with-prev-occurrence-search-cursor cursor-ranges document-end-cursor) layout needle-lines case-sensitive? whole-word? wrap?)))))))
 
 (defn- replace-matching-selection [lines cursor-ranges regions ^LayoutInfo layout needle-lines replacement-lines case-sensitive? whole-word?]

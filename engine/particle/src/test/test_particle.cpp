@@ -704,6 +704,15 @@ TEST_F(ParticleTest, EmissionSpace)
     dmParticle::DestroyInstance(m_Context, instance);
 }
 
+TEST_F(ParticleTest, GetInstanceEmitterCount)
+{
+    ASSERT_TRUE(LoadPrototype("anim.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, &m_CallbackData);
+    ASSERT_EQ(7, dmParticle::GetInstanceEmitterCount(m_Context, instance));
+    ASSERT_EQ(0, dmParticle::GetInstanceEmitterCount(m_Context, dmParticle::INVALID_INSTANCE));
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 /**
  * Verify particle life time
  */
@@ -720,6 +729,34 @@ TEST_F(ParticleTest, ParticleLife)
     dmParticle::Update(m_Context, dt, 0x0);
 
     ASSERT_EQ(0.0f, e->m_Particles[0].GetTimeLeft());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+ * Verify start-offset of emitter
+ */
+TEST_F(ParticleTest, ParticleStartOffset)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("particle_prewarm.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);  // Play mode "once", duration 2.0 and start-offset 0.5
+    dmParticle::Emitter* e2 = GetEmitter(m_Context, instance, 1); // Play mode "once", duration 2.0 and start-offset 40 (should clamp to duration)
+    dmParticle::Emitter* e3 = GetEmitter(m_Context, instance, 2); // Play mode "once", duration 2.0 and start-offset -10 (should start at 0)
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    ASSERT_NEAR(1.5f, e->m_Timer, EPSILON);
+    ASSERT_NEAR(2.0f, e2->m_Timer, EPSILON);
+    ASSERT_NEAR(1.0f, e3->m_Timer, EPSILON);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    ASSERT_NEAR(2.0f, e->m_Timer, EPSILON);
+    ASSERT_NEAR(2.0f, e2->m_Timer, EPSILON);
+    ASSERT_NEAR(2.0f, e3->m_Timer, EPSILON);
 
     dmParticle::DestroyInstance(m_Context, instance);
 }

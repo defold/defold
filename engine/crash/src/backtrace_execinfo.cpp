@@ -69,7 +69,8 @@ namespace dmCrash
     {
         assert(signum >= 0 && signum < SIGNAL_MAX);
 
-        struct sigaction sa = { 0 };
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(sa));
         sigemptyset(&sa.sa_mask);
         sa.sa_sigaction = Handler;
         sa.sa_flags = SA_SIGINFO;
@@ -77,8 +78,6 @@ namespace dmCrash
         // The current (default) behavior is stored in sigdfl.
         sigaction(signum, &sa, &sigdfl[signum]);
     }
-
-    static char stack_buffer[SIGSTKSZ];
 
     void SetCrashFilename(const char*)
     {
@@ -94,5 +93,6 @@ namespace dmCrash
         InstallOnSignal(SIGBUS);
         InstallOnSignal(SIGTRAP);
         InstallOnSignal(SIGILL);
+        InstallOnSignal(SIGABRT);
     }
 }

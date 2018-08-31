@@ -231,6 +231,13 @@ namespace dmRender
      * @param metrics Metrics, out-value
      */
     void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+
+    /**
+     * Get the resource size for fontmap
+     * @param font_map Font map handle
+     * @return size
+     */
+    uint32_t GetFontMapResourceSize(HFontMap font_map);
 }
 
 #endif // FONTRENDERER_H

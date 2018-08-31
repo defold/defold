@@ -776,6 +776,9 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
 {
     int* recreate_resource = (int*) params.m_Resource->m_Resource;
     assert(recreate_resource);
+    int* old_resource = new int();
+    *old_resource = *recreate_resource;
+    params.m_Resource->m_PrevResource = (void*)old_resource;
 
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
@@ -862,6 +865,18 @@ TEST(dmResource, Builtins)
     dmResource::DeleteFactory(factory);
 }
 
+struct ReloadData {
+    ReloadData(): m_Old(0), m_New(0) {}
+    int m_Old;
+    int m_New;
+};
+
+static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams& params) {
+    ReloadData* data = (ReloadData*)params.m_UserData;
+    data->m_Old = *((int*)params.m_Resource->m_PrevResource);
+    data->m_New = *((int*)params.m_Resource->m_Resource);
+}
+
 TEST(RecreateTest, RecreateTest)
 {
     const char* tmp_dir = 0;
@@ -876,6 +891,9 @@ TEST(RecreateTest, RecreateTest)
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     dmResource::HFactory factory = dmResource::NewFactory(&params, tmp_dir);
     ASSERT_NE((void*) 0, factory);
+
+    ReloadData reload_data;
+    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
 
     dmResource::Result e;
     e = dmResource::RegisterType(factory, "foo", this, 0, &RecreateResourceCreate, 0, &RecreateResourceDestroy, &RecreateResourceRecreate, 0);
@@ -910,10 +928,14 @@ TEST(RecreateTest, RecreateTest)
     ASSERT_EQ(dmResource::RESULT_OK, rr);
     ASSERT_EQ(456, *resource);
 
+    ASSERT_EQ(123, reload_data.m_Old);
+    ASSERT_EQ(456, reload_data.m_New);
+
     unlink(file_name);
     rr = dmResource::ReloadResource(factory, resource_name, 0);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, rr);
 
+    dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, &reload_data);
     dmResource::Release(factory, resource);
     dmResource::DeleteFactory(factory);
 }
@@ -1343,17 +1365,17 @@ TEST(DynamicResources, GetPath)
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource1, &hash) );
-    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test01.foo", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource2, &hash) );
-    GetCanonicalPath(factory, "/test02.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test02.foo", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
     hash = 0;
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(factory, resource3, &hash) );
-    GetCanonicalPath(factory, "/test02.foo_0", canonical_path);
+    dmResource::GetCanonicalPath("/test02.foo_0", canonical_path);
     ASSERT_EQ( dmHashString64(canonical_path), hash );
 
 
@@ -1451,7 +1473,7 @@ TEST_F(DynamicResourceTest, RefCount)
 
     // Make sure the original resource exists, and has refcount 1
     char canonical_path[dmResource::RESOURCE_PATH_MAX];
-    GetCanonicalPath(factory, "/test01.foo", canonical_path);
+    dmResource::GetCanonicalPath("/test01.foo", canonical_path);
     uint64_t hash = dmHashString64(canonical_path);
     ASSERT_EQ(1U, dmResource::GetRefCount(factory, hash));
 

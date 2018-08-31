@@ -148,6 +148,40 @@ namespace dmExtension
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
 
+    /*# onActivityResult callback typedef
+     *
+     * Activity result callback function type. Monitors events from the main activity.
+     * Used with RegisterOnActivityResultListener() and UnregisterOnActivityResultListener()
+     *
+     * @typedef
+     * @name OnActivityResult
+     * @param env [type:void*]
+     * @param activity [type:void*]
+     * @param request_code [type:int32_t]
+     * @param result_code [type:int32_t]
+     * @param result [type:void*]
+     */
+    typedef void (*OnActivityResult)(void* env, void* activity, int32_t request_code, int32_t result_code, void* result);
+
+    /*# register Android activity result callback
+     *
+     * Registers an activity result callback. Multiple listeners are allowed.
+     *
+     * @note [icon:android] Only available on Android
+     * @param [type:OnActivityResult] listener
+     */
+    void RegisterAndroidOnActivityResultListener(OnActivityResult listener);
+
+    /*# unregister Android activity result callback
+     *
+     * Unregisters an activity result callback
+     *
+     * @note [icon:android] Only available on Android
+     * @param [type:OnActivityResult] listener
+     */
+    void UnregisterAndroidOnActivityResultListener(OnActivityResult listener);
+
+
     /**
     * Extension desc bytesize declaration. Internal
     */
@@ -211,6 +245,128 @@ namespace dmExtension
     #define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
         uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)[dmExtension::m_ExtensionDescBufferSize]; \
         DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
+
+
+    /*# Register application delegate
+     *
+     * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
+     *
+     * This function is only available on iOS. [icon:ios]
+     *
+     * @name RegisteriOSUIApplicationDelegate
+     * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
+     *
+     * @examples
+     * ```cpp
+     *
+     * // myextension_ios.mm
+     *
+     * id<UIApplicationDelegate> g_MyApplicationDelegate;
+     *
+     * @interface MyApplicationDelegate : NSObject <UIApplicationDelegate>
+     *
+     * - (void) applicationDidBecomeActive:(UIApplication *) application;
+     *
+     * @end
+     *
+     * @implementation MyApplicationDelegate
+     *
+     * - (void) applicationDidBecomeActive:(UIApplication *) application {
+     *     dmLogWarning("applicationDidBecomeActive - MyAppDelegate");
+     * }
+     *
+     * @end
+     *
+     * void ExtensionAppInitializeiOS(dmExtension::AppParams* params)
+     * {
+     *     g_MyApplicationDelegate = [[MyApplicationDelegate alloc] init];
+     *     dmExtension::RegisteriOSUIApplicationDelegate(g_MyApplicationDelegate);
+     * }
+     *
+     * ```
+     */
+    void RegisteriOSUIApplicationDelegate(void* delegate);
+
+    /*# Unregister an application delegate
+     *
+     * Deregister a previously registered iOS application delegate
+     *
+     * This function is only available on iOS. [icon:ios]
+     *
+     * @name UnregisteriOSUIApplicationDelegate
+     * @param delegate an id<UIApplicationDelegate>
+     * @examples
+     * ```cpp
+     * // myextension_ios.mm
+     * void ExtensionAppFinalizeiOS(dmExtension::AppParams* params)
+     * {
+     *     dmExtension::UnregisteriOSUIApplicationDelegate(g_MyApplicationDelegate);
+     *     [g_MyApplicationDelegate release];
+     *     g_MyApplicationDelegate = 0;
+     * }
+     * ```
+     */
+    void UnregisteriOSUIApplicationDelegate(void* delegate);
 }
+
+/*# Platform defines
+ *
+ * The platform defines are specified automatically by the build server
+ */
+
+/*# Set if the platform is iPhoneOS [icon:ios]
+ *
+ * Set if the platform is iPhoneOS [icon:ios]
+ *
+ * @macro
+ * @name DM_PLATFORM_IOS
+ *
+ */
+
+/*# Set if the platform is Android [icon:android]
+ *
+ * Set if the platform is Android [icon:android]
+ *
+ * @macro
+ * @name DM_PLATFORM_ANDROID
+ *
+ */
+
+/*# Set if the platform is Html5 [icon:html5]
+ *
+ * Set if the platform is Html5 [icon:html5]
+ *
+ * @macro
+ * @name DM_PLATFORM_HTML5
+ *
+ */
+
+/*# Set if the platform is OSX [icon:macos]
+ *
+ * Set if the platform is OSX [icon:macos]
+ *
+ * @macro
+ * @name DM_PLATFORM_OSX
+ *
+ */
+
+/*# Set if the platform is Linux [icon:linux]
+ *
+ * Set if the platform is Linux [icon:linux]
+ *
+ * @macro
+ * @name DM_PLATFORM_LINUX
+ *
+ */
+
+/*# Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
+ *
+ * Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
+ *
+ * @macro
+ * @name DM_PLATFORM_WIN32
+ *
+ */
+
 
 #endif // #ifndef DMSDK_EXTENSION

@@ -147,8 +147,8 @@ namespace dmGameSystem
             if (lua_isfunction(L, 5))
             {
                 lua_pushvalue(L, 5);
-                // see message.h for why 2 is added
-                sender.m_Function = luaL_ref(L, LUA_REGISTRYINDEX) + 2;
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
 
@@ -243,7 +243,7 @@ namespace dmGameSystem
      *     local url = msg.url("#model")
      *     local play_properties = { blend_duration = 0.1 }
      *     -- first blend during 0.1 sec into the jump, then during 0.2 s into the run animation
-     *     model.play_anim(url, "open", go.PLAYBACK_ONCE_FORWARD, play_properties, anim_done)
+     *     model.play_anim(url, "jump", go.PLAYBACK_ONCE_FORWARD, play_properties, anim_done)
      * end
      * ```
      */
@@ -287,8 +287,8 @@ namespace dmGameSystem
             if (lua_isfunction(L, 5))
             {
                 lua_pushvalue(L, 5);
-                // see message.h for why 2 is added
-                sender.m_Function = dmScript::Ref(L, LUA_REGISTRYINDEX) + 2;
+                // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
+                sender.m_FunctionRef = dmScript::RefInInstance(L) - LUA_NOREF;
             }
         }
 

@@ -138,7 +138,8 @@
                                              (ui/close! stage))
             open-selected! (fn []
                              (doseq [[resource opts] (resolve-search-in-files-tree-view-selection (ui/selection resources-tree))]
-                               (open-fn resource opts)))]
+                               (open-fn resource opts))
+                             (dismiss-and-abort-search!))]
         (ui/title! stage "Search in Files")
         (init-search-in-files-tree-view! resources-tree)
 
@@ -151,17 +152,17 @@
                          (ui/event-handler event
                            (let [^KeyEvent event event]
                              (condp = (.getCode event)
-                               KeyCode/DOWN   (when (and (= TextField (type (.getFocusOwner scene)))
+                               KeyCode/DOWN   (when (and (= TextField (type (ui/focus-owner scene)))
                                                          (not= 0 (.getExpandedItemCount resources-tree)))
                                                 (.consume event)
                                                 (ui/request-focus! resources-tree))
                                KeyCode/ESCAPE (do (.consume event)
                                                   (dismiss-and-abort-search!))
                                KeyCode/ENTER  (do (.consume event)
-                                                  (if (= TextField (type (.getFocusOwner scene)))
+                                                  (if (= TextField (type (ui/focus-owner scene)))
                                                     (dismiss-and-show-find-results!)
                                                     (open-selected!)))
-                               KeyCode/TAB    (when (and (= types (.getFocusOwner scene))
+                               KeyCode/TAB    (when (and (= types (ui/focus-owner scene))
                                                          (= 0 (.getExpandedItemCount resources-tree)))
                                                 (.consume event)
                                                 (ui/request-focus! search))

@@ -127,12 +127,12 @@
 (defn ->curve [control-points]
   (Curve. (iv/iv-vec control-points)))
 
-(def default-curve (->curve [[0 0 1 0]]))
+(def default-curve (->curve [[0.0 0.0 1.0 0.0]]))
 
 (defn ->curve-spread [control-points spread]
   (CurveSpread. (iv/iv-vec control-points) spread))
 
-(def default-curve-spread (->curve-spread [[0 0 1 0]] 0))
+(def default-curve-spread (->curve-spread [[0.0 0.0 1.0 0.0]] 0.0))
 
 (defn curve-vals [curve]
   (iv/iv-vals (:points curve)))
@@ -163,10 +163,6 @@
   (fn [^CurveSpread c]
     {:points (curve-vals c)
      :spread (:spread c)})))
-
-(def default-curve (map->Curve {:points [{:x 0 :y 0 :t-x 1 :t-y 0}]}))
-
-(def default-curve-spread (map->CurveSpread {:points [{:x 0 :y 0 :t-x 1 :t-y 0}] :spread 0}))
 
 (defn- q-round [v]
   (let [f 10e6]
@@ -224,7 +220,7 @@
       (recur (rest vs) (conj! values v))
       values)))
 
-(defn properties->decls [properties]
+(defn properties->decls [properties include-element-ids?]
   (loop [properties properties
          decl (->decl [:number-entries :hash-entries :url-entries :vector3-entries
                        :vector4-entries :quat-entries :bool-entries :float-values
@@ -241,7 +237,20 @@
             [entry-key values-key] (type->entry-keys type)
             entry {:key (:id prop)
                    :id (murmur/hash64 (:id prop))
-                   :index (count (get decl values-key))}]
+                   :index (count (get decl values-key))}
+            entry (cond
+                    (not include-element-ids?)
+                    entry
+
+                    (= type :property-type-vector3)
+                    (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                                                    [".x" ".y" ".z"]))
+
+                    (or (= type :property-type-vector4)
+                        (= type :property-type-quat))
+                    (assoc entry :element-ids (mapv #(murmur/hash64 (str (:id prop) %))
+                                                    [".x" ".y" ".z" ".w"]))
+                    :else entry)]
         (recur (rest properties)
                (-> decl
                  (update entry-key conj! entry)

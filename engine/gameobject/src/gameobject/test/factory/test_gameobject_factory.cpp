@@ -23,11 +23,11 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/factory");
         m_ScriptContext = dmScript::NewContext(0, 0, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
         dmGameObject::RegisterComponentTypes(m_Factory, m_Register, m_ScriptContext);
-        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0);
+        m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024);
 
         dmResource::Result e;
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0, 0);
@@ -147,13 +147,13 @@ TEST_F(FactoryTest, FactoryScaleAlongZ)
     uint32_t index = dmGameObject::AcquireInstanceIndex(m_Collection);
     dmhash_t id = dmGameObject::ConstructInstanceId(index);
 
-    m_Collection->m_ScaleAlongZ = 1;
+    m_Collection->m_Collection->m_ScaleAlongZ = 1;
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_TRUE(dmGameObject::ScaleAlongZ(instance));
 
     index = dmGameObject::AcquireInstanceIndex(m_Collection);
     id = dmGameObject::ConstructInstanceId(index);
-    m_Collection->m_ScaleAlongZ = 0;
+    m_Collection->m_Collection->m_ScaleAlongZ = 0;
     instance = Spawn(m_Factory, m_Collection, "/test.goc", id, 0x0, 0, Point3(), Quat(), Vector3(2, 2, 2));
     ASSERT_FALSE(dmGameObject::ScaleAlongZ(instance));
 }

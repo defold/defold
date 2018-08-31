@@ -9,7 +9,6 @@
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 #include <dlib/transform.h>
-#include <rig/rig.h>
 
 #include <ddf/ddf.h>
 
@@ -46,7 +45,7 @@ namespace dmGameObject
     typedef struct Register* HRegister;
 
     /// Collection handle
-    typedef struct Collection* HCollection;
+    typedef struct CollectionHandle* HCollection;
 
     /// Properties handle
     typedef struct Properties* HProperties;
@@ -294,8 +293,6 @@ namespace dmGameObject
      */
     struct ComponentCreateParams
     {
-        /// Collection handle
-        HCollection m_Collection;
         /// Game object instance
         HInstance m_Instance;
         /// Local component position
@@ -418,6 +415,23 @@ namespace dmGameObject
      * @return CREATE_RESULT_OK on success
      */
     typedef CreateResult (*ComponentAddToUpdate)(const ComponentAddToUpdateParams& params);
+
+    /**
+     * Parameters to ComponentGet callback.
+     */
+    struct ComponentGetParams
+    {
+        /// Component world
+        void* m_World;
+        /// User data storage pointer
+        uintptr_t* m_UserData;
+    };
+
+    /**
+     * A simple way to get the component instance from the user_data (which was set during creation)
+     */
+    typedef void* (*ComponentGet)(const ComponentGetParams& params);
+
 
     /**
      * Parameters to ComponentsUpdate callback.
@@ -640,6 +654,7 @@ namespace dmGameObject
         ComponentInit           m_InitFunction;
         ComponentFinal          m_FinalFunction;
         ComponentAddToUpdate    m_AddToUpdateFunction;
+        ComponentGet            m_GetFunction;
         ComponentsUpdate        m_UpdateFunction;
         ComponentsRender        m_RenderFunction;
         ComponentsPostUpdate    m_PostUpdateFunction;
@@ -659,7 +674,7 @@ namespace dmGameObject
      * Initialize system
      * @param context Script context
      */
-    void Initialize(dmScript::HContext context);
+    void Initialize(HRegister regist, dmScript::HContext context);
 
     /**
      * Create a new component type register
@@ -677,26 +692,11 @@ namespace dmGameObject
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity);
 
     /**
-     * Set default rig instance capacity of collections in this register. This does not affect existing collections.
-     * @param regist Register
-     * @param capacity Default capacity of rig instances for collections in this register (0-32766).
-     * @return RESULT_OK on success or RESULT_INVALID_OPERATION if max_count is not within range
-     */
-    Result SetCollectionDefaultRigCapacity(HRegister regist, uint32_t capacity);
-
-    /**
      * Get default capacity of collections in this register.
      * @param regist Register
      * @return Default capacity
      */
     uint32_t GetCollectionDefaultCapacity(HRegister regist);
-
-    /**
-     * Get default rig instance capacity of collections in this register.
-     * @param regist Register
-     * @return Default rig instance capacity
-     */
-    uint32_t GetCollectionDefaultRigCapacity(HRegister regist);
 
     /**
      * Delete a component type register
@@ -712,7 +712,7 @@ namespace dmGameObject
      * @param max_instances Max instances in this collection
      * @return HCollection
      */
-    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances, uint32_t max_riginstances);
+    HCollection NewCollection(const char* name, dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
 
     /**
      * Deletes a gameobject collection
@@ -917,6 +917,13 @@ namespace dmGameObject
     void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
 
     /**
+     * Gets a component given an URL
+     * @param url the url to the object
+     * @return the component matching the url. returns null if no match was found
+     */
+    void* GetComponentFromURL(const dmMessage::URL& url);
+
+    /**
      * Get current game object instance from the lua state, if any.
      * The lua state has an instance while the script callbacks are being run on the state.
      * @param L lua-state
@@ -956,7 +963,7 @@ namespace dmGameObject
      */
     void SetInheritScale(HInstance instance, bool inherit_scale);
 
-    /** 
+    /**
      * Tells the collection that a transform was updated
      */
     void SetDirtyTransforms(HCollection collection);
@@ -981,11 +988,12 @@ namespace dmGameObject
      * Set the local transforms recursively of all instances flagged as bones, starting with component with id.
      * The order of the transforms is depth-first.
      * @param instance First Instance of the hierarchy to set
+     * @param component_transform the transform for component root
      * @param transforms Array of transforms to set depth-first for the bone instances
      * @param transform_count Size of the transforms array
      * @return Number of instances found
      */
-    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform* transforms, uint32_t transform_count);
+    uint32_t SetBoneTransforms(HInstance instance, dmTransform::Transform& component_transform, dmTransform::Transform* transforms, uint32_t transform_count);
 
     /**
      * Recursively delete all instances flagged as bones under the given parent instance.
@@ -1082,13 +1090,6 @@ namespace dmGameObject
      */
     dmMessage::HSocket GetFrameMessageSocket(HCollection collection);
 
-    /**
-     * Retrieve the rig context for the specified collection.
-     * @param collection Collection handle
-     * @return The rig context of the specified collection
-     */
-    dmRig::HRigContext GetRigContext(HCollection collection);
- 
     /**
      * Returns whether the scale of the instances in a collection should be applied along Z or not.
      * @param collection Collection
@@ -1327,6 +1328,59 @@ namespace dmGameObject
      */
     Result RegisterComponentTypes(dmResource::HFactory factory, HRegister regist, dmScript::HContext script_context);
 
+    /** Used in the callback from the collection object iterator
+     */
+    struct IteratorCollection
+    {
+        HCollection     m_Collection;   // The collection
+        dmhash_t        m_NameHash;     // The user specified name
+        dmhash_t        m_Resource;     // The resource path
+    };
+
+    /** Used in the callback from the game object iterator
+     */
+    struct IteratorGameObject
+    {
+        HCollection     m_Collection;   // The collection
+        HInstance       m_Instance;     // The game object
+        dmhash_t        m_NameHash;     // The user specified name
+        dmhash_t        m_Resource;     // The resource path
+    };
+
+    /** Used in the callback from the comonent iterator
+     */
+    struct IteratorComponent
+    {
+        HCollection     m_Collection;   // The collection
+        HInstance       m_Instance;     // The game object
+        dmhash_t        m_NameHash;     // The user specified name
+        dmhash_t        m_Resource;     // The resource path
+        const char*     m_Type;         // The type of the component
+    };
+
+    /** Callback function for iterating over all collection in a register
+     */
+    typedef bool (*FCollectionIterator)(const IteratorCollection* iterator, void* user_ctx);
+
+    /** Callback function for iterating over all game objects in a collection
+     */
+    typedef bool (*FGameObjectIterator)(const IteratorGameObject* iterator, void* user_ctx);
+
+    /** Callback function for iterating over all game objects in a collection
+     */
+    typedef bool (*FGameComponentIterator)(const IteratorComponent* iterator, void* user_ctx);
+
+    /** Iterate over a registry to get all collections
+     */
+    bool IterateCollections(HRegister regist, FCollectionIterator callback, void* user_ctx);
+
+    /** Iterate over a collection to get all game objects
+     */
+    bool IterateGameObjects(HCollection collection, FGameObjectIterator callback, void* user_ctx);
+
+    /** Iterate over a gameobject to get all components
+     */
+    bool IterateComponents(HInstance instance, FGameComponentIterator callback, void* user_ctx);
 }
 
 #endif // GAMEOBJECT_H

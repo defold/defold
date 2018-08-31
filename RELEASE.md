@@ -30,9 +30,13 @@ Important: *Make sure your branches are up to date!*
  
     This will trigger the beta channel to be built on build bot.
 
- 1. Wait for [cr-editor-beta](http://ci.defold.com/builders/cr-editor-beta) to finish, make sure autobuilders are green.
+ 1. Wait for [sign-editor-beta](http://ci.defold.com/builders/sign-editor-beta) to finish, make sure autobuilders are green.
  1. Write release beta release notes.
  1. (Optional) Download and run beta:
+ 
+    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
+    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-win32.zip
+    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-linux.zip
  
     http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.dmg
     
@@ -96,11 +100,15 @@ The following smoke tests are currently performed by the team on each platform (
 
     This will trigger a build of the engines and editors for stable.
     
- 1. Wait for the editor build: [cr-editor-master](http://ci.defold.com/builders/cr-editor-master).
+ 1. Wait for the editor build: [sign-editor-master](http://ci.defold.com/builders/sign-editor-master).
 
     Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
  
  1. Fetch editor via:
+ 
+    http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-darwin.dmg
+    http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-win32.zip
+    http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-linux.zip
  
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
     

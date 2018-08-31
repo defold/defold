@@ -88,7 +88,8 @@ def build(bld):
     if 'js-web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/js-web/js', 'dlib/js/library_sys.js')
 
-    source_dirs = 'dlib dlib/jsmn zlib lz4 axtls/crypto axtls/ssl jpgd'.split(' ')
+    source_dirs = 'dlib dlib/jsmn zlib lz4 jpgd'.split(' ')
+    axtls_dirs = 'axtls/crypto axtls/ssl'.split(' ')
 
     if re.match('arm.*?android', bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
@@ -135,22 +136,25 @@ def build(bld):
     else:
         source_dirs.extend(webp_source_dirs)
 
-    dlib = bld.new_task_gen(features = 'cc cxx cstaticlib embed',
+    dlib = bld.new_task_gen(features = 'cc cxx cstaticlib',
                             includes = '.',
                             add_objects = local_objs,
                             target = 'dlib',
-                            defines= ['VALGRIND'] + extra_defines,
-                            embed_source = '../data/profiler.html')
+                            defines= ['VALGRIND'] + extra_defines)
     dlib.find_sources_in_dirs(source_dirs)
     dlib.source.extend(webp_source_no_neon)
 
+    axtls = bld.new_task_gen(features = 'cxx cstaticlib',
+                            includes = '.',
+                            target = 'axtls',
+                            defines= ['VALGRIND'] + extra_defines)
+    axtls.find_sources_in_dirs(axtls_dirs)
+
     if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
-        # NOTE: This is a hack required when cross compiling on
-        # darwin to linux platform
+        # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
-        dlib.source.remove(os.path.join('dlib', 'sys_cocoa.mm'))
-        dlib.source.remove(os.path.join('dlib', 'socket_cocoa.mm'))
+        dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 
     if bld.env.PLATFORM == 'as3-web':
         dlib.source.remove(os.path.join('dlib', 'socket.cpp'))
@@ -160,19 +164,18 @@ def build(bld):
 
 
     if bld.env['PLATFORM'] != 'as3-web':
-        dlib = bld.new_task_gen(features = 'cc cxx cshlib embed',
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib',
                                 includes = '.',
                                 add_objects = local_objs,
+                                uselib_local = 'axtls',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
-                                embed_source = '../data/profiler.html',
                                 uselib = 'UUID PLATFORM_SOCKET')
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
         if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
             # NOTE: See comment above
-            dlib.source.remove(os.path.join('dlib', 'sys_cocoa.mm'))
-            dlib.source.remove(os.path.join('dlib', 'socket_cocoa.mm'))
+            dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 
         if bld.env.PLATFORM == 'as3-web':
             dlib.source.remove(os.path.join('dlib','socket.cpp'))
@@ -180,7 +183,7 @@ def build(bld):
             dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
     if 'win32' not in bld.env['PLATFORM'] and bld.env['PLATFORM'] != 'as3-web':
-        dlib = bld.new_task_gen(features = 'cxx cshlib',
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib',
                                 source='dlib/memprofile.cpp',
                                 includes = '.',
                                 target = 'dlib_memprofile',

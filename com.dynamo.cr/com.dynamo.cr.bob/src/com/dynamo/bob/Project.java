@@ -283,13 +283,20 @@ public class Project {
     }
 
     public void createPublisher(boolean shouldPublish) throws CompileExceptionError {
-        if (shouldPublish) {
-            try {
-                IResource publisherSettings = this.fileSystem.get("/liveupdate.settings");
-                if (publisherSettings.exists()) {
-                    ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
-                    PublisherSettings settings = PublisherSettings.load(is);
-
+        try {
+            String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
+            IResource publisherSettings = this.fileSystem.get(settingsPath);
+            if (!publisherSettings.exists()) {
+                if (shouldPublish) {
+                    IResource gameProject = this.fileSystem.get("/game.project");
+                    throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from disk.");
+                } else {
+                    this.publisher = new NullPublisher(new PublisherSettings());
+                }
+            } else {
+                ByteArrayInputStream is = new ByteArrayInputStream(publisherSettings.getContent());
+                PublisherSettings settings = PublisherSettings.load(is);
+                if (shouldPublish) {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
@@ -299,15 +306,14 @@ public class Project {
                     } else {
                         throw new CompileExceptionError("The publisher specified is not supported", null);
                     }
-
                 } else {
-                    throw new CompileExceptionError("There is no liveupdate.settings file", null);
+                    this.publisher = new NullPublisher(settings);
                 }
-            } catch (Throwable e) {
-                throw new CompileExceptionError(null, 0, e.getMessage(), e);
             }
-        } else {
-            this.publisher = new NullPublisher(new PublisherSettings());
+        } catch (CompileExceptionError e) {
+        	throw e;
+        } catch (Throwable e) {
+            throw new CompileExceptionError(null, 0, e.getMessage(), e);
         }
     }
 
@@ -570,7 +576,18 @@ public class Project {
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
-        String[] platformStrings = platformArchs.getArchitectures();
+        String[] platformStrings;
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin )
+        {
+            // iOS is currently the only OS we use that supports fat binaries
+            // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
+            platformStrings = platformArchs.getArchitectures();
+        }
+        else
+        {
+            platformStrings = new String[1];
+            platformStrings[0] = p.getPair();
+        }
         IProgress m = monitor.subProgress(platformStrings.length);
         m.beginTask("Building engine...", 0);
 
@@ -688,9 +705,18 @@ public class Project {
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
             if (platform.equals(Platform.Armv7Android)) {
-                File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), "classes.dex"));
-                if (classesDexFile.exists()) {
-                    classesDexFile.delete();
+                int nameindex = 1;
+                while(true)
+                {
+                    String name = nameindex == 1 ? "classes.dex" : String.format("classes%d.dex", nameindex);
+                    ++nameindex;
+
+                    File classesDexFile = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
+                    if (classesDexFile.exists()) {
+                        classesDexFile.delete();
+                    } else {
+                        break;
+                    }
                 }
             }
 

@@ -43,6 +43,7 @@ namespace dmGameSystem
         dmArray<dmRig::RigSpineModelVertex> m_VertexBufferData;
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance>    m_ScratchInstances;
+        dmRig::HRigContext                  m_RigContext;
     };
 
     dmGameObject::CreateResult CompSpineModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);
@@ -69,6 +70,10 @@ namespace dmGameSystem
 
     bool CompSpineModelSetIKTargetInstance(SpineModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
     bool CompSpineModelSetIKTargetPosition(SpineModelComponent* component, dmhash_t constraint_id, float mix, Point3 position);
+    bool CompSpineModelResetIKTarget(SpineModelComponent* component, dmhash_t constraint_id);
+
+    bool CompSpineModelSetSkin(SpineModelComponent* component, dmhash_t skin_id);
+    bool CompSpineModelSetSkinSlot(SpineModelComponent* component, dmhash_t skin_id, dmhash_t slot_id);
 
 }
 

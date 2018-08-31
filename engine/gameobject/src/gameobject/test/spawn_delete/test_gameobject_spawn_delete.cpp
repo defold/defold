@@ -56,8 +56,8 @@ protected:
         m_Factory = dmResource::NewFactory(&params, "build/default/src/gameobject/test/spawn_delete");
         m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
         dmScript::Initialize(m_ScriptContext);
-        dmGameObject::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
+        dmGameObject::Initialize(m_Register, m_ScriptContext);
         m_ModuleContext.m_ScriptContexts.SetCapacity(1);
         m_ModuleContext.m_ScriptContexts.Push(m_ScriptContext);
         dmGameObject::RegisterResourceTypes(m_Factory, m_Register, m_ScriptContext, &m_ModuleContext);
@@ -98,7 +98,7 @@ protected:
 
         ASSERT_EQ(dmGameObject::RESULT_OK, go_result);
 
-        m_Collection = NewCollection("collection", m_Factory, m_Register, 10u, 0u);
+        m_Collection = NewCollection("collection", m_Factory, m_Register, 10u);
     }
 
     virtual void TearDown()
@@ -361,7 +361,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_Spawn)
 {
     // Temp swap collections to delete at end
     dmGameObject::HCollection old_collection = m_Collection;
-    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u, 0u);
+    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u);
 
     New("/final_spawn.goc");
 
@@ -436,7 +436,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_Delete)
 {
     // Temp swap collections to delete at end
     dmGameObject::HCollection old_collection = m_Collection;
-    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u, 0u);
+    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u);
 
     New("/final_delete.goc");
     dmGameObject::HInstance go2 = New("/a.goc");
@@ -534,7 +534,7 @@ TEST_F(SpawnDeleteTest, CollectionDelete_ScriptFinal_SpawnDelete)
 {
     // Temp swap collections to delete at end
     dmGameObject::HCollection old_collection = m_Collection;
-    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u, 0u);
+    m_Collection = dmGameObject::NewCollection("collection2", m_Factory, m_Register, 10u);
 
     New("/final_spawndelete.goc");
 
@@ -576,6 +576,47 @@ TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti)
     Update();
     Delete(go);
 }
+
+
+// DEF-3218: Removing the objects out of order caused an assert
+TEST_F(SpawnDeleteTest, CollectionUpdate_SpawnDeleteMulti2)
+{
+    Init();
+
+    dmGameObject::HInstance go2 = Spawn(m_Factory, m_Collection, "/a.goc", 2, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+
+    Update();
+
+    ASSERT_EQ(0u, dmGameObject::GetAddToUpdateCount(m_Collection));
+    ASSERT_EQ(0u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
+
+    dmGameObject::HInstance go9 = Spawn(m_Factory, m_Collection, "/a.goc", 9, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go3 = Spawn(m_Factory, m_Collection, "/a.goc", 3, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go4 = Spawn(m_Factory, m_Collection, "/a.goc", 4, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+    dmGameObject::HInstance go6 = Spawn(m_Factory, m_Collection, "/a.goc", 6, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+
+    Delete(go4);
+    Delete(go2);
+    Delete(go6);
+    Delete(go3);
+    Delete(go9);
+
+    ASSERT_EQ(4u, dmGameObject::GetAddToUpdateCount(m_Collection));
+    ASSERT_EQ(5u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
+
+    PostUpdate();
+    // The linked list should now have been corrupted
+    // and the next spawned object won't get added to the AddToUpdate list
+    dmGameObject::HInstance go10 = Spawn(m_Factory, m_Collection, "/a.goc", 10, 0x0, 0, Vectormath::Aos::Point3(0.0f, 0.0f, 0.0f), Vectormath::Aos::Quat(0.0f, 0.0f, 0.0f, 1.0f), Vector3(1, 1, 1));
+
+    ASSERT_EQ(1u, dmGameObject::GetAddToUpdateCount(m_Collection));
+    ASSERT_EQ(0u, dmGameObject::GetRemoveFromUpdateCount(m_Collection));
+
+    Delete(go10);
+    Update();
+    PostUpdate();
+}
+
 
 #undef ASSERT_INIT
 #undef ASSERT_ADD_TO_UPDATE

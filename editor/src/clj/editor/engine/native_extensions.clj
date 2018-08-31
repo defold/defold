@@ -30,14 +30,14 @@
 
 (def ^:const defold-build-server-url "https://build.defold.com")
 (def ^:const connect-timeout-ms (* 30 1000))
-(def ^:const read-timeout-ms (* 5 60 1000))
+(def ^:const read-timeout-ms (* 10 60 1000))
 
 ;;; Caching
 
 (defn- hash-resources! ^MessageDigest
   [^MessageDigest md resource-nodes]
   (run! #(DigestUtils/updateDigest md ^String (g/node-value % :sha256))
-        (sort resource-nodes))
+        resource-nodes)
   md)
 
 (defn- cache-key
@@ -163,9 +163,6 @@
 
 (def ^:private resource-node-upload-path (comp fs/without-leading-slash resource/proj-path resource-node-resource))
 
-(defn has-extensions? [project]
-  (not (empty? (extension-roots project))))
-
 (defn supported-platform? [platform]
   (contains? extender-platforms platform))
 
@@ -204,7 +201,7 @@
 
 (defn- find-or-build-engine-archive
   [cache-dir server-url platform sdk-version resource-nodes-by-upload-path]
-  (let [key (cache-key platform sdk-version (vals resource-nodes-by-upload-path))]
+  (let [key (cache-key platform sdk-version (map second (sort-by first resource-nodes-by-upload-path)))]
     (or (cached-engine-archive cache-dir platform key)
         (let [engine-archive (build-engine-archive server-url platform sdk-version resource-nodes-by-upload-path)]
           (cache-engine-archive! cache-dir platform key engine-archive)))))
@@ -213,7 +210,7 @@
   [project platform]
   (let [dir (io/file (workspace/project-path (project/workspace project)) "build" platform)]
     (fs/delete-directory! dir {:missing :ignore})
-    (fs/create-directory! dir)
+    (fs/create-directories! dir)
     dir))
 
 (def ^:private dmengine-dependencies
@@ -260,6 +257,9 @@
   (into {}
         (map (juxt resource-node-upload-path identity))
         (extension-resource-nodes project roots platform)))
+
+(defn has-extensions? [project]
+  (not (empty? (merge (extension-roots project) (global-resource-nodes-by-upload-path project)))))
 
 (defn get-engine
   [project roots platform build-server]

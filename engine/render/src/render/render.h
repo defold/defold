@@ -174,6 +174,7 @@ namespace dmRender
         uint32_t m_BatchKey;
         uint32_t m_TagMask;
         uintptr_t m_UserData;
+        uint32_t m_MinorOrder:4;
         uint32_t m_MajorOrder:2;
         uint32_t m_Dispatch:8;
     };
@@ -288,7 +289,7 @@ namespace dmRender
     void                    ClearRenderScriptInstanceMaterials(HRenderScriptInstance render_script_instance);
     RenderScriptResult      InitRenderScriptInstance(HRenderScriptInstance render_script_instance);
     RenderScriptResult      DispatchRenderScriptInstance(HRenderScriptInstance render_script_instance);
-    RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance);
+    RenderScriptResult      UpdateRenderScriptInstance(HRenderScriptInstance render_script_instance, float dt);
     void                    OnReloadRenderScriptInstance(HRenderScriptInstance render_script_instance);
 
     // Material

@@ -62,7 +62,6 @@
 
 (defmacro gl-polygon-mode [gl face mode] `(.glPolygonMode ~gl ~face ~mode))
 
-(defmacro gl-active-texture [gl texunit]                                 `(.glActiveTexture ~gl ~texunit))
 (defmacro gl-get-attrib-location [gl shader name]                        `(.glGetAttribLocation ~gl ~shader ~name))
 (defmacro gl-bind-buffer [gl type name]                                  `(.glBindBuffer ~gl ~type ~name))
 (defmacro gl-buffer-data [gl type size data usage]                       `(.glBufferData ~gl ~type ~size ~data ~usage))
@@ -73,6 +72,7 @@
 (defmacro gl-enable [gl cap]                                             `(.glEnable ~gl ~cap))
 (defmacro gl-disable [gl cap]                                            `(.glDisable ~gl ~cap))
 (defmacro gl-cull-face [gl mode]                                         `(.glCullFace ~gl ~mode))
+(defmacro gl-blend-func [gl sfactor dfactor]                             `(.glBlendFunc ~gl ~sfactor ~dfactor))
 
 (defn gl-get-integer-v
   [^GL2 gl ^Integer param sz]
@@ -283,3 +283,11 @@
             (+ ptr 3 name-count)
             (conj names name))))
       names)))
+
+(defn set-blend-mode [^GL gl blend-mode]
+  ;; Assumes pre-multiplied source/destination
+  ;; Equivalent of defold/engine/gamesys/src/gamesys/components/comp_particlefx.cpp
+  (case blend-mode
+    :blend-mode-alpha (gl-blend-func gl GL/GL_ONE GL/GL_ONE_MINUS_SRC_ALPHA)
+    (:blend-mode-add :blend-mode-add-alpha) (gl-blend-func gl GL/GL_ONE GL/GL_ONE)
+    :blend-mode-mult (gl-blend-func gl GL/GL_DST_COLOR GL/GL_ONE_MINUS_SRC_ALPHA)))

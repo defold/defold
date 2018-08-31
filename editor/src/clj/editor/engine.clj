@@ -21,8 +21,8 @@
 
 (def ^:const timeout 2000)
 
-(defn- get-connection [^URL url]
-  (doto ^HttpURLConnection (.openConnection url)
+(defn- get-connection [^URI uri]
+  (doto ^HttpURLConnection (.openConnection (.toURL uri))
     (.setRequestProperty "Connection" "close")
     (.setConnectTimeout timeout)
     (.setReadTimeout timeout)
@@ -40,8 +40,8 @@
         nil))))
 
 (defn reload-resource [target resource]
-  (let [url  (URL. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection url)]
+  (let [uri  (URI. (str (:url target) "/post/@resource/reload"))
+        conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -52,9 +52,9 @@
       (finally
         (.disconnect conn)))))
 
-(defn reboot [target local-url debug?]
-  (let [url  (URL. (format "%s/post/@system/reboot" (:url target)))
-        conn ^HttpURLConnection (get-connection url)
+(defn reboot! [target local-url debug?]
+  (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))
+        conn ^HttpURLConnection (get-connection uri)
         args (cond-> [(str "--config=resource.uri=" local-url)]
                debug?
                (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
@@ -72,9 +72,9 @@
       (finally
         (.disconnect conn)))))
 
-(defn run-script [target lua-module]
-  (let [url  (URL. (format "%s/post/@system/run_script" (:url target)))
-        conn ^HttpURLConnection (get-connection url)]
+(defn run-script! [target lua-module]
+  (let [uri  (URI. (format "%s/post/@system/run_script" (:url target)))
+        conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os  (.getOutputStream conn)]
         (let [bytes (protobuf/map->bytes com.dynamo.engine.proto.Engine$RunScript {:module lua-module})]
@@ -168,8 +168,9 @@
 
 (defn get-engine [project prefs platform]
   (or (custom-engine prefs platform)
-      (if-let [native-extension-roots (native-extensions/extension-roots project)]
-        (let [build-server (native-extensions/get-build-server-url prefs)]
+      (if (native-extensions/has-extensions? project)
+        (let [build-server (native-extensions/get-build-server-url prefs)
+              native-extension-roots (native-extensions/extension-roots project)]
           (native-extensions/get-engine project native-extension-roots platform build-server))
         (bundled-engine platform))))
 

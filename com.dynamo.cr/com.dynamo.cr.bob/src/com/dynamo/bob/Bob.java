@@ -236,6 +236,8 @@ public class Bob {
 
         options.addOption("l", "liveupdate", true, "yes if liveupdate content should be published");
 
+        options.addOption(null, "version", false, "Prints the version number to the output");
+
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
@@ -284,6 +286,12 @@ public class Bob {
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
         verbose = cmd.hasOption('v');
 
+        if (cmd.hasOption("version")) {
+            System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
+            System.exit(0);
+            return;
+        }
+
         String[] commands = cmd.getArgs();
         if (commands.length == 0) {
             commands = new String[] { "build" };
@@ -305,7 +313,7 @@ public class Bob {
         }
 
         boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-        project.createPublisher(shouldPublish);
+        project.setOption("liveupdate", shouldPublish ? "true" : "false");
 
         Option[] options = cmd.getOptions();
         for (Option o : options) {

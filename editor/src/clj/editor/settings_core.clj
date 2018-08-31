@@ -1,7 +1,8 @@
 (ns editor.settings-core
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
-            [clojure.edn :as edn])
+            [clojure.edn :as edn]
+            [util.text-util :as text-util])
   (:import [java.io PushbackReader StringReader BufferedReader]))
 
 (set! *warn-on-reflection* true)
@@ -28,7 +29,7 @@
   {:current-category nil :settings nil})
 
 (defn- parse-category-line [{:keys [current-category settings] :as parse-state} line]
-  (when-let [[_ new-category] (re-find #"\[([^\]]*)\]" line)]
+  (when-let [[_ new-category] (re-find #"^\s*\[([^\]]*)\]" line)]
     (assoc parse-state :current-category new-category)))
 
 (defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
@@ -69,12 +70,24 @@
 (defmethod parse-setting-value :resource [_ raw]
   raw)
 
+(defmethod parse-setting-value :file [_ raw]
+  raw)
+
+(defmethod parse-setting-value :directory [_ raw]
+  raw)
+
+(defmethod parse-setting-value :comma-separated-list [_ raw]
+  (when raw
+    (into [] (text-util/parse-comma-separated-string raw))))
+
 (def ^:private type-defaults
   {:string ""
    :boolean false
    :integer 0
    :number 0.0
-   :resource nil})
+   :resource nil
+   :file nil
+   :directory nil})
 
 (defn- add-type-defaults [meta-info]
   (update-in meta-info [:settings]
@@ -174,6 +187,9 @@
 
 (defmethod render-raw-setting-value :default [_ value]
   (str value))
+
+(defmethod render-raw-setting-value :comma-separated-list [_ value]
+  (when (seq value) (text-util/join-comma-separated-string value)))
 
 (defn make-settings-map [settings]
   (into {} (map (juxt :path :value) settings)))
