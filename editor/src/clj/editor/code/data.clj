@@ -1846,40 +1846,40 @@
     (let [text-lines (util/split-lines text)]
       (insert-lines-seqs indent-level-pattern indent-string grammar lines cursor-ranges regions layout (repeat text-lines)))))
 
-(defn find-last-region-index [region-type regions]
-  (some (fn [index]
-          (when (= region-type (:type (regions index)))
-            index))
-        (range (dec (count regions)) -1 -1)))
-
 (defn- inc-limited
   ^long [^long n]
   (if (= n Long/MAX_VALUE)
     (inc (- n 1000000))
     (inc n)))
 
-(defn append-distinct-lines [lines regions new-lines]
+(defn append-distinct-lines [lines regions new-lines line-sub-regions-fn]
+  ;; NOTE: line-sub-regions-fn takes a zero-based row index and a line string,
+  ;; and is expected to return a seq of ordered regions within the line.
   (let [[lines' regions'] (loop [new-lines new-lines
                                  lines (transient (if (= [""] lines) [] lines))
+                                 line-row (count lines)
                                  regions regions]
                             (if-some [new-line (first new-lines)]
                               (let [prev-line (peek! lines)]
                                 (if (= prev-line new-line)
                                   (recur (next new-lines)
                                          lines
-                                         (let [prev-repeat-region-index (find-last-region-index :repeat regions)
+                                         line-row
+                                         (let [prev-repeat-region-index (util/last-index-where #(= :repeat (:type %)) regions)
                                                prev-repeat-region (some->> prev-repeat-region-index (get regions))
-                                               prev-line-row (dec (count lines))]
+                                               prev-line-row (dec line-row)]
                                            (if (= prev-line-row (some-> prev-repeat-region :from :row))
                                              (assoc regions prev-repeat-region-index (update prev-repeat-region :count inc-limited))
-                                             (conj regions (let [end-col (count new-line)]
-                                                             (assoc (->CursorRange (->Cursor prev-line-row 0)
-                                                                                   (->Cursor prev-line-row end-col))
-                                                               :type :repeat
-                                                               :count 2))))))
+                                             (let [new-repeat-region (let [end-col (count new-line)]
+                                                                       (assoc (->CursorRange (->Cursor prev-line-row 0)
+                                                                                             (->Cursor prev-line-row end-col))
+                                                                         :type :repeat
+                                                                         :count 2))]
+                                               (util/insert-sort regions new-repeat-region)))))
                                   (recur (next new-lines)
                                          (conj! lines new-line)
-                                         regions)))
+                                         (inc line-row)
+                                         (into regions (line-sub-regions-fn line-row new-line)))))
                               [(persistent! lines) regions]))
         lines' (if (empty? lines') [""] lines')]
     {:lines lines'
