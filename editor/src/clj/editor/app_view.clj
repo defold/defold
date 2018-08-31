@@ -805,6 +805,14 @@ If you do not specifically require different script states, consider changing th
          (.select other-tab-pane-selection active-tab)
          (.requestFocus other-tab-pane))))
 
+(handler/defhandler :reverse-tab-panes :global
+  (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
+  (run [app-view user-data]
+       (let [editor-tabs-split ^SplitPane (g/node-value app-view :editor-tabs-split)
+             tab-panes (.getItems editor-tabs-split)
+             reversed-tab-panes ^Collection (reverse tab-panes)]
+         (.setAll tab-panes reversed-tab-panes))))
+
 (handler/defhandler :join-tab-panes :global
   (enabled? [app-view] (< 1 (open-tab-pane-count app-view)))
   (run [app-view user-data]
@@ -962,6 +970,8 @@ If you do not specifically require different script states, consider changing th
                   :command :move-tab}
                  {:label "Swap With Other Tab Pane"
                   :command :swap-tabs}
+                 {:label "Reverse Tab Panes"
+                  :command :reverse-tab-panes}
                  {:label "Join Tab Panes"
                   :command :join-tab-panes}
                  {:label :separator}
