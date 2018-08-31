@@ -140,7 +140,8 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
+              (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
