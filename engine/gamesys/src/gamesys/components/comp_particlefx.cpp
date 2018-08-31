@@ -412,7 +412,7 @@ namespace dmGameSystem
             }
             if (found_count == 0)
             {
-                dmLogWarning("Particle FX to set constant for could not be found.");
+                dmLogWarning("Particle FX to set constant for could not be found. You need to start playing it before setting constants.");
             }
         }
         else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstantParticleFX::m_DDFDescriptor->m_NameHash)
