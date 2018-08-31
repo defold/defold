@@ -299,7 +299,7 @@
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
-(defn- make-region
+(defn- make-line-region
   ^CursorRange [^long row [type line]]
   (assert (keyword? type))
   (assert (string? line))
@@ -313,13 +313,14 @@
 (defn- append-regioned-lines [{:keys [lines regions] :as props} entries]
   (assoc props
     :lines (into lines (map second) entries)
-    :regions (into regions (map make-region (iterate inc (count lines)) entries))))
+    :regions (into regions (map make-line-region (iterate inc (count lines)) entries))))
 
 (defn- repaint-console-view! [view-node elapsed-time]
   (let [{:keys [clear? entries]} (flip-pending!)]
     (when (or clear? (seq entries))
       (let [^LayoutInfo prev-layout (g/node-value view-node :layout)
             prev-lines (g/node-value view-node :lines)
+            prev-regions (g/node-value view-node :regions)
             prev-document-width (if clear? 0.0 (.document-width prev-layout))
             appended-width (data/max-line-width (.glyph prev-layout) (.tab-stops prev-layout) (mapv second entries))
             document-width (max prev-document-width ^double appended-width)
@@ -329,7 +330,7 @@
                               (append-distinct-lines props entries)
                               (append-regioned-lines props entries)))
                           {:lines (if clear? [""] prev-lines)
-                           :regions (if clear? [] (g/node-value view-node :regions))}
+                           :regions (if clear? [] prev-regions)}
                           (partition-by #(nil? (first %)) entries))]
         (view/set-properties! view-node nil
                               (cond-> (assoc props :document-width document-width)
