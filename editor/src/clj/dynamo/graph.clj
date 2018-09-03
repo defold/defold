@@ -488,6 +488,11 @@
   (assert node-id)
   (transact (delete-node node-id)))
 
+(defn callback
+  "Call the specified function with args when reaching the transaction step"
+  [f & args]
+  (it/callback f args))
+
 (defn connect
   "Make a connection from an output of the source node to an input on the target node.
    Takes effect when a transaction is applied.

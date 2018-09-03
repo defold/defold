@@ -89,6 +89,12 @@
     :fn   f
     :args args}])
 
+(defn callback
+  [f args]
+  [{:type :callback
+    :fn f
+    :args args}])
+
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label (`from-resource from-label`) and a target node and label
 (`to-resource to-label`). It returns a value suitable for consumption by [[perform]]."
@@ -493,6 +499,10 @@
           (update :basis replace-node node-id (gt/clear-property node basis property))
           (ctx-set-property-to-nil node-id node property)))
       ctx)))
+
+(defmethod perform :callback [ctx {:keys [fn args]}]
+  (apply fn args)
+  ctx)
 
 (defn- ctx-disconnect-single [ctx target target-id target-label]
   (if (= :one (in/input-cardinality (gt/node-type target (:basis ctx)) target-label))
