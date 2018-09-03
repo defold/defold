@@ -298,15 +298,18 @@ ordinary paths."
          (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
          (try
-           (loop [listeners @(g/node-value workspace :resource-listeners)
-                  parent-progress (progress/make "" (count listeners))]
-             (when-some [listener (first listeners)]
-               (resource/handle-changes listener changes-with-moved
-                                        (progress/nest-render-progress render-progress! parent-progress))
-               (recur (next listeners)
-                      (progress/advance parent-progress))))
+           (let [listeners @(g/node-value workspace :resource-listeners)
+                 total-progress-size (transduce (map first) + 0 listeners)]
+             (loop [listeners listeners
+                    parent-progress (progress/make "" total-progress-size)]
+               (when-some [[progress-span listener] (first listeners)]
+                 (resource/handle-changes listener changes-with-moved
+                                          (progress/nest-render-progress render-progress! parent-progress progress-span))
+                 (recur (next listeners)
+                        (progress/advance parent-progress progress-span)))))
            (finally
-             (render-progress! progress/done)))))
+             (render-progress! progress/done)))
+         changes-with-moved))
      changes)))
 
 (defn fetch-and-validate-libraries [workspace library-uris render-fn]
@@ -318,8 +321,8 @@ ordinary paths."
   (set-project-dependencies! workspace library-uris)
   (library/install-validated-libraries! (project-path workspace) lib-states))
 
-(defn add-resource-listener! [workspace listener]
-  (swap! (g/node-value workspace :resource-listeners) conj listener))
+(defn add-resource-listener! [workspace progress-span listener]
+  (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
 
 (g/deftype UriVec [URI])

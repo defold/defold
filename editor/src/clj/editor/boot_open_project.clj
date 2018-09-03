@@ -184,11 +184,12 @@
         (.setVisible menu-bar-space collapse-menu-bar?)
         (.setManaged menu-bar-space collapse-menu-bar?))
 
-      (workspace/add-resource-listener! workspace (reify resource/ResourceListener
-                                                    (handle-changes [_ _ render-progress!]
-                                                      (let [open-views (g/node-value app-view :open-views)
-                                                            panes (.getItems ^SplitPane editor-tabs-split)]
-                                                        (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
+      (workspace/add-resource-listener! workspace 0
+                                        (reify resource/ResourceListener
+                                          (handle-changes [_ _ render-progress!]
+                                            (let [open-views (g/node-value app-view :open-views)
+                                                  panes (.getItems ^SplitPane editor-tabs-split)]
+                                              (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))

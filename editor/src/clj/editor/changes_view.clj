@@ -53,7 +53,7 @@
   ;; The call to resource-sync! will refresh the changes view if it detected changes,
   ;; but committing a file from the command line will not actually change the file
   ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
-  ;; the current Git state, we explicitly refresh the changes view here if the the
+  ;; the current Git state, we explicitly refresh the changes view here if the
   ;; call to resource-sync! would not have already done so.
   (when (resource-watch/empty-diff? diff)
     (refresh! changes-view render-progress!)))
@@ -127,7 +127,8 @@
                                 (fn [git]
                                   (ui/run-later
                                     (g/set-property! changes-view :unconfigured-git git))))
-        (sync/open-sync-dialog))))
+        (sync/open-sync-dialog)
+        (resource-sync-after-git-change! changes-view workspace))))
 
 (defn regular-sync! [changes-view project]
   (let [workspace (project/workspace project)
