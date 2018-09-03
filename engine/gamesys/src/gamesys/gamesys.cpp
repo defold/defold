@@ -206,7 +206,7 @@ namespace dmGameSystem
 
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
-                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, 0,
+                &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, &CompCollisionObjectGetComponent,
                 &CompCollisionObjectUpdate, 0, &CompCollisionObjectPostUpdate, &CompCollisionObjectOnMessage, 0, &CompCollisionObjectOnReload, CompCollisionObjectGetProperty, CompCollisionObjectSetProperty,
                 1);
 

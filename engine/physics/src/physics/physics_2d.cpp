@@ -424,6 +424,28 @@ namespace dmPhysics
         delete (b2HullSet*) hull_set;
     }
 
+
+    HJoint2D NewDistanceJoint2D(HWorld2D world,
+                            HCollisionObject2D a, const Vectormath::Aos::Point3& apos,
+                            HCollisionObject2D b, const Vectormath::Aos::Point3& bpos,
+                            float frequency, float damping, bool collide_connected)
+    {
+        float scale = world->m_Context->m_Scale;
+        b2Vec2 pa;
+        ToB2(apos, pa, scale);
+        b2Vec2 pb;
+        ToB2(bpos, pb, scale);
+        b2DistanceJointDef jointDef;
+        jointDef.Initialize((b2Body*)a, (b2Body*)b, pa, pb);
+        jointDef.collideConnected = collide_connected;
+        return (HJoint2D)world->m_World.CreateJoint(&jointDef);
+    }
+
+    void DeleteJoint2D(HWorld2D world, HJoint2D joint)
+    {
+        world->m_World.DestroyJoint((b2Joint*)joint);
+    }
+
     HCollisionShape2D NewGridShape2D(HContext2D context, HHullSet2D hull_set,
                                      const Vectormath::Aos::Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,

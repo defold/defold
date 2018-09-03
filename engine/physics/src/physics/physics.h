@@ -41,6 +41,8 @@ namespace dmPhysics
     typedef void* HCollisionObject2D;
     /// 2D cull-set handle
     typedef void* HHullSet2D;
+    /// 2D joint handle
+    typedef void* HJoint2D;
 
     /// Empty cell value, see SetGridShapeHull
     const uint32_t GRIDSHAPE_EMPTY_CELL = 0xffffffff;
@@ -963,7 +965,7 @@ namespace dmPhysics
         void* m_UserData;
         /// Bit field to filter out collision objects of the corresponding groups
         uint16_t m_Mask;
-        
+
         uint16_t _padding;
 
         /// User supplied id to identify this query when the response is handled
@@ -1077,6 +1079,17 @@ namespace dmPhysics
      * @param new_shape The shape to connect
      */
     void ReplaceShape2D(HContext2D context, HCollisionShape2D old_shape, HCollisionShape2D new_shape);
+
+    /**
+    */
+    HJoint2D NewDistanceJoint2D(HWorld2D world,
+                                HCollisionObject2D a, const Vectormath::Aos::Point3& apos,
+                                HCollisionObject2D b, const Vectormath::Aos::Point3& bpos,
+                                float frequency, float damping, bool collide_connected);
+
+    /**
+    */
+    void DeleteJoint2D(HWorld2D world, HJoint2D joint);
 }
 
 #endif // PHYSICS_H

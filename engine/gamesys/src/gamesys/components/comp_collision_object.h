@@ -4,6 +4,11 @@
 #include <stdint.h>
 
 #include <gameobject/gameobject.h>
+#include <physics/physics.h>
+
+namespace dmMessage {
+    struct URL;
+}
 
 namespace dmGameSystem
 {
@@ -19,6 +24,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompCollisionObjectAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
 
+    void*                       CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params);
+
     dmGameObject::UpdateResult CompCollisionObjectUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
     dmGameObject::UpdateResult CompCollisionObjectPostUpdate(const dmGameObject::ComponentsPostUpdateParams& params);
@@ -31,7 +38,12 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompCollisionObjectSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
+    // Used in the script context
     uint16_t CompCollisionGetGroupBitIndex(void* world, uint64_t group_hash);
+
+    bool                            CompCollisionIs2D(void* comp_world);
+    dmPhysics::HWorld2D             CompCollisionGetPhysicsWorld2D(void* comp_world);
+    dmPhysics::HCollisionObject2D   CompCollisionGetObject2D(void* comp_world, void* comp);
 }
 
 #endif // DM_GAMESYS_COMP_COLLISION_OBJECT_H

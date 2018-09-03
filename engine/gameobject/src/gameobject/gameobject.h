@@ -916,6 +916,10 @@ namespace dmGameObject
      */
     void GetComponentUserDataFromLua(lua_State* L, int index, HCollection collection, const char* component_ext, uintptr_t* out_user_data, dmMessage::URL* out_url, void** world);
 
+    /** Returns a component and its type index
+    */
+    void* GetComponentFromInstance(HInstance instance, dmhash_t fragment, uint32_t* type_index);
+
     /**
      * Gets a component given an URL
      * @param url the url to the object

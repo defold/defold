@@ -22,6 +22,8 @@ extern "C"
 }
 
 #define PHYSICS_CONTEXT_NAME "__PhysicsContext"
+#define PHYSICS_SCRIPT_MODULE_NAME "physics"
+#define PHYSICS_JOINT_TYPE_NAME "physicsjoint"
 
 namespace dmGameSystem
 {
@@ -196,7 +198,7 @@ namespace dmGameSystem
      * end
      * ```
      */
-    int Physics_RayCast(lua_State* L)
+    static int Physics_RayCast(lua_State* L)
     {
         int top = lua_gettop(L);
 
@@ -243,16 +245,210 @@ namespace dmGameSystem
         return 0;
     }
 
+    // LUA JOINT TYPE
+
+    struct LuaPhysicsJoint
+    {
+        union {
+            dmPhysics::HWorld2D m_World2D;
+        };
+        union {
+            dmPhysics::HJoint2D m_Joint2D;
+        };
+        bool    m_Is2D;
+    };
+
+    bool IsPhysicsJoint(lua_State* L, int index)
+    {
+        int top = lua_gettop(L);
+        void *p = lua_touserdata(L, index);
+        bool result = false;
+        if (p != 0x0)
+        {  /* value is a userdata? */
+            if (lua_getmetatable(L, index))
+            {  /* does it have a metatable? */
+                lua_getfield(L, LUA_REGISTRYINDEX, PHYSICS_JOINT_TYPE_NAME);  /* get correct metatable */
+                if (lua_rawequal(L, -1, -2))
+                {  /* does it have the correct mt? */
+                    result = true;
+                }
+                lua_pop(L, 2);  /* remove both metatables */
+            }
+        }
+        assert(top == lua_gettop(L));
+        return result;
+    }
+
+    void PushJoint2D(lua_State* L, dmPhysics::HWorld2D world, dmPhysics::HJoint2D joint)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        LuaPhysicsJoint* obj = (LuaPhysicsJoint*)lua_newuserdata(L, sizeof(LuaPhysicsJoint));
+        obj->m_World2D = world;
+        obj->m_Joint2D = joint;
+        luaL_getmetatable(L, PHYSICS_JOINT_TYPE_NAME);
+        lua_setmetatable(L, -2);
+    }
+
+    static LuaPhysicsJoint* CheckJoint2DNoError(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TUSERDATA) {
+            return (LuaPhysicsJoint*)luaL_checkudata(L, index, PHYSICS_JOINT_TYPE_NAME);
+        }
+        return 0x0;
+    }
+
+    LuaPhysicsJoint* CheckPhysicsJoint(lua_State* L, int index)
+    {
+        if (lua_type(L, index) == LUA_TUSERDATA) {
+            return (LuaPhysicsJoint*)luaL_checkudata(L, index, PHYSICS_JOINT_TYPE_NAME);
+        }
+        luaL_typerror(L, index, PHYSICS_JOINT_TYPE_NAME);
+        return 0x0;
+    }
+
+
+
+    static int PhysicsJoint_gc(lua_State *L)
+    {
+        LuaPhysicsJoint* joint = CheckJoint2DNoError(L, 1);
+        if( joint ) {
+            dmPhysics::DeleteJoint2D(joint->m_World2D, joint->m_Joint2D);
+        }
+        return 0;
+    }
+
+    static int PhysicsJoint_tostring(lua_State *L)
+    {
+        lua_pushfstring(L, "%s.%s ", PHYSICS_SCRIPT_MODULE_NAME, PHYSICS_JOINT_TYPE_NAME); // TODO: print the names of instances+objects it connects
+        return 1;
+    }
+
+    static const luaL_reg PhysicsJoint_methods[] =
+    {
+        {0,0}
+    };
+    static const luaL_reg PhysicsJoint_meta[] =
+    {
+        {"__gc",        PhysicsJoint_gc},
+        {"__tostring",  PhysicsJoint_tostring},
+        {0,0}
+    };
+
+
+    enum PhysicsJointType
+    {
+        JOINT_TYPE_DISTANCE = 0,
+    };
+
+    /**
+    * ```
+    * local joint = physics.create_joint(physics.JOINT_TYPE_DISTANCE, "#objectA", pos_a, "#objectB", pos_b, {...joint properties...} )
+    * ```
+    */
+    static int Physics_CreateJoint(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+
+        int type = luaL_checkinteger(L, 1);
+        // dmMessage::URL* urla = dmScript::CheckURL(L, 2);
+        // dmMessage::URL* urlb = dmScript::CheckURL(L, 4);
+
+        dmMessage::URL urla;
+        dmScript::ResolveURL(L, 2, &urla, 0);
+        dmMessage::URL urlb;
+        dmScript::ResolveURL(L, 4, &urlb, 0);
+
+        Vectormath::Aos::Point3 apos = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 3));
+        Vectormath::Aos::Point3 bpos = Vectormath::Aos::Point3(*dmScript::CheckVector3(L, 5));
+
+        lua_getglobal(L, PHYSICS_CONTEXT_NAME);
+        PhysicsScriptContext* context = (PhysicsScriptContext*)lua_touserdata(L, -1);
+        lua_pop(L, 1);
+
+        dmGameObject::HInstance instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
+        dmGameObject::HInstance instance_a = dmGameObject::GetInstanceFromIdentifier(collection, urla.m_Path);
+        dmGameObject::HInstance instance_b = dmGameObject::GetInstanceFromIdentifier(collection, urlb.m_Path);
+
+        uint32_t type_index_a;
+        void* comp_a = dmGameObject::GetComponentFromInstance(instance_a, urla.m_Fragment, &type_index_a);
+        uint32_t type_index_b;
+        void* comp_b = dmGameObject::GetComponentFromInstance(instance_b, urlb.m_Fragment, &type_index_b);
+
+        // Now check that both components are collision objects
+        if (type_index_a != context->m_ComponentIndex) {
+            return DM_LUA_ERROR("Url %s.%s is not a collision object", dmHashReverseSafe64(urla.m_Path), dmHashReverseSafe64(urla.m_Fragment));
+        }
+        if (type_index_b != context->m_ComponentIndex) {
+            return DM_LUA_ERROR("Url %s.%s is not a collision object", dmHashReverseSafe64(urlb.m_Path), dmHashReverseSafe64(urlb.m_Fragment));
+        }
+
+        void* comp_world = dmGameObject::GetWorld(collection, context->m_ComponentIndex);
+        bool is2D = CompCollisionIs2D(comp_world);
+        if (!is2D) {
+            return DM_LUA_ERROR("physics.create_joint() is currently only supported with 2D physics");
+        }
+
+        dmPhysics::HWorld2D world = CompCollisionGetPhysicsWorld2D(comp_world);
+        dmPhysics::HCollisionObject2D obja = CompCollisionGetObject2D(comp_world, comp_a);
+        dmPhysics::HCollisionObject2D objb = CompCollisionGetObject2D(comp_world, comp_b);
+
+        dmPhysics::HJoint2D joint = 0;
+        if (type == JOINT_TYPE_DISTANCE) {
+
+            float frequency = luaL_checknumber(L, 6);
+            float damping = luaL_checknumber(L, 7);
+            if (damping < 0.0f || damping > 1.0f ) {
+                return DM_LUA_ERROR("damping must be between 0 and 1");
+            }
+            bool collide_connected = lua_isnil(L, 8) ? true : luaL_checkinteger(L, 8) != 0;
+
+            joint = dmPhysics::NewDistanceJoint2D(world, obja, apos, objb, bpos, frequency, damping, collide_connected);
+        }
+
+        if (!joint) {
+            lua_pushnil(L);
+        } else {
+            PushJoint2D(L, world, joint);
+        }
+
+        return 1;
+    }
+
     static const luaL_reg PHYSICS_FUNCTIONS[] =
     {
-        {"ray_cast",            Physics_RayCast},
+        {"ray_cast",        Physics_RayCast},
+        {"create_joint",    Physics_CreateJoint},
         {0, 0}
     };
 
     void ScriptPhysicsRegister(const ScriptLibContext& context)
     {
         lua_State* L = context.m_LuaState;
-        luaL_register(L, "physics", PHYSICS_FUNCTIONS);
+        luaL_register(L, PHYSICS_SCRIPT_MODULE_NAME, PHYSICS_FUNCTIONS);
+
+#define SETCONSTANT(name) \
+        lua_pushnumber(L, (lua_Number) name); \
+        lua_setfield(L, -2, #name);\
+
+        SETCONSTANT(JOINT_TYPE_DISTANCE)
+
+#undef SETCONSTANT
+
+        // create methods table, add it to the globals
+        luaL_register(L, PHYSICS_JOINT_TYPE_NAME, PhysicsJoint_methods);
+        int methods_index = lua_gettop(L);
+        // create metatable for the type, add it to the Lua registry
+        luaL_newmetatable(L, PHYSICS_JOINT_TYPE_NAME);
+        int metatable = lua_gettop(L);
+        // fill metatable
+        luaL_register(L, 0, PhysicsJoint_meta);
+
+        lua_pushliteral(L, "__metatable");
+        lua_pushvalue(L, methods_index);// dup methods table
+        lua_settable(L, metatable);
+        lua_pop(L, 2);
+
         lua_pop(L, 1);
 
         bool result = true;

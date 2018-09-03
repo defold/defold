@@ -689,6 +689,15 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        CollisionWorld* world = (CollisionWorld*)params.m_World;
+        CollisionComponent* component = (CollisionComponent*)*params.m_UserData;
+        return component;
+        // uint32_t index = (uint32_t)*params.m_UserData;
+        // return &world->m_Components.Get(index);
+    }
+
     // This function will dispatch on the (global) physics socket, and will potentially handle messages belonging to other collections
     // than the current one being updated.
     //
@@ -1011,4 +1020,21 @@ namespace dmGameSystem
     {
         return GetGroupBitIndex((CollisionWorld*)world, group_hash);
     }
+
+    bool CompCollisionIs2D(void* comp_world)
+    {
+        return !((CollisionWorld*)comp_world)->m_3D;
+    }
+
+    dmPhysics::HWorld2D CompCollisionGetPhysicsWorld2D(void* comp_world)
+    {
+        return ((CollisionWorld*)comp_world)->m_World2D;
+    }
+
+    dmPhysics::HCollisionObject2D CompCollisionGetObject2D(void* comp_world, void* comp)
+    {
+        return ((CollisionComponent*)comp)->m_Object2D;
+    }
+    // component->m_Object2D
+
 }
