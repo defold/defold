@@ -309,11 +309,13 @@ public class IOSBundler implements IBundler {
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
         // Copy Provisioning Profile
-        File provisioningProfileFile = new File(provisioningProfile);
-        if (!provisioningProfileFile.exists()) {
-            throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
+        if (!simulatorBinary) {
+            File provisioningProfileFile = new File(provisioningProfile);
+            if (!provisioningProfileFile.exists()) {
+                throw new IOException(String.format("You must specify a valid provisioning profile '%s'", provisioningProfile.length() == 0 ? "" : provisioningProfileFile.getAbsolutePath()));
+            }
+            FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
         }
-        FileUtils.copyFile(provisioningProfileFile, new File(appDir, "embedded.mobileprovision"));
 
         // Create fat/universal binary
         File tmpFile = File.createTempFile("dmengine", "");
@@ -354,7 +356,7 @@ public class IOSBundler implements IBundler {
 
         // Sign (only if identity and provisioning profile set)
         // iOS simulator can install non signed apps
-        if (identity != null && provisioningProfile != null && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
+        if (!simulatorBinary && identity != null && provisioningProfile != null && !identity.isEmpty() && !provisioningProfile.isEmpty()) {
             // Copy Provisioning Profile
             FileUtils.copyFile(new File(provisioningProfile), new File(appDir, "embedded.mobileprovision"));
 
