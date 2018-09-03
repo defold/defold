@@ -100,10 +100,22 @@
                     (distinct))
               (root-causes-helper (queue (pair error-value (list)))))))
 
+(defn severity->int [severity]
+  (case severity
+    :info 2
+    :warning 1
+    :fatal 0
+    0))
+
+(defn error-pair->sort-value [[parent errors]]
+  [(reduce min 1000 (map (comp severity->int :severity) errors))
+   (resource/resource->proj-path (:resource parent))])
+
 (defn- error-items [root-error]
   (->> (root-causes root-error)
+       (sort-by :line)
        (group-by :parent)
-       (sort-by (comp resource/resource->proj-path :resource key))
+       (sort-by error-pair->sort-value)
        (mapv (fn [[resource errors]]
                (if resource
                  {:type :resource
