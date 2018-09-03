@@ -24,7 +24,7 @@ EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
 DARWIN_TOOLCHAIN_ROOT=os.path.join(os.environ['DYNAMO_HOME'], 'ext', 'SDKs','XcodeDefault.xctoolchain')
 IOS_SDK_VERSION="11.2"
-IOS_SIMULATOR_SDK_VERSION="11.4"
+IOS_SIMULATOR_SDK_VERSION="11.2"
 # NOTE: Minimum iOS-version is also specified in Info.plist-files
 # (MinimumOSVersion and perhaps DTPlatformVersion)
 # Need 5.1 as minimum for fat/universal binaries (armv7 + arm64) to work
