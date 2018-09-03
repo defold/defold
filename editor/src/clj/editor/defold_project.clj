@@ -701,7 +701,7 @@
                             (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
                             (g/set-graph-value graph :project-id project)))))]
-    (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
+    (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
 (defn- read-dependencies [game-project-resource]
