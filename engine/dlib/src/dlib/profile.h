@@ -2,17 +2,7 @@
 #define DM_PROFILE_H
 
 #include <stdint.h>
-#if defined(_WIN32)
-#include "safe_windows.h"
-#elif  defined(__EMSCRIPTEN__)
-#include <emscripten.h>
-#else
-#include <sys/time.h>
-#endif
-#include <dlib/array.h>
-#include <dlib/log.h>
 #include <dlib/atomic.h>
-#include <dlib/dlib.h>
 
 #define DM_PROFILE_PASTE(x, y) x ## y
 #define DM_PROFILE_PASTE2(x, y) DM_PROFILE_PASTE(x, y)
@@ -28,25 +18,15 @@
 
 /**
  * Profile counter macro
- * name is the counter name
+ * name is the counter name - must be a static string constant or an internalized string
  * amount is the amount (integer) to add to the specific counter.
  */
 #define DM_COUNTER(name, amount)
 #undef DM_COUNTER
 
-/**
- * Profile counter macro. Fast version of #DM_COUNTER
- * name is the counter name
- * name_hash is the prehashed name
- * amount is the amount (integer) to add to the specific counter.
- */
-#define DM_COUNTER_HASH(name, name_hash, amount)
-#undef DM_COUNTER_HASH
-
 #if defined(NDEBUG)
     #define DM_PROFILE(scope_name, name)
     #define DM_COUNTER(name, amount)
-    #define DM_COUNTER_HASH(name, name_hash, amount)
 #else
     #define DM_PROFILE(scope_name, name) \
         static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
@@ -59,9 +39,6 @@
 
     #define DM_COUNTER(name, amount) \
     dmProfile::AddCounter(name, amount);
-
-    #define DM_COUNTER_HASH(name, name_hash, amount) \
-    dmProfile::AddCounterHash(name, name_hash, amount);
 
 #endif
 
@@ -249,19 +226,11 @@ namespace dmProfile
     const char* Internalize(const char* string);
 
     /**
-     * Add #amount to counter with #name
-     * @param name Counter name
+     * Add #amount to counter with #name.
+     * @param name Counter name - must be a static string constant or an internalized string
      * @param amount Amount to add
      */
     void AddCounter(const char* name, uint32_t amount);
-
-    /**
-     * Add #amount to counter with prehashed name. Faster version of #AddCounter
-     * @param name Counter name
-     * @param name Counter name hash
-     * @param amount Amount to add
-     */
-    void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount);
 
     /**
      * Get time for the frame total
@@ -288,9 +257,6 @@ namespace dmProfile
     bool IsOutOfSamples();
 
     /// Internal, do not use.
-    extern uint32_t g_BeginTime;
-
-    /// Internal, do not use.
     extern bool g_IsInitialized;
 
     /// Internal, do not use.
@@ -304,22 +270,7 @@ namespace dmProfile
                 m_Sample = 0;
                 return;
             }
-
-            uint64_t start;
-#if defined(_WIN32)
-            QueryPerformanceCounter((LARGE_INTEGER *)&start);
-#elif defined(__EMSCRIPTEN__)
-            start = (uint64_t)(emscripten_get_now() * 1000.0);
-#else
-            timeval tv;
-            gettimeofday(&tv, 0);
-            start = tv.tv_sec * 1000000 + tv.tv_usec;
-#endif
-            Sample*s = AllocateSample();
-            s->m_Name = name;
-            s->m_Scope = scope;
-            s->m_Start = (uint32_t)(start - g_BeginTime);
-            m_Sample = s;
+            StartScope(scope, name);
         }
 
         inline ~ProfileScope()
@@ -328,21 +279,11 @@ namespace dmProfile
             {
                 return;
             }
-
-            uint64_t end;
-#if defined(_WIN32)
-            QueryPerformanceCounter((LARGE_INTEGER *) &end);
-#elif defined(__EMSCRIPTEN__)
-            end = (uint64_t)(emscripten_get_now() * 1000.0);
-#else
-            timeval tv;
-            gettimeofday(&tv, 0);
-            end = tv.tv_sec * 1000000 + tv.tv_usec;
-#endif
-            m_Sample->m_Elapsed = (uint32_t)(end - g_BeginTime) - m_Sample->m_Start;
+            EndScope();
         }
+        void StartScope(Scope* scope, const char* name);
+        void EndScope();
     };
-
 }
 
 #endif
