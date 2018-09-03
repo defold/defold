@@ -19,6 +19,15 @@ namespace dmProfileRender
     typedef uint16_t TIndex;
     typedef uint32_t TNameHash;
 
+    static TNameHash MixNameHash(TNameHash scope_hash, TNameHash sample_hash)
+    {
+        TNameHash hash = scope_hash ^ (sample_hash + 0x9e3779b9 + (scope_hash << 6) + (scope_hash >> 2));
+        return hash;
+    }
+
+    static const TNameHash FRAME_WAIT_SCOPE_NAME_HASH = MixNameHash(dmProfile::GetNameHash("VSync"), dmProfile::GetNameHash("Wait"));
+    static const TNameHash FRAME_SCOPE_NAME_HASH = MixNameHash(dmProfile::GetNameHash("Engine"), dmProfile::GetNameHash("Frame"));
+
     static TNameHash GetScopeHash(const dmProfile::Scope* scope)
     {
         return scope->m_NameHash;
@@ -26,14 +35,9 @@ namespace dmProfileRender
 
     static TNameHash GetSampleHash(const dmProfile::Sample* sample)
     {
-        HashState32 hash_state;
-        dmHashInit32(&hash_state, false);
-        dmHashUpdateBuffer32(&hash_state, sample->m_Name, strlen(sample->m_Name));
-        TNameHash sample_hash = dmHashFinal32(&hash_state);
+        TNameHash sample_hash = sample->m_NameHash;
         TNameHash scope_hash = GetScopeHash(sample->m_Scope);
-
-        TNameHash hash = scope_hash ^ (sample_hash + 0x9e3779b9 + (scope_hash << 6) + (scope_hash >> 2));
-        return hash;
+        return MixNameHash(scope_hash, sample_hash);
     }
 
     static TNameHash GetCounterHash(const dmProfile::Counter* counter)
@@ -660,7 +664,7 @@ namespace dmProfileRender
             counter->m_NameHash = name_hash;
             counter->m_Count = 0u;
             CounterStats* counter_stats = &render_profile->m_CounterStats[new_index];
-            counter_stats->m_LastSeenTick = render_profile->m_NowTick;
+            counter_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
         }
         uint32_t index = *index_ptr;
         Counter* counter = &frame->m_Counters[index];
@@ -765,9 +769,6 @@ namespace dmProfileRender
         render_profile->m_CounterOverflow = 0;
         render_profile->m_SampleOverflow = 0;
     }
-
-    static const TNameHash FRAME_WAIT_SCOPE_NAME_HASH = 3155412768u;
-    static const TNameHash FRAME_SCOPE_NAME_HASH = 3881933696u;
 
     static uint32_t GetWaitTicks(HRenderProfile render_profile)
     {
@@ -1193,7 +1194,7 @@ namespace dmProfileRender
         return Area(Position(0,0), Size(0,0));
     }
 
-    static const int COUNTERS_NAME_WIDTH(int font_width) { return (12 * font_width); }
+    static const int COUNTERS_NAME_WIDTH(int font_width) { return (13 * font_width); }
     static const int COUNTERS_COUNT_WIDTH(int font_width) { return (12 * font_width); }
 
     static Area GetCountersArea(DisplayMode display_mode, int font_width, const Area& details_area, int scopes_count, int counters_count)
@@ -1402,7 +1403,7 @@ namespace dmProfileRender
         const Area samples_area = GetSamplesArea(display_mode, font_width, details_area, scopes_area, counters_area);
         const Area sample_frames_area = GetSampleFramesArea(display_mode, font_width, samples_area);
 
-        FillArea(render_context, profiler_area, Vector4(0.1f, 0.1f, 0.1f, 0.5f));
+        FillArea(render_context, profiler_area, Vector4(0.1f, 0.1f, 0.1f, 0.6f));
         FillArea(render_context, sample_frames_area, Vector4(0.15f, 0.15f, 0.15f, 0.2f));
 
         char buffer[256];

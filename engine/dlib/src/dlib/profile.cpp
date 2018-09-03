@@ -421,7 +421,7 @@ namespace dmProfile
         {
             // NOTE: Not optimal with O(n) but scopes are allocated only once
             uint32_t n = g_Scopes.Size();
-            uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
+            uint32_t name_hash = GetNameHash(name);
             for (uint32_t i = 0; i < n; ++i)
             {
                 if (g_Scopes[i].m_NameHash == name_hash)
@@ -512,12 +512,8 @@ namespace dmProfile
 
     void AddCounter(const char* name, uint32_t amount)
     {
-        // dmProfile::Initialize allocates memory. If memprofile is activated this function is called from overloaded malloc while g_CountersTable is being created. No good!
-        if (!g_IsInitialized)
-        {
-            return;
-        }
-        AddCounterHash(name, HashCounterName(name), amount);
+        uint32_t name_hash = GetNameHash(name);
+        AddCounterHash(name, name_hash, amount);
     }
 
     void AddCounterHash(const char* name, uint32_t name_hash, uint32_t amount)
@@ -642,6 +638,11 @@ namespace dmProfile
        return (uint32_t)(now - g_BeginTime);
     }
 
+    uint32_t GetNameHash(const char* name)
+    {
+        return dmHashBufferNoReverse32(name, strlen(name));
+    }
+
     uint64_t GetNowTicks()
     {
         uint64_t now;
@@ -657,11 +658,12 @@ namespace dmProfile
         return now;
     }
 
-    void ProfileScope::StartScope(Scope* scope, const char* name)
+    void ProfileScope::StartScope(Scope* scope, const char* name, uint32_t name_hash)
     {
         uint64_t start = GetNowTicks();
         Sample*s = AllocateSample();
         s->m_Name = name;
+        s->m_NameHash= name_hash;
         s->m_Scope = scope;
         s->m_Start = (uint32_t)(start - g_BeginTime);
         m_Sample = s;

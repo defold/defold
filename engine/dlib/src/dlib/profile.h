@@ -55,14 +55,6 @@
 #define DM_COUNTER(name, amount)
 #undef DM_COUNTER
 
-/**
- * Profile counter macro for non-literal strings, performance penalty compared to DM_COUNTER
- * name is the counter name.
- * amount is the amount (integer) to add to the specific counter.
- */
-#define DM_COUNTER_DYN(name, amount)
-#undef DM_COUNTER_DYN
-
 #if defined(NDEBUG)
     #define DM_INTERNALIZE(name) 0
     #define DM_PROFILE_SCOPE(scope_instance_name, name)
@@ -70,7 +62,6 @@
     #define DM_PROFILE(scope_name, name)
     #define DM_PROFILE_SCOPE_FMT(scope, fmt, ...)
     #define DM_COUNTER(name, amount)
-    #define DM_COUNTER_DYN(name, amount)
 #else
     #define DM_INTERNALIZE(name) \
         (dmProfile::g_IsInitialized ? dmProfile::Internalize(name) : 0)
@@ -83,7 +74,14 @@
         DM_PROFILE_SCOPE(scope_instance_name, name)
 
     #define DM_PROFILE(scope_name, name) \
-        DM_NAMED_PROFILE(DM_PROFILE_PASTE2(scope, __LINE__), scope_name, name)
+        static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
+        static uint32_t DM_PROFILE_PASTE2(sample, __LINE__) = 0; \
+        if (dmProfile::g_IsInitialized && DM_PROFILE_PASTE2(scope, __LINE__) == 0) \
+        {\
+            DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::AllocateScope(#scope_name);\
+            DM_PROFILE_PASTE2(sample, __LINE__) = dmProfile::GetNameHash(name); \
+        }\
+        dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(DM_PROFILE_PASTE2(scope, __LINE__), name, DM_PROFILE_PASTE2(sample, __LINE__));\
 
     #define DM_PROFILE_SCOPE_FMT(scope, fmt, ...) \
         const char* DM_PROFILE_PASTE2(name, __LINE__) = 0; \
@@ -95,16 +93,8 @@
         DM_PROFILE_SCOPE(scope, DM_PROFILE_PASTE2(name, __LINE__))
 
     #define DM_COUNTER(name, amount) \
-        if (dmProfile::g_IsInitialized) { \
-            static const uint32_t DM_PROFILE_PASTE2(hash, __LINE__) = dmProfile::HashCounterName(name); \
-            dmProfile::AddCounterHash(name, DM_PROFILE_PASTE2(hash, __LINE__), amount); \
-        }
-
-    #define DM_COUNTER_DYN(name, amount) \
-        if (dmProfile::g_IsInitialized) { \
-            dmProfile::AddCounterHash(name, dmProfile::HashCounterName(name), amount); \
-        }
-
+    static uint32_t DM_PROFILE_PASTE2(counter, __LINE__) = dmProfile::GetNameHash(name); \
+    dmProfile::AddCounterHash(name, DM_PROFILE_PASTE2(counter, __LINE__), amount);
 #endif
 
 namespace dmProfile
@@ -159,7 +149,7 @@ namespace dmProfile
         uint16_t    m_ThreadId;
         /// Padding to 64-bit align
         uint16_t    m_Pad;
-        uint32_t    m_Pad2;
+        uint32_t    m_NameHash;
     };
 
     /**
@@ -338,8 +328,7 @@ namespace dmProfile
      */
     bool IsOutOfSamples();
 
-    /// Internal, do not use.
-    extern uint32_t g_BeginTime;
+    uint32_t GetNameHash(const char* name);
 
     /// Internal, do not use.
     extern bool g_IsInitialized;
@@ -350,14 +339,14 @@ namespace dmProfile
     struct ProfileScope
     {
         Sample*     m_Sample;
-        inline ProfileScope(Scope* scope, const char* name)
+        inline ProfileScope(Scope* scope, const char* name, uint32_t name_hash)
         {
             if (!g_IsInitialized)
             {
                 m_Sample = 0;
                 return;
             }
-            StartScope(scope, name);
+            StartScope(scope, name, name_hash);
         }
 
         inline ~ProfileScope()
@@ -367,7 +356,7 @@ namespace dmProfile
                 EndScope();
             }
         }
-        void StartScope(Scope* scope, const char* name);
+        void StartScope(Scope* scope, const char* name, uint32_t name_hash);
         void EndScope();
     };
 
