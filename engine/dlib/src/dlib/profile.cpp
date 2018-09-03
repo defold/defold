@@ -647,7 +647,7 @@ namespace dmProfile
     {
         uint64_t now;
 #if defined(_WIN32)
-        QueryPerformanceCounter((LARGE_INTEGER *) &end);
+        QueryPerformanceCounter((LARGE_INTEGER *) &now);
 #elif defined(__EMSCRIPTEN__)
         now = (uint64_t)(emscripten_get_now() * 1000.0);
 #else
