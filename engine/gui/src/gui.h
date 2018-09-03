@@ -93,8 +93,8 @@ namespace dmGui
             {
                 uint64_t m_Start : 13;
                 uint64_t m_End : 13;
-                uint64_t m_TextureWidth : 13;
-                uint64_t m_TextureHeight : 13;
+                uint64_t m_OriginalTextureWidth : 13;
+                uint64_t m_OriginalTextureHeight : 13;
                 uint64_t m_FPS : 8;
                 uint64_t m_Playback : 4;
             };
@@ -544,11 +544,11 @@ namespace dmGui
      * @param texture_name Name of the texture that will be used in the gui scripts
      * @param texture The texture to add
      * @param textureset The textureset to add if animation is used, otherwise zero. If set, texture parameter is expected to be equal to textureset texture.
-     * @param width With of the texture
-     * @param height Height of the texture
+     * @param original_width Original With of the texture
+     * @param original_height Original Height of the texture
      * @return Outcome of the operation
      */
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t width, uint32_t height);
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t original_width, uint32_t original_height);
 
     /**
      * Removes a texture with the specified name from the scene.
