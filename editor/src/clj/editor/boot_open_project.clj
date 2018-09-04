@@ -12,6 +12,7 @@
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
+            [editor.disk :as disk]
             [editor.form-view :as form-view]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -74,10 +75,17 @@
     (workspace/resource-sync! workspace)
     workspace))
 
+(defn- async-reload!
+  ([workspace changes-view]
+   (async-reload! workspace changes-view []))
+  ([workspace changes-view moved-files]
+   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)]
+     (disk/async-reload! render-reload-progress! workspace moved-files changes-view))))
+
 (defn- handle-application-focused! [workspace changes-view]
   (app-view/clear-build-launch-progress!)
   (when-not (sync/sync-dialog-open?)
-    (app-view/async-reload! workspace changes-view [])))
+    (async-reload! workspace changes-view)))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
@@ -101,14 +109,15 @@
                       (ui/event-handler event
                         (when (dialogs/make-pending-update-dialog stage)
                           (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                            (ui/disable-ui!)
-                            (app-view/async-save! project nil ; Use nil for changes-view to skip refresh.
-                                                  (fn [successful?]
-                                                    (if successful?
-                                                      (updater/restart!)
-                                                      (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)]
-                                                        (ui/enable-ui!)
-                                                        (changes-view/refresh! changes-view render-reload-progress!)))))))))
+                            (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
+                                  render-save-progress! (app-view/make-render-task-progress :save-all)]
+                              (ui/disable-ui!)
+                              (disk/async-save! render-reload-progress! render-save-progress! project nil ; Use nil for changes-view to skip refresh.
+                                                (fn [successful?]
+                                                  (if successful?
+                                                    (updater/restart!)
+                                                    (do (ui/enable-ui!)
+                                                        (changes-view/refresh! changes-view render-reload-progress!))))))))))
   (install-pending-update-check-timer! stage label update-context))
 
 (defn- show-tracked-internal-files-warning! []
@@ -157,7 +166,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs app-view/async-reload!
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload! disk/available-property
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
@@ -259,7 +268,7 @@
                                                     :pref-width Region/USE_COMPUTED_SIZE})
                 ;; User chose to cancel sync.
                 (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                    (app-view/async-reload! workspace changes-view []))
+                    (async-reload! workspace changes-view))
 
                 ;; User chose to resume sync.
                 (if-not (login/login prefs)
@@ -267,7 +276,7 @@
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
                     (sync/open-sync-dialog flow)
-                    (app-view/async-reload! workspace changes-view []))))))
+                    (async-reload! workspace changes-view))))))
 
           ;; A sync was not in progress.
           (do

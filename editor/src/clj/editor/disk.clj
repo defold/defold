@@ -6,7 +6,8 @@
             [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
-            [editor.workspace :as workspace]))
+            [editor.workspace :as workspace])
+  (:import (javafx.beans.property SimpleBooleanProperty)))
 
 (set! *warn-on-reflection* true)
 
@@ -146,9 +147,24 @@
    (async-job! callback! save-job-atom start-save-job! render-reload-progress! render-save-progress! project changes-view)))
 
 ;; -----------------------------------------------------------------------------
-;; General
+;; Disk availability
 ;; -----------------------------------------------------------------------------
 
 (defn available? []
   (and (nil? @save-job-atom)
        (nil? @reload-job-atom)))
+
+;; WARNING:
+;; Observing or binding to an observable that lives longer than the observer will
+;; cause a memory leak. You must manually unhook them or use weak listeners.
+;; Source: https://community.oracle.com/message/10360893#10360893
+(defonce ^SimpleBooleanProperty available-property (SimpleBooleanProperty. true))
+
+(defn- disk-job-atom-changed [_key _job-atom _old-job _new-job]
+  (ui/run-later
+    (.set available-property (and (nil? @save-job-atom)
+                                  (nil? @reload-job-atom)))))
+
+(add-watch save-job-atom ::disk-available-watch disk-job-atom-changed)
+(add-watch reload-job-atom ::disk-available-watch disk-job-atom-changed)
+
