@@ -497,7 +497,7 @@ namespace dmProfileRender
         delete render_profile;
     }
 
-    static void AddScope(RenderProfile* render_profile, const char* name, TNameHash name_hash, uint32_t elapsed, uint32_t count)
+    static void AddScope(RenderProfile* render_profile, TNameHash name_hash, uint32_t elapsed, uint32_t count)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
         TIndex* index_ptr = render_profile->m_ScopeLookup.Get(name_hash);
@@ -551,7 +551,7 @@ namespace dmProfileRender
         }
     }
 
-    static void AddSample(RenderProfile* render_profile, const char* sample_name, TNameHash sample_name_hash, TNameHash scope_name_hash, uint32_t start_tick, uint32_t elapsed)
+    static void AddSample(RenderProfile* render_profile, TNameHash sample_name_hash, TNameHash scope_name_hash, uint32_t start_tick, uint32_t elapsed)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
         TNameHash sample_sum_hash = GetSampleSumHash(scope_name_hash, sample_name_hash);
@@ -637,7 +637,7 @@ namespace dmProfileRender
         }
     }
 
-    static void AddCounter(RenderProfile* render_profile, const char* name, TNameHash name_hash, uint32_t count)
+    static void AddCounter(RenderProfile* render_profile, TNameHash name_hash, uint32_t count)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
         TIndex* index_ptr = render_profile->m_CounterLookup.Get(name_hash);
@@ -713,7 +713,7 @@ namespace dmProfileRender
             render_profile->m_ScopeOverflow = 1;
             return;
         }
-        AddScope(render_profile, scope->m_Name, scope->m_NameHash, scope_data->m_Elapsed, scope_data->m_Count);
+        AddScope(render_profile, scope->m_NameHash, scope_data->m_Elapsed, scope_data->m_Count);
     }
 
     static void BuildSampleSum(void* context, const dmProfile::Sample* sample)
@@ -728,7 +728,7 @@ namespace dmProfileRender
             render_profile->m_SampleSumOverflow = 1;
             return;
         }
-        AddSample(render_profile, sample->m_Name, sample->m_NameHash, sample->m_Scope->m_NameHash, sample->m_Start, sample->m_Elapsed);
+        AddSample(render_profile, sample->m_NameHash, sample->m_Scope->m_NameHash, sample->m_Start, sample->m_Elapsed);
     }
 
     static void BuildCounter(void* context, const dmProfile::CounterData* counter_data)
@@ -744,7 +744,7 @@ namespace dmProfileRender
             render_profile->m_CounterOverflow = 1;
             return;
         }
-        AddCounter(render_profile, counter->m_Name, counter->m_NameHash, counter_data->m_Value);
+        AddCounter(render_profile, counter->m_NameHash, counter_data->m_Value);
     }
 
     static void ResetStructure(RenderProfile* render_profile)
@@ -1127,9 +1127,22 @@ namespace dmProfileRender
     }
 
     static const int CHAR_HEIGHT = 16;
+    static const int CHAR_WIDTH = 8;
     static const int CHAR_BORDER = 1;
     static const int LINE_SPACING = CHAR_HEIGHT + CHAR_BORDER * 2;
     static const int BORDER_SIZE = 8;
+
+    static const int SCOPES_NAME_WIDTH = 15 * CHAR_WIDTH;
+    static const int SCOPES_TIME_WIDTH = 6 * CHAR_WIDTH;
+    static const int SCOPES_COUNT_WIDTH = 3 * CHAR_WIDTH;
+
+    static const int SAMPLE_FRAMES_NAME_LENGTH = 32;
+    static const int SAMPLE_FRAMES_NAME_WIDTH = SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
+    static const int SAMPLE_FRAMES_TIME_WIDTH = 6 * CHAR_WIDTH;
+    static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHAR_WIDTH;
+
+    static const int COUNTERS_NAME_WIDTH = 13 * CHAR_WIDTH;
+    static const int COUNTERS_COUNT_WIDTH = 12 * CHAR_WIDTH;
 
     enum DisplayMode
     {
@@ -1195,15 +1208,11 @@ namespace dmProfileRender
         return Area(p, s);
     }
 
-    static const int SCOPES_NAME_WIDTH(int font_width) { return (15 * font_width); }
-    static const int SCOPES_TIME_WIDTH(int font_width) { return (6 * font_width); }
-    static const int SCOPES_COUNT_WIDTH(int font_width) { return (3 * font_width); }
-
-    static Area GetScopesArea(DisplayMode display_mode, int font_width, const Area& details_area, int scopes_count, int counters_count)
+    static Area GetScopesArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count)
     {
         const int count = dmMath::Max(scopes_count, counters_count);
 
-        Size s(SCOPES_NAME_WIDTH(font_width) + font_width + SCOPES_TIME_WIDTH(font_width) + font_width + SCOPES_COUNT_WIDTH(font_width), LINE_SPACING * (1 + count));
+        Size s(SCOPES_NAME_WIDTH + CHAR_WIDTH + SCOPES_TIME_WIDTH + CHAR_WIDTH + SCOPES_COUNT_WIDTH, LINE_SPACING * (1 + count));
         if (display_mode == DISPLAYMODE_LANDSCAPE)
         {
             Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
@@ -1217,27 +1226,24 @@ namespace dmProfileRender
         return Area(Position(0,0), Size(0,0));
     }
 
-    static const int COUNTERS_NAME_WIDTH(int font_width) { return (13 * font_width); }
-    static const int COUNTERS_COUNT_WIDTH(int font_width) { return (12 * font_width); }
-
-    static Area GetCountersArea(DisplayMode display_mode, int font_width, const Area& details_area, int scopes_count, int counters_count)
+    static Area GetCountersArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count)
     {
         if (display_mode == DISPLAYMODE_LANDSCAPE || display_mode == DISPLAYMODE_PROTRAIT)
         {
             const int count = dmMath::Max(scopes_count, counters_count);
-            Size s(COUNTERS_NAME_WIDTH(font_width) + font_width + COUNTERS_COUNT_WIDTH(font_width), LINE_SPACING * (1 + count));
+            Size s(COUNTERS_NAME_WIDTH + CHAR_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + count));
             Position p(details_area.p.x, details_area.p.y);
             return Area(p, s);
         }
         return Area(Position(0,0), Size(0,0));
     }
 
-    static Area GetSamplesArea(DisplayMode display_mode, int font_width, const Area& details_area, const Area& scopes_area, const Area& counters_area)
+    static Area GetSamplesArea(DisplayMode display_mode, const Area& details_area, const Area& scopes_area, const Area& counters_area)
     {
         if (display_mode == DISPLAYMODE_LANDSCAPE)
         {
-            Size s(details_area.s.w - (scopes_area.s.w + font_width), details_area.s.h);
-            Position p(scopes_area.p.x + scopes_area.s.w + font_width, details_area.p.y + details_area.s.h - s.h);
+            Size s(details_area.s.w - (scopes_area.s.w + CHAR_WIDTH), details_area.s.h);
+            Position p(scopes_area.p.x + scopes_area.s.w + CHAR_WIDTH, details_area.p.y + details_area.s.h - s.h);
             return Area(p, s);
         }
         else if (display_mode == DISPLAYMODE_PROTRAIT)
@@ -1251,15 +1257,10 @@ namespace dmProfileRender
         return Area(Position(0,0), Size(0,0));
     }
 
-    static const int SAMPLE_FRAMES_NAME_LENGTH = 32;
-    static const int SAMPLE_FRAMES_NAME_WIDTH(int font_width) { return (SAMPLE_FRAMES_NAME_LENGTH * font_width); }
-    static const int SAMPLE_FRAMES_TIME_WIDTH(int font_width) { return (6 * font_width); }
-    static const int SAMPLE_FRAMES_COUNT_WIDTH(int font_width) { return (3 * font_width); }
-
-    static Area GetSampleFramesArea(DisplayMode display_mode, int font_width, const Area& samples_area)
+    static Area GetSampleFramesArea(DisplayMode display_mode, const Area& samples_area)
     {
         const int offset_y = LINE_SPACING;
-        const int offset_x = SAMPLE_FRAMES_NAME_WIDTH(font_width) + font_width + SAMPLE_FRAMES_TIME_WIDTH(font_width) + font_width + SAMPLE_FRAMES_COUNT_WIDTH(font_width) + font_width;
+        const int offset_x = SAMPLE_FRAMES_NAME_WIDTH + CHAR_WIDTH + SAMPLE_FRAMES_TIME_WIDTH + CHAR_WIDTH + SAMPLE_FRAMES_COUNT_WIDTH + CHAR_WIDTH;
 
         Position p(samples_area.p.x + offset_x, samples_area.p.y);
         Size s(samples_area.s.w - offset_x, samples_area.s.h - offset_y);
@@ -1404,10 +1405,6 @@ namespace dmProfileRender
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         const Size display_size(dmGraphics::GetWindowWidth(graphics_context), dmGraphics::GetWindowHeight(graphics_context));
 
-        dmRender::TextMetrics font_metrics;
-        dmRender::GetTextMetrics(font_map, "Counters: .ygY,Scopes:012345678!", 0, false, 0, 0, &font_metrics);
-        int font_width = font_metrics.m_Width / 32;
-
         const DisplayMode display_mode = render_profile->m_ViewMode == PROFILER_VIEW_MODE_MINIMIZED ?
             DISPLAYMODE_MINIMIZED : (display_size.w > display_size.h ? DISPLAYMODE_LANDSCAPE : DISPLAYMODE_PROTRAIT);
  
@@ -1420,10 +1417,10 @@ namespace dmProfileRender
         const TIndex counter_count = (TIndex)render_profile->m_CounterLookup.Size();
         const TIndex sample_sum_count = (TIndex)render_profile->m_SampleSumLookup.Size();
 
-        const Area scopes_area = GetScopesArea(display_mode, font_width, details_area, scope_count, counter_count);
-        const Area counters_area = GetCountersArea(display_mode, font_width, details_area, scope_count, counter_count);
-        const Area samples_area = GetSamplesArea(display_mode, font_width, details_area, scopes_area, counters_area);
-        const Area sample_frames_area = GetSampleFramesArea(display_mode, font_width, samples_area);
+        const Area scopes_area = GetScopesArea(display_mode, details_area, scope_count, counter_count);
+        const Area counters_area = GetCountersArea(display_mode, details_area, scope_count, counter_count);
+        const Area samples_area = GetSamplesArea(display_mode, details_area, scopes_area, counters_area);
+        const Area sample_frames_area = GetSampleFramesArea(display_mode, samples_area);
 
         FillArea(render_context, profiler_area, Vector4(0.1f, 0.1f, 0.1f, 0.6f));
         FillArea(render_context, sample_frames_area, Vector4(0.15f, 0.15f, 0.15f, 0.2f));
@@ -1484,8 +1481,8 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 1, y);
 
             int name_x = scopes_area.p.x;
-            int time_x = name_x + SCOPES_NAME_WIDTH(font_width) + font_width;
-            int count_x = time_x + SCOPES_TIME_WIDTH(font_width) + font_width;
+            int time_x = name_x + SCOPES_NAME_WIDTH + CHAR_WIDTH;
+            int count_x = time_x + SCOPES_TIME_WIDTH + CHAR_WIDTH;
 
             params.m_FaceColor = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
             params.m_Text = render_profile->m_ScopeOverflow ? "*Scopes:" : "Scopes:";
@@ -1532,7 +1529,7 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 1, y);
 
             int name_x = counters_area.p.x;
-            int count_x = name_x + COUNTERS_NAME_WIDTH(font_width) + font_width;
+            int count_x = name_x + COUNTERS_NAME_WIDTH + CHAR_WIDTH;
 
             params.m_FaceColor = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
             params.m_Text = render_profile->m_CounterOverflow ? "*Counters:" : "Counters:";
@@ -1568,8 +1565,8 @@ namespace dmProfileRender
             params.m_WorldTransform.setElem(3, 1, y);
 
             int name_x = samples_area.p.x;
-            int time_x = name_x + SAMPLE_FRAMES_NAME_WIDTH(font_width) + font_width;
-            int count_x = time_x + SAMPLE_FRAMES_TIME_WIDTH(font_width) + font_width;
+            int time_x = name_x + SAMPLE_FRAMES_NAME_WIDTH + CHAR_WIDTH;
+            int count_x = time_x + SAMPLE_FRAMES_TIME_WIDTH + CHAR_WIDTH;
             int frames_x = sample_frames_area.p.x;
 
             params.m_FaceColor = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -1650,7 +1647,7 @@ namespace dmProfileRender
                         w = 0.5f;
                     }
 
-                    dmRender::Square2d(render_context, x, y - CHAR_HEIGHT, x + w, y, Vector4(col[0], col[1], col[2], 1));
+                    dmRender::Square2d(render_context, x, y - CHAR_HEIGHT, x + w, y, Vector4(col[0], col[1], col[2], 1.0f));
 
                     sample_index = sample->m_PreviousSampleIndex;
                 }
