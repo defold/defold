@@ -836,6 +836,9 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :documentation :global
   (run [] (ui/open-url "https://www.defold.com/learn/")))
 
+(handler/defhandler :support-forum :global
+  (run [] (ui/open-url "https://forum.defold.com/")))
+
 (handler/defhandler :report-issue :global
   (run [] (ui/open-url (github/new-issue-link))))
 
@@ -941,6 +944,8 @@ If you do not specifically require different script states, consider changing th
                               :command :reload-stylesheet}
                              {:label "Documentation"
                               :command :documentation}
+                             {:label "Support Forum"
+                              :command :support-forum}
                              {:label "Report Issue"
                               :command :report-issue}
                              {:label "Report Praise"
