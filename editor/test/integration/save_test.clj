@@ -364,7 +364,7 @@
             (touch-file! workspace "/added_externally.md")
             (spit-file! workspace "/script/test_module.lua" "-- Edited externally")
 
-            (disk/async-reload! progress/null-render-progress! workspace nil
+            (disk/async-reload! progress/null-render-progress! workspace [] nil
                                 (fn [successful?]
                                   (when (is successful?)
 

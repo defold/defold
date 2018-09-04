@@ -13,13 +13,11 @@
             [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
-            [editor.library :as library]
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.github :as github]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
-            [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
@@ -544,6 +542,15 @@
                                                (targets/target-message-label selected-target)
                                                "New Local Engine")
                                              (.getMessage e))))))))
+
+(defn async-reload! [workspace changes-view moved-files]
+  (let [render-reload-progress! (make-render-task-progress :resource-sync)]
+    (disk/async-reload! render-reload-progress! workspace moved-files changes-view)))
+
+(defn async-save! [project changes-view callback!]
+  (let [render-reload-progress! (make-render-task-progress :resource-sync)
+        render-save-progress! (make-render-task-progress :save-all)]
+    (disk/async-save! render-reload-progress! render-save-progress! project changes-view callback!)))
 
 (defn- async-build! [project {:keys [debug?] :or {debug? false} :as opts} old-artifact-map result-fn]
   (let [render-build-progress! (make-render-task-progress :build)
@@ -1305,7 +1312,7 @@ If you do not specifically require different script states, consider changing th
                     (:view-types resource-type))))))
 
 (handler/defhandler :synchronize :global
-  (run [changes-view project]
+  (run [changes-view project workspace]
        (let [render-reload-progress! (make-render-task-progress :resource-sync)
              render-save-progress! (make-render-task-progress :save-all)]
          (if (changes-view/project-is-git-repo? changes-view)
@@ -1317,7 +1324,8 @@ If you do not specifically require different script states, consider changing th
              (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                                (fn [successful?]
                                  (when successful?
-                                   (changes-view/regular-sync! changes-view project)))))
+                                   (when (changes-view/regular-sync! changes-view)
+                                     (disk/async-reload! render-reload-progress! workspace [] changes-view))))))
 
            ;; The project is not a Git repo. Offer to push it to our servers.
            (disk/async-save! render-reload-progress! render-save-progress! project changes-view
@@ -1507,7 +1515,7 @@ If you do not specifically require different script states, consider changing th
                 (render-install-progress! (progress/make "Installing updated libraries..."))
                 (ui/run-later
                   (workspace/install-validated-libraries! workspace library-uris lib-states)
-                  (disk/async-reload! render-install-progress! workspace changes-view))))))))))
+                  (disk/async-reload! render-install-progress! workspace [] changes-view))))))))))
 
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs changes-view] (fetch-libraries workspace project prefs changes-view)))
