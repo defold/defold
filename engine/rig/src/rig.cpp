@@ -10,6 +10,7 @@ namespace dmRig
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
     static const int SIGNAL_DELTA_UNCHANGED = 0x10cced; // Used to indicate if a draw order was unchanged for a certain slot
+    static const uint32_t INVALID_ATTACHMENT_INDEX = (uint32_t)-1;
 
     static const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
 
@@ -958,7 +959,7 @@ namespace dmRig
     // https://github.com/EsotericSoftware/spine-runtimes/blob/387b0afb80a775970c48099042be769e50258440/spine-c/spine-c/src/spine/SkeletonJson.c#L430
     static void UpdateSlotDrawOrder(dmArray<int32_t>& draw_order, dmArray<int32_t>& deltas, int changed, dmArray<int32_t>& unchanged)
     {
-        uint32_t slot_count = draw_order.Size();
+        int slot_count = draw_order.Size();
 
         // Make sure we have enough capacity to store our unchanged slots list.
         if (unchanged.Capacity() < slot_count) {
@@ -966,13 +967,13 @@ namespace dmRig
         }
         unchanged.SetSize(slot_count);
 
-        for (uint32_t i = 0; i < slot_count; i++) {
+        for (int i = 0; i < slot_count; i++) {
             draw_order[i] = -1;
         }
 
         int original_index = 0;
         int unchanged_index = 0;
-        for (int slot_index = 0; slot_index < (int)slot_count; slot_index++)
+        for (int slot_index = 0; slot_index < slot_count; slot_index++)
         {
             int32_t delta = deltas[slot_index];
             if (delta != SIGNAL_DELTA_UNCHANGED) {
@@ -985,7 +986,7 @@ namespace dmRig
             }
         }
 
-        while (original_index < (int)slot_count) {
+        while (original_index < slot_count) {
             unchanged[unchanged_index++] = original_index++;
         }
 
@@ -1012,12 +1013,12 @@ namespace dmRig
             MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
 
             // Get attachment index for current slot
-            int active_attachment = mesh_slot_pose->m_ActiveAttachment;
-            if (active_attachment >= 0) {
+            uint32_t active_attachment = mesh_slot_pose->m_ActiveAttachment;
+            if (active_attachment != INVALID_ATTACHMENT_INDEX) {
 
                 // Check if there is any mesh on current attachment
-                int mesh_attachment_index = mesh_slot_pose->m_MeshSlot->m_MeshAttachments[active_attachment];
-                if (mesh_attachment_index >= 0) {
+                uint32_t mesh_attachment_index = mesh_slot_pose->m_MeshSlot->m_MeshAttachments[active_attachment];
+                if (mesh_attachment_index != INVALID_ATTACHMENT_INDEX) {
                     const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
                     vertex_count += mesh_attachment->m_Indices.m_Count;
                 }
@@ -1311,8 +1312,8 @@ namespace dmRig
             return vertex_data_out;
 
         } else if (mesh_slot_count == 1) {
-            int32_t active_attachment = instance->m_MeshSlotPose[0].m_ActiveAttachment;
-            if (active_attachment == -1 || mesh_entry->m_MeshSlots[0].m_MeshAttachments[(uint32_t)active_attachment] == (uint32_t)-1) {
+            uint32_t active_attachment = instance->m_MeshSlotPose[0].m_ActiveAttachment;
+            if (active_attachment == INVALID_ATTACHMENT_INDEX || mesh_entry->m_MeshSlots[0].m_MeshAttachments[active_attachment] == INVALID_ATTACHMENT_INDEX) {
                 return vertex_data_out;
             }
         }
@@ -1390,12 +1391,12 @@ namespace dmRig
             const dmRigDDF::MeshSlot* mesh_slot = mesh_slot_pose->m_MeshSlot;
 
             // Get active attachment in the current slot.
-            int active_attachment = mesh_slot_pose->m_ActiveAttachment;
-            if (active_attachment >= 0) {
+            uint32_t active_attachment = mesh_slot_pose->m_ActiveAttachment;
+            if (active_attachment != INVALID_ATTACHMENT_INDEX) {
 
                 // Check if the attachment point has a mesh assigned
-                int mesh_attachment_index = mesh_slot->m_MeshAttachments[active_attachment];
-                if (mesh_attachment_index >= 0)
+                uint32_t mesh_attachment_index = mesh_slot->m_MeshAttachments[active_attachment];
+                if (mesh_attachment_index != INVALID_ATTACHMENT_INDEX)
                 {
                     // Lookup the mesh from the list of all the available meshes.
                     const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
