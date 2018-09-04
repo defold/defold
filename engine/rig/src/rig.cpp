@@ -10,7 +10,7 @@ namespace dmRig
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
     static const int SIGNAL_DELTA_UNCHANGED = 0x10cced; // Used to indicate if a draw order was unchanged for a certain slot
-    static const uint32_t INVALID_ATTACHMENT_INDEX = (uint32_t)-1;
+    static const uint32_t INVALID_ATTACHMENT_INDEX = 0xffffffffu;
 
     static const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
 
@@ -962,7 +962,7 @@ namespace dmRig
         int slot_count = draw_order.Size();
 
         // Make sure we have enough capacity to store our unchanged slots list.
-        if (unchanged.Capacity() < slot_count) {
+        if (unchanged.Capacity() < (uint32_t)slot_count) {
             unchanged.OffsetCapacity(slot_count - unchanged.Capacity());
         }
         unchanged.SetSize(slot_count);
