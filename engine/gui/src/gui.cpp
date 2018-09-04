@@ -456,13 +456,13 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t width, uint32_t height)
+    Result AddTexture(HScene scene, const char* texture_name, void* texture, void* textureset, uint32_t original_width, uint32_t original_height)
     {
         if (scene->m_Textures.Full())
             return RESULT_OUT_OF_RESOURCES;
 
         uint64_t texture_hash = dmHashString64(texture_name);
-        scene->m_Textures.Put(texture_hash, TextureInfo(texture, textureset, width, height));
+        scene->m_Textures.Put(texture_hash, TextureInfo(texture, textureset, original_width, original_height));
         for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
         {
             if (scene->m_Nodes[i].m_Node.m_TextureHash == texture_hash)
@@ -910,15 +910,15 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             // uv-rotated
             w = tc[2]-tc[0];
             h = tc[1]-tc[5];
-            n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_TextureHeight;
-            n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_TextureWidth;
+            n.m_Properties[PROPERTY_SIZE][0] = h * (float)anim_desc->m_OriginalTextureHeight;
+            n.m_Properties[PROPERTY_SIZE][1] = w * (float)anim_desc->m_OriginalTextureWidth;
         }
         else
         {
             w = tc[4]-tc[0];
             h = tc[3]-tc[1];
-            n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_TextureWidth;
-            n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_TextureHeight;
+            n.m_Properties[PROPERTY_SIZE][0] = w * (float)anim_desc->m_OriginalTextureWidth;
+            n.m_Properties[PROPERTY_SIZE][1] = h * (float)anim_desc->m_OriginalTextureHeight;
         }
     }
 
@@ -2534,8 +2534,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             n->m_Node.m_TextureSet = texture_info->m_TextureSet;
             if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) && (n->m_Node.m_NodeType != NODE_TYPE_SPINE) && (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX) && (texture_info->m_Texture))
             {
-                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_Width;
-                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_Height;
+                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_OriginalWidth;
+                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_OriginalHeight;
             }
             return RESULT_OK;
         } else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(texture_id)) {
@@ -3327,8 +3327,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             {
                 if(texture_info->m_Texture)
                 {
-                    n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_Width;
-                    n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_Height;
+                    n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_OriginalWidth;
+                    n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_OriginalHeight;
                 }
             }
             else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(n->m_Node.m_TextureHash))
