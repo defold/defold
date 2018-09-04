@@ -543,15 +543,6 @@
                                                "New Local Engine")
                                              (.getMessage e))))))))
 
-(defn async-reload! [workspace changes-view moved-files]
-  (let [render-reload-progress! (make-render-task-progress :resource-sync)]
-    (disk/async-reload! render-reload-progress! workspace moved-files changes-view)))
-
-(defn async-save! [project changes-view callback!]
-  (let [render-reload-progress! (make-render-task-progress :resource-sync)
-        render-save-progress! (make-render-task-progress :save-all)]
-    (disk/async-save! render-reload-progress! render-save-progress! project changes-view callback!)))
-
 (defn- async-build! [project {:keys [debug?] :or {debug? false} :as opts} old-artifact-map result-fn]
   (let [render-build-progress! (make-render-task-progress :build)
         local-system           (g/clone-system)]
