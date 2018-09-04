@@ -49,24 +49,6 @@
               (render-progress! progress/done)
               (error-reporting/report-exception! error))))))))
 
-(defn refresh-after-resource-sync! [changes-view render-progress! diff]
-  ;; The call to resource-sync! will refresh the changes view if it detected changes,
-  ;; but committing a file from the command line will not actually change the file
-  ;; as far as resource-sync! is concerned. To ensure the changed files view reflects
-  ;; the current Git state, we explicitly refresh the changes view here if the
-  ;; call to resource-sync! would not have already done so.
-  (when (resource-watch/empty-diff? diff)
-    (refresh! changes-view render-progress!)))
-
-(defn resource-sync-after-git-change!
-  ([changes-view workspace]
-   (resource-sync-after-git-change! changes-view workspace []))
-  ([changes-view workspace moved-files]
-   (resource-sync-after-git-change! changes-view workspace moved-files progress/null-render-progress!))
-  ([changes-view workspace moved-files render-progress!]
-   (->> (workspace/resource-sync! workspace moved-files render-progress!)
-        (refresh-after-resource-sync! changes-view render-progress!))))
-
 (ui/extend-menu ::changes-menu nil
                 [{:label "Open"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
@@ -104,10 +86,10 @@
 (handler/defhandler :revert :changes-view
   (enabled? [selection]
             (pos? (count selection)))
-  (run [selection git changes-view workspace]
+  (run [async-reload! selection git changes-view workspace]
     (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
       (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-      (resource-sync-after-git-change! changes-view workspace moved-files))))
+      (async-reload! workspace changes-view moved-files))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
@@ -127,18 +109,17 @@
                                 (fn [git]
                                   (ui/run-later
                                     (g/set-property! changes-view :unconfigured-git git))))
-        (sync/open-sync-dialog)
-        (resource-sync-after-git-change! changes-view workspace))))
+        (sync/open-sync-dialog))))
 
-(defn regular-sync! [changes-view project]
-  (let [workspace (project/workspace project)
-        prefs (g/node-value changes-view :prefs)
+(defn regular-sync! [changes-view]
+  (let [prefs (g/node-value changes-view :prefs)
         git (g/node-value changes-view :git)]
-    (when (login/login prefs)
+    (if-not (login/login prefs)
+      false
       (let [creds (git/credentials prefs)
             flow (sync/begin-flow! git creds)]
         (sync/open-sync-dialog flow)
-        (resource-sync-after-git-change! changes-view workspace)))))
+        true))))
 
 (defn ensure-no-locked-files! [changes-view]
   (let [git (g/node-value changes-view :unconfigured-git)]
@@ -179,7 +160,8 @@
       (when (some? git)
         (.close git)))))
 
-(defn make-changes-view [view-graph workspace prefs ^Parent parent]
+(defn make-changes-view [view-graph workspace prefs async-reload! ^Parent parent]
+  (assert (fn? async-reload!))
   (let [^ListView list-view (.lookup parent "#changes")
         diff-button         (.lookup parent "#changes-diff")
         revert-button       (.lookup parent "#changes-revert")
@@ -190,7 +172,7 @@
     (try
       (ui/user-data! list-view :refresh-pending (ref false))
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! parent :changes-view {:changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
+      (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
         {:git [:changes-view :unconfigured-git]}
         {resource/Resource (fn [status] (status->resource workspace status))})
       (ui/register-context-menu list-view ::changes-menu)

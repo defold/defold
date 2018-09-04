@@ -36,13 +36,12 @@
 
 (def ^:private reload-job-atom (atom nil))
 
-(defn- start-reload-job! [render-progress! workspace changes-view]
+(defn- start-reload-job! [render-progress! workspace moved-files changes-view]
   (let [project-path (workspace/project-path workspace)
         dependencies (workspace/dependencies workspace)
         snapshot-cache (workspace/snapshot-cache workspace)
         success-promise (promise)
         complete! (fn [success?]
-                    (ui/enable-ui!)
                     (render-progress! progress/done)
                     (reset! reload-job-atom nil)
                     (deliver success-promise success?))
@@ -51,16 +50,23 @@
                 (complete! false))]
     (future
       (try
-        (ui/disable-ui!)
         (render-progress! (progress/make "Loading external changes..."))
         (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
           (render-progress! progress/done)
           (ui/run-later
             (try
               (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
-              (let [diff (workspace/resource-sync! workspace [] render-progress! (:snapshot snapshot-info) (:map snapshot-info))]
+              (let [diff (workspace/resource-sync! workspace moved-files render-progress! (:snapshot snapshot-info) (:map snapshot-info))]
                 (when (some? changes-view)
-                  (changes-view/refresh-after-resource-sync! changes-view render-progress! diff)))
+                  ;; The call to resource-sync! will refresh the changes view if
+                  ;; it detected changes, but committing a file from the command
+                  ;; line will not actually change the file as far as
+                  ;; resource-sync! is concerned. To ensure the changed files
+                  ;; view reflects the current Git state, we explicitly refresh
+                  ;; the changes view here if the call to resource-sync! would
+                  ;; not have already done so.
+                  (when (resource-watch/empty-diff? diff)
+                    (changes-view/refresh! changes-view render-progress!))))
               (complete! true)
               (catch Throwable error
                 (fail! error)))))
@@ -69,10 +75,10 @@
     success-promise))
 
 (defn async-reload!
-  ([render-progress! workspace changes-view]
-   (async-reload! render-progress! workspace changes-view nil))
-  ([render-progress! workspace changes-view callback!]
-   (async-job! callback! reload-job-atom start-reload-job! render-progress! workspace changes-view)))
+  ([render-progress! workspace moved-files changes-view]
+   (async-reload! render-progress! workspace moved-files changes-view nil))
+  ([render-progress! workspace moved-files changes-view callback!]
+   (async-job! callback! reload-job-atom start-reload-job! render-progress! workspace moved-files changes-view)))
 
 (def blocking-reload! (partial blocking-job! reload-job-atom start-reload-job!))
 
@@ -95,7 +101,7 @@
     (future
       ;; Reload any external changes first, so these will not
       ;; be overwritten if we have not detected them yet.
-      (if-not (blocking-reload! render-reload-progress! workspace nil)
+      (if-not (blocking-reload! render-reload-progress! workspace [] nil)
         (complete! false) ; Errors were already reported by blocking-reload!
         (try
           (render-save-progress! (progress/make "Saving..."))
