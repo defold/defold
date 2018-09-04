@@ -15,27 +15,18 @@
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.workspace :as workspace]
-            [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.game-project-core :as gpc]
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.placeholder-resource :as placeholder-resource]
-            [editor.prefs :as prefs]
             [editor.properties :as properties]
-            [editor.system :as system]
             [editor.util :as util]
             [service.log :as log]
             [editor.graph-util :as gu]
-            [util.http-server :as http-server]
             [util.text-util :as text-util]
-            [clojure.string :as str]
             [schema.core :as s]
-            [util.thread-util :as thread-util])
-  (:import [java.io File]
-           [org.apache.commons.codec.digest DigestUtils]
-           [org.apache.commons.io IOUtils]
-           [editor.resource FileResource]))
+            [util.thread-util :as thread-util]))
 
 (set! *warn-on-reflection* true)
 
@@ -149,8 +140,8 @@
         load-deps (fn [node-id] (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))
         node-ids (sort-nodes-for-loading loaded-nodes load-deps)
         basis (:basis evaluation-context)
-        render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 2 0))
-        render-processing-progress! (progress/nest-render-progress render-progress! (progress/make "" 2 1))
+        render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 0) 4)
+        render-processing-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 4))
         load-txs (doall
                    (for [[node-index node-id] (map-indexed #(clojure.lang.MapEntry/create (inc %1) %2) node-ids)]
                      (let [resource-path (resource/resource->proj-path (node-id->resource node-id))]
@@ -166,14 +157,9 @@
     load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
-  (let [render-node-progress! (when render-progress!
-                                (progress/nest-render-progress render-progress! (progress/make "" 5 0) 4))
-        load-txs (load-resource-nodes project node-ids render-node-progress! resource-node-dependencies)]
-    (when render-progress!
-      (render-progress! (progress/make "Building graph..." 5 4)))
-    (g/transact load-txs)
-    (when render-progress!
-      (render-progress! progress/done))))
+  (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies))
+  (when render-progress!
+    (render-progress! progress/done)))
 
 (defn connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
