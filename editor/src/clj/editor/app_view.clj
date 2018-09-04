@@ -1520,18 +1520,23 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :fetch-libraries :global
   (run [workspace project prefs changes-view] (fetch-libraries workspace project prefs changes-view)))
 
-(defn- create-live-update-settings! [workspace]
-  (let [project-path (workspace/project-path workspace)
-        settings-file (io/file project-path "liveupdate.settings")]
+(defn- create-and-open-live-update-settings! [app-view changes-view prefs project]
+  (let [workspace (project/workspace project)
+        project-path (workspace/project-path workspace)
+        settings-file (io/file project-path "liveupdate.settings")
+        render-reload-progress! (make-render-task-progress :resource-sync)]
     (spit settings-file "[liveupdate]\n")
-    (workspace/resource-sync! workspace)
-    (workspace/find-resource workspace "/liveupdate.settings")))
+    (disk/async-reload! render-reload-progress! workspace [] changes-view
+                        (fn [successful?]
+                          (when successful?
+                            (let [created-resource (workspace/find-resource workspace "/liveupdate.settings")]
+                              (open-resource app-view prefs workspace project created-resource)))))))
 
 (handler/defhandler :live-update-settings :global
-  (run [app-view prefs workspace project]
-    (some->> (or (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))
-                 (create-live-update-settings! workspace))
-      (open-resource app-view prefs workspace project))))
+  (run [app-view changes-view prefs workspace project]
+       (if-some [existing-resource (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))]
+         (open-resource app-view prefs workspace project existing-resource)
+         (create-and-open-live-update-settings! app-view changes-view prefs project))))
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))
