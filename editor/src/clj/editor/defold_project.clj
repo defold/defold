@@ -149,13 +149,19 @@
         load-deps (fn [node-id] (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))
         node-ids (sort-nodes-for-loading loaded-nodes load-deps)
         basis (:basis evaluation-context)
-        progress (atom (progress/make "Loading resources..." (count node-ids)))
+        render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 2 0))
+        render-processing-progress! (progress/nest-render-progress render-progress! (progress/make "" 2 1))
         load-txs (doall
-                   (for [node-id node-ids]
-                     (do
-                       (when render-progress!
-                         (render-progress! (swap! progress progress/advance)))
-                       (load-node project node-id (g/node-type* basis node-id) (node-id->resource node-id)))))]
+                   (for [[node-index node-id] (map-indexed #(clojure.lang.MapEntry/create (inc %1) %2) node-ids)]
+                     (let [resource-path (resource/resource->proj-path (node-id->resource node-id))]
+                       (do
+                         (render-loading-progress! (progress/make (str "Loading " resource-path)
+                                                                  (count node-ids)
+                                                                  node-index))
+                         [(g/callback render-processing-progress! (progress/make (str "Processing " resource-path)
+                                                                                 (count node-ids)
+                                                                                 node-index))
+                          (load-node project node-id (g/node-type* basis node-id) (node-id->resource node-id))]))))]
     (g/update-cache-from-evaluation-context! evaluation-context)
     load-txs))
 
