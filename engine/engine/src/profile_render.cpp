@@ -497,35 +497,44 @@ namespace dmProfileRender
         delete render_profile;
     }
 
-    static void AddScope(RenderProfile* render_profile, TNameHash name_hash, uint32_t elapsed, uint32_t count)
+    static Scope* GetOrCreateScope(RenderProfile* render_profile, TNameHash name_hash)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
         TIndex* index_ptr = render_profile->m_ScopeLookup.Get(name_hash);
-        if (index_ptr == 0x0)
+        if (index_ptr != 0x0)
         {
-            if (render_profile->m_ScopeLookup.Full())
-            {
-                render_profile->m_ScopeOverflow = 1;
-                return;
-            }
-            TIndex new_index = render_profile->m_ScopeLookup.Size();
-            if (new_index == render_profile->m_MaxScopeCount)
-            {
-                render_profile->m_ScopeOverflow = 1;
-                return;
-            }
-            index_ptr = render_profile->m_ScopeLookup.Put(name_hash, new_index);
-            Scope* scope = &frame->m_Scopes[new_index];
-            scope->m_NameHash = name_hash;
-            scope->m_Count = 0u;
-            scope->m_Elapsed = 0u;
-
-            ScopeStats* scope_stats = &render_profile->m_ScopeStats[new_index];
-            scope_stats->m_FilteredElapsed = 0u;
-            scope_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
+            return &frame->m_Scopes[*index_ptr];
         }
-        uint32_t index = *index_ptr;
-        Scope* scope = &frame->m_Scopes[index];
+        if (render_profile->m_ScopeLookup.Full())
+        {
+            return 0x0;
+        }
+        TIndex new_index = render_profile->m_ScopeLookup.Size();
+        if (new_index == render_profile->m_MaxScopeCount)
+        {
+            return 0x0;
+        }
+        render_profile->m_ScopeLookup.Put(name_hash, new_index);
+        Scope* scope = &frame->m_Scopes[new_index];
+        scope->m_NameHash = name_hash;
+        scope->m_Count = 0u;
+        scope->m_Elapsed = 0u;
+
+        ScopeStats* scope_stats = &render_profile->m_ScopeStats[new_index];
+        scope_stats->m_FilteredElapsed = 0u;
+        scope_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
+
+        return scope;
+    }
+
+    static void AddScope(RenderProfile* render_profile, TNameHash name_hash, uint32_t elapsed, uint32_t count)
+    {
+        Scope* scope = GetOrCreateScope(render_profile, name_hash);
+        if (scope == 0x0)
+        {
+            render_profile->m_ScopeOverflow = 1;
+            return;
+        }
         scope->m_Elapsed += elapsed;
         scope->m_Count += count;
     }
@@ -551,39 +560,49 @@ namespace dmProfileRender
         }
     }
 
-    static void AddSample(RenderProfile* render_profile, TNameHash sample_name_hash, TNameHash scope_name_hash, uint32_t start_tick, uint32_t elapsed)
+    static SampleSum* GetOrCreateSampleSum(RenderProfile* render_profile, TNameHash sample_name_hash, TNameHash scope_name_hash)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
         TNameHash sample_sum_hash = GetSampleSumHash(scope_name_hash, sample_name_hash);
         TIndex* index_ptr = render_profile->m_SampleSumLookup.Get(sample_sum_hash);
-        if (index_ptr == 0x0)
+        if (index_ptr != 0x0)
         {
-            if (render_profile->m_SampleSumLookup.Full())
-            {
-                render_profile->m_SampleSumOverflow = 1;
-                return;
-            }
-            TIndex new_index = render_profile->m_SampleSumLookup.Size();
-            if (new_index == render_profile->m_MaxSampleSumCount)
-            {
-                render_profile->m_SampleSumOverflow = 1;
-                return;
-            }
-            index_ptr = render_profile->m_SampleSumLookup.Put(sample_sum_hash, new_index);
-            SampleSum* sample_sum = &frame->m_SampleSums[new_index];
-            sample_sum->m_SampleNameHash = sample_name_hash;
-            sample_sum->m_ScopeNameHash = scope_name_hash;
-            sample_sum->m_Elapsed = 0u;
-            sample_sum->m_Count = 0u;
-            sample_sum->m_LastSampleIndex = render_profile->m_MaxSampleCount;
-
-            SampleSumStats* sample_sum_stats = &render_profile->m_SampleSumStats[new_index];
-            sample_sum_stats->m_FilteredElapsed = 0u;
-            sample_sum_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
+            return &frame->m_SampleSums[*index_ptr];
         }
-        uint32_t index = *index_ptr;
-        SampleSum* sample_sum = &frame->m_SampleSums[index];
+        if (render_profile->m_SampleSumLookup.Full())
+        {
+            return 0x0;
+        }
+        TIndex new_index = render_profile->m_SampleSumLookup.Size();
+        if (new_index == render_profile->m_MaxSampleSumCount)
+        {
+            return 0x0;
+        }
+        render_profile->m_SampleSumLookup.Put(sample_sum_hash, new_index);
+        SampleSum* sample_sum = &frame->m_SampleSums[new_index];
+        sample_sum->m_SampleNameHash = sample_name_hash;
+        sample_sum->m_ScopeNameHash = scope_name_hash;
+        sample_sum->m_Elapsed = 0u;
+        sample_sum->m_Count = 0u;
+        sample_sum->m_LastSampleIndex = render_profile->m_MaxSampleCount;
 
+        SampleSumStats* sample_sum_stats = &render_profile->m_SampleSumStats[new_index];
+        sample_sum_stats->m_FilteredElapsed = 0u;
+        sample_sum_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
+
+        return sample_sum;
+    }
+
+    static void AddSample(RenderProfile* render_profile, TNameHash sample_name_hash, TNameHash scope_name_hash, uint32_t start_tick, uint32_t elapsed)
+    {
+        SampleSum* sample_sum = GetOrCreateSampleSum(render_profile, sample_name_hash, scope_name_hash);
+        if (sample_sum == 0x0)
+        {
+            render_profile->m_SampleSumOverflow = 1;
+            return;
+        }
+
+        ProfileFrame* frame = render_profile->m_BuildFrame;
         if (sample_sum->m_LastSampleIndex != render_profile->m_MaxSampleCount)
         {
             Sample* last_sample = &frame->m_Samples[sample_sum->m_LastSampleIndex];
@@ -637,32 +656,41 @@ namespace dmProfileRender
         }
     }
 
-    static void AddCounter(RenderProfile* render_profile, TNameHash name_hash, uint32_t count)
+    static Counter* GetOrCreateCounter(RenderProfile* render_profile, TNameHash name_hash)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
         TIndex* index_ptr = render_profile->m_CounterLookup.Get(name_hash);
-        if (index_ptr == 0x0)
+        if (index_ptr != 0x0)
         {
-            if (render_profile->m_CounterLookup.Full())
-            {
-                render_profile->m_CounterOverflow = 1;
-                return;
-            }
-            TIndex new_index = render_profile->m_CounterLookup.Size();
-            if (new_index == render_profile->m_MaxCounterCount)
-            {
-                render_profile->m_CounterOverflow = 1;
-                return;
-            }
-            index_ptr = render_profile->m_CounterLookup.Put(name_hash, new_index);
-            Counter* counter = &frame->m_Counters[new_index];
-            counter->m_NameHash = name_hash;
-            counter->m_Count = 0u;
-            CounterStats* counter_stats = &render_profile->m_CounterStats[new_index];
-            counter_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
+            return &frame->m_Counters[*index_ptr];
         }
-        uint32_t index = *index_ptr;
-        Counter* counter = &frame->m_Counters[index];
+        if (render_profile->m_CounterLookup.Full())
+        {
+            return 0x0;
+        }
+        TIndex new_index = render_profile->m_CounterLookup.Size();
+        if (new_index == render_profile->m_MaxCounterCount)
+        {
+            return 0x0;
+        }
+        render_profile->m_CounterLookup.Put(name_hash, new_index);
+        Counter* counter = &frame->m_Counters[new_index];
+        counter->m_NameHash = name_hash;
+        counter->m_Count = 0u;
+
+        CounterStats* counter_stats = &render_profile->m_CounterStats[new_index];
+        counter_stats->m_LastSeenTick = render_profile->m_NowTick - render_profile->m_LifeTime;
+        return counter;
+    }
+
+    static void AddCounter(RenderProfile* render_profile, TNameHash name_hash, uint32_t count)
+    {
+        Counter* counter = GetOrCreateCounter(render_profile, name_hash);
+        if (counter == 0x0)
+        {
+            render_profile->m_CounterOverflow = 1;
+            return;
+        }
         counter->m_Count += count;
     }
 
@@ -1132,7 +1160,7 @@ namespace dmProfileRender
     static const int LINE_SPACING = CHAR_HEIGHT + CHAR_BORDER * 2;
     static const int BORDER_SIZE = 8;
 
-    static const int SCOPES_NAME_WIDTH = 15 * CHAR_WIDTH;
+    static const int SCOPES_NAME_WIDTH = 17 * CHAR_WIDTH;
     static const int SCOPES_TIME_WIDTH = 6 * CHAR_WIDTH;
     static const int SCOPES_COUNT_WIDTH = 3 * CHAR_WIDTH;
 
@@ -1141,7 +1169,7 @@ namespace dmProfileRender
     static const int SAMPLE_FRAMES_TIME_WIDTH = 6 * CHAR_WIDTH;
     static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHAR_WIDTH;
 
-    static const int COUNTERS_NAME_WIDTH = 13 * CHAR_WIDTH;
+    static const int COUNTERS_NAME_WIDTH = 15 * CHAR_WIDTH;
     static const int COUNTERS_COUNT_WIDTH = 12 * CHAR_WIDTH;
 
     enum DisplayMode
