@@ -10,6 +10,10 @@
 
 (set! *warn-on-reflection* true)
 
+;; -----------------------------------------------------------------------------
+;; Helpers
+;; -----------------------------------------------------------------------------
+
 (defn- async-job! [callback! job-atom start-job! & args]
   (let [job (swap! job-atom #(or % (apply start-job! args)))]
     (future
@@ -141,4 +145,10 @@
   ([render-reload-progress! render-save-progress! project changes-view callback!]
    (async-job! callback! save-job-atom start-save-job! render-reload-progress! render-save-progress! project changes-view)))
 
-(def blocking-save! (partial blocking-job! save-job-atom start-save-job!))
+;; -----------------------------------------------------------------------------
+;; General
+;; -----------------------------------------------------------------------------
+
+(defn available? []
+  (and (nil? @save-job-atom)
+       (nil? @reload-job-atom)))
