@@ -203,7 +203,7 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
         if (factory->m_HttpContentLength < 0) {
             dmLogError("Content-Length negative (%d)", factory->m_HttpContentLength);
         } else {
-            if (factory->m_HttpBuffer->Capacity() < factory->m_HttpContentLength) {
+            if (factory->m_HttpBuffer->Capacity() < (uint32_t)factory->m_HttpContentLength) {
                 factory->m_HttpBuffer->SetCapacity(factory->m_HttpContentLength);
             }
             factory->m_HttpBuffer->SetSize(0);
@@ -1050,7 +1050,7 @@ static Result DoLoadResourceLocked(HFactory factory, const char* path, const cha
             return factory->m_HttpFactoryResult;
 
         // Only check content-length if status != 304 (NOT MODIFIED)
-        if (factory->m_HttpStatus != 304 && factory->m_HttpContentLength != -1 && factory->m_HttpContentLength != factory->m_HttpTotalBytesStreamed)
+        if (factory->m_HttpStatus != 304 && factory->m_HttpContentLength != -1 && factory->m_HttpContentLength != (int32_t)factory->m_HttpTotalBytesStreamed)
         {
             dmLogError("Expected content length differs from actually streamed for resource %s (%d != %d)", factory_path, factory->m_HttpContentLength, factory->m_HttpTotalBytesStreamed);
         }

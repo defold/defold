@@ -206,7 +206,7 @@ namespace dmHttpCache
             size_t size = ftell(f);
             fseek(f, 0, SEEK_SET);
             void* buffer = malloc(size);
-            fread(buffer, 1, size, f);
+            (void)fread(buffer, 1, size, f);
             IndexHeader* header = (IndexHeader*) buffer;
             if (size < (sizeof(IndexHeader)))
             {

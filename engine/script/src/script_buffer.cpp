@@ -562,11 +562,11 @@ namespace dmScript
                                         dststream->m_TypeCount, dmBuffer::GetValueTypeString(dststream->m_Type), srcstream->m_TypeCount, dmBuffer::GetValueTypeString(srcstream->m_Type) );
             }
 
-            if( (dstoffset + count) > dststream->m_Count * dststream->m_TypeCount )
+            if( (uint32_t)(dstoffset + count) > dststream->m_Count * dststream->m_TypeCount )
             {
                 return DM_LUA_ERROR("Trying to write too many values: Stream length: %d, Offset: %d, Values to copy: %d", dststream->m_Count, dstoffset, count);
             }
-            if( (srcoffset + count) > srcstream->m_Count * srcstream->m_TypeCount )
+            if( (uint32_t)(srcoffset + count) > srcstream->m_Count * srcstream->m_TypeCount )
             {
                 return DM_LUA_ERROR("Trying to read too many values: Stream length: %d, Offset: %d, Values to copy: %d", srcstream->m_Count, srcoffset, count);
             }
@@ -628,11 +628,11 @@ namespace dmScript
         uint32_t srccount;
         dmBuffer::GetCount(dstbuffer, &dstcount);
         dmBuffer::GetCount(srcbuffer, &srccount);
-        if( (dstoffset + count) > dstcount )
+        if( (dstoffset + count) > (int)dstcount )
         {
             return DM_LUA_ERROR("Trying to write too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
         }
-        if( (srcoffset + count) > srccount )
+        if( (srcoffset + count) > (int)srccount )
         {
             return DM_LUA_ERROR("Trying to read too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
         }
@@ -849,7 +849,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 1);
         BufferStream* stream = CheckStream(L, 1);
         int index = luaL_checkinteger(L, 2) - 1;
-        if (index < 0 || index >= stream->m_Count * stream->m_TypeCount)
+        if (index < 0 || index >= (int)(stream->m_Count * stream->m_TypeCount))
         {
             if (stream->m_Count > 0)
             {
@@ -870,7 +870,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
         BufferStream* stream = CheckStream(L, 1);
         int index = luaL_checkinteger(L, 2) - 1;
-        if (index < 0 || index >= stream->m_Count * stream->m_TypeCount)
+        if (index < 0 || index >= (int)(stream->m_Count * stream->m_TypeCount))
         {
             if (stream->m_Count > 0)
             {

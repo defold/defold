@@ -858,7 +858,7 @@ namespace dmGameSystem
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;
-        for (int i = 0; i < node_count; ++i)
+        for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
             if (dmGui::GetNodeIsBone(scene, node)) {
@@ -882,7 +882,7 @@ namespace dmGameSystem
         ParticleGuiVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
         ParticleGuiVertex *vb_end = vb_begin;
         // One RO, but generate vertex data for each entry (emitter)
-        for (int i = 0; i < node_count; ++i)
+        for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
             if (dmGui::GetNodeIsBone(scene, node)) {
@@ -1368,7 +1368,7 @@ namespace dmGameSystem
             }
 
             uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
-            for (int j=0;j!=generate;j++)
+            for (uint32_t j = 0; j != generate; j++)
             {
                 float a;
                 if (j == (generate-1))
