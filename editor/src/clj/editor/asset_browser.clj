@@ -12,7 +12,7 @@
             [editor.resource-watch :as resource-watch]
             [editor.workspace :as workspace]
             [editor.dialogs :as dialogs]
-            [editor.disk :as disk]
+            [editor.disk-availability :as disk-availability]
             [editor.app-view :as app-view])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
@@ -195,7 +195,7 @@
          (ui/scroll-to-item! tree-view tree-item))))))
 
 (defn delete? [resources]
-  (and (disk/available?)
+  (and (disk-availability/available?)
        (seq resources)
        (every? deletable-resource? resources)))
 
@@ -277,7 +277,7 @@
   destination, moves to the same path the file already resides in, and
   moves to reserved directories."
   [tgt-resource src-files]
-  (and (disk/available?)
+  (and (disk-availability/available?)
        (not (resource/read-only? tgt-resource))
        (let [^Path tgt-path (-> tgt-resource resource/abs-path File. fs/to-folder .getAbsolutePath ->path)
              src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
@@ -295,7 +295,7 @@
 
 (defn paste? [files-on-clipboard? target-resources]
   (and files-on-clipboard?
-       (disk/available?)
+       (disk-availability/available?)
        (= 1 (count target-resources))
        (not (resource/read-only? (first target-resources)))))
 
@@ -355,7 +355,7 @@
             (workspace/resource-sync! workspace (moved-files src-file dest-file src-files))))))))
 
 (defn rename? [resources]
-  (and (disk/available?)
+  (and (disk-availability/available?)
        (= 1 (count resources))
        (not (resource/read-only? (first resources)))
        (not (fixed-resource-paths (resource/resource->proj-path (first resources))))))
@@ -406,7 +406,7 @@
                                                                                 (= (count selection) 1)
                                                                                 (not= nil (some-> (handler/adapt-single selection resource/Resource)
                                                                                             resource/abs-path)))))
-  (enabled? [] (disk/available?))
+  (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project]
        (let [project-path (workspace/project-path workspace)
              base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
@@ -443,7 +443,7 @@
       (format "The name %s is reserved" new-name))))
 
 (defn new-folder? [resources]
-  (and (disk/available?)
+  (and (disk-availability/available?)
        (= (count resources) 1)
        (not (resource/read-only? (first resources)))
        (not= nil (resource/abs-path (first resources)))))
