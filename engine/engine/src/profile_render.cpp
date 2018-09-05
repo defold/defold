@@ -348,59 +348,6 @@ namespace dmProfileRender
         ~RenderProfile();
     };
 
-    RenderProfile::RenderProfile(
-            float fps,
-            uint32_t ticks_per_second,
-            uint32_t lifetime_in_seconds,
-            uint32_t sort_intervall_in_seconds,
-            TIndex max_scope_count,
-            TIndex max_sample_sum_count,
-            TIndex max_counter_count,
-            TIndex max_sample_count,
-            TIndex max_name_count,
-            void* scope_lookup_data,
-            void* sample_sum_lookup_data,
-            void* counter_lookup_data,
-            const char** name_lookup_data,
-            ScopeStats* scope_stats,
-            SampleSumStats* sample_sum_stats,
-            CounterStats* counter_stats,
-            ProfileFrame* build_frame)
-        : m_FPS(fps)
-        , m_TicksPerSecond(ticks_per_second)
-        , m_LifeTime((uint32_t)(lifetime_in_seconds * ticks_per_second))
-        , m_SortInterval((uint32_t)(sort_intervall_in_seconds * ticks_per_second))
-        , m_BuildFrame(build_frame)
-        , m_ActiveFrame(m_BuildFrame)
-        , m_Mode(PROFILER_MODE_RUN)
-        , m_ViewMode(PROFILER_VIEW_MODE_FULL)
-        , m_ScopeLookup(scope_lookup_data, (max_scope_count * 2) / 3, max_scope_count * 2)
-        , m_SampleSumLookup(sample_sum_lookup_data, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2)
-        , m_CounterLookup(counter_lookup_data, (max_counter_count * 2) / 3, max_counter_count * 2)
-        , m_NameLookupTable(name_lookup_data, (max_name_count * 2) / 3, max_name_count * 2)
-        , m_ScopeStats(scope_stats)
-        , m_SampleSumStats(sample_sum_stats)
-        , m_CounterStats(counter_stats)
-        , m_NowTick(0u)
-        , m_LastSortTick(0u)
-        , m_MaxScopeCount(max_scope_count)
-        , m_MaxSampleSumCount(max_sample_sum_count)
-        , m_MaxCounterCount(max_counter_count)
-        , m_MaxSampleCount(max_sample_count)
-        , m_PlaybackFrame(-1)
-        , m_IncludeFrameWait(1)
-        , m_ScopeOverflow(0)
-        , m_SampleSumOverflow(0)
-        , m_CounterOverflow(0)
-        , m_SampleOverflow(0)
-        , m_OutOfScopes(0)
-        , m_OutOfSamples(0)
-    {}
-
-    RenderProfile::~RenderProfile()
-    {
-    }
-
     static void FlushRecording(RenderProfile* render_profile, uint32_t capacity)
     {
         uint32_t c = render_profile->m_RecordBuffer.Size();
@@ -411,90 +358,6 @@ namespace dmProfileRender
         render_profile->m_RecordBuffer.SetCapacity(capacity);
         render_profile->m_RecordBuffer.SetSize(0);
         render_profile->m_PlaybackFrame = -1;
-    }
-
-    RenderProfile* RenderProfile::New(
-        float fps,
-        uint32_t ticks_per_second,
-        uint32_t lifetime_in_seconds,
-        uint32_t sort_intervall_in_seconds,
-        TIndex max_scope_count,
-        TIndex max_sample_sum_count,
-        TIndex max_counter_count,
-        TIndex max_sample_count)
-    {
-        const TIndex max_name_count = max_scope_count + max_sample_sum_count + max_counter_count;
-        const size_t scope_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_scope_count * 2) / 3, max_scope_count * 2);
-        const size_t sample_sum_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2);
-        const size_t counter_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_counter_count * 2) / 3, max_counter_count * 2);
-        const size_t name_lookup_data_size = HASHTABLE_BUFFER_SIZE(const char*, (max_name_count * 2) / 3, max_name_count * 2);
-        const size_t scope_stats_size = sizeof(ScopeStats) * max_scope_count;
-        const size_t sample_sum_stats_size = sizeof(SampleSumStats) * max_sample_sum_count;
-        const size_t counter_stats_size = sizeof(CounterStats) * max_counter_count;
-
-        size_t size = sizeof(RenderProfile) +
-            scope_lookup_data_size +
-            sample_sum_lookup_data_size +
-            counter_lookup_data_size +
-            name_lookup_data_size +
-            scope_stats_size +
-            sample_sum_stats_size +
-            counter_stats_size +
-            ProfileFrameSize(max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
-
-        uint8_t* mem = (uint8_t*)malloc(size);
-        if (mem == 0x0)
-        {
-            return 0x0;
-        }
-        uint8_t* p = &mem[sizeof(RenderProfile)];
-        void* scope_lookup_data = p;
-        p += scope_lookup_data_size;
-
-        void* sample_sum_lookup_data = p;
-        p += sample_sum_lookup_data_size;
-
-        void* counter_lookup_data = p;
-        p += counter_lookup_data_size;
-
-        const char** name_lookup_data = (const char**)p;
-        p += name_lookup_data_size;
-
-        ScopeStats* scope_stats_data = (ScopeStats*)p;
-        p += scope_stats_size;
-
-        SampleSumStats* sample_sum_stats_data = (SampleSumStats*)p;
-        p += sample_sum_stats_size;
-
-        CounterStats* counter_stats_data = (CounterStats*)p;
-        p += counter_stats_size;
-
-        ProfileFrame* frame = CreateProfileFrame(p, max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
-
-        return new (mem) RenderProfile(
-            fps,
-            ticks_per_second,
-            lifetime_in_seconds,
-            sort_intervall_in_seconds,
-            max_scope_count,
-            max_sample_sum_count,
-            max_counter_count,
-            max_sample_count,
-            max_name_count,
-            scope_lookup_data,
-            sample_sum_lookup_data,
-            counter_lookup_data,
-            name_lookup_data,
-            scope_stats_data,
-            sample_sum_stats_data,
-            counter_stats_data,
-            frame);
-    }
-
-    void RenderProfile::Delete(RenderProfile* render_profile)
-    {
-        FlushRecording(render_profile, 0);
-        delete render_profile;
     }
 
     static Scope* GetOrCreateScope(RenderProfile* render_profile, TNameHash name_hash)
@@ -1556,6 +1419,143 @@ namespace dmProfileRender
                 }
             }
         }
+    }
+
+    RenderProfile::RenderProfile(
+            float fps,
+            uint32_t ticks_per_second,
+            uint32_t lifetime_in_seconds,
+            uint32_t sort_intervall_in_seconds,
+            TIndex max_scope_count,
+            TIndex max_sample_sum_count,
+            TIndex max_counter_count,
+            TIndex max_sample_count,
+            TIndex max_name_count,
+            void* scope_lookup_data,
+            void* sample_sum_lookup_data,
+            void* counter_lookup_data,
+            const char** name_lookup_data,
+            ScopeStats* scope_stats,
+            SampleSumStats* sample_sum_stats,
+            CounterStats* counter_stats,
+            ProfileFrame* build_frame)
+        : m_FPS(fps)
+        , m_TicksPerSecond(ticks_per_second)
+        , m_LifeTime((uint32_t)(lifetime_in_seconds * ticks_per_second))
+        , m_SortInterval((uint32_t)(sort_intervall_in_seconds * ticks_per_second))
+        , m_BuildFrame(build_frame)
+        , m_ActiveFrame(m_BuildFrame)
+        , m_Mode(PROFILER_MODE_RUN)
+        , m_ViewMode(PROFILER_VIEW_MODE_FULL)
+        , m_ScopeLookup(scope_lookup_data, (max_scope_count * 2) / 3, max_scope_count * 2)
+        , m_SampleSumLookup(sample_sum_lookup_data, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2)
+        , m_CounterLookup(counter_lookup_data, (max_counter_count * 2) / 3, max_counter_count * 2)
+        , m_NameLookupTable(name_lookup_data, (max_name_count * 2) / 3, max_name_count * 2)
+        , m_ScopeStats(scope_stats)
+        , m_SampleSumStats(sample_sum_stats)
+        , m_CounterStats(counter_stats)
+        , m_NowTick(0u)
+        , m_LastSortTick(0u)
+        , m_MaxScopeCount(max_scope_count)
+        , m_MaxSampleSumCount(max_sample_sum_count)
+        , m_MaxCounterCount(max_counter_count)
+        , m_MaxSampleCount(max_sample_count)
+        , m_PlaybackFrame(-1)
+        , m_IncludeFrameWait(1)
+        , m_ScopeOverflow(0)
+        , m_SampleSumOverflow(0)
+        , m_CounterOverflow(0)
+        , m_SampleOverflow(0)
+        , m_OutOfScopes(0)
+        , m_OutOfSamples(0)
+    {}
+
+    RenderProfile::~RenderProfile()
+    {
+    }
+
+    RenderProfile* RenderProfile::New(
+        float fps,
+        uint32_t ticks_per_second,
+        uint32_t lifetime_in_seconds,
+        uint32_t sort_intervall_in_seconds,
+        TIndex max_scope_count,
+        TIndex max_sample_sum_count,
+        TIndex max_counter_count,
+        TIndex max_sample_count)
+    {
+        const TIndex max_name_count = max_scope_count + max_sample_sum_count + max_counter_count;
+        const size_t scope_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_scope_count * 2) / 3, max_scope_count * 2);
+        const size_t sample_sum_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2);
+        const size_t counter_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_counter_count * 2) / 3, max_counter_count * 2);
+        const size_t name_lookup_data_size = HASHTABLE_BUFFER_SIZE(const char*, (max_name_count * 2) / 3, max_name_count * 2);
+        const size_t scope_stats_size = sizeof(ScopeStats) * max_scope_count;
+        const size_t sample_sum_stats_size = sizeof(SampleSumStats) * max_sample_sum_count;
+        const size_t counter_stats_size = sizeof(CounterStats) * max_counter_count;
+
+        size_t size = sizeof(RenderProfile) +
+            scope_lookup_data_size +
+            sample_sum_lookup_data_size +
+            counter_lookup_data_size +
+            name_lookup_data_size +
+            scope_stats_size +
+            sample_sum_stats_size +
+            counter_stats_size +
+            ProfileFrameSize(max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
+
+        uint8_t* mem = (uint8_t*)malloc(size);
+        if (mem == 0x0)
+        {
+            return 0x0;
+        }
+        uint8_t* p = &mem[sizeof(RenderProfile)];
+        void* scope_lookup_data = p;
+        p += scope_lookup_data_size;
+
+        void* sample_sum_lookup_data = p;
+        p += sample_sum_lookup_data_size;
+
+        void* counter_lookup_data = p;
+        p += counter_lookup_data_size;
+
+        const char** name_lookup_data = (const char**)p;
+        p += name_lookup_data_size;
+
+        ScopeStats* scope_stats_data = (ScopeStats*)p;
+        p += scope_stats_size;
+
+        SampleSumStats* sample_sum_stats_data = (SampleSumStats*)p;
+        p += sample_sum_stats_size;
+
+        CounterStats* counter_stats_data = (CounterStats*)p;
+        p += counter_stats_size;
+
+        ProfileFrame* frame = CreateProfileFrame(p, max_scope_count, max_sample_sum_count, max_counter_count, max_sample_count);
+
+        return new (mem) RenderProfile(
+            fps,
+            ticks_per_second,
+            lifetime_in_seconds,
+            sort_intervall_in_seconds,
+            max_scope_count,
+            max_sample_sum_count,
+            max_counter_count,
+            max_sample_count,
+            max_name_count,
+            scope_lookup_data,
+            sample_sum_lookup_data,
+            counter_lookup_data,
+            name_lookup_data,
+            scope_stats_data,
+            sample_sum_stats_data,
+            counter_stats_data,
+            frame);
+    }
+
+    void RenderProfile::Delete(RenderProfile* render_profile)
+    {
+        FlushRecording(render_profile, 0);
+        delete render_profile;
     }
 
 
