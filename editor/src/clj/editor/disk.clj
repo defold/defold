@@ -2,12 +2,12 @@
   (:require [dynamo.graph :as g]
             [editor.changes-view :as changes-view]
             [editor.defold-project :as project]
+            [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
             [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
-            [editor.workspace :as workspace])
-  (:import (javafx.beans.property SimpleBooleanProperty)))
+            [editor.workspace :as workspace]))
 
 (set! *warn-on-reflection* true)
 
@@ -47,12 +47,14 @@
         snapshot-cache (workspace/snapshot-cache workspace)
         success-promise (promise)
         complete! (fn [success?]
+                    (disk-availability/pop-busy!)
                     (render-progress! progress/done)
                     (reset! reload-job-atom nil)
                     (deliver success-promise success?))
         fail! (fn [error]
                 (error-reporting/report-exception! error)
                 (complete! false))]
+    (disk-availability/push-busy!)
     (future
       (try
         (render-progress! (progress/make "Loading external changes..."))
@@ -97,12 +99,14 @@
   (let [workspace (project/workspace project)
         success-promise (promise)
         complete! (fn [success?]
+                    (disk-availability/pop-busy!)
                     (render-save-progress! progress/done)
                     (reset! save-job-atom nil)
                     (deliver success-promise success?))
         fail! (fn [error]
                 (error-reporting/report-exception! error)
                 (complete! false))]
+    (disk-availability/push-busy!)
     (future
       ;; Reload any external changes first, so these will not
       ;; be overwritten if we have not detected them yet.
@@ -145,26 +149,3 @@
    (async-save! render-reload-progress! render-save-progress! project changes-view nil))
   ([render-reload-progress! render-save-progress! project changes-view callback!]
    (async-job! callback! save-job-atom start-save-job! render-reload-progress! render-save-progress! project changes-view)))
-
-;; -----------------------------------------------------------------------------
-;; Disk availability
-;; -----------------------------------------------------------------------------
-
-(defn available? []
-  (and (nil? @save-job-atom)
-       (nil? @reload-job-atom)))
-
-;; WARNING:
-;; Observing or binding to an observable that lives longer than the observer will
-;; cause a memory leak. You must manually unhook them or use weak listeners.
-;; Source: https://community.oracle.com/message/10360893#10360893
-(defonce ^SimpleBooleanProperty available-property (SimpleBooleanProperty. true))
-
-(defn- disk-job-atom-changed [_key _job-atom _old-job _new-job]
-  (ui/run-later
-    (.set available-property (and (nil? @save-job-atom)
-                                  (nil? @reload-job-atom)))))
-
-(add-watch save-job-atom ::disk-available-watch disk-job-atom-changed)
-(add-watch reload-job-atom ::disk-available-watch disk-job-atom-changed)
-
