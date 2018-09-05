@@ -38,7 +38,7 @@
         (ref-set schedule-refresh (not @refresh-pending))
         (ref-set refresh-pending true))
       (when @schedule-refresh
-        (render-progress! (progress/make "Refreshing file status..."))
+        (render-progress! (progress/make-indeterminate "Refreshing file status..."))
         (future
           (try
             (dosync (ref-set refresh-pending false))

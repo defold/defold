@@ -664,13 +664,18 @@ If you do not specifically require different script states, consider changing th
       (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                         (fn [successful?]
                           (when successful?
-                            (render-build-progress! (progress/make "Building..."))
-                            (ui/->future 0.01
-                                         (fn []
-                                           (let [result (ui/with-progress [render-build-progress! render-build-progress!]
-                                                          (deref (bob/build-html5! project prefs)))]
-                                             (when-not (handle-bob-error! render-error! project result)
-                                               (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))))))
+                            (render-build-progress! (progress/make-indeterminate "Building..."))
+                            (future
+                              (try
+                                (let [result (bob/build-html5! project prefs)]
+                                  (render-build-progress! progress/done)
+                                  (ui/run-later
+                                    (when-not (handle-bob-error! render-error! project result)
+                                      (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))
+                                (catch Throwable error
+                                  (error-reporting/report-exception! error))
+                                (finally
+                                  (render-build-progress! progress/done))))))))))
 
 (def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
@@ -1332,6 +1337,7 @@ If you do not specifically require different script states, consider changing th
                                  (changes-view/first-sync! changes-view project))))))))
 
 (handler/defhandler :save-all :global
+  (enabled? [] (not (bob/build-in-progress?)))
   (run [app-view changes-view project]
        (let [render-reload-progress! (make-render-task-progress :resource-sync)
              render-save-progress! (make-render-task-progress :save-all)]
@@ -1478,16 +1484,20 @@ If you do not specifically require different script states, consider changing th
     (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                       (fn [successful?]
                         (when successful?
-                          (render-build-progress! (progress/make "Bundling..."))
-                          (ui/->future 0.01
-                                       (fn []
-                                         (let [result (ui/with-progress [render-build-progress! render-build-progress!]
-                                                        (deref (bob/bundle! project prefs platform bundle-options)))]
-                                           (when-not (handle-bob-error! render-error! project result)
-                                             (if (some-> output-directory .isDirectory)
-                                               (ui/open-file output-directory)
-                                               (ui/run-later
-                                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again."))))))))))))
+                          (render-build-progress! (progress/make-indeterminate "Bundling..."))
+                          (future
+                            (try
+                              (let [result (bob/bundle! project prefs platform bundle-options)]
+                                (render-build-progress! progress/done)
+                                (ui/run-later
+                                  (when-not (handle-bob-error! render-error! project result)
+                                    (if (some-> output-directory .isDirectory)
+                                      (ui/open-file output-directory)
+                                      (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))
+                              (catch Throwable error
+                                (error-reporting/report-exception! error))
+                              (finally
+                                (render-build-progress! progress/done)))))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
