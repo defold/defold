@@ -944,7 +944,7 @@ namespace dmProfileRender
                     continue;
                 }
 
-                SampleSum* old_sample_sum = &frame->m_SampleSums[i];
+                SampleSum* old_sample_sum = &frame->m_SampleSums[old_i];
                 TNameHash old_name_hash = GetSampleSumHash(old_sample_sum->m_ScopeNameHash, old_sample_sum->m_SampleNameHash);
 
                 SampleSumStats tmp = render_profile->m_SampleSumStats[i];
@@ -953,8 +953,6 @@ namespace dmProfileRender
 
                 *old_i_ptr = i;
                 render_profile->m_SampleSumLookup.Put(old_name_hash, old_i);
-
-                render_profile->m_SampleSumLookup.Put(name_hash, i);
             }
         }
         render_profile->m_LastSortTick = render_profile->m_NowTick;
