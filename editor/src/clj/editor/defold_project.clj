@@ -2,6 +2,7 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
   ordinary paths."
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
@@ -26,7 +27,8 @@
             [editor.graph-util :as gu]
             [util.text-util :as text-util]
             [schema.core :as s]
-            [util.thread-util :as thread-util]))
+            [util.thread-util :as thread-util])
+  (:import (java.util.concurrent.atomic AtomicLong)))
 
 (set! *warn-on-reflection* true)
 
@@ -228,6 +230,18 @@
   ([project evaluation-context]
    (g/node-value project :dirty-save-data evaluation-context)))
 
+(declare make-count-progress-steps-tracer make-progress-tracer)
+
+(defn dirty-save-data-with-progress [project evaluation-context render-progress!]
+  (ui/with-progress [render-progress! render-progress!]
+    (let [step-count (AtomicLong.)
+          step-count-tracer (make-count-progress-steps-tracer :save-data step-count)
+          progress-message-fn (constantly "Saving...")]
+      (render-progress! (progress/make "Saving..."))
+      (dirty-save-data project (assoc evaluation-context :dry-run true :tracer step-count-tracer))
+      (let [progress-tracer (make-progress-tracer :save-data (.get step-count) progress-message-fn render-progress!)]
+        (dirty-save-data project (assoc evaluation-context :tracer progress-tracer))))))
+
 (defn textual-resource-type? [resource-type]
   ;; Unregistered resources that are connected to the project
   ;; save-data input are assumed to produce text data.
@@ -265,23 +279,29 @@
   ([project evaluation-context]
    (g/node-value project :workspace evaluation-context)))
 
-(defn make-collect-progress-steps-tracer [steps-atom]
+(defn make-collect-progress-steps-tracer [watched-label steps-atom]
   (fn [state node output-type label]
-    (when (and (= label :build-targets) (= state :begin) (= output-type :output))
+    (when (and (= label watched-label) (= state :begin) (= output-type :output))
       (swap! steps-atom conj node))))
 
-(defn make-progress-tracer [step-count node-id->resource-path render-progress!]
+(defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
+  (fn [state node output-type label]
+    (when (and (= label watched-label) (= state :begin) (= output-type :output))
+      (.getAndIncrement step-count))))
+
+(defn make-progress-tracer [watched-label step-count progress-message-fn render-progress!]
   (let [steps-done (atom #{})
-        progress (atom (progress/make "" step-count))]
+        initial-progress-message (progress-message-fn nil)
+        progress (atom (progress/make initial-progress-message step-count))]
     (fn [state node output-type label]
-      (when (and (= label :build-targets) (= output-type :output))
+      (when (and (= label watched-label) (= output-type :output))
         (case state
           :begin
-          (let [new-path (node-id->resource-path node)]
+          (let [progress-message (progress-message-fn node)]
             (render-progress! (swap! progress
-                                     #(progress/with-message % (if new-path
-                                                                 (str "Compiling " new-path)
-                                                                 (or (progress/message %) ""))))))
+                                     #(progress/with-message % (or progress-message
+                                                                   (progress/message %)
+                                                                   "")))))
 
           :end
           (let [already-done (loop []
@@ -305,14 +325,20 @@
 (defn- available-processors []
   (.. Runtime getRuntime availableProcessors))
 
+(defn- compiling-progress-message [node-id->resource-path node-id]
+  (if (nil? node-id)
+    "Compiling..."
+    (when-some [resource-path (node-id->resource-path node-id)]
+      (str "Compiling " resource-path))))
+
 (defn build!
   [project node evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [steps (atom [])
-        collect-tracer (make-collect-progress-steps-tracer steps)
+        collect-tracer (make-collect-progress-steps-tracer :build-targets steps)
         _ (g/node-value node :build-targets (assoc evaluation-context :dry-run true :tracer collect-tracer))
-        node-id->resource-path (clojure.set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
+        progress-message-fn (partial compiling-progress-message (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context)))
         step-count (count @steps)
-        progress-tracer (make-progress-tracer step-count node-id->resource-path (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
+        progress-tracer (make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
         prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (reverse @steps))
         _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)

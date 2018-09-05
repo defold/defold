@@ -108,18 +108,17 @@
                 (complete! false))]
     (disk-availability/push-busy!)
     (future
-      ;; Reload any external changes first, so these will not
-      ;; be overwritten if we have not detected them yet.
-      (if-not (blocking-reload! render-reload-progress! workspace [] nil)
-        (complete! false) ; Errors were already reported by blocking-reload!
-        (try
-          (render-save-progress! (progress/make "Saving..."))
+      (try
+        ;; Reload any external changes first, so these will not
+        ;; be overwritten if we have not detected them yet.
+        (if-not (blocking-reload! render-reload-progress! workspace [] nil)
+          (complete! false) ; Errors were already reported by blocking-reload!
           (ui/run-later
             (try
               (let [evaluation-context (g/make-evaluation-context)]
                 (future
                   (try
-                    (let [save-data (project/dirty-save-data project evaluation-context)]
+                    (let [save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)]
                       (project/write-save-data-to-disk! save-data {:render-progress! render-save-progress!})
                       (render-save-progress! (progress/make "Refreshing file status..."))
                       (let [updated-file-resource-status-entries (into {}
@@ -139,9 +138,9 @@
                     (catch Throwable error
                       (fail! error)))))
               (catch Throwable error
-                (fail! error))))
-          (catch Throwable error
-            (fail! error)))))
+                (fail! error)))))
+        (catch Throwable error
+          (fail! error))))
     success-promise))
 
 (defn async-save!
