@@ -241,6 +241,9 @@ union SaveLoadBuffer
     /*# get config value
      * Get config value from the game.project configuration file.
      *
+     * In addition to the project file, configuration values can also be passed
+     * to the runtime as command line arguments with the `--config` argument.
+     *
      * @name sys.get_config
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
      * @return value [type:string] config value as a string. nil if the config key doesn't exists
@@ -250,6 +253,18 @@ union SaveLoadBuffer
      *
      * ```lua
      * local width = tonumber(sys.get_config("display.width"))
+     * ```
+     *
+     * Start the engine with a bootstrap config override and a custom config value
+     *
+     * ```
+     * $ mygame --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1
+     * ```
+     *
+     * Set and read a custom config value
+     *
+     * ```lua
+     * local testmode = tonumber(sys.get_config("mygame.testmode"))
      * ```
      */
 

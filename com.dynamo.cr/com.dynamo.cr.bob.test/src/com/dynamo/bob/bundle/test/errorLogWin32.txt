@@ -22,9 +22,16 @@ upload/king_device_id/src/kdid.cpp(4): fatal error C1083: Cannot open include fi
 
 /var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h:905:16: error: pasting formed '"Use ""ADDRINFOEXW"', an invalid preprocessing token [-Winvalid-token-paste]
 
-/usr/local/bin/lld-link: error: 9cc45f19-9064-4342-bd00-39e6e9965c82.lib(dsocket.cpp_1.o): undefined symbol: _ERR_reason_error_string
+/usr/local/bin/lld-link: error: 975380ca-f446-4945-87db-070ee587b91c.lib(dopenssl.cpp_0.o): undefined symbol: _RAND_poll
+/usr/local/bin/lld-link: error: 975380ca-f446-4945-87db-070ee587b91c.lib(dopenssl.cpp_0.o): undefined symbol: _RAND_bytes
+/usr/local/bin/lld-link: warning: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): locally defined symbol imported: ___std_terminate (defined in libvcruntime.lib(frame.obj))
+/usr/local/bin/lld-link: warning: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): locally defined symbol imported: __CxxThrowException@8 (defined in libvcruntime.lib(throw.obj))
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _ERR_reason_error_string
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _ERR_clear_error
+/usr/local/bin/lld-link: error: 222613a7-2aea-4afd-8498-68f39f62468f.lib(dsocket.cpp_1.o): undefined symbol: _BIO_new_mem_buf
 
 
 clang++ -target i386-pc-win32-msvc -m32 -g -o build/dmengine.exe -O2 -fuse-ld=lld  -L/tmp/job3725092588996651427/build -L/tmp/job3725092588996651427/upload/luasec/lib/x86-win32  -lOpenGL32 -lDelayimp -lUser32 -lshell32 -lXinput9_1_0 -lOpenAL32 -lWS2_32 -lIPHlpApi -lDbgHelp -lCrypt32.Lib -llibengine.lib  -l058a7274-7297-45b8-92c9-aee6294b246e -llibcrypto -llibssl  -L/dynamo_home//lib/win32 -L/dynamo_home//ext/lib/win32 -L/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/lib/ -L/var/extender/.wine/drive_c/ProgramFilesx86/MicrosoftVisualStudio14.0/VC/atlmfc/lib -L/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/10/Lib/10.0.10240.0/ucrt/x86 -L/var/extender/.wine/drive_c/ProgramFilesx86/WindowsKits/8.1/Lib/winv6.3/um/x86  -llibengine_service -llibaxtls -llibwebviewext -llibadtruthext -llibprofilerext -llibfacebookext -llibgameroomext -llibiapext -llibpushext -llibiacext -llibrecord -llibgameobject -llibddf -llibresource -llibgamesys -llibgraphics -llibphysics -llibBulletDynamics -llibBulletCollision -llibLinearMath -llibBox2D -llibrender -llibscript -llibluajit-5.1 -llibextension -llibhid -llibinput -llibparticle -llibrig -llibdlib -llibdmglfw -llibgui -llibtracking -llibcrashext -llibliveupdate -llibsound -lvpx -llibFBGPlatform  build/main_tmp69387cb9-8403-4494-83f3-c14492a67685.o build/dmengine.res
 /usr/local/bin/lld-link: error: could not open Crypt32.Lib.lib: No such file or directory
 clang-6.0: error: linker command failed with exit code 1 (use -v to see invocation)
+

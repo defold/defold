@@ -282,7 +282,7 @@ namespace dmInput
                     GamepadConfig config;
                     config.m_DeadZone = gamepad_map.m_DeadZone;
                     memset(config.m_Inputs, 0, sizeof(config.m_Inputs));
-                    for (int32_t j = 0; j < (sizeof(config.m_Inputs) / sizeof(struct GamepadInput)); ++j)
+                    for (uint32_t j = 0; j < (sizeof(config.m_Inputs) / sizeof(struct GamepadInput)); ++j)
                     {
                         config.m_Inputs[j].m_Index = (uint16_t)~0;
                     }

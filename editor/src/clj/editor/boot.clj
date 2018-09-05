@@ -44,7 +44,7 @@
 (defn- open-project-with-progress-dialog
   [namespace-loader prefs project update-context newly-created?]
   (ui/modal-progress
-   "Loading project" 100
+   "Loading project"
    (fn [render-progress!]
      (let [namespace-progress (progress/make "Loading editor" 1304) ; magic number from reading namespace-counter after load.
            render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 2))

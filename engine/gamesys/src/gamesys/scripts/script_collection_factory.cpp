@@ -264,7 +264,7 @@ namespace dmGameSystem
      * How to delete a spawned collection:
      *
      * ```lua
-     * go.delete_all(self.enemy_ids)
+     * go.delete(self.enemy_ids)
      * ```
      */
 
