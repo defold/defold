@@ -1368,12 +1368,6 @@ namespace dmProfileRender
             return;
         }
 
-        PurgeStructure(render_profile);
-        if ((render_profile->m_NowTick - render_profile->m_LastSortTick) >= render_profile->m_SortInterval)
-        {
-            SortStructure(render_profile);
-        }
-
         if (render_profile->m_Mode == PROFILER_MODE_RECORD)
         {
             ProfileSnapshot* snapshot = MakeProfileSnapshot(
@@ -1389,8 +1383,12 @@ namespace dmProfileRender
             }
             render_profile->m_RecordBuffer.Push(snapshot);
             render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
+        }
 
-            return;
+        PurgeStructure(render_profile);
+        if ((render_profile->m_NowTick - render_profile->m_LastSortTick) >= render_profile->m_SortInterval)
+        {
+            SortStructure(render_profile);
         }
     }
 
