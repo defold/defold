@@ -1563,9 +1563,9 @@ namespace dmProfileRender
     {
         const uint32_t LIFETIME_IN_SECONDS = 6u;
         const uint32_t SORT_INTERVALL_IN_SECONDS = 3u;
-        const uint32_t MAX_SCOPE_COUNT = 64;
-        const uint32_t MAX_SAMPLE_SUM_COUNT = 128;
-        const uint32_t MAX_COUNTER_COUNT = 64;
+        const uint32_t MAX_SCOPE_COUNT = 128;
+        const uint32_t MAX_SAMPLE_SUM_COUNT = 256;
+        const uint32_t MAX_COUNTER_COUNT = 128;
         const uint32_t MAX_SAMPLE_COUNT = 16384;
 
         RenderProfile* profile = RenderProfile::New(
@@ -1576,7 +1576,7 @@ namespace dmProfileRender
             MAX_SCOPE_COUNT,
             MAX_SAMPLE_SUM_COUNT,
             MAX_COUNTER_COUNT,
-            MAX_SAMPLE_COUNT); // Just north of 210 Kb
+            MAX_SAMPLE_COUNT); // Just shy of 230 Kb
 
         return profile;
     }
