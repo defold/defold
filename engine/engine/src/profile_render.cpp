@@ -1603,8 +1603,6 @@ namespace dmProfileRender
 
             if (this_frame_time > last_frame_time)
             {
-                PurgeStructure(render_profile);
-
                 ProfileSnapshot* snapshot = MakeProfileSnapshot(
                     render_profile->m_NowTick,
                     render_profile->m_BuildFrame,
