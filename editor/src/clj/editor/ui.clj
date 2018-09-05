@@ -1673,7 +1673,9 @@
   (text! label (progress/message progress)))
 
 (defn render-progress-percentage! [progress ^Label label]
-  (text! label (str (progress/percentage progress) "%")))
+  (if-some [percentage (progress/percentage progress)]
+    (text! label (str percentage "%"))
+    (text! label "")))
 
 (defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
   (when bar (render-progress-bar! progress bar))

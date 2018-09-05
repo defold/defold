@@ -4,7 +4,6 @@
     [dynamo.graph :as g]
     [editor.defold-project :as project]
     [editor.disk-availability :as disk-availability]
-    [editor.error-reporting :as error-reporting]
     [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
     [editor.login :as login]
@@ -75,41 +74,44 @@
     (catch Exception e
       {:exception e})))
 
+(def ^:private build-in-progress-atom (atom false))
+
+(defn build-in-progress? []
+  @build-in-progress-atom)
+
 (defn- bob-build! [project bob-commands bob-args]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
   (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
+  (reset! build-in-progress-atom true)
   (disk-availability/push-busy!)
-  (future
-    (try
-      (if (and (some #(= "build" %) bob-commands)
-               (native-extensions/has-extensions? project)
-               (not (native-extensions/supported-platform? (get bob-args "platform"))))
-        {:error {:causes (engine-build-errors/unsupported-platform-error-causes project)}}
-        (let [ws (project/workspace project)
-              proj-path (str (workspace/project-path ws))
-              bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
-          (doseq [[key val] bob-args]
-            (.setOption bob-project key val))
-          (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
-          (let [scanner (ClassLoaderScanner.)]
-            (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-              (.scan bob-project scanner pkg)))
-          (let [deps (workspace/dependencies ws)]
-            (when (seq deps)
-              (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
-              (.resolveLibUrls bob-project (->progress))))
-          (.mount bob-project (->graph-resource-scanner ws))
-          (.findSources bob-project proj-path skip-dirs)
-          (run-commands! project bob-project bob-commands)))
-      (catch Throwable error
-        (error-reporting/report-exception! error))
-      (finally
-        (disk-availability/pop-busy!)))))
-
-(defn- boolean? [value]
-  (or (false? value) (true? value)))
+  (try
+    (if (and (some #(= "build" %) bob-commands)
+             (native-extensions/has-extensions? project)
+             (not (native-extensions/supported-platform? (get bob-args "platform"))))
+      {:error {:causes (engine-build-errors/unsupported-platform-error-causes project)}}
+      (let [ws (project/workspace project)
+            proj-path (str (workspace/project-path ws))
+            bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
+        (doseq [[key val] bob-args]
+          (.setOption bob-project key val))
+        (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
+        (let [scanner (ClassLoaderScanner.)]
+          (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
+            (.scan bob-project scanner pkg)))
+        (let [deps (workspace/dependencies ws)]
+          (when (seq deps)
+            (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
+            (.resolveLibUrls bob-project (->progress))))
+        (.mount bob-project (->graph-resource-scanner ws))
+        (.findSources bob-project proj-path skip-dirs)
+        (run-commands! project bob-project bob-commands)))
+    (catch Throwable error
+      {:exception error})
+    (finally
+      (reset! build-in-progress-atom false)
+      (disk-availability/pop-busy!))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
