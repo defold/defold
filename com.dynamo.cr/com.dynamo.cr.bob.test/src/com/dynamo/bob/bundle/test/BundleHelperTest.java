@@ -110,6 +110,7 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "ProgramFilesx86/WindowsKits/8.1/Include/shared/ws2def.h", 905, "error", "pasting formed '\"Use \"\"ADDRINFOEXW\"', an invalid preprocessing token [-Winvalid-token-paste]\n"));
             // lld-link error
             assertEquals(true, checkIssue(issues, "9cc45f19-9064-4342-bd00-39e6e9965c82.lib", 1, "error", "undefined symbol: _ERR_reason_error_string"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "could not open Crypt32.Lib.lib: No such file or directory"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogOSX.txt");
@@ -148,6 +149,7 @@ public class BundleHelperTest {
 
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "‘ubar’ does not name a type\n ubar g_foo = 0;"));
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 166, "error", "undefined reference to `Foobar()'\ncollect2: error: ld returned 1 exit status"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "cannot find -lsteam_api"));
         }
     }
 }
