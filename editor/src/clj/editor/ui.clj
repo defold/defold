@@ -1689,19 +1689,20 @@
 (defn make-run-later-render-progress [render-progress!]
   (let [render-inflight (ref false)
         last-progress (ref nil)]
-    (fn [progress]
-      (let [schedule (ref false)]
-        (dosync
-          (ref-set schedule (not @render-inflight))
-          (ref-set render-inflight true)
-          (ref-set last-progress progress))
-        (when @schedule
-          (run-later
-            (let [progress-snapshot (ref nil)]
-              (dosync
-                (ref-set progress-snapshot @last-progress)
-                (ref-set render-inflight false))
-              (render-progress! @progress-snapshot))))))))
+    (progress/throttle-render-progress
+      (fn [progress]
+        (let [schedule (ref false)]
+          (dosync
+            (ref-set schedule (not @render-inflight))
+            (ref-set render-inflight true)
+            (ref-set last-progress progress))
+          (when @schedule
+            (run-later
+              (let [progress-snapshot (ref nil)]
+                (dosync
+                  (ref-set progress-snapshot @last-progress)
+                  (ref-set render-inflight false))
+                (render-progress! @progress-snapshot)))))))))
 
 (defn modal-progress [title worker-fn]
   (run-now
@@ -1712,10 +1713,9 @@
          progress-control ^ProgressBar (.lookup root "#progress")
          message-control  ^Label (.lookup root "#message")
          return           (atom nil)
-         render-progress! (progress/throttle-render-progress
-                            (make-run-later-render-progress
-                              (fn [progress]
-                                (render-progress-controls! progress progress-control message-control))))]
+         render-progress! (make-run-later-render-progress
+                            (fn [progress]
+                              (render-progress-controls! progress progress-control message-control)))]
       (.setText title-control title)
       (.setProgress progress-control 0)
       (.setScene stage scene)
