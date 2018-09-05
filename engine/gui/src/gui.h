@@ -42,14 +42,9 @@ namespace dmGui
     const HNode INVALID_HANDLE = 0;
 
     /**
-     * Default layer id
-     */
-    const dmhash_t DEFAULT_LAYER = dmHashString64("");
-
-    /**
      * Default layout id
      */
-    const dmhash_t DEFAULT_LAYOUT = dmHashString64("");
+    extern const dmhash_t DEFAULT_LAYOUT;
 
     /**
      * Animation
