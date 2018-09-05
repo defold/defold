@@ -1147,10 +1147,6 @@ bail:
             {
                 memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_GuiContext.m_GuiContext));
             }
-//            if (engine->m_RenderContext->m_ScriptContext != 0x0)
-//            {
-//                memcount += dmScript::GetLuaGCCount(dmGui::GetLuaState(engine->m_RenderContext->m_ScriptContext));
-//            }
         }
         return memcount;
     }
