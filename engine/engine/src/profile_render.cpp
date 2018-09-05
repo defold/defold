@@ -1309,131 +1309,8 @@ namespace dmProfileRender
         dmRender::DrawText(render_context, font_map, 0, 0, params);
     }
 
-    HRenderProfile NewRenderProfile(float fps)
+    static void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map, const Size display_size, DisplayMode display_mode)
     {
-        const uint32_t LIFETIME_IN_SECONDS = 6u;
-        const uint32_t SORT_INTERVALL_IN_SECONDS = 3u;
-
-        RenderProfile* profile = RenderProfile::New(
-            fps,
-            dmProfile::GetTicksPerSecond(),
-            LIFETIME_IN_SECONDS,
-            SORT_INTERVALL_IN_SECONDS,
-            64,
-            128,
-            64,
-            16384); // Just north of 210 Kb
-
-        return profile;
-    }
-
-    void UpdateRenderProfile(HRenderProfile render_profile, dmProfile::HProfile profile)
-    {
-        float last_frame_time = render_profile->m_ActiveFrame->m_FrameTime;
-        last_frame_time -= render_profile->m_ActiveFrame->m_WaitTime;
-
-        if (render_profile->m_Mode == PROFILER_MODE_PAUSE)
-        {
-            return;
-        }
-
-        ResetStructure(render_profile);
-        BuildStructure(profile, render_profile);
-
-        if (render_profile->m_Mode == PROFILER_MODE_PAUSE_ON_PEAK)
-        {
-            float this_frame_time = render_profile->m_BuildFrame->m_FrameTime;
-            this_frame_time -= render_profile->m_BuildFrame->m_WaitTime;
-
-            if (this_frame_time > last_frame_time)
-            {
-                PurgeStructure(render_profile);
-
-                ProfileSnapshot* snapshot = MakeProfileSnapshot(
-                    render_profile->m_NowTick,
-                    render_profile->m_BuildFrame,
-                    render_profile->m_ScopeLookup.Size(),
-                    render_profile->m_SampleSumLookup.Size(),
-                    render_profile->m_CounterLookup.Size(),
-                    render_profile->m_SampleCount);
-
-                FlushRecording(render_profile, 1);
-                render_profile->m_RecordBuffer.SetSize(1);
-                render_profile->m_RecordBuffer[0] = snapshot;
-            }
-
-            GotoRecordedFrame(render_profile, 0);
-            SortStructure(render_profile);
-
-            return;
-        }
-
-        if (render_profile->m_Mode == PROFILER_MODE_RECORD)
-        {
-            ProfileSnapshot* snapshot = MakeProfileSnapshot(
-                render_profile->m_NowTick,
-                render_profile->m_BuildFrame,
-                render_profile->m_ScopeLookup.Size(),
-                render_profile->m_SampleSumLookup.Size(),
-                render_profile->m_CounterLookup.Size(),
-                render_profile->m_SampleCount);
-            if (render_profile->m_RecordBuffer.Remaining() == 0)
-            {
-                render_profile->m_RecordBuffer.SetCapacity(render_profile->m_RecordBuffer.Size() + (uint32_t)render_profile->m_FPS);
-            }
-            render_profile->m_RecordBuffer.Push(snapshot);
-            render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
-        }
-
-        PurgeStructure(render_profile);
-        if ((render_profile->m_NowTick - render_profile->m_LastSortTick) >= render_profile->m_SortInterval)
-        {
-            SortStructure(render_profile);
-        }
-    }
-
-    void SetMode(HRenderProfile render_profile, ProfilerMode mode)
-    {
-        if ((render_profile->m_Mode != PROFILER_MODE_RECORD) && (mode == PROFILER_MODE_RECORD))
-        {
-            FlushRecording(render_profile, (uint32_t)render_profile->m_FPS);
-        }
-        render_profile->m_Mode = mode;
-    }
-
-    void SetViewMode(HRenderProfile render_profile, ProfilerViewMode view_mode)
-    {
-        render_profile->m_ViewMode = view_mode;
-    }
-
-    void SetWaitTime(HRenderProfile render_profile, bool include_wait_time)
-    {
-        render_profile->m_IncludeFrameWait = include_wait_time ? 1 : 0;
-    }
-
-    void AdjustShownFrame(HRenderProfile render_profile, int distance)
-    {
-        render_profile->m_Mode = PROFILER_MODE_PAUSE;
-        if (render_profile->m_PlaybackFrame + distance > 0)
-        {
-            GotoRecordedFrame(render_profile, render_profile->m_PlaybackFrame + distance);
-            SortStructure(render_profile);
-        }
-    }
-
-    void DeleteRenderProfile(HRenderProfile render_profile)
-    {
-        RenderProfile::Delete(render_profile);
-    }
-
-    void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map)
-    {
-        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-        const Size display_size(dmGraphics::GetWindowWidth(graphics_context), dmGraphics::GetWindowHeight(graphics_context));
-
-        const DisplayMode display_mode = render_profile->m_ViewMode == PROFILER_VIEW_MODE_MINIMIZED ?
-            DISPLAYMODE_MINIMIZED : (display_size.w > display_size.h ? DISPLAYMODE_LANDSCAPE : DISPLAYMODE_PROTRAIT);
- 
         const Area profiler_area = GetProfilerArea(display_mode, display_size);
 
         const Area header_area = GetHeaderArea(display_mode, profiler_area);
@@ -1679,6 +1556,141 @@ namespace dmProfileRender
                 }
             }
         }
+    }
+
+
+
+
+    HRenderProfile NewRenderProfile(float fps)
+    {
+        const uint32_t LIFETIME_IN_SECONDS = 6u;
+        const uint32_t SORT_INTERVALL_IN_SECONDS = 3u;
+        const uint32_t MAX_SCOPE_COUNT = 64;
+        const uint32_t MAX_SAMPLE_SUM_COUNT = 128;
+        const uint32_t MAX_COUNTER_COUNT = 64;
+        const uint32_t MAX_SAMPLE_COUNT = 16384;
+
+        RenderProfile* profile = RenderProfile::New(
+            fps,
+            dmProfile::GetTicksPerSecond(),
+            LIFETIME_IN_SECONDS,
+            SORT_INTERVALL_IN_SECONDS,
+            MAX_SCOPE_COUNT,
+            MAX_SAMPLE_SUM_COUNT,
+            MAX_COUNTER_COUNT,
+            MAX_SAMPLE_COUNT); // Just north of 210 Kb
+
+        return profile;
+    }
+
+    void UpdateRenderProfile(HRenderProfile render_profile, dmProfile::HProfile profile)
+    {
+        float last_frame_time = render_profile->m_ActiveFrame->m_FrameTime;
+        last_frame_time -= render_profile->m_ActiveFrame->m_WaitTime;
+
+        if (render_profile->m_Mode == PROFILER_MODE_PAUSE)
+        {
+            return;
+        }
+
+        ResetStructure(render_profile);
+        BuildStructure(profile, render_profile);
+
+        if (render_profile->m_Mode == PROFILER_MODE_PAUSE_ON_PEAK)
+        {
+            float this_frame_time = render_profile->m_BuildFrame->m_FrameTime;
+            this_frame_time -= render_profile->m_BuildFrame->m_WaitTime;
+
+            if (this_frame_time > last_frame_time)
+            {
+                PurgeStructure(render_profile);
+
+                ProfileSnapshot* snapshot = MakeProfileSnapshot(
+                    render_profile->m_NowTick,
+                    render_profile->m_BuildFrame,
+                    render_profile->m_ScopeLookup.Size(),
+                    render_profile->m_SampleSumLookup.Size(),
+                    render_profile->m_CounterLookup.Size(),
+                    render_profile->m_SampleCount);
+
+                FlushRecording(render_profile, 1);
+                render_profile->m_RecordBuffer.SetSize(1);
+                render_profile->m_RecordBuffer[0] = snapshot;
+            }
+
+            GotoRecordedFrame(render_profile, 0);
+            SortStructure(render_profile);
+
+            return;
+        }
+
+        if (render_profile->m_Mode == PROFILER_MODE_RECORD)
+        {
+            ProfileSnapshot* snapshot = MakeProfileSnapshot(
+                render_profile->m_NowTick,
+                render_profile->m_BuildFrame,
+                render_profile->m_ScopeLookup.Size(),
+                render_profile->m_SampleSumLookup.Size(),
+                render_profile->m_CounterLookup.Size(),
+                render_profile->m_SampleCount);
+            if (render_profile->m_RecordBuffer.Remaining() == 0)
+            {
+                render_profile->m_RecordBuffer.SetCapacity(render_profile->m_RecordBuffer.Size() + (uint32_t)render_profile->m_FPS);
+            }
+            render_profile->m_RecordBuffer.Push(snapshot);
+            render_profile->m_PlaybackFrame = (int32_t)render_profile->m_RecordBuffer.Size();
+        }
+
+        PurgeStructure(render_profile);
+        if ((render_profile->m_NowTick - render_profile->m_LastSortTick) >= render_profile->m_SortInterval)
+        {
+            SortStructure(render_profile);
+        }
+    }
+
+    void SetMode(HRenderProfile render_profile, ProfilerMode mode)
+    {
+        if ((render_profile->m_Mode != PROFILER_MODE_RECORD) && (mode == PROFILER_MODE_RECORD))
+        {
+            FlushRecording(render_profile, (uint32_t)render_profile->m_FPS);
+        }
+        render_profile->m_Mode = mode;
+    }
+
+    void SetViewMode(HRenderProfile render_profile, ProfilerViewMode view_mode)
+    {
+        render_profile->m_ViewMode = view_mode;
+    }
+
+    void SetWaitTime(HRenderProfile render_profile, bool include_wait_time)
+    {
+        render_profile->m_IncludeFrameWait = include_wait_time ? 1 : 0;
+    }
+
+    void AdjustShownFrame(HRenderProfile render_profile, int distance)
+    {
+        render_profile->m_Mode = PROFILER_MODE_PAUSE;
+        if (render_profile->m_PlaybackFrame + distance > 0)
+        {
+            GotoRecordedFrame(render_profile, render_profile->m_PlaybackFrame + distance);
+            SortStructure(render_profile);
+        }
+    }
+
+    void DeleteRenderProfile(HRenderProfile render_profile)
+    {
+        RenderProfile::Delete(render_profile);
+    }
+
+    void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map)
+    {
+        dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
+        const Size display_size(dmGraphics::GetWindowWidth(graphics_context), dmGraphics::GetWindowHeight(graphics_context));
+
+        const DisplayMode display_mode = render_profile->m_ViewMode == PROFILER_VIEW_MODE_MINIMIZED ?
+            DISPLAYMODE_MINIMIZED : (display_size.w > display_size.h ? DISPLAYMODE_LANDSCAPE : DISPLAYMODE_PROTRAIT);
+
+        Draw(render_profile, render_context, font_map, display_size, display_mode);
     }
 
 }
