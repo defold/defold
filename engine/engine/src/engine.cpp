@@ -1123,9 +1123,13 @@ bail:
         engine->m_RunResult.m_ExitCode = 0;
 
         // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
+
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
-        uint64_t time = dmTime::GetTime();
         uint64_t prev_flip_time = engine->m_FlipTime;
+#endif
+
+        uint64_t time = dmTime::GetTime();
 
         float fps = engine->m_UpdateFrequency;
         float fixed_dt = 1.0f / fps;

@@ -774,7 +774,6 @@ namespace dmRender
     {
         float width = 0;
         const char* cursor = text;
-        const Glyph* first = 0;
         const Glyph* last = 0;
         for (int i = 0; i < n; ++i)
         {
@@ -784,8 +783,6 @@ namespace dmRender
                 continue;
             }
 
-            if (i == 0)
-                first = g;
             last = g;
             // NOTE: We round advance here just as above in DrawText
             width += (int16_t) (g->m_Advance + tracking);
