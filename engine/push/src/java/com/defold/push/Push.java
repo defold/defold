@@ -52,7 +52,7 @@ public class Push {
     public static final String ACTION_FORWARD_PUSH = "com.defold.push.FORWARD";
     public static final String SAVED_PUSH_MESSAGE_NAME = "saved_push_message";
     public static final String SAVED_LOCAL_MESSAGE_NAME = "saved_local_message";
-    public static final String NOTIFICATION_CHANNEL_ID = "com.dynamo.android.notificaion_channel";
+    public static final String NOTIFICATION_CHANNEL_ID = "com.dynamo.android.notification_channel";
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
     private String senderId = "";
