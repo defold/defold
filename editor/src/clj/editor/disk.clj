@@ -57,7 +57,7 @@
     (disk-availability/push-busy!)
     (future
       (try
-        (render-progress! (progress/make "Loading external changes..."))
+        (render-progress! (progress/make-indeterminate "Loading external changes..."))
         (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
           (render-progress! progress/done)
           (ui/run-later
@@ -120,7 +120,7 @@
                   (try
                     (let [save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)]
                       (project/write-save-data-to-disk! save-data {:render-progress! render-save-progress!})
-                      (render-save-progress! (progress/make "Refreshing file status..."))
+                      (render-save-progress! (progress/make-indeterminate "Refreshing file status..."))
                       (let [updated-file-resource-status-entries (into {}
                                                                        (map (comp resource-watch/file-resource-status-map-entry :resource))
                                                                        save-data)]

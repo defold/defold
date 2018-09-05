@@ -10,6 +10,9 @@
    {:pre [(<= pos size)]}
    {:message msg :size size :pos pos}))
 
+(defn make-indeterminate [msg]
+  (make msg 0))
+
 (def done (make "Ready" 1 1))
 
 (defn with-message [p msg]
@@ -30,17 +33,19 @@
    (with-message (advance p n) msg)))
 
 (defn fraction [{:keys [pos size] :as _progress}]
-  (if (zero? size) 1 (/ pos size)))
+  (when (pos? size)
+    (/ pos size)))
 
 (defn percentage [progress]
-  (int (* 100 (fraction progress))))
+  (when-some [fraction (fraction progress)]
+    (int (* 100 fraction))))
 
 (defn message [progress]
   (:message progress))
 
-(defn done? [progress]
-  (= (:pos progress)
-     (:size progress)))
+(defn done? [{:keys [pos size] :as _progress}]
+  (and (pos? size)
+       (= pos size)))
 
 ;; ----------------------------------------------------------
 
@@ -54,7 +59,9 @@
 (defn null-render-progress! [_])
 
 (defn println-render-progress! [progress]
-  (println (message progress) (percentage progress) "%"))
+  (if-some [percentage (percentage progress)]
+    (println (message progress) percentage "%")
+    (println (message progress))))
 
 (defn throttle-render-progress [render-progress!]
   (let [last-progress (atom nil)]
