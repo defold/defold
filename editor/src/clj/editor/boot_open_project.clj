@@ -13,6 +13,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.disk :as disk]
+            [editor.disk-availability :as disk-availability]
             [editor.form-view :as form-view]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -166,7 +167,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload! disk/available-property
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload! disk-availability/available-property
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")

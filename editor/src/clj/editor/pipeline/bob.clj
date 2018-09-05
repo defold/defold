@@ -3,11 +3,11 @@
     [clojure.java.io :as io]
     [dynamo.graph :as g]
     [editor.defold-project :as project]
+    [editor.disk-availability :as disk-availability]
     [editor.error-reporting :as error-reporting]
     [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
     [editor.login :as login]
-    [editor.prefs :as prefs]
     [editor.resource :as resource]
     [editor.system :as system]
     [editor.workspace :as workspace])
@@ -16,7 +16,7 @@
     [com.dynamo.bob.fs DefaultFileSystem]
     [com.dynamo.bob.util PathUtil]
     [java.io File InputStream]
-    [java.net URI URLDecoder]))
+    [java.net URI]))
 
 (set! *warn-on-reflection* true)
 
@@ -80,8 +80,9 @@
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
   (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
+  (disk-availability/push-busy!)
   (future
-    (error-reporting/catch-all!
+    (try
       (if (and (some #(= "build" %) bob-commands)
                (native-extensions/has-extensions? project)
                (not (native-extensions/supported-platform? (get bob-args "platform"))))
@@ -101,7 +102,11 @@
               (.resolveLibUrls bob-project (->progress))))
           (.mount bob-project (->graph-resource-scanner ws))
           (.findSources bob-project proj-path skip-dirs)
-          (run-commands! project bob-project bob-commands))))))
+          (run-commands! project bob-project bob-commands)))
+      (catch Throwable error
+        (error-reporting/report-exception! error))
+      (finally
+        (disk-availability/pop-busy!)))))
 
 (defn- boolean? [value]
   (or (false? value) (true? value)))
@@ -109,7 +114,6 @@
 ;; -----------------------------------------------------------------------------
 ;; Bundling
 ;; -----------------------------------------------------------------------------
-
 
 (defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))

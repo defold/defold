@@ -43,6 +43,7 @@
             [editor.scene :as scene]
             [editor.live-update-settings :as live-update-settings]
             [editor.disk :as disk]
+            [editor.disk-availability :as disk-availability]
             [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
@@ -1308,7 +1309,7 @@ If you do not specifically require different script states, consider changing th
                     (:view-types resource-type))))))
 
 (handler/defhandler :synchronize :global
-  (enabled? [] (disk/available?))
+  (enabled? [] (disk-availability/available?))
   (run [changes-view project workspace]
        (let [render-reload-progress! (make-render-task-progress :resource-sync)
              render-save-progress! (make-render-task-progress :save-all)]
@@ -1515,7 +1516,7 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view))))))))))
 
 (handler/defhandler :fetch-libraries :global
-  (enabled? [] (disk/available?))
+  (enabled? [] (disk-availability/available?))
   (run [workspace project prefs changes-view] (fetch-libraries workspace project prefs changes-view)))
 
 (defn- create-and-open-live-update-settings! [app-view changes-view prefs project]
@@ -1531,7 +1532,7 @@ If you do not specifically require different script states, consider changing th
                               (open-resource app-view prefs workspace project created-resource)))))))
 
 (handler/defhandler :live-update-settings :global
-  (enabled? [] (disk/available?))
+  (enabled? [] (disk-availability/available?))
   (run [app-view changes-view prefs workspace project]
        (if-some [existing-resource (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))]
          (open-resource app-view prefs workspace project existing-resource)
