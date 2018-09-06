@@ -75,11 +75,10 @@
 
     #define DM_PROFILE(scope_name, name) \
         static dmProfile::Scope* DM_PROFILE_PASTE2(scope, __LINE__) = 0; \
-        static uint32_t DM_PROFILE_PASTE2(sample, __LINE__) = 0; \
+        static uint32_t DM_PROFILE_PASTE2(sample, __LINE__) = dmProfile::GetNameHash(name); \
         if (dmProfile::g_IsInitialized && DM_PROFILE_PASTE2(scope, __LINE__) == 0) \
         {\
             DM_PROFILE_PASTE2(scope, __LINE__) = dmProfile::AllocateScope(#scope_name);\
-            DM_PROFILE_PASTE2(sample, __LINE__) = dmProfile::GetNameHash(name); \
         }\
         dmProfile::ProfileScope DM_PROFILE_PASTE2(profile_scope, __LINE__)(DM_PROFILE_PASTE2(scope, __LINE__), name, DM_PROFILE_PASTE2(sample, __LINE__));\
 
@@ -127,9 +126,9 @@ namespace dmProfile
         /// The scope
         Scope*  m_Scope;
         /// Total time spent in scope (in ticks) summed over all threads
-        int32_t m_Elapsed;
+        uint32_t m_Elapsed;
         /// Occurrences of this scope summed over all threads
-        int32_t m_Count;
+        uint32_t m_Count;
     };
 
     /**
@@ -145,11 +144,12 @@ namespace dmProfile
         uint32_t    m_Start;
         /// Elapsed time in ticks
         uint32_t    m_Elapsed;
+        /// Sample name hash
+        uint32_t    m_NameHash;
         /// Thread id this sample belongs to
         uint16_t    m_ThreadId;
         /// Padding to 64-bit align
         uint16_t    m_Pad;
-        uint32_t    m_NameHash;
     };
 
     /**
