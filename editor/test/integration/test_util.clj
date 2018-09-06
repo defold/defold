@@ -272,7 +272,15 @@
          (doseq [f# @laters#] (f#))
          result#))))
 
-(defn run-event-loop! [f]
+(defn run-event-loop!
+  "Starts a simulated event loop and enqueues the supplied function on it.
+  The function is invoked with a single argument, which is a function that must
+  be called to exit the event loop. Blocks until the event loop is terminated,
+  or an exception is thrown from an enqueued action. While the event loop is
+  running, ui/run-now and ui/run-later are rebound to enqueue actions on the
+  simulated event loop, and ui/on-ui-thread? will return true only if called
+  from inside the event loop."
+  [f]
   (let [ui-thread (Thread/currentThread)
         action-queue (LinkedBlockingQueue.)
         enqueue-action! (fn [action!]

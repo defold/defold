@@ -81,4 +81,31 @@
                                    (ui/run-later
                                      (swap! action-threads conj (Thread/currentThread))
                                      (exit-event-loop!))))
-      (is (= [calling-thread calling-thread calling-thread] @action-threads)))))
+      (is (= [calling-thread calling-thread calling-thread] @action-threads))))
+
+  (testing "UI thread checks."
+    (let [errors (atom [])
+          results (atom [])]
+      (test-util/run-event-loop! (fn [exit-event-loop!]
+                                   (swap! results conj (ui/on-ui-thread?))
+                                   (ui/run-now
+                                     (swap! results conj (ui/on-ui-thread?)))
+                                   (ui/run-later
+                                     (swap! results conj (ui/on-ui-thread?))
+                                     (future
+                                       (try
+                                         (swap! results conj (ui/on-ui-thread?))
+                                         (ui/run-now
+                                           (swap! results conj (ui/on-ui-thread?))
+                                           (future
+                                             (try
+                                               (swap! results conj (ui/on-ui-thread?))
+                                               (catch Throwable error
+                                                 (swap! errors conj error))
+                                               (finally
+                                                 (exit-event-loop!)))))
+                                         (catch Throwable error
+                                           (swap! errors conj error)
+                                           (exit-event-loop!)))))))
+      (is (empty? @errors))
+      (is (= [true true true false true false] @results)))))
