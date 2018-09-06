@@ -1138,19 +1138,25 @@
                                                                   (assoc :parent id)))
                                                (:nodes scene-pb-msg))))
   (output node-rt-msgs g/Any :cached (g/fnk [node-msg scene-rt-pb-msg]
-                                       (let [parent-q (math/euler->quat (:rotation node-msg))]
-                                         (into [] (map #(cond-> (assoc % :child-index (:child-index node-msg))
-                                                          (empty? (:layer %)) (assoc :layer (:layer node-msg))
-                                                          (:inherit-alpha %) (->
-                                                                               (update :alpha * (:alpha node-msg))
-                                                                               (assoc :inherit-alpha (:inherit-alpha node-msg)))
-                                                          (empty? (:parent %)) (->
-                                                                                 (assoc :parent (:parent node-msg))
-                                                                                 ;; In fact incorrect, but only possibility to retain rotation/scale separation
-                                                                                 (update :scale (partial mapv * (:scale node-msg)))
-                                                                                 (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
-                                                                                 (update :rotation trans-rotation parent-q)))
-                                                       (:nodes scene-rt-pb-msg))))))
+                                            (let [parent-q (math/euler->quat (:rotation node-msg))]
+                                              (into [] (map #(cond-> (assoc % :child-index (:child-index node-msg))
+                                                               (empty? (:layer %))
+                                                               (assoc :layer (:layer node-msg))
+
+                                                               (:inherit-alpha %)
+                                                               (->
+                                                                 (update :alpha * (:alpha node-msg))
+                                                                 (assoc :inherit-alpha (:inherit-alpha node-msg)))
+
+                                                               (empty? (:parent %))
+
+                                                               (->
+                                                                 (assoc :parent (:parent node-msg))
+                                                                 ;; In fact incorrect, but only possibility to retain rotation/scale separation
+                                                                 (update :scale (partial mapv * (:scale node-msg)))
+                                                                 (update :position trans-position (:position node-msg) parent-q (:scale node-msg))
+                                                                 (update :rotation trans-rotation parent-q))))
+                                                    (:nodes scene-rt-pb-msg)))))
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
                                               (-> {id _overridden-properties}
                                                 (merge template-overrides))))
