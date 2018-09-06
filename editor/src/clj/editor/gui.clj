@@ -1133,9 +1133,10 @@
                                                                      (get-in template-outline [:children 0 :children])))
   (output node-outline-reqs g/Any :cached (g/constantly []))
   (output node-msgs g/Any :cached (g/fnk [id node-msg scene-pb-msg]
-                                    (into [node-msg] (map #(cond-> (assoc % :template-node-child true)
-                                                             (empty? (:parent %)) (assoc :parent id))
-                                                          (:nodes scene-pb-msg)))))
+                                         (into [node-msg] (map #(cond-> (assoc % :template-node-child true)
+                                                                  (empty? (:parent %))
+                                                                  (assoc :parent id)))
+                                               (:nodes scene-pb-msg))))
   (output node-rt-msgs g/Any :cached (g/fnk [node-msg scene-rt-pb-msg]
                                        (let [parent-q (math/euler->quat (:rotation node-msg))]
                                          (into [] (map #(cond-> (assoc % :child-index (:child-index node-msg))
