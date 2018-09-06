@@ -14,6 +14,31 @@
 
 namespace dmProfileRender
 {
+    static const int CHAR_HEIGHT = 16;
+    static const int CHAR_WIDTH = 8;
+    static const int CHAR_BORDER = 1;
+    static const int LINE_SPACING = CHAR_HEIGHT + CHAR_BORDER * 2;
+    static const int BORDER_SIZE = 8;
+
+    static const int SCOPES_NAME_WIDTH = 17 * CHAR_WIDTH;
+    static const int SCOPES_TIME_WIDTH = 6 * CHAR_WIDTH;
+    static const int SCOPES_COUNT_WIDTH = 3 * CHAR_WIDTH;
+
+    static const int SAMPLE_FRAMES_NAME_LENGTH = 32;
+    static const int SAMPLE_FRAMES_NAME_WIDTH = SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
+    static const int SAMPLE_FRAMES_TIME_WIDTH = 6 * CHAR_WIDTH;
+    static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHAR_WIDTH;
+
+    static const int COUNTERS_NAME_WIDTH = 15 * CHAR_WIDTH;
+    static const int COUNTERS_COUNT_WIDTH = 12 * CHAR_WIDTH;
+
+    enum DisplayMode
+    {
+        DISPLAYMODE_MINIMIZED,
+        DISPLAYMODE_LANDSCAPE,
+        DISPLAYMODE_PORTRAIT
+    };
+
     using namespace Vectormath::Aos;
 
     typedef uint16_t TIndex;
@@ -1015,31 +1040,6 @@ namespace dmProfileRender
         render_profile->m_ActiveFrame = &snapshot->m_Frame;
     }
 
-    static const int CHAR_HEIGHT = 16;
-    static const int CHAR_WIDTH = 8;
-    static const int CHAR_BORDER = 1;
-    static const int LINE_SPACING = CHAR_HEIGHT + CHAR_BORDER * 2;
-    static const int BORDER_SIZE = 8;
-
-    static const int SCOPES_NAME_WIDTH = 17 * CHAR_WIDTH;
-    static const int SCOPES_TIME_WIDTH = 6 * CHAR_WIDTH;
-    static const int SCOPES_COUNT_WIDTH = 3 * CHAR_WIDTH;
-
-    static const int SAMPLE_FRAMES_NAME_LENGTH = 32;
-    static const int SAMPLE_FRAMES_NAME_WIDTH = SAMPLE_FRAMES_NAME_LENGTH * CHAR_WIDTH;
-    static const int SAMPLE_FRAMES_TIME_WIDTH = 6 * CHAR_WIDTH;
-    static const int SAMPLE_FRAMES_COUNT_WIDTH = 3 * CHAR_WIDTH;
-
-    static const int COUNTERS_NAME_WIDTH = 15 * CHAR_WIDTH;
-    static const int COUNTERS_COUNT_WIDTH = 12 * CHAR_WIDTH;
-
-    enum DisplayMode
-    {
-        DISPLAYMODE_MINIMIZED,
-        DISPLAYMODE_LANDSCAPE,
-        DISPLAYMODE_PROTRAIT
-    };
-
     struct Position
     {
         Position(int x, int y)
@@ -1107,7 +1107,7 @@ namespace dmProfileRender
             Position p(details_area.p.x, details_area.p.y + details_area.s.h - s.h);
             return Area(p, s);
         }
-        else if (display_mode == DISPLAYMODE_PROTRAIT)
+        else if (display_mode == DISPLAYMODE_PORTRAIT)
         {
             Position p(details_area.p.x + details_area.s.w - s.w, details_area.p.y);
             return Area(p, s);
@@ -1117,7 +1117,7 @@ namespace dmProfileRender
 
     static Area GetCountersArea(DisplayMode display_mode, const Area& details_area, int scopes_count, int counters_count)
     {
-        if (display_mode == DISPLAYMODE_LANDSCAPE || display_mode == DISPLAYMODE_PROTRAIT)
+        if (display_mode == DISPLAYMODE_LANDSCAPE || display_mode == DISPLAYMODE_PORTRAIT)
         {
             const int count = dmMath::Max(scopes_count, counters_count);
             Size s(COUNTERS_NAME_WIDTH + CHAR_WIDTH + COUNTERS_COUNT_WIDTH, LINE_SPACING * (1 + count));
@@ -1135,7 +1135,7 @@ namespace dmProfileRender
             Position p(scopes_area.p.x + scopes_area.s.w + CHAR_WIDTH, details_area.p.y + details_area.s.h - s.h);
             return Area(p, s);
         }
-        else if (display_mode == DISPLAYMODE_PROTRAIT)
+        else if (display_mode == DISPLAYMODE_PORTRAIT)
         {
             int lower_clip = dmMath::Max(scopes_area.p.y + scopes_area.s.h, counters_area.p.y + counters_area.s.h);
             int max_height = details_area.p.y + details_area.s.h - lower_clip;
@@ -1162,32 +1162,23 @@ namespace dmProfileRender
         dmRender::Square2d(render_context, a.p.x, a.p.y, a.p.x + a.s.w, a.p.y + a.s.h, col);
     }
     
-    static void DrawText(dmRender::HRenderContext render_context, dmRender::DrawTextParams& params, const Position& pos, dmRender::HFontMap font_map, const char* text)
-    {
-        params.m_Text = text;
-        params.m_WorldTransform.setElem(3, 0, pos.x);
-        params.m_WorldTransform.setElem(3, 1, pos.y + CHAR_HEIGHT);
-        dmRender::DrawText(render_context, font_map, 0, 0, params);
-    }
-
     static void Draw(HRenderProfile render_profile, dmRender::HRenderContext render_context, dmRender::HFontMap font_map, const Size display_size, DisplayMode display_mode)
     {
+        uint32_t batch_key = 0;
+        {
+            HashState64 key_state;
+            dmHashInit64(&key_state, false);
+            dmHashUpdateBuffer64(&key_state, &font_map, sizeof(font_map));
+            uint16_t render_order = 0;
+            dmHashUpdateBuffer64(&key_state, &render_order, sizeof(uint16_t));
+            batch_key = dmHashFinal64(&key_state);
+        }
+
         const Area profiler_area = GetProfilerArea(display_mode, display_size);
+        FillArea(render_context, profiler_area, Vector4(0.1f, 0.1f, 0.1f, 0.6f));
 
         const Area header_area = GetHeaderArea(display_mode, profiler_area);
         const Area details_area = GetDetailsArea(display_mode, profiler_area, header_area);
-
-        const TIndex scope_count = (TIndex)render_profile->m_ScopeLookup.Size();
-        const TIndex counter_count = (TIndex)render_profile->m_CounterLookup.Size();
-        const TIndex sample_sum_count = (TIndex)render_profile->m_SampleSumLookup.Size();
-
-        const Area scopes_area = GetScopesArea(display_mode, details_area, scope_count, counter_count);
-        const Area counters_area = GetCountersArea(display_mode, details_area, scope_count, counter_count);
-        const Area samples_area = GetSamplesArea(display_mode, details_area, scopes_area, counters_area);
-        const Area sample_frames_area = GetSampleFramesArea(display_mode, samples_area);
-
-        FillArea(render_context, profiler_area, Vector4(0.1f, 0.1f, 0.1f, 0.6f));
-        FillArea(render_context, sample_frames_area, Vector4(0.15f, 0.15f, 0.15f, 0.2f));
 
         char buffer[256];
         float col[3];
@@ -1231,12 +1222,27 @@ namespace dmProfileRender
                 DM_SNPRINTF(&buffer[l], 256 -l, " (Rec: %d)", render_profile->m_PlaybackFrame);
                 break;
         }
-        DrawText(render_context, params, header_area.p, font_map, buffer);
+
+        params.m_Text = buffer;
+        params.m_WorldTransform.setElem(3, 0, header_area.p.x);
+        params.m_WorldTransform.setElem(3, 1, header_area.p.y + CHAR_HEIGHT);
+        dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
         if (render_profile->m_ViewMode == PROFILER_VIEW_MODE_MINIMIZED)
         {
             return;
         }
+
+        const TIndex scope_count = (TIndex)render_profile->m_ScopeLookup.Size();
+        const TIndex counter_count = (TIndex)render_profile->m_CounterLookup.Size();
+        const TIndex sample_sum_count = (TIndex)render_profile->m_SampleSumLookup.Size();
+
+        const Area scopes_area = GetScopesArea(display_mode, details_area, scope_count, counter_count);
+        const Area counters_area = GetCountersArea(display_mode, details_area, scope_count, counter_count);
+        const Area samples_area = GetSamplesArea(display_mode, details_area, scopes_area, counters_area);
+        const Area sample_frames_area = GetSampleFramesArea(display_mode, samples_area);
+
+        FillArea(render_context, sample_frames_area, Vector4(0.15f, 0.15f, 0.15f, 0.2f));
 
         {
             // Scopes
@@ -1251,13 +1257,13 @@ namespace dmProfileRender
             params.m_FaceColor = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
             params.m_Text = render_profile->m_ScopeOverflow ? "*Scopes:" : "Scopes:";
             params.m_WorldTransform.setElem(3, 0, name_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             params.m_Text = "    ms";
             params.m_WorldTransform.setElem(3, 0, time_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             params.m_Text = "  #";
             params.m_WorldTransform.setElem(3, 0, count_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
             HslToRgb2( 4/ 16.0f, 1.0f, 0.65f, col);
             params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
@@ -1273,17 +1279,17 @@ namespace dmProfileRender
 
                 params.m_Text = *render_profile->m_NameLookupTable.Get(scope->m_NameHash);
                 params.m_WorldTransform.setElem(3, 0, name_x);
-                dmRender::DrawText(render_context, font_map, 0, 0, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 params.m_Text = buffer;
                 DM_SNPRINTF(buffer, sizeof(buffer), "%6.3f", (float)(e * 1000.0));
                 params.m_WorldTransform.setElem(3, 0, time_x);
-                dmRender::DrawText(render_context, font_map, 0, 0, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 params.m_Text = buffer;
                 DM_SNPRINTF(buffer, sizeof(buffer), "%3u", scope->m_Count);
                 params.m_WorldTransform.setElem(3, 0, count_x);
-                dmRender::DrawText(render_context, font_map, 0, 0, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             }
         }
         {
@@ -1298,10 +1304,10 @@ namespace dmProfileRender
             params.m_FaceColor = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
             params.m_Text = render_profile->m_CounterOverflow ? "*Counters:" : "Counters:";
             params.m_WorldTransform.setElem(3, 0, name_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             params.m_Text = "           #";
             params.m_WorldTransform.setElem(3, 0, count_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
             HslToRgb2( 4/ 16.0f, 1.0f, 0.65f, col);
             params.m_FaceColor = Vector4(col[0], col[1], col[2], 1.0f);
@@ -1314,12 +1320,12 @@ namespace dmProfileRender
                 params.m_WorldTransform.setElem(3, 1, y);
                 params.m_Text = *render_profile->m_NameLookupTable.Get(counter->m_NameHash);
                 params.m_WorldTransform.setElem(3, 0, name_x);
-                dmRender::DrawText(render_context, font_map, 0, 0, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 params.m_Text = buffer;
                 DM_SNPRINTF(buffer, sizeof(buffer), "%12u", counter->m_Count);
                 params.m_WorldTransform.setElem(3, 0, count_x);
-                dmRender::DrawText(render_context, font_map, 0, 0, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             }
         }
         {
@@ -1336,16 +1342,16 @@ namespace dmProfileRender
             params.m_FaceColor = Vector4(1.0f, 1.0f, 1.0f, 1.0f);
             params.m_Text = render_profile->m_SampleSumOverflow ? "*Samples:" : "Samples:";
             params.m_WorldTransform.setElem(3, 0, name_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             params.m_Text = "    ms";
             params.m_WorldTransform.setElem(3, 0, time_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             params.m_Text = "  #";
             params.m_WorldTransform.setElem(3, 0, count_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
             params.m_Text = render_profile->m_SampleOverflow ? "*Frame:" : "Frame:";
             params.m_WorldTransform.setElem(3, 0, frames_x);
-            dmRender::DrawText(render_context, font_map, 0, 0, params);
+            dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
             uint32_t sample_frame_width = sample_frames_area.s.w;
             const uint32_t frame_ticks = GetFrameTicks(render_profile);
@@ -1389,15 +1395,15 @@ namespace dmProfileRender
                 const char* sample_name = *render_profile->m_NameLookupTable.Get(sample_sum->m_SampleNameHash);
                 DM_SNPRINTF(buffer, SAMPLE_FRAMES_NAME_LENGTH, "%s.%s", scope_name, sample_name);
                 params.m_WorldTransform.setElem(3, 0, name_x);
-                dmRender::DrawText(render_context, font_map, 0, 0, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 DM_SNPRINTF(buffer, sizeof(buffer), "%6.3f", (float)(e * 1000.0));
                 params.m_WorldTransform.setElem(3, 0, time_x);
-                dmRender::DrawText(render_context, font_map, 0, 0, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 DM_SNPRINTF(buffer, sizeof(buffer), "%3u", sample_sum->m_Count);
                 params.m_WorldTransform.setElem(3, 0, count_x);
-                dmRender::DrawText(render_context, font_map, 0, 0, params);
+                dmRender::DrawText(render_context, font_map, 0, batch_key, params);
 
                 TIndex sample_index = sample_sum->m_LastSampleIndex;
                 while (sample_index != max_sample_count)
@@ -1684,7 +1690,7 @@ namespace dmProfileRender
         const Size display_size(dmGraphics::GetWindowWidth(graphics_context), dmGraphics::GetWindowHeight(graphics_context));
 
         const DisplayMode display_mode = render_profile->m_ViewMode == PROFILER_VIEW_MODE_MINIMIZED ?
-            DISPLAYMODE_MINIMIZED : (display_size.w > display_size.h ? DISPLAYMODE_LANDSCAPE : DISPLAYMODE_PROTRAIT);
+            DISPLAYMODE_MINIMIZED : (display_size.w > display_size.h ? DISPLAYMODE_LANDSCAPE : DISPLAYMODE_PORTRAIT);
 
         Draw(render_profile, render_context, font_map, display_size, display_mode);
     }
