@@ -1158,8 +1158,7 @@
                                                                  (update :rotation trans-rotation parent-q))))
                                                     (:nodes scene-rt-pb-msg)))))
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
-                                              (-> {id _overridden-properties}
-                                                (merge template-overrides))))
+                                              (merge {id _overridden-properties} template-overrides)))
   (output aabb g/Any (g/fnk [template-scene transform]
                        (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
   (output scene-children g/Any (g/fnk [_node-id id template-scene]
