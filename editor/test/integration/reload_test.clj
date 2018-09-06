@@ -5,12 +5,14 @@
             [dynamo.graph :as g]
             [support.test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [editor.defold-project :as project]
+            [editor.disk :as disk]
             [editor.fs :as fs]
             [editor.library :as library]
             [editor.dialogs :as dialogs]
             [editor.game-project :as game-project]
             [editor.game-object :as game-object]
             [editor.asset-browser :as asset-browser]
+            [editor.progress :as progress]
             [editor.atlas :as atlas]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
@@ -227,6 +229,24 @@
                      ;; TODO - fix node pollution
                      (log/without-logging
                        (is (g/error? (g/node-value atlas-node-id :anim-data)))))))))))))))
+
+(deftest save-no-reload
+  (with-clean-system
+    (let [[workspace project] (setup-scratch world)]
+      (test-util/run-event-loop!
+        (fn [exit-event-loop!]
+          (testing "Add internal file"
+            (add-file workspace "/test.collection")
+            (let [node (project/get-resource-node project "/test.collection")]
+              (g/transact
+                (g/set-property node :name "new_name"))
+              (is (has-undo? project))
+              (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+                                (fn [successful?]
+                                  (when (is successful?)
+                                    (sync! workspace)
+                                    (is (has-undo? project)))
+                                  (exit-event-loop!))))))))))
 
 (defn- find-error [type v]
   (if (= type (get-in v [:user-data :type]))
