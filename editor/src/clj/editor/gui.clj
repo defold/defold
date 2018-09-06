@@ -1149,7 +1149,6 @@
                                                                  (assoc :inherit-alpha (:inherit-alpha node-msg)))
 
                                                                (empty? (:parent %))
-
                                                                (->
                                                                  (assoc :parent (:parent node-msg))
                                                                  ;; In fact incorrect, but only possibility to retain rotation/scale separation
