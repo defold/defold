@@ -624,7 +624,7 @@
 
 (handler/defhandler :add-from-file :workbench
   (active? [selection] (selection->collection selection))
-  (label [selection] "Add Game Object Files")
+  (label [selection] "Add Game Object Files...")
   (run [workspace project app-view selection]
     (let [collection (selection->collection selection)]
       (when-let [resources (select-go-files workspace project)]
