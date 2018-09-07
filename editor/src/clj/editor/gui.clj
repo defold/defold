@@ -591,6 +591,7 @@
                                             (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type own-build-errors _overridden-properties]
+                 (println id _node-id)
             (cond-> {:node-id _node-id
                      :node-outline-key id
                      :label id
@@ -1683,7 +1684,8 @@
                                         [:scene :node-tree-scene]]]
                          (g/connect or-node-tree from self to))
 
-                       (for [[from to] [[:id-prefix :id-prefix]]]
+                       (for [[from to] [[:id-prefix :id-prefix]
+                                        [:name :current-layout]]]
                          (g/connect self from or-node-tree to))
                        (for [[id data] or-data
                              :let [node-id (node-mapping id)]
