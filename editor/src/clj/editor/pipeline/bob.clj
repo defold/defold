@@ -6,9 +6,12 @@
     [editor.disk-availability :as disk-availability]
     [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
+    [editor.error-reporting :as error-reporting]
     [editor.login :as login]
+    [editor.progress :as progress]
     [editor.resource :as resource]
     [editor.system :as system]
+    [editor.ui :as ui]
     [editor.workspace :as workspace])
   (:import
     [com.dynamo.bob ClassLoaderScanner IProgress IResourceScanner Project TaskResult]
@@ -22,19 +25,91 @@
 (def skip-dirs #{".git" "build/default" ".internal"})
 (def html5-url-prefix "/html5")
 
-;; TODO - this should be fixed with proper progress at some point
-(defn- ->progress []
-  (reify IProgress
-    (subProgress [this work]
-      (->progress))
-    (worked [this amount]
-      )
-    (beginTask [this name work]
-      )
-    (done [this]
-      )
-    (isCanceled [this]
-      false)))
+(defn- ->subtask-progress [^IProgress parent steps-claimed-from-parent msg-stack-atom indeterminate-atom]
+  (assert (instance? IProgress parent))
+  (assert (number? steps-claimed-from-parent))
+  (let [step-atom (atom 1)
+        work-atom (atom {:performed 0
+                         :reported 0
+                         :remaining steps-claimed-from-parent})]
+    (reify IProgress
+      (subProgress [this steps-claimed-from-this]
+        (->subtask-progress this steps-claimed-from-this msg-stack-atom indeterminate-atom))
+      (worked [this subtask-amount]
+        (error-reporting/catch-all!
+          (let [parent-amount (* subtask-amount @step-atom)]
+            (when (pos? parent-amount)
+              (let [unreported-work-volatile (volatile! 0)]
+                (swap! work-atom (fn [{:keys [performed remaining reported] :as work}]
+                                   ;; Bob often reports insufficient subtask
+                                   ;; steps, since some tasks can put additional
+                                   ;; tasks in the queue. To guard against that,
+                                   ;; we report indeterminate progress if a
+                                   ;; subtask exceeds the  claimed steps.
+                                   (if (zero? remaining)
+                                     (do
+                                       (reset! indeterminate-atom true) ; Flag as indeterminate.
+                                       (reset! step-atom 0) ; Disable advance.
+                                       work)
+                                     (let [performed (min (+ performed parent-amount) steps-claimed-from-parent)
+                                           unreported (quot (- performed reported) 1)]
+                                       (vreset! unreported-work-volatile unreported)
+                                       {:performed performed
+                                        :reported (+ reported unreported)
+                                        :remaining (- remaining unreported)}))))
+                (let [unreported-work @unreported-work-volatile]
+                  (.worked parent unreported-work)))))))
+      (beginTask [this name subtask-steps]
+        (error-reporting/catch-all!
+          (swap! msg-stack-atom conj name)
+          (reset! step-atom (if (pos? subtask-steps)
+                              (/ steps-claimed-from-parent subtask-steps)
+                              0)))) ; Indeterminate - don't advance.
+      (done [this]
+        (error-reporting/catch-all!
+          (let [remaining-work (:remaining @work-atom)]
+            (swap! work-atom assoc :remaining 0)
+            (reset! indeterminate-atom false)
+            (.worked parent remaining-work)
+            (swap! msg-stack-atom pop))))
+      (isCanceled [this]
+        (.isCanceled parent)))))
+
+(defn- ->progress [render-progress!]
+  (assert (ifn? render-progress!))
+  (let [msg-stack-atom (atom [])
+        indeterminate-atom (atom false)
+        progress-atom (atom (progress/make-indeterminate ""))
+        decorate-progress (fn [progress]
+                            (if @indeterminate-atom
+                              (progress/make-indeterminate (peek @msg-stack-atom))
+                              (progress/with-message progress (peek @msg-stack-atom))))]
+    (reify IProgress
+      (subProgress [this work-claimed-from-this]
+        (->subtask-progress this work-claimed-from-this msg-stack-atom indeterminate-atom))
+      (worked [this amount]
+        (error-reporting/catch-all!
+          (-> progress-atom
+              (swap! progress/advance amount)
+              decorate-progress
+              render-progress!)))
+      (beginTask [this name steps]
+        (error-reporting/catch-all!
+          (swap! msg-stack-atom conj name)
+          (-> progress-atom
+              (reset! (if (= -1 steps)
+                        (progress/make-indeterminate name)
+                        (progress/make name steps)))
+              decorate-progress
+              render-progress!)))
+      (done [this]
+        (error-reporting/catch-all!
+          (swap! msg-stack-atom pop)
+          (-> progress-atom
+              (reset! progress/done)
+              render-progress!)))
+      (isCanceled [this]
+        false))))
 
 (defn- ->graph-resource-scanner [ws]
   (let [res-map (->> (g/node-value ws :resource-map)
@@ -63,10 +138,10 @@
   (let [proj-settings (project/settings project)]
     (get proj-settings ["project" "title"] "Unnamed")))
 
-(defn- run-commands! [project ^Project bob-project commands]
+(defn- run-commands! [project ^Project bob-project commands render-progress!]
   (try
-    (let [progress (->progress)
-          result (.build bob-project progress (into-array String commands))
+    (let [result (ui/with-progress [render-progress! render-progress!]
+                   (.build bob-project (->progress render-progress!) (into-array String commands)))
           failed-tasks (filter (fn [^TaskResult r] (not (.isOk r))) result)]
       (if (empty? failed-tasks)
         nil
@@ -79,11 +154,12 @@
 (defn build-in-progress? []
   @build-in-progress-atom)
 
-(defn- bob-build! [project bob-commands bob-args]
+(defn- bob-build! [project bob-commands bob-args render-progress!]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
   (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
+  (assert (ifn? render-progress!))
   (reset! build-in-progress-atom true)
   (disk-availability/push-busy!)
   (try
@@ -103,10 +179,12 @@
         (let [deps (workspace/dependencies ws)]
           (when (seq deps)
             (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
-            (.resolveLibUrls bob-project (->progress))))
+            (ui/with-progress [render-progress! render-progress!]
+              (.resolveLibUrls bob-project (->progress render-progress!)))))
         (.mount bob-project (->graph-resource-scanner ws))
         (.findSources bob-project proj-path skip-dirs)
-        (run-commands! project bob-project bob-commands)))
+        (ui/with-progress [render-progress! render-progress!]
+          (run-commands! project bob-project bob-commands render-progress!))))
     (catch Throwable error
       {:exception error})
     (finally
@@ -172,10 +250,10 @@
 (defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 (defmethod bundle-bob-args :windows [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 
-(defn bundle! [project prefs platform bundle-options]
+(defn bundle! [project prefs platform bundle-options render-progress!]
   (let [bob-commands ["distclean" "build" "bundle"]
         bob-args (bundle-bob-args prefs platform bundle-options)]
-    (bob-build! project bob-commands bob-args)))
+    (bob-build! project bob-commands bob-args render-progress!)))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5
@@ -186,7 +264,7 @@
         build-path (workspace/build-path ws)]
     (io/file build-path "__htmlLaunchDir")))
 
-(defn build-html5! [project prefs]
+(defn build-html5! [project prefs render-progress!]
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs)
@@ -203,7 +281,7 @@
                           "email" (or email "")
                           "auth" (or auth "")}
                          compress-archive? (assoc "compress" "true"))]
-    (bob-build! project bob-commands bob-args)))
+    (bob-build! project bob-commands bob-args render-progress!)))
 
 (defn- try-resolve-html5-file
   ^File [project ^String rel-url]
