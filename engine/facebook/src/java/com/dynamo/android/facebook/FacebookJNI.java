@@ -191,14 +191,18 @@ class FacebookJNI {
             @Override
             public void run() {
                 Log.d(TAG, "java jni thread: " + Thread.currentThread().getId());
-                facebook.login( new Facebook.StateCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    onLogin(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    facebook.login( new Facebook.StateCallback() {
 
-                    @Override
-                    public void onDone( final int state, final String error) {
-                        onLogin(userData, state, error);
-                    }
+                        @Override
+                        public void onDone( final int state, final String error) {
+                            onLogin(userData, state, error);
+                        }
 
-                });
+                    });
+                }
             }
 
         });
