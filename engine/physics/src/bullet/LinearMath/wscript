@@ -1,9 +1,0 @@
-def configure(conf):
-    pass
-
-def build(bld):
-    linear_math = bld.new_task_gen(features = 'cxx cstaticlib',
-                                   includes = '. ..',
-                                   target = 'LinearMath',
-                                   uselib = 'BULLET')
-    linear_math.find_sources_in_dirs('.')

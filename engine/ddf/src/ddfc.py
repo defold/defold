@@ -300,7 +300,7 @@ def to_cxx_descriptor(context, pp_cpp, pp_h, message_type, namespace_lst):
         else:
             tpl += ("0x0", )
 
-        tpl += ("DDF_OFFSET_OF(%s::%s, m_%s)" % (namespace.replace("_", "::"), message_type.name, to_camel_case(f.name)), )
+        tpl += ("(uint32_t)DDF_OFFSET_OF(%s::%s, m_%s)" % (namespace.replace("_", "::"), message_type.name, to_camel_case(f.name)), )
 
         default = to_cxx_default_value_string(context, f)
         if '"' in default:

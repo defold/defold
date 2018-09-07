@@ -4,6 +4,7 @@
             [editor.code.resource :as r]
             [editor.code.util :refer [split-lines]]
             [editor.code.view :as view]
+            [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [util.thread-util :refer [preset!]])
@@ -214,8 +215,9 @@
 (g/defnode ConsoleNode
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
-  (property lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
-  (property regions r/Regions (default []) (dynamic visible (g/constantly false))))
+  (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
+  (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
+  (output lines r/Lines (gu/passthrough modified-lines)))
 
 (defn- gutter-metrics []
   [44.0 0.0])

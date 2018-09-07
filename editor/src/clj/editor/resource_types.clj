@@ -3,7 +3,6 @@
             [editor.animation-set :as animation-set]
             [editor.atlas :as atlas]
             [editor.camera-editor :as camera]
-            [editor.code.json :as code-json]
             [editor.code.script :as code-script]
             [editor.code.shader :as code-shader]
             [editor.code.text-file :as code-text-file]
@@ -70,8 +69,6 @@
       (sprite/register-resource-types workspace)
       (tile-map/register-resource-types workspace)
       (tile-source/register-resource-types workspace)
-      ;; TODO: Disabled due to conflict with spine .json files.
-      #_(code-json/register-resource-types workspace)
       (code-script/register-resource-types workspace)
       (code-shader/register-resource-types workspace)
       (code-text-file/register-resource-types workspace))))

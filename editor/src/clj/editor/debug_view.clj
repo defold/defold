@@ -8,13 +8,15 @@
    [editor.core :as core]
    [editor.debugging.mobdebug :as mobdebug]
    [editor.defold-project :as project]
+   [editor.dialogs :as dialogs]
    [editor.engine :as engine]
    [editor.handler :as handler]
    [editor.lua :as lua]
    [editor.protobuf :as protobuf]
    [editor.resource :as resource]
    [editor.ui :as ui]
-   [editor.workspace :as workspace])
+   [editor.workspace :as workspace]
+   [service.log :as log])
   (:import
    (com.dynamo.lua.proto Lua$LuaModule)
    (java.nio.file Files)
@@ -356,22 +358,26 @@
    :on-resumed   (fn [debug-session]
                    (ui/run-later (g/set-property! debug-view :suspension-state nil)))})
 
+(def ^:private mobdebug-port 8172)
+
 (defn start-debugger!
   [debug-view project target-address]
-  (mobdebug/connect! target-address 8172
+  (mobdebug/connect! target-address mobdebug-port
                      (fn [debug-session]
-                       (ui/run-now (g/update-property! debug-view :debug-session
-                                                       (fn [old new]
-                                                         (when old (mobdebug/close! old))
-                                                         new)
-                                                       debug-session))
-                       (update-breakpoints! debug-session (g/node-value project :breakpoints))
-                       (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
-                       (show! debug-view))
+                       (ui/run-now
+                         (g/update-property! debug-view :debug-session
+                                             (fn [old new]
+                                               (when old (mobdebug/close! old))
+                                               new)
+                                             debug-session)
+                         (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                         (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
+                         (show! debug-view)))
                      (fn [debug-session]
-                       (ui/run-now (g/set-property! debug-view
-                                                    :debug-session nil
-                                                    :suspension-state nil)))))
+                       (ui/run-now
+                         (g/set-property! debug-view
+                                          :debug-session nil
+                                          :suspension-state nil)))))
 
 (defn current-session
   [debug-view]
@@ -406,8 +412,17 @@
   (let [target-address (:address target "localhost")
         lua-module (built-lua-module build-artifacts debugger-init-script)]
     (assert lua-module)
-    (start-debugger! debug-view project target-address)
-    (engine/run-script! target lua-module)))
+    (let [attach-successful? (try
+                               (engine/run-script! target lua-module)
+                               true
+                               (catch Exception exception
+                                 (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
+                                                "Check that the game is running and is reachable over the network.")]
+                                   (log/error :msg msg :exception exception)
+                                   (dialogs/make-alert-dialog msg)
+                                   false)))]
+      (when attach-successful?
+        (start-debugger! debug-view project target-address)))))
 
 (defn detach!
   [debug-view]

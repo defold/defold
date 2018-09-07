@@ -11,6 +11,14 @@
 
 namespace dmPath
 {
+#if defined(_WIN32) || defined(_WIN64)
+    static const char* const PATH_CHARACTER = "\\";
+    static const char* const PATH_SEPARATOR = ";";
+#else
+    static const char* const PATH_CHARACTER = "/";
+    static const char* const PATH_SEPARATOR = ":";
+#endif
+
     /**
      * Path normalization. Redundant and trailing slashes are
      * removed and backslashes are translated into forward slashes

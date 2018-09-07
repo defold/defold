@@ -10,35 +10,16 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace])
   (:import [java.io File]
-           [java.util Collection List]
            [javafx.scene Scene]
            [javafx.scene.control Button CheckBox ChoiceBox Label TextField]
            [javafx.scene.input KeyCode]
            [javafx.scene.layout ColumnConstraints GridPane HBox Priority VBox]
-           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]
+           [javafx.stage DirectoryChooser Window]
            [javafx.util StringConverter]))
 
 (set! *warn-on-reflection* true)
 
 (defonce ^:private os-32-bit? (= (system/os-arch) "x86"))
-
-(defn- query-file!
-  ^File [title filter-descs ^File initial-file ^Window owner-window]
-  (let [chooser (FileChooser.)
-        initial-directory (some-> initial-file .getParentFile)
-        initial-file-name (some-> initial-file .getName)
-        extension-filters (map (fn [filter-desc]
-                                 (let [description ^String (first filter-desc)
-                                       extensions ^List (vec (rest filter-desc))]
-                                   (FileChooser$ExtensionFilter. description extensions)))
-                               filter-descs)]
-    (when (and (some? initial-directory) (.exists initial-directory))
-      (.setInitialDirectory chooser initial-directory))
-    (when (some? (not-empty initial-file-name))
-      (.setInitialFileName chooser initial-file-name))
-    (.addAll (.getExtensionFilters chooser) ^Collection extension-filters)
-    (.setTitle chooser title)
-    (.showOpenDialog chooser owner-window)))
 
 (defn- query-directory!
   ^File [title ^File initial-directory ^Window owner-window]
@@ -131,7 +112,7 @@
                         (GridPane/setConstraints 1 0)
                         (ui/add-style! "button-small")
                         (ui/on-action! (fn [event]
-                                         (when-let [file (query-file! title-text filter-descs (get-file text-field) owner-window)]
+                                         (when-let [file (dialogs/make-file-dialog title-text filter-descs (get-file text-field) owner-window)]
                                            (set-file! text-field file)
                                            (refresh! event)))))
         container (doto (GridPane.)
@@ -234,16 +215,12 @@
      :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
                                         (ui/editable publish-live-update-content-check-box))}))
 
-(defn- has-live-update-settings? [workspace]
-  (some? (workspace/find-resource workspace "/liveupdate.settings")))
-
 (defn- set-generic-options! [view options workspace]
   (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
     (ui/value! release-mode-check-box (:release-mode? options))
     (ui/value! generate-build-report-check-box (:generate-build-report? options))
     (doto publish-live-update-content-check-box
-      (ui/value! (:publish-live-update-content? options))
-      (ui/editable! (has-live-update-settings? workspace)))))
+      (ui/value! (:publish-live-update-content? options)))))
 
 (deftype GenericBundleOptionsPresenter [workspace view title platform]
   BundleOptionsPresenter

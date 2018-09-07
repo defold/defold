@@ -12,8 +12,9 @@
             [editor.resource-node :as resource-node]
             [editor.math :as math]
             [editor.gl.pass :as pass]
-            [editor.graph-util :as gu])
-  (:import [com.dynamo.render.proto Render$DisplayProfiles]))
+            [editor.graph-util :as gu]
+            [util.text-util :as text-util])
+  (:import (com.dynamo.render.proto Render$DisplayProfiles)))
 
 (set! *warn-on-reflection* true)
 
@@ -27,16 +28,26 @@
   (property name g/Str)
   (property qualifiers g/Any)
 
-  (output pb-msg g/Any (g/fnk [name qualifiers]
-                              {:name name
+  (output form-values g/Any (g/fnk [_node-id name qualifiers]
+                              {:node-id _node-id
+                               :name name
                                :qualifiers qualifiers}))
-  (output form-values g/Any (g/fnk [_node-id pb-msg] (assoc pb-msg :node-id _node-id)))
+  (output pb-msg g/Any (g/fnk [form-values]
+                         (-> form-values
+                             (dissoc :node-id)
+                             (update :qualifiers
+                                     (fn [qualifiers]
+                                       (mapv #(update % :device-models text-util/parse-comma-separated-string)
+                                             qualifiers))))))
   (output profile-data g/Any (g/fnk [_node-id pb-msg]
                                     (assoc pb-msg :node-id _node-id))))
 
 (defn- add-profile [node-id name qualifiers]
   (g/make-nodes (g/node-id->graph-id node-id)
-                [profile [ProfileNode :name name :qualifiers qualifiers]]
+                [profile [ProfileNode
+                          :name name
+                          :qualifiers (mapv #(update % :device-models text-util/join-comma-separated-string)
+                                            qualifiers)]]
                 (for [[from to] [[:_node-id :nodes]
                                  [:pb-msg :profile-msgs]
                                  [:form-values :profile-form-values]
@@ -65,7 +76,10 @@
                                                    :type :integer}
                                                   {:path [:height]
                                                    :label "Height"
-                                                   :type :integer}]}]}]}}]}]})
+                                                   :type :integer}
+                                                  {:path [:device-models]
+                                                   :label "Device Models"
+                                                   :type :string}]}]}]}}]}]})
 
 (g/defnk produce-form-data [_node-id form-data-desc form-values]
   (assoc form-data-desc :values form-values))

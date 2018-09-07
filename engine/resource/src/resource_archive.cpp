@@ -33,7 +33,7 @@ namespace dmResourceArchive
     const static uint64_t FILE_LOADED_INDICATOR = 1337;
     const char* KEY = "aQj8CScgNP4VsfXK";
 
-    Result WrapArchiveBuffer(const void* index_buffer, uint32_t index_buffer_size, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
+    Result WrapArchiveBuffer(const void* index_buffer, const void* resource_data, const char* lu_resource_filename, const void* lu_resource_data, FILE* f_lu_resource_data, HArchiveIndexContainer* archive)
     {
         *archive = new ArchiveIndexContainer;
         (*archive)->m_IsMemMapped = true;
@@ -230,6 +230,7 @@ namespace dmResourceArchive
             delete lu_entries;
             return RESULT_IO_ERROR;
         }
+        fflush(f_lu_index);
         fclose(f_lu_index);
 
         free(lu_entries->m_Entries);
@@ -365,17 +366,19 @@ namespace dmResourceArchive
             return RESULT_IO_ERROR;
         }
 
-        aic->m_FileResourceData = f_data;
-        aic->m_LiveUpdateFileResourceData = f_lu_data;
-        aic->m_LiveUpdateResourceData = 0x0;
+        aic->m_FileResourceData = f_data; // game.arcd file handle
+        aic->m_LiveUpdateFileResourceData = f_lu_data; // liveupdate.arcd file
+        aic->m_LiveUpdateResourceData = 0x0; // mem-mapped liveupdate.arcd
         aic->m_LiveUpdateResourcesMemMapped = false;
         aic->m_ArchiveIndex = ai;
         *archive = aic;
 
+        fclose(f_index);
+
         return r;
     }
 
-    void Delete(HArchiveIndexContainer archive)
+    void Delete(HArchiveIndexContainer &archive)
     {
         if (archive->m_Entries)
         {
@@ -397,10 +400,13 @@ namespace dmResourceArchive
             fclose(archive->m_LiveUpdateFileResourceData);
         }
 
-        if (archive->m_LiveUpdateResourceData)
+        if (archive->m_LiveUpdateResourcesMemMapped)
         {
             void* tmp_ptr = (void*)archive->m_LiveUpdateResourceData;
             dmResource::UnmapFile(tmp_ptr, archive->m_LiveUpdateResourceSize);
+            archive->m_LiveUpdateResourceData = 0x0;
+            archive->m_LiveUpdateResourceSize = 0;
+            archive->m_LiveUpdateResourcesMemMapped = false;
         }
 
         if (!archive->m_IsMemMapped)
@@ -409,6 +415,7 @@ namespace dmResourceArchive
         }
 
         delete archive;
+        archive = 0;
     }
 
     void Delete(ArchiveIndex* archive)
@@ -533,7 +540,7 @@ namespace dmResourceArchive
                 return RESULT_IO_ERROR;
             }
             archive->m_LiveUpdateResourceData = (uint8_t*)temp_map;
-            archive->m_LiveUpdateResourceSize += bytes_written;
+            archive->m_LiveUpdateResourceSize = offset + bytes_written;
         }
 
         return RESULT_OK;
@@ -611,7 +618,8 @@ namespace dmResourceArchive
         // If liveupdate.arci does not exists, create it and liveupdate.arcd
         if (!resource_exists)
         {
-            fopen(lu_index_path, "wb");
+            FILE* f_lu_index = fopen(lu_index_path, "wb");
+            fclose(f_lu_index);
 
             // Data file has same path and filename as index file, but extension .arcd instead of .arci.
             char lu_data_path[DMPATH_MAX_PATH];
@@ -640,12 +648,13 @@ namespace dmResourceArchive
         Result index_result = GetInsertionIndex(archive_container, hash_digest, &idx);
         if (index_result != RESULT_OK)
         {
-            dmLogError("Could not calculate valid resource insertion index");
+            dmLogError("Could not calculate valid resource insertion index, resource probably already stored in index.");
             return index_result;
         }
 
         char app_support_path[DMPATH_MAX_PATH];
         char lu_index_path[DMPATH_MAX_PATH];
+        char lu_index_tmp_path[DMPATH_MAX_PATH];
 
         dmSys::GetApplicationSupportPath(proj_id, app_support_path, DMPATH_MAX_PATH);
         dmPath::Concat(app_support_path, "liveupdate.arci", lu_index_path, DMPATH_MAX_PATH);
@@ -666,8 +675,9 @@ namespace dmResourceArchive
         }
 
         // Write to temporary index file, filename liveupdate.arci.tmp
-        dmStrlCat(lu_index_path, ".tmp", DMPATH_MAX_PATH);
-        FILE* f_lu_index = fopen(lu_index_path, "wb");
+        dmStrlCpy(lu_index_tmp_path, lu_index_path, DMPATH_MAX_PATH);
+        dmStrlCat(lu_index_tmp_path, ".tmp", DMPATH_MAX_PATH);
+        FILE* f_lu_index = fopen(lu_index_tmp_path, "wb");
         if (!f_lu_index)
         {
             dmLogError("Failed to create liveupdate index file");
@@ -681,6 +691,7 @@ namespace dmResourceArchive
             dmLogError("Failed to write liveupdate index file");
             return RESULT_IO_ERROR;
         }
+        fflush(f_lu_index);
         fclose(f_lu_index);
 
         // set result

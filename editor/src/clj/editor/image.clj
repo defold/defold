@@ -1,25 +1,16 @@
 (ns editor.image
-  (:require [clojure.java.io :as io]
-            [dynamo.graph :as g]
-            [schema.core :as s]
-            [editor.image-util :as image-util]
+  (:require [dynamo.graph :as g]
+            [editor.gl :as gl]
             [editor.gl.texture :as texture]
-            [editor.core :as core]
-            [editor.geom :refer [clamper]]
-            [editor.defold-project :as project]
+            [editor.image-util :as image-util]
+            [editor.pipeline.tex-gen :as tex-gen]
             [editor.protobuf :as protobuf]
-            [editor.types :as types]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.validation :as validation]
-            [editor.workspace :as workspace]
-            [editor.pipeline.tex-gen :as tex-gen]
-            [service.log :as log]
-            [util.digest :as digest])
-  (:import [editor.types Rect Image]
-           [java.awt Color]
-           [java.awt.image BufferedImage]
-           [javax.imageio ImageIO]))
+            [editor.workspace :as workspace])
+  (:import [com.defold.editor.pipeline TextureSetGenerator$UVTransform]
+           [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
 
@@ -85,6 +76,18 @@
                                      :sha1 (resource/resource->sha1-hex resource)}))
 
   (output texture-image g/Any (g/fnk [content texture-profile] (tex-gen/make-preview-texture-image content texture-profile)))
+
+  ;; NOTE: The anim-data and gpu-texture outputs allow standalone images to be used in place of texture sets in legacy projects.
+  (output anim-data g/Any (g/fnk [size]
+                            {nil (assoc size
+                                   :frames [{:tex-coords [[0 1] [0 0] [1 0] [1 1]]}]
+                                   :uv-transforms [(TextureSetGenerator$UVTransform.)])}))
+
+  (output gpu-texture g/Any :cached (g/fnk [_node-id texture-image]
+                                      (texture/texture-image->gpu-texture _node-id
+                                                                          texture-image
+                                                                          {:min-filter gl/nearest
+                                                                           :mag-filter gl/nearest})))
 
   (output gpu-texture-generator g/Any :cached (g/fnk [texture-image :as args]
                                                      {:f    generate-gpu-texture

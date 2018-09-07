@@ -126,7 +126,7 @@
         data {:mesh mesh :world-transform clj-world :scratch scratch}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
-(defn render-scene [^GL2 gl render-args renderables rcount]
+(defn- render-scene [^GL2 gl render-args renderables rcount]
   (let [pass (:pass render-args)]
     (cond
       (or (= pass pass/opaque) (= pass pass/selection))
@@ -159,9 +159,12 @@
           (when (= pass pass/opaque)
             (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)
             (doseq [[name t] textures]
-              (gl/unbind gl t render-args)))))
+              (gl/unbind gl t render-args))))))))
 
-      (= pass pass/outline)
+(defn- render-outline [^GL2 gl render-args renderables rcount]
+  (let [pass (:pass render-args)]
+    (condp = pass
+      pass/outline
       (let [renderable (first renderables)
             node-id (:node-id renderable)]
         (render/render-aabb-outline gl render-args [node-id ::outline] renderables rcount)))))
@@ -243,13 +246,21 @@
     {:node-id _node-id
      :aabb aabb
      :renderable {:render-fn render-scene
+                  :tags #{:model}
                   :batch-key _node-id
                   :select-batch-key _node-id
                   :user-data {:meshes meshes
                               :shader shader-pos-nrm-tex
                               :textures {"texture" texture/white-pixel}
                               :scratch-arrays (gen-scratch-arrays meshes)}
-                  :passes [pass/opaque pass/selection pass/outline]}}))
+                  :passes [pass/opaque pass/selection]}
+     :children [{:node-id _node-id
+                 :aabb aabb
+                 :renderable {:render-fn render-outline
+                              :tags #{:model :outline}
+                              :batch-key _node-id
+                              :select-batch-key _node-id
+                              :passes [pass/outline]}}]}))
 
 (g/defnode ColladaSceneNode
   (inherits resource-node/ResourceNode)

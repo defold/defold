@@ -110,9 +110,9 @@ namespace dmPhysics
     }
 
     World3D::World3D(HContext3D context, const NewWorldParams& params)
-    : m_DebugDraw(&context->m_DebugCallbacks)
+    : m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
+    , m_DebugDraw(&context->m_DebugCallbacks)
     , m_Context(context)
-    , m_TriggerOverlaps(context->m_TriggerOverlapCapacity)
     {
         m_CollisionConfiguration = new btDefaultCollisionConfiguration();
         m_Dispatcher = new btCollisionDispatcher(m_CollisionConfiguration);

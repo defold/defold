@@ -308,7 +308,7 @@ namespace dmScript
             if( lua_type(L, -2) != LUA_TSTRING )
             {
         		lua_pop(L, 3);
-                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
+                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));
             }
 
             const char* key = lua_tostring(L, -2);
@@ -401,7 +401,7 @@ namespace dmScript
         dmBuffer::StreamDeclaration* decl = (dmBuffer::StreamDeclaration*)alloca(num_decl * sizeof(dmBuffer::StreamDeclaration));
         if( !decl )
         {
-            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);	
+            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);
         }
 
         uint32_t count = 0;
@@ -505,42 +505,6 @@ namespace dmScript
             return true;
     #undef DM_COPY_STREAM
     }
-
-    template<typename T>
-    static void CopyStreamToMemInternalT(T* dst, const T* src, uint32_t count, uint32_t components, uint32_t stride)
-    {
-        for(uint32_t i = 0; i < count; ++i)
-        {
-            for(uint32_t c = 0; c < components; ++c)
-            {
-                dst[c] = src[c];
-            }
-            src += stride;
-            dst += components;
-        }
-    }
-
-    static bool CopyStreamToMemInternal(uint32_t type, void* dst, const void* data, uint32_t count, uint32_t components, uint32_t stride)
-    {
-        #define DM_COPY_STREAMMEM(_T_) CopyStreamToMemInternalT<_T_>((_T_*) dst, (_T_*) data, count, components, stride)
-            switch(type)
-            {
-            case dmBuffer::VALUE_TYPE_UINT8:      DM_COPY_STREAMMEM(uint8_t); break;
-            case dmBuffer::VALUE_TYPE_UINT16:     DM_COPY_STREAMMEM(uint16_t); break;
-            case dmBuffer::VALUE_TYPE_UINT32:     DM_COPY_STREAMMEM(uint32_t); break;
-            case dmBuffer::VALUE_TYPE_UINT64:     DM_COPY_STREAMMEM(uint64_t); break;
-            case dmBuffer::VALUE_TYPE_INT8:       DM_COPY_STREAMMEM(int8_t); break;
-            case dmBuffer::VALUE_TYPE_INT16:      DM_COPY_STREAMMEM(int16_t); break;
-            case dmBuffer::VALUE_TYPE_INT32:      DM_COPY_STREAMMEM(int32_t); break;
-            case dmBuffer::VALUE_TYPE_INT64:      DM_COPY_STREAMMEM(int64_t); break;
-            case dmBuffer::VALUE_TYPE_FLOAT32:    DM_COPY_STREAMMEM(float); break;
-            default:
-                return false;
-            }
-            return true;
-    #undef DM_COPY_STREAMMEM
-    }
-
 
     /*# copies data from one stream to another
      *
@@ -829,7 +793,7 @@ namespace dmScript
         lua_pushnumber(L, count);
         return 1;
     }
-    
+
     static const luaL_reg Buffer_methods[] =
     {
         {0,0}
@@ -845,7 +809,7 @@ namespace dmScript
 
     //////////////////////////////////////////////////////////////////
     // STREAM
-    
+
     static int Stream_gc(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);

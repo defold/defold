@@ -231,7 +231,7 @@ union SaveLoadBuffer
             dmStrlCpy(app_support_path, dm_home, sizeof(app_support_path));
         }
 
-        dmStrlCat(app_support_path, "/", sizeof(app_support_path));
+        dmStrlCat(app_support_path, dmPath::PATH_CHARACTER, sizeof(app_support_path));
         dmStrlCat(app_support_path, filename, sizeof(app_support_path));
         lua_pushstring(L, app_support_path);
 
@@ -240,6 +240,9 @@ union SaveLoadBuffer
 
     /*# get config value
      * Get config value from the game.project configuration file.
+     *
+     * In addition to the project file, configuration values can also be passed
+     * to the runtime as command line arguments with the `--config` argument.
      *
      * @name sys.get_config
      * @param key [type:string] key to get value for. The syntax is SECTION.KEY
@@ -250,6 +253,18 @@ union SaveLoadBuffer
      *
      * ```lua
      * local width = tonumber(sys.get_config("display.width"))
+     * ```
+     *
+     * Start the engine with a bootstrap config override and a custom config value
+     *
+     * ```
+     * $ mygame --config=bootstrap.main_collection=/mytest.collectionc --config=mygame.testmode=1
+     * ```
+     *
+     * Set and read a custom config value
+     *
+     * ```lua
+     * local testmode = tonumber(sys.get_config("mygame.testmode"))
      * ```
      */
 
@@ -419,7 +434,7 @@ union SaveLoadBuffer
      * : [type:number] The current offset from GMT (Greenwich Mean Time), in minutes.
      *
      * `device_ident`
-     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:andriod] "android_id" on Android.
+     * : [type:string] [icon:ios] "identifierForVendor" on iOS. [icon:android] "android_id" on Android.
      *
      * `ad_ident`
      * : [type:string] [icon:ios] "advertisingIdentifier" on iOS. [icon:android] advertising ID provided by Google Play on Android.

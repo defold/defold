@@ -12,17 +12,6 @@
 
 namespace dmGameObject
 {
-    static const char* TYPE_NAMES[dmGameObjectDDF::PROPERTY_TYPE_COUNT] =
-    {
-            "number",
-            "hash",
-            "URL",
-            "vector3",
-            "vector4",
-            "quat",
-            "bool"
-    };
-
     PropertySet::PropertySet()
     {
         memset(this, 0, sizeof(*this));

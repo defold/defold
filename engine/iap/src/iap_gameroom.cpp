@@ -58,7 +58,23 @@ struct IAP
 
     dmArray<PendingTransaction*> m_PendingTransactions;
 
+    const dmFBGameroom::FBGameroomFunctions* m_FBFunctions;
 } g_IAP;
+
+static bool CheckIapInit()
+{
+    if (!dmFBGameroom::CheckGameroomInit())
+    {
+        return false;
+    }
+
+    if (!g_IAP.m_FBFunctions)
+    {
+        g_IAP.m_FBFunctions = dmFBGameroom::GetFBFunctions();
+        return g_IAP.m_FBFunctions != 0;
+    }
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Functions for running callbacks; premium and buy/purchases
@@ -231,7 +247,7 @@ static int IAP_List(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckIapInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
@@ -275,7 +291,7 @@ static int IAP_Buy(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckIapInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
@@ -283,10 +299,9 @@ static int IAP_Buy(lua_State* L)
 
     // Figure out if this is a FB Purchases Lite or regular call
     // by checking if the product starts with "http".
-    typedef fbgRequest (*purchase_func_t)(const char*, uint32_t, uint32_t, uint32_t, const char*, const char*, const char*);
-    purchase_func_t purchase_func = fbg_PurchaseIAP;
+    dmFBGameroom::fbg_PurchaseFunction purchase_func = g_IAP.m_FBFunctions->fbg_PurchaseIAP;
     if (strncmp("http", product_id, 4) == 0) {
-        purchase_func = fbg_PurchaseIAPWithProductURL;
+        purchase_func = g_IAP.m_FBFunctions->fbg_PurchaseIAPWithProductURL;
     }
 
     if (lua_gettop(L) >= 2) {
@@ -309,7 +324,7 @@ static int IAP_Buy(lua_State* L)
 
 /*# check if user has already purchased premium license
  *
- * [icon:gameroom] Checks if a license for the game has been purchased by the user. 
+ * [icon:gameroom] Checks if a license for the game has been purchased by the user.
  * You should provide a callback function that will be called with the result of the check.
  *
  * [icon:attention] This function does not work when testing the application
@@ -317,7 +332,7 @@ static int IAP_Buy(lua_State* L)
  *
  * @name iap.has_premium
  * @namespace iap
- * 
+ *
  * @param callback [type:function(self, has_premium)] result callback
  *
  * `self`
@@ -345,7 +360,7 @@ static int IAP_HasPremium(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckIapInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
@@ -357,14 +372,14 @@ static int IAP_HasPremium(lua_State* L)
     luaL_checktype(L, 1, LUA_TFUNCTION);
     g_IAP.m_PremiumCallback = dmScript::CreateCallback(L, 1);
 
-    fbg_HasLicense();
+    g_IAP.m_FBFunctions->fbg_HasLicense();
 
     return 0;
 }
 
 /*# purchase a premium license
  *
- * [icon:gameroom] Performs a purchase of a premium game license. The purchase transaction 
+ * [icon:gameroom] Performs a purchase of a premium game license. The purchase transaction
  * is handled like regular iap purchases; calling the currently set iap_listener with the
  * transaction results.
  *
@@ -404,11 +419,11 @@ static int IAP_BuyPremium(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckIapInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
-    fbg_PayPremium();
+    g_IAP.m_FBFunctions->fbg_PayPremium();
 
     return 0;
 }
@@ -427,7 +442,7 @@ static int IAP_Restore(lua_State* L)
 
 static int IAP_SetListener(lua_State* L)
 {
-    if (!dmFBGameroom::CheckGameroomInit()) {
+    if (!CheckIapInit()) {
         return luaL_error(L, "Facebook Gameroom module isn't initialized! Did you set the windows.iap_provider in game.project?");
     }
 
@@ -515,7 +530,7 @@ static char* GetSafeStr(const fbgPurchaseHandle handle, purchase_safe_str_t func
 
 static dmExtension::Result UpdateIAP(dmExtension::Params* params)
 {
-    if (!dmFBGameroom::CheckGameroomInit())
+    if (!CheckIapInit())
     {
         return dmExtension::RESULT_OK;
     }
@@ -526,25 +541,25 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
     for (uint32_t i = 0; i < messages->Size(); ++i)
     {
         fbgMessageHandle message = (*messages)[i];
-        fbgMessageType message_type = fbg_Message_GetType(message);
+        fbgMessageType message_type = g_IAP.m_FBFunctions->fbg_Message_GetType(message);
         switch (message_type) {
             case fbgMessage_Purchase:
             {
-                fbgPurchaseHandle purchase_handle = fbg_Message_Purchase(message);
+                fbgPurchaseHandle purchase_handle = g_IAP.m_FBFunctions->fbg_Message_Purchase(message);
 
                 PendingTransaction* transaction = new PendingTransaction();
-                transaction->m_PaymentId = GetSafeStr(purchase_handle, fbg_Purchase_GetPaymentID);
-                transaction->m_Currency = GetSafeStr(purchase_handle, fbg_Purchase_GetCurrency);
-                transaction->m_ProductId = GetSafeStr(purchase_handle, fbg_Purchase_GetProductId);
-                transaction->m_PurchaseToken = GetSafeStr(purchase_handle, fbg_Purchase_GetPurchaseToken);
-                transaction->m_RequestId = GetSafeStr(purchase_handle, fbg_Purchase_GetRequestId);
-                transaction->m_Status = GetSafeStr(purchase_handle, fbg_Purchase_GetStatus);
-                transaction->m_SignedRequest = GetSafeStr(purchase_handle, fbg_Purchase_GetSignedRequest);
-                transaction->m_ErrorMessage = GetSafeStr(purchase_handle, fbg_Purchase_GetErrorMessage);
-                transaction->m_Amount = fbg_Purchase_GetAmount(purchase_handle);
-                transaction->m_PurchaseTime = fbg_Purchase_GetPurchaseTime(purchase_handle);
-                transaction->m_Quantity = fbg_Purchase_GetQuantity(purchase_handle);
-                transaction->m_ErrorCode = fbg_Purchase_GetErrorCode(purchase_handle);
+                transaction->m_PaymentId = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetPaymentID);
+                transaction->m_Currency = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetCurrency);
+                transaction->m_ProductId = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetProductId);
+                transaction->m_PurchaseToken = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetPurchaseToken);
+                transaction->m_RequestId = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetRequestId);
+                transaction->m_Status = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetStatus);
+                transaction->m_SignedRequest = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetSignedRequest);
+                transaction->m_ErrorMessage = GetSafeStr(purchase_handle, (purchase_safe_str_t)g_IAP.m_FBFunctions->fbg_Purchase_GetErrorMessage);
+                transaction->m_Amount = g_IAP.m_FBFunctions->fbg_Purchase_GetAmount(purchase_handle);
+                transaction->m_PurchaseTime = g_IAP.m_FBFunctions->fbg_Purchase_GetPurchaseTime(purchase_handle);
+                transaction->m_Quantity = g_IAP.m_FBFunctions->fbg_Purchase_GetQuantity(purchase_handle);
+                transaction->m_ErrorCode = g_IAP.m_FBFunctions->fbg_Purchase_GetErrorCode(purchase_handle);
 
                 if (dmScript::IsValidCallback(g_IAP.m_Listener))
                 {
@@ -560,8 +575,8 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
             break;
             case fbgMessage_HasLicense:
             {
-                fbgHasLicenseHandle has_license_handle = fbg_Message_HasLicense(message);
-                fbid has_license = fbg_HasLicense_GetHasLicense(has_license_handle);
+                fbgHasLicenseHandle has_license_handle = g_IAP.m_FBFunctions->fbg_Message_HasLicense(message);
+                fbid has_license = g_IAP.m_FBFunctions->fbg_HasLicense_GetHasLicense(has_license_handle);
                 RunPremiumCallback(has_license);
             }
             break;
@@ -570,7 +585,7 @@ static dmExtension::Result UpdateIAP(dmExtension::Params* params)
             break;
         }
 
-        fbg_FreeMessage(message);
+        g_IAP.m_FBFunctions->fbg_FreeMessage(message);
     }
 
     // Clear message array

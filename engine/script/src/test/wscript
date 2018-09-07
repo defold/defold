@@ -78,6 +78,17 @@ def build(bld):
 
     test_script_table.install_path = None
 
+    test_script_timer = bld.new_task_gen(features = flist,
+                                     includes = '.. .',
+                                     uselib = libs,
+                                     uselib_local = 'script',
+                                     web_libs = web_libs,
+                                     proto_gen_py = True,
+                                     target = 'test_script_timer',
+                                     source = 'test_script_timer.cpp')
+
+    test_script_timer.install_path = None
+
     test_script_sys = bld.new_task_gen(features = flist,
                                        includes = '..',
                                        uselib = libs,

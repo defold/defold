@@ -1,6 +1,7 @@
 (ns editor.app-view
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.bundle-dialog :as bundle-dialog]
@@ -20,13 +21,13 @@
             [editor.error-reporting :as error-reporting]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
+            [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.progress :as progress]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.keymap :as keymap]
@@ -42,6 +43,8 @@
             [util.profiler :as profiler]
             [util.http-server :as http-server]
             [editor.scene :as scene]
+            [editor.live-update-settings :as live-update-settings]
+            [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
@@ -59,8 +62,8 @@
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TabPane$TabClosingPolicy ProgressBar Tooltip]
            [javafx.scene.image Image ImageView WritableImage PixelWriter]
            [javafx.scene.input Clipboard ClipboardContent KeyEvent]
-           [javafx.scene.layout AnchorPane GridPane StackPane HBox Priority]
-           [javafx.scene.paint Color]
+           [javafx.scene.layout AnchorPane HBox StackPane]
+           [javafx.scene.shape Ellipse SVGPath]
            [javafx.stage Screen Stage FileChooser WindowEvent]
            [javafx.util Callback]
            [java.io InputStream File IOException BufferedReader]
@@ -100,6 +103,10 @@
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
+  (property manip-space g/Keyword)
+
+  (property visibility-filters-enabled g/Any)
+  (property hidden-renderable-tags g/Any)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
@@ -122,6 +129,12 @@
                                         (when active-tab
                                           {:view-id (ui/user-data active-tab ::view)
                                            :view-type (ui/user-data active-tab ::view-type)})))
+
+  (output effective-hidden-renderable-tags g/Any :cached (g/fnk [visibility-filters-enabled hidden-renderable-tags]
+                                                                (if visibility-filters-enabled
+                                                                  hidden-renderable-tags
+                                                                  (set/intersection hidden-renderable-tags #{:outline :grid}))))
+  
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
@@ -133,7 +146,6 @@
                                 (get sub-selections-by-resource-node active-resource-node)))
   (output refresh-tab-panes g/Any :cached (g/fnk [^SplitPane editor-tabs-split open-views open-dirty-views]
                                             (let [tab-panes (.getItems editor-tabs-split)]
-                                              (remove-invalid-tabs! tab-panes open-views)
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (ui/user-data tab ::view)
@@ -177,10 +189,11 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed! [app-view resource-node]
+(defn- on-selected-tab-changed! [app-view app-scene resource-node]
   (g/transact
     (replace-connection resource-node :node-outline app-view :outline))
-  (g/invalidate-outputs! [[app-view :active-tab]]))
+  (g/invalidate-outputs! [[app-view :active-tab]])
+  (ui/user-data! app-scene ::ui/refresh-requested? true))
 
 (handler/defhandler :move-tool :workbench
   (enabled? [app-view] true)
@@ -197,6 +210,37 @@
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
 
+(handler/defhandler :show-visibility-settings :workbench
+  (run [app-view]
+    (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+                           (ui/selected-tab)
+                           (.. getContent (lookup "#show-visibility-settings")))]
+      (scene-visibility/show-visibility-settings btn app-view)))
+  (state [app-view]
+    (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
+                           (ui/selected-tab)
+                           (.. getContent (lookup "#show-visibility-settings")))]
+      ;; TODO: We have no mechanism for updating the style nor icon on
+      ;; on the toolbar button. For now we piggyback on the state
+      ;; update polling to set a style when the filters are active.
+      (let [visibility-filters-enabled? (g/node-value app-view :visibility-filters-enabled)
+            hidden-renderable-tags (g/node-value app-view :hidden-renderable-tags)
+            filters-active? (and visibility-filters-enabled? (some scene-visibility/toggleable-tags hidden-renderable-tags))]
+        (if filters-active?
+          (ui/add-style! btn "filters-active")
+          (ui/remove-style! btn "filters-active")))
+      (scene-visibility/settings-visible? btn))))
+
+(def ^:private eye-icon-template (ui/load-svg-path "scene/images/eye_icon_eye_arrow.svg"))
+
+(defn- make-visibility-settings-graphic []
+  (doto (StackPane.)
+    (ui/children! [(doto (SVGPath.)
+                     (.setId "eye-icon")
+                     (.setContent (.getContent ^SVGPath eye-icon-template)))
+                   (doto (Ellipse. 3.0 3.0)
+                     (.setId "active-indicator"))])))
+
 (ui/extend-menu :toolbar nil
                 [{:id :select
                   :icon "icons/45/Icons_T_01_Select.png"
@@ -209,7 +253,10 @@
                   :command :rotate-tool}
                  {:id :scale
                   :icon "icons/45/Icons_T_04_Scale.png"
-                  :command :scale-tool}])
+                  :command :scale-tool}
+                 {:id :visibility-settings
+                  :graphic-fn make-visibility-settings-graphic
+                  :command :show-visibility-settings}])
 
 (def ^:const prefs-window-dimensions "window-dimensions")
 (def ^:const prefs-split-positions "split-positions")
@@ -627,7 +674,7 @@ If you do not specifically require different script states, consider changing th
                        (when-not (handle-bob-error! render-error! project result)
                          (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))
 
-(def ^:private unreloadable-resource-build-exts #{"collectionc" "tilemapc"})
+(def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view debug-view selection prefs]
@@ -792,6 +839,9 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :documentation :global
   (run [] (ui/open-url "https://www.defold.com/learn/")))
 
+(handler/defhandler :support-forum :global
+  (run [] (ui/open-url "https://forum.defold.com/")))
+
 (handler/defhandler :report-issue :global
   (run [] (ui/open-url (github/new-issue-link))))
 
@@ -894,6 +944,8 @@ If you do not specifically require different script states, consider changing th
                               :command :reload-stylesheet}
                              {:label "Documentation"
                               :command :documentation}
+                             {:label "Support Forum"
+                              :command :support-forum}
                              {:label "Report Issue"
                               :command :report-issue}
                              {:label "Report Praise"
@@ -990,19 +1042,17 @@ If you do not specifically require different script states, consider changing th
     (when (not= (.getTitle stage) new-title)
       (.setTitle stage new-title))))
 
-(defn- refresh-ui! [app-view ^Stage stage project]
-  (when-not (ui/ui-disabled?)
-    (let [scene (.getScene stage)]
-      (ui/user-data! scene :command->shortcut (keymap/command->shortcut (g/node-value app-view :keymap)))
-      (ui/refresh scene))
-    (refresh-app-title! stage project)))
+(defn- refresh-menus-and-toolbars! [app-view ^Scene scene]
+  (let [keymap (g/node-value app-view :keymap)
+        command->shortcut (keymap/command->shortcut keymap)]
+    (ui/user-data! scene :command->shortcut command->shortcut)
+    (ui/refresh scene)))
 
 (defn- refresh-views! [app-view]
-  (when-not (ui/ui-disabled?)
-    (let [auto-pulls (g/node-value app-view :auto-pulls)]
-      (doseq [[node label] auto-pulls]
-        (profiler/profile "view" (:name @(g/node-type* node))
-                          (g/node-value node label))))))
+  (let [auto-pulls (g/node-value app-view :auto-pulls)]
+    (doseq [[node label] auto-pulls]
+      (profiler/profile "view" (:name @(g/node-type* node))
+        (g/node-value node label)))))
 
 (defn- refresh-scene-views! [app-view]
   (profiler/begin-frame)
@@ -1036,8 +1086,7 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (on-selected-tab-changed! app-view (tab->resource-node new-val))
-            (ui/refresh app-scene)))))
+            (on-selected-tab-changed! app-view app-scene (tab->resource-node new-val))))))
   (-> tab-pane
       (.getTabs)
       (.addListener
@@ -1061,7 +1110,7 @@ If you do not specifically require different script states, consider changing th
                                                               (TabPaneBehavior/isTraversalEvent event))
                                                      (.consume event)))))
 
-(defn- handle-focus-owner-change! [app-view new-focus-owner]
+(defn- handle-focus-owner-change! [app-view app-scene new-focus-owner]
   (let [old-editor-tab-pane (g/node-value app-view :active-tab-pane)
         new-editor-tab-pane (editor-tab-pane new-focus-owner)]
     (when (and (some? new-editor-tab-pane)
@@ -1071,7 +1120,7 @@ If you do not specifically require different script states, consider changing th
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (on-selected-tab-changed! app-view resource-node)))))
+        (on-selected-tab-changed! app-view app-scene resource-node)))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
@@ -1079,23 +1128,41 @@ If you do not specifically require different script states, consider changing th
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
     (let [editor-tab-pane (TabPane.)
-          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView :stage stage :editor-tabs-split editor-tabs-split :active-tab-pane editor-tab-pane :tool-tab-pane tool-tab-pane :active-tool :move))))]
+          app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
+                                                                     :stage stage
+                                                                     :editor-tabs-split editor-tabs-split
+                                                                     :active-tab-pane editor-tab-pane
+                                                                     :tool-tab-pane tool-tab-pane
+                                                                     :active-tool :move
+                                                                     :manip-space :world
+                                                                     :visibility-filters-enabled true
+                                                                     :hidden-renderable-tags #{}))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
                   (fn [_ _ new-focus-owner]
-                    (handle-focus-owner-change! app-view new-focus-owner)))
+                    (handle-focus-owner-change! app-view app-scene new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
 
       (keymap/install-key-bindings! (.getScene stage) (g/node-value app-view :keymap))
 
-      (let [refresh-timers [(ui/->timer 3 "refresh-ui" (fn [_ _] (refresh-ui! app-view stage project)))
-                            (ui/->timer 13 "refresh-views" (fn [_ _] (refresh-views! app-view)))
-                            (ui/->timer "refresh-scene-views" (fn [_ _] (refresh-scene-views! app-view)))]]
-        (doseq [timer refresh-timers]
-          (ui/timer-stop-on-closed! stage timer)
-          (ui/timer-start! timer)))
+      (let [refresh-tick (java.util.concurrent.atomic.AtomicInteger. 0)
+            refresh-timer (ui/->timer "refresh-app-view"
+                                      (fn [_ _]
+                                        (when-not (ui/ui-disabled?)
+                                          (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)
+                                                tick (.getAndIncrement refresh-tick)]
+                                            (when refresh-requested?
+                                              (ui/user-data! app-scene ::ui/refresh-requested? false))
+                                            (when (or refresh-requested? (zero? (mod tick 20)))
+                                              (refresh-menus-and-toolbars! app-view app-scene))
+                                            (when (or refresh-requested? (zero? (mod tick 5)))
+                                              (refresh-views! app-view))
+                                            (refresh-scene-views! app-view)
+                                            (refresh-app-title! stage project)))))]
+        (ui/timer-stop-on-closed! stage refresh-timer)
+        (ui/timer-start! refresh-timer))
       (ui/on-closed! stage (fn [_] (dispose-scene-views! app-view)))
       app-view)))
 
@@ -1147,7 +1214,7 @@ If you do not specifically require different script states, consider changing th
     tmpl args))
 
 (defn- defective-resource-node? [resource-node]
-  (let [value (g/node-value resource-node :node-id+resource)]
+  (let [value (g/node-value resource-node :valid-node-id+resource)]
     (and (g/error? value)
          (g/error-fatal? value))))
 
@@ -1155,13 +1222,16 @@ If you do not specifically require different script states, consider changing th
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
   ([app-view prefs workspace project resource opts]
-   (let [resource-type (resource/resource-type resource)
-         resource-node (or (project/get-resource-node project resource)
-                           (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
-                                           {})))
-         view-type     (or (:selected-view-type opts)
-                           (first (:view-types resource-type))
-                           (workspace/get-view-type workspace :text))]
+   (let [resource-type  (resource/resource-type resource)
+         resource-node  (or (project/get-resource-node project resource)
+                            (throw (ex-info (format "No resource node found for resource '%s'" (resource/proj-path resource))
+                                            {})))
+         text-view-type (workspace/get-view-type workspace :text)
+         view-type      (or (:selected-view-type opts)
+                            (if (nil? resource-type)
+                              (placeholder-resource/view-type workspace)
+                              (first (:view-types resource-type)))
+                            text-view-type)]
      (if (defective-resource-node? resource-node)
        (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
            false)
@@ -1179,10 +1249,12 @@ If you do not specifically require different script states, consider changing th
              (.directory (workspace/project-path workspace))
              (.start))
            false)
-         (if-let [make-view-fn (:make-view-fn view-type)]
+         (if (contains? view-type :make-view-fn)
            (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
                  tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
+                 view-type (if (g/node-value resource-node :editable?) view-type text-view-type)
+                 make-view-fn (:make-view-fn view-type)
                  ^Tab tab (or (some #(when (and (= (tab->resource-node %) resource-node)
                                                 (= view-type (ui/user-data % ::view-type)))
                                        %)
@@ -1427,7 +1499,7 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :live-update-settings :global
   (run [app-view prefs workspace project]
-    (some->> (or (workspace/find-resource workspace "/liveupdate.settings")
+    (some->> (or (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))
                  (create-live-update-settings! workspace))
       (open-resource app-view prefs workspace project))))
 

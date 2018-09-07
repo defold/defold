@@ -680,3 +680,17 @@
             content              (get content-by-source "/game.project")
             game-project-content (String. content)]
         (is (not (.contains game-project-content dependency-url)))))))
+
+(deftest collision-groups-data-doesnt-break-build
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/collision_project")
+          project (test-util/setup-project! workspace)
+          game-project (test-util/resource-node project "/game.project")]
+      (let [br (project-build project game-project (g/make-evaluation-context))]
+        (is (not (contains? br :error))))
+      (testing "Removing an unreferenced collisionobject should not break the build"
+        (let [f (File. (workspace/project-path workspace) "knight.collisionobject")]
+          (fs/delete-file! f)
+          (workspace/resource-sync! workspace))
+        (let [br (project-build project game-project (g/make-evaluation-context))]
+          (is (not (contains? br :error))))))))

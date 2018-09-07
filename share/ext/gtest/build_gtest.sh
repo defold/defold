@@ -61,6 +61,19 @@ case $CONF_TARGET in
 				CXXFLAGS="-I${EMSCRIPTEN}/system/lib/libcxxabi/include/ ${CXXFLAGS}"
 			fi
 
+			if [ "$CONF_TARGET" == "darwin" ]; then
+				CXXFLAGS="-mmacosx-version-min=${OSX_MIN_SDK_VERSION} ${CXXFLAGS}"
+			fi
+			if [ "$CONF_TARGET" == "x86_64-darwin" ]; then
+				CXXFLAGS="-mmacosx-version-min=${OSX_MIN_SDK_VERSION} ${CXXFLAGS}"
+			fi
+			if [ "$CONF_TARGET" == "arm64-darwin" ]; then
+				CXXFLAGS="-miphoneos-version-min=${IOS_MIN_SDK_VERSION} ${CXXFLAGS}"
+			fi
+			if [ "$CONF_TARGET" == "armv7-darwin" ]; then
+				CXXFLAGS="-miphoneos-version-min=${IOS_MIN_SDK_VERSION} ${CXXFLAGS}"
+			fi
+
 			set -e
 		    pushd googletest/make
 		    make -j8 gtest.a

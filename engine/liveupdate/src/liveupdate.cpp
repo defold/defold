@@ -6,9 +6,44 @@
 #include <ddf/ddf.h>
 
 #include <dlib/log.h>
+#include <dlib/sys.h>
+
+#if defined(_WIN32)
+#include <malloc.h>
+#define alloca(_SIZE) _alloca(_SIZE)
+#endif
 
 namespace dmLiveUpdate
 {
+    Result ResourceResultToLiveupdateResult(dmResource::Result r)
+    {
+        Result result;
+        switch (r)
+        {
+            case dmResource::RESULT_OK:
+                result = RESULT_OK;
+                break;
+            case dmResource::RESULT_IO_ERROR:
+                result = RESULT_INVALID_RESOURCE;
+                break;
+            case dmResource::RESULT_FORMAT_ERROR:
+                result = RESULT_INVALID_RESOURCE;
+                break;
+            case dmResource::RESULT_VERSION_MISMATCH:
+                result = RESULT_VERSION_MISMATCH;
+                break;
+            case dmResource::RESULT_SIGNATURE_MISMATCH:
+                result = RESULT_SIGNATURE_MISMATCH;
+                break;
+            case dmResource::RESULT_NOT_SUPPORTED:
+                result = RESULT_SCHEME_MISMATCH;
+                break;
+            default:
+                result = RESULT_INVALID_RESOURCE;
+                break;
+        }
+        return result;
+    }
 
     struct LiveUpdate
     {
@@ -22,6 +57,8 @@ namespace dmLiveUpdate
     };
 
     LiveUpdate g_LiveUpdate;
+    /// Resource system factory
+    static dmResource::HFactory m_ResourceFactory = 0x0;
 
     /** ***********************************************************************
      ** LiveUpdate utility functions
@@ -37,15 +74,15 @@ namespace dmLiveUpdate
             *buffer = (char**) malloc(resourceCount * sizeof(char**));
             MissingResources(g_LiveUpdate.m_Manifest, urlHash, resources, resourceCount);
 
-            dmLiveUpdateDDF::HashAlgorithm algorithm = g_LiveUpdate.m_Manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
+            dmLiveUpdateDDF::HashAlgorithm algorithm = g_LiveUpdate.m_Manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
             uint32_t hexDigestLength = HexDigestLength(algorithm) + 1;
             bool isUnique;
-            char* scratch = (char*) malloc(hexDigestLength * sizeof(char*));
+            char* scratch = (char*) alloca(hexDigestLength * sizeof(char*));
             for (uint32_t i = 0; i < resourceCount; ++i)
             {
                 isUnique = true;
-                dmResource::HashToString(algorithm, resources[i], scratch, hexDigestLength);
-                for (int j = 0; j < uniqueCount; ++j) // only return unique hashes even if there are multiple resource instances in the collectionproxy
+                dmResource::BytesToHexString(resources[i], dmResource::HashLength(algorithm), scratch, hexDigestLength);
+                for (uint32_t j = 0; j < uniqueCount; ++j) // only return unique hashes even if there are multiple resource instances in the collectionproxy
                 {
                     if (memcmp((*buffer)[j], scratch, hexDigestLength) == 0)
                     {
@@ -60,7 +97,6 @@ namespace dmLiveUpdate
                     ++uniqueCount;
                 }
             }
-            free(scratch);
             free(resources);
         }
         return uniqueCount;
@@ -74,47 +110,82 @@ namespace dmLiveUpdate
         }
 
         bool result = true;
-        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
-        uint8_t* digest = (uint8_t*) malloc(digestLength * sizeof(uint8_t));
-        if (digest == 0x0)
-        {
-            dmLogError("Failed to allocate memory for hash calculation.");
-            return false;
-        }
+        uint8_t* digest = (uint8_t*) alloca(digestLength * sizeof(uint8_t));
 
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
 
         uint32_t hexDigestLength = digestLength * 2 + 1;
-        char* hexDigest = (char*) malloc(hexDigestLength * sizeof(char));
-        if (hexDigest == 0x0)
-        {
-            dmLogError("Failed to allocate memory for hash calculation.");
-            free(digest);
-            return false;
-        }
+        char* hexDigest = (char*) alloca(hexDigestLength * sizeof(char));
 
-        dmResource::HashToString(algorithm, digest, hexDigest, hexDigestLength);
+        dmResource::BytesToHexString(digest, dmResource::HashLength(algorithm), hexDigest, hexDigestLength);
 
-        if (expectedLength == (hexDigestLength - 1))
+        result = dmResource::HashCompare((const uint8_t*)hexDigest, hexDigestLength-1, (const uint8_t*)expected, expectedLength) == dmResource::RESULT_OK;
+
+        return result;
+    }
+
+    bool VerifyManifestSupportedEngineVersion(dmResource::Manifest* manifest)
+    {
+        // Calculate running dmengine version SHA1 hash
+        dmSys::EngineInfo engine_info;
+        dmSys::GetEngineInfo(&engine_info);
+        bool engine_version_supported = false;
+        uint32_t engine_digest_len = dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1);
+        uint8_t* engine_digest = (uint8_t*) alloca(engine_digest_len * sizeof(uint8_t));
+
+        CreateResourceHash(dmLiveUpdateDDF::HASH_SHA1, engine_info.m_Version, strlen(engine_info.m_Version), engine_digest);
+
+        // Compare manifest supported versions to running dmengine version
+        dmLiveUpdateDDF::HashDigest* versions = manifest->m_DDFData->m_EngineVersions.m_Data;
+        for (uint32_t i = 0; i < manifest->m_DDFData->m_EngineVersions.m_Count; ++i)
         {
-            for (uint32_t i = 0; i < expectedLength; ++i)
+            if (memcmp(engine_digest, versions[i].m_Data.m_Data, engine_digest_len) == 0)
             {
-                if (expected[i] != hexDigest[i])
-                {
-                    result = false;
-                    break;
-                }
+                engine_version_supported = true;
+                break;
             }
         }
-        else
+
+        if (!engine_version_supported)
         {
-            result = false;
+            dmLogError("Loaded manifest does not support current engine version (%s)", engine_info.m_Version);
         }
 
-        free(digest);
-        free(hexDigest);
+        return engine_version_supported;
+    }
+
+    Result VerifyManifestSignature(dmResource::Manifest* manifest)
+    {
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
+        uint32_t digest_len = dmResource::HashLength(algorithm);
+        uint8_t* digest = (uint8_t*) alloca(digest_len * sizeof(uint8_t));
+
+        dmLiveUpdate::CreateManifestHash(algorithm, manifest->m_DDF->m_Data.m_Data, manifest->m_DDF->m_Data.m_Count, digest);
+
+        Result result = ResourceResultToLiveupdateResult(dmResource::VerifyManifestHash(m_ResourceFactory, manifest, digest, digest_len));
+
         return result;
+    }
+
+    Result VerifyManifest(dmResource::Manifest* manifest)
+    {
+        if (!VerifyManifestSupportedEngineVersion(manifest))
+            return RESULT_ENGINE_VERSION_MISMATCH;
+
+        return VerifyManifestSignature(manifest);
+    }
+
+    Result ParseManifestBin(uint8_t* manifest_data, size_t manifest_len, dmResource::Manifest* manifest)
+    {
+        return ResourceResultToLiveupdateResult(dmResource::ManifestLoadMessage(manifest_data, manifest_len, manifest));
+    }
+
+    Result StoreManifest(dmResource::Manifest* manifest)
+    {
+        Result res = dmResource::StoreManifest(manifest) == dmResource::RESULT_OK ? RESULT_OK : RESULT_INVALID_RESOURCE;
+        return res;
     }
 
     Result StoreResourceAsync(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, void (*callback)(StoreResourceCallbackData*), StoreResourceCallbackData& callback_data)
@@ -138,27 +209,22 @@ namespace dmLiveUpdate
     Result NewArchiveIndexWithResource(dmResource::Manifest* manifest, const char* expected_digest, const uint32_t expected_digest_length, const dmResourceArchive::LiveUpdateResource* resource, dmResourceArchive::HArchiveIndex& out_new_index)
     {
         out_new_index = 0x0;
-        if(!VerifyResource(manifest, (const char*) expected_digest, expected_digest_length, resource))
+        if(!VerifyResource(manifest, expected_digest, expected_digest_length, resource))
         {
             dmLogError("Verification failure for Liveupdate archive for resource: %s", expected_digest);
             return RESULT_INVALID_RESOURCE;
         }
 
-        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDF->m_Data.m_Header.m_ResourceHashAlgorithm;
+        dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_ResourceHashAlgorithm;
         uint32_t digestLength = dmResource::HashLength(algorithm);
-        uint8_t* digest = (uint8_t*) malloc(digestLength);
-        if(digest == 0x0)
-        {
-            dmLogError("Failed to allocate memory for hash calculation for resource: %s", expected_digest);
-            return RESULT_MEM_ERROR;
-        }
+        uint8_t* digest = (uint8_t*) alloca(digestLength);
+
         CreateResourceHash(algorithm, (const char*)resource->m_Data, resource->m_Count, digest);
 
         char proj_id[dmResource::MANIFEST_PROJ_ID_LEN];
-        dmResource::HashToString(dmLiveUpdateDDF::HASH_SHA1, manifest->m_DDF->m_Data.m_Header.m_ProjectIdentifier.m_Data.m_Data, proj_id, dmResource::MANIFEST_PROJ_ID_LEN);
-
+        dmResource::BytesToHexString(manifest->m_DDFData->m_Header.m_ProjectIdentifier.m_Data.m_Data, dmResource::HashLength(dmLiveUpdateDDF::HASH_SHA1), proj_id, dmResource::MANIFEST_PROJ_ID_LEN);
         dmResource::Result res = dmResource::NewArchiveIndexWithResource(manifest, digest, digestLength, resource, proj_id, out_new_index);
-        free(digest);
+
         return (res == dmResource::RESULT_OK) ? RESULT_OK : RESULT_INVALID_RESOURCE;
     }
 
@@ -167,55 +233,14 @@ namespace dmLiveUpdate
         dmResourceArchive::SetNewArchiveIndex(archive_container, new_index, mem_mapped);
     }
 
-    int AddManifest(dmResource::Manifest* manifest)
+    dmResource::Manifest* GetCurrentManifest()
     {
-        for (int i = 0; i < MAX_MANIFEST_COUNT; ++i)
-        {
-            if (g_LiveUpdate.m_Manifests[i] == 0x0)
-            {
-                g_LiveUpdate.m_Manifests[i] = manifest;
-                return i;
-            }
-        }
-
-        return -1;
-    }
-
-    dmResource::Manifest* GetManifest(int manifestIndex)
-    {
-        if (manifestIndex == CURRENT_MANIFEST)
-        {
-            return g_LiveUpdate.m_Manifest;
-        }
-
-        for (int i = 0; i < MAX_MANIFEST_COUNT; ++i)
-        {
-            if (i == manifestIndex)
-            {
-                return g_LiveUpdate.m_Manifests[i];
-            }
-        }
-
-        return 0x0;
-    }
-
-    bool RemoveManifest(int manifestIndex)
-    {
-        if (manifestIndex >= 0 && manifestIndex < MAX_MANIFEST_COUNT)
-        {
-            if (g_LiveUpdate.m_Manifests[manifestIndex] != 0x0)
-            {
-                delete g_LiveUpdate.m_Manifests[manifestIndex];
-                g_LiveUpdate.m_Manifests[manifestIndex] = 0x0;
-                return true;
-            }
-        }
-
-        return false;
+        return g_LiveUpdate.m_Manifest;
     }
 
     void Initialize(const dmResource::HFactory factory)
     {
+        m_ResourceFactory = factory;
         g_LiveUpdate.m_Manifest = dmResource::GetManifest(factory);
         dmLiveUpdate::AsyncInitialize(factory);
     }

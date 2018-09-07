@@ -20,6 +20,7 @@
 #include "script_html5.h"
 #include "script_luasocket.h"
 #include "script_bitop.h"
+#include "script_timer.h"
 
 extern "C"
 {
@@ -179,6 +180,8 @@ namespace dmScript
 
         lua_newtable(L);
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
+
+        InitializeTimer(context);
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {

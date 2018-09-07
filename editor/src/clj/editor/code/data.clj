@@ -1810,9 +1810,11 @@
   (when (some? splice-properties)
     (assert (vector? lines))
     (assert (vector? cursor-ranges))
-    (let [indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)]
-      (merge splice-properties
-             (dissoc indentation-properties :invalidated-row)))))
+    (if (nil? (:indent grammar))
+      splice-properties
+      (let [indentation-properties (fix-indentation cursor-ranges indent-level-pattern indent-string grammar lines cursor-ranges regions)]
+        (merge splice-properties
+               (dissoc indentation-properties :invalidated-row))))))
 
 (defn- update-document-width-after-splice [{:keys [lines cursor-ranges] :as splice-properties} ^LayoutInfo pre-splice-layout]
   (when (some? splice-properties)

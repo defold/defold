@@ -140,7 +140,8 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
+              (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
@@ -205,6 +206,7 @@
       {:node-id _node-id
        :aabb aabb
        :renderable {:render-fn render-layer
+                    :tags #{:tilemap}
                     :user-data {:node-id _node-id
                                 :vbuf vbuf
                                 :gpu-texture gpu-texture
@@ -374,8 +376,8 @@
   ;; tile source
   (property tile-source resource/Resource
             (value (gu/passthrough tile-source-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:tile-source-attributes :tile-source-attributes]
@@ -389,8 +391,8 @@
   ;; material
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets]
                                             [:shader :material-shader]
@@ -928,6 +930,7 @@
   (property brush g/Any (default (make-brush 0)))
 
   (input active-tool g/Keyword)
+  (input manip-space g/Keyword)
   (input camera g/Any)
   (input viewport g/Any)
   (input selected-renderables g/Any)

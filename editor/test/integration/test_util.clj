@@ -77,10 +77,10 @@
 (declare prop prop!)
 
 (defn code-editor-source [script-id]
-  (string/join "\n" (prop script-id :lines)))
+  (string/join "\n" (prop script-id :modified-lines)))
 
 (defn code-editor-source! [script-id source]
-  (prop! script-id :lines (string/split source #"\r?\n" -1)))
+  (prop! script-id :modified-lines (string/split source #"\r?\n" -1)))
 
 (defn setup-workspace!
   ([graph]
@@ -123,6 +123,11 @@
      (g/reset-undo! proj-graph)
      project)))
 
+(defn project-node-resources [project]
+  (g/with-auto-evaluation-context evaluation-context
+    (sort-by resource/proj-path
+             (map (comp #(g/node-value % :resource evaluation-context) first)
+                  (g/sources-of project :node-id+resources)))))
 
 (defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
   resource/Resource
@@ -181,7 +186,7 @@
 
 (defn setup-app-view! [project]
   (let [view-graph (make-view-graph!)]
-    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move]]
+    (-> (g/make-nodes view-graph [app-view [MockAppView :active-tool :move :manip-space :world]]
           (g/connect project :_node-id app-view :project-id)
           (for [label [:selected-node-ids-by-resource-node :selected-node-properties-by-resource-node :sub-selections-by-resource-node]]
             (g/connect project label app-view label)))
@@ -193,7 +198,6 @@
   (let [node-id (project/get-resource-node project path)
         views-by-node-id (let [views (g/node-value app-view :open-views)]
                            (zipmap (map :resource-node (vals views)) (keys views)))
-        resource (g/node-value node-id :resource)
         view (get views-by-node-id node-id)]
     (if view
       (do
@@ -204,7 +208,7 @@
         (g/transact
           (concat
             (g/connect node-id :_node-id view :resource-node)
-            (g/connect node-id :node-id+resource view :node-id+resource)
+            (g/connect node-id :valid-node-id+resource view :node-id+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])

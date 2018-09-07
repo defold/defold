@@ -183,7 +183,7 @@ def build(bld):
             dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
     if 'win32' not in bld.env['PLATFORM'] and bld.env['PLATFORM'] != 'as3-web':
-        dlib = bld.new_task_gen(features = 'cxx cshlib',
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib',
                                 source='dlib/memprofile.cpp',
                                 includes = '.',
                                 target = 'dlib_memprofile',

@@ -34,6 +34,10 @@ Important: *Make sure your branches are up to date!*
  1. Write release beta release notes.
  1. (Optional) Download and run beta:
  
+    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-darwin.dmg
+    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-win32.zip
+    http://d.defold.com/editor2/`BETA-SHA1`/editor2/Defold-x86_64-linux.zip
+ 
     http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-macosx.cocoa.x86_64.dmg
     
     http://d.defold.com/archive/`BETA-SHA1`/beta/editor/Defold-win32.win32.x86.zip
@@ -101,6 +105,10 @@ The following smoke tests are currently performed by the team on each platform (
     Make a note of the release sha1. Either via the build page, or latest commit to the master branch on github
  
  1. Fetch editor via:
+ 
+    http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-darwin.dmg
+    http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-win32.zip
+    http://d.defold.com/editor2/`STABLE-SHA1`/editor2/Defold-x86_64-linux.zip
  
     http://d.defold.com/archive/`STABLE-SHA1`/stable/editor/Defold-macosx.cocoa.x86_64.dmg
     

@@ -1768,7 +1768,7 @@ namespace dmParticle
     uint32_t GetInstanceEmitterCount(HParticleContext context, HInstance instance)
     {
         Instance* inst = GetInstance(context, instance);
-        return inst->m_Emitters.Size();
+        return (inst != 0x0) ? inst->m_Emitters.Size() : 0;
     }
 
     void RenderEmitter(Instance* instance, uint32_t emitter_index, void* usercontext, RenderEmitterCallback render_emitter_callback);

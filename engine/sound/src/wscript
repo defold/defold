@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 import os, sys, re
+import Options
 
 def configure(conf):
     pass
@@ -36,7 +37,9 @@ def build(bld):
         bld.install_files('${PREFIX}/lib/js-web/js', 'js/library_sound.js', postpone = False)
         bld.install_files('${PREFIX}/bin/js-web', 'flash/defold_sound.swf', postpone = False)
     elif re.match('arm.*?android', bld.env['PLATFORM']):
-        classpath = os.path.join(bld.env['DYNAMO_HOME'], 'ext/share/java/android.jar')
+        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME,
+                     '%s/ext/share/java/android-support-v4.jar' % bld.env.DYNAMO_HOME]
+        classpath = os.pathsep.join(classpath)
         bld.env["JAVACFLAGS"] = '-g -source 1.6 -target 1.6'
         bld.new_task_gen(features='javac seq', classpath=classpath, source_root='java')
         bld.new_task_gen(features='jar seq', basedir='java', destfile='sound_android.jar')
@@ -62,4 +65,5 @@ def build(bld):
         sound.defines = '_XBOX'
         sound_null.defines = '_XBOX'
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')

@@ -276,7 +276,7 @@ public class IOSBundler implements IBundler {
         properties.put("orientation-support", orientationSupport);
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
-        helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
+        helper.format(properties, "ios", "infoplist", new File(appDir, "Info.plist"));
 
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);

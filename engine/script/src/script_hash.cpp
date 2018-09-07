@@ -184,6 +184,8 @@ namespace dmScript
             dmScript::Unref(L, LUA_REGISTRYINDEX, *refp);
             instances->Erase(hash);
         }
+
+        assert(top == lua_gettop(L));
     }
 
     dmhash_t CheckHash(lua_State* L, int index)

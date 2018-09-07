@@ -10,6 +10,8 @@ function load_complete(self, url, result)
     assert(result == true)
     collectionfactory.create(url)
     collectionfactory.create(url)
+    -- DEF-3338 Collection factory create() function should accept nil value in place of table
+    collectionfactory.create(url, nil, nil, nil, 1)
     self.unload = true
 end
 
@@ -26,4 +28,6 @@ function final(self)
     go.delete("/collection0/go2", true)
     go.delete("/collection1/go", true)
     go.delete("/collection1/go2", true)
+    go.delete("/collection2/go", true)
+    go.delete("/collection2/go2", true)
 end

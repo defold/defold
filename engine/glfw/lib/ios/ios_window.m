@@ -1012,7 +1012,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     glView.auxContext = glAuxContext;
     glView.contentScaleFactor = scaleFactor;
     glView.layer.contentsScale = scaleFactor;
-    [[self view] addSubview:glView];
+    [[self view] insertSubview:glView atIndex:0];
 
     [glView createFramebuffer];
 }

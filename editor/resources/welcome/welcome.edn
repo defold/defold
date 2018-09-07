@@ -83,6 +83,14 @@
                              :zip-url "https://github.com/defold/sample-roids/archive/master.zip"
                              :skip-root? true}
 
+                            {:name "RPG map sample"
+                             :description "This sample shows how you can create a large RPG map that scrolls one screen at a time as the hero progresses."
+                             :image "rpg-map.png"
+                             :duration "Medium"
+                             :user-level "Intermediate"
+                             :zip-url "https://github.com/defold/sample-rpgmap/archive/master.zip"
+                             :skip-root? true}
+
                              {:name "Shadertoy sample"
                              :description "This sample contains a GLSL shader that was taken from Shadertoy and converted to Defold. It showcases how to work with materials and shaders in Defold."
                              :image "shadertoy.png"

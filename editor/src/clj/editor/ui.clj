@@ -446,6 +446,9 @@
   (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                               (fn e)))))
 
+(defn on-click! [^Node node fn]
+  (.setOnMouseClicked node (event-handler e (fn e))))
+
 (defn on-mouse! [^Node node fn]
   (.setOnMouseEntered node (when fn (event-handler e (fn :enter e))))
   (.setOnMouseExited node (when fn (event-handler e (fn :exit e))))
@@ -1090,6 +1093,10 @@
       ;; a special event handler that suppresses actions invoked via
       ;; an accelerator, but still dispatches actions when invoked by
       ;; clicking the menu item.
+      ;; Note this doesn't seem to work for CheckMenuItems as the
+      ;; CheckMenuItemAdapter in GlobalMenuAdapter.java does
+      ;; getOnMenuValidation() on this instead of the target
+      ;; menuItem. In effect we never get a MENU_VALIDATION_EVENT.
       (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
@@ -1113,7 +1120,7 @@
               user-data (:user-data item)
               check (:check item)]
           (when-let [handler-ctx (handler/active command command-contexts user-data)]
-            (let [label (or (handler/label handler-ctx) item-label)
+            (let [label (or (handler/label handler-ctx) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
                   enabled? (handler/enabled? handler-ctx)
                   acc (command->shortcut command)]
               (if-let [options (handler/options handler-ctx)]
@@ -1539,13 +1546,22 @@
                                                                                       (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
                                                                                         (when (handler/enabled? handler-ctx)
                                                                                           (handler/run handler-ctx)
-                                                                                          (refresh scene)))))))
+                                                                                          (user-data! scene ::refresh-requested? true)))))))
                                                    (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                       graphic-fn (:graphic-fn menu-item)
                                                        icon (:icon menu-item)]
-                                                   (when icon
+                                                   (cond
+                                                     graphic-fn
+                                                     ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
+                                                     ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
+                                                     ;; disappears from the toolbars of subsequent tabs. For now, we generate
+                                                     ;; instances for each tab.
+                                                     (.setGraphic button (graphic-fn))
+
+                                                     icon
                                                      (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
@@ -1553,7 +1569,7 @@
                                                                             (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                                                               (when (handler/enabled? handler-ctx)
                                                                                 (handler/run handler-ctx)
-                                                                                (refresh scene)))))))
+                                                                                (user-data! scene ::refresh-requested? true)))))))
                                                    button)))]
                           (when command
                             (.setId child (name command)))
@@ -1667,7 +1683,24 @@
        (finally
          ((second ~bindings) progress/done)))))
 
-(defn modal-progress [title total-work worker-fn]
+(defn make-run-later-render-progress [render-progress!]
+  (let [render-inflight (ref false)
+        last-progress (ref nil)]
+    (fn [progress]
+      (let [schedule (ref false)]
+        (dosync
+          (ref-set schedule (not @render-inflight))
+          (ref-set render-inflight true)
+          (ref-set last-progress progress))
+        (when @schedule
+          (run-later
+            (let [progress-snapshot (ref nil)]
+              (dosync
+                (ref-set progress-snapshot @last-progress)
+                (ref-set render-inflight false))
+              (render-progress! @progress-snapshot))))))))
+
+(defn modal-progress [title worker-fn]
   (run-now
    (let [root             ^Parent (load-fxml "progress.fxml")
          stage            (make-dialog-stage (main-stage))
@@ -1677,8 +1710,8 @@
          message-control  ^Label (.lookup root "#message")
          return           (atom nil)
          render-progress! (progress/throttle-render-progress
-                            (fn [progress]
-                              (run-later
+                            (make-run-later-render-progress
+                              (fn [progress]
                                 (render-progress-controls! progress progress-control message-control))))]
       (.setText title-control title)
       (.setProgress progress-control 0)
