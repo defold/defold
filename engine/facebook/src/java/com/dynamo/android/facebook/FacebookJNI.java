@@ -237,16 +237,21 @@ class FacebookJNI {
 
             @Override
             public void run() {
-                Facebook.LoginCallback callback = new Facebook.LoginCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    // call cb immediately with failed state
+                    onLoginWithPermissions(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    Facebook.LoginCallback callback = new Facebook.LoginCallback() {
 
-                    @Override
-                    public void onDone(final int state, final String error) {
-                        onLoginWithPermissions(userData, state, error);
-                    }
+                        @Override
+                        public void onDone(final int state, final String error) {
+                            onLoginWithPermissions(userData, state, error);
+                        }
 
-                };
+                    };
 
-                facebook.loginWithPublishPermissions(permissions.split(","), audience, callback);
+                    facebook.loginWithPublishPermissions(permissions.split(","), audience, callback);
+                }
             }
 
         });
@@ -257,16 +262,21 @@ class FacebookJNI {
 
             @Override
             public void run() {
-                Facebook.LoginCallback callback = new Facebook.LoginCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    // call cb immediately with failed state
+                    onLoginWithPermissions(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    Facebook.LoginCallback callback = new Facebook.LoginCallback() {
 
-                    @Override
-                    public void onDone(final int state, final String error) {
-                        onLoginWithPermissions(userData, state, error);
-                    }
+                        @Override
+                        public void onDone(final int state, final String error) {
+                            onLoginWithPermissions(userData, state, error);
+                        }
 
-                };
+                    };
 
-                facebook.loginWithReadPermissions(permissions.split(","), callback);
+                    facebook.loginWithReadPermissions(permissions.split(","), callback);
+                }
             }
 
         });
