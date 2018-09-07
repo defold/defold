@@ -610,11 +610,17 @@
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output node-msg g/Any produce-node-msg)
   (input node-msgs g/Any :array)
-  (output node-msgs g/Any :cached (g/fnk [node-msgs node-msg] (into [node-msg]
-                                                                    (->> node-msgs
-                                                                         (sort-by #(get-in % [0 :child-index]))
-                                                                         flatten
-                                                                         (map #(dissoc % :child-index))))))
+  (output node-msgs g/Any :cached (g/fnk [node-msgs node-msg]
+                                         (apply
+                                           merge-with
+                                           #(into (vec %1)
+                                                  (->> %2
+                                                       (sort-by (fn [nm] (get-in nm [0 :child-index])))
+                                                       flatten
+                                                       (map (fn [nm] (dissoc nm :child-index)))))
+                                           {nil [node-msg]}
+                                           node-msgs)))
+
   (input node-rt-msgs g/Any :array)
   (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs node-msg] (into [node-msg]
                                                                           (->> node-rt-msgs
@@ -1134,10 +1140,26 @@
                                                                      (get-in template-outline [:children 0 :children])))
   (output node-outline-reqs g/Any :cached (g/constantly []))
   (output node-msgs g/Any :cached (g/fnk [id node-msg scene-pb-msg]
-                                         (into [node-msg] (map #(cond-> (assoc % :template-node-child true)
-                                                                  (empty? (:parent %))
-                                                                  (assoc :parent id)))
-                                               (:nodes scene-pb-msg))))
+                                         (let [scene-default-node-msgs (into [] (map #(cond-> (assoc % :template-node-child true)
+                                                                                        (empty? (:parent %))
+                                                                                        (assoc :parent id)))
+                                                                             (:nodes scene-pb-msg))
+
+                                               scene-layout-node-msgs (into {}
+                                                                            (comp
+                                                                              (map (juxt :name :nodes))
+                                                                              (map (fn [[name nodes]]
+                                                                                      [name (into [] (map #(cond-> (assoc % :template-node-child true)
+                                                                                                             (empty? (:parent %))
+                                                                                                             (assoc :parent id)))
+                                                                                                  nodes)])))
+                                                                            (:layouts scene-pb-msg))]
+                                           (merge-with
+                                             #(into (vec %1) %2)
+                                             {nil [node-msg]}
+                                             {nil scene-default-node-msgs}
+                                             scene-layout-node-msgs))))
+
   (output node-rt-msgs g/Any :cached (g/fnk [node-msg scene-rt-pb-msg]
                                             (let [parent-q (math/euler->quat (:rotation node-msg))]
                                               (into [] (map #(cond-> (assoc % :child-index (:child-index node-msg))
@@ -1650,7 +1672,8 @@
   (select-keys node-desc (remove non-overridable-fields (map prop-index->prop-key (:overridden-fields node-desc)))))
 
 (defn- layout-pb-msg [name node-msgs]
-  (let [node-msgs (filter (comp not-empty :overridden-fields) node-msgs)]
+  (let [all-node-msgs (into (vec (get node-msgs nil)) (get node-msgs name))
+        node-msgs (filter (comp not-empty :overridden-fields) all-node-msgs)]
     (cond-> {:name name}
       (not-empty node-msgs)
       (assoc :nodes node-msgs))))
@@ -1748,10 +1771,13 @@
   (output id-counts NameCounts :cached (g/fnk [ids] (frequencies ids)))
   (input node-msgs g/Any :array)
   (output node-msgs g/Any :cached (g/fnk [node-msgs]
-                                         (->> node-msgs
-                                              (sort-by #(get-in % [0 :child-index]))
-                                              flatten
-                                              (map #(dissoc % :child-index)))))
+                                         (into {}
+                                               (map (fn [[layout node-msgs]]
+                                                      [layout (->> node-msgs
+                                                                   (sort-by #(get-in % [0 :child-index]))
+                                                                   flatten
+                                                                   (map #(dissoc % :child-index)))]))
+                                               (apply merge-with concat node-msgs))))
   (input node-rt-msgs g/Any :array)
   (output node-rt-msgs g/Any :cached (g/fnk [node-rt-msgs]
                                             (->> node-rt-msgs
@@ -1913,7 +1939,7 @@
    :adjust-reference adjust-reference
    :background-color background-color
    :max-nodes max-nodes
-   :nodes node-msgs
+   :nodes (get node-msgs nil)
    :layers layer-msgs
    :fonts font-msgs
    :textures texture-msgs
