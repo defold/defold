@@ -294,6 +294,12 @@ Creating a new android package is straight forward:
 
 The android-support-v4.jar is apparently needed by our facebook api, and hopefully, we won't need to update that.
 
+### Facebook SDK
+
+Current SDK used is 4.7.0. It is located in `<defold>/packages/facebook/facebook-<fb-sdk-version>-armv7-android.tar.gz`. A patch to facebook's SDK is applied in order to run on Android API levels < 11. The patch is the same as FF uses (https://github.int.midasplayer.com/GamePlatform/game-platform/commit/80d70bedb41ece050684d9bd22dc80731786ffef#diff-1bf400d252c1af6a063b5773019109f5).
+
+Apply the patch by downloading the appropriate Facebook Android SDK (https://developers.facebook.com/docs/android/downloads/). Modify the source files as needed and build the sdk using the grade scripts bundled with the SDK. Copy `classes.jar` from `<fb-sdk-dir>/facebook/build/` directory to you facebook sdk package dir and rename it to `facebooksdk.jar`. 
+
 ### Update build script
 
 Update the reference to the tar ball in `<defold>/scripts/build.py`

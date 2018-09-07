@@ -169,10 +169,10 @@
  * @name webview.set_position
  *
  * @param webview_id [type:number] The webview id (returned by the webview.create() call)
- * @return x [type:number] The x position of the webview
- * @return y [type:number] The y position of the webview
- * @return width [type:number] The width of the webview (-1 to match screen width)
- * @return height [type:number] The height of the webview (-1 to match screen height)
+ * @param x [type:number] The x position of the webview
+ * @param y [type:number] The y position of the webview
+ * @param width [type:number] The width of the webview (-1 to match screen width)
+ * @param height [type:number] The height of the webview (-1 to match screen height)
  */
 
 

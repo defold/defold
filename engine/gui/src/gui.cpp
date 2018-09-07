@@ -27,6 +27,13 @@
 
 namespace dmGui
 {
+    /**
+     * Default layer id
+     */
+    const dmhash_t DEFAULT_LAYER = dmHashString64("");
+
+    const dmhash_t DEFAULT_LAYOUT = dmHashString64("");
+
     const uint16_t INVALID_INDEX = 0xffff;
 
     const uint32_t INITIAL_SCENE_COUNT = 32;
@@ -523,7 +530,7 @@ namespace dmGui
         }
 
         const uint8_t* read_buffer = buffer+buffer_size;
-        for (int y = 0; y < height; ++y)
+        for (uint32_t y = 0; y < height; ++y)
         {
             read_buffer -= stride;
             memcpy(out_buffer, read_buffer, stride);

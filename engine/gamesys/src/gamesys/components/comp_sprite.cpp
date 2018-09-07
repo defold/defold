@@ -116,7 +116,7 @@ namespace dmGameSystem
             void* indices = (void*)malloc(indices_count * size_type);
             if (sprite_world->m_Is16BitIndex) {
                 uint16_t* index = (uint16_t*)indices;
-                for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+                for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
                 {
                     *index++ = v;
                     *index++ = v+1;
@@ -127,7 +127,7 @@ namespace dmGameSystem
                 }
             } else {
                 uint32_t* index = (uint32_t*)indices;
-                for(int32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
+                for(uint32_t i = 0, v = 0; i < indices_count; i += 6, v += 4)
                 {
                     *index++ = v;
                     *index++ = v+1;
