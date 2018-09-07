@@ -664,10 +664,10 @@ If you do not specifically require different script states, consider changing th
       (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                         (fn [successful?]
                           (when successful?
-                            (render-build-progress! (progress/make-indeterminate "Building..."))
+                            (render-build-progress! (progress/make "Building..."))
                             (future
                               (try
-                                (let [result (bob/build-html5! project prefs)]
+                                (let [result (bob/build-html5! project prefs render-build-progress!)]
                                   (render-build-progress! progress/done)
                                   (ui/run-later
                                     (when-not (handle-bob-error! render-error! project result)
@@ -1484,10 +1484,10 @@ If you do not specifically require different script states, consider changing th
     (disk/async-save! render-reload-progress! render-save-progress! project changes-view
                       (fn [successful?]
                         (when successful?
-                          (render-build-progress! (progress/make-indeterminate "Bundling..."))
+                          (render-build-progress! (progress/make "Bundling..."))
                           (future
                             (try
-                              (let [result (bob/bundle! project prefs platform bundle-options)]
+                              (let [result (bob/bundle! project prefs platform bundle-options render-build-progress!)]
                                 (render-build-progress! progress/done)
                                 (ui/run-later
                                   (when-not (handle-bob-error! render-error! project result)
