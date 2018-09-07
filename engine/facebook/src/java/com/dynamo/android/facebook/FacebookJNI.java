@@ -191,14 +191,18 @@ class FacebookJNI {
             @Override
             public void run() {
                 Log.d(TAG, "java jni thread: " + Thread.currentThread().getId());
-                facebook.login( new Facebook.StateCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    onLogin(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    facebook.login( new Facebook.StateCallback() {
 
-                    @Override
-                    public void onDone( final int state, final String error) {
-                        onLogin(userData, state, error);
-                    }
+                        @Override
+                        public void onDone( final int state, final String error) {
+                            onLogin(userData, state, error);
+                        }
 
-                });
+                    });
+                }
             }
 
         });
@@ -237,16 +241,21 @@ class FacebookJNI {
 
             @Override
             public void run() {
-                Facebook.LoginCallback callback = new Facebook.LoginCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    // call cb immediately with failed state
+                    onLoginWithPermissions(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    Facebook.LoginCallback callback = new Facebook.LoginCallback() {
 
-                    @Override
-                    public void onDone(final int state, final String error) {
-                        onLoginWithPermissions(userData, state, error);
-                    }
+                        @Override
+                        public void onDone(final int state, final String error) {
+                            onLoginWithPermissions(userData, state, error);
+                        }
 
-                };
+                    };
 
-                facebook.loginWithPublishPermissions(permissions.split(","), audience, callback);
+                    facebook.loginWithPublishPermissions(permissions.split(","), audience, callback);
+                }
             }
 
         });
@@ -257,16 +266,21 @@ class FacebookJNI {
 
             @Override
             public void run() {
-                Facebook.LoginCallback callback = new Facebook.LoginCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    // call cb immediately with failed state
+                    onLoginWithPermissions(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    Facebook.LoginCallback callback = new Facebook.LoginCallback() {
 
-                    @Override
-                    public void onDone(final int state, final String error) {
-                        onLoginWithPermissions(userData, state, error);
-                    }
+                        @Override
+                        public void onDone(final int state, final String error) {
+                            onLoginWithPermissions(userData, state, error);
+                        }
 
-                };
+                    };
 
-                facebook.loginWithReadPermissions(permissions.split(","), callback);
+                    facebook.loginWithReadPermissions(permissions.split(","), callback);
+                }
             }
 
         });
