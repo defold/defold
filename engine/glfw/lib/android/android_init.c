@@ -570,7 +570,7 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             case AKEYCODE_SPACE: _glfwInputKey( GLFW_KEY_SPACE, glfw_action ); break;
             case AKEYCODE_GRAVE: _glfwInputKey( '`', glfw_action ); break;
             case AKEYCODE_MINUS: _glfwInputKey( '-', glfw_action ); break;
-            case AKEYCODE_EQUALS: _glfwInputKey( "=", glfw_action ); break;
+            case AKEYCODE_EQUALS: _glfwInputKey( '=', glfw_action ); break;
             case AKEYCODE_LEFT_BRACKET: _glfwInputKey( '[', glfw_action ); break;
             case AKEYCODE_RIGHT_BRACKET: _glfwInputKey( ']', glfw_action ); break;
             case AKEYCODE_BACKSLASH: _glfwInputKey( '\\', glfw_action ); break;

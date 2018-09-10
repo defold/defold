@@ -195,7 +195,7 @@ namespace dmRender
         }
     }
 
-    void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, int unit, dmGraphics::HTexture texture)
+    void ApplyMaterialSampler(dmRender::HRenderContext render_context, HMaterial material, uint32_t unit, dmGraphics::HTexture texture)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
         dmArray<Sampler>& samplers = material->m_Samplers;
@@ -332,7 +332,7 @@ namespace dmRender
             return -1;
     }
 
-    void SetMaterialSampler(HMaterial material, dmhash_t name_hash, int16_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter)
+    void SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter)
     {
         dmArray<Sampler>& samplers = material->m_Samplers;
 

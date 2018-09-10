@@ -372,6 +372,10 @@ public class ArchiveBuilder {
             outputStreamManifest.write(manifestFile);
 
             if (doOutputManifestHashFile) {
+                if (filepathManifestHash.exists()) {
+                    filepathManifestHash.delete();
+                    filepathManifestHash.createNewFile();
+                }
                 FileOutputStream manifestHashOutoutStream = new FileOutputStream(filepathManifestHash);
                 manifestHashOutoutStream.write(manifestBuilder.getManifestDataHash());
                 manifestHashOutoutStream.close();
