@@ -148,7 +148,7 @@
                      (catch FileNotFoundException e
                        (throw (ex-info (str "Could not find BMFont image resource: " path) {:path path} e)))
                      (catch IOException e
-                       (throw (ex-info (str "Error while reading BMFont image resource" {:path path} e))))))
+                       (throw (ex-info (str "Error while reading BMFont image resource:" path) {:path path} e)))))
         channel-count 4
         glyph-extents (make-glyph-extents channel-count padding glyph-cell-padding semi-glyphs)
         cache-cell-wh (max-glyph-cell-wh glyph-extents)
