@@ -107,7 +107,7 @@ public class Push {
         this.listener = null;
     }
 
-    public void purgeStoredNotifications() {
+    public void flushStoredNotifications() {
         for (int i = 0; i < storedNotifications.size(); i++) {
             StoredNotification n = storedNotifications.get(i);
             if (n.wasLocal) {
