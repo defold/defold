@@ -8,7 +8,7 @@ import waf_gamesys
 def build(bld):
 
     defines = ['_XBOX'] #NOTE: _XBOX to get static lib and avoid dllimport/dllexport stuff
-    if re.match('arm.*?darwin', bld.env.PLATFORM):
+    if re.match('arm.*?darwin', bld.env.PLATFORM) or "x86_64-ios" == bld.env.PLATFORM:
         defines = ['DM_NO_SYSTEM_FUNCTION'] # Needed because we wish to build the tests for all platforms, but not all platforms have the system() function
 
     obj = bld.new_task_gen(

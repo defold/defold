@@ -3,7 +3,7 @@
 IOS_TOOLCHAIN_ROOT=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain
 ARM_DARWIN_ROOT=${DYNAMO_HOME}/ext
 IOS_SDK_VERSION=11.2
-IOS_SIMULATOR_SDK_VERSION=11.4
+IOS_SIMULATOR_SDK_VERSION=11.2
 
 IOS_MIN_SDK_VERSION=6.0
 OSX_MIN_SDK_VERSION=10.7
@@ -216,10 +216,10 @@ function cmi() {
             # NOTE: We set this PATH in order to use libtool from iOS SDK
             # Otherwise we get the following error "malformed object (unknown load command 1)"
             export PATH=$IOS_TOOLCHAIN_ROOT/usr/bin:$PATH
-            export CPPFLAGS="-arch x86_64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
+            export CPPFLAGS="-arch x86_64 -target x86_64-apple-darwin12 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch x86_64 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
+            export CXXFLAGS="${CXXFLAGS} -stdlib=libstdc++ -arch x86_64 -target x86_64-apple-darwin12 -isysroot $ARM_DARWIN_ROOT/SDKs/iPhoneSimulator${IOS_SIMULATOR_SDK_VERSION}.sdk"
             export CFLAGS="${CPPFLAGS}"
             # NOTE: We use the gcc-compiler as preprocessor. The preprocessor seems to only work with x86-arch.
             # Wrong include-directories and defines are selected.
@@ -228,8 +228,8 @@ function cmi() {
             export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
             export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
             export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
-            cmi_buildplatform $1
-            # cmi_cross $1 x86_64-ios
+            # cmi_buildplatform $1
+            cmi_cross $1 x86_64-darwin
             ;;
 
          armv7-android)
@@ -270,6 +270,11 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libstdc++"
+            export CPP="$IOS_TOOLCHAIN_ROOT/usr/bin/clang -E"
+            export CC=$IOS_TOOLCHAIN_ROOT/usr/bin/clang
+            export CXX=$IOS_TOOLCHAIN_ROOT/usr/bin/clang++
+            export AR=$IOS_TOOLCHAIN_ROOT/usr/bin/ar
+            export RANLIB=$IOS_TOOLCHAIN_ROOT/usr/bin/ranlib
             cmi_buildplatform $1
             ;;
 
