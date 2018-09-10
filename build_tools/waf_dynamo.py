@@ -267,7 +267,7 @@ def default_flags(self):
                                       '-fpic', '-ffunction-sections', '-fstack-protector',
                                       '-D__ARM_ARCH_5__', '-D__ARM_ARCH_5T__', '-D__ARM_ARCH_5E__', '-D__ARM_ARCH_5TE__', '-DGOOGLE_PROTOBUF_NO_RTTI',
                                       '-Wno-psabi', '-march=armv7-a', '-mfloat-abi=softfp', '-mfpu=vfp', '-fvisibility=hidden',
-                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-fno-rtti', '-funwind-tables',
+                                      '-fomit-frame-pointer', '-fno-strict-aliasing', '-finline-limit=64', '-fno-exceptions', '-funwind-tables',
                                       '-I%s/android-ndk-r%s/sources/android/native_app_glue' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/android-ndk-r%s/sources/android/cpufeatures' % (ANDROID_ROOT, ANDROID_NDK_VERSION),
                                       '-I%s/tmp/android-ndk-r%s/platforms/android-%s/arch-arm/usr/include' % (ANDROID_ROOT, ANDROID_NDK_VERSION, ANDROID_NDK_API_VERSION),
@@ -275,6 +275,8 @@ def default_flags(self):
                                       '-I%s' % stl_arch,
                                       '--sysroot=%s' % sysroot,
                                       '-DANDROID', '-Wa,--noexecstack'])
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-rtti'])
 
         # TODO: Should be part of shared libraries
         # -Wl,-soname,libnative-activity.so -shared
@@ -285,7 +287,7 @@ def default_flags(self):
                 '-L%s' % stl_lib])
     elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-Wno-warn-absolute-paths', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
+            self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
                                       '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 

@@ -402,7 +402,7 @@ namespace dmGameSystem
         {
             const char* name = scene_desc->m_Textures[i].m_Name;
             dmGraphics::HTexture texture = scene_resource->m_GuiTextureSets[i].m_Texture;
-            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet, dmGraphics::GetTextureWidth(texture), dmGraphics::GetTextureHeight(texture));
+            dmGui::Result r = dmGui::AddTexture(scene, name, (void*) texture, (void*) scene_resource->m_GuiTextureSets[i].m_TextureSet, dmGraphics::GetOriginalTextureWidth(texture), dmGraphics::GetOriginalTextureHeight(texture));
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
                 return false;
@@ -858,7 +858,7 @@ namespace dmGameSystem
 
         // Offset capacity to fit vertices for all emitters we are about to render
         uint32_t vertex_count = 0;
-        for (int i = 0; i < node_count; ++i)
+        for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
             if (dmGui::GetNodeIsBone(scene, node)) {
@@ -882,7 +882,7 @@ namespace dmGameSystem
         ParticleGuiVertex *vb_begin = gui_world->m_ClientVertexBuffer.End();
         ParticleGuiVertex *vb_end = vb_begin;
         // One RO, but generate vertex data for each entry (emitter)
-        for (int i = 0; i < node_count; ++i)
+        for (uint32_t i = 0; i < node_count; ++i)
         {
             dmGui::HNode node = entries[i].m_Node;
             if (dmGui::GetNodeIsBone(scene, node)) {
@@ -1368,7 +1368,7 @@ namespace dmGameSystem
             }
 
             uint32_t sizeBefore = gui_world->m_ClientVertexBuffer.Size();
-            for (int j=0;j!=generate;j++)
+            for (uint32_t j = 0; j != generate; j++)
             {
                 float a;
                 if (j == (generate-1))
@@ -1634,8 +1634,8 @@ namespace dmGameSystem
             out_data->m_TexCoords = (const float*) texture_set_res->m_TextureSet->m_TexCoords.m_Data;
             out_data->m_Start = animation->m_Start;
             out_data->m_End = animation->m_End;
-            out_data->m_TextureWidth = dmGraphics::GetTextureWidth(texture_set_res->m_Texture);
-            out_data->m_TextureHeight = dmGraphics::GetTextureHeight(texture_set_res->m_Texture);
+            out_data->m_OriginalTextureWidth = dmGraphics::GetOriginalTextureWidth(texture_set_res->m_Texture);
+            out_data->m_OriginalTextureHeight = dmGraphics::GetOriginalTextureHeight(texture_set_res->m_Texture);
             out_data->m_FPS = animation->m_Fps;
             out_data->m_FlipHorizontal = animation->m_FlipHorizontal;
             out_data->m_FlipVertical = animation->m_FlipVertical;
