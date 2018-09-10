@@ -138,12 +138,12 @@ namespace dmCrash
         g_AppState.m_Signum = signo;
 
         uint32_t offset = 0;
-        for (int i = 0;i < dmMath::Min(g_AppState.m_PtrCount, AppState::PTRS_MAX); ++i)
+        for (uint32_t i = 0;i < dmMath::Min(g_AppState.m_PtrCount, AppState::PTRS_MAX); ++i)
         {
             // Write each pointer on a separate line, much like backtrace_symbols_fd.
             char stacktrace[128] = { 0 };
             int written = snprintf(stacktrace, sizeof(stacktrace), "#%d %p\n", i, g_AppState.m_Ptr[i]);
-            if (written > 0 && written < sizeof(stacktrace))
+            if (written > 0 && (size_t)written < sizeof(stacktrace))
             {
                 uint32_t stacktrace_length = strnlen(stacktrace, sizeof(stacktrace));
                 if (offset + stacktrace_length < dmCrash::AppState::EXTRA_MAX - 1)

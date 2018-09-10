@@ -79,7 +79,7 @@ namespace dmVMath
             {
                 Vectormath::Aos::Vector3 r(0.0f, 0.0f, 0.0f);
                 // the sum of the values yields one value, as the others are 0
-                r.setElem(mask >> 1, atan2(q0+q1+q2, q3) * 2.0f * DEG_FACTOR);
+                r.setElem(mask >> 1, atan2f(q0+q1+q2, q3) * 2.0f * DEG_FACTOR);
                 return r;
             }
         }
@@ -92,13 +92,13 @@ namespace dmVMath
         float test = q0 * q1 + q2 * q3;
         if (test > limit)
         {
-            r1 = 2.0f * atan2(q0, q3);
+            r1 = 2.0f * atan2f(q0, q3);
             r2 = (float) M_PI_2;
             r0 = 0.0f;
         }
         else if (test < -limit)
         {
-            r1 = -2.0f * atan2(q0, q3);
+            r1 = -2.0f * atan2f(q0, q3);
             r2 = (float) -M_PI_2;
             r0 = 0.0f;
         }
@@ -107,9 +107,9 @@ namespace dmVMath
             float sq0 = q0 * q0;
             float sq1 = q1 * q1;
             float sq2 = q2 * q2;
-            r1 = atan2(2.0f * q1 * q3 - 2.0f * q0 * q2, 1.0f - 2.0f * sq1 - 2.0f * sq2);
-            r2 = asin(2.0f * test);
-            r0 = atan2(2.0f * q0 * q3 - 2.0f * q1 * q2, 1.0f - 2.0f * sq0 - 2.0f * sq2);
+            r1 = atan2f(2.0f * q1 * q3 - 2.0f * q0 * q2, 1.0f - 2.0f * sq1 - 2.0f * sq2);
+            r2 = asinf(2.0f * test);
+            r0 = atan2f(2.0f * q0 * q3 - 2.0f * q1 * q2, 1.0f - 2.0f * sq0 - 2.0f * sq2);
         }
         return Vectormath::Aos::Vector3(r0, r1, r2) * DEG_FACTOR;
     }

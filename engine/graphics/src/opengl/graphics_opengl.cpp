@@ -1809,7 +1809,7 @@ static void LogFrameBufferError(GLenum status)
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
-        GLint internal_format;
+        GLint internal_format = -1;
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:
