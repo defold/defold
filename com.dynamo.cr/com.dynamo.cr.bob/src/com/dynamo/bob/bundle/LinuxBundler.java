@@ -21,9 +21,12 @@ public class LinuxBundler implements IBundler {
 
     public void bundleApplicationForPlatform(Platform platform, Project project, File appDir, String title)
             throws IOException, CompileExceptionError {
+        final boolean debug = project.hasOption("debug");
+        final String variant = project.option("variant", null);
+
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(platform, project.hasOption("debug")));
+        File defaultExe = new File(Bob.getDmengineExe(platform, debug, variant));
         File bundleExe = defaultExe;
         if (extenderExe.exists()) {
             bundleExe = extenderExe;

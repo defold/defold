@@ -172,17 +172,27 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getDmengineExeName(Platform platform, boolean debug) {
-        if(debug) {
-            return "dmengine";
+
+   public static String getDmengineExeName(Platform platform, boolean debug, String variant) {
+        if (variant == null || variant.isEmpty())
+        {
+            return debug ? "dmengine" : "dmengine_release";
         }
-        else {
-            return "dmengine_release";
+        switch (variant)
+        {
+            case "release":
+                return "dmengine_release";
+            case "headless":
+                return "dmengine_headless";
+            case "debug":
+                return "dmengine";
+            default:
+                throw new RuntimeException(String.format("Invalid variant %s", variant));
         }
     }
 
-    public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
-        return getExe(platform, getDmengineExeName(platform, debug));
+    public static String getDmengineExe(Platform platform, boolean debug, String variant) throws IOException {
+        return getExe(platform, getDmengineExeName(platform, debug, variant));
     }
 
     public static String getLib(Platform platform, String name) throws IOException {
@@ -221,7 +231,8 @@ public class Bob {
         options.addOption("ce", "certificate", true, "Certificate (Android)");
         options.addOption("pk", "private-key", true, "Private key (Android)");
 
-        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
+        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
+        options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
         options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");

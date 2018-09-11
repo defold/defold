@@ -154,8 +154,11 @@ public class SignHandler extends AbstractHandler {
 
 
             try {
-                exeArmv7 = new File(Bob.getDmengineExe(Platform.Armv7Darwin, true));
-                exeArm64 = new File(Bob.getDmengineExe(Platform.Arm64Darwin, true));
+                final boolean debug = project.hasOption("debug");
+                final String variant = option("variant", "debug");
+
+                exeArmv7 = new File(Bob.getDmengineExe(Platform.Armv7Darwin, debug, variant));
+                exeArm64 = new File(Bob.getDmengineExe(Platform.Arm64Darwin, debug, variant));
 
                 final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
                 String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);

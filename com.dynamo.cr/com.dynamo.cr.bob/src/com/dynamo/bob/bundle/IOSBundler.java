@@ -114,7 +114,8 @@ public class IOSBundler implements IBundler {
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
 
-        boolean debug = project.hasOption("debug");
+        final boolean debug = project.hasOption("debug");
+        final String variant = project.option("variant", null);
 
         File exeArmv7 = null;
         File exeArm64 = null;
@@ -126,7 +127,7 @@ public class IOSBundler implements IBundler {
         {
             Platform targetPlatform = Platform.Armv7Darwin;
             File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug, variant));
             exeArmv7 = defaultExe;
             if (extenderExe.exists()) {
                 logger.log(Level.INFO, "Using extender exe for Armv7");
@@ -138,7 +139,7 @@ public class IOSBundler implements IBundler {
         {
             Platform targetPlatform = Platform.Arm64Darwin;
             File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug, variant));
             exeArm64 = defaultExe;
             if (extenderExe.exists()) {
                 logger.log(Level.INFO, "Using extender exe for Arm64");

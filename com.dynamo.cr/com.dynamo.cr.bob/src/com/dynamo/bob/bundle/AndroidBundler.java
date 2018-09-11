@@ -66,6 +66,7 @@ public class AndroidBundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         final boolean debug = project.hasOption("debug");
+        final String variant = project.option("variant", null);
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = title.replace(' ', '_');
@@ -77,7 +78,7 @@ public class AndroidBundler implements IBundler {
         Platform targetPlatform = Platform.Armv7Android;
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug, variant));
         File bundleExe = defaultExe;
         ArrayList<File> classesDex = new ArrayList<File>();
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
