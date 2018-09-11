@@ -15,8 +15,7 @@
             [plumbing.core :as pc]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s])
-  (:import [internal.graph.types Arc]
-           [internal.graph.error_values ErrorValue]
+  (:import [internal.graph.error_values ErrorValue]
            [java.io ByteArrayInputStream ByteArrayOutputStream]))
 
 (set! *warn-on-reflection* true)
@@ -62,7 +61,7 @@
    Otherwise, it uses the current basis."
   ([node-id]
    (let [graph-id (node-id->graph-id node-id)]
-     (ig/graph->node (is/graph @*the-system* graph-id) node-id)))
+     (ig/node-id->node (is/graph @*the-system* graph-id) node-id)))
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
@@ -91,7 +90,12 @@
   ([] (clear-system-cache! *the-system*))
   ([sys-atom]
    (swap! sys-atom assoc :cache (ref (is/make-cache {})))
-   nil))
+   nil)
+  ([sys-atom node-id]
+   (let [outputs (cached-outputs (node-type* node-id))
+         entries (map #(do [node-id %]) outputs)]
+     (dosync (alter (:cache @sys-atom) c/cache-invalidate entries))
+     nil)))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]
@@ -867,7 +871,7 @@
 ;; ---------------------------------------------------------------------------
 (defn arcs->tuples
   [arcs]
-  (util/project arcs [:source :sourceLabel :target :targetLabel]))
+  (ig/arcs->tuples arcs))
 
 (defn inputs
   "Return the inputs to this node. Returns a collection like
@@ -875,7 +879,11 @@
 
   If there are no inputs connected, returns an empty collection."
   ([node-id]       (inputs (now) node-id))
-  ([basis node-id] (arcs->tuples (gt/arcs-by-tail basis node-id))))
+  ([basis node-id] (arcs->tuples (ig/inputs basis node-id))))
+
+(defn labelled-inputs
+  ([node-id label]       (labelled-inputs (now) node-id label))
+  ([basis node-id label] (arcs->tuples (ig/inputs basis node-id label))))
 
 (defn outputs
   "Return the outputs from this node. Returns a collection like
@@ -883,7 +891,23 @@
 
   If there are no outputs connected, returns an empty collection."
   ([node-id]       (outputs (now) node-id))
-  ([basis node-id] (arcs->tuples (gt/arcs-by-head basis node-id))))
+  ([basis node-id] (arcs->tuples (ig/outputs basis node-id))))
+
+(defn labelled-outputs
+  ([node-id label]       (labelled-outputs (now) node-id label))
+  ([basis node-id label] (arcs->tuples (ig/outputs basis node-id label))))
+
+(defn explicit-inputs
+  ([node-id]
+   (explicit-inputs (now) node-id))
+  ([basis node-id]
+   (arcs->tuples (ig/explicit-inputs basis node-id))))
+
+(defn explicit-outputs
+  ([node-id]
+   (explicit-outputs (now) node-id))
+  ([basis node-id]
+   (arcs->tuples (ig/explicit-outputs basis node-id))))
 
 (defn node-feeding-into
   "Find the one-and-only node ID that sources this input on this node.
@@ -924,6 +948,12 @@
   for both the argument and return value."
   ([outputs]
     (is/invalidate-outputs! @*the-system* outputs)))
+
+(defn invalidate-node-outputs!
+  [node]
+  (let [labels (-> (node-type* node)
+                   (in/output-labels))]
+    (invalidate-outputs! (map #(do [node %]) labels))))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
@@ -1150,9 +1180,9 @@
 
 (defn overrides
   ([root-id]
-    (overrides (now) root-id))
+   (overrides (now) root-id))
   ([basis root-id]
-    (ig/get-overrides basis root-id)))
+   (ig/get-overrides basis root-id)))
 
 (defn override-original
   ([node-id]
