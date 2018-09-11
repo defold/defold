@@ -117,30 +117,22 @@
         ;; be overwritten if we have not detected them yet.
         (if-not (blocking-reload! render-reload-progress! workspace [] nil)
           (complete! false) ; Errors were already reported by blocking-reload!
-          (ui/run-later
-            (try
-              (let [evaluation-context (g/make-evaluation-context)]
-                (future
-                  (try
-                    (let [save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)]
-                      (project/write-save-data-to-disk! save-data {:render-progress! render-save-progress!})
-                      (render-save-progress! (progress/make-indeterminate "Refreshing file status..."))
-                      (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
-                        (render-save-progress! progress/done)
-                        (ui/run-later
-                          (try
-                            (g/update-cache-from-evaluation-context! evaluation-context)
-                            (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status updated-file-resource-status-map-entries)
-                            (project/invalidate-save-data-source-values! save-data)
-                            (when (some? changes-view)
-                              (changes-view/refresh! changes-view render-reload-progress!))
-                            (complete! true)
-                            (catch Throwable error
-                              (fail! error))))))
-                    (catch Throwable error
-                      (fail! error)))))
-              (catch Throwable error
-                (fail! error)))))
+          (let [evaluation-context (g/make-evaluation-context)
+                save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)]
+            (project/write-save-data-to-disk! save-data {:render-progress! render-save-progress!})
+            (render-save-progress! (progress/make-indeterminate "Refreshing file status..."))
+            (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
+              (render-save-progress! progress/done)
+              (ui/run-later
+                (try
+                  (g/update-cache-from-evaluation-context! evaluation-context)
+                  (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status updated-file-resource-status-map-entries)
+                  (project/invalidate-save-data-source-values! save-data)
+                  (when (some? changes-view)
+                    (changes-view/refresh! changes-view render-reload-progress!))
+                  (complete! true)
+                  (catch Throwable error
+                    (fail! error)))))))
         (catch Throwable error
           (fail! error))))
     success-promise))
