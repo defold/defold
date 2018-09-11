@@ -160,8 +160,7 @@
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
   (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies))
-  (when render-progress!
-    (render-progress! progress/done)))
+  (render-progress! progress/done))
 
 (defn connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]

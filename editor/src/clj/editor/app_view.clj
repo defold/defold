@@ -640,42 +640,21 @@ If you do not specifically require different script states, consider changing th
                       (console/show! console-view)
                       (launch-built-project! project prefs web-server false (make-render-build-error build-errors-view)))))))
 
-(defn- handle-bob-error! [render-error! project {:keys [error exception] :as _result}]
-  (cond
-    error
-    (do (render-error! error)
-        true)
-
-    exception
-    (if (engine-build-errors/handle-build-error! render-error! project exception)
-      true
-      (throw exception))))
-
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
     (let [clear-errors! (make-clear-build-errors build-errors-view)
-          render-error! (make-render-build-error build-errors-view)
+          render-build-error! (make-render-build-error build-errors-view)
           render-reload-progress! (make-render-task-progress :resource-sync)
           render-save-progress! (make-render-task-progress :save-all)
-          render-build-progress! (make-render-task-progress :build)]
+          render-build-progress! (make-render-task-progress :build)
+          bob-args (bob/build-html5-bob-args project prefs)]
       (clear-errors!)
       (console/clear-console!)
-      ;; We need to save because bob reads from FS.
-      (disk/async-save! render-reload-progress! render-save-progress! project changes-view
-                        (fn [successful?]
-                          (when successful?
-                            (render-build-progress! (progress/make "Building..."))
-                            (future
-                              (try
-                                (let [result (bob/build-html5! project prefs render-build-progress!)]
-                                  (render-build-progress! progress/done)
-                                  (ui/run-later
-                                    (when-not (handle-bob-error! render-error! project result)
-                                      (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))
-                                (catch Throwable error
-                                  (error-reporting/report-exception! error))
-                                (finally
-                                  (render-build-progress! progress/done))))))))))
+      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                             render-build-error! bob/build-html5-bob-commands bob-args project changes-view
+                             (fn [successful?]
+                               (when successful?
+                                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
 
 (def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
@@ -1475,29 +1454,19 @@ If you do not specifically require different script states, consider changing th
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
-        render-error! (make-render-build-error build-errors-view)
+        render-build-error! (make-render-build-error build-errors-view)
         render-reload-progress! (make-render-task-progress :resource-sync)
         render-save-progress! (make-render-task-progress :save-all)
-        render-build-progress! (make-render-task-progress :build)]
+        render-build-progress! (make-render-task-progress :build)
+        bob-args (bob/bundle-bob-args prefs platform bundle-options)]
     (clear-errors!)
-    ;; We need to save because bob reads from FS.
-    (disk/async-save! render-reload-progress! render-save-progress! project changes-view
-                      (fn [successful?]
-                        (when successful?
-                          (render-build-progress! (progress/make "Bundling..."))
-                          (future
-                            (try
-                              (let [result (bob/bundle! project prefs platform bundle-options render-build-progress!)]
-                                (render-build-progress! progress/done)
-                                (ui/run-later
-                                  (when-not (handle-bob-error! render-error! project result)
-                                    (if (some-> output-directory .isDirectory)
-                                      (ui/open-file output-directory)
-                                      (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))
-                              (catch Throwable error
-                                (error-reporting/report-exception! error))
-                              (finally
-                                (render-build-progress! progress/done)))))))))
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                           render-build-error! bob/bundle-bob-commands bob-args project changes-view
+                           (fn [successful?]
+                             (when successful?
+                               (if (some-> output-directory .isDirectory)
+                                 (ui/open-file output-directory)
+                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
@@ -1538,7 +1507,7 @@ If you do not specifically require different script states, consider changing th
     (disk/async-reload! render-reload-progress! workspace [] changes-view
                         (fn [successful?]
                           (when successful?
-                            (let [created-resource (workspace/find-resource workspace "/liveupdate.settings")]
+                            (when-some [created-resource (workspace/find-resource workspace "/liveupdate.settings")]
                               (open-resource app-view prefs workspace project created-resource)))))))
 
 (handler/defhandler :live-update-settings :global

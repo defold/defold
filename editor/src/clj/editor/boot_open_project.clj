@@ -85,7 +85,8 @@
 
 (defn- handle-application-focused! [workspace changes-view]
   (app-view/clear-build-launch-progress!)
-  (when-not (sync/sync-dialog-open?)
+  (when (and (not (sync/sync-dialog-open?))
+             (disk-availability/available?))
     (async-reload! workspace changes-view)))
 
 (defn- find-tab [^TabPane tabs id]
@@ -167,7 +168,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload! disk-availability/available-property
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload!
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
