@@ -5,7 +5,7 @@
             [editor.resource :as resource]
             [dynamo.graph :as g])
   (:import (clojure.lang IExceptionInfo)
-           (com.dynamo.bob CompileExceptionError MultipleCompileException MultipleCompileException$Info Task TaskResult)
+           (com.dynamo.bob CompileExceptionError LibraryException MultipleCompileException MultipleCompileException$Info Task TaskResult)
            (com.dynamo.bob.bundle BundleHelper BundleHelper$ResourceInfo)
            (com.dynamo.bob.fs IResource)
            (java.util ArrayList)))
@@ -203,6 +203,11 @@
         (try-get-multiple-compile-exception-error-causes project exception)
         (generic-extension-error-causes project log))))
 
+(defn library-exception-error-causes [project ^Throwable exception]
+  [{:_node-id (project/get-resource-node project "/game.project")
+    :message (.getMessage exception)
+    :severity :fatal}])
+
 (defn handle-build-error! [render-error! project exception]
   (cond
     (unsupported-platform-error? exception)
@@ -223,6 +228,10 @@
 
     (instance? MultipleCompileException exception)
     (do (render-error! {:causes (multiple-compile-exception-error-causes project exception)})
+        true)
+
+    (instance? LibraryException exception)
+    (do (render-error! {:causes (library-exception-error-causes project exception)})
         true)
 
     :else

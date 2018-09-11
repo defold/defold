@@ -219,10 +219,6 @@ ordinary paths."
                 (map :uri))
           (library/current-library-state project-directory dependencies))))
 
-(defn update-snapshot-status!
-  [workspace resources]
-  (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status resources))
-
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
     (assoc snapshot-info :map (resource-watch/make-resource-map (:snapshot snapshot-info)))))
@@ -301,11 +297,18 @@ ordinary paths."
                     (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
          (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
-         (let [listeners @(g/node-value workspace :resource-listeners)
-               parent-progress (atom (progress/make "" (count listeners)))]
-           (doseq [listener listeners]
-             (resource/handle-changes listener changes-with-moved
-                                      (progress/nest-render-progress render-progress! @parent-progress))))))
+         (try
+           (let [listeners @(g/node-value workspace :resource-listeners)
+                 total-progress-size (transduce (map first) + 0 listeners)]
+             (loop [listeners listeners
+                    parent-progress (progress/make "" total-progress-size)]
+               (when-some [[progress-span listener] (first listeners)]
+                 (resource/handle-changes listener changes-with-moved
+                                          (progress/nest-render-progress render-progress! parent-progress progress-span))
+                 (recur (next listeners)
+                        (progress/advance parent-progress progress-span)))))
+           (finally
+             (render-progress! progress/done)))))
      changes)))
 
 (defn fetch-and-validate-libraries [workspace library-uris render-fn]
@@ -317,8 +320,8 @@ ordinary paths."
   (set-project-dependencies! workspace library-uris)
   (library/install-validated-libraries! (project-path workspace) lib-states))
 
-(defn add-resource-listener! [workspace listener]
-  (swap! (g/node-value workspace :resource-listeners) conj listener))
+(defn add-resource-listener! [workspace progress-span listener]
+  (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
 
 (g/deftype UriVec [URI])
