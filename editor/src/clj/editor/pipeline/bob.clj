@@ -3,7 +3,6 @@
     [clojure.java.io :as io]
     [dynamo.graph :as g]
     [editor.defold-project :as project]
-    [editor.disk-availability :as disk-availability]
     [editor.engine.build-errors :as engine-build-errors]
     [editor.engine.native-extensions :as native-extensions]
     [editor.error-reporting :as error-reporting]
@@ -154,14 +153,13 @@
 (defn build-in-progress? []
   @build-in-progress-atom)
 
-(defn- bob-build! [project bob-commands bob-args render-progress!]
+(defn bob-build! [project bob-commands bob-args render-progress!]
   (assert (vector? bob-commands))
   (assert (every? string? bob-commands))
   (assert (map? bob-args))
   (assert (every? (fn [[key val]] (and (string? key) (string? val))) bob-args))
   (assert (ifn? render-progress!))
   (reset! build-in-progress-atom true)
-  (disk-availability/push-busy!)
   (try
     (if (and (some #(= "build" %) bob-commands)
              (native-extensions/has-extensions? project)
@@ -188,8 +186,7 @@
     (catch Throwable error
       {:exception error})
     (finally
-      (reset! build-in-progress-atom false)
-      (disk-availability/pop-busy!))))
+      (reset! build-in-progress-atom false))))
 
 ;; -----------------------------------------------------------------------------
 ;; Bundling
@@ -241,6 +238,8 @@
     {"mobileprovisioning" provisioning-profile-path
      "identity" code-signing-identity}))
 
+(def bundle-bob-commands ["distclean" "build" "bundle"])
+
 (defmulti bundle-bob-args (fn [_prefs platform _bundle-options] platform))
 (defmethod bundle-bob-args :default [_prefs platform _bundle-options] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
 (defmethod bundle-bob-args :android [prefs _platform bundle-options] (merge (generic-bundle-bob-args prefs bundle-options) (android-bundle-bob-args bundle-options)))
@@ -249,11 +248,6 @@
 (defmethod bundle-bob-args :linux   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 (defmethod bundle-bob-args :macos   [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
 (defmethod bundle-bob-args :windows [prefs _platform bundle-options] (generic-bundle-bob-args prefs bundle-options))
-
-(defn bundle! [project prefs platform bundle-options render-progress!]
-  (let [bob-commands ["distclean" "build" "bundle"]
-        bob-args (bundle-bob-args prefs platform bundle-options)]
-    (bob-build! project bob-commands bob-args render-progress!)))
 
 ;; -----------------------------------------------------------------------------
 ;; Build HTML5
@@ -264,24 +258,24 @@
         build-path (workspace/build-path ws)]
     (io/file build-path "__htmlLaunchDir")))
 
-(defn build-html5! [project prefs render-progress!]
+(def build-html5-bob-commands ["distclean" "build" "bundle"])
+
+(defn build-html5-bob-args [project prefs]
   (let [output-path (build-html5-output-path project)
         proj-settings (project/settings project)
         build-server-url (native-extensions/get-build-server-url prefs)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])
-        [email auth] (login/credentials prefs)
-        bob-commands ["distclean" "build" "bundle"]
-        bob-args (cond-> {"platform" "js-web"
-                          "archive" "true"
-                          "bundle-output" (str output-path)
-                          "build-server" build-server-url
-                          "defoldsdk" defold-sdk-sha1
-                          "local-launch" "true"
-                          "email" (or email "")
-                          "auth" (or auth "")}
-                         compress-archive? (assoc "compress" "true"))]
-    (bob-build! project bob-commands bob-args render-progress!)))
+        [email auth] (login/credentials prefs)]
+    (cond-> {"platform" "js-web"
+             "archive" "true"
+             "bundle-output" (str output-path)
+             "build-server" build-server-url
+             "defoldsdk" defold-sdk-sha1
+             "local-launch" "true"
+             "email" (or email "")
+             "auth" (or auth "")}
+            compress-archive? (assoc "compress" "true"))))
 
 (defn- try-resolve-html5-file
   ^File [project ^String rel-url]

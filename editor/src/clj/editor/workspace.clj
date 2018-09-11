@@ -308,8 +308,7 @@ ordinary paths."
                  (recur (next listeners)
                         (progress/advance parent-progress progress-span)))))
            (finally
-             (render-progress! progress/done)))
-         changes-with-moved))
+             (render-progress! progress/done)))))
      changes)))
 
 (defn fetch-and-validate-libraries [workspace library-uris render-fn]

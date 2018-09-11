@@ -106,12 +106,10 @@
   [(resource/proj-path r)
    (file-resource-status r)])
 
-(defn status-map-entry? [[proj-path {:keys [version source]}]]
+(defn file-resource-status-map-entry? [[proj-path {:keys [version source]}]]
   (and (string? proj-path)
        (str/starts-with? proj-path "/")
-       (case source
-         (:builtins :directory :library) true
-         false)
+       (= :directory source)
        (try
          (Long/parseUnsignedLong version)
          true
@@ -159,7 +157,7 @@
      :status-map (into {} (map file-resource-status-map-entry) flat-resources)}))
 
 (defn update-snapshot-status [snapshot file-resource-status-map-entries]
-  (assert (every? status-map-entry? file-resource-status-map-entries))
+  (assert (every? file-resource-status-map-entry? file-resource-status-map-entries))
   (update snapshot :status-map into file-resource-status-map-entries))
 
 (defn make-snapshot-info [workspace project-directory library-uris snapshot-cache]
