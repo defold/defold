@@ -158,10 +158,9 @@ public class HTML5Bundler implements IBundler {
 
         Platform targetPlatform = Platform.JsWeb;
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
-        final boolean debug = project.hasOption("debug") || localLaunch;
-        final String variant = localLaunch ? null : project.option("variant", null);
+        final String variant = Bob.getVariant(project.hasOption("debug"), project.option("variant", null));
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String js = Bob.getDmengineExe(targetPlatform, debug, variant);
+        String js = Bob.getDmengineExe(targetPlatform, variant);
         String engine = title + '.' + FilenameUtils.getExtension(js);
 
         // Select the native extension executable

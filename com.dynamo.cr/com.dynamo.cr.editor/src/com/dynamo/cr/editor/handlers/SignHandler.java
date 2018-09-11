@@ -154,11 +154,10 @@ public class SignHandler extends AbstractHandler {
 
 
             try {
-                final boolean debug = project.hasOption("debug");
-                final String variant = option("variant", "debug");
+                final String variant = Bob.getVariant(true, null);  // We always sign the debug non-stripped executable
 
-                exeArmv7 = new File(Bob.getDmengineExe(Platform.Armv7Darwin, debug, variant));
-                exeArm64 = new File(Bob.getDmengineExe(Platform.Arm64Darwin, debug, variant));
+                exeArmv7 = new File(Bob.getDmengineExe(Platform.Armv7Darwin, variant));
+                exeArm64 = new File(Bob.getDmengineExe(Platform.Arm64Darwin, variant));
 
                 final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
                 String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);

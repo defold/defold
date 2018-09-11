@@ -65,8 +65,8 @@ public class AndroidBundler implements IBundler {
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Armv7Android);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        final boolean debug = project.hasOption("debug");
-        final String variant = project.option("variant", null);
+        final String variant = Bob.getVariant(project.hasOption("debug"), project.option("variant", null));
+        final boolean strip_executable = Bob.getStripExecutable(project.hasOption("debug"), project.hasOption("strip-executable"), project.option("variant", null));
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = title.replace(' ', '_');
@@ -78,7 +78,7 @@ public class AndroidBundler implements IBundler {
         Platform targetPlatform = Platform.Armv7Android;
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug, variant));
+        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, variant));
         File bundleExe = defaultExe;
         ArrayList<File> classesDex = new ArrayList<File>();
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
@@ -242,7 +242,7 @@ public class AndroidBundler implements IBundler {
 
             // Strip executable
             String strippedpath = bundleExe.getAbsolutePath();
-            if( !debug )
+            if( strip_executable )
             {
                 File tmp = File.createTempFile(title, "." + bundleExe.getName() + ".stripped");
                 tmp.deleteOnExit();
