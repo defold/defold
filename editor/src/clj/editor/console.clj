@@ -386,7 +386,7 @@
                                              :resize-reference :bottom))
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node)
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
-                                                       (when (.isSelected console-tab)
+                                                       (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))
                                                          (repaint-console-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :term-field (.lookup tool-bar "#search-console")

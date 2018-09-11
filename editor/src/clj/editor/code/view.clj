@@ -2269,7 +2269,7 @@
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
-                                                           (when (.isSelected tab)
+                                                           (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                              (repaint-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
