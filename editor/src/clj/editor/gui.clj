@@ -591,7 +591,6 @@
                                             (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type own-build-errors _overridden-properties]
-                 (println id _node-id)
             (cond-> {:node-id _node-id
                      :node-outline-key id
                      :label id
@@ -618,7 +617,7 @@
                                                        (sort-by (fn [nm] (get-in nm [0 :child-index])))
                                                        flatten
                                                        (map (fn [nm] (dissoc nm :child-index)))))
-                                           {nil [node-msg]}
+                                           {:default [node-msg]}
                                            node-msgs)))
 
   (input node-rt-msgs g/Any :array)
@@ -1156,8 +1155,8 @@
                                                                             (:layouts scene-pb-msg))]
                                            (merge-with
                                              #(into (vec %1) %2)
-                                             {nil [node-msg]}
-                                             {nil scene-default-node-msgs}
+                                             {:default [node-msg]}
+                                             {:default scene-default-node-msgs}
                                              scene-layout-node-msgs))))
 
   (output node-rt-msgs g/Any :cached (g/fnk [node-msg scene-rt-pb-msg]
@@ -1672,11 +1671,14 @@
   (select-keys node-desc (remove non-overridable-fields (map prop-index->prop-key (:overridden-fields node-desc)))))
 
 (defn- layout-pb-msg [name node-msgs]
-  (let [all-node-msgs (into (vec (get node-msgs nil)) (get node-msgs name))
-        node-msgs (filter (comp not-empty :overridden-fields) all-node-msgs)]
+  (let [overridden-non-template-children (into []
+                                               (comp
+                                                 (filter (comp complement :template-node-child))
+                                                 (filter (comp not-empty :overridden-fields)))
+                                               (get node-msgs :default))]
     (cond-> {:name name}
-      (not-empty node-msgs)
-      (assoc :nodes node-msgs))))
+      (not-empty overridden-non-template-children)
+      (assoc :nodes overridden-non-template-children))))
 
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
@@ -1726,7 +1728,7 @@
                                                            :label name
                                                            :icon layout-icon
                                                            :outline-error? (g/error-fatal? build-errors)}))
-  (output pb-msg g/Any :cached (g/fnk [name node-msgs] (layout-pb-msg name node-msgs)))
+  (output pb-msg g/Any :cached (g/fnk [_node-id name node-msgs] (layout-pb-msg name node-msgs)))
   (output pb-rt-msg g/Any :cached (g/fnk [name node-rt-msgs] (layout-pb-msg name node-rt-msgs)))
   (input node-tree-node-outline g/Any)
   (output layout-node-outline g/Any (g/fnk [name node-tree-node-outline] [name node-tree-node-outline]))
@@ -1939,7 +1941,7 @@
    :adjust-reference adjust-reference
    :background-color background-color
    :max-nodes max-nodes
-   :nodes (get node-msgs nil)
+   :nodes (get node-msgs :default)
    :layers layer-msgs
    :fonts font-msgs
    :textures texture-msgs
@@ -1948,6 +1950,8 @@
    :particlefxs particlefx-resource-msgs})
 
 (g/defnk produce-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs spine-scene-msgs particlefx-resource-msgs]
+  (def last-node-msgs node-msgs)
+  (def last-layout-msgs layout-msgs)
   (->scene-pb-msg script-resource material-resource adjust-reference background-color max-nodes node-msgs layer-msgs font-msgs texture-msgs layout-msgs spine-scene-msgs particlefx-resource-msgs))
 
 (g/defnk produce-rt-pb-msg [script-resource material-resource adjust-reference background-color max-nodes node-rt-msgs layer-msgs font-msgs texture-msgs layout-rt-msgs spine-scene-msgs particlefx-resource-msgs]
@@ -2022,6 +2026,48 @@
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
 
+(comment
+  72057594037928524 BoxNode
+  (g/node-value 72057594037928524 :id) "template/template/unaffected"
+  (g/sources-of 72057594037928524 :parent)
+  
+  72057594037928521 NodeTree
+  (g/targets-of 72057594037928521 :node-msgs)
+  
+  72057594037928520 LayoutNode
+  (g/targets-of 72057594037928520 :node-msgs)
+  []
+  (g/targets-of 72057594037928520 :pb-msg)
+
+  72057594037928509 GuiSceneNode ; här finns overrides i unaffected
+  (g/node-value 72057594037928509 :resource) {:FileResource "/main/button2.gui"}
+  (g/targets-of 72057594037928509 :pb-msg)
+
+  72057594037928508 TemplateNode
+  (g/sources-of 72057594037928508 :parent)
+
+  72057594037928507 NodeTree
+  (g/targets-of 72057594037928507 :pb-msg)
+  []
+  (g/targets-of 72057594037928507 :node-msgs)
+
+  72057594037928506 GuiSceneNode ; här saknas overrides från unaffected
+  (g/node-value 72057594037928506 :resource) {:FileResource "/main/panel2.gui"}
+  (g/targets-of 72057594037928506 :node-msgs)
+  []
+  (g/targets-of 72057594037928506 :pb-msg)
+
+  72057594037928504 TemplateNode
+  (g/node-value 72057594037928504 :id) "template"
+  (g/targets-of 72057594037928504 :node-msgs)
+
+  72057594037928503 NodeTree
+  (g/targets-of 72057594037928503 :node-msgs)
+
+  72057594037928492 GuiSceneNode
+  (g/node-value 72057594037928492 :resource) {:FileResource "/main/hud.gui"}
+  )
+
 (g/defnode GuiSceneNode
   (inherits resource-node/ResourceNode)
 
@@ -2091,6 +2137,16 @@
   (input layer-msgs g/Any)
   (output layer-msgs g/Any (g/fnk [layer-msgs] (map #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
   (input layout-msgs g/Any :array)
+  (output layout-msgs g/Any (g/fnk [layout-msgs node-msgs]
+                                   (into []
+                                         (comp
+                                           (map (juxt :name :nodes))
+                                           (map (fn [[name nodes]]
+                                                  {:name name
+                                                   :nodes (into nodes
+                                                                (filter (comp not-empty :overridden-fields))
+                                                                (get node-msgs name))})))
+                                         layout-msgs)))
   (input layout-rt-msgs g/Any :array)
   (input spine-scene-msgs g/Any :array)
   (input particlefx-resource-msgs g/Any :array)
@@ -2821,3 +2877,43 @@
                               ParticleFXNode :type-particlefx})
 
 (def ^:private kw->node-type (set/map-invert node-type->kw))
+
+
+;;;
+
+
+(defn- layouts [gsn]
+  (let [layout-nodes (map first (g/sources-of gsn :layout-msgs))]
+    (doseq [layout-node layout-nodes]
+      (println (g/node-value layout-node :name) layout-node "node-tree" (ffirst (g/sources-of layout-node :node-msgs))))
+    (println :default "node-tree" (g/node-value gsn :node-tree))))
+
+(defn- parent-chain [n]
+  (cond
+    (nil? n)
+    nil
+    
+    (g/node-instance? GuiNode n)
+    (do
+      (parent-chain (ffirst (g/sources-of n :parent)))
+      (println n (:k (g/node-type* n)) (g/node-value n :id)))
+
+    (g/node-instance? NodeTree n)
+    (do
+      (parent-chain (ffirst (g/targets-of n :node-msgs)))
+      (println n (:k (g/node-type* n))))
+
+    (g/node-instance? LayoutNode n)
+    (do
+      (parent-chain (ffirst (g/targets-of n :pb-msg)))
+      (println n (:k (g/node-type* n)) (g/node-value n :name)))
+
+    (g/node-instance? GuiSceneNode n)
+    (do
+      (parent-chain (ffirst (g/targets-of n :pb-msg)))
+      (println n (:k (g/node-type* n)) (resource/resource->proj-path (g/node-value n :resource))))
+
+    :default
+    nil))
+    
+
