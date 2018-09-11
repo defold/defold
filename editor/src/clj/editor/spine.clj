@@ -101,7 +101,7 @@
                    :scale [1 1 1]
                    :slot-colors [1 1 1 1]
                    :attachment true
-                   :order-offset 0
+                   :order-offset slot-signal-unchanged
                    :mix 1.0
                    :positive true}) ;; spine docs say assume false, but implementations actually default to true
 

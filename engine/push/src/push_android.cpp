@@ -706,7 +706,7 @@ static dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     jclass push_jni_class = (jclass)env->CallObjectMethod(cls, find_class, str_class_name);
     env->DeleteLocalRef(str_class_name);
 
-    g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;)V");
+    g_Push.m_Start = env->GetMethodID(push_class, "start", "(Landroid/app/Activity;Lcom/defold/push/IPushListener;Ljava/lang/String;Ljava/lang/String;)V");
     g_Push.m_Stop = env->GetMethodID(push_class, "stop", "()V");
     g_Push.m_Register = env->GetMethodID(push_class, "register", "(Landroid/app/Activity;)V");
     g_Push.m_Schedule = env->GetMethodID(push_class, "scheduleNotification", "(Landroid/app/Activity;IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V");
@@ -719,9 +719,12 @@ static dmExtension::Result AppInitializePush(dmExtension::AppParams* params)
     g_Push.m_PushJNI = env->NewGlobalRef(env->NewObject(push_jni_class, jni_constructor));
 
     const char* sender_id = dmConfigFile::GetString(params->m_ConfigFile, "android.gcm_sender_id", "");
+    const char* project_title = dmConfigFile::GetString(params->m_ConfigFile, "project.title", "");
     jstring sender_id_string = env->NewStringUTF(sender_id);
-    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Start, g_AndroidApp->activity->clazz, g_Push.m_PushJNI, sender_id_string);
+    jstring project_title_string = env->NewStringUTF(project_title);
+    env->CallVoidMethod(g_Push.m_Push, g_Push.m_Start, g_AndroidApp->activity->clazz, g_Push.m_PushJNI, sender_id_string, project_title_string);
     env->DeleteLocalRef(sender_id_string);
+    env->DeleteLocalRef(project_title_string);
 
     // loop through all stored local push notifications
     jmethodID loadPendingNotifications = env->GetMethodID(push_class, "loadPendingNotifications", "(Landroid/app/Activity;)V");

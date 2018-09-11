@@ -11,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 
 import android.app.Activity;
 import android.util.Log;
+import android.os.Build;
 import android.os.Bundle;
 
 import com.facebook.FacebookSdk;
@@ -21,6 +22,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONArray;
 
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
 // A helper class that initializes the facebook sdk, and also activates/deactivates the app
 class FacebookAppJNI {
 
@@ -29,11 +33,46 @@ class FacebookAppJNI {
     private Activity activity;
     private String appId;
 
+    // ***REMOVED***
+    // Custom Executor for FB SDK
+    private static final Object LOCK = new Object();
+    // This code is copied from the android.os.AsyncTask implementation to set up the executor with the same parameters
+    // as the one introduced in API 11
+    private static final int CPU_COUNT = Runtime.getRuntime().availableProcessors();
+    private static final int CORE_POOL_SIZE = CPU_COUNT + 1;
+    private static final int MAXIMUM_POOL_SIZE = CPU_COUNT * 2 + 1;
+    private static final int KEEP_ALIVE = 1;
+  
+    private static final ThreadFactory sThreadFactory = new ThreadFactory() {
+        private final AtomicInteger mCount = new AtomicInteger(1);
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "AsyncTask #" + mCount.getAndIncrement());
+        }
+    };
+    private static final BlockingQueue<Runnable> sPoolWorkQueue = new LinkedBlockingQueue<Runnable>(128);
+  
+    private static Executor customFacebookExecutor;
+  
+    private static Executor getCustomExecutor() {
+        synchronized (LOCK) {
+            if (customFacebookExecutor == null) {
+                customFacebookExecutor = new ThreadPoolExecutor(CORE_POOL_SIZE, MAXIMUM_POOL_SIZE, KEEP_ALIVE,
+                        TimeUnit.SECONDS, sPoolWorkQueue, sThreadFactory);
+            }
+        }
+        return customFacebookExecutor;
+    }
+
     public FacebookAppJNI(Activity activity, String appId) {
         this.activity = activity;
         this.appId = appId;
 
         final CountDownLatch latch = new CountDownLatch(1);
+
+        // Workaround for old devices (pre API 11)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+            FacebookSdk.setExecutor(getCustomExecutor());
+        }
 
         this.activity.runOnUiThread(new Runnable() {
             @Override
@@ -152,14 +191,18 @@ class FacebookJNI {
             @Override
             public void run() {
                 Log.d(TAG, "java jni thread: " + Thread.currentThread().getId());
-                facebook.login( new Facebook.StateCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    onLogin(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    facebook.login( new Facebook.StateCallback() {
 
-                    @Override
-                    public void onDone( final int state, final String error) {
-                        onLogin(userData, state, error);
-                    }
+                        @Override
+                        public void onDone( final int state, final String error) {
+                            onLogin(userData, state, error);
+                        }
 
-                });
+                    });
+                }
             }
 
         });
@@ -198,16 +241,21 @@ class FacebookJNI {
 
             @Override
             public void run() {
-                Facebook.LoginCallback callback = new Facebook.LoginCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    // call cb immediately with failed state
+                    onLoginWithPermissions(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    Facebook.LoginCallback callback = new Facebook.LoginCallback() {
 
-                    @Override
-                    public void onDone(final int state, final String error) {
-                        onLoginWithPermissions(userData, state, error);
-                    }
+                        @Override
+                        public void onDone(final int state, final String error) {
+                            onLoginWithPermissions(userData, state, error);
+                        }
 
-                };
+                    };
 
-                facebook.loginWithPublishPermissions(permissions.split(","), audience, callback);
+                    facebook.loginWithPublishPermissions(permissions.split(","), audience, callback);
+                }
             }
 
         });
@@ -218,16 +266,21 @@ class FacebookJNI {
 
             @Override
             public void run() {
-                Facebook.LoginCallback callback = new Facebook.LoginCallback() {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
+                    // call cb immediately with failed state
+                    onLoginWithPermissions(userData, 6, "Not supported, Android SDK too old.");
+                } else {
+                    Facebook.LoginCallback callback = new Facebook.LoginCallback() {
 
-                    @Override
-                    public void onDone(final int state, final String error) {
-                        onLoginWithPermissions(userData, state, error);
-                    }
+                        @Override
+                        public void onDone(final int state, final String error) {
+                            onLoginWithPermissions(userData, state, error);
+                        }
 
-                };
+                    };
 
-                facebook.loginWithReadPermissions(permissions.split(","), callback);
+                    facebook.loginWithReadPermissions(permissions.split(","), callback);
+                }
             }
 
         });

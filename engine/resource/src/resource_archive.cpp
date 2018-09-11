@@ -81,7 +81,7 @@ namespace dmResourceArchive
         uint8_t* bundled_hashes = (!bundled_archive_container->m_IsMemMapped) ? bundled_archive_container->m_Hashes : (uint8_t*)((uintptr_t)bundled_archive_container->m_ArchiveIndex + bundled_hash_offset);
 
         // Count number of liveupdate entries to cache
-        for (int i = 0; i < entry_count; ++i)
+        for (uint32_t i = 0; i < entry_count; ++i)
         {
             EntryData& e = entries[i];
             if (JAVA_TO_C(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
@@ -121,7 +121,7 @@ namespace dmResourceArchive
         uint8_t* lu_hashes = (uint8_t*)malloc(hash_length * lu_entry_count);
         EntryData* lu_entries = (EntryData*)malloc(sizeof(EntryData) * lu_entry_count);
         uint32_t lu_counter = 0;
-        for (int i = 0; i < entry_count; ++i)
+        for (uint32_t i = 0; i < entry_count; ++i)
         {
             EntryData& e = entries[i];
             if (JAVA_TO_C(e.m_Flags) & ENTRY_FLAG_LIVEUPDATE_DATA)
@@ -174,7 +174,7 @@ namespace dmResourceArchive
         NewArchiveIndexFromCopy(reloaded_index, bundled_archive_container, lu_entries->m_Count);
         uint32_t hash_len = lu_entries->m_HashLen;
         uint8_t* reloaded_hashes = (uint8_t*)(uintptr_t(reloaded_index) + JAVA_TO_C(reloaded_index->m_HashOffset));
-        for (int i = 0; i < lu_entries->m_Count; ++i)
+        for (uint32_t i = 0; i < lu_entries->m_Count; ++i)
         {
             int insert_index = -1;
             const uint8_t* hash = (const uint8_t*)((uintptr_t)lu_entries->m_Hashes + hash_len * i);
@@ -557,7 +557,7 @@ namespace dmResourceArchive
         // Shift hashes after insertion_index down
         uint8_t* hash_shift_src = (uint8_t*)((uintptr_t)hashes + DMRESOURCE_MAX_HASH * insertion_index);
         uint8_t* hash_shift_dst = (uint8_t*)((uintptr_t)hash_shift_src + DMRESOURCE_MAX_HASH);
-        if (insertion_index < entry_count) // no need to memmove if inserting at tail
+        if ((uint32_t)insertion_index < entry_count) // no need to memmove if inserting at tail
         {
             uint32_t size_to_shift = (entry_count - insertion_index) * DMRESOURCE_MAX_HASH;
             memmove((void*)hash_shift_dst, (void*)hash_shift_src, size_to_shift);
@@ -567,7 +567,7 @@ namespace dmResourceArchive
         // Shift entry datas
         uint8_t* entries_shift_src = (uint8_t*)((uintptr_t)entries + sizeof(EntryData) * insertion_index);
         uint8_t* entries_shift_dst = (uint8_t*)((uintptr_t)entries_shift_src + sizeof(EntryData));
-        if (insertion_index < entry_count)
+        if ((uint32_t)insertion_index < entry_count)
         {
             uint32_t size_to_shift = (entry_count - insertion_index) * sizeof(EntryData);
             memmove(entries_shift_dst, entries_shift_src, size_to_shift);

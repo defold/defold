@@ -126,7 +126,7 @@ static int AdTruth_Load(lua_State* L)
 {
     int top = lua_gettop(L);
 
-    const const char* url = luaL_checkstring(L, 1);
+    const char* url = luaL_checkstring(L, 1);
 
     if (g_AdTruth.m_Callback != LUA_NOREF) {
         dmScript::Unref(L, LUA_REGISTRYINDEX, g_AdTruth.m_Callback);
