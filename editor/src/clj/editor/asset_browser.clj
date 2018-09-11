@@ -12,7 +12,7 @@
             [editor.resource-watch :as resource-watch]
             [editor.workspace :as workspace]
             [editor.dialogs :as dialogs]
-            [editor.util :as util]
+            [editor.disk-availability :as disk-availability]
             [editor.app-view :as app-view])
   (:import [com.defold.editor Start]
            [editor.resource FileResource]
@@ -194,8 +194,13 @@
        (when scroll?
          (ui/scroll-to-item! tree-view tree-item))))))
 
+(defn delete? [resources]
+  (and (disk-availability/available?)
+       (seq resources)
+       (every? deletable-resource? resources)))
+
 (handler/defhandler :cut :asset-browser
-  (enabled? [selection] (and (seq selection) (every? deletable-resource? selection)))
+  (enabled? [selection] (delete? selection))
   (run [selection selection-provider asset-browser]
     (let [next (-> (handler/succeeding-selection selection-provider)
                    (handler/adapt-single resource/Resource))
@@ -272,7 +277,8 @@
   destination, moves to the same path the file already resides in, and
   moves to reserved directories."
   [tgt-resource src-files]
-  (and (not (resource/read-only? tgt-resource))
+  (and (disk-availability/available?)
+       (not (resource/read-only? tgt-resource))
        (let [^Path tgt-path (-> tgt-resource resource/abs-path File. fs/to-folder .getAbsolutePath ->path)
              src-paths (map (fn [^File f] (-> f .getAbsolutePath ->path))
                             src-files)
@@ -289,6 +295,7 @@
 
 (defn paste? [files-on-clipboard? target-resources]
   (and files-on-clipboard?
+       (disk-availability/available?)
        (= 1 (count target-resources))
        (not (resource/read-only? (first target-resources)))))
 
@@ -348,7 +355,8 @@
             (workspace/resource-sync! workspace (moved-files src-file dest-file src-files))))))))
 
 (defn rename? [resources]
-  (and (= 1 (count resources))
+  (and (disk-availability/available?)
+       (= 1 (count resources))
        (not (resource/read-only? (first resources)))
        (not (fixed-resource-paths (resource/resource->proj-path (first resources))))))
 
@@ -379,11 +387,6 @@
       (when-let [sane-new-name (some-> new-name not-empty)]
         (rename resource sane-new-name)))))
 
-(defn delete? [resources]
-  (and (seq resources)
-       (every? deletable-resource? resources)
-       (every? #(not (fixed-resource-paths (resource/resource->proj-path %))) resources)))
-
 (handler/defhandler :delete :asset-browser
   (enabled? [selection] (delete? selection))
   (run [selection asset-browser selection-provider]
@@ -403,6 +406,7 @@
                                                                                 (= (count selection) 1)
                                                                                 (not= nil (some-> (handler/adapt-single selection resource/Resource)
                                                                                             resource/abs-path)))))
+  (enabled? [] (disk-availability/available?))
   (run [selection user-data asset-browser app-view prefs workspace project]
        (let [project-path (workspace/project-path workspace)
              base-folder (-> (or (some-> (handler/adapt-every selection resource/Resource)
@@ -439,7 +443,8 @@
       (format "The name %s is reserved" new-name))))
 
 (defn new-folder? [resources]
-  (and (= (count resources) 1)
+  (and (disk-availability/available?)
+       (= (count resources) 1)
        (not (resource/read-only? (first resources)))
        (not= nil (resource/abs-path (first resources)))))
 
@@ -452,8 +457,7 @@
           base-folder (fs/to-folder (File. (resource/abs-path parent-resource)))
           options {:validate (partial validate-new-folder-name parent-path)}]
       (when-let [new-folder-name (dialogs/make-new-folder-dialog base-folder options)]
-        (let [project-path (workspace/project-path workspace)
-              ^File folder (resolve-sub-folder base-folder new-folder-name)]
+        (let [^File folder (resolve-sub-folder base-folder new-folder-name)]
           (do (fs/create-directories! folder)
               (workspace/resource-sync! workspace)
               (select-resource! asset-browser (workspace/file-resource workspace folder))))))))

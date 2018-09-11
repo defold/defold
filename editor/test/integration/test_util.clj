@@ -24,9 +24,10 @@
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.util UUID]
+           [java.util.concurrent LinkedBlockingQueue]
+           [java.util.zip ZipEntry ZipOutputStream]
            [javax.imageio ImageIO]
-           [org.apache.commons.io FilenameUtils IOUtils]
-           [java.util.zip ZipOutputStream ZipEntry]))
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (def project-path "test/resources/test_project")
 
@@ -270,6 +271,30 @@
        (let [result# (do ~@forms)]
          (doseq [f# @laters#] (f#))
          result#))))
+
+(defn run-event-loop!
+  "Starts a simulated event loop and enqueues the supplied function on it.
+  The function is invoked with a single argument, which is a function that must
+  be called to exit the event loop. Blocks until the event loop is terminated,
+  or an exception is thrown from an enqueued action. While the event loop is
+  running, ui/run-now and ui/run-later are rebound to enqueue actions on the
+  simulated event loop, and ui/on-ui-thread? will return true only if called
+  from inside the event loop."
+  [f]
+  (let [ui-thread (Thread/currentThread)
+        action-queue (LinkedBlockingQueue.)
+        enqueue-action! (fn [action!]
+                          (.add action-queue action!)
+                          nil)
+        exit-event-loop! #(enqueue-action! ::exit-event-loop)]
+    (with-redefs [ui/on-ui-thread? #(= ui-thread (Thread/currentThread))
+                  ui/do-run-later enqueue-action!]
+      (enqueue-action! (fn [] (f exit-event-loop!)))
+      (loop []
+        (let [action! (.take action-queue)]
+          (when (not= ::exit-event-loop action!)
+            (action!)
+            (recur)))))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))
