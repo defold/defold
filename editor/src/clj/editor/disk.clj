@@ -3,7 +3,9 @@
             [editor.changes-view :as changes-view]
             [editor.defold-project :as project]
             [editor.disk-availability :as disk-availability]
+            [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
+            [editor.pipeline.bob :as bob]
             [editor.progress :as progress]
             [editor.resource-watch :as resource-watch]
             [editor.ui :as ui]
@@ -16,24 +18,29 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- async-job! [callback! job-atom start-job! & args]
+  (disk-availability/push-busy!)
   (let [job (swap! job-atom #(or % (apply start-job! args)))]
     (future
-      (let [succeeded? (try
-                         (deref job)
-                         (catch Throwable error
-                           (error-reporting/report-exception! error)
-                           false))]
-        (when (some? callback!)
+      (let [successful? (try
+                          (deref job)
+                          (catch Throwable error
+                            (error-reporting/report-exception! error)
+                            false))]
+        (if (nil? callback!)
+          (disk-availability/pop-busy!)
           (ui/run-later
-            (callback! succeeded?)))))
+            (try
+              (callback! successful?)
+              (finally
+                (disk-availability/pop-busy!)))))))
     nil))
 
 (defn- blocking-job! [job-atom start-job! & args]
   ;; Calling this from the ui thread will cause a deadlock, since
   ;; the jobs rely on run-later. Use the async variants instead.
   (assert (not (ui/on-ui-thread?)))
-  (let [succeeded? (deref (swap! job-atom #(or % (apply start-job! args))))]
-    succeeded?))
+  (let [successful? (deref (swap! job-atom #(or % (apply start-job! args))))]
+    successful?))
 
 ;; -----------------------------------------------------------------------------
 ;; Reload
@@ -46,15 +53,13 @@
         dependencies (workspace/dependencies workspace)
         snapshot-cache (workspace/snapshot-cache workspace)
         success-promise (promise)
-        complete! (fn [success?]
-                    (disk-availability/pop-busy!)
+        complete! (fn [successful?]
                     (render-progress! progress/done)
                     (reset! reload-job-atom nil)
-                    (deliver success-promise success?))
+                    (deliver success-promise successful?))
         fail! (fn [error]
                 (error-reporting/report-exception! error)
                 (complete! false))]
-    (disk-availability/push-busy!)
     (future
       (try
         (render-progress! (progress/make-indeterminate "Loading external changes..."))
@@ -87,7 +92,7 @@
   ([render-progress! workspace moved-files changes-view callback!]
    (async-job! callback! reload-job-atom start-reload-job! render-progress! workspace moved-files changes-view)))
 
-(def blocking-reload! (partial blocking-job! reload-job-atom start-reload-job!))
+(def ^:private blocking-reload! (partial blocking-job! reload-job-atom start-reload-job!))
 
 ;; -----------------------------------------------------------------------------
 ;; Save
@@ -99,15 +104,13 @@
 (defn- start-save-job! [render-reload-progress! render-save-progress! project changes-view]
   (let [workspace (project/workspace project)
         success-promise (promise)
-        complete! (fn [success?]
-                    (disk-availability/pop-busy!)
+        complete! (fn [successful?]
                     (render-save-progress! progress/done)
                     (reset! save-job-atom nil)
-                    (deliver success-promise success?))
+                    (deliver success-promise successful?))
         fail! (fn [error]
                 (error-reporting/report-exception! error)
                 (complete! false))]
-    (disk-availability/push-busy!)
     (future
       (try
         ;; Reload any external changes first, so these will not
@@ -147,3 +150,54 @@
    (async-save! render-reload-progress! render-save-progress! project changes-view nil))
   ([render-reload-progress! render-save-progress! project changes-view callback!]
    (async-job! callback! save-job-atom start-save-job! render-reload-progress! render-save-progress! project changes-view)))
+
+;; -----------------------------------------------------------------------------
+;; Bob build
+;; -----------------------------------------------------------------------------
+
+(defn- handle-bob-error! [render-error! project {:keys [error exception] :as _result}]
+  (cond
+    error
+    (do (render-error! error)
+        true)
+
+    exception
+    (if (engine-build-errors/handle-build-error! render-error! project exception)
+      true
+      (throw exception))))
+
+(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! render-build-error! bob-commands bob-args project changes-view callback!]
+  (disk-availability/push-busy!)
+  (try
+    ;; We need to save because bob reads from FS.
+    (async-save! render-reload-progress! render-save-progress! project changes-view
+                 (fn [successful?]
+                   (if-not successful?
+                     (try
+                       (when (some? callback!)
+                         (callback! false))
+                       (finally
+                         (disk-availability/pop-busy!)))
+                     (try
+                       (render-build-progress! (progress/make "Building..."))
+                       (future
+                         (try
+                           (let [result (bob/bob-build! project bob-commands bob-args render-build-progress!)]
+                             (render-build-progress! progress/done)
+                             (ui/run-later
+                               (try
+                                 (let [successful? (not (handle-bob-error! render-build-error! project result))]
+                                   (when (some? callback!)
+                                     (callback! successful?)))
+                                 (finally
+                                   (disk-availability/pop-busy!)))))
+                           (catch Throwable error
+                             (disk-availability/pop-busy!)
+                             (render-build-progress! progress/done)
+                             (error-reporting/report-exception! error))))
+                       (catch Throwable error
+                         (disk-availability/pop-busy!)
+                         (throw error))))))
+    (catch Throwable error
+      (disk-availability/pop-busy!)
+      (throw error))))

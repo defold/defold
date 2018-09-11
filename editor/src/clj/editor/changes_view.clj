@@ -5,6 +5,7 @@
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.diff-view :as diff-view]
+            [editor.disk-availability :as disk-availability]
             [editor.error-reporting :as error-reporting]
             [editor.git :as git]
             [editor.handler :as handler]
@@ -17,7 +18,6 @@
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [java.io File]
-           [javafx.beans.property SimpleBooleanProperty]
            [javafx.beans.value ChangeListener]
            [javafx.scene Parent]
            [javafx.scene.control SelectionMode ListView]
@@ -85,8 +85,8 @@
   (File. ^File (workspace/project-path workspace) path))
 
 (handler/defhandler :revert :changes-view
-  (enabled? [^SimpleBooleanProperty disk-available-property selection]
-            (and (.get disk-available-property)
+  (enabled? [selection]
+            (and (disk-availability/available?)
                  (pos? (count selection))))
   (run [async-reload! selection git changes-view workspace]
     (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
@@ -162,7 +162,7 @@
       (when (some? git)
         (.close git)))))
 
-(defn make-changes-view [view-graph workspace prefs async-reload! ^SimpleBooleanProperty disk-available-property ^Parent parent]
+(defn make-changes-view [view-graph workspace prefs async-reload! ^Parent parent]
   (assert (fn? async-reload!))
   (let [^ListView list-view     (.lookup parent "#changes")
         diff-button             (.lookup parent "#changes-diff")
@@ -177,7 +177,7 @@
     (try
       (ui/user-data! list-view :refresh-pending (ref false))
       (.setSelectionMode (.getSelectionModel list-view) SelectionMode/MULTIPLE)
-      (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :disk-available-property disk-available-property :workspace workspace} (ui/->selection-provider list-view)
+      (ui/context! parent :changes-view {:async-reload! async-reload! :changes-view view-id :workspace workspace} (ui/->selection-provider list-view)
         {:git [:changes-view :unconfigured-git]}
         {resource/Resource (fn [status] (status->resource workspace status))})
       (ui/register-context-menu list-view ::changes-menu)
@@ -188,10 +188,10 @@
       (ui/disable! revert-button true)
       (ui/bind-double-click! list-view :open)
       (when git (refresh-list-view! list-view (git/unified-status git)))
-      (.addListener disk-available-property disk-available-listener)
+      (.addListener disk-availability/available-property disk-available-listener)
       (ui/on-closed! (.. parent getScene getWindow)
                      (fn [_]
-                       (.removeListener disk-available-property disk-available-listener)))
+                       (.removeListener disk-availability/available-property disk-available-listener)))
       (ui/observe-selection list-view
                             (fn [_ _]
                               (ui/refresh-bound-action-enabled! diff-button)
