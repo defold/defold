@@ -1,12 +1,16 @@
 (ns dynamo.integration.override-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.set :as set]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [internal.graph.types :as gt]
-            [support.test-support :refer :all]
-            [internal.util :refer :all]
+            [dynamo.integration.override-test-support :as support]
+            [editor.defold-project :as project]
             [editor.resource :as resource]
+            [editor.util :as util]
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
+            [internal.util :refer :all]
             [schema.core :as s]
-            [dynamo.integration.override-test-support :as support])
+            [support.test-support :refer :all])
   (:import  [javax.vecmath Vector3d]))
 
 (g/defnode BaseNode
@@ -928,3 +932,64 @@
         (g/transact (g/delete-node comp))
         (is (= 1 (count (keep g/node-by-id all-script-nodes))))
         (is (empty? (mapcat g/overrides all-script-nodes)))))))
+
+(defn remove-idx [v ix]
+  (into (subvec v 0 ix) (subvec v (inc ix))))
+
+(defn- all-system-nodes []
+  (into []
+        (mapcat #(keys (:nodes (deref (second %)))))
+        (:graphs @g/*the-system*)))
+
+(deftest symmetric-input-output-arcs
+  (test-util/with-loaded-project "test/resources/override_project"
+    (let [all-nodes (all-system-nodes)
+          node-outputs (reduce (fn [result n]
+                                 (reduce (fn [result label]
+                                           (assoc-in result [n label] (vec (g/labelled-outputs n label))))
+                                         result
+                                         (g/output-labels (g/node-type* n))))
+                               {}
+                               all-nodes)
+          node-inputs (reduce (fn [result n]
+                                (reduce (fn [result label]
+                                          (assoc-in result [n label] (vec (g/labelled-inputs n label))))
+                                        result
+                                        (g/input-labels (g/node-type* n))))
+                              {}
+                              all-nodes)]
+      (testing "outputs and labelled-outputs report the same arcs, and same cardinality of arcs"
+        (doseq [node all-nodes]
+          (let [outputs (g/outputs node)
+                outputs-freqs (frequencies outputs)
+                merged-outputs (reduce conj [] (apply concat (vals (node-outputs node))))
+                merged-outputs-freqs (frequencies merged-outputs)
+                freq-diff [:all-merged (not-empty (set/difference (set outputs-freqs) (set merged-outputs-freqs)))
+                           :merged-all (not-empty (set/difference (set merged-outputs-freqs) (set outputs-freqs)))]]
+            (is (= freq-diff [:all-merged nil :merged-all nil])))))
+      (testing "inputs and labelled-inputs report the same arcs, and same cardinality of arcs"
+        (doseq [node all-nodes]
+          (let [inputs (g/inputs node)
+                inputs-freqs (frequencies inputs)
+                merged-inputs (apply concat (vals (node-inputs node)))
+                merged-inputs-freqs (frequencies merged-inputs)
+                freq-diff [:all-merged (not-empty (set/difference (set inputs-freqs) (set merged-inputs-freqs)))
+                           :merged-all (not-empty (set/difference (set merged-inputs-freqs) (set inputs-freqs)))]]
+            (is (= freq-diff [:all-merged nil :merged-all nil])))))
+      (testing "For all outputs, there is a corresponding input and vice versa"
+        (let [inputs (atom node-inputs)] ; we tick off one input arc per output arc
+          (doseq [node all-nodes]
+            (loop [outputs (g/outputs node)]
+              (when (seq outputs)
+                (let [output (first outputs)
+                      target (nth output 2)
+                      target-label (nth output 3)
+                      input-index (first (util/positions #(= output %) (get-in @inputs [target target-label])))]
+                  (is (some? input-index) (str "missing input for " output " in:\n" (get-in @inputs [target target-label])))
+                  (swap! inputs update-in [target target-label] remove-idx input-index)
+                  (recur (rest outputs))))))
+          (is (empty? (into [] (comp (map vals) cat cat) (vals @inputs)))))) ; should end up with no input arcs left
+      (testing "Sanity: all inputs == all outputs"
+        (let [output-freqs (frequencies (mapcat g/outputs all-nodes))
+              input-freqs (frequencies (mapcat g/inputs all-nodes))]
+          (is (= output-freqs input-freqs)))))))

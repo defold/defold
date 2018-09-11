@@ -113,7 +113,8 @@
                              ;; map -> vec
                              (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
       (alter (:cache sys) c/cache-invalidate cache-entries)
-      (alter (:invalidate-counters sys) bump-invalidate-counters cache-entries))))
+      (alter (:invalidate-counters sys) bump-invalidate-counters cache-entries)
+      cache-entries)))
 
 (defn step-through-history!
   [step-function sys graph-id]
