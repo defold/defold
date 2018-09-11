@@ -91,7 +91,12 @@
   ([] (clear-system-cache! *the-system*))
   ([sys-atom]
    (swap! sys-atom assoc :cache (ref (is/make-cache {})))
-   nil))
+   nil)
+  ([sys-atom node-id]
+   (let [outputs (cached-outputs (node-type* node-id))
+         entries (map #(do [node-id %]) outputs)]
+     (dosync (alter (:cache @sys-atom) c/cache-invalidate entries))
+     nil)))
 
 (defn graph "Given a graph id, returns the particular graph in the system at the current point in time"
   [graph-id]

@@ -678,6 +678,8 @@
   (let [outputs-modified (->> (:nodes-affected ctx)
                            (gt/dependencies (:basis ctx))
                            (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
+    (when-some [scene-updates (seq (:scene (group-by second outputs-modified)))]
+      (def last-scene-updates scene-updates))
     (assoc ctx :outputs-modified outputs-modified)))
 
 (defn transact*

@@ -1733,7 +1733,9 @@
   (input node-tree-node-outline g/Any)
   (output layout-node-outline g/Any (g/fnk [name node-tree-node-outline] [name node-tree-node-outline]))
   (input node-tree-scene g/Any)
-  (output layout-scene g/Any (g/fnk [name node-tree-scene] [name node-tree-scene]))
+  (output layout-scene g/Any (g/fnk [_node-id name node-tree-scene]
+                                    (println "output scene" (g/node-type* _node-id) _node-id)
+                                    [name node-tree-scene]))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
   (output build-errors g/Any :cached (g/fnk [_node-id name name-counts]
@@ -1766,6 +1768,7 @@
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
+                                     (println "output scene" (g/node-type* _node-id) _node-id)
                                      {:node-id _node-id
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
                                       :children child-scenes}))
@@ -1920,6 +1923,7 @@
       (sort-children node-order scene))))
 
 (g/defnk produce-scene [_node-id scene-dims aabb child-scenes]
+  (println "output scene" (g/node-type* _node-id) _node-id)
   (let [w (:width scene-dims)
         h (:height scene-dims)
         scene {:node-id _node-id
@@ -2896,24 +2900,32 @@
     (g/node-instance? GuiNode n)
     (do
       (parent-chain (ffirst (g/sources-of n :parent)))
-      (println n (:k (g/node-type* n)) (g/node-value n :id)))
+      (println n (:k (g/node-type* n)) (g/node-value n :id) "current layout =" (g/node-value n :current-layout)))
 
     (g/node-instance? NodeTree n)
     (do
       (parent-chain (ffirst (g/targets-of n :node-msgs)))
-      (println n (:k (g/node-type* n))))
+      (println n (:k (g/node-type* n))) "current layout =" (g/node-value n :current-layout))
 
     (g/node-instance? LayoutNode n)
     (do
       (parent-chain (ffirst (g/targets-of n :pb-msg)))
-      (println n (:k (g/node-type* n)) (g/node-value n :name)))
+      (println n (:k (g/node-type* n)) (g/node-value n :name)) #_"current layout =" #_(g/node-value n :current-layout))
 
     (g/node-instance? GuiSceneNode n)
     (do
       (parent-chain (ffirst (g/targets-of n :pb-msg)))
-      (println n (:k (g/node-type* n)) (resource/resource->proj-path (g/node-value n :resource))))
+      (println n (:k (g/node-type* n)) (resource/resource->proj-path (g/node-value n :resource)) "current layout =" (g/node-value n :current-layout)))
 
     :default
     nil))
+
+(defn- scene-tree
+  ([scene] (scene-tree scene 0))
+  ([scene indent]
+   (println (apply str (repeat indent " ")) (:node-id scene) (some-> (:transform scene) math/vecmath->clj))
+   (doseq [child (:children scene)]
+     (scene-tree child (+ indent 2)))))
+  
     
 
