@@ -900,7 +900,7 @@ namespace dmSys
                 AAsset_close(asset);
                 return RESULT_INVAL;
             }
-            int nread = AAsset_read(asset, buffer, asset_size);
+            uint32_t nread = (uint32_t)AAsset_read(asset, buffer, asset_size);
             AAsset_close(asset);
             if (nread != asset_size) {
                 return RESULT_IO;

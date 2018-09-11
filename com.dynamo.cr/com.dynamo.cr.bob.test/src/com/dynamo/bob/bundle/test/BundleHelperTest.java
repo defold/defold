@@ -112,6 +112,7 @@ public class BundleHelperTest {
             assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _ERR_reason_error_string"));
             assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _ERR_clear_error"));
             assertEquals(true, checkIssue(issues, "222613a7-2aea-4afd-8498-68f39f62468f.lib", 1, "error", "undefined symbol: _BIO_new_mem_buf"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "could not open Crypt32.Lib.lib: No such file or directory"));
         }
         {
             IResource resource = this.mp.get("com/dynamo/bob/bundle/test/errorLogOSX.txt");
@@ -150,6 +151,7 @@ public class BundleHelperTest {
 
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 17, "error", "‘ubar’ does not name a type\n ubar g_foo = 0;"));
             assertEquals(true, checkIssue(issues, "androidnative/src/main.cpp", 166, "error", "undefined reference to `Foobar()'\ncollect2: error: ld returned 1 exit status"));
+            assertEquals(true, checkIssue(issues, null, 1, "error", "cannot find -lsteam_api"));
         }
     }
 }

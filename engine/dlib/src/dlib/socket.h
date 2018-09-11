@@ -8,7 +8,7 @@
 
 #if defined(__linux__) || defined(__MACH__) || defined(ANDROID) || defined(__EMSCRIPTEN__) || defined(__AVM2__)
 #include <sys/socket.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/select.h>
 #include <netinet/in.h>
 #elif defined(_WIN32)
