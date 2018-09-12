@@ -430,7 +430,7 @@ namespace dmGui
         /// If the position fields (m_X, m_Y, m_DX, m_DY) are set and valid to read
         uint16_t m_PositionSet : 1;
         /// If the acceleration fields (m_AccX, m_AccY, m_AccZ) are set and valid to read
-        uint32_t m_AccelerationSet : 1;
+        uint16_t m_AccelerationSet : 1;
     };
 
     struct RenderEntry {
