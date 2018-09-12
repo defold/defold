@@ -7,8 +7,7 @@
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace])
+            [editor.ui :as ui])
   (:import [java.io File]
            [javafx.scene Scene]
            [javafx.scene.control Button CheckBox ChoiceBox Label TextField]
@@ -187,37 +186,59 @@
   (ui/with-controls view [header-info-label]
     (set-label-status! header-info-label (get-header-status issues-by-key key-order))))
 
+(defn- make-choice-box
+  ^ChoiceBox [refresh! label-value-pairs]
+  (assert (fn? refresh!))
+  (assert (sequential? (not-empty label-value-pairs)))
+  (assert (every? (fn [[k v]] (and (string? (not-empty k)) (string? (not-empty v)))) label-value-pairs))
+  (let [values-by-label (into {} label-value-pairs)
+        labels-by-value (set/map-invert values-by-label)]
+    (doto (ChoiceBox. (ui/observable-list (map second label-value-pairs)))
+      (ui/on-action! refresh!)
+      (.setConverter (proxy [StringConverter] []
+                       (toString [value]
+                         (labels-by-value value))
+                       (fromString [label]
+                         (values-by-label label)))))))
+
 (defn- make-generic-controls [refresh!]
   (assert (fn? refresh!))
-  (doto (VBox.)
-    (ui/add-style! "settings")
-    (ui/add-style! "generic")
-    (ui/children! [(doto (CheckBox. "Release mode") (.setId "release-mode-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
-                   (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
-                   (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))])))
+  [(doto (VBox.)
+     (ui/add-style! "settings")
+     (ui/add-style! "generic")
+     (ui/children! [(labeled! "Variant"
+                              (doto (make-choice-box refresh! [["Debug" "debug"]
+                                                               ["Release" "release"]
+                                                               ["Headless" "headless"]])
+                                (.setId "variant-choice-box")))]))
+   (doto (VBox.)
+     (ui/add-style! "settings")
+     (ui/add-style! "toggles")
+     (ui/children! [(doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
+                    (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))]))])
 
 (defn- load-generic-prefs! [prefs view]
-  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
-    (ui/value! release-mode-check-box (prefs/get-prefs prefs "bundle-release-mode?" true))
+  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+    (ui/value! variant-choice-box (prefs/get-prefs prefs "bundle-variant" "debug"))
     (ui/value! generate-build-report-check-box (prefs/get-prefs prefs "bundle-generate-build-report?" false))
     (ui/value! publish-live-update-content-check-box (prefs/get-prefs prefs "bundle-publish-live-update-content?" false))))
 
 (defn- save-generic-prefs! [prefs view]
-  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
-    (prefs/set-prefs prefs "bundle-release-mode?" (ui/value release-mode-check-box))
+  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+    (prefs/set-prefs prefs "bundle-variant" (ui/value variant-choice-box))
     (prefs/set-prefs prefs "bundle-generate-build-report?" (ui/value generate-build-report-check-box))
     (prefs/set-prefs prefs "bundle-publish-live-update-content?" (ui/value publish-live-update-content-check-box))))
 
 (defn- get-generic-options [view]
-  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
-    {:release-mode? (ui/value release-mode-check-box)
+  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+    {:variant (ui/value variant-choice-box)
      :generate-build-report? (ui/value generate-build-report-check-box)
      :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
                                         (ui/editable publish-live-update-content-check-box))}))
 
 (defn- set-generic-options! [view options workspace]
-  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
-    (ui/value! release-mode-check-box (:release-mode? options))
+  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+    (ui/value! variant-choice-box (:variant options))
     (ui/value! generate-build-report-check-box (:generate-build-report? options))
     (doto publish-live-update-content-check-box
       (ui/value! (:publish-live-update-content? options)))))
@@ -227,8 +248,8 @@
   (make-views [this _owner-window]
     (assert (string? (not-empty platform)))
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers title)
-       (make-generic-controls refresh!)]))
+      (into [(make-generic-headers title)]
+            (make-generic-controls refresh!))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view))
   (save-prefs! [_this prefs]
@@ -244,23 +265,12 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- make-platform-controls [refresh! bob-platform-choices]
-  (assert (fn? refresh!))
-  (assert (sequential? (not-empty bob-platform-choices)))
-  (assert (every? (fn [[k v]] (and (string? (not-empty k)) (string? (not-empty v)))) bob-platform-choices))
-  (let [platform-values-by-label (into {} bob-platform-choices)
-        platform-labels-by-value (set/map-invert platform-values-by-label)
-        platform-choice-box (doto (ChoiceBox. (ui/observable-list (map second bob-platform-choices)))
-                                  (.setId "platform-choice-box")
-                                  (ui/on-action! refresh!)
-                                  (.setConverter (proxy [StringConverter] []
-                                                   (toString [value]
-                                                     (platform-labels-by-value value))
-                                                   (fromString [label]
-                                                     (platform-values-by-label label)))))]
-    (doto (VBox.)
-      (ui/add-style! "settings")
-      (ui/add-style! "platform")
-      (ui/children! [(labeled! "Architecture" platform-choice-box)]))))
+  (doto (VBox.)
+    (ui/add-style! "settings")
+    (ui/add-style! "platform")
+    (ui/children! [(labeled! "Architecture"
+                             (doto (make-choice-box refresh! bob-platform-choices)
+                               (.setId "platform-choice-box")))])))
 
 (declare bundle-options-presenter)
 
@@ -292,9 +302,9 @@
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers title)
-       (make-platform-controls refresh! bob-platform-choices)
-       (make-generic-controls refresh!)]))
+      (into [(make-generic-headers title)
+             (make-platform-controls refresh! bob-platform-choices)]
+            (make-generic-controls refresh!))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-platform-prefs! prefs view platform bob-platform-default))
@@ -377,9 +387,9 @@
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers "Bundle Android Application")
-       (make-android-controls refresh! owner-window)
-       (make-generic-controls refresh!)]))
+      (into [(make-generic-headers "Bundle Android Application")
+             (make-android-controls refresh! owner-window)]
+            (make-generic-controls refresh!))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-android-prefs! prefs view))
@@ -476,9 +486,9 @@
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers "Bundle iOS Application")
-       (make-ios-controls refresh! owner-window)
-       (make-generic-controls refresh!)]))
+      (into [(make-generic-headers "Bundle iOS Application")
+             (make-ios-controls refresh! owner-window)]
+            (make-generic-controls refresh!))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-ios-prefs! prefs view (get-code-signing-identity-names)))
