@@ -17,7 +17,8 @@
   `(ArcBase. ~source ~target ~source-label ~target-label))
 
 (defn arc-endpoints-p [p arc]
-  (and (p (.source ^ArcBase arc)) (p (.target ^ArcBase arc))))
+  (and (p (.source ^ArcBase arc))
+       (p (.target ^ArcBase arc))))
 
 (defn- rebuild-sarcs
   [basis graph-state]
@@ -302,12 +303,14 @@
     (loop [overrides (overrides graph node-id)
            res []]
       (if-let [override (first overrides)]
-        (if (and (override-filter-fn (gt/override-id (gt/node-by-id-at basis override)))
-                 (empty? (arc-fn graph override label)))
-          (let [res (conj res override)
-                res (reduce conj res (implicit-overrides basis override label arc-fn override-filter-fn))]
-            (recur (rest overrides) res))
-          (recur (rest overrides) res))
+        (do
+          (println "considering:" override)
+          (if (and (override-filter-fn (gt/override-id (gt/node-by-id-at basis override)))
+                   (empty? (arc-fn graph override label)))
+            (let [res (conj res override)
+                  res (reduce conj res (implicit-overrides basis override label arc-fn override-filter-fn))]
+              (recur (rest overrides) res))
+            (recur (rest overrides) res)))
         res))))
 
 (defn- implicit-target-arcs [basis arcs override-filter-fn]
@@ -315,13 +318,11 @@
          res []]
     (if-let [^ArcBase a (first arcs)]
       (->> (implicit-overrides basis (.target a) (.targetLabel a) graph-explicit-arcs-by-target override-filter-fn)
-        (reduce (fn [res nid] (conj res (assoc a :target nid))) res)
-        (recur (rest arcs)))
+           (reduce (fn [res nid] (conj res (assoc a :target nid))) res)
+           (recur (rest arcs)))
       res)))
 
 (defn- basis-arcs-by-tail [basis node-id label]
-  (when (= label :layout-scenes)
-    (println "babt" node-id))
   (let [graph (node-id->graph basis node-id)
         arcs (graph-explicit-arcs-by-target graph node-id label)]
     (if-let [original (and (empty? arcs) (gt/original-node basis node-id))]
@@ -338,25 +339,34 @@
 
 (defn- basis-arcs-by-head
   [basis graph node-id node label override-filter-fn]
-    (let [arcs (graph-explicit-arcs-by-source graph node-id label)]
-      (if-let [original (and (empty? arcs) (gt/original node))]
-        (let [or-id (gt/override-id node)
-              arcs (loop [arcs (basis-arcs-by-head basis graph original (graph->node graph original) label nil)
-                          res []]
-                     (if-let [arc (first arcs)]
-                       (let [tgt-id (:target arc)
-                             tgt-graph (node-id->graph basis tgt-id)]
-                         (if-let [new-target (override-of tgt-graph tgt-id or-id)]
-                           (let [new-arc (assoc arc
-                                                :source node-id
-                                                :target new-target)]
-                             (recur (rest arcs) (conj res new-arc)))
-                           (recur (rest arcs) res)))
-                       res))]
-          arcs)
-        (if override-filter-fn
-          (into arcs (implicit-target-arcs basis arcs override-filter-fn))
-          arcs))))
+  (let [arcs (graph-explicit-arcs-by-source graph node-id label)]
+    (println "explicit-arcs:" node-id)
+    (clojure.pprint/pprint arcs)
+    (if-let [original (and (empty? arcs) (gt/original node))]
+      (let [or-id (gt/override-id node)
+            arcs (loop [arcs (basis-arcs-by-head basis graph original (graph->node graph original) label nil)
+                        res []]
+                   (if-let [arc (first arcs)]
+                     (let [tgt-id (:target arc)
+                           tgt-graph (node-id->graph basis tgt-id)]
+                       (if-let [new-target (override-of tgt-graph tgt-id or-id)]
+                         (let [new-arc (assoc arc
+                                              :source node-id
+                                              :target new-target)]
+                           (recur (rest arcs) (conj res new-arc)))
+                         (recur (rest arcs) res)))
+                     res))]
+        (println "patched up arcs:")
+        (clojure.pprint/pprint arcs)
+        arcs)
+      (if override-filter-fn
+        (let [implicit-arcs (implicit-target-arcs basis arcs override-filter-fn)]
+          (println "with implicit arcs:")
+          (clojure.pprint/pprint (into arcs implicit-arcs))
+          (into arcs implicit-arcs))
+        (do
+          (println "arcs used as-is")
+          arcs)))))
 
 (def ^:private none-seen (constantly false))
 (def ^:private set-or-union (fn [s1 s2] (if s1 (set/union s1 s2) s2)))
@@ -472,9 +482,9 @@
     [this node-id label]
     (let [graph (node-id->graph this node-id)
           override-filter-fn (->> (tree-seq (constantly true) (partial overrides graph) node-id)
-                               (map #(gt/override-id (graph->node graph %)))
-                               (into #{})
-                               complement)]
+                                  (map #(gt/override-id (graph->node graph %)))
+                                  (into #{})
+                                  complement)]
       (basis-arcs-by-head this graph node-id (graph->node graph node-id) label override-filter-fn)))
 
   (sources

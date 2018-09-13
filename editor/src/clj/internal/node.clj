@@ -649,7 +649,8 @@
 (defn- description->input-dependencies
   [{:keys [output] :as description}]
   (let [outputs (zipmap (keys output)
-                        (map #(dependency-seq description (:dependencies %)) (vals output)))]
+                        (map #(dependency-seq description (:dependencies %))
+                             (vals output)))]
     (invert-map outputs)))
 
 (defn- attach-input-dependencies

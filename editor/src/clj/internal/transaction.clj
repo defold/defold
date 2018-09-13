@@ -1,4 +1,4 @@
-(ns internal.transaction
+s(ns internal.transaction
   "Internal functions that implement the transactional behavior."
   (:require [clojure.set :as set]
             [clojure.string :as str]
@@ -145,7 +145,10 @@
   [ctx node-id input-label]
   (if-let [nodes-affected (get-in ctx [:nodes-affected node-id] #{})]
     (let [basis (:basis ctx)
-          dirty-deps (-> (gt/node-by-id-at basis node-id) (gt/node-type basis) in/input-dependencies (get input-label))]
+          dirty-deps (-> (gt/node-by-id-at basis node-id)
+                         (gt/node-type basis)
+                         in/input-dependencies
+                         (get input-label))]
       (update ctx :nodes-affected assoc node-id (reduce conj nodes-affected dirty-deps)))
     ctx))
 
@@ -676,8 +679,8 @@
   ;; afterwards, it will have the transitive closure of all [node-id output] pairs
   ;; reachable from the original collection.
   (let [outputs-modified (->> (:nodes-affected ctx)
-                           (gt/dependencies (:basis ctx))
-                           (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
+                              (gt/dependencies (:basis ctx))
+                              (into [] (mapcat (fn [[nid ls]] (mapv #(vector nid %) ls)))))]
     (when-some [scene-updates (seq (:scene (group-by second outputs-modified)))]
       (def last-scene-updates scene-updates))
     (assoc ctx :outputs-modified outputs-modified)))
