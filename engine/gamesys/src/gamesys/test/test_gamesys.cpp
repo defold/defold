@@ -9,6 +9,7 @@
 #include <dlib/time.h>
 #include <dlib/path.h>
 
+#include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
 
 namespace dmGameSystem
@@ -226,6 +227,32 @@ TEST_F(ComponentTest, ReloadInvalidMaterial)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_frag, 0));
 
     dmResource::Release(m_Factory, resource);
+}
+
+// Test for input consuming in collection proxy
+TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
+{
+    const char* path_consume_yes = "/collection_proxy/input_consume_yes.goc";
+    const char* path_consume_no  = "/collection_proxy/input_consume_no.goc";
+
+    dmGameObject::HInstance go_consume_yes = Spawn(m_Factory, m_Collection, path_consume_yes, dmHashString64("/go_consume_yes"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_consume_yes);
+
+    dmGameObject::HInstance go_consume_no = Spawn(m_Factory, m_Collection, path_consume_no, dmHashString64("/go_consume_no"), 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_consume_no);
+
+    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmGameObject::InputAction test_input_action;
+    test_input_action.m_ActionId = dmHashString64("test_action");
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &test_input_action, 1));
+
+    // Iteration 2: Handle test input event
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 }
 
 TEST_P(ComponentFailTest, Test)
@@ -1231,6 +1258,10 @@ INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count
 
 int main(int argc, char **argv)
 {
+    dmHashEnableReverseHash(true);
+    // Enable message descriptor translation when sending messages
+    dmDDF::RegisterAllTypes();
+
     testing::InitGoogleTest(&argc, argv);
 
     int ret = RUN_ALL_TESTS();
