@@ -230,7 +230,8 @@
   (into '() (take-while some? (iterate (partial override-original basis) node-id))))
 
 (defn- override-of [graph node-id or-id]
-  (some #(and (= or-id (gt/override-id (graph->node graph %))) %) (overrides graph node-id)))
+  (some #(and (= or-id (gt/override-id (graph->node graph %))) %)
+        (overrides graph node-id)))
 
 (defn- closest-override-of [graph node-id or-path]
   (if-let [or-id (first or-path)]
@@ -319,18 +320,20 @@
       res)))
 
 (defn- basis-arcs-by-tail [basis node-id label]
+  (when (= label :layout-scenes)
+    (println "babt" node-id))
   (let [graph (node-id->graph basis node-id)
         arcs (graph-explicit-arcs-by-target graph node-id label)]
     (if-let [original (and (empty? arcs) (gt/original-node basis node-id))]
       (let [node (gt/node-by-id-at basis node-id)
             or-path [(gt/override-id node)]]
-        (->> (basis-arcs-by-tail basis original label)
-          (mapv (fn [arc]
-                  (let [src-id (:source arc)
-                        src-graph (node-id->graph basis src-id)]
-                    (assoc arc
-                           :source (closest-override-of src-graph src-id or-path)
-                           :target node-id))))))
+        (mapv (fn [arc]
+                (let [src-id (:source arc)
+                      src-graph (node-id->graph basis src-id)]
+                  (assoc arc
+                         :source (closest-override-of src-graph src-id or-path)
+                         :target node-id)))
+              (basis-arcs-by-tail basis original label)))
       arcs)))
 
 (defn- basis-arcs-by-head
@@ -434,6 +437,7 @@
                       arcs))]
           (mapcat second arcs))
         arcs)))
+
   (arcs-by-tail [this node-id label]
     (basis-arcs-by-tail this node-id label))
 

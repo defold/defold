@@ -929,6 +929,12 @@
   ([outputs]
     (is/invalidate-outputs! @*the-system* outputs)))
 
+(defn invalidate!
+  [node]
+  (let [labels (-> (node-type* node)
+                   (in/output-labels))]
+    (invalidate-outputs! (map #(do [node %]) labels))))
+
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
    supertypes."

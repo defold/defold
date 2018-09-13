@@ -67,4 +67,7 @@
 
 (defn cache-invalidate
   [cache ks]
+  (when (= (count ks) 300)
+    (def last-ks ks))
+;;  (println "invalidating #" (count ks))
   (evict cache ks))

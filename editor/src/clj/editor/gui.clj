@@ -2892,33 +2892,111 @@
       (println (g/node-value layout-node :name) layout-node "node-tree" (ffirst (g/sources-of layout-node :node-msgs))))
     (println :default "node-tree" (g/node-value gsn :node-tree))))
 
-(defn- parent-chain [n]
-  (cond
-    (nil? n)
-    nil
+(def override-name {72057594037927936 :GL
+                    72057594037927938 :CTN
+                    72057594037927941 :PTN
+                    72057594037927942 :PL
+                    72057594037927939 :CL
+                    })
+
+(defn gui-tree [n]
+  (cond-> {:node-id n :type (:k (g/node-type* n))}
+    (g/node-instance? TemplateNode n)
+    (assoc :id (g/node-value n :id)
+           :children [(gui-tree (ffirst (g/sources-of n :template-scene)))])
     
-    (g/node-instance? GuiNode n)
-    (do
-      (parent-chain (ffirst (g/sources-of n :parent)))
-      (println n (:k (g/node-type* n)) (g/node-value n :id) "current layout =" (g/node-value n :current-layout)))
+    (g/node-instance? VisualNode n)
+    (assoc :id (g/node-value n :id)
+           :children (map (comp gui-tree first) (g/sources-of n :node-msgs)))
 
     (g/node-instance? NodeTree n)
-    (do
-      (parent-chain (ffirst (g/targets-of n :node-msgs)))
-      (println n (:k (g/node-type* n))) "current layout =" (g/node-value n :current-layout))
+    (assoc :children (map (comp gui-tree first) (g/sources-of n :node-msgs)))
 
     (g/node-instance? LayoutNode n)
-    (do
-      (parent-chain (ffirst (g/targets-of n :pb-msg)))
-      (println n (:k (g/node-type* n)) (g/node-value n :name)) #_"current layout =" #_(g/node-value n :current-layout))
+    (assoc :name (g/node-value n :name)
+           :children [(gui-tree (ffirst (g/sources-of n :node-msgs)))])
 
     (g/node-instance? GuiSceneNode n)
-    (do
-      (parent-chain (ffirst (g/targets-of n :pb-msg)))
-      (println n (:k (g/node-type* n)) (resource/resource->proj-path (g/node-value n :resource)) "current layout =" (g/node-value n :current-layout)))
+    (->
+      (assoc :path (resource/resource->proj-path (g/node-value n :resource)))
+      (assoc :children [(gui-tree (g/node-value n :node-tree))])
+      (assoc :layouts (map gui-tree (map first (g/sources-of n :layout-msgs)))))))
+      
 
-    :default
-    nil))
+    
+  
+  
+
+(defn- parent-chain [n]
+  (loop [n n
+         result []]
+    (cond
+      (nil? n)
+      (vec (reverse result))
+          
+      (g/node-instance? GuiNode n)
+      (recur 
+        (ffirst (g/sources-of n :parent))
+        (conj result {:node-id n
+                      :alt-parents (map first (g/sources-of n :parent))
+                      :originals (g/override-originals n)
+                      :original-overrides (map (comp #(get override-name % %) g/override-id) (g/override-originals n))
+                      :type (:k (g/node-type* n))
+                      :id (g/node-value n :id)
+                      :current-layout (g/node-value n :current-layout)}))
+
+      (g/node-instance? NodeTree n)
+      (recur
+        (ffirst (g/targets-of n :node-msgs))
+        (conj result {:node-id n
+                      :alt-parents (map first (g/targets-of n :node-msgs))
+                      :originals (g/override-originals n)
+                      :original-overrides (map (comp #(get override-name % %) g/override-id) (g/override-originals n))
+                      :type (:k (g/node-type* n))
+                      :current-layout (g/node-value n :current-layout)}))
+
+      (g/node-instance? LayoutNode n)
+      (recur
+        (ffirst (g/targets-of n :pb-msg))
+        (conj result {:node-id n
+                      :alt-parents (map first (g/targets-of n :pb-msg))
+                      :originals (g/override-originals n)
+                      :original-overrides (map (comp #(get override-name % %) g/override-id) (g/override-originals n))
+                      :type (:k (g/node-type* n))
+                      :name (g/node-value n :name)}))
+
+      (g/node-instance? GuiSceneNode n)
+      (recur
+        (ffirst (g/targets-of n :pb-msg))
+        (conj result {:node-id n
+                      :alt-parents (map first (g/targets-of n :pb-msg))
+                      :originals (g/override-originals n)
+                      :original-overrides (map (comp #(get override-name % %) g/override-id) (g/override-originals n))
+                      :type (:k (g/node-type* n))
+                      :resource (resource/resource->proj-path (g/node-value n :resource))
+                      :current-layout (g/node-value n :current-layout)}))
+      :default
+      (recur
+        nil
+        (conj result {:type :unknown})))))
+
+(defn ppc [pc]
+  (when-some [step (first pc)]
+    (println (:node-id step) (:type step) (or (:id step) "") (or (:name step) "") (or (:resource step) "") (:current-layout step))
+    (recur (rest pc))))
+
+(defn originals [n]
+  (map (juxt identity (comp #(get override-name % %) g/override-id)) (g/override-originals n)))
+
+(defn parent-chain+ [node-id]
+  (map (juxt :node-id :type :original-overrides) (parent-chain node-id)))
+
+(defn clear-chain! [node-id]
+  (run! #(g/clear-system-cache! g/*the-system* %) (map :node-id (parent-chain node-id)))
+  nil)
+
+(defn scene->line [s]
+  (-> s :renderable :user-data :text-data :text-layout :lines))
 
 (defn- scene-tree
   ([scene] (scene-tree scene 0))
