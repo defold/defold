@@ -339,7 +339,7 @@ Note: When running the editor and building a Defold project you must first go to
 
 ## Running JUnit test in Eclipse
 * Run the tests with JUnit Plug-in Test
-	- Some test may fail due to missing engine builds for some platforms
+	- Some test may fail due in com.dynamo.bob.bundle.test.BundlerTest due to missing engine builds for some platforms
 
 **Notes for building the editor under Linux:**
 * Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
