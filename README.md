@@ -168,7 +168,15 @@ If eclipse doesn’t get the JDK setup automatically:
 
 #### Linux
 
-    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake tofrodos
+    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake cmake tofrodos valgrind tree silversearcher-ag
+
+###### Easy Install
+
+Since the executable doesn't install anymore, easiest to create a wrapper:
+
+    >$ sudo sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
+    >$ sudo sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
+    >$ sudo chmod +x /usr/local/bin/easy_install
 
 #### Windows
 
