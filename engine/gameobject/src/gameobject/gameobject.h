@@ -161,6 +161,7 @@ namespace dmGameObject
         char     m_Text[dmHID::MAX_CHAR_COUNT];
         uint32_t m_TextCount;
         uint32_t m_GamepadIndex;
+        uint16_t m_Consumed;
         uint32_t m_IsGamepad : 1;
         /// If input has a text payload (can be true even if text count is 0)
         uint32_t m_HasText : 1;
