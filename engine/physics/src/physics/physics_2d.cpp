@@ -435,6 +435,71 @@ namespace dmPhysics
         return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
     }
 
+    void DebugPrintHullSet(HHullSet2D hull_set)
+    {
+        b2HullSet* hs = (b2HullSet*) hull_set;
+        dmLogInfo("-- hs: %p", hull_set);
+        dmLogInfo("-- hs->m_hulls: %p", hs->m_hulls);
+        dmLogInfo("-- hs->m_hullCount: %u", hs->m_hullCount);
+        dmLogInfo("-- hs->m_vertices: %p", hs->m_vertices);
+        dmLogInfo("-- hs->m_vertexCount: %u", hs->m_vertexCount);
+    }
+
+    void DebugPrintGridShape(HCollisionShape2D coll_shape)
+    {
+        b2GridShape* gs = (b2GridShape*) coll_shape;
+
+        // dmLogInfo("CELLS");
+        dmLogInfo("------------------");
+        dmLogInfo("gs->m_cells ptr: %p", gs->m_cells);
+        dmLogInfo("gs->m_cellFlags: %p", gs->m_cellFlags);
+        dmLogInfo("gs->m_hullSet: %p", gs->m_hullSet);
+        dmLogInfo("-- gs->m_hullSet->m_hulls: %p", gs->m_hullSet->m_hulls);
+        dmLogInfo("-- gs->m_hullSet->m_hullCount: %u", gs->m_hullSet->m_hullCount);
+        dmLogInfo("-- gs->m_hullSet->m_vertices: %p", gs->m_hullSet->m_vertices);
+        dmLogInfo("-- gs->m_hullSet->m_vertexCount: %u", gs->m_hullSet->m_vertexCount);
+        dmLogInfo("-- gs->m_rowCount: %u", gs->m_rowCount);
+        dmLogInfo("-- gs->m_columnCount: %u", gs->m_columnCount);
+    }
+
+    // Keep ptr old_hull_set, replace data for all members
+    void SwapFreeHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set)
+    {
+        b2HullSet* dst = (b2HullSet*) dst_hull_set;
+        b2HullSet* src = (b2HullSet*) src_hull_set;
+
+        b2Free(dst->m_vertices);
+        dst->m_vertices = src->m_vertices;
+        dst->m_vertexCount = src->m_vertexCount;
+        b2Free(dst->m_hulls);
+        dst->m_hulls = src->m_hulls;
+        dst->m_hullCount = src->m_hullCount;
+    }
+
+    void SwapFreeGridShape2DHullSet(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape)
+    {
+        dmLogWarning("#### SwapFreeGridShape2DHullSet")
+        b2GridShape* src_grid_shape = (b2GridShape*) src_coll_shape;
+        b2GridShape* dst_grid_shape = (b2GridShape*) dst_coll_shape;
+
+        dst_grid_shape->m_position = src_grid_shape->m_position;
+
+        b2Free(dst_grid_shape->m_cells);
+        dst_grid_shape->m_cells = src_grid_shape->m_cells;
+        b2Free(dst_grid_shape->m_cellFlags);
+        dst_grid_shape->m_cellFlags = src_grid_shape->m_cellFlags;
+
+        // Hullset is owned and reloaded by textureset (tileset) resource in tilegrid resource.
+
+        dst_grid_shape->m_cellWidth = src_grid_shape->m_cellWidth;
+        dst_grid_shape->m_cellHeight = src_grid_shape->m_cellHeight;
+
+        dst_grid_shape->m_rowCount = src_grid_shape->m_rowCount;
+        dst_grid_shape->m_columnCount = src_grid_shape->m_columnCount;
+        
+        dmLogWarning("#### Done!")
+    }
+
     void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         b2Body* body = (b2Body*) collision_object;

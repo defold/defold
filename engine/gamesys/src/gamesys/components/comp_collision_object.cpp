@@ -30,18 +30,6 @@ namespace dmGameSystem
     static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
     static const dmhash_t PROP_MASS = dmHashString64("mass");
 
-    struct CollisionWorld
-    {
-        uint64_t m_Groups[16];
-        union
-        {
-            dmPhysics::HWorld2D m_World2D;
-            dmPhysics::HWorld3D m_World3D;
-        };
-        uint8_t m_ComponentIndex;
-        uint8_t m_3D : 1;
-    };
-
     struct CollisionComponent
     {
         CollisionObjectResource* m_Resource;
@@ -64,6 +52,19 @@ namespace dmGameSystem
         // Tracking initial state.
         uint8_t m_AddedToUpdate : 1;
         uint8_t m_StartAsEnabled : 1;
+    };
+
+    struct CollisionWorld
+    {
+        uint64_t m_Groups[16];
+        union
+        {
+            dmPhysics::HWorld2D m_World2D;
+            dmPhysics::HWorld3D m_World3D;
+        };
+        uint8_t m_ComponentIndex;
+        uint8_t m_3D : 1;
+        dmArray<CollisionComponent*> m_Components;
     };
 
     void GetWorldTransform(void* user_data, dmTransform::Transform& world_transform)
@@ -114,6 +115,7 @@ namespace dmGameSystem
             world->m_World2D = dmPhysics::NewWorld2D(physics_context->m_Context2D, world_params);
         world->m_ComponentIndex = params.m_ComponentIndex;
         world->m_3D = physics_context->m_3D;
+        world->m_Components.SetCapacity(32);
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -185,6 +187,18 @@ namespace dmGameSystem
                 dmGameSystemDDF::TileLayer* layer = &tile_grid->m_Layers[i];
                 TextureSetResource* texture_set_resource = tile_grid_resource->m_TextureSet;
                 dmGameSystemDDF::TextureSet* tile_set = texture_set_resource->m_TextureSet;
+                
+                // Set all tiles as empty.
+                // Empty tile is encoded as 0xffffffff, see comp_tilegrid.cpp.
+                for (uint32_t y = 0; y < tile_grid_resource->m_RowCount; ++y)
+                {
+                    for (uint32_t x = 0; x < tile_grid_resource->m_ColumnCount; ++x)
+                    {
+                        dmPhysics::SetGridShapeHull(component->m_Object2D, i, y, x, 0xffffffff, flags);
+                    }
+                }
+
+                // Set non-empty tiles
                 uint32_t cell_count = layer->m_Cell.m_Count;
                 for (uint32_t j = 0; j < cell_count; ++j)
                 {
@@ -346,6 +360,17 @@ namespace dmGameSystem
                 dmPhysics::HWorld2D physics_world = world->m_World2D;
                 dmPhysics::DeleteCollisionObject2D(physics_world, component->m_Object2D);
                 component->m_Object2D = 0;
+            }
+        }
+
+        uint32_t num_components = world->m_Components.Size();
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            CollisionComponent* c = world->m_Components[i];
+            if (c == component)
+            {
+                world->m_Components.EraseSwap(i);
+                break;
             }
         }
 
@@ -685,6 +710,10 @@ namespace dmGameSystem
                 SetupTileGrid(world, component);
             }
             component->m_AddedToUpdate = true;
+
+            if (world->m_Components.Remaining() <= 0)
+                world->m_Components.OffsetCapacity(32);
+            world->m_Components.Push(component);
         }
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -725,6 +754,18 @@ namespace dmGameSystem
 
         if (!CompCollisionObjectDispatchPhysicsMessages(physics_context, world, params.m_Collection))
             result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+
+        uint32_t num_components = world->m_Components.Size();
+        for (uint32_t i = 0; i < num_components; ++i)
+        {
+            CollisionComponent* c = world->m_Components[i];
+            TileGridResource* tile_grid_res = c->m_Resource->m_TileGridResource;
+            if (tile_grid_res != 0x0 && tile_grid_res->m_Dirty)
+            {
+                SetupTileGrid(world, c);
+                tile_grid_res->m_Dirty = 0;
+            }
+        }
 
         CollisionUserData collision_user_data;
         collision_user_data.m_World = world;
@@ -897,12 +938,12 @@ namespace dmGameSystem
 
             if (row >= tile_grid_resource->m_RowCount || column >= tile_grid_resource->m_ColumnCount)
             {
-                dmLogError("SetGridShapeHull: <row,column> out of bounds");
+                dmLogError("SetGridShapeHull: <row,column> out of bounds (%u, %u)", row, column);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
             if (hull != ~0u && hull >= tile_grid_resource->m_TextureSet->m_HullCollisionGroups.Size())
             {
-                dmLogError("SetGridShapHull: specified hull index is out of bounds.");
+                dmLogError("SetGridShapHull: specified hull index is out of bounds. index: %u", hull);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
 

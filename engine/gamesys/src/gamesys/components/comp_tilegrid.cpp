@@ -615,6 +615,12 @@ namespace dmGameSystem
         {
             dmLogError("%s", "Could not recreate tile grid component, not reloaded.");
         }
+
+        uint32_t num_regions = tile_grid->m_Regions.Size();
+        for (uint32_t i = 0; i < num_regions; ++i)
+        {
+            tile_grid->m_Regions[i].m_Dirty = 1;
+        }
     }
 
     static bool CompTileGridGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
