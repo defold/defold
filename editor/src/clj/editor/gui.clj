@@ -627,14 +627,14 @@
   (output color+alpha types/Color (g/fnk [color alpha] (assoc color 3 alpha)))
   (output scene g/Any :cached (g/fnk [_node-id id aabb transform scene-children scene-renderable scene-outline-renderable scene-updatable]
                                      (cond-> {:node-id _node-id
-                                              :node-key id
+                                              :node-outline-key id
                                               :aabb aabb
                                               :transform transform
                                               :renderable scene-renderable}
 
                                        scene-outline-renderable
                                        (assoc :children [{:node-id _node-id
-                                                          :node-key id
+                                                          :node-outline-key id
                                                           :aabb aabb
                                                           :renderable scene-outline-renderable}])
 
@@ -1699,10 +1699,10 @@
                                        (g/package-errors _node-id
                                                          (prop-unique-id-error _node-id :name name name-counts "Name")))))
 
-(defmacro gen-outline-fnk [label node-key order sort-children? child-reqs]
+(defmacro gen-outline-fnk [label node-outline-key order sort-children? child-reqs]
   `(g/fnk [~'_node-id ~'child-outlines]
           {:node-id ~'_node-id
-           :node-key ~node-key
+           :node-outline-key ~node-outline-key
            :label ~label
            :icon ~virtual-icon
            :order ~order

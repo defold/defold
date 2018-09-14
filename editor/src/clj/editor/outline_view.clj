@@ -102,17 +102,17 @@
 (defn- decorate
   ([root]
    (:item (decorate [] [] root (:outline-reference? root))))
-  ([node-id-path node-key-path {:keys [node-id] :as item} parent-reference?]
+  ([node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference?]
    (let [node-id-path (conj node-id-path node-id)
-         node-key-path (if (empty? node-key-path)
-                         [node-id]
-                         (if-some [node-key (get item :node-key (:label item))]
-                           (conj node-key-path node-key)
-                           node-key-path))
-         data (mapv #(decorate node-id-path node-key-path % (or parent-reference? (:outline-reference? item))) (:children item))
+         node-outline-key-path (if (empty? node-outline-key-path)
+                                 [node-id]
+                                 (if-some [node-outline-key (get item :node-outline-key (:label item))]
+                                   (conj node-outline-key-path node-outline-key)
+                                   node-outline-key-path))
+         data (mapv #(decorate node-id-path node-outline-key-path % (or parent-reference? (:outline-reference? item))) (:children item))
          item (assoc item
                 :node-id-path node-id-path
-                :node-key-path node-key-path
+                :node-outline-key-path node-outline-key-path
                 :parent-reference? parent-reference?
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))

@@ -204,7 +204,7 @@
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
       {:node-id _node-id
-       :node-key id
+       :node-outline-key id
        :aabb aabb
        :renderable {:render-fn render-layer
                     :tags #{:tilemap}
