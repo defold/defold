@@ -1157,7 +1157,6 @@
    (override (now) root-id opts))
   ([basis root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}}]
    (let [graph-id (node-id->graph-id root-id)
-         preds [traverse-cascade-delete traverse?]
          traverse-fn (partial predecessors (every-arc-pred in-same-graph? traverse-cascade-delete traverse?))
          node-ids (ig/pre-traverse basis [root-id] traverse-fn)
          override-id (is/next-override-id @*the-system* graph-id)
