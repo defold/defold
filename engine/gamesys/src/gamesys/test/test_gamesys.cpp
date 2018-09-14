@@ -232,6 +232,15 @@ TEST_F(ComponentTest, ReloadInvalidMaterial)
 // Test for input consuming in collection proxy
 TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
 {
+    /* Setup:
+    ** go_consume_no
+    ** - [script] input_consume_no.script
+    ** go_consume_yes
+    ** - collection_proxy
+    ** -- go_consume_yes_proxy
+    ** ---- [script] input_consume_yes.script
+    */
+
     const char* path_consume_yes = "/collection_proxy/input_consume_yes.goc";
     const char* path_consume_no  = "/collection_proxy/input_consume_no.goc";
 
@@ -245,14 +254,46 @@ TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
+    // Test 1: input consume in proxy with 1 input action
     dmGameObject::InputAction test_input_action;
     test_input_action.m_ActionId = dmHashString64("test_action");
 
     ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &test_input_action, 1));
+    ASSERT_EQ(1,test_input_action.m_Consumed);
 
-    // Iteration 2: Handle test input event
-    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
-    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    // Test 2: no consuming in proxy collection
+    dmGameObject::InputAction test_input_action_consume_no;
+    test_input_action_consume_no.m_ActionId = dmHashString64("test_action_consume_no");
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &test_input_action_consume_no, 1));
+    ASSERT_EQ(0,test_input_action_consume_no.m_Consumed);
+
+    // Test 3: dispatch input queue with more than one input actions that are consumed
+    dmGameObject::InputAction test_input_action_queue[2];
+    test_input_action_queue[0].m_ActionId = dmHashString64("test_action_0");
+    test_input_action_queue[1].m_ActionId = dmHashString64("test_action_1");
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, test_input_action_queue, 2));
+    ASSERT_EQ(1,test_input_action_queue[0].m_Consumed);
+    ASSERT_EQ(1,test_input_action_queue[1].m_Consumed);
+
+    // Test 4: dispatch input queue with more than one input actions where one action is consumed and one isn't
+    dmGameObject::InputAction test_input_action_queue_2[2];
+    test_input_action_queue_2[0].m_ActionId = dmHashString64("test_action");
+    test_input_action_queue_2[1].m_ActionId = dmHashString64("test_action_consume_no");
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, test_input_action_queue_2, 2));
+    ASSERT_EQ(1,test_input_action_queue_2[0].m_Consumed);
+    ASSERT_EQ(0,test_input_action_queue_2[1].m_Consumed);
+
+    // Test 5: Same as above, but with the action consume order swapped
+    dmGameObject::InputAction test_input_action_queue_3[2];
+    test_input_action_queue_3[0].m_ActionId = dmHashString64("test_action_consume_no");
+    test_input_action_queue_3[1].m_ActionId = dmHashString64("test_action_consume");
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, test_input_action_queue_3, 2));
+    ASSERT_EQ(0,test_input_action_queue_3[0].m_Consumed);
+    ASSERT_EQ(1,test_input_action_queue_3[1].m_Consumed);
 }
 
 TEST_P(ComponentFailTest, Test)

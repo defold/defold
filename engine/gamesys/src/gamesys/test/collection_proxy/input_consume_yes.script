@@ -3,5 +3,9 @@ function init(self)
 end
 
 function on_input(self, action_id, action)
-	return true
+	if action_id == hash("test_action_consume_no") then
+		return false
+	else
+		return true
+	end
 end

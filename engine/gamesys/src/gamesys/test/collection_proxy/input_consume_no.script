@@ -1,12 +1,15 @@
 function init(self)
 	msg.post(".", "acquire_input_focus")
 	msg.post("go_consume_yes", "acquire_input_focus")
-
 	msg.post("go_consume_yes#collectionproxy", "load")
 end
 
 function on_input(self, action_id, action)
-	assert(false)
+	if action_id == hash("test_action_consume_no") then
+		-- pass-through
+	else
+		assert(false)
+	end
 end
 
 function on_message(self, message_id, message, sender)
