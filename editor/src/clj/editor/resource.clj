@@ -82,8 +82,16 @@
   (ext [this] ext)
   (resource-type [this] (get (g/node-value workspace :resource-types) (type-ext this)))
   (source-type [this] source-type)
-  (exists? [this] (.exists (io/file this)))
-  (read-only? [this] (not (.canWrite (io/file this))))
+  (exists? [this]
+    (try
+      (.exists (io/file this))
+      (catch SecurityException _
+        false)))
+  (read-only? [this]
+    (try
+      (not (.canWrite (io/file this)))
+      (catch SecurityException _
+        true)))
   (path [this] (if (= "" project-path) "" (subs project-path 1)))
   (abs-path [this] abs-path)
   (proj-path [this] project-path)
@@ -193,7 +201,8 @@
   io/Coercions
   (io/as-file [this]
     (let [zip-url (.toURL zip-uri)]
-      (when (= (.getPath zip-url) (.getFile zip-url)) (io/file (.getFile zip-url))))))
+      (when (= (.getPath zip-url) (.getFile zip-url))
+        (io/file (.getFile zip-url))))))
 
 (core/register-record-type! ZipResource)
 
@@ -293,9 +302,6 @@
     (digest/stream->sha1-hex rs)))
 
 (g/deftype ResourceVec [(s/maybe (s/protocol Resource))])
-
-(defn node-id->resource [node-id]
-  (when (g/node-instance? ResourceNode node-id) (g/node-value node-id :resource)))
 
 (defn temp-path [resource]
   (when (and resource (= :file (source-type resource)))
