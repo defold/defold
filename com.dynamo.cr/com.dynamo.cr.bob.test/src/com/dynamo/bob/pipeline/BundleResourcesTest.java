@@ -32,6 +32,7 @@ import org.junit.rules.TemporaryFolder;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
+import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
@@ -71,6 +72,7 @@ public class BundleResourcesTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         addResourceDirectory("/testextension");
+        addResourceDirectory("/testappmanifest");
     }
 
     private void addFile(String file, String source) {
@@ -313,15 +315,15 @@ public class BundleResourcesTest {
 
     }
 
-    private boolean findInResourceList(List<ExtenderResource> list, String path) {
+    private ExtenderResource findInResourceList(List<ExtenderResource> list, String path) {
 
         for (ExtenderResource resource : list) {
             if (resource.getPath().equals(path)) {
-                return true;
+                return resource;
             }
         }
 
-        return false;
+        return null;
     }
 
     // Extension source collecting
@@ -329,20 +331,34 @@ public class BundleResourcesTest {
     public void testExtensionSources() throws Exception {
 
         // Should find: ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
-        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin);
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, null);
         assertEquals(4, resources.size());
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
-        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a"));
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a") != null);
 
-        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin);
-        assertEquals(3, resources.size());
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, "release");
+        assertEquals(4, resources.size());
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        ExtenderResource app_manifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String synthesized_manifest = new String(app_manifest.getContent());
+        assertEquals(synthesized_manifest.substring(0, 23), "__base_variant: release");
+    }
+
+    @Test
+    public void testAppManifestVariant() throws Exception {
+    	project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
+    	List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, "debug");
+        assertEquals(5, resources.size());
+        ExtenderResource app_manifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String patched_manifest = new String(app_manifest.getContent());
+        assertEquals(patched_manifest.length(), 1681);
+        assertEquals(patched_manifest.substring(0, 21), "__base_variant: debug");
     }
 
 }

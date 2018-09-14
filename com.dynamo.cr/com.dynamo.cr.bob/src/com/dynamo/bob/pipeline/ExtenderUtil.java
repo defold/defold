@@ -6,6 +6,7 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -30,6 +31,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 
 public class ExtenderUtil {
+
+    public static final String appManifestPath = "_app/" + ExtenderClient.appManifestFilename;
 
     private static class FSExtenderResource implements ExtenderResource {
 
@@ -135,18 +138,109 @@ public class ExtenderUtil {
         }
     }
 
-    // Used to take a file and rename it in the multipart request
-    public static class FSAliasResource extends FSExtenderResource {
+    private static class EmptyResource implements IResource {
+    	private String rootDir;
+    	private String path;
+
+    	public EmptyResource(String rootDir, String path) {
+            this.rootDir = rootDir;
+            this.path = path;
+        }
+
+    	@Override
+		public IResource changeExt(String ext) {
+			return null;
+		}
+
+		@Override
+		public byte[] getContent() throws IOException {
+			return new byte[0];
+		}
+
+		@Override
+		public void setContent(byte[] content) throws IOException {
+		}
+
+		@Override
+		public byte[] sha1() throws IOException {
+            byte[] content = getContent();
+            if (content == null) {
+                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
+            }
+            MessageDigest sha1;
+            try {
+                sha1 = MessageDigest.getInstance("SHA1");
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+            sha1.update(content);
+            return sha1.digest();
+		}
+
+		@Override
+		public boolean exists() {
+			return true;
+		}
+
+		@Override
+		public boolean isFile() {
+			return false;
+		}
+
+		@Override
+		public String getAbsPath() {
+            return rootDir + "/" + path;
+		}
+
+		@Override
+		public String getPath() {
+			return path;
+		}
+
+		@Override
+		public void remove() {
+		}
+
+		@Override
+		public IResource getResource(String name) {
+			return null;
+		}
+
+		@Override
+		public IResource output() {
+			return null;
+		}
+
+		@Override
+		public boolean isOutput() {
+			return false;
+		}
+
+		@Override
+		public void setContent(InputStream stream) throws IOException {
+		}
+
+		@Override
+		public long getLastModified() {
+	        return new File(rootDir).lastModified();
+		}
+
+    }
+
+    // Used to rename a resource in the multipart request and prefix the content with a base variant
+    public static class FSAppManifestResource extends FSExtenderResource {
 
         private IResource resource;
         private String alias;
         private String rootDir;
+        private String variant;
 
-        FSAliasResource(IResource resource, String rootDir, String alias) {
+        FSAppManifestResource(IResource resource, String rootDir, String alias, String variant) {
             super(resource);
             this.resource = resource;
             this.rootDir = rootDir;
             this.alias = alias;
+            this.variant = variant;
         }
 
         public IResource getResource() {
@@ -155,7 +249,18 @@ public class ExtenderUtil {
 
         @Override
         public byte[] sha1() throws IOException {
-            return resource.sha1();
+            byte[] content = getContent();
+            if (content == null) {
+                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
+            }
+            MessageDigest sha1;
+            try {
+                sha1 = MessageDigest.getInstance("SHA1");
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+            sha1.update(content);
+            return sha1.digest();
         }
 
         @Override
@@ -170,7 +275,17 @@ public class ExtenderUtil {
 
         @Override
         public byte[] getContent() throws IOException {
-            return resource.getContent();
+            byte[] content = resource.getContent();
+            if (variant == null)
+            {
+                return content;
+            }
+            String variantPrefix = "__base_variant: " + variant + System.getProperty("line.separator");
+            byte[] variantBytes = variantPrefix.getBytes();
+            byte[] c = new byte[variantBytes.length + content.length];
+            System.arraycopy(variantBytes, 0, c, 0, variantBytes.length);
+            System.arraycopy(content, 0, c, variantBytes.length, content.length);
+            return c;
         }
 
         @Override
@@ -277,7 +392,7 @@ public class ExtenderUtil {
      * @param project
      * @return A list of IExtenderResources that can be supplied to ExtenderClient
      */
-    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform) throws CompileExceptionError {
+    public static List<ExtenderResource> getExtensionSources(Project project, Platform platform, String variant) throws CompileExceptionError {
         List<ExtenderResource> sources = new ArrayList<>();
 
         List<String> platformFolderAlternatives = new ArrayList<String>();
@@ -290,11 +405,18 @@ public class ExtenderUtil {
         if (!appManifest.isEmpty()) {
             IResource resource = project.getResource(appManifest);
             if (resource.exists()) {
-                sources.add( new FSAliasResource( resource, project.getRootDirectory(), "_app/" + ExtenderClient.appManifestFilename ) );
+                // We use an alias so the the app manifest has a predefined name
+                sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, variant ) );
             } else {
                 IResource projectResource = project.getResource("game.project");
                 throw new CompileExceptionError(projectResource, 0, String.format("No such resource: %s", resource.getAbsPath()));
             }
+        }
+        else if (variant != null)
+        {
+            // Make up appmanifest
+        	IResource resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
+        	sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, variant ) );
         }
 
         // Find extension folders
@@ -387,7 +509,6 @@ public class ExtenderUtil {
      */
     public static List<String> getAndroidResourcePaths(Project project, Platform platform) throws CompileExceptionError {
 
-        Map<String, IResource> bundleResources = new HashMap<String, IResource>();
         List<String> platformFolderAlternatives = new ArrayList<String>();
         platformFolderAlternatives.addAll(Arrays.asList(platform.getExtenderPaths()));
 
