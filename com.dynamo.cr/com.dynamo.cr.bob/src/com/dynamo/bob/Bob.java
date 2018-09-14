@@ -36,6 +36,10 @@ import com.dynamo.bob.util.LibraryUtil;
 
 public class Bob {
 
+    public static final String VARIANT_DEBUG = "debug";
+    public static final String VARIANT_RELEASE = "release";
+    public static final String VARIANT_HEADLESS = "headless";
+
     private static boolean verbose = false;
     private static File rootFolder = null;
 
@@ -172,17 +176,44 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getDmengineExeName(Platform platform, boolean debug) {
-        if(debug) {
-            return "dmengine";
-        }
-        else {
-            return "dmengine_release";
+   public static String getDmengineExeName(String variant) {
+        switch (variant)
+        {
+            case VARIANT_DEBUG:
+                return "dmengine";
+            case VARIANT_RELEASE:
+                return "dmengine_release";
+            case VARIANT_HEADLESS:
+                return "dmengine_headless";
+            default:
+                throw new RuntimeException(String.format("Invalid variant %s", variant));
         }
     }
 
-    public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
-        return getExe(platform, getDmengineExeName(platform, debug));
+    public static String getDmengineExe(Platform platform, String variant) throws IOException {
+        return getExe(platform, getDmengineExeName(variant));
+    }
+
+    public static boolean getStripExecutable(boolean debug_option, boolean strip_executable_option, String variant_option)
+    {
+        if (strip_executable_option)
+        {
+            return true;
+        }
+        if (variant_option == null)
+        {
+            return !debug_option;
+        }
+        return false;
+    }
+
+    public static String getVariant(boolean debug_option, String variant_option)
+    {
+        if (variant_option == null || variant_option.isEmpty())
+        {
+            return debug_option ? VARIANT_DEBUG : VARIANT_RELEASE;
+        }
+        return variant_option;
     }
 
     public static String getLib(Platform platform, String name) throws IOException {
@@ -221,7 +252,9 @@ public class Bob {
         options.addOption("ce", "certificate", true, "Certificate (Android)");
         options.addOption("pk", "private-key", true, "Private key (Android)");
 
-        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
+        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
+        options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
+        options.addOption(null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)");
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
         options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");

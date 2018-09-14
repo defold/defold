@@ -114,7 +114,8 @@ public class IOSBundler implements IBundler {
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
 
-        boolean debug = project.hasOption("debug");
+        final String variant = Bob.getVariant(project.hasOption("debug"), project.option("variant", null));
+        final boolean strip_executable = Bob.getStripExecutable(project.hasOption("debug"), project.hasOption("strip-executable"), project.option("variant", null));
 
         File exeArmv7 = null;
         File exeArm64 = null;
@@ -126,7 +127,7 @@ public class IOSBundler implements IBundler {
         {
             Platform targetPlatform = Platform.Armv7Darwin;
             File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, variant));
             exeArmv7 = defaultExe;
             if (extenderExe.exists()) {
                 logger.log(Level.INFO, "Using extender exe for Armv7");
@@ -138,7 +139,7 @@ public class IOSBundler implements IBundler {
         {
             Platform targetPlatform = Platform.Arm64Darwin;
             File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
+            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, variant));
             exeArm64 = defaultExe;
             if (extenderExe.exists()) {
                 logger.log(Level.INFO, "Using extender exe for Arm64");
@@ -303,7 +304,7 @@ public class IOSBundler implements IBundler {
         }
 
         // Strip executable
-        if( !debug )
+        if( strip_executable )
         {
             Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
             if (stripResult.ret == 0) {

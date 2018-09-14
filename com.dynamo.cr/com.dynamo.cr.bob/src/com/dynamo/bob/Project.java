@@ -571,7 +571,8 @@ public class Project {
         String serverURL = this.option("build-server", "https://build.defold.com");
 
         // Get SHA1 and create log file
-        String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
+        final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
+        final String variant = Bob.getVariant(this.hasOption("debug"), this.option("variant", null));
         File logFile = File.createTempFile("build_" + sdkVersion + "_", ".txt");
         logFile.deleteOnExit();
 
@@ -601,7 +602,7 @@ public class Project {
 
             String defaultName = platform.formatBinaryName("dmengine");
             File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
-            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform);
+            List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, variant);
 
 
             File classesDexFile = null;
