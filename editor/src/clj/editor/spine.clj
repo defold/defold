@@ -986,7 +986,6 @@
                                             [:spine-anim-ids :spine-anim-ids]
                                             [:aabb :aabb]
                                             [:build-targets :dep-build-targets]
-                                            [:node-outline :source-outline]
                                             [:anim-data :anim-data]
                                             [:scene-structure :scene-structure])))
             (dynamic edit-type (g/constantly {:type resource/Resource :ext spine-scene-ext}))

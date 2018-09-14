@@ -261,6 +261,7 @@
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
           (g/connect app-view :selected-node-ids outline-view :selection)
+          (g/connect app-view :hidden-node-outline-key-paths outline-view :hidden-node-outline-key-paths)
           (g/connect app-view :active-resource asset-browser :active-resource)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
