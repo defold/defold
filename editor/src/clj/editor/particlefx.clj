@@ -278,7 +278,7 @@
         magnitude (props/sample magnitude)
         max-distance (props/sample max-distance)]
     {:node-id _node-id
-     :node-key (:label mod-type)
+     :node-outline-key (:label mod-type)
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-lines
@@ -377,7 +377,7 @@
                    :geom-data-world (apply (:geom-data-world emitter-type)
                                            (mapv props/sample [emitter-key-size-x emitter-key-size-y emitter-key-size-z]))}]
     {:node-id _node-id
-     :node-key id
+     :node-outline-key id
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-emitters
@@ -387,7 +387,7 @@
                   :user-data user-data
                   :passes [pass/selection pass/transparent]}
      :children (into [{:node-id _node-id
-                       :node-key id
+                       :node-outline-key id
                        :aabb aabb
                        :renderable {:render-fn render-lines
                                     :batch-key nil
