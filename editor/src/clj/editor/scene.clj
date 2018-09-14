@@ -721,8 +721,6 @@
   (active? [app-view] (active-scene-view app-view))
   (run [app-view] (scene-visibility/toggle-tag-visibility! app-view :grid)))
 
-(declare SceneNode)
-
 (defn- recursive-node-outline-key-paths [node-outline-key-path {:keys [node-id children] :as _scene}]
   (mapcat (fn [{child-node-id :node-id child-node-outline-key :node-outline-key :as child-scene}]
             (if (= node-id child-node-id)
@@ -732,32 +730,35 @@
                       (recursive-node-outline-key-paths child-node-outline-key-path child-scene)))))
           children))
 
-(defn- selection->renderable-node-outline-key-paths [selection]
-  (into #{}
-        (mapcat (fn [{:keys [node-id node-outline-key-path]}]
-                  (if (empty? (rest node-outline-key-path))
-                    (recursive-node-outline-key-paths node-outline-key-path (g/node-value node-id :scene))
-                    (cons node-outline-key-path
-                          (recursive-node-outline-key-paths node-outline-key-path (g/node-value node-id :scene))))))
-        selection))
+(defn- selected-renderable-node-outline-key-paths [outline-view]
+  (g/with-auto-evaluation-context evaluation-context
+    (into #{}
+          (mapcat (fn [{:keys [node-id node-outline-key-path]}]
+                    (when (g/has-output? (g/node-type* (:basis evaluation-context) node-id) :scene)
+                      (let [scene (g/node-value node-id :scene evaluation-context)]
+                        (if (empty? (rest node-outline-key-path))
+                          (recursive-node-outline-key-paths node-outline-key-path scene)
+                          (cons node-outline-key-path
+                                (recursive-node-outline-key-paths node-outline-key-path scene)))))))
+          (g/node-value outline-view :tree-selection evaluation-context))))
 
-(defn- selection->hideable-node-outline-key-paths [app-view selection]
-  (not-empty (set/difference (set (selection->renderable-node-outline-key-paths selection))
+(defn- hideable-node-outline-key-paths [app-view outline-view]
+  (not-empty (set/difference (selected-renderable-node-outline-key-paths outline-view)
                              (scene-visibility/hidden-node-outline-key-paths app-view))))
 
-(defn- selection->showable-node-outline-key-paths [app-view selection]
-  (not-empty (set/intersection (set (selection->renderable-node-outline-key-paths selection))
+(defn- showable-node-outline-key-paths [app-view outline-view]
+  (not-empty (set/intersection (selected-renderable-node-outline-key-paths outline-view)
                                (scene-visibility/hidden-node-outline-key-paths app-view))))
 
 (handler/defhandler :hide-selected :workbench
   (active? [app-view] (active-scene-view app-view))
-  (enabled? [app-view selection] (selection->hideable-node-outline-key-paths app-view selection))
-  (run [app-view selection] (scene-visibility/hide-node-outline-key-paths! app-view (selection->hideable-node-outline-key-paths app-view selection))))
+  (enabled? [app-view outline-view] (hideable-node-outline-key-paths app-view outline-view))
+  (run [app-view outline-view] (scene-visibility/hide-node-outline-key-paths! app-view (hideable-node-outline-key-paths app-view outline-view))))
 
 (handler/defhandler :show-selected :workbench
   (active? [app-view] (active-scene-view app-view))
-  (enabled? [app-view selection] (selection->showable-node-outline-key-paths app-view selection))
-  (run [app-view selection] (scene-visibility/show-node-outline-key-paths! app-view (selection->showable-node-outline-key-paths app-view selection))))
+  (enabled? [app-view outline-view] (showable-node-outline-key-paths app-view outline-view))
+  (run [app-view outline-view] (scene-visibility/show-node-outline-key-paths! app-view (showable-node-outline-key-paths app-view outline-view))))
 
 (handler/defhandler :show-last-hidden :workbench
   (active? [app-view] (active-scene-view app-view))
