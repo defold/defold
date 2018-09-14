@@ -193,37 +193,37 @@
                :children [{:node-id :scene-node-id
                            :children [{:node-id :scene-node-id}]}
                           {:node-id :tree-node-id
-                           :node-key :tree-node-key
+                           :node-outline-key :tree-node-outline-key
                            :children [{:node-id :apple-node-id
-                                       :node-key :apple-node-key}]}
+                                       :node-outline-key :apple-node-outline-key}]}
                           {:node-id :house-node-id
-                           :node-key :house-node-key
+                           :node-outline-key :house-node-outline-key
                            :children [{:node-id :door-node-id
-                                       :node-key :door-node-key
+                                       :node-outline-key :door-node-outline-key
                                        :children [{:node-id :door-handle-node-id
-                                                   :node-key :door-handle-node-key}]}]}]}]
+                                                   :node-outline-key :door-handle-node-outline-key}]}]}]}]
     (is (= {:node-id :new-node-id
-            :node-key :new-node-key
+            :node-outline-key :new-node-outline-key
             :children [{:node-id :new-node-id
-                        :node-key :new-node-key
+                        :node-outline-key :new-node-outline-key
                         :children [{:node-id :new-node-id
-                                    :node-key :new-node-key}]}
+                                    :node-outline-key :new-node-outline-key}]}
                        {:node-id :tree-node-id
-                        :node-key :tree-node-key
+                        :node-outline-key :tree-node-outline-key
                         :picking-id :new-node-id
                         :children [{:node-id :apple-node-id
-                                    :node-key :apple-node-key
+                                    :node-outline-key :apple-node-outline-key
                                     :picking-id :new-node-id}]}
                        {:node-id :house-node-id
-                        :node-key :house-node-key
+                        :node-outline-key :house-node-outline-key
                         :picking-id :new-node-id
                         :children [{:node-id :door-node-id
-                                    :node-key :door-node-key
+                                    :node-outline-key :door-node-outline-key
                                     :picking-id :new-node-id
                                     :children [{:node-id :door-handle-node-id
-                                                :node-key :door-handle-node-key
+                                                :node-outline-key :door-handle-node-outline-key
                                                 :picking-id :new-node-id}]}]}]}
-           (scene/claim-scene scene :new-node-id :new-node-key)))))
+           (scene/claim-scene scene :new-node-id :new-node-outline-key)))))
 
 (defn- render-pass? [pass]
   (satisfies? types/Pass pass))
@@ -234,8 +234,8 @@
            :batch-key
            :node-id
            :node-id-path
-           :node-key
-           :node-key-path
+           :node-outline-key
+           :node-outline-key-path
            :picking-id
            :parent-world-transform
            :render-fn
@@ -249,9 +249,9 @@
   (is (some? (:node-id renderable)))
   (is (vector? (:node-id-path renderable)))
   (is (every? some? (:node-id-path renderable)))
-  (is (vector? (:node-key-path renderable)))
-  (is keyword? (first (:node-key-path renderable)))
-  (is (every? string? (rest (:node-key-path renderable))))
+  (is (vector? (:node-outline-key-path renderable)))
+  (is keyword? (first (:node-outline-key-path renderable)))
+  (is (every? string? (rest (:node-outline-key-path renderable))))
   (is (or (nil? (:picking-id renderable)) (= (type (:node-id renderable)) (type (:picking-id renderable)))))
   (is (instance? Matrix4d (:parent-world-transform renderable)))
   (is (some? (:render-fn renderable)))
@@ -267,48 +267,48 @@
   (let [passes [pass/transparent pass/selection pass/outline]
         camera (camera/make-camera)
         scene {:node-id :scene-node-id
-               :node-key "scene-node-key"
+               :node-outline-key "scene-node-outline-key"
                :renderable {:render-fn :scene-render-fn
                             :passes passes}
                :children [{:node-id :scene-node-id
-                           :node-key "scene-node-key"
+                           :node-outline-key "scene-node-outline-key"
                            :renderable {:render-fn :scene-render-fn-2
                                         :passes passes}}
                           {:node-id :tree-node-id
-                           :node-key "tree-node-key"
+                           :node-outline-key "tree-node-outline-key"
                            :renderable {:render-fn :tree-render-fn
                                         :passes passes}
                            :children [{:node-id :apple-node-id
-                                       :node-key "apple-node-key"
+                                       :node-outline-key "apple-node-outline-key"
                                        :renderable {:render-fn :apple-render-fn
                                                     :passes passes}
                                        :children [{:node-id :apple-node-id
-                                                   :node-key "apple-node-key"
+                                                   :node-outline-key "apple-node-outline-key"
                                                    :renderable {:render-fn :apple-render-fn-2
                                                                 :passes passes}}]}]}
                           {:node-id :house-node-id
-                           :node-key "house-node-key"
+                           :node-outline-key "house-node-outline-key"
                            :renderable {:render-fn :house-render-fn
                                        :passes passes}
                            :children [{:node-id :door-node-id
-                                       :node-key "door-node-key"
+                                       :node-outline-key "door-node-outline-key"
                                        :renderable {:render-fn :door-render-fn
                                                     :passes passes}
                                        :children [{:node-id :door-handle-node-id
-                                                   :node-key "door-handle-node-key"
+                                                   :node-outline-key "door-handle-node-outline-key"
                                                    :renderable {:render-fn :door-handle-render-fn
                                                                 :passes passes}}]}]}
                           {:node-id :well-node-id
-                           :node-key "well-node-key"
+                           :node-outline-key "well-node-outline-key"
                            :renderable {:render-fn :well-render-fn
                                         :passes passes}
                            :children [{:node-id :rope-node-id
-                                       :node-key "rope-node-key"
+                                       :node-outline-key "rope-node-outline-key"
                                        :picking-id :well-node-id
                                        :renderable {:render-fn :rope-render-fn
                                                     :passes passes}
                                        :children [{:node-id :bucket-node-id
-                                                   :node-key "bucket-node-key"
+                                                   :node-outline-key "bucket-node-outline-key"
                                                    :picking-id :well-node-id
                                                    :renderable {:render-fn :bucket-render-fn
                                                                 :passes passes}}]}]}]}]
@@ -367,24 +367,24 @@
     (testing "Node key paths are assigned correctly"
       (let [render-data (scene/produce-render-data scene [] [] #{} #{} camera)
             selection-renderables (-> render-data :renderables (get pass/selection))
-            node-key-paths-by-node-id (into {}
-                                            (map (fn [[node-id renderables]]
-                                                   [node-id (mapv :node-key-path renderables)]))
-                                            (group-by :node-id selection-renderables))]
-        (are [node-id node-key-paths]
-          (= node-key-paths (get node-key-paths-by-node-id node-id ::missing))
+            node-outline-key-paths-by-node-id (into {}
+                                                    (map (fn [[node-id renderables]]
+                                                           [node-id (mapv :node-outline-key-path renderables)]))
+                                                    (group-by :node-id selection-renderables))]
+        (are [node-id node-outline-key-paths]
+          (= node-outline-key-paths (get node-outline-key-paths-by-node-id node-id ::missing))
 
           :scene-node-id       [[:scene-node-id]
                                 [:scene-node-id]]
-          :tree-node-id        [[:scene-node-id "tree-node-key"]]
-          :apple-node-id       [[:scene-node-id "tree-node-key" "apple-node-key"]
-                                [:scene-node-id "tree-node-key" "apple-node-key"]]
-          :house-node-id       [[:scene-node-id "house-node-key"]]
-          :door-node-id        [[:scene-node-id "house-node-key" "door-node-key"]]
-          :door-handle-node-id [[:scene-node-id "house-node-key" "door-node-key" "door-handle-node-key"]]
-          :well-node-id        [[:scene-node-id "well-node-key"]]
-          :rope-node-id        [[:scene-node-id "well-node-key" "rope-node-key"]]
-          :bucket-node-id      [[:scene-node-id "well-node-key" "rope-node-key" "bucket-node-key"]])))
+          :tree-node-id        [[:scene-node-id "tree-node-outline-key"]]
+          :apple-node-id       [[:scene-node-id "tree-node-outline-key" "apple-node-outline-key"]
+                                [:scene-node-id "tree-node-outline-key" "apple-node-outline-key"]]
+          :house-node-id       [[:scene-node-id "house-node-outline-key"]]
+          :door-node-id        [[:scene-node-id "house-node-outline-key" "door-node-outline-key"]]
+          :door-handle-node-id [[:scene-node-id "house-node-outline-key" "door-node-outline-key" "door-handle-node-outline-key"]]
+          :well-node-id        [[:scene-node-id "well-node-outline-key"]]
+          :rope-node-id        [[:scene-node-id "well-node-outline-key" "rope-node-outline-key"]]
+          :bucket-node-id      [[:scene-node-id "well-node-outline-key" "rope-node-outline-key" "bucket-node-outline-key"]])))
 
     (testing "Selection"
       (are [selection appears-selected]

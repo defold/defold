@@ -347,7 +347,7 @@
           pass-renderables
           passes))
 
-(defn- flatten-scene-renderables! [pass-renderables scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj node-id-path node-key-path ^Quat4d parent-world-rotation ^Matrix4d parent-world-transform]
+(defn- flatten-scene-renderables! [pass-renderables scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj node-id-path node-outline-key-path ^Quat4d parent-world-rotation ^Matrix4d parent-world-transform]
   (let [renderable (:renderable scene)
         local-transform ^Matrix4d (:transform scene geom/Identity4d)
         world-transform (doto (Matrix4d. parent-world-transform) (.mul local-transform))
@@ -358,7 +358,7 @@
         flat-renderable (-> scene
                             (dissoc :children :renderable)
                             (assoc :node-id-path node-id-path
-                                   :node-key-path node-key-path
+                                   :node-outline-key-path node-outline-key-path
                                    :picking-id (or (:picking-id scene) (peek node-id-path))
                                    :tags (:tags renderable)
                                    :render-fn (:render-fn renderable)
@@ -371,7 +371,7 @@
                                    :aabb (geom/aabb-transform ^AABB (:aabb scene (geom/null-aabb)) parent-world-transform)
                                    :render-key (render-key view-proj world-transform (:index renderable) (:topmost? renderable))
                                    :pass-overrides {pass/outline {:render-key (outline-render-key view-proj world-transform (:index renderable) (:topmost? renderable) appear-selected?)}}))
-        visible? (and (not (contains? hidden-node-outline-key-paths node-key-path))
+        visible? (and (not (contains? hidden-node-outline-key-paths node-outline-key-path))
                       (not-any? (partial contains? hidden-renderable-tags) (:tags flat-renderable)))
         drawn-passes (cond
                        ;; Draw to all passes unless hidden.
@@ -397,20 +397,20 @@
                     child-node-id-path (if (= parent-node-id child-node-id)
                                          node-id-path
                                          (conj node-id-path child-node-id))
-                    child-node-key-path (if (= parent-node-id child-node-id)
-                                          node-key-path
-                                          (conj node-key-path (:node-key child-scene)))]
-                (flatten-scene-renderables! pass-renderables child-scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj child-node-id-path child-node-key-path world-rotation world-transform)))
+                    child-node-outline-key-path (if (= parent-node-id child-node-id)
+                                                  node-outline-key-path
+                                                  (conj node-outline-key-path (:node-outline-key child-scene)))]
+                (flatten-scene-renderables! pass-renderables child-scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj child-node-id-path child-node-outline-key-path world-rotation world-transform)))
             pass-renderables
             (:children scene))))
 
 (defn- flatten-scene [scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj]
   (let [node-id-path []
-        node-key-path [(:node-id scene)]
+        node-outline-key-path [(:node-id scene)]
         parent-world-rotation geom/NoRotation
         parent-world-transform geom/Identity4d]
     (-> (make-pass-renderables)
-        (flatten-scene-renderables! scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj node-id-path node-key-path parent-world-rotation parent-world-transform)
+        (flatten-scene-renderables! scene selection-set hidden-renderable-tags hidden-node-outline-key-paths view-proj node-id-path node-outline-key-path parent-world-rotation parent-world-transform)
         (persist-pass-renderables!))))
 
 (defn- get-selection-pass-renderables-by-node-id
@@ -551,21 +551,21 @@
                 children (update :children (partial mapv scene-fn)))))]
     (scene-fn scene)))
 
-(defn claim-child-scene [old-node-id new-node-id new-node-key child-scene]
+(defn claim-child-scene [old-node-id new-node-id new-node-outline-key child-scene]
   (if (= old-node-id (:node-id child-scene))
-    (assoc child-scene :node-id new-node-id :node-key new-node-key)
+    (assoc child-scene :node-id new-node-id :node-outline-key new-node-outline-key)
     (assoc child-scene :picking-id new-node-id)))
 
-(defn claim-scene [scene new-node-id new-node-key]
+(defn claim-scene [scene new-node-id new-node-outline-key]
   ;; When scenes reference other resources in the project, we want to treat the
   ;; referenced scene as a group when picking in the scene view. To make this
   ;; happen, the referencing scene claims ownership of the referenced scene and
   ;; its children. Note that sub-elements can still be selected using the
   ;; Outline view should the need arise.
   (let [old-node-id (:node-id scene)
-        child-f (partial claim-child-scene old-node-id new-node-id new-node-key)
+        child-f (partial claim-child-scene old-node-id new-node-id new-node-outline-key)
         children (:children scene)]
-    (cond-> (assoc scene :node-id new-node-id :node-key new-node-key)
+    (cond-> (assoc scene :node-id new-node-id :node-outline-key new-node-outline-key)
       children (update :children (partial mapv (partial map-scene child-f))))))
 
 (g/defnk produce-selection [renderables ^GLAutoDrawable drawable viewport camera ^Rect picking-rect ^IntBuffer select-buffer selection]
@@ -723,22 +723,22 @@
 
 (declare SceneNode)
 
-(defn- recursive-node-key-paths [node-key-path {:keys [node-id children] :as _scene}]
-  (mapcat (fn [{child-node-id :node-id child-node-key :node-key :as child-scene}]
+(defn- recursive-node-outline-key-paths [node-outline-key-path {:keys [node-id children] :as _scene}]
+  (mapcat (fn [{child-node-id :node-id child-node-outline-key :node-outline-key :as child-scene}]
             (if (= node-id child-node-id)
-              (recursive-node-key-paths node-key-path child-scene)
-              (let [child-node-key-path (conj node-key-path child-node-key)]
-                (cons child-node-key-path
-                      (recursive-node-key-paths child-node-key-path child-scene)))))
+              (recursive-node-outline-key-paths node-outline-key-path child-scene)
+              (let [child-node-outline-key-path (conj node-outline-key-path child-node-outline-key)]
+                (cons child-node-outline-key-path
+                      (recursive-node-outline-key-paths child-node-outline-key-path child-scene)))))
           children))
 
 (defn- selection->renderable-node-outline-key-paths [selection]
   (into #{}
-        (mapcat (fn [{:keys [node-id node-key-path]}]
-                  (if (empty? (rest node-key-path))
-                    (recursive-node-key-paths node-key-path (g/node-value node-id :scene))
-                    (cons node-key-path
-                          (recursive-node-key-paths node-key-path (g/node-value node-id :scene))))))
+        (mapcat (fn [{:keys [node-id node-outline-key-path]}]
+                  (if (empty? (rest node-outline-key-path))
+                    (recursive-node-outline-key-paths node-outline-key-path (g/node-value node-id :scene))
+                    (cons node-outline-key-path
+                          (recursive-node-outline-key-paths node-outline-key-path (g/node-value node-id :scene))))))
         selection))
 
 (defn- selection->hideable-node-outline-key-paths [app-view selection]
