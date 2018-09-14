@@ -337,6 +337,10 @@ see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/Ad
 
 Note: When running the editor and building a Defold project you must first go to Preferences->Defold->Custom Application and point it to a dmengine built for your OS.
 
+## Running JUnit test in Eclipse
+* Run the tests with JUnit Plug-in Test
+	- Some test may fail due to missing engine builds for some platforms
+
 **Notes for building the editor under Linux:**
 * Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
 * Install [libssl0.9.8](https://packages.debian.org/squeeze/i386/libssl0.9.8/download), the Git version bundled with the editor is currently linked against libcrypto.so.0.9.8.
