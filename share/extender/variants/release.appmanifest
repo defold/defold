@@ -1,0 +1,58 @@
+# App manifest generated Thu Sep 13 2018 13:46:56 GMT+0200 (CEST)
+# Settings: Release
+platforms:
+    x86_64-osx:
+        context:
+            excludeLibs: ["engine"]
+            excludeSymbols: []
+            libs: ["engine_release"]
+            linkFlags: []
+
+    x86_64-linux:
+        context:
+            excludeLibs: ["engine"]
+            excludeSymbols: []
+            libs: ["engine_release"]
+            linkFlags: []
+
+    js-web:
+        context:
+            excludeLibs: ["engine"]
+            excludeSymbols: []
+            libs: ["engine_release"]
+            linkFlags: []
+
+    x86-win32:
+        context:
+            excludeLibs: ["libengine"]
+            excludeSymbols: []
+            libs: ["libengine_release.lib"]
+            linkFlags: []
+
+    x86_64-win32:
+        context:
+            excludeLibs: ["libengine"]
+            excludeSymbols: []
+            libs: ["libengine_release.lib"]
+            linkFlags: []
+
+    armv7-android:
+        context:
+            excludeLibs: ["engine"]
+            excludeSymbols: []
+            libs: ["engine_release"]
+            linkFlags: []
+
+    armv7-ios:
+        context:
+            excludeLibs: ["engine"]
+            excludeSymbols: []
+            libs: ["engine_release"]
+            linkFlags: []
+
+    arm64-ios:
+        context:
+            excludeLibs: ["engine"]
+            excludeSymbols: []
+            libs: ["engine_release"]
+            linkFlags: []
