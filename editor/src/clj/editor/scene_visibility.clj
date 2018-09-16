@@ -2,6 +2,7 @@
   (:require [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.keymap :as keymap]
+            [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.ui.popup :as popup]
             [editor.util :as util]
@@ -19,45 +20,106 @@
 
 (defn node-outline-key-path? [value]
   (and (vector? value)
-       (let [[resource-node-id & outline-node-names] value]
-         (and (integer? resource-node-id)
+       (let [[resource-node & outline-node-names] value]
+         (and (integer? resource-node)
               (every? string? outline-node-names)))))
 
-(def TNodeOutlineKeyPath (s/pred node-outline-key-path?))
-(def TNodeOutlineKeyPaths #{TNodeOutlineKeyPath})
-(g/deftype NodeOutlineKeyPaths TNodeOutlineKeyPaths)
-(g/deftype NodeOutlineKeyPathsHistory [(s/both TNodeOutlineKeyPaths (s/pred seq 'seq))])
+(defn outline-name-path? [value]
+  (and (vector? value)
+       (every? string? value)))
+
+(g/deftype NodeOutlineKeyPaths #{(s/pred node-outline-key-path?)})
+(g/deftype HideHistory [(s/both #{(s/pred outline-name-path?)} (s/pred seq))])
+
+(g/defnode SceneHideHistoryNode
+  (property hide-history HideHistory)
+  (input scene-resource-node g/NodeID)
+  (output hidden-node-outline-key-paths NodeOutlineKeyPaths (g/fnk [hide-history scene-resource-node]
+                                                              (into #{}
+                                                                    (comp cat
+                                                                          (map (partial into [scene-resource-node])))
+                                                                    hide-history))))
+
+(defn- find-scene-hide-history-node [toggles-node scene-resource-node]
+  (some (fn [[scene-hide-history-node]]
+          (when (some-> (g/node-feeding-into scene-hide-history-node :scene-resource-node) (= scene-resource-node))
+            scene-hide-history-node))
+        (g/sources-of toggles-node :hidden-node-outline-key-paths)))
+
+(defn- active-scene-resource-node [toggles-node]
+  (when-some [active-resource-node (g/node-value toggles-node :active-resource-node)]
+    (when (g/has-output? (g/node-type* active-resource-node) :scene)
+      active-resource-node)))
+
+(defn remove-invalid-scene-hide-history-nodes! [toggles-node]
+  (let [invalid-scene-hide-history-nodes (into []
+                                               (keep (fn [[scene-hide-history-node]]
+                                                       (let [scene-resource-node (g/node-feeding-into scene-hide-history-node :scene-resource-node)]
+                                                         (when (or (nil? scene-resource-node)
+                                                                   (resource-node/defective? scene-resource-node))
+                                                           scene-hide-history-node))))
+                                               (g/sources-of toggles-node :hidden-node-outline-key-paths))]
+    (when (seq invalid-scene-hide-history-nodes)
+      (g/transact
+        (map g/delete-node invalid-scene-hide-history-nodes)))))
 
 (defn hidden-node-outline-key-paths [toggles-node]
-  (not-empty (g/node-value toggles-node :hidden-node-outline-key-paths)))
+  (when-some [active-scene-resource-node (active-scene-resource-node toggles-node)]
+    (when-some [scene-hide-history-node (find-scene-hide-history-node toggles-node active-scene-resource-node)]
+      (not-empty (g/node-value scene-hide-history-node :hidden-node-outline-key-paths)))))
 
 (defn last-hidden-node-outline-key-paths [toggles-node]
-  (peek (g/node-value toggles-node :hidden-node-outline-key-paths-history)))
+  (when-some [active-scene-resource-node (active-scene-resource-node toggles-node)]
+    (when-some [scene-hide-history-node (find-scene-hide-history-node toggles-node active-scene-resource-node)]
+      (when-some [outline-name-paths (peek (g/node-value scene-hide-history-node :hide-history))]
+        (into #{}
+              (map (partial into [active-scene-resource-node]))
+              outline-name-paths)))))
 
 (defn show-node-outline-key-paths! [toggles-node node-outline-key-paths]
   (assert (set? (not-empty node-outline-key-paths)))
   (assert (every? node-outline-key-path? node-outline-key-paths))
-  (g/transact
-    (concat
-      (g/update-property toggles-node :hidden-node-outline-key-paths set/difference node-outline-key-paths)
-      (g/update-property toggles-node :hidden-node-outline-key-paths-history
-                         (fn [hidden-node-outline-key-paths-history]
-                           ;; Removing the now-visible nodes from the history
-                           ;; ensures the Show Last Hidden Objects command will
-                           ;; work as expected if the user manually shows nodes
-                           ;; she had previously hidden.
-                           (into []
-                                 (keep (fn [hidden-node-outline-key-paths]
-                                         (not-empty (set/difference hidden-node-outline-key-paths node-outline-key-paths))))
-                                 hidden-node-outline-key-paths-history))))))
+  (let [outline-name-paths-by-scene-hide-history-node (into {}
+                                                            (map (fn [[scene-resource-node scene-node-outline-key-paths]]
+                                                                   (let [scene-hide-history-node (find-scene-hide-history-node toggles-node scene-resource-node)
+                                                                         outline-name-paths (into #{} (map (comp vec rest)) scene-node-outline-key-paths)]
+                                                                     [scene-hide-history-node outline-name-paths])))
+                                                            (group-by first node-outline-key-paths))]
+    (g/transact
+      (for [[scene-hide-history-node outline-name-paths] outline-name-paths-by-scene-hide-history-node]
+        (g/update-property scene-hide-history-node :hide-history
+                           (fn [hide-history]
+                             ;; Removing the now-visible nodes from the history
+                             ;; ensures the Show Last Hidden Objects command
+                             ;; will work as expected if the user manually shows
+                             ;; nodes she had previously hidden.
+                             (into []
+                                   (keep (fn [hidden-outline-name-paths]
+                                           (not-empty (set/difference hidden-outline-name-paths outline-name-paths))))
+                                   hide-history)))))
+
+    ;; Remove SceneHideHistoryNodes whose history is now empty.
+    (let [empty-scene-hide-history-nodes (keep (fn [[scene-hide-history-node]]
+                                                 (when (empty? (g/node-value scene-hide-history-node :hide-history))
+                                                   scene-hide-history-node))
+                                               outline-name-paths-by-scene-hide-history-node)]
+      (when (seq empty-scene-hide-history-nodes)
+        (g/transact
+          (map g/delete-node empty-scene-hide-history-nodes))))))
 
 (defn hide-node-outline-key-paths! [toggles-node node-outline-key-paths]
   (assert (set? (not-empty node-outline-key-paths)))
   (assert (every? node-outline-key-path? node-outline-key-paths))
-  (g/transact
-    (concat
-      (g/update-property toggles-node :hidden-node-outline-key-paths set/union node-outline-key-paths)
-      (g/update-property toggles-node :hidden-node-outline-key-paths-history conj node-outline-key-paths))))
+  (let [graph (g/node-id->graph-id toggles-node)]
+    (g/transact
+      (for [[scene-resource-node scene-node-outline-key-paths] (group-by first node-outline-key-paths)
+            :let [scene-hide-history-node (find-scene-hide-history-node toggles-node scene-resource-node)
+                  outline-name-paths (into #{} (map (comp vec rest)) scene-node-outline-key-paths)]]
+        (if (some? scene-hide-history-node)
+          (g/update-property scene-hide-history-node :hide-history conj outline-name-paths)
+          (g/make-nodes graph [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
+                        (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
+                        (g/connect scene-hide-history-node :hidden-node-outline-key-paths toggles-node :hidden-node-outline-key-paths)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Visibility Filters

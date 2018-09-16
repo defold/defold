@@ -28,6 +28,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.keymap :as keymap]
@@ -96,6 +97,9 @@
           (fire-tab-closed-event! tab))
         (.removeAll (.getTabs tab-pane) closed-tabs)))))
 
+(defn remove-invalid-view-graph-nodes! [app-view]
+  (scene-visibility/remove-invalid-scene-hide-history-nodes! app-view))
+
 (g/defnode AppView
   (property stage Stage)
   (property editor-tabs-split SplitPane)
@@ -107,12 +111,11 @@
 
   (property visibility-filters-enabled g/Any)
   (property hidden-renderable-tags g/Any)
-  (property hidden-node-outline-key-paths scene-visibility/NodeOutlineKeyPaths)
-  (property hidden-node-outline-key-paths-history scene-visibility/NodeOutlineKeyPathsHistory)
 
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
+  (input hidden-node-outline-key-paths scene-visibility/NodeOutlineKeyPaths :array)
   (input outline g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
@@ -136,7 +139,10 @@
                                                                 (if visibility-filters-enabled
                                                                   hidden-renderable-tags
                                                                   (set/intersection hidden-renderable-tags #{:outline :grid}))))
-  
+
+  (output hidden-node-outline-key-paths scene-visibility/NodeOutlineKeyPaths :cached (g/fnk [hidden-node-outline-key-paths]
+                                                                                       (apply set/union hidden-node-outline-key-paths)))
+
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
@@ -1138,9 +1144,7 @@ If you do not specifically require different script states, consider changing th
                                                                      :active-tool :move
                                                                      :manip-space :world
                                                                      :visibility-filters-enabled true
-                                                                     :hidden-renderable-tags #{}
-                                                                     :hidden-node-outline-key-paths #{}
-                                                                     :hidden-node-outline-key-paths-history []))))]
+                                                                     :hidden-renderable-tags #{}))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
@@ -1217,11 +1221,6 @@ If you do not specifically require different script states, consider changing th
             (string/replace tmpl (format "{%s}" (name key)) (str val)))
     tmpl args))
 
-(defn- defective-resource-node? [resource-node]
-  (let [value (g/node-value resource-node :valid-node-id+resource)]
-    (and (g/error? value)
-         (g/error-fatal? value))))
-
 (defn open-resource
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
@@ -1236,7 +1235,7 @@ If you do not specifically require different script states, consider changing th
                               (placeholder-resource/view-type workspace)
                               (first (:view-types resource-type)))
                             text-view-type)]
-     (if (defective-resource-node? resource-node)
+     (if (resource-node/defective? resource-node)
        (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
