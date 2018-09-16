@@ -79,6 +79,11 @@
                                        (DigestUtils/sha256Hex ^java.io.InputStream s))
                                      (DigestUtils/sha256Hex ^String content))))))
 
+(defn defective? [resource-node]
+  (let [value (g/node-value resource-node :valid-node-id+resource)]
+    (and (g/error? value)
+         (g/error-fatal? value))))
+
 (defn make-ddf-dependencies-fn [ddf-type]
   (fn [source-value]
     (into []

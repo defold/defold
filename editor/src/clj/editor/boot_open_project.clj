@@ -96,10 +96,12 @@
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view]
-  (ui/user-data! app-scene ::ui/refresh-requested? true)
-  (app-view/remove-invalid-tabs! tab-panes open-views)
-  (changes-view/refresh! changes-view))
+(defn- handle-resource-changes! [app-scene tab-panes app-view changes-view]
+  (let [open-views (g/node-value app-view :open-views)]
+    (ui/user-data! app-scene ::ui/refresh-requested? true)
+    (app-view/remove-invalid-tabs! tab-panes open-views)
+    (app-view/remove-invalid-view-graph-nodes! app-view)
+    (changes-view/refresh! changes-view)))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (ui/visible! label (let [update (updater/pending-update update-context)]
@@ -214,9 +216,8 @@
 
       (workspace/add-resource-listener! workspace (reify resource/ResourceListener
                                                     (handle-changes [_ _ _]
-                                                      (let [open-views (g/node-value app-view :open-views)
-                                                            panes (.getItems ^SplitPane editor-tabs-split)]
-                                                        (handle-resource-changes! scene panes open-views changes-view)))))
+                                                      (let [panes (.getItems ^SplitPane editor-tabs-split)]
+                                                        (handle-resource-changes! scene panes app-view changes-view)))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
