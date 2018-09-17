@@ -73,6 +73,7 @@ namespace dmGameSystem
         TileGridResource* resource = tile_grid->m_TileGridResource;
         dmGameSystemDDF::TileGrid* tile_grid_ddf = resource->m_TileGrid;
         uint32_t n_layers = tile_grid_ddf->m_Layers.m_Count;
+        dmLogWarning("CreateTileGrid, n_layers(ddf): %u, tile_grid->m_Layers.Capacity()(resource): %u", n_layers, tile_grid->m_Layers.Size());
         dmArray<TileGridComponent::Layer>& layers = tile_grid->m_Layers;
         if (layers.Capacity() < n_layers)
         {
@@ -608,9 +609,20 @@ namespace dmGameSystem
     }
 
     void CompTileGridOnReload(const dmGameObject::ComponentOnReloadParams& params)
-    {
+    {        
         TileGridComponent* tile_grid = (TileGridComponent*)*params.m_UserData;
+        dmGameSystemDDF::TileGrid* tile_grid_ddf = tile_grid->m_TileGridResource->m_TileGrid;
         tile_grid->m_TileGridResource = (TileGridResource*)params.m_Resource;
+        
+        if (tile_grid_ddf->m_Layers.m_Count <= tile_grid->m_Layers.Capacity())
+        {
+            tile_grid->m_Layers.SetSize(tile_grid_ddf->m_Layers.m_Count);
+        }
+        else
+        {
+            tile_grid->m_Layers.OffsetCapacity(tile_grid_ddf->m_Layers.m_Count - tile_grid->m_Layers.Capacity());
+        }
+
         if (!CreateTileGrid(tile_grid))
         {
             dmLogError("%s", "Could not recreate tile grid component, not reloaded.");
