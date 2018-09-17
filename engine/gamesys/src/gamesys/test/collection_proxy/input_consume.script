@@ -3,9 +3,8 @@ function init(self)
 end
 
 function on_input(self, action_id, action)
-	if action_id == hash("test_action_consume_no") then
-		return false
-	else
+	last_input_object = go.get_id()
+	if action.pressed then
 		return true
 	end
 end
