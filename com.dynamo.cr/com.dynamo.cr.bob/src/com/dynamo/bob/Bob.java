@@ -375,6 +375,7 @@ public class Bob {
 
         if (!cmd.hasOption("variant")) {
             if (cmd.hasOption("debug")) {
+                System.out.println("WARNING option 'debug' is deprecated, use options 'variant' and 'strip-executable' instead.");
                 project.setOption("variant", VARIANT_DEBUG);
             } else {
                 project.setOption("variant", VARIANT_RELEASE);
@@ -384,7 +385,7 @@ public class Bob {
 
         if (cmd.hasOption("texture-profiles")) {
             // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
-            System.out.println("WARNING option 'texture-profiles' is deprecated, setting 'texture-compression' option instead.");
+            System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
             String texCompression = cmd.getOptionValue("texture-profiles");
             if (cmd.hasOption("texture-compression")) {
                 texCompression = cmd.getOptionValue("texture-compression");
