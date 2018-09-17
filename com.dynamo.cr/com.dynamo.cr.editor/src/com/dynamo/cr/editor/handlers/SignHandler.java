@@ -188,7 +188,7 @@ public class SignHandler extends AbstractHandler {
                 }
                 if (buildRemoteEngine) {
                     tmpProject.buildEngine(new ProgressDelegate(monitor), platforms, variant);
-	            }
+                }
 
                 // Get engine executables
                 // armv7 exe
