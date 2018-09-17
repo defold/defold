@@ -345,9 +345,10 @@ public class BundleResourcesTest {
         assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
         assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
         assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
-        ExtenderResource app_manifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
-        String synthesized_manifest = new String(app_manifest.getContent());
-        assertEquals(synthesized_manifest.substring(0, 23), "__base_variant: release");
+        ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String synthesizedManifest = new String(appManifest.getContent());
+        String expectedManifest = "context:" + System.getProperty("line.separator") + "    baseVariant: release" + System.getProperty("line.separator");
+        assertEquals(synthesizedManifest, expectedManifest);
     }
 
     @Test
@@ -355,10 +356,11 @@ public class BundleResourcesTest {
     	project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
     	List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, "debug");
         assertEquals(5, resources.size());
-        ExtenderResource app_manifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
-        String patched_manifest = new String(app_manifest.getContent());
-        assertEquals(patched_manifest.length(), 1681);
-        assertEquals(patched_manifest.substring(0, 21), "__base_variant: debug");
+        ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String patchedManifest = new String(appManifest.getContent());
+        String expectedManifest = "context:" + System.getProperty("line.separator") + "    baseVariant: debug" + System.getProperty("line.separator");
+        assertTrue(patchedManifest.length() > expectedManifest.length());
+        assertEquals(patchedManifest.substring(0, expectedManifest.length()), expectedManifest);
     }
 
 }

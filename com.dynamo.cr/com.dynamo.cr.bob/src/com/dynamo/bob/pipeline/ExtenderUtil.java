@@ -280,7 +280,7 @@ public class ExtenderUtil {
             {
                 return content;
             }
-            String variantPrefix = "__base_variant: " + variant + System.getProperty("line.separator");
+            String variantPrefix = "context:" + System.getProperty("line.separator") + "    baseVariant: " + variant + System.getProperty("line.separator");
             byte[] variantBytes = variantPrefix.getBytes();
             byte[] c = new byte[variantBytes.length + content.length];
             System.arraycopy(variantBytes, 0, c, 0, variantBytes.length);
