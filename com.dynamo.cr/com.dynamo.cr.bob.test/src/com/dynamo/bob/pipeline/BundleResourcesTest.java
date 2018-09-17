@@ -32,7 +32,6 @@ import org.junit.rules.TemporaryFolder;
 import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
-import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderResource;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
