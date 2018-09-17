@@ -138,11 +138,15 @@ public class ExtenderUtil {
         }
     }
 
-    private static class EmptyResource implements IResource {
+    // A resource which is a minimal manifest - platforms section needs to be included otherwise
+    // the extender server will crash
+    // Crash will be resolved with https://github.com/defold/extender/pull/100
+    private static class EmptyAppManifestResource implements IResource {
     	private String rootDir;
-    	private String path;
+        private String path;
+        private static final String emptyManifestString = "platforms:" + System.getProperty("line.separator");
 
-    	public EmptyResource(String rootDir, String path) {
+    	public EmptyAppManifestResource(String rootDir, String path) {
             this.rootDir = rootDir;
             this.path = path;
         }
@@ -154,7 +158,7 @@ public class ExtenderUtil {
 
 		@Override
 		public byte[] getContent() throws IOException {
-			return new byte[0];
+			return emptyManifestString.getBytes();
 		}
 
 		@Override
@@ -415,7 +419,7 @@ public class ExtenderUtil {
         else if (variant != null)
         {
             // Make up appmanifest
-        	IResource resource = new EmptyResource(project.getRootDirectory(), appManifestPath);
+        	IResource resource = new EmptyAppManifestResource(project.getRootDirectory(), appManifestPath);
         	sources.add( new FSAppManifestResource( resource, project.getRootDirectory(), appManifestPath, variant ) );
         }
 
