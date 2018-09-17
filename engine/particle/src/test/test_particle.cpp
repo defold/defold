@@ -6,6 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/vmath.h>
 
 #include <ddf/ddf.h>
 
@@ -859,6 +860,73 @@ TEST_F(ParticleTest, ParticleApplyLifeRotationToMovementDirection)
 
     dmParticle::DestroyInstance(m_Context, instance);
 }
+
+/**
+* Verify particle rotation using static angular velocity.
+*/
+TEST_F(ParticleTest, ParticleAngularVelocity)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("angular_velocity.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+
+    Quat q = e->m_Particles[0].GetRotation();
+
+    Vector3 r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_EQ(0.0f, r.getX());
+    ASSERT_EQ(0.0f, r.getY());
+    ASSERT_EQ(90.0f, r.getZ());
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    q = e->m_Particles[0].GetRotation();
+
+    r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_EQ(0.0f, r.getX());
+    ASSERT_EQ(0.0f, r.getY());
+    ASSERT_EQ(180.0f, r.getZ());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
+* Verify initial particle rotation in combination with angular velocity.
+*/
+TEST_F(ParticleTest, ParticleAngularVelocityInitialRotation)
+{
+    float dt = 1.0f;
+
+    ASSERT_TRUE(LoadPrototype("angular_velocity_initial_rot.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+
+    Quat q = e->m_Particles[0].GetRotation();
+
+    Vector3 r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_EQ(0.0f, r.getX());
+    ASSERT_EQ(0.0f, r.getY());
+    ASSERT_EQ(0.0f, r.getZ());
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    q = e->m_Particles[0].GetRotation();
+
+    r = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
+    ASSERT_EQ(0.0f, r.getX());
+    ASSERT_EQ(0.0f, r.getY());
+    ASSERT_EQ(90.0f, r.getZ());
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 
 /**
  * Verify rate of > 1/dt

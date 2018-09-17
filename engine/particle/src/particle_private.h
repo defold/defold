@@ -85,6 +85,9 @@ namespace dmParticle
         /// Particle stretch factor
         float       m_StretchFactorX;
         float       m_StretchFactorY;
+        /// Particle angular velocity
+        float       m_AngularVelocity;
+        float       m_SourceAngularVelocity;
     };
 
     /**
