@@ -725,25 +725,28 @@ static void initGLXExtensions( void )
         }
     }
 
-    if( _glfwPlatformExtensionSupported( "GLX_SGIX_fbconfig" ) )
-    {
-        _glfwWin.GetFBConfigAttribSGIX = (PFNGLXGETFBCONFIGATTRIBSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXGetFBConfigAttribSGIX" );
-        _glfwWin.ChooseFBConfigSGIX = (PFNGLXCHOOSEFBCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXChooseFBConfigSGIX" );
-        _glfwWin.CreateContextWithConfigSGIX = (PFNGLXCREATECONTEXTWITHCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXCreateContextWithConfigSGIX" );
-        _glfwWin.GetVisualFromFBConfigSGIX = (PFNGLXGETVISUALFROMFBCONFIGSGIXPROC)
-            _glfwPlatformGetProcAddress( "glXGetVisualFromFBConfigSGIX" );
-
-        if( _glfwWin.GetFBConfigAttribSGIX &&
-            _glfwWin.ChooseFBConfigSGIX &&
-            _glfwWin.CreateContextWithConfigSGIX &&
-            _glfwWin.GetVisualFromFBConfigSGIX )
-        {
-            _glfwWin.has_GLX_SGIX_fbconfig = GL_TRUE;
-        }
-    }
+    // DEF-3489 When comparing the behavior to GLFW 3, that version doesn't use SGIX
+    // and it seems our version returned different fbconfigs, which eventually won't work
+    // when calling glXMakeCurrent
+    // if( _glfwPlatformExtensionSupported( "GLX_SGIX_fbconfig" ) )
+    // {
+    //     _glfwWin.GetFBConfigAttribSGIX = (PFNGLXGETFBCONFIGATTRIBSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXGetFBConfigAttribSGIX" );
+    //     _glfwWin.ChooseFBConfigSGIX = (PFNGLXCHOOSEFBCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXChooseFBConfigSGIX" );
+    //     _glfwWin.CreateContextWithConfigSGIX = (PFNGLXCREATECONTEXTWITHCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXCreateContextWithConfigSGIX" );
+    //     _glfwWin.GetVisualFromFBConfigSGIX = (PFNGLXGETVISUALFROMFBCONFIGSGIXPROC)
+    //         _glfwPlatformGetProcAddress( "glXGetVisualFromFBConfigSGIX" );
+    //
+    //     if( _glfwWin.GetFBConfigAttribSGIX &&
+    //         _glfwWin.ChooseFBConfigSGIX &&
+    //         _glfwWin.CreateContextWithConfigSGIX &&
+    //         _glfwWin.GetVisualFromFBConfigSGIX )
+    //     {
+    //         _glfwWin.has_GLX_SGIX_fbconfig = GL_TRUE;
+    //     }
+    // }
 
     if( _glfwPlatformExtensionSupported( "GLX_ARB_multisample" ) )
     {
