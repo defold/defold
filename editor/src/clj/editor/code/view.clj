@@ -826,7 +826,7 @@
   (input cursor-ranges r/CursorRanges)
   (input indent-type r/IndentType)
   (input invalidated-rows r/InvalidatedRows)
-  (input lines r/Lines)
+  (input lines r/Lines :substitute [""])
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
@@ -2036,6 +2036,14 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- setup-view! [resource-node view-node app-view]
+  ;; Grab the unmodified lines or io error before opening the
+  ;; file. Otherwise this will happen on the first edit. If a
+  ;; background process has modified (or even deleted) the file
+  ;; without the editor knowing, the "original" unmodified lines
+  ;; reached after a series of undo's could be something else entirely
+  ;; than what the user saw.
+  (g/with-auto-evaluation-context ec
+    (r/ensure-unmodified-lines! resource-node ec))
   (let [glyph-metrics (g/node-value view-node :glyph-metrics)
         tab-spaces (g/node-value view-node :tab-spaces)
         tab-stops (data/tab-stops glyph-metrics tab-spaces)
@@ -2269,7 +2277,7 @@
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
         replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
         repainter (ui/->timer "repaint-code-editor-view" (fn [_ elapsed-time]
-                                                           (when (.isSelected tab)
+                                                           (when (and (.isSelected tab) (not (ui/ui-disabled?)))
                                                              (repaint-view! view-node elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :goto-line-bar goto-line-bar
