@@ -86,16 +86,22 @@ copy () {
 
 copy linux/dmengine x86-linux/dmengine
 copy linux/dmengine_release x86-linux/dmengine_release
+copy linux/dmengine_headless x86-linux/dmengine_headless
 copy x86_64-linux/dmengine x86_64-linux/dmengine
 copy x86_64-linux/dmengine_release x86_64-linux/dmengine_release
+copy x86_64-linux/dmengine_headless x86_64-linux/dmengine_headless
 copy darwin/dmengine x86-darwin/dmengine
 copy darwin/dmengine_release x86-darwin/dmengine_release
+copy darwin/dmengine_headless x86-darwin/dmengine_headless
 copy x86_64-darwin/dmengine x86_64-darwin/dmengine
 copy x86_64-darwin/dmengine_release x86_64-darwin/dmengine_release
+copy x86_64-darwin/dmengine_headless x86_64-darwin/dmengine_headless
 copy win32/dmengine.exe x86-win32/dmengine.exe
 copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
+copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
+copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
 copy armv7-darwin/dmengine armv7-darwin/dmengine
 copy armv7-darwin/dmengine_release armv7-darwin/dmengine_release
 copy arm64-darwin/dmengine arm64-darwin/dmengine
