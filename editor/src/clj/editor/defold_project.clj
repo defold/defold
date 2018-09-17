@@ -140,7 +140,7 @@
         nodes-by-resource-path (merge old-nodes-by-resource-path loaded-nodes-by-resource-path)
         loaded-nodes (set node-ids)
         load-deps (fn [node-id] (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))
-        node-ids (sort-nodes-for-loading loaded-nodes load-deps)
+        node-ids (sort-nodes-for-loading (sort-by (comp resource/resource->proj-path node-id->resource) node-ids) load-deps)
         basis (:basis evaluation-context)
         render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 0) 4)
         render-processing-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 4))
@@ -178,9 +178,12 @@
   (let [project-graph (graph project)]
     (g/tx-nodes-added
       (g/transact
-        (for [[resource-type resources] (group-by resource/resource-type resources)
-              :let [node-type (resource-type->node-type resource-type)]
-              resource resources
+        ;;(for [[resource-type resources] (group-by resource/resource-type (sort-by resource/resource->proj-path resources))
+        ;;      :let [node-type (resource-type->node-type resource-type)]
+        ;;      resource resources
+        (for [resource (sort-by resource/resource->proj-path resources)
+              :let [resource-type (resource/resource-type resource)
+                    node-type (resource-type->node-type resource-type)]
               :when (not= :folder (resource/source-type resource))]
           (g/make-nodes project-graph [node [node-type :resource resource]]
                         (g/connect node :_node-id project :nodes)
