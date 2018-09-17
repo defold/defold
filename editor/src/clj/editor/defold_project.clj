@@ -2,6 +2,7 @@
   "Define the concept of a project, and its Project node type. This namespace bridges between Eclipse's workbench and
   ordinary paths."
   (:require [clojure.java.io :as io]
+            [clojure.set :as set]
             [dynamo.graph :as g]
             [editor.collision-groups :as collision-groups]
             [editor.core :as core]
@@ -12,30 +13,22 @@
             [editor.library :as library]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.workspace :as workspace]
-            [editor.outline :as outline]
-            [editor.validation :as validation]
             [editor.game-project-core :as gpc]
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
             [editor.placeholder-resource :as placeholder-resource]
-            [editor.prefs :as prefs]
             [editor.properties :as properties]
-            [editor.system :as system]
             [editor.util :as util]
             [service.log :as log]
             [editor.graph-util :as gu]
-            [util.http-server :as http-server]
             [util.text-util :as text-util]
-            [clojure.string :as str]
             [schema.core :as s]
             [util.thread-util :as thread-util])
-  (:import [java.io File]
-           [org.apache.commons.codec.digest DigestUtils]
-           [org.apache.commons.io IOUtils]
-           [editor.resource FileResource]))
+  (:import (java.util.concurrent.atomic AtomicLong)))
 
 (set! *warn-on-reflection* true)
 
@@ -67,7 +60,7 @@
       (when-not loaded?
         (if (or (= :folder (resource/source-type resource))
                 (not (resource/exists? resource)))
-          (g/mark-defective node-id node-type (validation/file-not-found-error node-id nil :fatal resource))
+          (g/mark-defective node-id node-type (resource-io/file-not-found-error node-id nil :fatal resource))
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
@@ -76,7 +69,7 @@
               (load-registered-resource-node load-fn project node-id resource))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (validation/invalid-content-error node-id nil :fatal resource)))))))
+              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource)))))))
     (catch Throwable t
       (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
                       {:node-type node-type
@@ -149,8 +142,8 @@
         load-deps (fn [node-id] (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))
         node-ids (sort-nodes-for-loading loaded-nodes load-deps)
         basis (:basis evaluation-context)
-        render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 2 0))
-        render-processing-progress! (progress/nest-render-progress render-progress! (progress/make "" 2 1))
+        render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 0) 4)
+        render-processing-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 4))
         load-txs (doall
                    (for [[node-index node-id] (map-indexed #(clojure.lang.MapEntry/create (inc %1) %2) node-ids)]
                      (let [resource-path (resource/resource->proj-path (node-id->resource node-id))]
@@ -166,7 +159,8 @@
     load-txs))
 
 (defn- load-nodes! [project node-ids render-progress! resource-node-dependencies]
-  (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies)))
+  (g/transact (load-resource-nodes project node-ids render-progress! resource-node-dependencies))
+  (render-progress! progress/done))
 
 (defn connect-if-output [src-type src tgt connections]
   (let [outputs (g/output-labels src-type)]
@@ -230,8 +224,22 @@
   (g/node-value project :save-data))
 
 (defn dirty-save-data
-  [project]
-  (g/node-value project :dirty-save-data))
+  ([project]
+   (g/node-value project :dirty-save-data))
+  ([project evaluation-context]
+   (g/node-value project :dirty-save-data evaluation-context)))
+
+(declare make-count-progress-steps-tracer make-progress-tracer)
+
+(defn dirty-save-data-with-progress [project evaluation-context render-progress!]
+  (ui/with-progress [render-progress! render-progress!]
+    (let [step-count (AtomicLong.)
+          step-count-tracer (make-count-progress-steps-tracer :save-data step-count)
+          progress-message-fn (constantly "Saving...")]
+      (render-progress! (progress/make "Saving..."))
+      (dirty-save-data project (assoc evaluation-context :dry-run true :tracer step-count-tracer))
+      (let [progress-tracer (make-progress-tracer :save-data (.get step-count) progress-message-fn render-progress!)]
+        (dirty-save-data project (assoc evaluation-context :tracer progress-tracer))))))
 
 (defn textual-resource-type? [resource-type]
   ;; Unregistered resources that are connected to the project
@@ -242,7 +250,7 @@
 (defn write-save-data-to-disk! [save-data {:keys [render-progress!]
                                            :or {render-progress! progress/null-render-progress!}
                                            :as opts}]
-  (render-progress! (progress/make "Saving..."))
+  (render-progress! (progress/make "Writing files..."))
   (if (g/error? save-data)
     (throw (Exception. ^String (properties/error-message save-data)))
     (do
@@ -258,8 +266,10 @@
               (spit resource content))))
         save-data
         render-progress!
-        (fn [{:keys [resource]}] (and resource (str "Saving " (resource/resource->proj-path resource)))))
-      (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))))
+        (fn [{:keys [resource]}] (and resource (str "Writing " (resource/resource->proj-path resource))))))))
+
+(defn invalidate-save-data-source-values! [save-data]
+  (g/invalidate-outputs! (mapv (fn [sd] [(:node-id sd) :source-value]) save-data)))
 
 (defn workspace
   ([project]
@@ -268,36 +278,29 @@
   ([project evaluation-context]
    (g/node-value project :workspace evaluation-context)))
 
-(defn save-all!
-  ([project]
-   ;; TODO: We call save-all! from build-html5, when bundling, when updating and when actually saving all.
-   ;; In all those cases we probably want to pass in a properly nested render-progress!, but for now we default
-   ;; to no progress reporting.
-   (save-all! project (progress/throttle-render-progress progress/null-render-progress!)))
-  ([project render-progress!]
-   (let [workspace (workspace project)
-         save-data (dirty-save-data project)]
-     (ui/with-progress [render-progress! render-progress!]
-       (write-save-data-to-disk! save-data {:render-progress! render-progress!}))
-     (workspace/update-snapshot-status! workspace (map :resource save-data)))))
-
-(defn make-collect-progress-steps-tracer [steps-atom]
+(defn make-collect-progress-steps-tracer [watched-label steps-atom]
   (fn [state node output-type label]
-    (when (and (= label :build-targets) (= state :begin) (= output-type :output))
+    (when (and (= label watched-label) (= state :begin) (= output-type :output))
       (swap! steps-atom conj node))))
 
-(defn make-progress-tracer [step-count node-id->resource-path render-progress!]
+(defn make-count-progress-steps-tracer [watched-label ^AtomicLong step-count]
+  (fn [state node output-type label]
+    (when (and (= label watched-label) (= state :begin) (= output-type :output))
+      (.getAndIncrement step-count))))
+
+(defn make-progress-tracer [watched-label step-count progress-message-fn render-progress!]
   (let [steps-done (atom #{})
-        progress (atom (progress/make "" step-count))]
+        initial-progress-message (progress-message-fn nil)
+        progress (atom (progress/make initial-progress-message step-count))]
     (fn [state node output-type label]
-      (when (and (= label :build-targets) (= output-type :output))
+      (when (and (= label watched-label) (= output-type :output))
         (case state
           :begin
-          (let [new-path (node-id->resource-path node)]
+          (let [progress-message (progress-message-fn node)]
             (render-progress! (swap! progress
-                                     #(progress/with-message % (if new-path
-                                                                 (str "Compiling " new-path)
-                                                                 (or (progress/message %) ""))))))
+                                     #(progress/with-message % (or progress-message
+                                                                   (progress/message %)
+                                                                   "")))))
 
           :end
           (let [already-done (loop []
@@ -321,14 +324,20 @@
 (defn- available-processors []
   (.. Runtime getRuntime availableProcessors))
 
+(defn- compiling-progress-message [node-id->resource-path node-id]
+  (if (nil? node-id)
+    "Compiling..."
+    (when-some [resource-path (node-id->resource-path node-id)]
+      (str "Compiling " resource-path))))
+
 (defn build!
   [project node evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [steps (atom [])
-        collect-tracer (make-collect-progress-steps-tracer steps)
+        collect-tracer (make-collect-progress-steps-tracer :build-targets steps)
         _ (g/node-value node :build-targets (assoc evaluation-context :dry-run true :tracer collect-tracer))
-        node-id->resource-path (clojure.set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context))
+        progress-message-fn (partial compiling-progress-message (set/map-invert (g/node-value project :nodes-by-resource-path evaluation-context)))
         step-count (count @steps)
-        progress-tracer (make-progress-tracer step-count node-id->resource-path (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
+        progress-tracer (make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
         prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (reverse @steps))
         _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
@@ -495,7 +504,7 @@
 
       (g/transact
         (for [node (:mark-deleted plan)]
-          (let [flaw (validation/file-not-found-error node nil :fatal (g/node-value node :resource))]
+          (let [flaw (resource-io/file-not-found-error node nil :fatal (g/node-value node :resource))]
             (g/mark-defective node flaw))))
 
       (let [all-outputs (mapcat (fn [node]
@@ -709,7 +718,7 @@
                             (g/connect workspace-id :resource-map project :resource-map)
                             (g/connect workspace-id :resource-types project :resource-types)
                             (g/set-graph-value graph :project-id project)))))]
-    (workspace/add-resource-listener! workspace-id (ProjectResourceListener. project-id))
+    (workspace/add-resource-listener! workspace-id 1 (ProjectResourceListener. project-id))
     project-id))
 
 (defn- read-dependencies [game-project-resource]
@@ -729,20 +738,20 @@
 
 (defn open-project! [graph workspace-id game-project-resource render-progress! login-fn]
   (let [dependencies (read-dependencies game-project-resource)
-        progress (atom (progress/make "Updating dependencies..." 3))]
+        progress (atom (progress/make "Updating dependencies..." 13 0))]
     (render-progress! @progress)
 
     ;; Fetch+install libs if we have network, otherwise fallback to disk state
     (if (workspace/dependencies-reachable? dependencies login-fn)
-      (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress))
+      (->> (workspace/fetch-and-validate-libraries workspace-id dependencies (progress/nest-render-progress render-progress! @progress 4))
            (workspace/install-validated-libraries! workspace-id dependencies))
       (workspace/set-project-dependencies! workspace-id dependencies))
 
-    (render-progress! (swap! progress progress/advance 1 "Syncing resources"))
+    (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
     (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
-    (render-progress! (swap! progress progress/advance 1 "Loading project"))
+    (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id)
-          populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress))]
+          populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
       (cache-save-data! populated-project)
       populated-project)))
 

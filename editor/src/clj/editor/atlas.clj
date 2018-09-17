@@ -20,6 +20,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.pipeline :as pipeline]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -382,7 +383,9 @@
   ((:f generator) (:args generator)))
 
 (defn- generate-packed-image [{:keys [_node-id image-resources texture-set-data-generator]}]
-  (let [buffered-images (mapv #(validation/resource-io-with-errors image-util/read-image % _node-id nil) image-resources)
+  (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
+                                 (image-util/read-image %))
+                              image-resources)
         errors (filter g/error? buffered-images)]
     (if (seq errors)
       (g/error-aggregate errors)
@@ -463,7 +466,8 @@
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resources]
                                               (let [flat-image-resources (flatten image-resources)
-                                                    shas                 (map #(validation/resource-io-with-errors resource/resource->sha1-hex % _node-id nil)
+                                                    shas                 (map #(resource-io/with-error-translation % _node-id nil
+                                                                                 (resource/resource->sha1-hex %))
                                                                               flat-image-resources)
                                                     errors               (filter g/error? shas)]
                                                 (if (seq errors)
