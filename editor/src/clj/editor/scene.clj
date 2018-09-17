@@ -6,20 +6,17 @@
             [editor.camera :as c]
             [editor.scene-selection :as selection]
             [editor.colors :as colors]
-            [editor.core :as core]
             [editor.geom :as geom]
             [editor.gl :as gl]
             [editor.grid :as grid]
             [editor.input :as i]
             [editor.math :as math]
-            [editor.defold-project :as project]
             [editor.error-reporting :as error-reporting]
             [util.profiler :as profiler]
             [editor.resource :as resource]
             [editor.scene-cache :as scene-cache]
             [editor.scene-text :as scene-text]
             [editor.scene-tools :as scene-tools]
-            [editor.scene-visibility :as scene-visibility]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.handler :as handler]
@@ -459,8 +456,8 @@
   (input selection g/Any)
   (input camera Camera)
   (input aux-renderables pass/RenderData :array :substitute gu/array-subst-remove-errors)
-  (input hidden-node-outline-key-paths g/Any)
-  (input hidden-renderable-tags g/Any)
+  (input hidden-renderable-tags types/RenderableTags)
+  (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
 
   (output viewport Region :abstract)
   (output all-renderables g/Any :abstract)
@@ -708,67 +705,6 @@
       (concat
         (g/set-property view-id :play-mode new-play-mode)
         (g/set-property view-id :active-updatable-ids selected-updatable-ids)))))
-
-(handler/defhandler :toggle-visibility-filters :workbench
-  (active? [app-view] (active-scene-view app-view))
-  (run [app-view] (scene-visibility/toggle-filters-enabled! app-view)))
-
-(handler/defhandler :toggle-component-guides :workbench
-  (active? [app-view] (active-scene-view app-view))
-  (run [app-view] (scene-visibility/toggle-tag-visibility! app-view :outline)))
-
-(handler/defhandler :toggle-grid :workbench
-  (active? [app-view] (active-scene-view app-view))
-  (run [app-view] (scene-visibility/toggle-tag-visibility! app-view :grid)))
-
-(defn- recursive-node-outline-key-paths [node-outline-key-path {:keys [node-id children] :as _scene}]
-  (mapcat (fn [{child-node-id :node-id child-node-outline-key :node-outline-key :as child-scene}]
-            (if (= node-id child-node-id)
-              (recursive-node-outline-key-paths node-outline-key-path child-scene)
-              (let [child-node-outline-key-path (conj node-outline-key-path child-node-outline-key)]
-                (cons child-node-outline-key-path
-                      (recursive-node-outline-key-paths child-node-outline-key-path child-scene)))))
-          children))
-
-(defn- selected-renderable-node-outline-key-paths [outline-view]
-  (g/with-auto-evaluation-context evaluation-context
-    (into #{}
-          (mapcat (fn [{:keys [node-id node-outline-key-path]}]
-                    (when (g/has-output? (g/node-type* (:basis evaluation-context) node-id) :scene)
-                      (let [scene (g/node-value node-id :scene evaluation-context)]
-                        (if (empty? (rest node-outline-key-path))
-                          (recursive-node-outline-key-paths node-outline-key-path scene)
-                          (cons node-outline-key-path
-                                (recursive-node-outline-key-paths node-outline-key-path scene)))))))
-          (g/node-value outline-view :tree-selection evaluation-context))))
-
-(defn- hideable-node-outline-key-paths [app-view outline-view]
-  (not-empty (set/difference (selected-renderable-node-outline-key-paths outline-view)
-                             (scene-visibility/hidden-node-outline-key-paths app-view))))
-
-(defn- showable-node-outline-key-paths [app-view outline-view]
-  (not-empty (set/intersection (selected-renderable-node-outline-key-paths outline-view)
-                               (scene-visibility/hidden-node-outline-key-paths app-view))))
-
-(handler/defhandler :hide-selected :workbench
-  (active? [app-view] (active-scene-view app-view))
-  (enabled? [app-view outline-view] (hideable-node-outline-key-paths app-view outline-view))
-  (run [app-view outline-view] (scene-visibility/hide-node-outline-key-paths! app-view (hideable-node-outline-key-paths app-view outline-view))))
-
-(handler/defhandler :show-selected :workbench
-  (active? [app-view] (active-scene-view app-view))
-  (enabled? [app-view outline-view] (showable-node-outline-key-paths app-view outline-view))
-  (run [app-view outline-view] (scene-visibility/show-node-outline-key-paths! app-view (showable-node-outline-key-paths app-view outline-view))))
-
-(handler/defhandler :show-last-hidden :workbench
-  (active? [app-view] (active-scene-view app-view))
-  (enabled? [app-view] (scene-visibility/last-hidden-node-outline-key-paths app-view))
-  (run [app-view] (scene-visibility/show-node-outline-key-paths! app-view (scene-visibility/last-hidden-node-outline-key-paths app-view))))
-
-(handler/defhandler :show-all-hidden :workbench
-  (active? [app-view] (active-scene-view app-view))
-  (enabled? [app-view] (scene-visibility/hidden-node-outline-key-paths app-view))
-  (run [app-view] (scene-visibility/show-node-outline-key-paths! app-view (scene-visibility/hidden-node-outline-key-paths app-view))))
 
 (handler/defhandler :scene-play :global
   (active? [app-view] (when-let [view (active-scene-view app-view)]
@@ -1116,8 +1052,8 @@
   (input active-tool g/Keyword)
   (input manip-space g/Keyword)
 
-  (input hidden-node-outline-key-paths scene-visibility/NodeOutlineKeyPaths)
-  (input hidden-renderable-tags g/Any)
+  (input hidden-renderable-tags types/RenderableTags)
+  (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
   (input updatables g/Any)
   (input selected-updatables g/Any)
   (input picking-rect Rect)
@@ -1193,7 +1129,7 @@
                     (g/connect app-view-id          :active-view               view-id          :active-view)
                     (g/connect app-view-id          :active-tool               view-id          :active-tool)
                     (g/connect app-view-id          :manip-space               view-id          :manip-space)
-                    (g/connect app-view-id          :effective-hidden-renderable-tags view-id   :hidden-renderable-tags)
+                    (g/connect app-view-id          :hidden-renderable-tags    view-id          :hidden-renderable-tags)
                     (g/connect app-view-id          :hidden-node-outline-key-paths view-id      :hidden-node-outline-key-paths)
 
                     (g/connect tool-controller      :input-handler             view-id          :input-handlers)
