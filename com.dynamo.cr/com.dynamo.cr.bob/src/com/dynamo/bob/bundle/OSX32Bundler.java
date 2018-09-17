@@ -47,14 +47,11 @@ public class OSX32Bundler implements IBundler {
         File resourcesDir = new File(contentsDir, "Resources");
         File macosDir = new File(contentsDir, "MacOS");
 
-        final String variant = Bob.getVariant(project.hasOption("debug"), project.option("variant", null));
-
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(platform, variant));
-        File bundleExe = defaultExe;
-        if (extenderExe.exists()) {
-            bundleExe = extenderExe;
+        File bundleExe = Bob.getNativeExtensionEngine(platform, extenderExeDir);
+        if (bundleExe == null) {
+            final String variant = Bob.getVariant(project.hasOption("debug"), project.option("variant", null));
+            bundleExe = new File(Bob.getDefaultDmenginePath(platform, variant));
         }
 
         FileUtils.deleteDirectory(appDir);

@@ -126,24 +126,24 @@ public class IOSBundler implements IBundler {
         // armv7 exe
         {
             Platform targetPlatform = Platform.Armv7Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, variant));
-            exeArmv7 = defaultExe;
-            if (extenderExe.exists()) {
+            exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+            if (exeArmv7 == null) {
+                exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            }
+            else {
                 logger.log(Level.INFO, "Using extender exe for Armv7");
-                exeArmv7 = extenderExe;
             }
         }
 
         // arm64 exe
         {
             Platform targetPlatform = Platform.Arm64Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, variant));
-            exeArm64 = defaultExe;
-            if (extenderExe.exists()) {
+            exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+            if (exeArmv7 == null) {
+                exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            }
+            else {
                 logger.log(Level.INFO, "Using extender exe for Arm64");
-                exeArm64 = extenderExe;
             }
         }
 

@@ -76,14 +76,15 @@ public class AndroidBundler implements IBundler {
 
         // If a custom engine was built we need to copy it
         Platform targetPlatform = Platform.Armv7Android;
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, variant));
-        File bundleExe = defaultExe;
+
         ArrayList<File> classesDex = new ArrayList<File>();
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
-        if (extenderExe.exists()) {
-            bundleExe = extenderExe;
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File bundleExe = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+        if (bundleExe == null) {
+            bundleExe = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+        }
+        else {
             classesDex = new ArrayList<File>();
             int i = 1;
             while(true)

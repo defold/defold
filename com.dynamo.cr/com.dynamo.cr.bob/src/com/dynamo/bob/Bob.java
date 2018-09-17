@@ -146,6 +146,17 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    public static boolean hasExe(Platform platform, String name) throws IOException {
+        init();
+
+        String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
+        URL url = Bob.class.getResource("/libexec/" + exeName);
+        if (url == null) {
+            return false;
+        }
+        return true;
+    }
+
     public static String getExe(Platform platform, String name) throws IOException {
         init();
 
@@ -176,7 +187,7 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-   public static String getDmengineExeName(String variant) {
+   public static String getDefaultDmengineExeName(String variant) {
         switch (variant)
         {
             case VARIANT_DEBUG:
@@ -190,8 +201,8 @@ public class Bob {
         }
     }
 
-    public static String getDmengineExe(Platform platform, String variant) throws IOException {
-        return getExe(platform, getDmengineExeName(variant));
+    public static String getDefaultDmenginePath(Platform platform, String variant) throws IOException {
+        return getExe(platform, getDefaultDmengineExeName(variant));
     }
 
     public static boolean getStripExecutable(boolean debug_option, boolean strip_executable_option, String variant_option)
@@ -216,6 +227,15 @@ public class Bob {
         return variant_option;
     }
 
+    public static File getNativeExtensionEngine(Platform platform, String extenderExeDir) throws IOException
+    {
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
+        if (extenderExe.exists()) {
+            return extenderExe;
+        }
+        return null;
+    }
+
     public static String getLib(Platform platform, String name) throws IOException {
         init();
 
@@ -230,6 +250,10 @@ public class Bob {
             f.setExecutable(true);
         }
         return f.getAbsolutePath();
+    }
+
+    public static File getDefaultDmengineFolder() {
+        return rootFolder;
     }
 
     private static CommandLine parse(String[] args) {
