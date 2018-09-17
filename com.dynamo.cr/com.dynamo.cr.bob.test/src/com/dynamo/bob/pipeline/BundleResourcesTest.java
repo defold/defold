@@ -277,9 +277,7 @@ public class BundleResourcesTest {
 
         // Test data
         Map<Platform, String[]> expected = new HashMap<Platform, String[]>();
-        expected.put(Platform.X86Darwin, new String[] { "osx.txt", "x86-osx.txt" });
         expected.put(Platform.X86_64Darwin, new String[] { "osx.txt", "x86_64-osx.txt" });
-        expected.put(Platform.X86Linux, new String[] { "linux.txt", "x86-linux.txt" });
         expected.put(Platform.X86_64Linux, new String[] { "linux.txt", "x86_64-linux.txt" });
         expected.put(Platform.X86Win32, new String[] { "win32.txt", "x86-win32.txt" });
         expected.put(Platform.X86_64Win32, new String[] { "win32.txt", "x86_64-win32.txt" });
