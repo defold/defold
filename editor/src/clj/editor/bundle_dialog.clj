@@ -7,7 +7,8 @@
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.system :as system]
-            [editor.ui :as ui])
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
   (:import [java.io File]
            [javafx.scene Scene]
            [javafx.scene.control Button CheckBox ChoiceBox Label TextField]
