@@ -205,28 +205,6 @@ public class Bob {
         return getExe(platform, getDefaultDmengineExeName(variant));
     }
 
-    public static boolean getStripExecutable(boolean debug_option, boolean strip_executable_option, String variant_option)
-    {
-        if (strip_executable_option)
-        {
-            return true;
-        }
-        if (variant_option == null)
-        {
-            return !debug_option;
-        }
-        return false;
-    }
-
-    public static String getVariant(boolean debug_option, String variant_option)
-    {
-        if (variant_option == null || variant_option.isEmpty())
-        {
-            return debug_option ? VARIANT_DEBUG : VARIANT_RELEASE;
-        }
-        return variant_option;
-    }
-
     public static File getNativeExtensionEngine(Platform platform, String extenderExeDir) throws IOException
     {
         File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
@@ -349,6 +327,18 @@ public class Bob {
             return;
         }
 
+        if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
+            System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
+            System.exit(0);
+            return;
+        }
+
+        if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
+            System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
+            System.exit(0);
+            return;
+        }
+
         String[] commands = cmd.getArgs();
         if (commands.length == 0) {
             commands = new String[] { "build" };
@@ -380,6 +370,15 @@ public class Bob {
                 } else {
                     project.setOption(o.getLongOpt(), "true");
                 }
+            }
+        }
+
+        if (!cmd.hasOption("variant")) {
+            if (cmd.hasOption("debug")) {
+                project.setOption("variant", VARIANT_DEBUG);
+            } else {
+                project.setOption("variant", VARIANT_RELEASE);
+                project.setOption("strip-executable", "true");
             }
         }
 

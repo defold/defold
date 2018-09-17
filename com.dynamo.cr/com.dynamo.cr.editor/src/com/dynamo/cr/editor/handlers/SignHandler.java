@@ -154,7 +154,7 @@ public class SignHandler extends AbstractHandler {
 
 
             try {
-                final String variant = Bob.getVariant(true, null);  // We always sign the debug non-stripped executable
+                final String variant = Bob.VARIANT_DEBUG;  // We always sign the debug non-stripped executable
 
                 exeArmv7 = new File(Bob.getDefaultDmenginePath(Platform.Armv7Darwin, variant));
                 exeArm64 = new File(Bob.getDefaultDmenginePath(Platform.Arm64Darwin, variant));

@@ -114,8 +114,8 @@ public class IOSBundler implements IBundler {
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
 
-        final String variant = Bob.getVariant(project.hasOption("debug"), project.option("variant", null));
-        final boolean strip_executable = Bob.getStripExecutable(project.hasOption("debug"), project.hasOption("strip-executable"), project.option("variant", null));
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final boolean strip_executable = project.hasOption("strip-executable");
 
         File exeArmv7 = null;
         File exeArm64 = null;

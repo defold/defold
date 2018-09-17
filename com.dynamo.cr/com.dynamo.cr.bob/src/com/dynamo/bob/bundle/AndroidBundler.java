@@ -65,8 +65,8 @@ public class AndroidBundler implements IBundler {
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Armv7Android);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        final String variant = Bob.getVariant(project.hasOption("debug"), project.option("variant", null));
-        final boolean strip_executable = Bob.getStripExecutable(project.hasOption("debug"), project.hasOption("strip-executable"), project.option("variant", null));
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final boolean strip_executable = project.hasOption("strip-executable");
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = title.replace(' ', '_');

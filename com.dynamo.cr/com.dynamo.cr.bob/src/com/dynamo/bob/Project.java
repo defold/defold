@@ -754,7 +754,7 @@ public class Project {
                     break;
                 }
 
-                final String variant = Bob.getVariant(this.hasOption("debug"), this.option("variant", null));
+                final String variant = this.option("variant", Bob.VARIANT_RELEASE);
                 final String[] platforms = getPlatformStrings();
                 // Get or build engine binary
                 boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);

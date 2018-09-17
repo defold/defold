@@ -24,7 +24,7 @@ public class LinuxBundler implements IBundler {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         File bundleExe = Bob.getNativeExtensionEngine(platform, extenderExeDir);
         if (bundleExe == null) {
-            final String variant = Bob.getVariant(project.hasOption("debug"), project.option("variant", null));
+            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
             bundleExe = new File(Bob.getDefaultDmenginePath(platform, variant));
         }
 
