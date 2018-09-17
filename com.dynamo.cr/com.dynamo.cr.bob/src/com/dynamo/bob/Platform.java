@@ -103,7 +103,7 @@ public enum Platform {
         return libPrefix + basename + libSuffix;
     }
 
-    static Platform get(String pair) {
+    public static Platform get(String pair) {
         Platform[] platforms = Platform.values();
         for (Platform p : platforms) {
             if (p.getPair().equals(pair)) {

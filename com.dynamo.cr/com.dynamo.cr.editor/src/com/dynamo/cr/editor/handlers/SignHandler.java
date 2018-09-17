@@ -173,11 +173,22 @@ public class SignHandler extends AbstractHandler {
                 }
                 tmpProject.setOption("defoldsdk", sdkVersion);
 
-                List<String> extensionPaths = ExtenderUtil.getExtensionFolders(tmpProject);
-                boolean hasNativeExtensions = extensionPaths.size() > 0;
-                if (hasNativeExtensions) {
-                    tmpProject.buildEngine(new ProgressDelegate(monitor));
+                final String[] platforms = tmpProject.getPlatformStrings();
+                // Get or build engine binary
+                boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(tmpProject);
+                if (!buildRemoteEngine) {
+                    String engineName = Bob.getDefaultDmengineExeName(variant);
+                    for (String platformString : platforms) {
+                        Platform platform = Platform.get(platformString);
+                        if (!Bob.hasExe(platform, engineName)){
+                            buildRemoteEngine = true;
+                            break;
+                        }
+                    }
                 }
+                if (buildRemoteEngine) {
+                    tmpProject.buildEngine(new ProgressDelegate(monitor), platforms, variant);
+	            }
 
                 // Get engine executables
                 // armv7 exe
