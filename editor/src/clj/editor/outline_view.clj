@@ -7,7 +7,7 @@
    [editor.jfx :as jfx]
    [editor.outline :as outline]
    [editor.resource :as resource]
-   [editor.scene-visibility :as scene-visibility]
+   [editor.types :as types]
    [editor.ui :as ui])
   (:import
    (com.defold.control TreeCell)
@@ -183,7 +183,7 @@
   (input active-resource-node g/NodeID :substitute nil)
   (input open-resource-nodes g/Any :substitute [])
   (input selection g/Any :substitute [])
-  (input hidden-node-outline-key-paths scene-visibility/NodeOutlineKeyPaths)
+  (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
 
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached update-tree-view)
