@@ -508,7 +508,7 @@
 ;; -----------------------------------------------------------------------------
 
 (def ^:private common-variants [["Debug" "debug"]
-                      ["Release" "release"]])
+                                ["Release" "release"]])
 
 (def ^:private desktop-variants (conj common-variants ["Headless" "headless"]))
 
