@@ -32,7 +32,7 @@ def build(bld):
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bld.new_task_gen(rule = 'java -Djava.ext.dirs= -jar ${SRC[0].abspath(env)} -r ${SRC[1].src_dir(env)} distclean build',
+    bld.new_task_gen(rule = 'java -Djava.ext.dirs=${JAVA_HOME}/jre/lib/ext -jar ${SRC[0].abspath(env)} -r ${SRC[1].src_dir(env)} distclean build',
                      source = '../../content/bob-engine.jar wscript',
                      always = True)
 
