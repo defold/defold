@@ -356,7 +356,7 @@ TEST(dmMessage, Integrity)
     ASSERT_EQ(dmMessage::RESULT_OK, r);
 
     char msg[1024];
-    for (uint32_t size = 1; size <= 1024; ++size)
+    for (uint32_t size = 1; size <= 128; ++size)
     {
         for (uint32_t iter = 0; iter < 70; ++iter)
         {
