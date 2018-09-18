@@ -150,6 +150,10 @@ public class Bob {
         init();
 
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
+        File f = new File(rootFolder, exeName);
+        if (f.exists()) {
+            return true;
+        }
         URL url = Bob.class.getResource("/libexec/" + exeName);
         if (url == null) {
             return false;
