@@ -329,13 +329,13 @@ public class Bob {
 
         if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
             System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
-            System.exit(0);
+            System.exit(1);
             return;
         }
 
         if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
             System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
-            System.exit(0);
+            System.exit(1);
             return;
         }
 
