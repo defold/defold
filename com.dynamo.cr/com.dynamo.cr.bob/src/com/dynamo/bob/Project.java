@@ -759,8 +759,10 @@ public class Project {
                 if (!buildRemoteEngine) {
                     String engineName = Bob.getDefaultDmengineExeName(variant);
                     for (String platformString : platforms) {
+                        System.out.println(System.getProperty("line.separator") + "Checking availability of `" + engineName + "` for platform `" + platformString);
                         Platform platform = Platform.get(platformString);
                         if (!Bob.hasExe(platform, engineName)){
+                            System.out.println(System.getProperty("line.separator") + "Can't find engine named `" + engineName + "` for platform `" + platformString + "`, requesting new engine from build server.");
                             buildRemoteEngine = true;
                             break;
                         }
