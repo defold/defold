@@ -95,7 +95,7 @@ namespace dmScript
         if (dmScript::GetURL(L, &sender)) {
 
             const char* url = luaL_checkstring(L, 1);
-            uint32_t url_len = strlen(url);
+            const uint32_t url_len = strlen(url);
             if (url_len > dmURI::MAX_URI_LEN)
             {
                 assert(top == lua_gettop(L));
@@ -103,7 +103,7 @@ namespace dmScript
             }
 
             const char* method = luaL_checkstring(L, 2);
-            uint32_t method_len = strlen(method);
+            const uint32_t method_len = strlen(method);
             if (method_len > 16) {
                 assert(top == lua_gettop(L));
                 return luaL_error(L, "http.request does not support request methods longer than 16 characters.");
