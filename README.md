@@ -168,7 +168,15 @@ If eclipse doesn’t get the JDK setup automatically:
 
 #### Linux
 
-    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake tofrodos
+    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake cmake tofrodos valgrind tree silversearcher-ag
+
+###### Easy Install
+
+Since the executable doesn't install anymore, easiest to create a wrapper:
+
+    >$ sudo sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
+    >$ sudo sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
+    >$ sudo chmod +x /usr/local/bin/easy_install
 
 #### Windows
 
@@ -336,6 +344,10 @@ see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/Ad
     - This disables building of custom build steps and explicit invocation of `Project > Build All` is now required.
 
 Note: When running the editor and building a Defold project you must first go to Preferences->Defold->Custom Application and point it to a dmengine built for your OS.
+
+## Running JUnit test in Eclipse
+* Run the tests with JUnit Plug-in Test
+	- Some test may fail due in com.dynamo.bob.bundle.test.BundlerTest due to missing engine builds for some platforms
 
 **Notes for building the editor under Linux:**
 * Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).

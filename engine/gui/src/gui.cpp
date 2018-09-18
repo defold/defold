@@ -1672,6 +1672,21 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         lua_rawset(L, -3);
                     }
 
+                    if (ia->m_AccelerationSet)
+                    {
+                        lua_pushstring(L, "acc_x");
+                        lua_pushnumber(L, ia->m_AccX);
+                        lua_rawset(L,-3);
+
+                        lua_pushstring(L, "acc_y");
+                        lua_pushnumber(L, ia->m_AccY);
+                        lua_rawset(L,-3);
+
+                        lua_pushstring(L, "acc_z");
+                        lua_pushnumber(L, ia->m_AccZ);
+                        lua_rawset(L,-3);
+                    }
+
                     if (ia->m_TouchCount > 0)
                     {
                         int tc = ia->m_TouchCount;

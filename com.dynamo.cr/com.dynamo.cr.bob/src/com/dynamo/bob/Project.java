@@ -447,9 +447,7 @@ public class Project {
     static Map<Platform, Class<? extends IBundler>> bundlers;
     static {
         bundlers = new HashMap<Platform, Class<? extends IBundler>>();
-        bundlers.put(Platform.X86Darwin, OSX32Bundler.class);
         bundlers.put(Platform.X86_64Darwin, OSX64Bundler.class);
-        bundlers.put(Platform.X86Linux, LinuxBundler.class);
         bundlers.put(Platform.X86_64Linux, LinuxBundler.class);
         bundlers.put(Platform.X86Win32, Win32Bundler.class);
         bundlers.put(Platform.X86_64Win32, Win64Bundler.class);
