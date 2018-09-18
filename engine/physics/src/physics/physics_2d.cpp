@@ -463,7 +463,6 @@ namespace dmPhysics
      }
 
      // Keep ptr old_hull_set, replace data for all members
-          // Keep ptr old_hull_set, replace data for all members
      void SwapFreeHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set)
      {
         /*

@@ -154,22 +154,23 @@ namespace dmGameSystem
 
         TextureSetResource* tile_set = (TextureSetResource*)params.m_Resource->m_Resource;
         TextureSetResource tmp_tile_set;
-        //ReleaseResources(params.m_Factory, tile_set);
+        // ReleaseResources(params.m_Factory, tile_set);
         dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, texture_set_ddf, &tmp_tile_set, params.m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
-            //ReleaseResources(params.m_Factory, tile_set);
-            // Release resources explicitly. Hull set will be free'd and swapped out in call into dmPhysics.
             if (tile_set->m_Texture)
                 dmResource::Release(params.m_Factory, tile_set->m_Texture);
+
             if (tile_set->m_TextureSet)
                 dmDDF::FreeMessage(tile_set->m_TextureSet);
-            /*if (tile_set->m_HullSet)
-                dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);*/
+
+            // if (tile_set->m_HullSet)
+            //     dmPhysics::DeleteHullSet2D(tile_set->m_HullSet);
+
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
-            
+
             dmPhysics::SwapFreeHullSet(tile_set->m_HullSet, tmp_tile_set.m_HullSet);
             //tile_set->m_HullSet = tmp_tile_set.m_HullSet;
             

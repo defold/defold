@@ -171,16 +171,20 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, &tmp_tile_grid, params.m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
+            uint32_t layer_count_old = tile_grid->m_GridShapes.Size();
+            uint32_t layer_count_new = tmp_tile_grid.m_GridShapes.Size();
+            uint32_t layer_count     = layer_count_new;
+
+            dmLogWarning("old layer count: %u, new layer count: %u", layer_count_old, layer_count_new);
+
             dmLogError("Releasing tile grid texture set and material...");
             //ReleaseResources(params.m_Factory, tile_grid);
-            dmLogError("Releasing tile grid texture set and material...");
             if (tile_grid->m_TextureSet)
                 dmResource::Release(params.m_Factory, tile_grid->m_TextureSet);
             if (tile_grid->m_Material)
                 dmResource::Release(params.m_Factory, tile_grid->m_Material);
             if (tile_grid->m_TileGrid)
                 dmDDF::FreeMessage(tile_grid->m_TileGrid);
-            dmLogError("DONE!");
             tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
             tile_grid->m_Material = tmp_tile_grid.m_Material;
             tile_grid->m_ColumnCount = tmp_tile_grid.m_ColumnCount;
@@ -188,14 +192,9 @@ namespace dmGameSystem
             tile_grid->m_MinCellX = tmp_tile_grid.m_MinCellX;
             tile_grid->m_MinCellY = tmp_tile_grid.m_MinCellY;
 
-            // One grid shape per layer
-            uint32_t layer_count_old = tile_grid->m_GridShapes.Size();
-            uint32_t layer_count_new = tmp_tile_grid.m_GridShapes.Size();
-            uint32_t layer_count     = layer_count_new;
-
             if (layer_count_old < layer_count_new)
             {                
-                // dmLogWarning("Reloaded tilemap '%s' has more layers that original tilemap. Only original layers will be reloaded.", dmHashReverseSafe64(params.m_Resource->m_NameHash));
+                dmLogWarning("######### Reloaded tilemap '%s' has more layers that original tilemap.", dmHashReverseSafe64(params.m_Resource->m_NameHash));
                 if (layer_count_old < layer_count_new)
                 {
                     uint32_t capacity = tile_grid->m_GridShapes.Capacity();
@@ -210,7 +209,7 @@ namespace dmGameSystem
             }
             else if (layer_count_old > layer_count_new)
             {
-                layer_count = layer_count_new;
+                // layer_count = layer_count_new;
                 tile_grid->m_GridShapes.SetSize(layer_count_new);
             }
             else
@@ -223,14 +222,12 @@ namespace dmGameSystem
                 dmPhysics::SwapFreeGridShape2DHullSet(tile_grid->m_GridShapes[i], tmp_tile_grid.m_GridShapes[i]);
             }
 
-            dmLogWarning("old layer count: %u, new layer count: %u, selected: %u", layer_count_old, layer_count_new, layer_count);
-            //tile_grid->m_GridShapes.Swap(tmp_tile_grid.m_GridShapes);
             tile_grid->m_Dirty = 1;
 
             params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
 
             // Release these shapes. They are now deep-copied (swapped) in tile_grid->m_GridShapes.
-            uint32_t n = tmp_tile_grid.m_GridShapes.Size();
+            uint32_t n = layer_count;
             for (uint32_t i = 0; i < n; ++i)
             {
                 if (tmp_tile_grid.m_GridShapes[i])
@@ -239,7 +236,7 @@ namespace dmGameSystem
         }
         else
         {
-            dmLogWarning("Failed AcquireResources for filename: %s, result: %i", params.m_Filename, r);
+            dmLogWarning("Failed AcquireResources, result: %i", r);
             ReleaseResources(params.m_Factory, &tmp_tile_grid);
         }
         return r;
