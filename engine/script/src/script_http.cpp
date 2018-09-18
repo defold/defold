@@ -95,18 +95,20 @@ namespace dmScript
         if (dmScript::GetURL(L, &sender)) {
 
             const char* url = luaL_checkstring(L, 1);
+            const uint32_t max_url_len = dmURI::MAX_URI_LEN;
             const uint32_t url_len = strlen(url);
-            if (url_len > dmURI::MAX_URI_LEN)
+            if (url_len > max_url_len)
             {
                 assert(top == lua_gettop(L));
-                return luaL_error(L, "http.request does not support URIs longer than %d characters.", dmURI::MAX_URI_LEN);
+                return luaL_error(L, "http.request does not support URIs longer than %d characters.", max_url_len);
             }
 
             const char* method = luaL_checkstring(L, 2);
+            const uint32_t max_method_len = 16;
             const uint32_t method_len = strlen(method);
-            if (method_len > 16) {
+            if (method_len > max_method_len) {
                 assert(top == lua_gettop(L));
-                return luaL_error(L, "http.request does not support request methods longer than 16 characters.");
+                return luaL_error(L, "http.request does not support request methods longer than %d characters.", max_method_len);
             }
 
             luaL_checktype(L, 3, LUA_TFUNCTION);
@@ -177,8 +179,8 @@ namespace dmScript
                 lua_pop(L, 1);
             }
 
-            // ddf + method and url strings incl. null character
-            char buf[sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1];
+            // ddf + max method and url string lengths incl. null character
+            char buf[sizeof(dmHttpDDF::HttpRequest) + max_url_len + 1 + max_url_len + 1];
             char* string_buf = buf + sizeof(dmHttpDDF::HttpRequest);
             dmStrlCpy(string_buf, method, method_len + 1);
             dmStrlCpy(string_buf + method_len + 1, url, url_len + 1);
