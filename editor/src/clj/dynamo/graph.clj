@@ -62,7 +62,7 @@
    Otherwise, it uses the current basis."
   ([node-id]
    (let [graph-id (node-id->graph-id node-id)]
-     (ig/graph->node (is/graph @*the-system* graph-id) node-id)))
+     (ig/node-id->node (is/graph @*the-system* graph-id) node-id)))
   ([basis node-id]
    (gt/node-by-id-at basis node-id)))
 
@@ -879,7 +879,7 @@
 
   If there are no inputs connected, returns an empty collection."
   ([node-id]       (inputs (now) node-id))
-  ([basis node-id] (arcs->tuples (gt/arcs-by-tail basis node-id))))
+  ([basis node-id] (arcs->tuples (ig/inputs basis node-id))))
 
 (defn outputs
   "Return the outputs from this node. Returns a collection like
@@ -887,7 +887,19 @@
 
   If there are no outputs connected, returns an empty collection."
   ([node-id]       (outputs (now) node-id))
-  ([basis node-id] (arcs->tuples (gt/arcs-by-head basis node-id))))
+  ([basis node-id] (arcs->tuples (ig/outputs basis node-id))))
+
+(defn explicit-inputs
+  ([node-id]
+   (explicit-inputs (now) node-id))
+  ([basis node-id]
+   (arcs->tuples (ig/explicit-inputs basis node-id))))
+
+(defn explicit-outputs
+  ([node-id]
+   (explicit-outputs (now) node-id))
+  ([basis node-id]
+   (arcs->tuples (ig/explicit-outputs basis node-id))))
 
 (defn node-feeding-into
   "Find the one-and-only node ID that sources this input on this node.
@@ -1175,9 +1187,9 @@
 
 (defn overrides
   ([root-id]
-    (overrides (now) root-id))
+   (overrides (now) root-id))
   ([basis root-id]
-    (ig/get-overrides basis root-id)))
+   (ig/get-overrides basis root-id)))
 
 (defn override-original
   ([node-id]

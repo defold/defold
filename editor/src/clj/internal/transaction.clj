@@ -194,14 +194,14 @@
 
 (defn- ctx-disconnect-arc [ctx arc]
   (let [[src-id src-label] (gt/head arc)
-        [tgt-id tgt-label] (gt/tail arc)]
-    (ctx-disconnect ctx src-id src-label tgt-id tgt-label)))
+        [target-id target-label] (gt/tail arc)]
+    (ctx-disconnect ctx src-id src-label target-id target-label)))
 
-(defn- disconnect-inputs [ctx tgt-id tgt-label]
-  (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-target (:basis ctx) tgt-id tgt-label)))
+(defn- disconnect-inputs [ctx target-id target-label]
+  (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-target (:basis ctx) target-id target-label)))
 
-(defn- disconnect-all-inputs [ctx tgt-id]
-  (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-target (:basis ctx) tgt-id)))
+(defn- disconnect-all-inputs [ctx target-id]
+  (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-target (:basis ctx) target-id)))
 
 (defn- disconnect-outputs [ctx src-id src-label]
   (reduce ctx-disconnect-arc ctx (ig/explicit-arcs-by-source (:basis ctx) src-id src-label)))
@@ -324,28 +324,30 @@
     gt/override-id))
 
 (defn- ctx-make-override-nodes [ctx override-id node-ids]
+  ;; this could probably benefit from a original->override-node map in the override structure so we dont need to
+  ;; look up all overrides for the node and check if any of them are for the correct override...
   (reduce (fn [ctx node-id]
             (let [basis (:basis ctx)]
               (if (some #(= override-id (node-id->override-id basis %)) (ig/get-overrides basis node-id))
                 ctx
                 (let [gid (gt/node-id->graph-id node-id)
-                     new-sub-id (next-node-id ctx gid)
-                     new-sub-node (in/make-override-node override-id new-sub-id node-id {})]
-                 (-> ctx
-                   (ctx-add-node new-sub-node)
-                   (ctx-override-node node-id new-sub-id))))))
+                      new-override-node-id (next-node-id ctx gid)
+                      new-override-node (in/make-override-node override-id new-override-node-id node-id {})]
+                  (-> ctx
+                    (ctx-add-node new-override-node)
+                    (ctx-override-node node-id new-override-node-id))))))
           ctx node-ids))
 
 (defn- populate-overrides [ctx node-id]
   (let [basis (:basis ctx)
         override-nodes (ig/get-overrides basis node-id)]
     (reduce (fn [ctx override-node-id]
-              (let [oid (node-id->override-id basis override-node-id)
-                    o (ig/override-by-id basis oid)
-                    traverse-fn (:traverse-fn o)
+              (let [override-id (node-id->override-id basis override-node-id)
+                    override (ig/override-by-id basis override-id)
+                    traverse-fn (:traverse-fn override)
                     node-ids (subvec (ig/pre-traverse basis [node-id] traverse-fn) 1)]
                 (reduce populate-overrides
-                        (ctx-make-override-nodes ctx oid node-ids)
+                        (ctx-make-override-nodes ctx override-id node-ids)
                         override-nodes)))
       ctx override-nodes)))
 
@@ -520,25 +522,25 @@
       ctx)))
 
 (defn- assert-type-compatible
-  [basis src-id src-node src-label tgt-id tgt-node tgt-label]
+  [basis src-id src-node src-label target-id target-node target-label]
   (let [output-nodetype (gt/node-type src-node basis)
         output-valtype  (in/output-type output-nodetype src-label)
-        input-nodetype  (gt/node-type tgt-node basis)
-        input-valtype   (in/input-type input-nodetype tgt-label)]
+        input-nodetype  (gt/node-type target-node basis)
+        input-valtype   (in/input-type input-nodetype target-label)]
     (assert output-valtype
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an output or property named %s"
                     src-id (in/type-name output-nodetype) src-label
-                    tgt-id (in/type-name input-nodetype) tgt-label
+                    target-id (in/type-name input-nodetype) target-label
                     (in/type-name output-nodetype) src-label))
     (assert input-valtype
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s does not have an input named %s"
                     src-id (in/type-name output-nodetype) src-label
-                    tgt-id (in/type-name input-nodetype) tgt-label
-                    (in/type-name input-nodetype) tgt-label))
+                    target-id (in/type-name input-nodetype) target-label
+                    (in/type-name input-nodetype) target-label))
     (assert (in/type-compatible? output-valtype input-valtype)
             (format "Attempting to connect %s (a %s) %s to %s (a %s) %s, but %s and %s are not have compatible types."
                     src-id (in/type-name output-nodetype) src-label
-                    tgt-id (in/type-name input-nodetype) tgt-label
+                    target-id (in/type-name input-nodetype) target-label
                     (:k output-valtype) (:k input-valtype)))))
 
 (defn- ctx-connect [ctx source-id source-label target-id target-label]
@@ -564,17 +566,17 @@
   (let [basis (:basis ctx)
         target (gt/node-by-id-at basis target-id)]
     (if (contains? (in/cascade-deletes (gt/node-type target basis)) target-label)
-      (let [src-or-nodes (map (partial gt/node-by-id-at basis) (ig/get-overrides basis source-id))]
-        (loop [tgt-overrides (ig/get-overrides basis target-id)
+      (let [source-override-nodes (map (partial gt/node-by-id-at basis) (ig/get-overrides basis source-id))]
+        (loop [target-override-node-ids (ig/get-overrides basis target-id)
                ctx ctx]
-          (if-let [or (first tgt-overrides)]
+          (if-let [target-override-node-id (first target-override-node-ids)]
             (let [basis (:basis ctx)
-                  or-node (gt/node-by-id-at basis or)
-                  override-id (gt/override-id or-node)
-                  tgt-ors (filter #(= override-id (gt/override-id %)) src-or-nodes)
-                  traverse-fn (ig/override-traverse-fn basis override-id)
-                  to-delete (ig/pre-traverse basis (mapv gt/node-id tgt-ors) traverse-fn)]
-              (recur (rest tgt-overrides)
+                  target-override-node (gt/node-by-id-at basis target-override-node-id)
+                  target-override-id (gt/target-override-id target-override-node)
+                  source-override-node (filter #(= target-override-id (gt/override-id %)) source-override-nodes)
+                  traverse-fn (ig/override-traverse-fn basis target-override-id)
+                  to-delete (ig/pre-traverse basis (mapv gt/node-id source-override-node) traverse-fn)]
+              (recur (rest target-override-node-ids)
                      (reduce ctx-delete-node ctx to-delete)))
             ctx)))
       ctx)))
