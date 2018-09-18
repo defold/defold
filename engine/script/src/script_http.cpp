@@ -9,7 +9,7 @@
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
-#include <dlib/http_cache.h>
+#include <dlib/uri.h>
 
 #include "script.h"
 #include "http_ddf.h"
@@ -96,13 +96,19 @@ namespace dmScript
 
             const char* url = luaL_checkstring(L, 1);
             uint32_t url_len = strlen(url);
-
-            if (url_len > dmHttpCache::MAX_URI_LEN)
+            if (url_len > dmURI::MAX_URI_LEN)
             {
                 assert(top == lua_gettop(L));
-                return luaL_error(L, "http.request does not support URI longer than %d characters.", dmHttpCache::MAX_URI_LEN);
+                return luaL_error(L, "http.request does not support URIs longer than %d characters.", dmURI::MAX_URI_LEN);
             }
+
             const char* method = luaL_checkstring(L, 2);
+            uint32_t method_len = strlen(method);
+            if (method_len > 16) {
+                assert(top == lua_gettop(L));
+                return luaL_error(L, "http.request does not support request methods longer than 16 characters.");
+            }
+
             luaL_checktype(L, 3, LUA_TFUNCTION);
             lua_pushvalue(L, 3);
             // NOTE: By convention m_FunctionRef is offset by LUA_NOREF, see message.h in dlib
@@ -171,25 +177,22 @@ namespace dmScript
                 lua_pop(L, 1);
             }
 
-            // Really arbitrary length.
-            // TODO: Warn if the buffer isn't long enough
-            const uint32_t string_buf_len = 1024;
-            const uint32_t max_method_len = 16;
-            char buf[sizeof(dmHttpDDF::HttpRequest) + string_buf_len];
-            dmHttpDDF::HttpRequest* request = (dmHttpDDF::HttpRequest*) buf;
+            // ddf + method and url strings incl. null character
+            char buf[sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1];
             char* string_buf = buf + sizeof(dmHttpDDF::HttpRequest);
-            request->m_Method = (const char*) (sizeof(*request));
-            dmStrlCpy(string_buf, method, max_method_len);
-            request->m_Url = (const char*) (sizeof(*request) + max_method_len);
-            dmStrlCpy(string_buf + max_method_len, url, string_buf_len - max_method_len);
+            dmStrlCpy(string_buf, method, method_len + 1);
+            dmStrlCpy(string_buf + method_len + 1, url, url_len + 1);
 
+            dmHttpDDF::HttpRequest* request = (dmHttpDDF::HttpRequest*) buf;
+            request->m_Method = (const char*) (sizeof(*request));
+            request->m_Url = (const char*) (sizeof(*request) + method_len + 1);
             request->m_Headers = (uint64_t) headers;
             request->m_HeadersLength = headers_length;
             request->m_Request = (uint64_t) request_data;
             request->m_RequestLength = request_data_length;
             request->m_Timeout = timeout;
 
-            uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + max_method_len + url_len + 1;
+            uint32_t post_len = sizeof(dmHttpDDF::HttpRequest) + method_len + 1 + url_len + 1;
             dmMessage::URL receiver;
             dmMessage::ResetURL(receiver);
             receiver.m_Socket = dmHttpService::GetSocket(g_Service);
