@@ -50,8 +50,7 @@
    ["ref-doc"]
    ["protobuf"]
    ["sass" "once"]
-   ["pack"]
-   ])
+   ["pack"]])
 
 (defn init
   "Initialise project with required engine artifacts based on `version`, or

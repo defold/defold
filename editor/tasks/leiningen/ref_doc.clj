@@ -5,22 +5,24 @@
             [leiningen.util.http-cache :as http-cache])
   (:import (java.util.zip ZipFile)))
 
-(defn- clean-dir [path]
-  "Delete all files in a directory (non-recursive)."
-  (doseq [file (file-seq (io/file path))]
-    (when-not (.isDirectory file)
-      (io/delete-file file))))
+(defn- delete-dir
+  "Delete a directory and its contents."
+  [path]
+  (let [dir (io/file path)]
+    (when (.exists dir)
+      (doseq [file (reverse (file-seq dir))]
+        (io/delete-file file)))))
 
 (defn- unzip
   "Takes the path to a zipfile `source` and unzips it to target-dir."
- ([source target-dir]
+  [source target-dir]
   (with-open [zip (ZipFile. (io/file source))]
     (doseq [entry (enumeration-seq (.entries zip))]
         (let [entryname (.getName entry)
               filename (.getName (io/file entryname))
                dest (io/file target-dir filename)]
           (when (str/ends-with? filename ".sdoc")
-             (io/copy (.getInputStream zip entry) dest)))))))
+             (io/copy (.getInputStream zip entry) dest))))))
 
 (defn- ref-doc-zip [sha]
   "Get the ref-doc.zip from either d.defold.com or DYNAMO_HOME."
@@ -30,7 +32,8 @@
 
 (defn ref-doc [project & [git-sha]]
   (let [out-path "resources/doc"]
-    (clean-dir out-path)
+    (delete-dir out-path)
+    (.mkdirs (io/file out-path))
     (let [sha (or git-sha (:engine project))]
       (unzip (ref-doc-zip sha)
              out-path))))
