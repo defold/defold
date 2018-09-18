@@ -24,8 +24,9 @@
           (when (str/ends-with? filename ".sdoc")
              (io/copy (.getInputStream zip entry) dest))))))
 
-(defn- ref-doc-zip [sha]
+(defn- ref-doc-zip
   "Get the ref-doc.zip from either d.defold.com or DYNAMO_HOME."
+  [sha]
   (if sha
     (http-cache/download (format "https://d.defold.com/archive/%s/engine/share/ref-doc.zip" sha))
     (io/file (format "%s/share/ref-doc.zip" (get (System/getenv) "DYNAMO_HOME")))))
