@@ -176,16 +176,6 @@ public class SignHandler extends AbstractHandler {
                 final String[] platforms = tmpProject.getPlatformStrings();
                 // Get or build engine binary
                 boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(tmpProject);
-/*                if (!buildRemoteEngine) {
-                    String engineName = Bob.getDefaultDmengineExeName(variant);
-                    for (String platformString : platforms) {
-                        Platform platform = Platform.get(platformString);
-                        if (!Bob.hasExe(platform, engineName)){
-                            buildRemoteEngine = true;
-                            break;
-                        }
-                    }
-                }*/
                 if (buildRemoteEngine) {
                     tmpProject.buildEngine(new ProgressDelegate(monitor), platforms, variant);
                 }
