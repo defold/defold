@@ -986,7 +986,6 @@ namespace dmParticle
         particle->m_SourceStretchFactorY = emitter_properties[EMITTER_KEY_PARTICLE_STRETCH_FACTOR_Y];
         particle->m_StretchFactorY = particle->m_SourceStretchFactorY;
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
-        particle->m_AngularVelocity = 0.0f;
     }
 
     static float unit_tex_coords[] =
@@ -1332,8 +1331,7 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 Particle* particle = &particles[i];
-                particle->m_AngularVelocity = DEG_RAD * (particle->m_SourceAngularVelocity * (properties[PARTICLE_KEY_ANGULAR_VELOCITY]));
-                particle->SetRotation(particle->GetRotation() * Quat::rotationZ(particle->m_AngularVelocity * dt));
+                particle->SetRotation(particle->GetRotation() * Quat::rotationZ(DEG_RAD * (particle->m_SourceAngularVelocity * (properties[PARTICLE_KEY_ANGULAR_VELOCITY])) * dt));
             }
 
         } else {
