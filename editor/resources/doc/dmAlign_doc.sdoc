@@ -1,0 +1,13 @@
+
+©DM_ALIGN<p>value alignment macro</p>""<p>Align a value to a boundary</p>28
+x3<p><span class="type">int</span> value to align</p>2<
+a7<p><span class="type">int</span> alignment boundary</p>:à<p>Align 24 to 16 alignment boundary. results is 16:</p>
+<div class="codehilite"><pre><span></span><span class="kt">int</span> <span class="n">result</span> <span class="o">=</span> <span class="n">DM_ALIGN</span><span class="p">(</span><span class="mi">24</span><span class="p">,</span> <span class="mi">16</span><span class="p">);</span>
+</pre></div>
+É
+DM_ALIGNED%<p>data structure alignment macro</p>"<p>Data structure alignment</p>2E
+a@<p><span class="type">int</span> number of bytes to align to</p>:©<p>Align m_Data to 16 bytes alignment boundary:</p>
+<div class="codehilite"><pre><span></span><span class="kt">int</span> <span class="nf">DM_ALIGNED</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span> <span class="n">m_Data</span><span class="p">;</span>
+</pre></div>©
+dmAlignAlign"<p>SDK Align API documentation</p>"s<p><span class="file">&lt;dmsdk/dlib/align.h&gt;</span></p>
+<p>Alignment macros. Use for compiler compatibility</p>
