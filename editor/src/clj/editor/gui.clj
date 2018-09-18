@@ -2030,48 +2030,6 @@
 (defn- get-ids [outline]
   (map :label (tree-seq (constantly true) :children outline)))
 
-(comment
-  72057594037928524 BoxNode
-  (g/node-value 72057594037928524 :id) "template/template/unaffected"
-  (g/sources-of 72057594037928524 :parent)
-  
-  72057594037928521 NodeTree
-  (g/targets-of 72057594037928521 :node-msgs)
-  
-  72057594037928520 LayoutNode
-  (g/targets-of 72057594037928520 :node-msgs)
-  []
-  (g/targets-of 72057594037928520 :pb-msg)
-
-  72057594037928509 GuiSceneNode ; här finns overrides i unaffected
-  (g/node-value 72057594037928509 :resource) {:FileResource "/main/button2.gui"}
-  (g/targets-of 72057594037928509 :pb-msg)
-
-  72057594037928508 TemplateNode
-  (g/sources-of 72057594037928508 :parent)
-
-  72057594037928507 NodeTree
-  (g/targets-of 72057594037928507 :pb-msg)
-  []
-  (g/targets-of 72057594037928507 :node-msgs)
-
-  72057594037928506 GuiSceneNode ; här saknas overrides från unaffected
-  (g/node-value 72057594037928506 :resource) {:FileResource "/main/panel2.gui"}
-  (g/targets-of 72057594037928506 :node-msgs)
-  []
-  (g/targets-of 72057594037928506 :pb-msg)
-
-  72057594037928504 TemplateNode
-  (g/node-value 72057594037928504 :id) "template"
-  (g/targets-of 72057594037928504 :node-msgs)
-
-  72057594037928503 NodeTree
-  (g/targets-of 72057594037928503 :node-msgs)
-
-  72057594037928492 GuiSceneNode
-  (g/node-value 72057594037928492 :resource) {:FileResource "/main/hud.gui"}
-  )
-
 (g/defnode GuiSceneNode
   (inherits resource-node/ResourceNode)
 
@@ -2892,15 +2850,19 @@
       (println (g/node-value layout-node :name) layout-node "node-tree" (ffirst (g/sources-of layout-node :node-msgs))))
     (println :default "node-tree" (g/node-value gsn :node-tree))))
 
-(def override-name {72057594037927936 :GL
-                    72057594037927938 :CTN
-                    72057594037927941 :PTN
-                    72057594037927942 :PL
-                    72057594037927939 :CL
-                    })
+(def override-name {72057594037927940 :CTN
+                    72057594037927941 :CL
+                    72057594037927959 :PTN
+                    72057594037927960 :PL
+                    72057594037927938 :GL})
+
+(defn- original-overrides [n]
+  (map (comp #(get override-name % %) g/override-id) (g/override-originals n)))
 
 (defn gui-tree [n]
-  (cond-> {:node-id n :type (:k (g/node-type* n))}
+  (cond-> {:node-id n
+           :type (:k (g/node-type* n))
+           :original-overrides (original-overrides n)}
     (g/node-instance? TemplateNode n)
     (assoc :id (g/node-value n :id)
            :children [(gui-tree (ffirst (g/sources-of n :template-scene)))])
@@ -2914,7 +2876,9 @@
 
     (g/node-instance? LayoutNode n)
     (assoc :name (g/node-value n :name)
-           :children [(gui-tree (ffirst (g/sources-of n :node-msgs)))])
+           :children (if (= (g/node-value n :name) "Portrait")
+                       :skipped
+                       [(gui-tree (ffirst (g/sources-of n :node-msgs)))]))
 
     (g/node-instance? GuiSceneNode n)
     (->
@@ -2940,7 +2904,7 @@
         (conj result {:node-id n
                       :alt-parents (map first (g/sources-of n :parent))
                       :originals (g/override-originals n)
-                      :original-overrides (map (comp #(get override-name % %) g/override-id) (g/override-originals n))
+                      :original-overrides (original-overrides n)
                       :type (:k (g/node-type* n))
                       :id (g/node-value n :id)
                       :current-layout (g/node-value n :current-layout)}))
@@ -2951,7 +2915,7 @@
         (conj result {:node-id n
                       :alt-parents (map first (g/targets-of n :node-msgs))
                       :originals (g/override-originals n)
-                      :original-overrides (map (comp #(get override-name % %) g/override-id) (g/override-originals n))
+                      :original-overrides (original-overrides n)
                       :type (:k (g/node-type* n))
                       :current-layout (g/node-value n :current-layout)}))
 
@@ -2961,7 +2925,7 @@
         (conj result {:node-id n
                       :alt-parents (map first (g/targets-of n :pb-msg))
                       :originals (g/override-originals n)
-                      :original-overrides (map (comp #(get override-name % %) g/override-id) (g/override-originals n))
+                      :original-overrides (original-overrides n)
                       :type (:k (g/node-type* n))
                       :name (g/node-value n :name)}))
 
@@ -2971,7 +2935,7 @@
         (conj result {:node-id n
                       :alt-parents (map first (g/targets-of n :pb-msg))
                       :originals (g/override-originals n)
-                      :original-overrides (map (comp #(get override-name % %) g/override-id) (g/override-originals n))
+                      :original-overrides (original-overrides n)
                       :type (:k (g/node-type* n))
                       :resource (resource/resource->proj-path (g/node-value n :resource))
                       :current-layout (g/node-value n :current-layout)}))
