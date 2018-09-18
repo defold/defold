@@ -9,6 +9,7 @@
 #include <dlib/time.h>
 #include <dlib/path.h>
 
+#include <ddf/ddf.h>
 #include <gameobject/gameobject_ddf.h>
 
 namespace dmGameSystem
@@ -226,6 +227,102 @@ TEST_F(ComponentTest, ReloadInvalidMaterial)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path_frag, 0));
 
     dmResource::Release(m_Factory, resource);
+}
+
+// Test for input consuming in collection proxy
+TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
+{
+    /* Setup:
+    ** go_consume_no
+    ** - [script] input_consume_sink.script
+    ** go_consume_yes
+    ** - collection_proxy
+    ** -- go_consume_yes_proxy
+    ** ---- [script] input_consume.script
+    */
+
+    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
+
+    #define ASSERT_INPUT_OBJECT_EQUALS(hash) \
+    { \
+        lua_getglobal(L, "last_input_object"); \
+        dmhash_t go_hash = dmScript::CheckHash(L, -1); \
+        lua_pop(L,1); \
+        ASSERT_EQ(hash,go_hash); \
+    }
+
+    const char* path_consume_yes = "/collection_proxy/input_consume_yes.goc";
+    const char* path_consume_no  = "/collection_proxy/input_consume_no.goc";
+
+    dmhash_t hash_go_consume_yes   = dmHashString64("/go_consume_yes");
+    dmhash_t hash_go_consume_no    = dmHashString64("/go_consume_no");
+    dmhash_t hash_go_consume_proxy = dmHashString64("/go_consume_proxy");
+
+    dmGameObject::HInstance go_consume_yes = Spawn(m_Factory, m_Collection, path_consume_yes, hash_go_consume_yes, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_consume_yes);
+
+    dmGameObject::HInstance go_consume_no = Spawn(m_Factory, m_Collection, path_consume_no, hash_go_consume_no, 0, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go_consume_no);
+
+    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Test 1: input consume in proxy with 1 input action
+    dmGameObject::InputAction test_input_action;
+    test_input_action.m_ActionId = dmHashString64("test_action_consume");
+    test_input_action.m_Pressed  = 1;
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &test_input_action, 1));
+    ASSERT_EQ(1,test_input_action.m_Consumed);
+    ASSERT_INPUT_OBJECT_EQUALS(hash_go_consume_proxy)
+
+    // Test 2: no consuming in proxy collection
+    dmGameObject::InputAction test_input_action_consume_no;
+    test_input_action_consume_no.m_ActionId = dmHashString64("test_action_consume");
+    test_input_action_consume_no.m_Pressed  = 0;
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, &test_input_action_consume_no, 1));
+    ASSERT_EQ(0,test_input_action_consume_no.m_Consumed);
+    ASSERT_INPUT_OBJECT_EQUALS(hash_go_consume_no)
+
+    // Test 3: dispatch input queue with more than one input actions that are consumed
+    dmGameObject::InputAction test_input_action_queue[2];
+    test_input_action_queue[0].m_ActionId = dmHashString64("test_action_consume");
+    test_input_action_queue[0].m_Pressed  = 1;
+    test_input_action_queue[1].m_ActionId = dmHashString64("test_action_consume");
+    test_input_action_queue[1].m_Pressed  = 1;
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, test_input_action_queue, 2));
+    ASSERT_EQ(1,test_input_action_queue[0].m_Consumed);
+    ASSERT_EQ(1,test_input_action_queue[1].m_Consumed);
+    ASSERT_INPUT_OBJECT_EQUALS(hash_go_consume_proxy)
+
+    // Test 4: dispatch input queue with more than one input actions where one action is consumed and one isn't
+    dmGameObject::InputAction test_input_action_queue_2[2];
+    test_input_action_queue_2[0].m_ActionId = dmHashString64("test_action_consume");
+    test_input_action_queue_2[0].m_Pressed  = 1;
+    test_input_action_queue_2[1].m_ActionId = dmHashString64("test_action_consume");
+    test_input_action_queue_2[1].m_Pressed  = 0;
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, test_input_action_queue_2, 2));
+    ASSERT_EQ(1,test_input_action_queue_2[0].m_Consumed);
+    ASSERT_EQ(0,test_input_action_queue_2[1].m_Consumed);
+    ASSERT_INPUT_OBJECT_EQUALS(hash_go_consume_no)
+
+    // Test 5: Same as above, but with the action consume order swapped
+    dmGameObject::InputAction test_input_action_queue_3[2];
+    test_input_action_queue_3[0].m_ActionId = dmHashString64("test_action_consume");
+    test_input_action_queue_3[0].m_Pressed  = 0;
+    test_input_action_queue_3[1].m_ActionId = dmHashString64("test_action_consume");
+    test_input_action_queue_3[1].m_Pressed  = 1;
+
+    ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, dmGameObject::DispatchInput(m_Collection, test_input_action_queue_3, 2));
+    ASSERT_EQ(0,test_input_action_queue_3[0].m_Consumed);
+    ASSERT_EQ(1,test_input_action_queue_3[1].m_Consumed);
+    ASSERT_INPUT_OBJECT_EQUALS(hash_go_consume_proxy)
+
+    #undef ASSERT_INPUT_OBJECT_EQUALS
 }
 
 TEST_P(ComponentFailTest, Test)
@@ -1231,6 +1328,10 @@ INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, ::testing::ValuesIn(draw_count
 
 int main(int argc, char **argv)
 {
+    dmHashEnableReverseHash(true);
+    // Enable message descriptor translation when sending messages
+    dmDDF::RegisterAllTypes();
+
     testing::InitGoogleTest(&argc, argv);
 
     int ret = RUN_ALL_TESTS();
