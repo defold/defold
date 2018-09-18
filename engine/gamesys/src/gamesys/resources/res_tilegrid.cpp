@@ -172,7 +172,15 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             dmLogError("Releasing tile grid texture set and material...");
-            ReleaseResources(params.m_Factory, tile_grid);
+            //ReleaseResources(params.m_Factory, tile_grid);
+            dmLogError("Releasing tile grid texture set and material...");
+            if (tile_grid->m_TextureSet)
+                dmResource::Release(params.m_Factory, tile_grid->m_TextureSet);
+            if (tile_grid->m_Material)
+                dmResource::Release(params.m_Factory, tile_grid->m_Material);
+            if (tile_grid->m_TileGrid)
+                dmDDF::FreeMessage(tile_grid->m_TileGrid);
+            dmLogError("DONE!");
             tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
             tile_grid->m_Material = tmp_tile_grid.m_Material;
             tile_grid->m_ColumnCount = tmp_tile_grid.m_ColumnCount;
@@ -188,7 +196,7 @@ namespace dmGameSystem
             if (layer_count_old < layer_count_new)
             {                
                 // dmLogWarning("Reloaded tilemap '%s' has more layers that original tilemap. Only original layers will be reloaded.", dmHashReverseSafe64(params.m_Resource->m_NameHash));
-                if (tile_grid->m_GridShapes.Size() < layer_count_new)
+                if (layer_count_old < layer_count_new)
                 {
                     uint32_t capacity = tile_grid->m_GridShapes.Capacity();
                     tile_grid->m_GridShapes.OffsetCapacity(layer_count_new - capacity);
@@ -210,15 +218,28 @@ namespace dmGameSystem
                 // Same num of layers, this is fine.
             }
 
+            for (int i = 0; i < layer_count; ++i)
+            {
+                dmPhysics::SwapFreeGridShape2DHullSet(tile_grid->m_GridShapes[i], tmp_tile_grid.m_GridShapes[i]);
+            }
+
             dmLogWarning("old layer count: %u, new layer count: %u, selected: %u", layer_count_old, layer_count_new, layer_count);
-            tile_grid->m_GridShapes.Swap(tmp_tile_grid.m_GridShapes);
+            //tile_grid->m_GridShapes.Swap(tmp_tile_grid.m_GridShapes);
             tile_grid->m_Dirty = 1;
 
             params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
+
+            // Release these shapes. They are now deep-copied (swapped) in tile_grid->m_GridShapes.
+            uint32_t n = tmp_tile_grid.m_GridShapes.Size();
+            for (uint32_t i = 0; i < n; ++i)
+            {
+                if (tmp_tile_grid.m_GridShapes[i])
+                    dmPhysics::DeleteCollisionShape2D(tmp_tile_grid.m_GridShapes[i]);
+            }
         }
         else
         {
-            dmLogWarning("Failed AcquireResources, result: %u", r);
+            dmLogWarning("Failed AcquireResources for filename: %s, result: %i", params.m_Filename, r);
             ReleaseResources(params.m_Factory, &tmp_tile_grid);
         }
         return r;

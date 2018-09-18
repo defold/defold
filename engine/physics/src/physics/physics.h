@@ -458,6 +458,27 @@ namespace dmPhysics
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count);
 
+
+
+     void DebugPrintHullSet(HHullSet2D hull_set);
+
+     void DebugPrintGridShape(HCollisionShape2D coll_shape);
+
+     /**
+      * Frees the memory used by dst_hull_set and points the members to the members of src_hull_set instead.
+      * @param dst_hull_set The hull set to receive the swapped data
+      * @param src_hull_set The hull set to swap data from
+      */
+     void SwapFreeHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set);
+
+     /**
+      * Frees the memory used by dst_coll_shape and points the members to the members of src_coll_shape instead.
+      * @param dst_coll_shape The grid shape to receive the swapped data
+      * @param src_coll_shape The grid shape to swap data from
+      */
+     void SwapFreeGridShape2DHullSet(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape);
+
+
     /**
      * Set hull for cell in grid-shape
      * @param collision_object collision object
