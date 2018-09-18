@@ -146,20 +146,16 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static boolean hasExe(Platform platform, String name) throws IOException {
+/*    public static boolean hasExe(Platform platform, String name) throws IOException {
         init();
 
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
-        File f = new File(rootFolder, exeName);
-        if (f.exists()) {
-            return true;
-        }
         URL url = Bob.class.getResource("/libexec/" + exeName);
         if (url == null) {
             return false;
         }
         return true;
-    }
+    }*/
 
     public static String getExe(Platform platform, String name) throws IOException {
         init();

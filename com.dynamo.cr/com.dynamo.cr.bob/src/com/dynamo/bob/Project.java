@@ -756,10 +756,10 @@ public class Project {
                 final String[] platforms = getPlatformStrings();
                 // Get or build engine binary
                 boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                if (!buildRemoteEngine) {
+/*                if (!buildRemoteEngine) {
                     String engineName = Bob.getDefaultDmengineExeName(variant);
                     for (String platformString : platforms) {
-                        System.out.println(System.getProperty("line.separator") + "Checking availability of `" + engineName + "` for platform `" + platformString);
+                        System.out.println(System.getProperty("line.separator") + "Checking availability of `" + engineName + "` for platform `" + platformString + "`");
                         Platform platform = Platform.get(platformString);
                         if (!Bob.hasExe(platform, engineName)){
                             System.out.println(System.getProperty("line.separator") + "Can't find engine named `" + engineName + "` for platform `" + platformString + "`, requesting new engine from build server.");
@@ -767,7 +767,7 @@ public class Project {
                             break;
                         }
                     }
-                }
+                }*/
                 if (buildRemoteEngine) {
                     buildEngine(monitor, platforms, variant);
                 } else {
