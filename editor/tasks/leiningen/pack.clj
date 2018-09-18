@@ -11,15 +11,15 @@
 
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
-  {"x86_64-darwin" {"bin" ["dmengine" "dmengine_release" "dmengine_headless"]
+  {"x86_64-darwin" {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.dylib" "libtexc_shared.dylib"]}
-   "x86-win32"     {"bin" ["dmengine.exe" "dmengine_release.exe" "dmengine_headless"]
+   "x86-win32"     {"bin" ["dmengine.exe" "dmengine_release.exe"]
                     "lib" ["particle_shared.dll" "texc_shared.dll"]}
-   "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine_release.exe" "dmengine_headless"]
+   "x86_64-win32"  {"bin" ["dmengine.exe" "dmengine_release.exe"]
                     "lib" ["particle_shared.dll" "texc_shared.dll"]}
-   "x86-linux"     {"bin" ["dmengine" "dmengine_release" "dmengine_headless"]
+   "x86-linux"     {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
-   "x86_64-linux"  {"bin" ["dmengine" "dmengine_release" "dmengine_headless"]
+   "x86_64-linux"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" ["libparticle_shared.so" "libtexc_shared.so"]}
    "armv7-darwin"  {"bin" ["dmengine" "dmengine_release"]
                     "lib" []}
