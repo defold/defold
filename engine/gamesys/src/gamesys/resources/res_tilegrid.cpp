@@ -171,24 +171,8 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, tile_grid_ddf, &tmp_tile_grid, params.m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
-            // dmLogWarning("RESULT_OK!");
-            // uint32_t layer_count = tile_grid->m_TileGrid->m_Layers.m_Count;
-            // dmLogWarning("old gridshape count: %u, new gridshape count: %u", tile_grid->m_GridShapes.Size(), tmp_tile_grid.m_GridShapes.Size());
-            
-            // Don't want to release grid shapes, but instead swap content.
-            // Release remaining resources explicitly instead.
             dmLogError("Releasing tile grid texture set and material...");
-            if (tile_grid->m_TextureSet)
-                dmResource::Release(params.m_Factory, tile_grid->m_TextureSet);
-            if (tile_grid->m_Material)
-                dmResource::Release(params.m_Factory, tile_grid->m_Material);
-            if (tile_grid->m_TileGrid)
-                dmDDF::FreeMessage(tile_grid->m_TileGrid);
-            dmLogError("DONE!");
-
-            // dmLogWarning("old row count: %u, new row count: %u", tile_grid->m_RowCount, tmp_tile_grid.m_RowCount);
-            // dmLogWarning("old col count: %u, new col count: %u", tile_grid->m_ColumnCount, tmp_tile_grid.m_ColumnCount);
-
+            ReleaseResources(params.m_Factory, tile_grid);
             tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
             tile_grid->m_Material = tmp_tile_grid.m_Material;
             tile_grid->m_ColumnCount = tmp_tile_grid.m_ColumnCount;
@@ -199,43 +183,35 @@ namespace dmGameSystem
             // One grid shape per layer
             uint32_t layer_count_old = tile_grid->m_GridShapes.Size();
             uint32_t layer_count_new = tmp_tile_grid.m_GridShapes.Size();
-            uint32_t layer_count     = layer_count_new;//dmMath::Min(layer_count_old, layer_count_new);
+            uint32_t layer_count     = layer_count_new;
 
             if (layer_count_old < layer_count_new)
             {                
-                dmLogWarning("Reloaded tilemap '%s' has more layers that original tilemap. Only original layers will be reloaded.", dmHashReverseSafe64(params.m_Resource->m_NameHash));
-                // if (tile_grid->m_GridShapes.Size() < layer_count_new)
-                // {
-                //     uint32_t capacity = tile_grid->m_GridShapes.Capacity();
-                //     dmLogInfo("Offsetting capacity with: %u", layer_count_new - capacity);
-                //     tile_grid->m_GridShapes.OffsetCapacity(layer_count_new - capacity);
-                //     tile_grid->m_GridShapes.SetSize(layer_count_new);
-                //     for (int i = capacity; i < layer_count_new; ++i)
-                //     {
-                //         tile_grid->m_GridShapes[i] = tmp_tile_grid.m_GridShapes[i];
-                //     }
-                //     layer_count = layer_count_old;
-                // }
+                // dmLogWarning("Reloaded tilemap '%s' has more layers that original tilemap. Only original layers will be reloaded.", dmHashReverseSafe64(params.m_Resource->m_NameHash));
+                if (tile_grid->m_GridShapes.Size() < layer_count_new)
+                {
+                    uint32_t capacity = tile_grid->m_GridShapes.Capacity();
+                    tile_grid->m_GridShapes.OffsetCapacity(layer_count_new - capacity);
+                    tile_grid->m_GridShapes.SetSize(tile_grid_ddf->m_Layers.m_Count);
+                    for (int i = capacity; i < layer_count_new; ++i)
+                    {
+                        tile_grid->m_GridShapes[i] = tmp_tile_grid.m_GridShapes[i];
+                    }
+                }
+                layer_count = layer_count_old;
             }
             else if (layer_count_old > layer_count_new)
             {
-                // Fewer layers in new tilemap, reset untouched layers in old? Mark as empty? Do nothing?
+                layer_count = layer_count_new;
+                tile_grid->m_GridShapes.SetSize(layer_count_new);
             }
-            // else
-            // {
-            //     // Same num of layers in new/old, this is fine
-            // }
+            else
+            {
+                // Same num of layers, this is fine.
+            }
 
             dmLogWarning("old layer count: %u, new layer count: %u, selected: %u", layer_count_old, layer_count_new, layer_count);
-            for (uint32_t i = 0; i < layer_count; ++i)
-            {
-                // TODO friday, add indirection to grid shapes here, should allow us to swap out (delete and re-alloc) everything without worrying
-                // of physics holding stale refs maybe?
-                dmLogInfo("i = %u", i);
-                dmPhysics::SwapFreeGridShape2DHullSet(tile_grid->m_GridShapes[i], tmp_tile_grid.m_GridShapes[i]);
-            }
-
-            tile_grid->m_GridShapes.SetSize(layer_count);
+            tile_grid->m_GridShapes.Swap(tmp_tile_grid.m_GridShapes);
             tile_grid->m_Dirty = 1;
 
             params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);

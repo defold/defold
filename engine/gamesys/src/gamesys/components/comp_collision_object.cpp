@@ -220,26 +220,31 @@ namespace dmGameSystem
         }
     }
 
+    static void SetCollisionObjectData(CollisionWorld* world, CollisionComponent* component, CollisionObjectResource* resource, dmPhysicsDDF::CollisionObjectDesc* ddf, bool enabled, dmPhysics::CollisionObjectData &out_data)
+    {
+        out_data.m_UserData = component;
+        out_data.m_Type = (dmPhysics::CollisionObjectType)ddf->m_Type;
+        out_data.m_Mass = ddf->m_Mass;
+        out_data.m_Friction = ddf->m_Friction;
+        out_data.m_Restitution = ddf->m_Restitution;
+        out_data.m_Group = GetGroupBitIndex(world, resource->m_Group);
+        out_data.m_Mask = 0;
+        out_data.m_LinearDamping = ddf->m_LinearDamping;
+        out_data.m_AngularDamping = ddf->m_AngularDamping;
+        out_data.m_LockedRotation = ddf->m_LockedRotation;
+        out_data.m_Enabled = enabled;
+        for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
+        {
+            out_data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
+        }
+    }
+
     static bool CreateCollisionObject(PhysicsContext* physics_context, CollisionWorld* world, dmGameObject::HInstance instance, CollisionComponent* component, bool enabled)
     {
         CollisionObjectResource* resource = component->m_Resource;
         dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
         dmPhysics::CollisionObjectData data;
-        data.m_UserData = component;
-        data.m_Type = (dmPhysics::CollisionObjectType)ddf->m_Type;
-        data.m_Mass = ddf->m_Mass;
-        data.m_Friction = ddf->m_Friction;
-        data.m_Restitution = ddf->m_Restitution;
-        data.m_Group = GetGroupBitIndex(world, resource->m_Group);
-        data.m_Mask = 0;
-        data.m_LinearDamping = ddf->m_LinearDamping;
-        data.m_AngularDamping = ddf->m_AngularDamping;
-        data.m_LockedRotation = ddf->m_LockedRotation;
-        data.m_Enabled = enabled;
-        for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
-        {
-            data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
-        }
+        SetCollisionObjectData(world, component, resource, ddf, enabled, data);
         component->m_Mask = data.m_Mask;
         if (physics_context->m_3D)
         {
@@ -763,28 +768,11 @@ namespace dmGameSystem
             TileGridResource* tile_grid_res = c->m_Resource->m_TileGridResource;
             if (tile_grid_res != 0x0 && tile_grid_res->m_Dirty)
             {
-                // dmGameSystemDDF::TileGrid* tile_grid_ddf = tile_grid_res->m_TileGrid;
-                // dmLogInfo("BEFORE CompCollisionObjectUpdate, resource layers: %u, ddf layers: %u", tile_grid_res->m_GridShapes.Size(), tile_grid_ddf->m_Layers.m_Count);
-                // tile_grid_res->m_GridShapes.SetSize(tile_grid_ddf->m_Layers.m_Count);
-                // dmLogInfo("AFTER CompCollisionObjectUpdate, resource layers: %u, ddf layers: %u", tile_grid_res->m_GridShapes.Size(), tile_grid_ddf->m_Layers.m_Count);
+                dmGameSystemDDF::TileGrid* tile_grid_ddf = tile_grid_res->m_TileGrid;
                 CollisionObjectResource* resource = c->m_Resource;
                 dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
                 dmPhysics::CollisionObjectData data;
-                data.m_UserData = c;
-                data.m_Type = (dmPhysics::CollisionObjectType)ddf->m_Type;
-                data.m_Mass = ddf->m_Mass;
-                data.m_Friction = ddf->m_Friction;
-                data.m_Restitution = ddf->m_Restitution;
-                data.m_Group = GetGroupBitIndex(world, resource->m_Group);
-                data.m_Mask = 0;
-                data.m_LinearDamping = ddf->m_LinearDamping;
-                data.m_AngularDamping = ddf->m_AngularDamping;
-                data.m_LockedRotation = ddf->m_LockedRotation;
-                data.m_Enabled = true;
-                for (uint32_t i = 0; i < 16 && resource->m_Mask[i] != 0; ++i)
-                {
-                    data.m_Mask |= GetGroupBitIndex(world, resource->m_Mask[i]);
-                }
+                SetCollisionObjectData(world, c, c->m_Resource, ddf, true, data);
                 c->m_Mask = data.m_Mask;
 
                 dmPhysics::DeleteCollisionObject2D(world->m_World2D, c->m_Object2D);

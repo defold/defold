@@ -73,11 +73,11 @@ namespace dmGameSystem
         TileGridResource* resource = tile_grid->m_TileGridResource;
         dmGameSystemDDF::TileGrid* tile_grid_ddf = resource->m_TileGrid;
         uint32_t n_layers = tile_grid_ddf->m_Layers.m_Count;
-        dmLogWarning("CreateTileGrid, n_layers(ddf): %u, tile_grid->m_Layers.Capacity()(resource): %u", n_layers, tile_grid->m_Layers.Size());
         dmArray<TileGridComponent::Layer>& layers = tile_grid->m_Layers;
-        if (layers.Capacity() < n_layers)
+        if (layers.Size() < n_layers)
         {
-            layers.SetCapacity(n_layers);
+            if (layers.Capacity() < n_layers)
+                layers.SetCapacity(n_layers);
             layers.SetSize(n_layers);
             for (uint32_t i = 0; i < n_layers; ++i)
             {
@@ -118,25 +118,8 @@ namespace dmGameSystem
         return true;
     }
 
-    dmGameObject::CreateResult CompTileGridCreate(const dmGameObject::ComponentCreateParams& params)
+    static void CreateRegions(TileGridComponent* component, TileGridResource* resource)
     {
-        TileGridResource* resource = (TileGridResource*) params.m_Resource;
-        TileGridWorld* world = (TileGridWorld*) params.m_World;
-        if (world->m_TileGrids.Full())
-        {
-            world->m_TileGrids.OffsetCapacity(16);
-        }
-        TileGridComponent* component = new TileGridComponent();
-        component->m_Instance = params.m_Instance;
-        component->m_TileGridResource = resource;
-        component->m_Translation = Vector3(params.m_Position);
-        component->m_Rotation = params.m_Rotation;
-        component->m_Enabled = 1;
-        if (!CreateTileGrid(component))
-        {
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
-        }
-
         // Round up to closest multiple
         component->m_RegionsX = ((resource->m_ColumnCount + TILEGRID_REGION_WIDTH - 1) / TILEGRID_REGION_WIDTH);
         component->m_RegionsY = ((resource->m_RowCount + TILEGRID_REGION_HEIGHT - 1) / TILEGRID_REGION_HEIGHT);
@@ -144,7 +127,10 @@ namespace dmGameSystem
 
         component->m_Regions.SetCapacity(region_count);
         component->m_Regions.SetSize(region_count);
+    }
 
+    static void CreateRenderObjects(TileGridWorld* world, TileGridComponent* component, TileGridResource* resource, uint32_t region_count)
+    {
         dmRender::HMaterial material = resource->m_Material;
         dmGraphics::BlendFactor source_blend_factor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
         dmGraphics::BlendFactor destination_blend_factor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -191,6 +177,29 @@ namespace dmGameSystem
             ro->m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             ro->m_Material = material;
         }
+    }
+
+    dmGameObject::CreateResult CompTileGridCreate(const dmGameObject::ComponentCreateParams& params)
+    {
+        TileGridResource* resource = (TileGridResource*) params.m_Resource;
+        TileGridWorld* world = (TileGridWorld*) params.m_World;
+        if (world->m_TileGrids.Full())
+        {
+            world->m_TileGrids.OffsetCapacity(16);
+        }
+        TileGridComponent* component = new TileGridComponent();
+        component->m_Instance = params.m_Instance;
+        component->m_TileGridResource = resource;
+        component->m_Translation = Vector3(params.m_Position);
+        component->m_Rotation = params.m_Rotation;
+        component->m_Enabled = 1;
+        if (!CreateTileGrid(component))
+        {
+            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+        }
+
+        CreateRegions(component, resource);
+        CreateRenderObjects(world, component, resource, component->m_Regions.Size());
 
         world->m_TileGrids.Push(component);
         *params.m_UserData = (uintptr_t) component;
@@ -609,30 +618,28 @@ namespace dmGameSystem
     }
 
     void CompTileGridOnReload(const dmGameObject::ComponentOnReloadParams& params)
-    {        
-        TileGridComponent* tile_grid = (TileGridComponent*)*params.m_UserData;
-        dmGameSystemDDF::TileGrid* tile_grid_ddf = tile_grid->m_TileGridResource->m_TileGrid;
-        tile_grid->m_TileGridResource = (TileGridResource*)params.m_Resource;
-        
-        if (tile_grid_ddf->m_Layers.m_Count <= tile_grid->m_Layers.Capacity())
+    {
+        TileGridWorld* world = (TileGridWorld*)params.m_World;
+        TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
+        component->m_TileGridResource = (TileGridResource*)params.m_Resource;
+
+        dmGameSystemDDF::TileGrid* tile_grid_ddf = component->m_TileGridResource->m_TileGrid;        
+        if (tile_grid_ddf->m_Layers.m_Count <= component->m_Layers.Capacity())
         {
-            tile_grid->m_Layers.SetSize(tile_grid_ddf->m_Layers.m_Count);
+            component->m_Layers.SetSize(tile_grid_ddf->m_Layers.m_Count);
         }
         else
         {
-            tile_grid->m_Layers.OffsetCapacity(tile_grid_ddf->m_Layers.m_Count - tile_grid->m_Layers.Capacity());
+            component->m_Layers.OffsetCapacity(tile_grid_ddf->m_Layers.m_Count - component->m_Layers.Capacity());
         }
 
-        if (!CreateTileGrid(tile_grid))
+        if (!CreateTileGrid(component))
         {
             dmLogError("%s", "Could not recreate tile grid component, not reloaded.");
         }
 
-        uint32_t num_regions = tile_grid->m_Regions.Size();
-        for (uint32_t i = 0; i < num_regions; ++i)
-        {
-            tile_grid->m_Regions[i].m_Dirty = 1;
-        }
+        CreateRegions(component, component->m_TileGridResource);
+        CreateRenderObjects(world, component, component->m_TileGridResource, component->m_Regions.Size());
     }
 
     static bool CompTileGridGetConstantCallback(void* user_data, dmhash_t name_hash, dmRender::Constant** out_constant)
