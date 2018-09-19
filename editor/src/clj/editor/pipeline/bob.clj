@@ -61,9 +61,13 @@
       (beginTask [this name subtask-steps]
         (error-reporting/catch-all!
           (swap! msg-stack-atom conj name)
-          (reset! step-atom (if (pos? subtask-steps)
-                              (/ steps-claimed-from-parent subtask-steps)
-                              0)))) ; Indeterminate - don't advance.
+          (let [step (if (pos? subtask-steps)
+                       (/ steps-claimed-from-parent subtask-steps)
+                       0)] ; Indeterminate - don't advance.
+            (reset! step-atom step)
+            (when (zero? step)
+              (reset! indeterminate-atom true)) ; Flag as indeterminate.
+            (.worked parent 0)))) ; Trigger render-progress! in parent.
       (done [this]
         (error-reporting/catch-all!
           (let [remaining-work (:remaining @work-atom)]
