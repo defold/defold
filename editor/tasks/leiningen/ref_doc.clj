@@ -18,11 +18,11 @@
   [source target-dir]
   (with-open [zip (ZipFile. (io/file source))]
     (doseq [entry (enumeration-seq (.entries zip))]
-        (let [entryname (.getName entry)
-              filename (.getName (io/file entryname))
-               dest (io/file target-dir filename)]
-          (when (str/ends-with? filename ".sdoc")
-             (io/copy (.getInputStream zip entry) dest))))))
+      (let [entryname (.getName entry)
+            filename (.getName (io/file entryname))
+            dest (io/file target-dir filename)]
+        (when (str/ends-with? filename ".sdoc")
+          (io/copy (.getInputStream zip entry) dest))))))
 
 (defn- ref-doc-zip
   "Get the ref-doc.zip from either d.defold.com or DYNAMO_HOME."
