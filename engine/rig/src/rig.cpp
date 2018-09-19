@@ -1608,6 +1608,15 @@ namespace dmRig
             (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f);
         }
 
+        // m_ForceAnimatePose should be set if the animation step needs to run once (with dt 0)
+        // to setup the pose to the current cursor.
+        // Useful if pose needs to be calculated before draw but dmRig::Update will not be called
+        // before that happens, for example cloning a GUI spine node happens in script update,
+        // which comes after the regular dmRig::Update.
+        if (params.m_ForceAnimatePose) {
+            DoAnimate(context, instance, 0.0f);
+        }
+
         return dmRig::RESULT_OK;
     }
 

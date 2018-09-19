@@ -1,0 +1,12 @@
+function update(self, dt)
+    -- Clone spine node and verify the bone has been posed and that the animation is correct.
+    local clone = gui.clone_tree(gui.get_node("spine"))
+    local bone = gui.get_spine_bone(clone["spine"], "root")
+    local p = gui.get_position(bone)
+    if p.x == 100 and gui.get_spine_animation(clone["spine"]) == hash("animation") then
+        msg.post("@system:", "exit", { code = 0 })
+    else
+        print("Failed to call print(node) in init after spine callbacks were called.")
+        msg.post("@system:", "exit", { code = 1 })
+    end
+end

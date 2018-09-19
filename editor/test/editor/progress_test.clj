@@ -30,11 +30,13 @@
   (is (= 50 (percentage (jump (make "" 100 0) 50)))))
 
 (deftest fraction-test
+  (is (nil? (fraction (make "mess" 0 0))))
   (is (= 0 (fraction (make "mess"))))
   (is (= 1 (fraction (advance (make "mess")))))
   (is (= 1/2 (fraction (advance (make "mess" 2))))))
 
 (deftest percentage-test
+  (is (nil? (percentage (make "" 0 0))))
   (is (= 1 (percentage (make "1%" 200 2))))
   (is (= 99 (percentage (make "99%" 100 99)))))
 

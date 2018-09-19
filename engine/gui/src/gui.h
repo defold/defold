@@ -406,6 +406,12 @@ namespace dmGui
         float m_ScreenDX;
         /// Cursor dy since last frame, in screen space
         float m_ScreenDY;
+        /// Accelerometer x value (if present)
+        float m_AccX;
+        /// Accelerometer y value (if present)
+        float m_AccY;
+        /// Accelerometer z value (if present)
+        float m_AccZ;
         /// Touch data
         dmHID::Touch m_Touch[dmHID::MAX_TOUCH_COUNT];
         /// Number of m_Touch
@@ -423,6 +429,8 @@ namespace dmGui
         uint16_t m_Repeated : 1;
         /// If the position fields (m_X, m_Y, m_DX, m_DY) are set and valid to read
         uint16_t m_PositionSet : 1;
+        /// If the acceleration fields (m_AccX, m_AccY, m_AccZ) are set and valid to read
+        uint16_t m_AccelerationSet : 1;
     };
 
     struct RenderEntry {
