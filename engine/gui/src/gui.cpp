@@ -2679,6 +2679,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         create_params.m_MeshId           = skin_id;
         create_params.m_DefaultAnimation = default_animation_id;
 
+        // We need to make sure the new rig scene has run an animation step to setup the
+        // pose since we could have been called mid frame in during a clone node call.
+        create_params.m_ForceAnimatePose = true;
+
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
             if (res == dmRig::RESULT_ERROR_BUFFER_FULL) {
@@ -3954,7 +3958,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (n->m_Node.m_RigInstance != 0x0)
             {
                 out_n->m_Node.m_RigInstance = 0x0;
-                SetNodeSpineScene(scene, *out_node, GetNodeSpineScene(scene, node), 0, 0, false);
+                SetNodeSpineScene(scene, *out_node, GetNodeSpineScene(scene, node), GetNodeSpineSkin(scene, node), GetNodeSpineAnimation(scene, node), false);
             }
 
             if (n->m_Node.m_ParticleInstance != 0x0)
