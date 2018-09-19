@@ -114,7 +114,8 @@ public class IOSBundler implements IBundler {
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
 
-        boolean debug = project.hasOption("debug");
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final boolean strip_executable = project.hasOption("strip-executable");
 
         File exeArmv7 = null;
         File exeArm64 = null;
@@ -125,24 +126,24 @@ public class IOSBundler implements IBundler {
         // armv7 exe
         {
             Platform targetPlatform = Platform.Armv7Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-            exeArmv7 = defaultExe;
-            if (extenderExe.exists()) {
+            exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+            if (exeArmv7 == null) {
+                exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            }
+            else {
                 logger.log(Level.INFO, "Using extender exe for Armv7");
-                exeArmv7 = extenderExe;
             }
         }
 
         // arm64 exe
         {
             Platform targetPlatform = Platform.Arm64Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-            exeArm64 = defaultExe;
-            if (extenderExe.exists()) {
+            exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+            if (exeArmv7 == null) {
+                exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            }
+            else {
                 logger.log(Level.INFO, "Using extender exe for Arm64");
-                exeArm64 = extenderExe;
             }
         }
 
@@ -303,7 +304,7 @@ public class IOSBundler implements IBundler {
         }
 
         // Strip executable
-        if( !debug )
+        if( strip_executable )
         {
             Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
             if (stripResult.ret == 0) {

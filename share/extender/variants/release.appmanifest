@@ -1,0 +1,6 @@
+# Settings: Derived from src/engine/wscript, engine_release target
+platforms:
+    common:
+        context:
+            excludeLibs: ["engine", "engine_service"]
+            libs: ["engine_release", "engine_service_null"]
