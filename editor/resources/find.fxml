@@ -22,8 +22,8 @@
       <CheckBox id="case-sensitive" mnemonicParsing="false" text="Case" GridPane.columnIndex="1" GridPane.halignment="CENTER" />
       <CheckBox id="wrap" mnemonicParsing="false" text="Wrap" GridPane.columnIndex="2" GridPane.halignment="CENTER" />
       <TextField id="term" GridPane.columnIndex="3" />
-      <Button id="next" mnemonicParsing="false" text="Next" GridPane.columnIndex="4" GridPane.halignment="CENTER" />
-      <Button id="prev" mnemonicParsing="false" text="Prev" GridPane.columnIndex="5" GridPane.halignment="CENTER" />
+      <Button id="prev" mnemonicParsing="false" text="Prev" GridPane.columnIndex="4" GridPane.halignment="CENTER" />
+      <Button id="next" mnemonicParsing="false" text="Next" GridPane.columnIndex="5" GridPane.halignment="CENTER" />
    </children>
    <padding>
       <Insets left="3.0" right="3.0" />
