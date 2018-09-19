@@ -425,7 +425,7 @@ TEST_P(dmHttpClientTest, CustomRequestHeaders)
 
 TEST_P(dmHttpClientTest, ServerTimeout)
 {
-    for (int i = 0; i < 10; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         dmHttpClient::Result r;
         m_Content = "";
@@ -433,8 +433,8 @@ TEST_P(dmHttpClientTest, ServerTimeout)
         ASSERT_EQ(dmHttpClient::RESULT_OK, r);
         ASSERT_EQ(30, strtol(m_Content.c_str(), 0, 10));
 
-        // NOTE: MaxIdleTime is set to 300ms
-        dmTime::Sleep(1000 * 350);
+        // NOTE: MaxIdleTime is set to 500ms
+        dmTime::Sleep(1000 * 550);
 
         m_Content = "";
         r = dmHttpClient::Get(m_Client, "/add/100/20");
@@ -451,7 +451,7 @@ TEST_P(dmHttpClientTest, ClientTimeout)
     dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, 130 * 1000); // microseconds
 
     char buf[128];
-    for (int i = 0; i < 7; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         dmHttpClient::Result r;
         m_StatusCode = -1;
