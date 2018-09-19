@@ -176,6 +176,9 @@ function test_bitop_md5()
     txt = txt..txt..txt..txt
     txt = txt..txt..txt..txt
 
+    local res = md5(txt)
+    assert(res == 'cd3a68ca4b9b54dee5ad7d74bfe7cb59')
+--[[
     local function bench()
         local n = 80
         repeat
@@ -194,6 +197,7 @@ function test_bitop_md5()
     end
 
     io.write(string.format("MD5 %7.1f ns/char\n", bench()))
+--]]
 end
 
 
