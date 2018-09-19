@@ -936,13 +936,14 @@ If you do not specifically require different script states, consider changing th
                               :command :support-forum}
                              {:label "Show Logs"
                               :command :show-logs}
-                             {:label "Report"
-                              :children [{:label "Issue"
-                                          :command :report-issue}
-                                         {:label "Suggestion"
-                                          :command :report-suggestion}
-                                         {:label "Praise"
-                                          :command :report-praise}]}
+                             {:label :separator}
+                             {:label "Report Issue"
+                              :command :report-issue}
+                             {:label "Report Suggestion"
+                              :command :report-suggestion}
+                             {:label "Report Praise"
+                              :command :report-praise}
+                             {:label :separator}
                              {:label "About"
                               :command :about}]}])
 
