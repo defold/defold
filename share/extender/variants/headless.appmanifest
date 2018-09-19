@@ -1,0 +1,7 @@
+# Settings: Derived from src/engine/wscript, engine_headless target
+platforms:
+    common:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]

@@ -196,7 +196,7 @@
 ;; Bundling
 ;; -----------------------------------------------------------------------------
 
-(defn- generic-bundle-bob-args [prefs {:keys [release-mode? generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
+(defn- generic-bundle-bob-args [prefs {:keys [variant generate-build-report? publish-live-update-content? platform ^File output-directory] :as _bundle-options}]
   (assert (some? output-directory))
   (assert (or (not (.exists output-directory))
               (.isDirectory output-directory)))
@@ -205,8 +205,10 @@
         build-server-url (native-extensions/get-build-server-url prefs)
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
-        defold-sdk-sha1 (or (system/defold-engine-sha1) "")]
+        defold-sdk-sha1 (or (system/defold-engine-sha1) "")
+        strip-executable? (= "release" variant)]
     (cond-> {"platform" platform
+             "variant" variant
 
              ;; From AbstractBundleHandler
              "archive" "true"
@@ -223,8 +225,9 @@
              "email" (or email "")
              "auth"  (or auth "")}
 
+            strip-executable? (assoc "strip-executable" "true")
+
             ;; From BundleGenericHandler
-            (not release-mode?) (assoc "debug" "true")
             generate-build-report? (assoc "build-report-html" build-report-path)
             publish-live-update-content? (assoc "liveupdate" "true"))))
 
