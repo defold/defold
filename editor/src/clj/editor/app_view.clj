@@ -824,6 +824,9 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :support-forum :global
   (run [] (ui/open-url "https://forum.defold.com/")))
 
+(handler/defhandler :asset-portal :global
+  (run [] (ui/open-url "https://www.defold.com/community/assets")))
+
 (handler/defhandler :report-issue :global
   (run [] (ui/open-url (github/new-issue-link))))
 
@@ -930,12 +933,15 @@ If you do not specifically require different script states, consider changing th
                                           :command :profile-show}]}
                              {:label "Reload Stylesheet"
                               :command :reload-stylesheet}
+                             {:label "Show Logs"
+                              :command :show-logs}
+                             {:label :separator}
                              {:label "Documentation"
                               :command :documentation}
                              {:label "Support Forum"
                               :command :support-forum}
-                             {:label "Show Logs"
-                              :command :show-logs}
+                             {:label "Find Assets"
+                              :command :asset-portal}
                              {:label :separator}
                              {:label "Report Issue"
                               :command :report-issue}
