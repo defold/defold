@@ -827,6 +827,9 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :report-issue :global
   (run [] (ui/open-url (github/new-issue-link))))
 
+(handler/defhandler :report-suggestion :global
+  (run [] (ui/open-url (github/new-suggestion-link))))
+
 (handler/defhandler :report-praise :global
   (run [] (ui/open-url (github/new-praise-link))))
 
@@ -931,12 +934,15 @@ If you do not specifically require different script states, consider changing th
                               :command :documentation}
                              {:label "Support Forum"
                               :command :support-forum}
-                             {:label "Report Issue"
-                              :command :report-issue}
-                             {:label "Report Praise"
-                              :command :report-praise}
                              {:label "Show Logs"
                               :command :show-logs}
+                             {:label "Report"
+                              :children [{:label "Issue"
+                                          :command :report-issue}
+                                         {:label "Suggestion"
+                                          :command :report-suggestion}
+                                         {:label "Praise"
+                                          :command :report-praise}]}
                              {:label "About"
                               :command :about}]}])
 

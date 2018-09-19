@@ -52,6 +52,10 @@
         (str issue-repo "/issues/new?title=&labels=new&body="
           (URLEncoder/encode (issue-body (merge (default-fields) fields)))))))
 
+(defn new-suggestion-link
+  []
+  (format "%s/issues/new?title=%s&body=%s" issue-repo (URLEncoder/encode "[SUGGESTION] ") (URLEncoder/encode "<!-- NOTE! The information you specify will be publicly accessible. -->")))
+
 (defn new-praise-link
   []
   (format "%s/issues/new?title=%s&body=%s" issue-repo (URLEncoder/encode "[PRAISE] ") (URLEncoder/encode "<!-- NOTE! The information you specify will be publicly accessible. -->")))
