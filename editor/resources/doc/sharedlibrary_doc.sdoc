@@ -1,5 +1,0 @@
-
-πDM_DLLEXPORT?<p>storage-class attribute for shared library export/import</p>"F<p>Export and import functions, data, and objects to or from a DLL</p>:ù<div class="codehilite"><pre><span></span><span class="n">DM_DLLEXPORT</span> <span class="kt">uint64_t</span> <span class="nf">dmHashBuffer64</span><span class="p">(</span><span class="k">const</span> <span class="kt">void</span><span class="o">*</span> <span class="n">buffer</span><span class="p">,</span> <span class="kt">uint32_t</span> <span class="n">buffer_len</span><span class="p">);</span>
-</pre></div>Ã
-sharedlibraryShared Library+<p>SDK Shared library API documentation</p>"~<p><span class="file">&lt;dmsdk/dlib/shared_library.h&gt;</span></p>
-<p>Utility functions for shared library export/import</p>
