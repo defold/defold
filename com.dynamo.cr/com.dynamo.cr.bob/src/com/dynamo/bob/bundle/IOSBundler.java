@@ -217,7 +217,11 @@ public class IOSBundler implements IBundler {
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
 
-        // iPad pro (12")
+        // iPad pro (10.5")
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
+
+        // iPad pro (12.9")
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
 
