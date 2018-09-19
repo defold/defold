@@ -138,9 +138,9 @@ public class IOSBundler implements IBundler {
         // arm64 exe
         {
             Platform targetPlatform = Platform.Arm64Darwin;
-            exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-            if (exeArmv7 == null) {
-                exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            exeArm64 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+            if (exeArm64 == null) {
+                exeArm64 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
             }
             else {
                 logger.log(Level.INFO, "Using extender exe for Arm64");
