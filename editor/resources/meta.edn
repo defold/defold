@@ -441,13 +441,23 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPad Pro portrait launch image (.png)",
+   :help "iPad Pro 12.9 portrait launch image (.png)",
    :path ["ios" "launch_image_2048x2732"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPad Pro landscape launch image (.png)",
+   :help "iPad Pro 12.9 landscape launch image (.png)",
    :path ["ios" "launch_image_2732x2048"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro 10.5 portrait launch image (.png)",
+   :path ["ios" "launch_image_1668x2224"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro 10.5 landscape launch image (.png)",
+   :path ["ios" "launch_image_2224x1668"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
