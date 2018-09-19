@@ -87,17 +87,12 @@ copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
 copy x86_64-win32/dmengine_headless.exe x86_64-win32/dmengine_headless.exe
 copy armv7-darwin/dmengine armv7-darwin/dmengine
 copy armv7-darwin/dmengine_release armv7-darwin/dmengine_release
-copy armv7-darwin/dmengine_headless armv7-darwin/dmengine_headless
 copy arm64-darwin/dmengine arm64-darwin/dmengine
 copy arm64-darwin/dmengine_release arm64-darwin/dmengine_release
-copy arm64-darwin/dmengine_headless arm64-darwin/dmengine_headless
 copy armv7-android/libdmengine.so armv7-android/libdmengine.so
 copy armv7-android/libdmengine_release.so armv7-android/libdmengine_release.so
-copy armv7-android/dmengine_headless.so armv7-android/dmengine_headless.so
 copy js-web/dmengine.js js-web/dmengine.js
 copy js-web/defold_sound.swf js-web/defold_sound.swf
 #copy js-web/dmengine.js.mem js-web/dmengine.js.mem
 copy js-web/dmengine_release.js js-web/dmengine_release.js
 #copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
-copy js-web/dmengine_release.js js-web/dmengine_headless.js
-#copy js-web/dmengine_release.js.mem js-web/dmengine_headless.js.mem
