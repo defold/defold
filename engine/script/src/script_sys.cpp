@@ -62,7 +62,7 @@ union SaveLoadBuffer
      * This size reflects the output file size which must not exceed this limit.
      * Additionally, the total number of rows that any one table may contain is limited to 65536
      * (i.e. a 16 bit range). When tables are used to represent arrays, the values of
-     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however 
+     * keys are permitted to fall within a 32 bit range, supporting sparse arrays, however
      * the limit on the total number of rows remains in effect.
      *
      * @name sys.save
@@ -418,6 +418,9 @@ union SaveLoadBuffer
      * `system_version`
      * : [type:string] The system OS version.
      *
+     * `system_build`
+     * : [type:string] [icon:android][icon:ios][icon:osx] Identifier for the system build version, e.g. "NRD90M" on an HTC One M9 running Android 7.1 (from BUILD.ID) or "17D102" on a Mac running High Sierra 10.13.3 (from KERN_OSVERSION).
+     *
      * `api_version`
      * : [type:string] The API version on the system.
      *
@@ -444,6 +447,15 @@ union SaveLoadBuffer
      *
      * `user_agent`
      * : [type:string] [icon:html5] The HTTP user agent, i.e. "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/602.4.8 (KHTML, like Gecko) Version/10.0.3 Safari/602.4.8"
+     *
+     * `build_fingerprint`
+     * : [type:string] [icon:android] A string that uniquely identifies the system build, e.g. "htc/himauhl_htc_europe/htc_himauhl:7.0/NRD90M/869604.3:user/release-keys" (from BUILD.FINGERPRINT)
+     *
+     * `bootloader_Version`
+     * : [type:string] [icon:android] The system bootloader version number (from BUILD.BOOTLOADER)
+     *
+     * `cpu_architecture`
+     * : [type:string] [icon:android][icon:ios][icon:windows][icon:osx] The CPU architecture of the system ("arm", "arm64", "x86", "x86_64" or "unknown")
      *
      * @examples
      *
@@ -476,6 +488,9 @@ union SaveLoadBuffer
         lua_pushliteral(L, "system_version");
         lua_pushstring(L, info.m_SystemVersion);
         lua_rawset(L, -3);
+        lua_pushliteral(L, "system_build");
+        lua_pushstring(L, info.m_BuildId);
+        lua_rawset(L, -3);
         lua_pushliteral(L, "api_version");
         lua_pushstring(L, info.m_ApiVersion);
         lua_rawset(L, -3);
@@ -502,6 +517,15 @@ union SaveLoadBuffer
         lua_rawset(L, -3);
         lua_pushliteral(L, "user_agent");
         lua_pushstring(L, info.m_UserAgent ? info.m_UserAgent : "");
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "cpu_architecture");
+        lua_pushstring(L, info.m_CpuArchitecture);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "build_fingerprint");
+        lua_pushstring(L, info.m_BuildFingerprint);
+        lua_rawset(L, -3);
+        lua_pushliteral(L, "bootloader_version");
+        lua_pushstring(L, info.m_BootloaderVersion);
         lua_rawset(L, -3);
 
         assert(top + 1 == lua_gettop(L));

@@ -84,6 +84,14 @@ namespace dmSys
         char m_SystemVersion[32];
         /// Api version, e.g. 23 for android, 9.1 for iOS, empty for platforms with no concept of an api or sdk
         char m_ApiVersion[32];
+        /// Identifier for the OS build, e.g. "M4-rc20" on Android or "17D102" on iOS and OSX. Not set on HTML5, Windows and Linux
+        char m_BuildId[32];
+        /// A string that uniquely identifies the build, only set on Android
+        char m_BuildFingerprint[128];
+        /// The system bootloader version number, only set on Android
+        char m_BootloaderVersion[32];
+        /// Information about the system CPU architecture (arm, arm64, x86, x86_64 or unknown)
+        char m_CpuArchitecture[16];
         /// ISO 639 language code
         char m_Language[8];
         /// ISO 639 device language code and optional dash (–) followed by an ISO 15924 script code. Reflects UI language and typically same as m_Language.
