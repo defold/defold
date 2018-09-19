@@ -572,7 +572,7 @@
           (if-let [target-override-node-id (first target-override-node-ids)]
             (let [basis (:basis ctx)
                   target-override-node (gt/node-by-id-at basis target-override-node-id)
-                  target-override-id (gt/target-override-id target-override-node)
+                  target-override-id (gt/override-id target-override-node)
                   source-override-node (filter #(= target-override-id (gt/override-id %)) source-override-nodes)
                   traverse-fn (ig/override-traverse-fn basis target-override-id)
                   to-delete (ig/pre-traverse basis (mapv gt/node-id source-override-node) traverse-fn)]
