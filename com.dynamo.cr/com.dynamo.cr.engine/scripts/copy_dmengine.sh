@@ -20,24 +20,37 @@ copy () {
 
 copy linux/dmengine engine/linux/dmengine
 copy linux/dmengine_release engine/linux/dmengine_release
+copy linux/dmengine_headless engine/linux/dmengine_headless
 
 copy x86_64-linux/dmengine engine/x86_64-linux/dmengine
 copy x86_64-linux/dmengine_release engine/x86_64-linux/dmengine_release
+copy x86_64-linux/dmengine_headless engine/x86_64-linux/dmengine_headless
 
 copy darwin/dmengine engine/darwin/dmengine
 copy darwin/dmengine_release engine/darwin/dmengine_release
+copy darwin/dmengine_headless engine/darwin/dmengine_headless
+
 copy x86_64-darwin/dmengine engine/x86_64-darwin/dmengine
 copy x86_64-darwin/dmengine_release engine/x86_64-darwin/dmengine_release
+copy x86_64-darwin/dmengine_headless engine/x86_64-darwin/dmengine_headless
+
 copy win32/dmengine.exe engine/win32/dmengine.exe
 copy win32/dmengine_release.exe engine/win32/dmengine_release.exe
+copy win32/dmengine_headless.exe engine/win32/dmengine_headless.exe
+
 copy x86_64-win32/dmengine.exe engine/x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe engine/x86_64-win32/dmengine_release.exe
+copy x86_64-win32/dmengine_headless.exe engine/x86_64-win32/dmengine_headless.exe
+
 copy arm64-darwin/dmengine engine/arm64-ios/dmengine
 copy arm64-darwin/dmengine_release engine/arm64-ios/dmengine_release
+
 copy armv7-darwin/dmengine engine/ios/dmengine
 copy armv7-darwin/dmengine_release engine/ios/dmengine_release
+
 copy armv7-android/libdmengine.so engine/android/libdmengine.so
 copy armv7-android/libdmengine_release.so engine/android/libdmengine_release.so
+
 copy js-web/dmengine.js engine/js-web/dmengine.js
 copy js-web/dmengine_release.js engine/js-web/dmengine_release.js
 copy js-web/defold_sound.swf engine/js-web/defold_sound.swf

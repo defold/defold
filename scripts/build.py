@@ -571,6 +571,19 @@ class Configuration(object):
             configs = [os.path.join(self.dynamo_home, x) for x in configs]
             self._add_files_to_zip(zip, configs, self.dynamo_home, topfolder)
 
+            # Variants
+            variants = []
+            cwd = os.getcwd()
+            os.chdir(self.dynamo_home)
+            for root, dirs, files in os.walk("extender/variants"):
+                for file in files:
+                    if file.endswith('.appmanifest'):
+                        variants.append(os.path.join(root, file))
+
+            os.chdir(cwd)
+            variants = [os.path.join(self.dynamo_home, x) for x in variants]
+            self._add_files_to_zip(zip, variants, self.dynamo_home, topfolder)
+
             def _findlibs(libdir):
                 paths = os.listdir(libdir)
                 paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.a', '.dylib', '.so', '.lib', '.dll')]

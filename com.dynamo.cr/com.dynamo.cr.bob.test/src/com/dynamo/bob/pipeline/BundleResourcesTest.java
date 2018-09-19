@@ -71,6 +71,7 @@ public class BundleResourcesTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         addResourceDirectory("/testextension");
+        addResourceDirectory("/testappmanifest");
     }
 
     private void addFile(String file, String source) {
@@ -311,15 +312,15 @@ public class BundleResourcesTest {
 
     }
 
-    private boolean findInResourceList(List<ExtenderResource> list, String path) {
+    private ExtenderResource findInResourceList(List<ExtenderResource> list, String path) {
 
         for (ExtenderResource resource : list) {
             if (resource.getPath().equals(path)) {
-                return true;
+                return resource;
             }
         }
 
-        return false;
+        return null;
     }
 
     // Extension source collecting
@@ -327,20 +328,36 @@ public class BundleResourcesTest {
     public void testExtensionSources() throws Exception {
 
         // Should find: ext.manifest, src/extension1.cpp, lib/common/common.a, lib/x86_64-osx/x86_64-osx.a
-        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin);
+        List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, null);
         assertEquals(4, resources.size());
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
-        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a"));
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/x86_64-osx/x86_64-osx.a") != null);
 
-        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin);
-        assertEquals(3, resources.size());
+        resources = ExtenderUtil.getExtensionSources(project, Platform.Armv7Darwin, "release");
+        assertEquals(4, resources.size());
 
-        assertTrue(findInResourceList(resources, "extension1/ext.manifest"));
-        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp"));
-        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a"));
+        assertTrue(findInResourceList(resources, "extension1/ext.manifest") != null);
+        assertTrue(findInResourceList(resources, "extension1/src/extension1.cpp") != null);
+        assertTrue(findInResourceList(resources, "extension1/lib/common/common.a") != null);
+        ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String synthesizedManifest = new String(appManifest.getContent());
+        String expectedManifest = "context:" + System.getProperty("line.separator") + "    baseVariant: release" + System.getProperty("line.separator");
+        assertEquals(synthesizedManifest, expectedManifest);
+    }
+
+    @Test
+    public void testAppManifestVariant() throws Exception {
+    	project.getProjectProperties().putStringValue("native_extension", "app_manifest", "myapp.appmanifest");
+    	List<ExtenderResource> resources = ExtenderUtil.getExtensionSources(project, Platform.X86_64Darwin, "debug");
+        assertEquals(5, resources.size());
+        ExtenderResource appManifest = findInResourceList(resources, ExtenderUtil.appManifestPath);
+        String patchedManifest = new String(appManifest.getContent());
+        String expectedManifest = "context:" + System.getProperty("line.separator") + "    baseVariant: debug" + System.getProperty("line.separator");
+        assertTrue(patchedManifest.length() > expectedManifest.length());
+        assertEquals(patchedManifest.substring(0, expectedManifest.length()), expectedManifest);
     }
 
 }

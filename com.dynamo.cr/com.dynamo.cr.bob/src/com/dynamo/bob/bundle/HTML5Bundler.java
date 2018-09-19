@@ -158,18 +158,15 @@ public class HTML5Bundler implements IBundler {
 
         Platform targetPlatform = Platform.JsWeb;
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
-        Boolean debug = project.hasOption("debug") || localLaunch;
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String js = Bob.getDmengineExe(targetPlatform, debug);
+        String js = Bob.getDefaultDmenginePath(targetPlatform, variant);
         String engine = title + '.' + FilenameUtils.getExtension(js);
 
-        // Select the native extension executable
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(js);
-        File bundleExe = defaultExe;
-        if (extenderExe.exists()) {
-            bundleExe = extenderExe;
+        File bundleExe = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+        if (bundleExe == null) {
+            bundleExe = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
         }
 
         String jsMemInit = js + ".mem";
