@@ -830,8 +830,8 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :report-suggestion :global
   (run [] (ui/open-url (github/new-suggestion-link))))
 
-(handler/defhandler :report-praise :global
-  (run [] (ui/open-url (github/new-praise-link))))
+(handler/defhandler :search-issues :global
+  (run [] (ui/open-url (github/search-issues-link))))
 
 (handler/defhandler :show-logs :global
   (run [] (ui/open-file (.toFile (Editor/getLogDirectory)))))
@@ -941,8 +941,8 @@ If you do not specifically require different script states, consider changing th
                               :command :report-issue}
                              {:label "Report Suggestion"
                               :command :report-suggestion}
-                             {:label "Report Praise"
-                              :command :report-praise}
+                             {:label "Search Issues"
+                              :command :search-issues}
                              {:label :separator}
                              {:label "About"
                               :command :about}]}])
