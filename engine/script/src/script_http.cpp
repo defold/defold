@@ -96,7 +96,7 @@ namespace dmScript
 
             const char* url = luaL_checkstring(L, 1);
             const uint32_t max_url_len = dmURI::MAX_URI_LEN;
-            const uint32_t url_len = strlen(url);
+            const uint32_t url_len = (uint32_t)strlen(url);
             if (url_len > max_url_len)
             {
                 assert(top == lua_gettop(L));
@@ -105,7 +105,7 @@ namespace dmScript
 
             const char* method = luaL_checkstring(L, 2);
             const uint32_t max_method_len = 16;
-            const uint32_t method_len = strlen(method);
+            const uint32_t method_len = (uint32_t)strlen(method);
             if (method_len > max_method_len) {
                 assert(top == lua_gettop(L));
                 return luaL_error(L, "http.request does not support request methods longer than %d characters.", max_method_len);
