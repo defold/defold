@@ -152,7 +152,7 @@ public class Bob {
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
         URL url = Bob.class.getResource("/libexec/" + exeName);
         if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s not found", exeName));
+            throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
         }
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
