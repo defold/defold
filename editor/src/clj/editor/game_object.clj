@@ -70,11 +70,15 @@
 
 (defn- source-outline-subst [err]
   (if-let [resource (get-in err [:user-data :resource])]
-    (let [rt (resource/resource-type resource)]
+    (let [rt (resource/resource-type resource)
+          label (or (:label rt) (:ext rt) "unknown")
+          icon (or (:icon rt) unknown-icon)]
       {:node-id (:node-id err)
-       :label (or (:label rt) (:ext rt) "unknown")
-       :icon (or (:icon rt) unknown-icon)})
+       :node-outline-key label
+       :label label
+       :icon icon})
     {:node-id -1
+     :node-outline-key ""
      :icon ""
      :label ""}))
 
@@ -164,6 +168,7 @@
                         (and (not= source-id -1) source-id))
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
         (-> {:node-id _node-id
+             :node-outline-key id
              :label id
              :icon (or (not-empty (:icon source-outline)) unknown-icon)
              :outline-overridden? overridden?
@@ -377,6 +382,7 @@
 
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
+   :node-outline-key "Game Object"
    :label "Game Object"
    :icon game-object-icon
    :children (outline/natural-sort child-outlines)

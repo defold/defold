@@ -219,6 +219,7 @@
 (g/defnk produce-layer-outline
   [_node-id id]
   {:node-id _node-id
+   :node-outline-key id
    :label id
    :icon tile-map-layer-icon})
 
@@ -309,10 +310,11 @@
 
 (g/defnk produce-node-outline
   [_node-id child-outlines]
-  {:node-id  _node-id
-   :label    "Tile Map"
-   :icon     tile-map-icon
-   :children (vec (sort-by :label child-outlines))})
+  {:node-id          _node-id
+   :node-outline-key "Tile Map"
+   :label            "Tile Map"
+   :icon             tile-map-icon
+   :children         (vec (sort-by :label child-outlines))})
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]

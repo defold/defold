@@ -174,6 +174,7 @@
                                       (image->animation atlas-image id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id image-resource order]
                                                           (cond-> {:node-id _node-id
+                                                                   :node-outline-key id
                                                                    :label id
                                                                    :order order
                                                                    :icon image-icon}
@@ -288,6 +289,7 @@
 
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id child-outlines] {:node-id _node-id
+                                         :node-outline-key id
                                          :label id
                                          :children (sort-by :order child-outlines)
                                          :icon animation-icon
@@ -499,14 +501,15 @@
   (output image-path->rect g/Any               :cached produce-image-path->rect)
   (output anim-ids         g/Any               :cached (gu/passthrough animation-ids))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines]
-                                                         {:node-id    _node-id
-                                                          :label      "Atlas"
-                                                          :children   (vec (sort-by atlas-outline-sort-by-fn child-outlines))
-                                                          :icon       atlas-icon
-                                                          :child-reqs [{:node-type    AtlasImage
-                                                                        :tx-attach-fn tx-attach-image-to-atlas}
-                                                                       {:node-type    AtlasAnimation
-                                                                        :tx-attach-fn attach-animation}]}))
+                                                         {:node-id          _node-id
+                                                          :node-outline-key "Atlas"
+                                                          :label            "Atlas"
+                                                          :children         (vec (sort-by atlas-outline-sort-by-fn child-outlines))
+                                                          :icon             atlas-icon
+                                                          :child-reqs       [{:node-type    AtlasImage
+                                                                              :tx-attach-fn tx-attach-image-to-atlas}
+                                                                             {:node-type    AtlasAnimation
+                                                                              :tx-attach-fn attach-animation}]}))
   (output save-value       g/Any          :cached produce-save-value)
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))

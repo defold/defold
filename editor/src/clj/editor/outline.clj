@@ -47,6 +47,7 @@
     nil))
 
 (g/deftype OutlineData {:node-id                              s/Int
+                        :node-outline-key                     (s/maybe s/Str)
                         :label                                s/Str
                         :icon                                 s/Str
                         (s/optional-key :link)                (s/maybe (s/pred resource/openable-resource?))
