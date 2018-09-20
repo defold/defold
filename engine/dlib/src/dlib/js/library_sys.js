@@ -42,7 +42,7 @@ var LibraryDmSys = {
 
         dmSysGetUserPreferredLanguage: function(defaultlang) {
             var jsdefault = Pointer_stringify(defaultlang);
-            var preferred = navigator == undefined ? jsdefault : (navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
+            var preferred = navigator == undefined ? jsdefault : (navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
             var buffer = _malloc(preferred.length + 1);
             writeStringToMemory(preferred, buffer);
             return buffer;

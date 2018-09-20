@@ -28,37 +28,37 @@
 ;; reload_project tree
 ;; .
 ;; ├── atlas
-;; │   ├── ball.atlas
-;; │   ├── empty.atlas
-;; │   ├── pow.atlas
-;; │   ├── powball.atlas
-;; │   └── single.atlas
+;; │   ├── ball.atlas
+;; │   ├── empty.atlas
+;; │   ├── pow.atlas
+;; │   ├── powball.atlas
+;; │   └── single.atlas
 ;; ├── collection
-;; │   ├── props.collection
-;; │   └── sub_defaults.collection
+;; │   ├── props.collection
+;; │   └── sub_defaults.collection
 ;; ├── game.project
 ;; ├── game_object
-;; │   └── props.go
+;; │   └── props.go
 ;; ├── graphics
-;; │   ├── ball.png
-;; │   └── pow.png
+;; │   ├── ball.png
+;; │   └── pow.png
 ;; ├── gui
-;; │   ├── new_sub_scene.gui
-;; │   ├── scene.gui
-;; │   └── sub_scene.gui
+;; │   ├── new_sub_scene.gui
+;; │   ├── scene.gui
+;; │   └── sub_scene.gui
 ;; ├── input
-;; │   └── game.input_binding
+;; │   └── game.input_binding
 ;; ├── label
-;; │   ├── label.label
-;; │   └── new_label.label
+;; │   ├── label.label
+;; │   └── new_label.label
 ;; ├── main
-;; │   ├── main.collection
-;; │   ├── main.go
-;; │   └── main.script
+;; │   ├── main.collection
+;; │   ├── main.go
+;; │   └── main.script
 ;; ├── script
-;; │   └── props.script
+;; │   └── props.script
 ;; ├── sprite
-;; │   └── test.sprite
+;; │   └── test.sprite
 ;; └── test.particlefx
 
 (def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2"))
