@@ -19,6 +19,16 @@
 ;; -----------------------------------------------------------------------------
 ;; SceneVisibilityNode
 ;; -----------------------------------------------------------------------------
+;;
+;; A SceneHideHistoryNode manages visibility for a particular scene-resource-id.
+;; Objects are identified with outline name paths, which are vectors of string
+;; ids from the outline. We use the term "name" here to avoid confusing these
+;; with node ids. These are not necessarily names or even strings, but currently
+;; the schema enforces strings.
+;;
+;; The individual tokens are named "node-outline-key" elsewhere, but we use the
+;; term "outline name path" in this file to distinguish these from
+;; node-outline-key-paths, which include the resource node id at the beginning.
 
 (defn outline-name-path? [value]
   (and (vector? value)
@@ -27,10 +37,9 @@
 (def ^:private TOutlineNamePaths #{(s/pred outline-name-path?)})
 (def ^:private THideHistory [(s/both TOutlineNamePaths (s/pred seq))])
 (g/deftype HideHistory THideHistory)
-(g/deftype HideHistoryByNodeID {s/Int THideHistory})
-(g/deftype NodeIDAndHideHistory [(s/one s/Int "node-id") (s/one THideHistory "hide-history")])
 (g/deftype OutlineNamePaths TOutlineNamePaths)
 (g/deftype OutlineNamePathsByNodeID {s/Int (s/both TOutlineNamePaths (s/pred seq))})
+(g/deftype SceneHideHistoryData [(s/one s/Int "scene-resource-node") (s/one THideHistory "hide-history")])
 
 (defn- scene-outline-name-paths
   ([scene]
@@ -51,24 +60,21 @@
   (property filtered-renderable-tags types/RenderableTags (default #{}))
 
   (input active-resource-node g/NodeID)
-  (input outline-selection g/Any)
-  (input scene g/Any)
-  (input scene-resource-node+hide-historys NodeIDAndHideHistory :array)
+  (input active-scene g/Any :substitute nil)
+  (input outline-selection g/Any :substitute nil)
+  (input scene-hide-history-datas SceneHideHistoryData :array)
 
-  (output scene-resource-node g/NodeID (g/fnk [_basis active-resource-node]
-                                         (when (some? active-resource-node)
-                                           (when (g/has-output? (g/node-type* _basis active-resource-node) :scene)
-                                             active-resource-node))))
+  (output active-scene-resource-node g/NodeID (g/fnk [_basis active-resource-node]
+                                                (when (some? active-resource-node)
+                                                  (when (g/has-output? (g/node-type* _basis active-resource-node) :scene)
+                                                    active-resource-node))))
 
-  (output hide-history-by-scene-resource-node HideHistoryByNodeID :cached (g/fnk [scene-resource-node+hide-historys]
-                                                                            (into {} scene-resource-node+hide-historys)))
-
-  (output hidden-outline-name-paths-by-scene-resource-node OutlineNamePathsByNodeID :cached (g/fnk [hide-history-by-scene-resource-node]
+  (output hidden-outline-name-paths-by-scene-resource-node OutlineNamePathsByNodeID :cached (g/fnk [scene-hide-history-datas]
                                                                                               (into {}
                                                                                                     (keep (fn [[scene-resource-node hide-history]]
                                                                                                             (when-some [hidden-outline-name-paths (not-empty (apply set/union hide-history))]
                                                                                                               [scene-resource-node hidden-outline-name-paths])))
-                                                                                                    hide-history-by-scene-resource-node)))
+                                                                                                    scene-hide-history-datas)))
 
   (output hidden-renderable-tags types/RenderableTags :cached (g/fnk [filtered-renderable-tags visibility-filters-enabled?]
                                                                 (if visibility-filters-enabled?
@@ -82,17 +88,17 @@
                                                                                                  hidden-outline-name-paths)))
                                                                                   hidden-outline-name-paths-by-scene-resource-node)))
 
-  (output hidden-outline-name-paths OutlineNamePaths (g/fnk [hidden-outline-name-paths-by-scene-resource-node scene-resource-node]
-                                                       (hidden-outline-name-paths-by-scene-resource-node scene-resource-node)))
+  (output hidden-outline-name-paths OutlineNamePaths (g/fnk [active-scene-resource-node hidden-outline-name-paths-by-scene-resource-node]
+                                                       (hidden-outline-name-paths-by-scene-resource-node active-scene-resource-node)))
 
-  (output selected-outline-name-paths OutlineNamePaths :cached (g/fnk [outline-selection scene]
+  (output selected-outline-name-paths OutlineNamePaths :cached (g/fnk [outline-selection active-scene]
                                                                  (let [selected-outline-name-paths (into [] (keep outline-selection-entry->outline-name-path) outline-selection)
                                                                        outline-name-path-below-selection? (fn [outline-name-path]
                                                                                                             (boolean (some #(iutil/seq-starts-with? outline-name-path %)
                                                                                                                            selected-outline-name-paths)))]
                                                                    (into #{}
                                                                          (filter outline-name-path-below-selection?)
-                                                                         (scene-outline-name-paths scene)))))
+                                                                         (scene-outline-name-paths active-scene)))))
 
   (output hideable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths selected-outline-name-paths]
                                                                  (not-empty (set/difference selected-outline-name-paths hidden-outline-name-paths))))
@@ -100,8 +106,11 @@
   (output showable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths selected-outline-name-paths]
                                                                  (not-empty (set/intersection selected-outline-name-paths hidden-outline-name-paths))))
 
-  (output last-hidden-outline-name-paths OutlineNamePaths (g/fnk [hide-history-by-scene-resource-node scene-resource-node]
-                                                            (peek (hide-history-by-scene-resource-node scene-resource-node)))))
+  (output last-hidden-outline-name-paths OutlineNamePaths :cached (g/fnk [active-scene-resource-node scene-hide-history-datas]
+                                                                    (peek (some (fn [[scene-resource-node hide-history]]
+                                                                                  (when (= active-scene-resource-node scene-resource-node)
+                                                                                    hide-history))
+                                                                                scene-hide-history-datas)))))
 
 (defn make-scene-visibility-node! [view-graph]
   (g/make-node! view-graph SceneVisibilityNode))
@@ -113,24 +122,24 @@
 (g/defnode SceneHideHistoryNode
   (property hide-history HideHistory)
   (input scene-resource-node g/NodeID)
-  (output scene-resource-node+hide-history NodeIDAndHideHistory (g/fnk [hide-history scene-resource-node]
-                                                                  [scene-resource-node hide-history])))
+  (output scene-hide-history-data SceneHideHistoryData (g/fnk [hide-history scene-resource-node]
+                                                         [scene-resource-node hide-history])))
 
 (defn- find-scene-hide-history-node [scene-visibility scene-resource-node]
   (some (fn [[scene-hide-history-node]]
           (when (some-> (g/node-feeding-into scene-hide-history-node :scene-resource-node) (= scene-resource-node))
             scene-hide-history-node))
-        (g/sources-of scene-visibility :scene-resource-node+hide-historys)))
+        (g/sources-of scene-visibility :scene-hide-history-datas)))
 
 (defn- show-outline-name-paths! [scene-visibility outline-name-paths]
   (assert (set? (not-empty outline-name-paths)))
   (assert (every? outline-name-path? outline-name-paths))
-  (let [scene-resource-node (g/node-value scene-visibility :scene-resource-node)
+  (let [scene-resource-node (g/node-value scene-visibility :active-scene-resource-node)
         scene-hide-history-node (find-scene-hide-history-node scene-visibility scene-resource-node)]
 
     ;; Remove the now-visible nodes from the hide history. This ensures the Show
     ;; Last Hidden Objects command works as expected if the user manually shows
-    ;; nodes whe has previously hidden.
+    ;; nodes she has previously hidden.
     (g/update-property! scene-hide-history-node :hide-history
                         (fn [hide-history]
                           (into []
@@ -145,7 +154,7 @@
 (defn- hide-outline-name-paths! [scene-visibility outline-name-paths]
   (assert (set? (not-empty outline-name-paths)))
   (assert (every? outline-name-path? outline-name-paths))
-  (let [scene-resource-node (g/node-value scene-visibility :scene-resource-node)
+  (let [scene-resource-node (g/node-value scene-visibility :active-scene-resource-node)
         scene-hide-history-node (find-scene-hide-history-node scene-visibility scene-resource-node)]
     (if (some? scene-hide-history-node)
       (g/update-property! scene-hide-history-node :hide-history conj outline-name-paths)
@@ -153,25 +162,25 @@
         (g/make-nodes (g/node-id->graph-id scene-visibility)
                       [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
                       (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
-                      (g/connect scene-hide-history-node :scene-resource-node+hide-history scene-visibility :scene-resource-node+hide-historys))))))
+                      (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
 
 (handler/defhandler :hide-selected :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :scene-resource-node))
+  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
   (enabled? [scene-visibility] (g/node-value scene-visibility :hideable-outline-name-paths))
   (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :hideable-outline-name-paths))))
 
 (handler/defhandler :show-selected :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :scene-resource-node))
+  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
   (enabled? [scene-visibility] (g/node-value scene-visibility :showable-outline-name-paths))
   (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :showable-outline-name-paths))))
 
 (handler/defhandler :show-last-hidden :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :scene-resource-node))
+  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
   (enabled? [scene-visibility] (g/node-value scene-visibility :last-hidden-outline-name-paths))
   (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :last-hidden-outline-name-paths))))
 
 (handler/defhandler :show-all-hidden :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :scene-resource-node))
+  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
   (enabled? [scene-visibility] (g/node-value scene-visibility :hidden-outline-name-paths))
   (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :hidden-outline-name-paths))))
 
@@ -287,13 +296,13 @@
   (some? (ui/user-data owner ::popup)))
 
 (handler/defhandler :toggle-visibility-filters :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :scene-resource-node))
+  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
   (run [scene-visibility] (toggle-filters-enabled! scene-visibility)))
 
 (handler/defhandler :toggle-component-guides :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :scene-resource-node))
+  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
   (run [scene-visibility] (toggle-tag-visibility! scene-visibility :outline)))
 
 (handler/defhandler :toggle-grid :workbench
-  (active? [scene-visibility] (g/node-value scene-visibility :scene-resource-node))
+  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
   (run [scene-visibility] (toggle-tag-visibility! scene-visibility :grid)))
