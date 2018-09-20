@@ -289,9 +289,12 @@
 (defn select-keys-deep
   "Like select-keys, but applies the filter recursively to nested data structures."
   [m kept-keys]
-  (assert (map? m))
-  (into (empty m)
-        (keep (fn [key]
-                (when-some [[_ value] (find m key)]
-                  [key (select-keys-deep-value-helper kept-keys value)])))
-        kept-keys))
+  (assert (or (nil? m) (map? m)))
+  (with-meta (into (if (or (nil? m) (record? m))
+                     {}
+                     (empty m))
+                   (keep (fn [key]
+                           (when-some [[_ value] (find m key)]
+                             [key (select-keys-deep-value-helper kept-keys value)])))
+                   kept-keys)
+             (meta m)))
