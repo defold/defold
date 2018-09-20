@@ -66,11 +66,14 @@
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id _overridden-properties child-outlines own-build-errors resource source-outline]
            (let [rt (resource/resource-type resource)
+                 label (or (:label rt) (:ext rt) "unknown")
+                 icon (or (:icon rt) unknown-icon)
                  children (cond-> child-outlines
                             source-outline (into (:children source-outline)))]
              {:node-id _node-id
-              :label (or (:label rt) (:ext rt) "unknown")
-              :icon (or (:icon rt) unknown-icon)
+              :node-outline-key label
+              :label label
+              :icon icon
               :children children
               :outline-error? (g/error-fatal? own-build-errors)
               :outline-overridden? (not (empty? _overridden-properties))})))

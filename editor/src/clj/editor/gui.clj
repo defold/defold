@@ -592,6 +592,7 @@
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type own-build-errors _overridden-properties]
             (cond-> {:node-id _node-id
+                     :node-outline-key id
                      :label id
                      :child-index child-index
                      :icon (node-icons type)
@@ -1023,6 +1024,7 @@
   ;; TODO: embed error so can warn in outline
   ;; outline content not really used, only children if any.
   {:node-id 0
+   :node-outline-key ""
    :icon ""
    :label ""})
 
@@ -1430,6 +1432,7 @@
 
   (output node-outline outline/OutlineData (g/fnk [_node-id name texture-resource build-errors]
                                              (cond-> {:node-id _node-id
+                                                      :node-outline-key name
                                                       :label name
                                                       :icon texture-icon
                                                       :outline-error? (g/error-fatal? build-errors)}
@@ -1475,6 +1478,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name font-resource build-errors]
                                                      (cond-> {:node-id _node-id
+                                                              :node-outline-key name
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
@@ -1509,6 +1513,7 @@
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name child-index build-errors]
                                                           {:node-id _node-id
+                                                           :node-outline-key name
                                                            :label name
                                                            :icon layer-icon
                                                            :child-index child-index
@@ -1574,6 +1579,7 @@
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name spine-scene-resource build-errors]
                                                           (cond-> {:node-id _node-id
+                                                                   :node-outline-key name
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
                                                                    :outline-error? (g/error-fatal? build-errors)}
@@ -1616,6 +1622,7 @@
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name particlefx-resource build-errors]
                                                      (cond-> {:node-id _node-id
+                                                              :node-outline-key name
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
@@ -1684,6 +1691,7 @@
   (input node-rt-msgs g/Any)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
+                                                           :node-outline-key name
                                                            :label name
                                                            :icon layout-icon
                                                            :outline-error? (g/error-fatal? build-errors)}))
@@ -2123,10 +2131,13 @@
   (input default-node-outline g/Any)
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id default-node-outline layout-node-outlines current-layout child-outlines own-build-errors]
-                 (let [node-outline (get layout-node-outlines current-layout default-node-outline)]
+                 (let [node-outline (get layout-node-outlines current-layout default-node-outline)
+                       label (:label pb-def)
+                       icon (:icon pb-def)]
                    {:node-id _node-id
-                    :label (:label pb-def)
-                    :icon (:icon pb-def)
+                    :node-outline-key label
+                    :label label
+                    :icon icon
                     :children (vec (sort-by :order (conj child-outlines node-outline)))
                     :outline-error? (g/error-fatal? own-build-errors)})))
   (input default-scene g/Any)

@@ -193,37 +193,37 @@
                :children [{:node-id :scene-node-id
                            :children [{:node-id :scene-node-id}]}
                           {:node-id :tree-node-id
-                           :node-outline-key :tree-node-outline-key
+                           :node-outline-key "tree-node-outline-key"
                            :children [{:node-id :apple-node-id
-                                       :node-outline-key :apple-node-outline-key}]}
+                                       :node-outline-key "apple-node-outline-key"}]}
                           {:node-id :house-node-id
-                           :node-outline-key :house-node-outline-key
+                           :node-outline-key "house-node-outline-key"
                            :children [{:node-id :door-node-id
-                                       :node-outline-key :door-node-outline-key
+                                       :node-outline-key "door-node-outline-key"
                                        :children [{:node-id :door-handle-node-id
-                                                   :node-outline-key :door-handle-node-outline-key}]}]}]}]
+                                                   :node-outline-key "door-handle-node-outline-key"}]}]}]}]
     (is (= {:node-id :new-node-id
-            :node-outline-key :new-node-outline-key
+            :node-outline-key "new-node-outline-key"
             :children [{:node-id :new-node-id
-                        :node-outline-key :new-node-outline-key
+                        :node-outline-key "new-node-outline-key"
                         :children [{:node-id :new-node-id
-                                    :node-outline-key :new-node-outline-key}]}
+                                    :node-outline-key "new-node-outline-key"}]}
                        {:node-id :tree-node-id
-                        :node-outline-key :tree-node-outline-key
+                        :node-outline-key "tree-node-outline-key"
                         :picking-id :new-node-id
                         :children [{:node-id :apple-node-id
-                                    :node-outline-key :apple-node-outline-key
+                                    :node-outline-key "apple-node-outline-key"
                                     :picking-id :new-node-id}]}
                        {:node-id :house-node-id
-                        :node-outline-key :house-node-outline-key
+                        :node-outline-key "house-node-outline-key"
                         :picking-id :new-node-id
                         :children [{:node-id :door-node-id
-                                    :node-outline-key :door-node-outline-key
+                                    :node-outline-key "door-node-outline-key"
                                     :picking-id :new-node-id
                                     :children [{:node-id :door-handle-node-id
-                                                :node-outline-key :door-handle-node-outline-key
+                                                :node-outline-key "door-handle-node-outline-key"
                                                 :picking-id :new-node-id}]}]}]}
-           (scene/claim-scene scene :new-node-id :new-node-outline-key)))))
+           (scene/claim-scene scene :new-node-id "new-node-outline-key")))))
 
 (defn- render-pass? [pass]
   (satisfies? types/Pass pass))

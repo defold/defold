@@ -85,9 +85,12 @@
                          :data shape-data}))
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type]
-                                                     {:node-id _node-id
-                                                      :label (shape-type-label shape-type)
-                                                      :icon (shape-type-icon shape-type)})))
+                                                     (let [label (shape-type-label shape-type)
+                                                           icon (shape-type-icon shape-type)]
+                                                       {:node-id _node-id
+                                                        :node-outline-key label
+                                                        :label label
+                                                        :icon icon}))))
 
 ;;--------------------------------------------------------------------
 ;; rendering
@@ -681,6 +684,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id child-outlines]
                                                      {:node-id _node-id
+                                                      :node-outline-key "Collision Object"
                                                       :label "Collision Object"
                                                       :icon collision-object-icon
                                                       :children (outline/natural-sort child-outlines)
