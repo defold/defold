@@ -355,7 +355,7 @@ Note: When running the editor and building a Defold project you must first go to
 * Make sure that the [protobuf-compiler](http://www.rpmseek.com/rpm-dl/protobuf-compiler_2.3.0-2_i386.html) version used is 2.3, latest (2.4) does not work.
 * `.deb` files can be installed by running:
 
-        $ sudo dpkg -i <filename>.deb
+        $ sudo dpkg -i <filename>.deb
 
         # If dpkg complains about dependencies, run this directly afterwards:
         $ sudo apt-get install -f
@@ -723,8 +723,8 @@ To debug memory and alignment issues the following parameters should be added bo
 
 - `-g4` should be **added** to build with additional debug symbols.
 - `-s ASSERTIONS=1` should be **added** explicitly since they are otherwise turned off by optimizations.
-- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks. 
-- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks. 
+- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks.
+- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks.
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
 
