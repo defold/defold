@@ -1066,7 +1066,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext ["tilemap" "tilegrid"]
-    :build-ext "tilegridc"
+    :build-ext "tilemapc"
     :node-type TileMapNode
     :ddf-type Tile$TileGrid
     :load-fn load-tile-map

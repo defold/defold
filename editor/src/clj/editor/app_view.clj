@@ -656,7 +656,6 @@ If you do not specifically require different script states, consider changing th
                                (when successful?
                                  (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
 
-(def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
 (handler/defhandler :hot-reload :global
   (enabled? [app-view debug-view selection prefs]
@@ -664,7 +663,6 @@ If you do not specifically require different script states, consider changing th
               (and (resource/exists? resource)
                    (some-> (targets/selected-target prefs)
                            (targets/controllable-target?))
-                   (not (contains? unreloadable-resource-build-exts (:build-ext (resource/resource-type resource))))
                    (not (debug-view/suspended? debug-view)))))
   (run [project app-view prefs build-errors-view selection]
     (when-let [resource (context-resource-file app-view selection)]

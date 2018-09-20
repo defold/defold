@@ -1234,7 +1234,7 @@ const char* valid_tileset_resources[] = {"/tile/valid.texturesetc"};
 INSTANTIATE_TEST_CASE_P(TileSet, ResourceTest, ::testing::ValuesIn(valid_tileset_resources));
 
 /* TileGrid */
-const char* valid_tilegrid_resources[] = {"/tile/valid.tilegridc"};
+const char* valid_tilegrid_resources[] = {"/tile/valid.tilemapc"};
 INSTANTIATE_TEST_CASE_P(TileGrid, ResourceTest, ::testing::ValuesIn(valid_tilegrid_resources));
 
 const char* valid_tileset_gos[] = {"/tile/valid_tilegrid.goc", "/tile/valid_tilegrid_collisionobject.goc"};
