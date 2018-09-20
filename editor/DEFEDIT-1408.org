@@ -1,0 +1,161 @@
+* Symptom
+** Panel + Button med Landscape & Portrait
+*** Ändra button ifrån panel [LS]
+**** Sparas ej, byggs ej, syns i editorn
+**** Verkar alltid använda [Default] för button när kör, men [LS] för icke TemplateNode delar
+** Template gui ej tillgängligt (t.ex. från otillgänglig dependencies library)
+*** Overrides försvinner, även om template gui dyker upp
+** Panel med LS & Portrait + Button med bara default
+*** Gör ändringar i button från panel [LS], lägg till [LS] i button
+**** Ändringar inte synliga från panel [LS]
+**** Dyker upp igen om tar bort button [LS]
+
+* Problem
+** Saknas layouts i refererade scenes
+*** medför att layout overrides hamnar i refererad default layout
+** trasigt implementerad sparning
+** trasigt implementerad bygg
+
+* Lösningar
+** Koordinera så samtliga layouts alltid finns i alla gui:n.
+*** TODO Uppsättning layouts ändras: ändring i .display_properties, ny pekas ut i game.project, endera ändras externt och synkas
+*** TODO Byta namn på layout
+*** TODO Många layouts -> kostar oavsett användning
+
+
+** Rekursivt lägga till layouts i refererade gui scenes
+*** Vad om ref'd gui scene saknas och sedan resource-sync'as in?
+**** Resource nodes som sync'as: vi återställer bara outputs från omladdad nod - inte inputs. Noden förväntas vid load återställa nödvändiga input kopplingar. Refererande noder som kopplar en out till refererad in - kommer ej återställas vid synk.
+**** Vänder på beroendeantaganden: en refererad nod blir beroende på den som refererar.
+**** IOFS: refererande använder ju override-nod som transplanteras vid synk, kopplingar till/från den kvarstår
+
+* Relaterade issues
+** blockera read-only properties: template path, gui id, layout namn
+** validering unika layout namn? Bör ske på display_profiles-nivå
+** toggling mellan layouts pajar current selection - väljer inte selections override-noder i layout override
+** kan lägga till noder till inreffade templates - blir in place editing, ej override. Kan dock inte ändra dessa "in-place", det blir override.
+*** Kanske aldrig tillåta både in-place och override editering samtidigt?
+** picking: barn till template behandlas som pick av template; barnbarn, not so much.
+
+* Steg
+** laga spar - förutsätt korrekt layoutuppsättning i refererade scener
+** laga bygg - förutsätt korrekt layoutuppsättning i refererade scener
+** 
+
+
+
+* node-msgs
+** GuiNode
+*** node-msg nån _declared-properties reflection historia
+*** node-msgs {nil [node-msg]} + sortera node-msgs ({layout nodes}) på child-index, platta till, ta bort child-index - mergea
+** VisualNode <- GuiNode
+** ShapeNode <- VisualNode
+** BoxNode <- ShapeNode
+** PieNode <- ShapeNode
+** TextNode <- VisualNode
+** TemplateNode <- GuiNode
+*** tar GSN :pb-msg -> :scene-pb-msg och :node-overrides -> :template-overrides
+*** :node-overrides map {id overridden-properties}
+**** GuiNode (into {id _overridden-properties} node-overrides) cascadat genom hierarki?
+**** TemplateNode (merge {id _overridden-properties} template-overrides)
+**** NodeTree (into {} node-overrides) där node-overrides är input :array (?????) conj på maps gör tydligen typ merge.
+**** GuiSceneNode node-overrides passthrough av input - från NodeTree
+*** node-msgs {nil [node-msg]} + {nil <:nodes scene-pb-msg lätt manglat>} + {layout-name <:layouts scene-pb-msg lätt manglat>}
+** LayoutNode
+*** node-msgs - från override av NodeTree
+*** pb-msg: nodes = (get node-msgs nil) + (get node-msgs name) filtrerat på has :overridden-fields
+** NodeTree
+*** node-msgs: {layout <node-msgs sorterade på child-index, tillplattat ...>}
+** GuiSceneNode
+*** node-msgs passthrough av NodeTree node-msgs
+*** pb-msg
+**** :nodes (get node-msgs nil) <---!
+**** :layouts layout-msgs
+*** layout-msgs = LayoutNode : pb-msg
+
+
+** SpineNode <- VisualNode
+
+* Graf-fel
+** targets-of / sources-of är inte alltid symmetriska vid overrides sources-of GSNg[CTN CL] :layout-scenes -> LN[CTN] men targets-of LN[CTN] inkl ej GSNg[CTN CL] endast GSNg[CTN]
+
+* g/node-feeding-into -> gt/sources nid label
+* g/sources-of -> gt/sources nid label
+* g/targets-of -> gt/targets nid label
+* g/inputs -> gt/arcs-by-tail nid
+* g/outputs -> gt/arcs-by-head nid
+
+* g/connected? -> gt/connected? anv endast i test?
+* g/dependencies -> gr/dependencies? anv endast i test, graph-dependencies
+
+* MultiGraphBasis sources nid -> arcs-by-tail nid, head
+* MGB sources nid label -> arcs-by-tail nid label, head
+* MGB targets nid -> arcs-by-head nid, tail
+* MGB targets nid label -> arcs-by-head nid label, tail
+* MGB arcs-by-tail nid -> graph-explicit-arcs-by-target + some override inheritance stuff
+* MGB arcs-by-tail nid label -> basis-arcs-by-tail
+* basis-arcs-by-tail -> graph-explicit-arcs-by-target + closest-override-of + some other override inheritance stuff
+* graph-explicit-arcs-by-target -> get i graph :tarcs
+* MGB arcs-by-head nid -> graph-explicit-arcs-by-source + implicit-target-arcs + some override filtering and inheritance implicit-overrides
+* MGB arcs-by-head nid label -> override-filter + basis-arcs-by-head
+* basis-arcs-by-head -> graph-explicit-arcs-by-source + override-of, patcha :source :target + implicit-target-arcs
+* graph-explicit-arcs-by-source -> get i graph :sarcs
+* implicit-target-arcs -> graph-explicit-arcs-by-target + implicit-overrides + patcha :target
+* implicit-overrides -> overrides rekursivt och filtrerat
+* MGB connected? -> gt/targets
+* MGB dependencies -> basis-dependencies, transitivt :successors i graph?
+
+
+* :successors vs cache invalidering, hur funkar det?
+** successors verkar endast användas av dependencies
+** trace-dependencies i transaction.clj används för att översätta :nodes-affected till outputs-modified ia gt/dependencies. :outputs-modified går in i cache-invalidate.
+** :nodes-affected = map nid -> [output-label] ? uppdateras av mark-[input/output/outputs/all-outputs]-activated under pågående transaction
+** :successors uppdateras efter system/time-warp (undo, redo?) samt av transaction/transact* utifrån successors-changed
+*** successors-changed: flag-[all-]successors-changed (ctx-override-node) ctx add node, connect, disconnect
+
+* node-value när argument tas från input, hur hittas source noder?
+** pull-input-values anv gt/sources ~ arcs-by-tail etc
+
+* explicit-inputs - trivial
+* explicit-outputs - trivial
+* inputs "Vid evaluering av inputen, vilka noder+outputs är det värdet/värdena tas från. Target/tail alltid = denna nod"
+* outputs ~ omvända av inputs "Source/head = denna nod. Target/tail = de för vilka värde tas från denna output"
+* inherited-inputs ~ som inputs, men de explicita arcs (med orginal head+tail) som gav upphov till dessa (ev implicita)
+* inherited-outputs ~ som outputs, -""-
+
+* explicit-sources-of - explicit-inputs, head
+* explicit-targets-of - explicit-outputs, tail
+* sources-of - inputs, head
+* targets-of - outputs, tail
+* inherited-sources-of - inherited-inputs, head
+* inherited-targets-of - inherited-outputs, tail
+
+* Klienter av outputs etc? Vad förväntar de sig?
+
+* arcs-by-tail nid label
+** hitta närmaste explicita kopplingen till denna input genom att följa override-original-kedjan
+** Kedjestumpen från nid till explicita targetet, försök applicera den så långt som möjligt från explicita source'n
+
+A () -> A
+A (o1 Rest...) -> if A[o1] exists: A[o1] (Rest...)
+                  else A (Rest...)
+
+* arcs-by-head nid label
+** hitta explicita koppingar från denna output till target nod + override kedjestump från nid tillbaks till explicita source nod
+Lyft arc med kedjestump:
+
+(source output target input) () -> (source output target input)
+(source output target input) (o1 Rest...) -> if target[o1] exists:
+                                               if there is no (source' target' target[o1] input):
+                                                  (source[o1] output target[o1] input)
+                                               else:
+                                                  _|_
+                                             else:
+                                               [ each (source output target[p0] input) (o1 Rest...) ]
+                                               where p0 != o1 and source[p0] does not exist.
+
+ 
+
+
+
+

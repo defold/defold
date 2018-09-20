@@ -443,18 +443,23 @@
 
   (arcs-by-tail [this node-id label]
     (let [graph (node-id->graph this node-id)
-          arcs (graph-explicit-arcs-by-target graph node-id label)]
-      (if-let [original-id (and (empty? arcs) (gt/original-node this node-id))]
-        (let [node (gt/node-by-id-at this node-id)
-              or-path [(gt/override-id node)]]
-          (mapv (fn [arc]
-                  (let [src-id (:source arc)
-                        src-graph (node-id->graph this src-id)]
-                    (assoc arc
-                           :source (closest-override-of src-graph src-id or-path)
-                           :target node-id)))
-                (gt/arcs-by-tail this original-id label)))
-        arcs)))
+          [override-chain explicit-arcs] (loop [node-id node-id
+                                       chain '()]
+                                  (let [arcs (graph-explicit-arcs-by-target graph node-id label)]
+                                    (if (and (empty? arcs) (gt/original-node this node-id))
+                                      (recur (gt/original-node this node-id)
+                                             (cons chain (gt/override-id (gt/node-by-id-at this node-id))))
+                                      [chain arcs])))]
+      (loop [chain override-chain
+             arcs explicit-arcs]
+        (if (empty? chain)
+          arcs
+          (recur (rest chain)
+                 (mapv (fn [{source :source target :target :as arc}]
+                         (assoc arc
+                                :source (or (override-of (node-id->graph this source) source (first chain)) source)
+                                :target node-id))
+                       arcs))))))
 
   (arcs-by-head
     [this node-id]
