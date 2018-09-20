@@ -1,6 +1,41 @@
-# Settings: Derived from src/engine/wscript, engine_release target
+# Derived from src/engine/wscript, release target: Removes Engine Service
 platforms:
-    common:
+    x86_64-osx:
+        context:
+            excludeLibs: ["engine", "engine_service"]
+            libs: ["engine_release", "engine_service_null"]
+
+    x86_64-linux:
+        context:
+            excludeLibs: ["engine", "engine_service"]
+            libs: ["engine_release", "engine_service_null"]
+
+    js-web:
+        context:
+            excludeLibs: ["engine", "engine_service"]
+            libs: ["engine_release", "engine_service_null"]
+
+    x86-win32:
+        context:
+            excludeLibs: ["libengine", "libengine_service"]
+            libs: ["libengine_release.lib", "libengine_service_null.lib"]
+
+    x86_64-win32:
+        context:
+            excludeLibs: ["libengine", "libengine_service"]
+            libs: ["libengine_release.lib", "libengine_service_null.lib"]
+
+    armv7-android:
+        context:
+            excludeLibs: ["engine", "engine_service"]
+            libs: ["engine_release", "engine_service_null"]
+
+    armv7-ios:
+        context:
+            excludeLibs: ["engine", "engine_service"]
+            libs: ["engine_release", "engine_service_null"]
+
+    arm64-ios:
         context:
             excludeLibs: ["engine", "engine_service"]
             libs: ["engine_release", "engine_service_null"]
