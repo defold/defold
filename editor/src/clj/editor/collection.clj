@@ -129,6 +129,7 @@
 
 (g/defnk produce-go-outline [_node-id id source-outline source-resource child-outlines node-outline-extras]
   (-> {:node-id _node-id
+       :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
        :children (into (outline/natural-sort child-outlines) (:children source-outline))
@@ -154,6 +155,7 @@
   ;; TODO: embed error so can warn in outline
   ;; outline content not really used, only children if any.
   {:node-id 0
+   :node-outline-key ""
    :icon ""
    :label ""})
 
@@ -376,6 +378,7 @@
   (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
                                       [(get outlines false) (get outlines true)])]
     {:node-id _node-id
+     :node-outline-key "Collection"
      :label "Collection"
      :icon collection-icon
      :children (into (outline/natural-sort coll-outlines) (outline/natural-sort go-outlines))
@@ -467,6 +470,7 @@
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id
+       :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) collection-icon)
        :children (:children source-outline)}

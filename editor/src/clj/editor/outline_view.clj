@@ -107,7 +107,7 @@
    (let [node-id-path (conj node-id-path node-id)
          node-outline-key-path (if (empty? node-outline-key-path)
                                  [node-id]
-                                 (if-some [node-outline-key (get item :node-outline-key (:label item))]
+                                 (if-some [node-outline-key (:node-outline-key item)]
                                    (conj node-outline-key-path node-outline-key)
                                    node-outline-key-path))
          data (mapv #(decorate hidden-node-outline-key-paths node-id-path node-outline-key-path % (or parent-reference? (:outline-reference? item))) (:children item))

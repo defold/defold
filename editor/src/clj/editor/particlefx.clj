@@ -303,8 +303,12 @@
   (output pb-msg g/Any produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id type]
-      (let [mod-type (mod-types type)]
-        {:node-id _node-id :label (:label mod-type) :icon modifier-icon})))
+      (let [mod-type (mod-types type)
+            label (:label mod-type)]
+        {:node-id _node-id
+         :node-outline-key label
+         :label label
+         :icon modifier-icon})))
   (output aabb AABB (g/constantly (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
   (output scene g/Any :cached produce-modifier-scene))
 
@@ -590,6 +594,7 @@
   (output pb-msg g/Any produce-emitter-pb)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id child-outlines]
                                                      {:node-id _node-id
+                                                      :node-outline-key id
                                                       :label id
                                                       :icon emitter-icon
                                                       :children (outline/natural-sort child-outlines)
@@ -722,6 +727,7 @@
                                                      (let [[mod-outlines emitter-outlines] (let [outlines (group-by #(g/node-instance? ModifierNode (:node-id %)) child-outlines)]
                                                                                              [(get outlines true) (get outlines false)])]
                                                        {:node-id _node-id
+                                                        :node-outline-key "ParticleFX"
                                                         :label "ParticleFX"
                                                         :icon particle-fx-icon
                                                         :children (into (outline/natural-sort emitter-outlines) (outline/natural-sort mod-outlines))

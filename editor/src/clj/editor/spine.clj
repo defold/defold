@@ -1107,6 +1107,7 @@
                              :children child-bones}))
   (output node-outline outline/OutlineData (g/fnk [_node-id name child-outlines]
                                                   {:node-id _node-id
+                                                   :node-outline-key name
                                                    :label name
                                                    :icon spine-bone-icon
                                                    :children child-outlines
