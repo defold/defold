@@ -104,3 +104,7 @@
                   (when (pred x)
                     idx))
                 coll))
+
+(defn maybe-truncate
+  [^String s max-length]
+  (subs s (max 0 (- (count s) max-length))))

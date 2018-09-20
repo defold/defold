@@ -4,7 +4,9 @@
    [clojure.edn :as edn]
    [editor.error-reporting :as error-reporting]
    [editor.lua :as lua]
-   [service.log :as log])
+   [service.log :as log]
+   [editor.util :refer [maybe-truncate]]
+   [editor.lua :refer [lua-conf-idsize]])
   (:import
    (java.util Stack)
    (java.util.concurrent Executors ExecutorService)
@@ -14,8 +16,6 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private ^ExecutorService executor (Executors/newCachedThreadPool))
-
-(def ^:private ^:const lua-conf-idsize 60)
 
 (defn- thread-call
   [^Runnable f]
@@ -128,11 +128,6 @@
     s))
 
 (def sanitize-path (comp module->path remove-filename-prefix))
-
-(defn- maybe-truncate-path
-  [^String s max-path-length]
-  (subs s (max 0 (- (count s) max-path-length)) (count s)))
-
 
 ;;------------------------------------------------------------------------------
 ;; session management
@@ -370,7 +365,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB =%s %d" (maybe-truncate-path file (- lua-conf-idsize 1)) line))
+      (send-command! out (format "SETB =%s %d" (maybe-truncate file (- lua-conf-idsize 1)) line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
@@ -382,7 +377,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "DELB =%s %d" (maybe-truncate-path file (- lua-conf-idsize 1)) line))
+      (send-command! out (format "DELB =%s %d" (maybe-truncate file (- lua-conf-idsize 1)) line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
