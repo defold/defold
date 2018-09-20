@@ -5,8 +5,7 @@
    [editor.error-reporting :as error-reporting]
    [editor.lua :as lua]
    [service.log :as log]
-   [editor.util :refer [maybe-truncate]]
-   [editor.lua :refer [lua-conf-idsize]])
+   [editor.luajit :refer [luajit-path-to-chunk]])
   (:import
    (java.util Stack)
    (java.util.concurrent Executors ExecutorService)
@@ -365,7 +364,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "SETB =%s %d" (maybe-truncate file (- lua-conf-idsize 1)) line))
+      (send-command! out (format "SETB =%s %d" (luajit-path-to-chunk file) line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok
@@ -377,7 +376,7 @@
     (assert (= :suspended (-state debug-session)))
     (let [in (.in debug-session)
           out (.out debug-session)]
-      (send-command! out (format "DELB =%s %d" (maybe-truncate file (- lua-conf-idsize 1)) line))
+      (send-command! out (format "DELB =%s %d" (luajit-path-to-chunk file) line))
       (let [[status rest :as line] (read-status in)]
         (case status
           "200" :ok

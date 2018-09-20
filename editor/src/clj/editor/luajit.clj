@@ -4,9 +4,7 @@
    [clojure.java.shell :as shell]
    [clojure.string :as str]
    [editor.fs :as fs]
-   [editor.system :as system]
-   [editor.util :refer [maybe-truncate]]
-   [editor.lua :refer [lua-conf-idsize]])
+   [editor.system :as system])
   (:import
    (java.io File ByteArrayOutputStream)
    (com.defold.editor Platform)))
@@ -27,6 +25,10 @@
   []
   (str (system/defold-unpack-path) "/shared/luajit"))
 
+(defn luajit-path-to-chunk
+  [^String s]
+  (subs s (max 0 (- (count s) 59))))
+
 (defn- compile-file
   [proj-path ^File input ^File output]
   (let [{:keys [exit out err]} (shell/sh (luajit-exec-path)
@@ -35,7 +37,7 @@
                                          ; Prefix "=" which tells Lua this is a literal file path,
                                          ; the total length is now at maximum 60 chars (which is the
                                          ; maximum length of chunknames in Lua).
-                                         (str "=" (maybe-truncate proj-path (- lua-conf-idsize 1)))
+                                         (str "=" (luajit-path-to-chunk proj-path))
                                          (.getAbsolutePath input)
                                          (.getAbsolutePath output)
                                          :env {"LUA_PATH" (str (luajit-lua-path) "/?.lua")})]

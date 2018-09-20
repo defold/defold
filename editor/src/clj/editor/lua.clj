@@ -11,8 +11,6 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:const lua-conf-idsize 60)
-
 (defn- load-sdoc [path]
   (try
     (with-open [in (io/input-stream (io/resource path))]
