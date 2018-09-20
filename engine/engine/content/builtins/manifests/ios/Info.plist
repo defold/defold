@@ -254,6 +254,26 @@
                     <key>UILaunchImageMinimumOSVersion</key>
                     <string>8.0</string>
                     <key>UILaunchImageName</key>
+                    <string>Default-Portrait-1112h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Portrait</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{834,1112}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
+                    <string>Default-Landscape-1112h</string>
+                    <key>UILaunchImageOrientation</key>
+                    <string>Landscape</string>
+                    <key>UILaunchImageSize</key>
+                    <string>{834,1112}</string>
+                </dict>
+                <dict>
+                    <key>UILaunchImageMinimumOSVersion</key>
+                    <string>8.0</string>
+                    <key>UILaunchImageName</key>
                     <string>Default-Portrait-1366h</string>
                     <key>UILaunchImageOrientation</key>
                     <string>Portrait</string>

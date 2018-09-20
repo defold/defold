@@ -13,10 +13,10 @@
             [editor.library :as library]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.workspace :as workspace]
-            [editor.validation :as validation]
             [editor.game-project-core :as gpc]
             [editor.settings-core :as settings-core]
             [editor.pipeline :as pipeline]
@@ -60,7 +60,7 @@
       (when-not loaded?
         (if (or (= :folder (resource/source-type resource))
                 (not (resource/exists? resource)))
-          (g/mark-defective node-id node-type (validation/file-not-found-error node-id nil :fatal resource))
+          (g/mark-defective node-id node-type (resource-io/file-not-found-error node-id nil :fatal resource))
           (try
             (when *load-cache*
               (swap! *load-cache* conj node-id))
@@ -69,7 +69,7 @@
               (load-registered-resource-node load-fn project node-id resource))
             (catch Exception e
               (log/warn :msg (format "Unable to load resource '%s'" (resource/proj-path resource)) :exception e)
-              (g/mark-defective node-id node-type (validation/invalid-content-error node-id nil :fatal resource)))))))
+              (g/mark-defective node-id node-type (resource-io/invalid-content-error node-id nil :fatal resource)))))))
     (catch Throwable t
       (throw (ex-info (format "Error when loading resource '%s'" (resource/resource->proj-path resource))
                       {:node-type node-type
@@ -504,7 +504,7 @@
 
       (g/transact
         (for [node (:mark-deleted plan)]
-          (let [flaw (validation/file-not-found-error node nil :fatal (g/node-value node :resource))]
+          (let [flaw (resource-io/file-not-found-error node nil :fatal (g/node-value node :resource))]
             (g/mark-defective node flaw))))
 
       (let [all-outputs (mapcat (fn [node]
