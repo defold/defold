@@ -18,17 +18,9 @@ copy () {
     cp -v $DYNAMO_HOME/archive/${SHA1}/engine/$1 $2
 }
 
-copy linux/dmengine engine/linux/dmengine
-copy linux/dmengine_release engine/linux/dmengine_release
-copy linux/dmengine_headless engine/linux/dmengine_headless
-
 copy x86_64-linux/dmengine engine/x86_64-linux/dmengine
 copy x86_64-linux/dmengine_release engine/x86_64-linux/dmengine_release
 copy x86_64-linux/dmengine_headless engine/x86_64-linux/dmengine_headless
-
-copy darwin/dmengine engine/darwin/dmengine
-copy darwin/dmengine_release engine/darwin/dmengine_release
-copy darwin/dmengine_headless engine/darwin/dmengine_headless
 
 copy x86_64-darwin/dmengine engine/x86_64-darwin/dmengine
 copy x86_64-darwin/dmengine_release engine/x86_64-darwin/dmengine_release
