@@ -180,6 +180,8 @@ namespace dmSound
 
         Stats                   m_Stats;
 
+        uint64_t                m_LastInstancePlayedNS;
+
         uint32_t                m_MixRate;
         uint32_t                m_FrameCount;
 
@@ -322,6 +324,7 @@ namespace dmSound
             sound->m_SoundData[i].m_Index = 0xffff;
         }
 
+        sound->m_LastInstancePlayedNS = dmTime::GetTime();
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_FrameCount = params->m_FrameCount;
         for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
@@ -350,6 +353,11 @@ namespace dmSound
 
         if (g_SoundSystem)
         {
+            if (g_SoundSystem->m_IsSoundActive)
+            {
+                PlatformReleaseAudioFocus();
+                g_SoundSystem->m_IsSoundActive = false;
+            }
             SoundSystem* sound = g_SoundSystem;
             dmSoundCodec::Delete(sound->m_CodecContext);
 
@@ -380,8 +388,6 @@ namespace dmSound
         }
 
         return result;
-
-        return RESULT_OK;
     }
 
     void GetStats(Stats* stats)
@@ -1093,7 +1099,7 @@ namespace dmSound
 
         if (master->m_Gain.IsZero())
         {
-            memset(out, 0, n * sizeof(float) * 2);
+            memset(out, 0, n * sizeof(uint16_t) * 2);
             return;
         }
 
@@ -1177,7 +1183,6 @@ namespace dmSound
         {
             sound->m_IsPhoneCallActive = false;
             sound->m_DeviceType->m_DeviceRestart(sound->m_Device);
-            (void) PlatformAcquireAudioFocus();
         }
 
         if (sound->m_IsPhoneCallActive)
@@ -1186,12 +1191,57 @@ namespace dmSound
             return RESULT_OK;
         }
 
-        if (!sound->m_IsSoundActive && sound->m_InstancesPool.Size() == 0)
+        // Make sure to always query for free slots, this drives recovery of queued buffers
+        uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
+        uint16_t active_instance_count = sound->m_InstancesPool.Size();
+
+        if (active_instance_count == 0)
         {
+            if (sound->m_IsSoundActive == true)
+            {
+                uint64_t nowNS = dmTime::GetTime();
+
+                // Wait with releasing audio until all our queued buffers have played, if any queued buffers are still playing
+                // we will get the wrong result in isMusicPlaying on android since it detects our sounds as "other application".
+                // We add one buffer to the delay length to be on the safe side.
+                uint64_t queueLengthNS = (1000ull * 1000ull * ((SOUND_OUTBUFFER_COUNT - free_slots + 1) * sound->m_FrameCount)) / sound->m_MixRate;
+                if ((nowNS - sound->m_LastInstancePlayedNS) > queueLengthNS)
+                {
+                    bool ok = PlatformReleaseAudioFocus();
+                    if (ok)
+                    {
+                        sound->m_IsSoundActive = false;
+                    }
+                    else
+                    {
+                        dmLogWarning("Failed to release audio focus");
+                    }
+                }
+            }
             return RESULT_NOTHING_TO_PLAY;
         }
 
-        uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
+        sound->m_LastInstancePlayedNS = dmTime::GetTime();
+
+        // DEF-3130 Don't request the audio focus unless something is being played
+        // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
+        // DEF-3138 If you queue silent audio to the device it will still be registered by Android
+        // as music is playing, therefore we need to acquire the audio focus even if the resulting
+        // sound of our mix is silence.
+        if (sound->m_IsSoundActive == false)
+        {
+            bool ok = PlatformAcquireAudioFocus();
+            if (ok)
+            {
+                sound->m_IsSoundActive = true;
+            }
+            else
+            {
+                dmLogWarning("Failed to acquire audio focus.");
+                return RESULT_NOTHING_TO_PLAY;
+            }
+        }
+
         if (free_slots > 0) {
             StepGroupValues();
             StepInstanceValues();
@@ -1203,17 +1253,6 @@ namespace dmSound
             MixContext mix_context(current_buffer, total_buffers);
             MixInstances(&mix_context);
 
-            // DEF-3130 Don't request the audio focus when we know nothing it being played
-            // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
-            // DEF-3138 If you queue silent audio to the device it will still be registered by Android
-            // as music is playing, therefore we need to acquire the audio focus even if the resulting
-            // sound of our mix is silence.
-            if (sound->m_IsSoundActive == false)
-            {
-                sound->m_IsSoundActive = true;
-                (void) PlatformAcquireAudioFocus();
-            }
-
             Master(&mix_context);
 
             // DEF-2540: Make sure to keep feeding the sound device, if you don't you'll get more slots free,
@@ -1224,12 +1263,6 @@ namespace dmSound
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;
             free_slots--;
-        }
-
-        if (sound->m_IsSoundActive == true && sound->m_InstancesPool.Size() == 0)
-        {
-            sound->m_IsSoundActive = false;
-            (void) PlatformReleaseAudioFocus();
         }
 
         return RESULT_OK;
