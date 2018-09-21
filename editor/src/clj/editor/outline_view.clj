@@ -244,6 +244,8 @@
                  {:label :separator}
                  {:label "Hide Objects"
                   :command :hide-selected}
+                 {:label "Hide Unselected Objects"
+                  :command :hide-unselected}
                  {:label "Show Objects"
                   :command :show-selected}
                  {:label "Show Last Hidden Objects"
