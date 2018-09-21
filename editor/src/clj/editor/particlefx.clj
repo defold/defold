@@ -470,12 +470,6 @@
                                                           :points points}))))
                                          (butlast (protobuf/enum-values Particle$ParticleKey)))]]))))
 
-(defn- next-node-outline-key-index [parent-id]
-  (inc (transduce (keep :node-outline-key-index)
-                  max
-                  0
-                  (:children (g/node-value parent-id :node-outline)))))
-
 (defn- attach-modifier [self-id parent-id modifier-id resolve-node-outline-key-index?]
   (concat
     (for [[from to] [[:_node-id :nodes]]]
@@ -486,7 +480,7 @@
       (for [[from to] conns]
         (g/connect modifier-id from parent-id to)))
     (when resolve-node-outline-key-index?
-      (g/set-property modifier-id :node-outline-key-index (next-node-outline-key-index parent-id)))))
+      (g/set-property modifier-id :node-outline-key-index (outline/next-node-outline-key-index parent-id)))))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
@@ -774,7 +768,7 @@
 
 (defn- add-modifier-handler [self parent-id type select-fn]
   (when-some [modifier (get-in mod-types [type :template])]
-    (let [node-outline-key-index (next-node-outline-key-index parent-id)
+    (let [node-outline-key-index (outline/next-node-outline-key-index parent-id)
           op-seq (gensym)
           mod-node (first (g/tx-nodes-added
                             (g/transact
