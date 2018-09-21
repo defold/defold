@@ -444,22 +444,21 @@
   (arcs-by-tail [this node-id label]
     (let [graph (node-id->graph this node-id)
           [override-chain explicit-arcs] (loop [node-id node-id
-                                       chain '()]
-                                  (let [arcs (graph-explicit-arcs-by-target graph node-id label)]
-                                    (if (and (empty? arcs) (gt/original-node this node-id))
-                                      (recur (gt/original-node this node-id)
-                                             (cons chain (gt/override-id (gt/node-by-id-at this node-id))))
-                                      [chain arcs])))]
-      (loop [chain override-chain
-             arcs explicit-arcs]
-        (if (empty? chain)
-          arcs
-          (recur (rest chain)
-                 (mapv (fn [{source :source target :target :as arc}]
-                         (assoc arc
-                                :source (or (override-of (node-id->graph this source) source (first chain)) source)
-                                :target node-id))
-                       arcs))))))
+                                                chain '()]
+                                           (let [arcs (graph-explicit-arcs-by-target graph node-id label)]
+                                             (if (and (empty? arcs) (gt/original-node this node-id))
+                                               (recur (gt/original-node this node-id)
+                                                      (cons (gt/override-id (gt/node-by-id-at this node-id)) chain))
+                                               [chain arcs])))]
+      (when (seq explicit-arcs)
+        (loop [chain override-chain
+               arcs explicit-arcs]
+          (if (empty? chain)
+            (map #(assoc % :target node-id) arcs)
+            (recur (rest chain)
+                   (map (fn [{source :source target :target :as arc}]
+                          (assoc arc :source (or (override-of (node-id->graph this source) source (first chain)) source)))
+                        arcs)))))))
 
   (arcs-by-head
     [this node-id]

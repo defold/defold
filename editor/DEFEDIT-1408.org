@@ -40,9 +40,6 @@
 * Steg
 ** laga spar - förutsätt korrekt layoutuppsättning i refererade scener
 ** laga bygg - förutsätt korrekt layoutuppsättning i refererade scener
-** 
-
-
 
 * node-msgs
 ** GuiNode
@@ -135,7 +132,6 @@
 * arcs-by-tail nid label
 ** hitta närmaste explicita kopplingen till denna input genom att följa override-original-kedjan
 ** Kedjestumpen från nid till explicita targetet, försök applicera den så långt som möjligt från explicita source'n
-
 A () -> A
 A (o1 Rest...) -> if A[o1] exists: A[o1] (Rest...)
                   else A (Rest...)
@@ -146,7 +142,7 @@ Lyft arc med kedjestump:
 
 (source output target input) () -> (source output target input)
 (source output target input) (o1 Rest...) -> if target[o1] exists:
-                                               if there is no (source' target' target[o1] input):
+                                               if there is no (source' target' target[o1] input): ; input not shadowed
                                                   (source[o1] output target[o1] input)
                                                else:
                                                   _|_
