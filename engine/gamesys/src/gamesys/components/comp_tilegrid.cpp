@@ -623,7 +623,7 @@ namespace dmGameSystem
         TileGridComponent* component = (TileGridComponent*)*params.m_UserData;
         component->m_TileGridResource = (TileGridResource*)params.m_Resource;
 
-        dmGameSystemDDF::TileGrid* tile_grid_ddf = component->m_TileGridResource->m_TileGrid;        
+        dmGameSystemDDF::TileGrid* tile_grid_ddf = component->m_TileGridResource->m_TileGrid;
         if (tile_grid_ddf->m_Layers.m_Count <= component->m_Layers.Capacity())
         {
             component->m_Layers.SetSize(tile_grid_ddf->m_Layers.m_Count);

@@ -457,46 +457,20 @@ namespace dmPhysics
                                      const Vectormath::Aos::Point3& position,
                                      uint32_t cell_width, uint32_t cell_height,
                                      uint32_t row_count, uint32_t column_count);
-    void DebugPrintHullSet(HHullSet2D hull_set);
-
-    void DebugPrintGridShape(HCollisionShape2D coll_shape);
-    
     /**
-    * Frees the memory used by dst_hull_set and points the members to the members of src_hull_set instead.
+    * Frees the memory used by dst_hull_set and deep-copies the members of src_hull_set.
     * @param dst_hull_set The hull set to receive the swapped data
     * @param src_hull_set The hull set to swap data from
     */
-    void SwapFreeHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set);
+    void SwapHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set);
     
     /**
-    * Frees the memory used by dst_coll_shape and points the members to the members of src_coll_shape instead.
+    * Frees the memory used by dst_coll_shape and deep-copies the members of src_coll_shape.
+    * Hullset member is a separate resource and not swapped here.
     * @param dst_coll_shape The grid shape to receive the swapped data
     * @param src_coll_shape The grid shape to swap data from
     */
-    void SwapFreeGridShape2DHullSet(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape);
-
-
-
-
-
-     void DebugPrintHullSet(HHullSet2D hull_set);
-
-     void DebugPrintGridShape(HCollisionShape2D coll_shape);
-
-     /**
-      * Frees the memory used by dst_hull_set and points the members to the members of src_hull_set instead.
-      * @param dst_hull_set The hull set to receive the swapped data
-      * @param src_hull_set The hull set to swap data from
-      */
-     void SwapFreeHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set);
-
-     /**
-      * Frees the memory used by dst_coll_shape and points the members to the members of src_coll_shape instead.
-      * @param dst_coll_shape The grid shape to receive the swapped data
-      * @param src_coll_shape The grid shape to swap data from
-      */
-     void SwapFreeGridShape2DHullSet(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape);
-
+    void SwapGridShape2D(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape);
 
     /**
      * Set hull for cell in grid-shape

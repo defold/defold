@@ -435,48 +435,8 @@ namespace dmPhysics
         return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
     }
 
-    void DebugPrintHullSet(HHullSet2D hull_set)
+     void SwapHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set)
      {
-         b2HullSet* hs = (b2HullSet*) hull_set;
-         dmLogInfo("-- hs: %p", hull_set);
-         dmLogInfo("-- hs->m_hulls: %p", hs->m_hulls);
-         dmLogInfo("-- hs->m_hullCount: %u", hs->m_hullCount);
-         dmLogInfo("-- hs->m_vertices: %p", hs->m_vertices);
-         dmLogInfo("-- hs->m_vertexCount: %u", hs->m_vertexCount);
-     }
-
-     void DebugPrintGridShape(HCollisionShape2D coll_shape)
-     {
-         b2GridShape* gs = (b2GridShape*) coll_shape;
-
-         // dmLogInfo("CELLS");
-         dmLogInfo("------------------");
-         dmLogInfo("gs->m_cells ptr: %p", gs->m_cells);
-         dmLogInfo("gs->m_cellFlags: %p", gs->m_cellFlags);
-         dmLogInfo("gs->m_hullSet: %p", gs->m_hullSet);
-         dmLogInfo("-- gs->m_hullSet->m_hulls: %p", gs->m_hullSet->m_hulls);
-         dmLogInfo("-- gs->m_hullSet->m_hullCount: %u", gs->m_hullSet->m_hullCount);
-         dmLogInfo("-- gs->m_hullSet->m_vertices: %p", gs->m_hullSet->m_vertices);
-         dmLogInfo("-- gs->m_hullSet->m_vertexCount: %u", gs->m_hullSet->m_vertexCount);
-         dmLogInfo("-- gs->m_rowCount: %u", gs->m_rowCount);
-         dmLogInfo("-- gs->m_columnCount: %u", gs->m_columnCount);
-     }
-
-     // Keep ptr old_hull_set, replace data for all members
-     void SwapFreeHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set)
-     {
-        /*
-        uint32 vertices_size = vertex_count * sizeof(vertices[0]);
-        m_vertices = (b2Vec2*) b2Alloc(vertices_size);
-        memcpy(m_vertices, vertices, vertices_size);
-        m_vertexCount = vertex_count;
-
-        uint32 hulls_size = hull_count * sizeof(hulls[0]);
-        m_hulls = (Hull*) b2Alloc(hulls_size);
-        memcpy(m_hulls, hulls, hulls_size);
-        m_hullCount = hull_count;
-        */
-
         b2HullSet* dst = (b2HullSet*) dst_hull_set;
         b2HullSet* src = (b2HullSet*) src_hull_set;
 
@@ -491,27 +451,10 @@ namespace dmPhysics
         dst->m_hulls = (b2HullSet::Hull*) b2Alloc(hulls_size);
         memcpy(dst->m_hulls, src->m_hulls, hulls_size);
         dst->m_hullCount = src->m_hullCount;
-
-        //delete src;
      }
 
-     void SwapFreeGridShape2DHullSet(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape)
+     void SwapGridShape2D(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape)
      {
-        /*
-        uint32 cellCount = m_rowCount * m_columnCount;
-        uint32 size = sizeof(Cell) * cellCount;
-        m_cells = (Cell*) b2Alloc(size);
-        memset(m_cells, 0xff, size); // NOTE: This will set all Cell#m_Index to 0xffffffff
-        size = sizeof(CellFlags) * cellCount;
-        m_cellFlags = (CellFlags*) b2Alloc(size);
-        memset(m_cellFlags, 0x0, size);
-
-        m_position = position;
-        m_type = e_grid;
-        m_radius = b2_polygonRadius;
-        m_filterPerChild = 1;
-        */
-         dmLogWarning("#### SwapFreeGridShape2DHullSet")
          b2GridShape* src_grid_shape = (b2GridShape*) src_coll_shape;
          b2GridShape* dst_grid_shape = (b2GridShape*) dst_coll_shape;
 
@@ -528,17 +471,11 @@ namespace dmPhysics
          dst_grid_shape->m_cellFlags = (b2GridShape::CellFlags*)b2Alloc(flags_size);
          memcpy(dst_grid_shape->m_cellFlags, src_grid_shape->m_cellFlags, flags_size);
 
-         // Hullset is owned and reloaded by textureset (tileset) resource in tilegrid resource.
-
          dst_grid_shape->m_cellWidth = src_grid_shape->m_cellWidth;
          dst_grid_shape->m_cellHeight = src_grid_shape->m_cellHeight;
 
          dst_grid_shape->m_rowCount = src_grid_shape->m_rowCount;
          dst_grid_shape->m_columnCount = src_grid_shape->m_columnCount;
-
-         //delete (b2Shape*)src_grid_shape;
-         
-         dmLogWarning("#### Done!")
      }
 
     void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)

@@ -180,7 +180,6 @@ namespace dmGameSystem
             TileGridResource* tile_grid_resource = resource->m_TileGridResource;
             dmGameSystemDDF::TileGrid* tile_grid = tile_grid_resource->m_TileGrid;
             dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
-            dmLogInfo("SetupTileGrid, tile_grid num layers: %u, num shapes: %u", tile_grid->m_Layers.m_Count, shapes.Size());
             uint32_t shape_count = shapes.Size();
             dmPhysics::HullFlags flags;
             for (uint32_t i = 0; i < shape_count; ++i)
@@ -955,12 +954,12 @@ namespace dmGameSystem
 
             if (row >= tile_grid_resource->m_RowCount || column >= tile_grid_resource->m_ColumnCount)
             {
-                dmLogError("SetGridShapeHull: <row,column> out of bounds (%u, %u)", row, column);
+                dmLogError("SetGridShapeHull: <row,column> out of bounds");
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
             if (hull != ~0u && hull >= tile_grid_resource->m_TextureSet->m_HullCollisionGroups.Size())
             {
-                dmLogError("SetGridShapHull: specified hull index is out of bounds. index: %u", hull);
+                dmLogError("SetGridShapHull: specified hull index is out of bounds.");
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
             }
 
