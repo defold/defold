@@ -348,19 +348,76 @@
           (into arcs implicit-arcs))
         arcs))))
 
-(defn- implicit-arcs-by-head [basis override-node-id override-id original-node-id label]
-  (let [graph (node-id->graph basis override-node-id)
-        original-node (node-id->node graph original-node-id)
-        original-implicit-arcs (when (gt/original original-node)
-                                 (implicit-arcs-by-head basis original-node-id (gt/override-id original-node) (gt/original original-node) label))
-        original-explicit-arcs (graph-explicit-arcs-by-source graph original-node-id label)]
-    (into []
-          (keep (fn [{source :source target :target :as arc}]
-                  (assert (= source original-node-id))
-                  (when-let [target-override-node-id (override-of graph target override-id)] ; the target node exists in the override of the source/original-node
-                    (when (empty? (graph-explicit-arcs-by-target graph target-override-node-id label)) ; and the target override node does not have an explict input shadowing this arc
-                      (assoc arc :source override-node-id :target target-override-node-id))))) ; then this arc will be an implicit outgoing arc from the override-node-id
-          (concat original-implicit-arcs original-explicit-arcs))))
+(defn- lifted-target-arcs [basis {source :source target :target label :targetLabel :as arc} override-chain]
+  (println :lta)
+  (println :arc arc)
+  (println :o-c override-chain)
+  (if (seq override-chain)
+    (let [source-graph (node-id->graph basis source)
+          target-graph (node-id->graph basis target)]
+      (if-let [target-override (override-of target-graph target (first override-chain))] ; if there is a target node in the next override in the chain
+        (if (seq (graph-explicit-arcs-by-target target-override label))
+          [] ; no resulting arcs if target override has explicit arc into the label
+          (lifted-target-arcs basis
+                              (assoc arc ; otherwise, lift the arc with both source and target lifted to the next override in the chain
+                                     :source (override-of source-graph source (first override-chain))
+                                     :target target-override)
+                              (rest override-chain)))
+        (let [;; There could be intermediate override steps in the target override chain.
+              ;; We must follow all branches upwards in the target override tree except for those where the next target override has a corresponding
+              ;; override node for the source (not along the override chain)
+              target-override-node-ids (overrides target-graph target)
+              source-override-node-ids (overrides source-graph source)
+              source-override-node-override-ids (set (map #(gt/override-id (node-id->node source-graph %)) source-override-node-ids))
+              prospect-target-override-node-ids (into []
+                                                      (comp
+                                                        (remove (fn [target-override-node-id]
+                                                                  ;; would following this target override branch lead to an override with an override node for the source which
+                                                                  ;; (as a consequence of the if-nesting) is not along the override chain?
+                                                                  (contains? source-override-node-override-ids
+                                                                             (gt/override-id (node-id->node target-graph target-override-node-id)))))
+                                                        ;; target override must not have any explicit input arcs to the label
+                                                        (filter (fn [target-override-node-id]
+                                                                  (empty? (graph-explicit-arcs-by-target target-override-node-id label)))))
+                                                      target-override-node-ids)]
+          (println :prospects prospect-target-override-node-ids)
+          (into []
+                (comp
+                  (map (fn [prospect-target-override-node-id]
+                         (lifted-target-arcs basis
+                                             (assoc arc :target prospect-target-override-node-id)
+                                             override-chain)))
+                  cat)
+                prospect-target-override-node-ids))))
+    [arc]))
+
+(defn- do-propagate-target-arcs [basis source-overrides target-arcs]
+  (into []
+        (comp
+          (map (fn [{target :target label :targetLabel :as target-arc}]
+                 (let [target-graph (node-id->graph basis target)
+                       target-override-nodes (map #(node-id->node target-graph %) (overrides target-graph target))]
+                   (keep (fn [target-override-node]
+                           (when (and (not (contains? source-overrides (gt/override-id target-override-node)))
+                                      (not (graph-explicit-arcs-by-target target-graph (gt/node-id target-override-node) label)))
+                             (assoc target-arc :target (gt/node-id target-override-node))))
+                         target-override-nodes))))
+          cat)
+        target-arcs))
+
+(defn- propagate-target-arcs [basis target-arcs]
+  (println :pta target-arcs)
+  (when (seq target-arcs)
+    (let [source (:source (first target-arcs))
+          source-graph (node-id->graph basis source)
+          source-overrides (set (map (comp gt/override-id #(node-id->node source-graph %)) (overrides source-graph source)))]
+      (loop [target-arcs target-arcs
+             result target-arcs]
+        (let [propagated-target-arcs (do-propagate-target-arcs basis source-overrides target-arcs)]
+          (println :propagated propagated-target-arcs)
+          (if (empty? propagated-target-arcs)
+            result
+            (recur propagated-target-arcs (concat target-arcs propagated-target-arcs))))))))
 
 (def ^:private set-or-union (fn [s1 s2] (if s1 (set/union s1 s2) s2)))
 (def ^:private merge-with-union (let [red-f (fn [m [k v]] (update m k set-or-union v))]
@@ -491,32 +548,34 @@
     [this node-id label]
     (let [graph (node-id->graph this node-id)
           node (node-id->node graph node-id)
-          explicit-arcs (graph-explicit-arcs-by-source graph node-id label)
-          implicit-arcs (when (gt/original node)
-                          (implicit-arcs-by-head this node-id (gt/override-id node) (gt/original node) label))
-          ;; Now we've looked down the override ladder to determine the explicit and implicit outgoing arcs from this node.
-          ;; It's time to look up: considering all the targets of the arcs, do the arcs to their overrides still use this node as source?
-          implicit-target-arcs-from-node (into []
-                                               (comp
-                                                 ;; each outgoing arc can result in a bunch of arcs to the target overrides
-                                                 (map (fn [{source :source target :target target-label :targetLabel :as arc}]
-                                                        (assert (= source node-id))
-                                                        (loop [prospect-targets (overrides (node-id->graph this target) target)
-                                                               arcs []]
-                                                          (if-let [prospect-target (first prospect-targets)]
-                                                            (let [prospect-target-explicit-input-arcs (not-empty (graph-explicit-arcs-by-target (node-id->graph this prospect-target) prospect-target target-label))
-                                                                  prospect-target-node (node-id->node (node-id->graph this prospect-target) prospect-target)]
-                                                              (if (or prospect-target-explicit-input-arcs
-                                                                      (override-of (node-id->graph this source) source (gt/override-id prospect-target-node)))
-                                                                ;; the target node override has something else connected to this input, so the arc is no longer relevant
-                                                                ;; OR the override contains an override node for the source (... which would then be the source)
-                                                                (recur (rest prospect-targets) arcs)
-                                                                (recur (concat (overrides (node-id->graph this prospect-target) prospect-target) (rest prospect-targets))
-                                                                       (conj arcs (assoc arc :target prospect-target)))))
-                                                            arcs))))
-                                                 cat)
-                                               (concat implicit-arcs explicit-arcs))]
-      (concat implicit-arcs explicit-arcs implicit-target-arcs-from-node)))
+          explicit-arcs+override-chains (loop [node-id node-id
+                                               override-chain '()
+                                               result []]
+                                          (let [node (node-id->node graph node-id)
+                                                explicit-arcs (graph-explicit-arcs-by-source graph node-id label)
+                                                result' (if (seq explicit-arcs)
+                                                          (conj result [explicit-arcs override-chain])
+                                                          result)]
+                                            (if (gt/original node)
+                                              (recur (gt/original node)
+                                                     (cons (gt/override-id node) override-chain)
+                                                     result')
+                                              result')))
+          lifted-arcs (into []
+                            (comp
+                              (keep (fn [[explicit-arcs override-chain]]
+                                      (not-empty (map #(lifted-target-arcs this % override-chain) explicit-arcs))))
+                              cat
+                              cat)
+                            explicit-arcs+override-chains)]
+      ;; Lifted arcs are now valid outgoing arcs from node-id label. But we're still missing
+      ;; some possible targets reachable by following the branches from the respective targets as long
+      ;; as there are no explicit incoming arcs and no "higher" override node of the source in the reached
+      ;; target node override.
+      (println :ea+oc explicit-arcs+override-chains)
+      (println :la lifted-arcs)
+
+      (propagate-target-arcs this lifted-arcs)))
 
   (sources [this node-id] (mapv gt/head (inputs this node-id)))
   (sources [this node-id label] (mapv gt/head (inputs this node-id label)))

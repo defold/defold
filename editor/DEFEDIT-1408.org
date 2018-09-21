@@ -138,17 +138,28 @@ A (o1 Rest...) -> if A[o1] exists: A[o1] (Rest...)
 
 * arcs-by-head nid label
 ** hitta explicita koppingar från denna output till target nod + override kedjestump från nid tillbaks till explicita source nod
-Lyft arc med kedjestump:
+Lyft arc med kedjestump: lift
 
-(source output target input) () -> (source output target input)
+(source output target input) () -> [ (source output target input) ]
 (source output target input) (o1 Rest...) -> if target[o1] exists:
-                                               if there is no (source' target' target[o1] input): ; input not shadowed
-                                                  (source[o1] output target[o1] input)
+                                               if there is no (source' output' target[o1] input): ; input not shadowed
+                                                  [ (source[o1] output target[o1] input) (Rest...) ] ?
                                                else:
-                                                  _|_
-                                             else:
-                                               [ each (source output target[p0] input) (o1 Rest...) ]
-                                               where p0 != o1 and source[p0] does not exist.
+                                                  [] / _|_
+						   
+						  PLUS
+
+					     [ each (source output target[p0] input) (o1 Rest...) ]
+                                             where p0 != o1 and source[p0] does not exist.
+					     and no (source' output' target[p0] input) ; input not shadowed
+
+(source output target input) (o1 Rest...) -> 
+
+
+** Traversera vidare från targets: propagate
+
+(source output target input) +-> [ (source output target[o1]) label] where source[o1] does not exists
+
 
  
 
