@@ -189,15 +189,12 @@ namespace dmGameSystem
 
             if (layer_count_old < layer_count_new)
             {
-                if (layer_count_old < layer_count_new)
+                uint32_t capacity = tile_grid->m_GridShapes.Capacity();
+                tile_grid->m_GridShapes.OffsetCapacity(layer_count_new - capacity);
+                tile_grid->m_GridShapes.SetSize(tile_grid_ddf->m_Layers.m_Count);
+                for (int i = capacity; i < layer_count_new; ++i)
                 {
-                    uint32_t capacity = tile_grid->m_GridShapes.Capacity();
-                    tile_grid->m_GridShapes.OffsetCapacity(layer_count_new - capacity);
-                    tile_grid->m_GridShapes.SetSize(tile_grid_ddf->m_Layers.m_Count);
-                    for (int i = capacity; i < layer_count_new; ++i)
-                    {
-                        tile_grid->m_GridShapes[i] = tmp_tile_grid.m_GridShapes[i];
-                    }
+                    tile_grid->m_GridShapes[i] = tmp_tile_grid.m_GridShapes[i];
                 }
                 layer_count = layer_count_old;
             }
