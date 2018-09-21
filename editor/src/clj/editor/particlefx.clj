@@ -1,10 +1,8 @@
 (ns editor.particlefx
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.graph-util :as gu]
-            [editor.colors :as colors]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -17,7 +15,6 @@
             [editor.gl.vertex :as vtx]
             [editor.material :as material]
             [editor.scene :as scene]
-            [editor.scene-layout :as layout]
             [editor.scene-cache :as scene-cache]
             [editor.scene-tools :as scene-tools]
             [editor.outline :as outline]
@@ -37,8 +34,6 @@
            [com.jogamp.opengl GL GL2 GL2GL3 GLContext GLProfile GLAutoDrawable GLOffscreenAutoDrawable GLDrawableFactory GLCapabilities]
            [editor.types Region Animation Camera Image TexturePacking Rect EngineFormatTexture AABB TextureSetAnimationFrame TextureSetAnimation TextureSet]
            [editor.gl.shader ShaderLifecycle]
-           [com.defold.libs ParticleLibrary]
-           [com.sun.jna Pointer]
            [java.nio ByteBuffer]
            [com.google.protobuf ByteString]
            [editor.properties CurveSpread Curve]))
@@ -272,16 +267,16 @@
                                                  :geom-data-world (fn [_ max-distance]
                                                                     (geom/scale [max-distance max-distance 1] dash-circle))}})
 
-(defn- modifier-node-outline-key [modifier-type node-outline-key-index]
-  (str (:label (mod-types modifier-type)) node-outline-key-index))
+(defn- modifier-type-label [modifier-type]
+  (:label (mod-types modifier-type)))
 
 (g/defnk produce-modifier-scene
-  [_node-id transform aabb type magnitude node-outline-key-index max-distance]
+  [_node-id transform aabb type magnitude max-distance node-outline-key]
   (let [mod-type (mod-types type)
         magnitude (props/sample magnitude)
         max-distance (props/sample max-distance)]
     {:node-id _node-id
-     :node-outline-key (modifier-node-outline-key type node-outline-key-index)
+     :node-outline-key node-outline-key
      :transform transform
      :aabb aabb
      :renderable {:render-fn render-lines
@@ -301,16 +296,15 @@
             (dynamic visible (g/constantly false)))
   (property magnitude CurveSpread)
   (property max-distance Curve (dynamic visible (g/fnk [type] (contains? #{:modifier-type-radial :modifier-type-vortex} type))))
-  (property node-outline-key-index g/Int (dynamic visible (g/constantly false)))
+  (property node-outline-key g/Str (dynamic visible (g/constantly false)))
 
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output pb-msg g/Any produce-modifier-pb)
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id node-outline-key-index type]
+    (g/fnk [_node-id type node-outline-key]
       (let [mod-type (mod-types type)]
         {:node-id _node-id
-         :node-outline-key (modifier-node-outline-key type node-outline-key-index)
-         :node-outline-key-index node-outline-key-index
+         :node-outline-key node-outline-key
          :label (:label mod-type)
          :icon modifier-icon})))
   (output aabb AABB (g/constantly (geom/aabb-incorporate (geom/null-aabb) 0 0 0)))
@@ -470,7 +464,7 @@
                                                           :points points}))))
                                          (butlast (protobuf/enum-values Particle$ParticleKey)))]]))))
 
-(defn- attach-modifier [self-id parent-id modifier-id resolve-node-outline-key-index?]
+(defn- attach-modifier [self-id parent-id modifier-id resolve-node-outline-key?]
   (concat
     (for [[from to] [[:_node-id :nodes]]]
       (g/connect modifier-id from self-id to))
@@ -479,16 +473,12 @@
                  [:pb-msg :modifier-msgs]]]
       (for [[from to] conns]
         (g/connect modifier-id from parent-id to)))
-    (when resolve-node-outline-key-index?
-      (g/set-property modifier-id :node-outline-key-index (outline/next-node-outline-key-index parent-id)))))
+    (when resolve-node-outline-key?
+      (g/update-property modifier-id :node-outline-key outline/next-node-outline-key (outline/taken-node-outline-keys parent-id)))))
 
 (defn- prop-resource-error [nil-severity _node-id prop-kw prop-value prop-name]
   (or (validation/prop-error nil-severity _node-id prop-kw validation/prop-nil? prop-value prop-name)
       (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-not-exists? prop-value prop-name)))
-
-(defn- sort-anim-ids
-  [anim-ids]
-  (sort-by str/lower-case anim-ids))
 
 (declare ParticleFXNode)
 
@@ -745,15 +735,12 @@
                                                                                       (attach-modifier self-id self-id child-id true))}]})))
   (output fetch-anim-fn Runnable :cached (g/fnk [emitter-sim-data] (fn [index] (get emitter-sim-data index)))))
 
-(defn- v4->euler [v]
-  (math/quat->euler (doto (Quat4d.) (math/clj->vecmath v))))
-
 (defn- make-modifier
-  [self parent-id node-outline-key-index modifier]
+  [self parent-id modifier node-outline-key]
   (let [graph-id (g/node-id->graph-id self)]
     (g/make-nodes graph-id
                   [mod-node [ModifierNode :position (:position modifier) :rotation (:rotation modifier)
-                             :type (:type modifier) :node-outline-key-index node-outline-key-index]]
+                             :type (:type modifier) :node-outline-key node-outline-key]]
                   (let [mod-properties (into {} (map #(do [(:key %) (dissoc % :key)])
                                                      (:properties modifier)))]
                     (concat
@@ -768,14 +755,15 @@
 
 (defn- add-modifier-handler [self parent-id type select-fn]
   (when-some [modifier (get-in mod-types [type :template])]
-    (let [node-outline-key-index (outline/next-node-outline-key-index parent-id)
+    (let [node-outline-key (outline/next-node-outline-key (modifier-type-label type)
+                                                          (outline/taken-node-outline-keys parent-id))
           op-seq (gensym)
           mod-node (first (g/tx-nodes-added
                             (g/transact
                               (concat
                                 (g/operation-label "Add Modifier")
                                 (g/operation-sequence op-seq)
-                                (make-modifier self parent-id node-outline-key-index modifier)))))]
+                                (make-modifier self parent-id modifier node-outline-key)))))]
       (when (some? select-fn)
         (g/transact
           (concat
@@ -839,8 +827,10 @@
                                                                [x y t-x t-y]) (:points p)))]]
                         (g/set-property emitter-node key curve)))
                     (attach-emitter self emitter-node resolve-id?)
-                    (map-indexed (partial make-modifier self emitter-node)
-                                 (:modifiers emitter))
+                    (map (partial make-modifier self emitter-node)
+                         (:modifiers emitter)
+                         (outline/gen-node-outline-keys (map (comp modifier-type-label :type)
+                                                             (:modifiers emitter))))
                     (if select-fn
                       (select-fn [emitter-node])
                       [])))))
@@ -906,14 +896,16 @@
                       (update-curve-spread-start-value z #(props/round-scalar (Math/abs (* % (.getZ delta)))))))))
 
 
-(defn load-particle-fx [project self resource pb]
+(defn load-particle-fx [project self _resource pb]
   (concat
     (g/connect project :settings self :project-settings)
     (g/connect project :default-tex-params self :default-tex-params)
     (map (partial make-emitter self)
          (:emitters pb))
-    (map-indexed (partial make-modifier self self)
-                 (:modifiers pb))))
+    (map (partial make-modifier self self)
+         (:modifiers pb)
+         (outline/gen-node-outline-keys (map (comp modifier-type-label :type)
+                                             (:modifiers pb))))))
 
 (defn- add-default-properties-to-modifier [mod-pb]
   (update mod-pb :properties #(or (not-empty %) (get-in mod-types [(:type mod-pb) :template :properties]))))
