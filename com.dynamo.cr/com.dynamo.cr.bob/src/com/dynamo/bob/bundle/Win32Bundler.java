@@ -54,17 +54,15 @@ public class Win32Bundler implements IBundler {
         }
 
         // Touch both OpenAL32.dll and wrap_oal.dll so they get included in the step below
-        Bob.getLib(platform, "OpenAL32");
-        Bob.getLib(platform, "wrap_oal");
+        String openal_dll = Bob.getLib(platform, "OpenAL32");
+        String wrap_oal_dll = Bob.getLib(platform, "wrap_oal");
 
         // Copy Executable and DLL:s
         String exeName = String.format("%s.exe", title);
         File exeOut = new File(appDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
-        Collection<File> dlls = FileUtils.listFiles(Bob.getDefaultDmengineFolder(), new String[] {"dll"}, false);
-        for (File file : dlls) {
-            FileUtils.copyFileToDirectory(file, appDir);
-        }
+        FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
+        FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
 
         // If windows.iap_provider is set to Gameroom we need to output a "launch" file that FB Gameroom understands.
         String iapProvider = projectProperties.getStringValue("windows", "iap_provider", "");
