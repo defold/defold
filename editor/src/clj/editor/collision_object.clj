@@ -60,6 +60,9 @@
   [shape-type]
   (get-in shape-type-ui [shape-type :physics-types]))
 
+(defn- shape-node-outline-key [shape-type node-outline-key-index]
+  (str (shape-type-label shape-type) node-outline-key-index))
+
 (defn- project-physics-type [project-settings]
   (if (.equalsIgnoreCase "2D" (get project-settings ["physics" "type"] "2D"))
     "2D"
@@ -73,6 +76,8 @@
   
   (property shape-type g/Any
             (dynamic visible (g/constantly false)))
+  (property node-outline-key-index g/Int
+            (dynamic visible (g/constantly false)))
 
   (output transform-properties g/Any scene/produce-unscalable-transform-properties)
   (output shape-data g/Any :abstract)
@@ -84,13 +89,12 @@
                          :rotation rotation
                          :data shape-data}))
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type]
-                                                     (let [label (shape-type-label shape-type)
-                                                           icon (shape-type-icon shape-type)]
-                                                       {:node-id _node-id
-                                                        :node-outline-key label
-                                                        :label label
-                                                        :icon icon}))))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id shape-type node-outline-key-index]
+                                                     {:node-id _node-id
+                                                      :node-outline-key (shape-node-outline-key shape-type node-outline-key-index)
+                                                      :node-outline-key-index node-outline-key-index
+                                                      :label (shape-type-label shape-type)
+                                                      :icon (shape-type-icon shape-type)})))
 
 ;;--------------------------------------------------------------------
 ;; rendering
@@ -330,11 +334,10 @@
         (gl/with-gl-bindings gl render-args [shader vertex-binding]
           (gl/gl-draw-arrays gl GL/GL_TRIANGLE_FAN 0 (count vbuf)))))))
 
-
 (g/defnk produce-sphere-shape-scene
-  [_node-id transform diameter color]
+  [_node-id transform diameter color node-outline-key-index]
   {:node-id _node-id
-   :node-outline-key (shape-type-label :type-sphere)
+   :node-outline-key (shape-node-outline-key :type-sphere node-outline-key-index)
    :transform transform
    :aabb (let [d (* 0.5 diameter)]
            (-> (geom/null-aabb)
@@ -348,10 +351,10 @@
                 :passes [pass/outline pass/transparent pass/selection]}})
 
 (g/defnk produce-box-shape-scene
-  [_node-id transform dimensions color]
+  [_node-id transform dimensions color node-outline-key-index]
   (let [[w h d] dimensions]
     {:node-id _node-id
-     :node-outline-key (shape-type-label :type-box)
+     :node-outline-key (shape-node-outline-key :type-box node-outline-key-index)
      :transform transform
      :aabb (let [ext-x (* 0.5 w)
                  ext-y (* 0.5 h)
@@ -368,9 +371,9 @@
                   :passes [pass/outline pass/transparent pass/selection]}}))
 
 (g/defnk produce-capsule-shape-scene
-  [_node-id transform diameter height color]
+  [_node-id transform diameter height color node-outline-key-index]
   {:node-id _node-id
-   :node-outline-key (shape-type-label :type-capsule)
+   :node-outline-key (shape-node-outline-key :type-capsule node-outline-key-index)
    :transform transform
    :aabb (let [r (* 0.5 diameter)
                ext-y (+ (* 0.5 height) r)]
@@ -468,13 +471,15 @@
 
 
 (defn attach-shape-node
-  [parent shape-node]
+  [resolve-node-outline-key-index? parent shape-node]
   (concat
-   (g/connect shape-node :_node-id           parent :nodes)
-   (g/connect shape-node :node-outline       parent :child-outlines)
-   (g/connect shape-node :scene              parent :child-scenes)
-   (g/connect shape-node :shape              parent :shapes)
-   (g/connect parent :collision-group-color  shape-node :color)))
+    (g/connect shape-node :_node-id              parent     :nodes)
+    (g/connect shape-node :node-outline          parent     :child-outlines)
+    (g/connect shape-node :scene                 parent     :child-scenes)
+    (g/connect shape-node :shape                 parent     :shapes)
+    (g/connect parent     :collision-group-color shape-node :color)
+    (when resolve-node-outline-key-index?
+      (g/set-property shape-node :node-outline-key-index (outline/next-node-outline-key-index parent)))))
 
 (defmulti decode-shape-data
   (fn [shape data] (:shape-type shape)))
@@ -493,20 +498,24 @@
    :height h})
 
 (defn make-shape-node
-  [parent {:keys [shape-type] :as shape} select-fn]
+  [parent node-outline-key-index {:keys [shape-type] :as shape}]
   (let [graph-id (g/node-id->graph-id parent)
         node-type (case shape-type
                     :type-sphere SphereShape
                     :type-box BoxShape
                     :type-capsule CapsuleShape)
-        node-props (dissoc shape :index :count)]
+        node-props (-> shape
+                       (dissoc :index :count)
+                       (assoc :node-outline-key-index node-outline-key-index))]
     (g/make-nodes
-     graph-id
-     [shape-node [node-type node-props]]
-     (attach-shape-node parent shape-node)
-     (when select-fn
-       (select-fn [shape-node])))))
+      graph-id
+      [shape-node [node-type node-props]]
+      (attach-shape-node false parent shape-node))))
 
+(defn- load-embedded-shape [embedded-collision-shape-data {:keys [index count] :as shape}]
+  (let [shape-data (subvec embedded-collision-shape-data index (+ index count))
+        decoded-shape-data (decode-shape-data shape shape-data)]
+    (merge shape decoded-shape-data)))
 
 (defn load-collision-object
   [project self resource co]
@@ -525,11 +534,10 @@
     (g/connect self :collision-group-node project :collision-group-nodes)
     (g/connect project :collision-groups-data self :collision-groups-data)
     (g/connect project :settings self :project-settings)
-    (when-let [embedded-shape (:embedded-collision-shape co)]
-      (for [{:keys [index count] :as shape} (:shapes embedded-shape)]
-        (let [data (subvec (:data embedded-shape) index (+ index count))
-              shape-with-decoded-data (merge shape (decode-shape-data shape data))]
-          (make-shape-node self shape-with-decoded-data nil))))))
+    (when-some [{:keys [data shapes]} (:embedded-collision-shape co)]
+      (sequence (comp (map (partial load-embedded-shape data))
+                      (map-indexed (partial make-shape-node self)))
+                shapes))))
 
 (g/defnk produce-scene
   [_node-id child-scenes]
@@ -689,7 +697,7 @@
                                                       :icon collision-object-icon
                                                       :children (outline/natural-sort child-outlines)
                                                       :child-reqs [{:node-type Shape
-                                                                    :tx-attach-fn attach-shape-node}]}))
+                                                                    :tx-attach-fn (partial attach-shape-node true)}]}))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any (gu/passthrough pb-msg))
@@ -729,10 +737,20 @@
 
 (defn- add-shape-handler
   [collision-object-node shape-type select-fn]
-  (g/transact
-   (concat
-    (g/operation-label "Add Shape")
-    (make-shape-node collision-object-node (default-shape shape-type) select-fn))))
+  (let [node-outline-key-index (outline/next-node-outline-key-index collision-object-node)
+        op-seq (gensym)
+        shape (default-shape shape-type)
+        shape-node (first (g/tx-nodes-added
+                            (g/transact
+                              (concat
+                                (g/operation-label "Add Shape")
+                                (g/operation-sequence op-seq)
+                                (make-shape-node collision-object-node node-outline-key-index shape)))))]
+    (when (some? select-fn)
+      (g/transact
+        (concat
+          (g/operation-sequence op-seq)
+          (select-fn [shape-node]))))))
 
 (defn- selection->collision-object [selection]
   (handler/adapt-single selection CollisionObjectNode))

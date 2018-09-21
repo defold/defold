@@ -326,3 +326,9 @@
 
 (defn natural-sort [items]
   (->> items (sort-by :label util/natural-order) vec))
+
+(defn next-node-outline-key-index [parent-id]
+  (inc (transduce (keep :node-outline-key-index)
+                  max
+                  -1
+                  (:children (g/node-value parent-id :node-outline)))))
