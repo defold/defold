@@ -58,6 +58,17 @@
                     xs seen)))]
      (step coll #{}))))
 
+(defn group-into
+  "Like core.group-by, but you can specify the empty collection used for the groups."
+  [empty-group key-fn coll]
+  (persistent!
+    (reduce (fn [groups-by-key elem]
+              (let [key (key-fn elem)
+                    group (get groups-by-key key empty-group)]
+                (assoc! groups-by-key key (conj group elem))))
+            (transient {})
+            coll)))
+
 (defn filterm [pred m]
   "like filter but applys the predicate to each key value pair of the map"
   (into {} (filter pred m)))

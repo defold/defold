@@ -38,6 +38,7 @@
 (def ^:private THideHistory [(s/both TOutlineNamePaths (s/pred seq))])
 (g/deftype HideHistory THideHistory)
 (g/deftype OutlineNamePaths TOutlineNamePaths)
+(g/deftype OutlineNamePathsByBool {s/Bool TOutlineNamePaths})
 (g/deftype OutlineNamePathsByNodeID {s/Int (s/both TOutlineNamePaths (s/pred seq))})
 (g/deftype SceneHideHistoryData [(s/one s/Int "scene-resource-node") (s/one THideHistory "hide-history")])
 
@@ -91,20 +92,29 @@
   (output hidden-outline-name-paths OutlineNamePaths (g/fnk [active-scene-resource-node hidden-outline-name-paths-by-scene-resource-node]
                                                        (hidden-outline-name-paths-by-scene-resource-node active-scene-resource-node)))
 
-  (output selected-outline-name-paths OutlineNamePaths :cached (g/fnk [outline-selection active-scene]
-                                                                 (let [selected-outline-name-paths (into [] (keep outline-selection-entry->outline-name-path) outline-selection)
-                                                                       outline-name-path-below-selection? (fn [outline-name-path]
-                                                                                                            (boolean (some #(iutil/seq-starts-with? outline-name-path %)
-                                                                                                                           selected-outline-name-paths)))]
-                                                                   (into #{}
-                                                                         (filter outline-name-path-below-selection?)
-                                                                         (scene-outline-name-paths active-scene)))))
+  (output outline-name-paths-by-selection-state OutlineNamePathsByBool :cached (g/fnk [active-scene outline-selection]
+                                                                                 (let [selected-outline-name-paths (into [] (keep outline-selection-entry->outline-name-path) outline-selection)
+                                                                                       outline-name-path-below-selection? (fn [outline-name-path]
+                                                                                                                            (boolean (some #(iutil/seq-starts-with? outline-name-path %)
+                                                                                                                                           selected-outline-name-paths)))]
+                                                                                   (iutil/group-into #{}
+                                                                                                     outline-name-path-below-selection?
+                                                                                                     (scene-outline-name-paths active-scene)))))
 
-  (output hideable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths selected-outline-name-paths]
-                                                                 (not-empty (set/difference selected-outline-name-paths hidden-outline-name-paths))))
+  (output selected-outline-name-paths OutlineNamePaths (g/fnk [outline-name-paths-by-selection-state]
+                                                         (outline-name-paths-by-selection-state true)))
 
-  (output showable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths selected-outline-name-paths]
-                                                                 (not-empty (set/intersection selected-outline-name-paths hidden-outline-name-paths))))
+  (output unselected-outline-name-paths OutlineNamePaths (g/fnk [outline-name-paths-by-selection-state]
+                                                           (outline-name-paths-by-selection-state false)))
+
+  (output unselected-hideable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths unselected-outline-name-paths]
+                                                                            (not-empty (set/difference unselected-outline-name-paths hidden-outline-name-paths))))
+
+  (output selected-hideable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths selected-outline-name-paths]
+                                                                          (not-empty (set/difference selected-outline-name-paths hidden-outline-name-paths))))
+
+  (output selected-showable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths selected-outline-name-paths]
+                                                                          (not-empty (set/intersection selected-outline-name-paths hidden-outline-name-paths))))
 
   (output last-hidden-outline-name-paths OutlineNamePaths :cached (g/fnk [active-scene-resource-node scene-hide-history-datas]
                                                                     (peek (some (fn [[scene-resource-node hide-history]]
@@ -164,15 +174,20 @@
                       (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
                       (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
 
+(handler/defhandler :hide-unselected :workbench
+  (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
+  (enabled? [scene-visibility] (g/node-value scene-visibility :unselected-hideable-outline-name-paths))
+  (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :unselected-hideable-outline-name-paths))))
+
 (handler/defhandler :hide-selected :workbench
   (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
-  (enabled? [scene-visibility] (g/node-value scene-visibility :hideable-outline-name-paths))
-  (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :hideable-outline-name-paths))))
+  (enabled? [scene-visibility] (g/node-value scene-visibility :selected-hideable-outline-name-paths))
+  (run [scene-visibility] (hide-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-hideable-outline-name-paths))))
 
 (handler/defhandler :show-selected :workbench
   (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
-  (enabled? [scene-visibility] (g/node-value scene-visibility :showable-outline-name-paths))
-  (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :showable-outline-name-paths))))
+  (enabled? [scene-visibility] (g/node-value scene-visibility :selected-showable-outline-name-paths))
+  (run [scene-visibility] (show-outline-name-paths! scene-visibility (g/node-value scene-visibility :selected-showable-outline-name-paths))))
 
 (handler/defhandler :show-last-hidden :workbench
   (active? [scene-visibility] (g/node-value scene-visibility :active-scene-resource-node))
