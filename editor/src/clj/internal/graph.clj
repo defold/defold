@@ -692,13 +692,13 @@
 ;;   the internal input-dependencies, i.e. outputs consuming the given output
 ;;   the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
 ;;   all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]
-(defn- update-graph-successors [succs basis gid graph changes]
+(defn- update-graph-successors [old-successors basis gid graph changes]
   (let [node-id->overrides (or (:node->overrides graph) (constantly nil))
         ;; Transducer to collect override-id's
         override-id-xf (keep #(some->> %
                                 (node-id->node graph)
                                 (gt/override-id)))]
-    (reduce (fn [succs [node-id labels]]
+    (reduce (fn [new-successors [node-id labels]]
               (if-let [node (gt/node-by-id-at basis node-id)]
                 (let [;; Support data and functions
                       node-type (gt/node-type node basis)
@@ -706,31 +706,34 @@
                       node-and-overrides (tree-seq (constantly true) node-id->overrides node-id)
                       override-filter-fn (complement (into #{} override-id-xf node-and-overrides))
                       overrides (node-id->overrides node-id)
-                      labels (or labels (in/output-labels node-type))
-                      repeat-node-id (repeat node-id)]
-                  (update succs node-id
-                    (fn [succs]
-                      (let [succs (or succs {})]
-                        (reduce (fn [succs label]
-                                  (let [single-label #{label}
-                                        dep-labels (get deps-by-label label)
-                                        ;; The internal dependent outputs
-                                        deps (cond-> (transient {})
-                                               (and dep-labels (> (count dep-labels) 0)) (assoc! node-id dep-labels))
-                                        ;; The closest overrides
-                                        deps (transduce (map #(vector % single-label)) conj! deps overrides)
-                                        ;; The connected nodes and their outputs
-                                        deps (transduce (keep (fn [^ArcBase arc]
-                                                                (let [tgt-id (.target arc)
-                                                                      tgt-label (.targetLabel arc)]
-                                                                  (when-let [dep-labels (get (input-deps basis tgt-id) tgt-label)]
-                                                                    [tgt-id dep-labels]))))
-                                               conj! deps (basis-arcs-by-head basis graph node-id node label override-filter-fn))]
-                                    (assoc succs label (persistent! deps))))
-                          succs labels)))))
+                      labels (or labels (in/output-labels node-type))]
+                  (update new-successors node-id
+                          (fn [old-node-successors]
+                            (reduce (fn [new-node-successors label]
+                                      (let [single-label #{label}
+                                            dep-labels (get deps-by-label label)
+                                            ;; The internal dependent outputs
+                                            deps (cond-> (transient {})
+                                                   (and dep-labels (> (count dep-labels) 0))
+                                                   (assoc! node-id dep-labels))
+                                            ;; The closest overrides
+                                            deps (transduce (map #(vector % single-label)) conj! deps overrides)
+                                            ;; The connected nodes and their outputs
+                                            deps (transduce (keep (fn [^ArcBase arc]
+                                                                    (let [tgt-id (.target arc)
+                                                                          tgt-label (.targetLabel arc)]
+                                                                      (when-let [dep-labels (get (input-deps basis tgt-id) tgt-label)]
+                                                                        [tgt-id dep-labels]))))
+                                                            conj!
+                                                            deps
+                                                            (basis-arcs-by-head basis graph node-id node label override-filter-fn))]
+                                        (assoc new-node-successors label (persistent! deps))))
+                                    (or old-node-successors {})
+                                    labels))))
                 ;; Clean-up missing nodes from the data structure
-                (dissoc succs node-id)))
-      succs changes)))
+                (dissoc new-successors node-id)))
+            old-successors
+            changes)))
 
 (defn update-successors
   [basis changes]
@@ -739,4 +742,5 @@
               (if-let [graph (get (:graphs basis) gid)]
                 (update-in basis [:graphs gid :successors] update-graph-successors basis gid graph changes)
                 basis))
-      basis (group-by (comp gt/node-id->graph-id first) changes))))
+            basis
+            (group-by (comp gt/node-id->graph-id first) changes))))
