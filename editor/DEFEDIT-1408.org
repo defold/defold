@@ -152,6 +152,19 @@ Lyft arc med kedjestump: lift
 					     [ each (source output target[p0] input) (o1 Rest...) ]
                                              where p0 != o1 and source[p0] does not exist.
 					     and no (source' output' target[p0] input) ; input not shadowed
+... IE:
+
+(source output target input) (o1 Rest...) ->
+ for each p0 s.t. target[p0] exists and p0 not in (q st. source[q] exists \ o1)
+     and target[p0] does not have an incoming arc
+     if p0 = o1
+         [ source[o1] output target[o1 = p0] input ] (Rest...)
+     else
+         [ source output target[p0] input] (o1 Rest ]
+
+Idea is that we lift the target (... and maybe source) up the branches of the target override tree as long as the
+source override chain is a subsequence of the target override chain (ie source chain = target chain with some elements removed) ... and also
+no other input arc shadows the arc being lifted.
 
 (source output target input) (o1 Rest...) -> 
 
@@ -159,6 +172,10 @@ Lyft arc med kedjestump: lift
 ** Traversera vidare från targets: propagate
 
 (source output target input) +-> [ (source output target[o1]) label] where source[o1] does not exists
+
+Idea is to continue lifting the target up the target override branches as long as the source is the longest matching subsequence of the target override chain (i.e.
+there is no other more suitable source node for the corresponding target override node), and of course as long as the target override node does not have a shadowing
+input arc.
 
 
  
