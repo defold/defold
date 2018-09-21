@@ -862,6 +862,46 @@ TEST_F(ParticleTest, ParticleApplyLifeRotationToMovementDirection)
 }
 
 /**
+* Verify particle keeps rotation along movement direction.
+*
+* DEF-1593 made some refactoring to the dmParticle::Simulate function
+* that broke the "movement direction" orientation mode.
+* With these changes the rotation was never reset to source rotation
+* before movement direction was calculated which made the rotation
+* accumulate the movement direction instead.
+*
+*  This test verifies the subsequent change fixes this.
+*/
+TEST_F(ParticleTest, ParticleMovementDirection)
+{
+    float dt = 0.16f;
+
+    ASSERT_TRUE(LoadPrototype("movement_orientation.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::Emitter* e = GetEmitter(m_Context, instance, 0);
+
+    dmParticle::StartInstance(m_Context, instance);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    Quat q = e->m_Particles[0].GetRotation();
+
+    ASSERT_EQ(0.0f, q.getX());
+    ASSERT_EQ(0.0f, q.getY());
+    ASSERT_NEAR(0.70710677, q.getZ(), EPSILON);
+    ASSERT_NEAR(0.70710677, q.getW(), EPSILON);
+
+    dmParticle::Update(m_Context, dt, 0x0);
+    q = e->m_Particles[0].GetRotation();
+
+    ASSERT_EQ(0.0f, q.getX());
+    ASSERT_EQ(0.0f, q.getY());
+    ASSERT_NEAR(0.70710677, q.getZ(), EPSILON);
+    ASSERT_NEAR(0.70710677, q.getW(), EPSILON);
+
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+/**
 * Verify particle rotation using static angular velocity.
 */
 TEST_F(ParticleTest, ParticleAngularVelocity)
