@@ -219,10 +219,6 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static File getDefaultDmengineFolder() {
-        return rootFolder;
-    }
-
     private static CommandLine parse(String[] args) {
         Options options = new Options();
         options.addOption("r", "root", true, "Build root directory. Default is current directory");
