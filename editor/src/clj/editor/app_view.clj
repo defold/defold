@@ -13,13 +13,11 @@
             [editor.fs :as fs]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
-            [editor.library :as library]
             [editor.login :as login]
             [editor.defold-project :as project]
             [editor.github :as github]
             [editor.engine.build-errors :as engine-build-errors]
             [editor.error-reporting :as error-reporting]
-            [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.prefs :as prefs]
@@ -44,6 +42,8 @@
             [util.http-server :as http-server]
             [editor.scene :as scene]
             [editor.live-update-settings :as live-update-settings]
+            [editor.disk :as disk]
+            [editor.disk-availability :as disk-availability]
             [editor.scene-visibility :as scene-visibility]
             [editor.scene-cache :as scene-cache])
   (:import [com.defold.control TabPaneBehavior]
@@ -399,43 +399,33 @@
 
 (def ^:private render-task-progress-ui-inflight (ref false))
 
-(defonce ^:private progress-controls [(Label.)
-                                      (doto (ProgressBar.)
-                                        (ui/add-style! "really-small-progress-bar"))])
-
-(defonce progress-hbox (doto (HBox.)
-                         (ui/visible! false)
-                         (ui/children! progress-controls)
-                         (ui/add-style! "progress-hbox")))
-
-(defn- task-progress-controls [key]
-  (case key
-    :build (reverse progress-controls)
-    [nil nil]))
-
 (defn- render-task-progress-ui! []
   (let [task-progress-snapshot (ref nil)]
     (dosync
       (ref-set render-task-progress-ui-inflight false)
       (ref-set task-progress-snapshot
                (into {} (map (juxt first (comp deref second))) app-task-progress)))
-    (let [[key progress] (first (filter (comp (complement progress/done?) second)
+    (let [status-bar (.. (ui/main-stage) (getScene) (getRoot) (lookup "#status-bar"))
+          [key progress] (first (filter (comp (complement progress/done?) second)
                                         (map (juxt identity @task-progress-snapshot)
-                                             app-task-ui-priority)))]
-      (when key
-        (let [[bar percentage-label] (task-progress-controls key)]
-          (when bar (ui/render-progress-bar! progress bar))
-          (when percentage-label (ui/render-progress-percentage! progress percentage-label))))
-      ;; app-view uses first visible of progress-hbox and update-status-label to determine
-      ;; what to show in bottom right corner status pane
-      (let [show-progress-hbox? (boolean (and (not= key :main)
-                                              progress
-                                              (not (progress/done? progress))))]
-        (ui/visible! progress-hbox show-progress-hbox?))
+                                             app-task-ui-priority)))
+          show-progress-hbox? (boolean (and (not= key :main)
+                                            progress
+                                            (not (progress/done? progress))))]
+      (ui/with-controls status-bar [progress-bar progress-hbox progress-percentage-label status-label]
+        (ui/render-progress-message!
+          (if key progress (@task-progress-snapshot :main))
+          status-label)
 
-      (ui/render-progress-message!
-        (if key progress (@task-progress-snapshot :main))
-        (.lookup (.. (ui/main-stage) (getScene) (getRoot)) "#status-label")))))
+        ;; The bottom right of the status bar can show either the progress-hbox
+        ;; or the update-available-label, or both. The progress-hbox will cover
+        ;; the update-available-label if both are visible.
+        (if-not show-progress-hbox?
+          (ui/visible! progress-hbox false)
+          (do
+            (ui/visible! progress-hbox true)
+            (ui/render-progress-bar! progress progress-bar)
+            (ui/render-progress-percentage! progress progress-percentage-label)))))))
 
 (defn- render-task-progress! [key progress]
   (let [schedule-render-task-progress-ui (ref false)]
@@ -448,13 +438,17 @@
 
 (defn make-render-task-progress [key]
   (assert (contains? app-task-progress key))
-  (fn [progress] (render-task-progress! key progress)))
+  (progress/throttle-render-progress
+    (fn [progress] (render-task-progress! key progress))))
 
 (defn render-main-task-progress! [progress]
   (render-task-progress! :main progress))
 
 (defn- report-build-launch-progress! [message]
   (render-main-task-progress! (progress/make message)))
+
+(defn clear-build-launch-progress! []
+  (render-main-task-progress! progress/done))
 
 (defn- launch-engine! [project prefs debug?]
   (try
@@ -646,33 +640,21 @@ If you do not specifically require different script states, consider changing th
                       (console/show! console-view)
                       (launch-built-project! project prefs web-server false (make-render-build-error build-errors-view)))))))
 
-(defn- handle-bob-error! [render-error! project {:keys [error exception] :as _result}]
-  (cond
-    error
-    (do (render-error! error)
-        true)
-
-    exception
-    (if (engine-build-errors/handle-build-error! render-error! project exception)
-      true
-      (throw exception))))
-
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
     (let [clear-errors! (make-clear-build-errors build-errors-view)
-          render-error! (make-render-build-error build-errors-view)]
-      (console/clear-console!)
-      ;; We need to save because bob reads from FS
-      (project/save-all! project)
-      (changes-view/refresh! changes-view)
+          render-build-error! (make-render-build-error build-errors-view)
+          render-reload-progress! (make-render-task-progress :resource-sync)
+          render-save-progress! (make-render-task-progress :save-all)
+          render-build-progress! (make-render-task-progress :build)
+          bob-args (bob/build-html5-bob-args project prefs)]
       (clear-errors!)
-      (render-main-task-progress! (progress/make "Building..."))
-      (ui/->future 0.01
-                   (fn []
-                     (let [result (deref (bob/build-html5! project prefs))]
-                       (render-main-task-progress! progress/done)
-                       (when-not (handle-bob-error! render-error! project result)
-                         (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))))))))
+      (console/clear-console!)
+      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                             render-build-error! bob/build-html5-bob-commands bob-args project changes-view
+                             (fn [successful?]
+                               (when successful?
+                                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix))))))))
 
 (def ^:private unreloadable-resource-build-exts #{"tilemapc"})
 
@@ -866,6 +848,9 @@ If you do not specifically require different script states, consider changing th
                              {:label "Open"
                               :id ::open
                               :command :open}
+                             {:label "Synchronize..."
+                              :id ::synchronize
+                              :command :synchronize}
                              {:label "Save All"
                               :id ::save-all
                               :command :save-all}
@@ -1307,10 +1292,35 @@ If you do not specifically require different script states, consider changing th
                        :user-data {:selected-view-type vt}})
                     (:view-types resource-type))))))
 
+(handler/defhandler :synchronize :global
+  (enabled? [] (disk-availability/available?))
+  (run [changes-view project workspace]
+       (let [render-reload-progress! (make-render-task-progress :resource-sync)
+             render-save-progress! (make-render-task-progress :save-all)]
+         (if (changes-view/project-is-git-repo? changes-view)
+
+           ;; The project is a Git repo. Assume the project is hosted by us.
+           ;; Check if there are locked files below the project folder before proceeding.
+           ;; If so, we abort the sync and notify the user, since this could cause problems.
+           (when (changes-view/ensure-no-locked-files! changes-view)
+             (disk/async-save! render-reload-progress! render-save-progress! project changes-view
+                               (fn [successful?]
+                                 (when successful?
+                                   (when (changes-view/regular-sync! changes-view)
+                                     (disk/async-reload! render-reload-progress! workspace [] changes-view))))))
+
+           ;; The project is not a Git repo. Offer to push it to our servers.
+           (disk/async-save! render-reload-progress! render-save-progress! project changes-view
+                             (fn [successful?]
+                               (when successful?
+                                 (changes-view/first-sync! changes-view project))))))))
+
 (handler/defhandler :save-all :global
-  (run [project changes-view]
-    (project/save-all! project)
-    (changes-view/refresh! changes-view)))
+  (enabled? [] (not (bob/build-in-progress?)))
+  (run [app-view changes-view project]
+       (let [render-reload-progress! (make-render-task-progress :resource-sync)
+             render-save-progress! (make-render-task-progress :save-all)]
+         (disk/async-save! render-reload-progress! render-save-progress! project changes-view))))
 
 (handler/defhandler :show-in-desktop :global
   (active? [app-view selection] (context-resource app-view selection))
@@ -1444,23 +1454,19 @@ If you do not specifically require different script states, consider changing th
   (console/clear-console!)
   (let [output-directory ^File (:output-directory bundle-options)
         clear-errors! (make-clear-build-errors build-errors-view)
-        render-error! (make-render-build-error build-errors-view)]
-    ;; We need to save because bob reads from FS.
-    ;; Before saving, perform a resource sync to ensure we do not overwrite external changes.
-    (workspace/resource-sync! (project/workspace project))
-    (project/save-all! project)
-    (changes-view/refresh! changes-view)
+        render-build-error! (make-render-build-error build-errors-view)
+        render-reload-progress! (make-render-task-progress :resource-sync)
+        render-save-progress! (make-render-task-progress :save-all)
+        render-build-progress! (make-render-task-progress :build)
+        bob-args (bob/bundle-bob-args prefs platform bundle-options)]
     (clear-errors!)
-    (render-main-task-progress! (progress/make "Bundling..."))
-    (ui/->future 0.01
-                 (fn []
-                   (let [result (deref (bob/bundle! project prefs platform bundle-options))]
-                     (render-main-task-progress! progress/done)
-                     (when-not (handle-bob-error! render-error! project result)
-                       (if (some-> output-directory .isDirectory)
-                         (ui/open-file output-directory)
-                         (ui/run-later
-                           (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))))
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress!
+                           render-build-error! bob/bundle-bob-commands bob-args project changes-view
+                           (fn [successful?]
+                             (when successful?
+                               (if (some-> output-directory .isDirectory)
+                                 (ui/open-file output-directory)
+                                 (dialogs/make-alert-dialog "Failed to bundle project. Please fix build errors and try again.")))))))
 
 (handler/defhandler :bundle :global
   (run [user-data workspace project prefs app-view changes-view build-errors-view]
@@ -1469,7 +1475,7 @@ If you do not specifically require different script states, consider changing th
              bundle! (partial bundle! changes-view build-errors-view project prefs platform)]
          (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
 
-(defn- fetch-libraries [workspace project prefs]
+(defn- fetch-libraries [workspace project prefs changes-view]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -1478,30 +1484,38 @@ If you do not specifically require different script states, consider changing th
                                                     ""
                                                     "Please verify internet connection and try again."]))
       (future
-        (ui/with-disabled-ui
-          (ui/with-progress [render-fn (make-render-task-progress :fetch-libraries)]
-            (error-reporting/catch-all!
-              (when (workspace/dependencies-reachable? library-uris (partial login/login prefs))
-                (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fn)]
-                  (ui/run-later
-                    (workspace/install-validated-libraries! workspace library-uris lib-states)
-                    (workspace/resource-sync! workspace)))))))))))
+        (error-reporting/catch-all!
+          (ui/with-progress [render-fetch-progress! (make-render-task-progress :fetch-libraries)]
+            (when (workspace/dependencies-reachable? library-uris (partial login/login prefs))
+              (let [lib-states (workspace/fetch-and-validate-libraries workspace library-uris render-fetch-progress!)
+                    render-install-progress! (make-render-task-progress :resource-sync)]
+                (render-install-progress! (progress/make "Installing updated libraries..."))
+                (ui/run-later
+                  (workspace/install-validated-libraries! workspace library-uris lib-states)
+                  (disk/async-reload! render-install-progress! workspace [] changes-view))))))))))
 
 (handler/defhandler :fetch-libraries :global
-  (run [workspace project prefs] (fetch-libraries workspace project prefs)))
+  (enabled? [] (disk-availability/available?))
+  (run [workspace project prefs changes-view] (fetch-libraries workspace project prefs changes-view)))
 
-(defn- create-live-update-settings! [workspace]
-  (let [project-path (workspace/project-path workspace)
-        settings-file (io/file project-path "liveupdate.settings")]
+(defn- create-and-open-live-update-settings! [app-view changes-view prefs project]
+  (let [workspace (project/workspace project)
+        project-path (workspace/project-path workspace)
+        settings-file (io/file project-path "liveupdate.settings")
+        render-reload-progress! (make-render-task-progress :resource-sync)]
     (spit settings-file "[liveupdate]\n")
-    (workspace/resource-sync! workspace)
-    (workspace/find-resource workspace "/liveupdate.settings")))
+    (disk/async-reload! render-reload-progress! workspace [] changes-view
+                        (fn [successful?]
+                          (when successful?
+                            (when-some [created-resource (workspace/find-resource workspace "/liveupdate.settings")]
+                              (open-resource app-view prefs workspace project created-resource)))))))
 
 (handler/defhandler :live-update-settings :global
-  (run [app-view prefs workspace project]
-    (some->> (or (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))
-                 (create-live-update-settings! workspace))
-      (open-resource app-view prefs workspace project))))
+  (enabled? [] (disk-availability/available?))
+  (run [app-view changes-view prefs workspace project]
+       (if-some [existing-resource (workspace/find-resource workspace (live-update-settings/get-live-update-settings-path project))]
+         (open-resource app-view prefs workspace project existing-resource)
+         (create-and-open-live-update-settings! app-view changes-view prefs project))))
 
 (handler/defhandler :sign-ios-app :global
   (active? [] (util/is-mac-os?))

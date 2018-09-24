@@ -32,14 +32,12 @@ public class Win32Bundler implements IBundler {
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, platform);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        boolean debug = project.hasOption("debug");
 
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(platform, debug));
-        File bundleExe = defaultExe;
-        if (extenderExe.exists()) {
-            bundleExe = extenderExe;
+        File bundleExe = Bob.getNativeExtensionEngine(platform, extenderExeDir);
+        if (bundleExe == null) {
+            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+            bundleExe = new File(Bob.getDefaultDmenginePath(platform, variant));
         }
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
@@ -56,17 +54,15 @@ public class Win32Bundler implements IBundler {
         }
 
         // Touch both OpenAL32.dll and wrap_oal.dll so they get included in the step below
-        Bob.getLib(platform, "OpenAL32");
-        Bob.getLib(platform, "wrap_oal");
+        String openal_dll = Bob.getLib(platform, "OpenAL32");
+        String wrap_oal_dll = Bob.getLib(platform, "wrap_oal");
 
         // Copy Executable and DLL:s
         String exeName = String.format("%s.exe", title);
         File exeOut = new File(appDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
-        Collection<File> dlls = FileUtils.listFiles(defaultExe.getParentFile(), new String[] {"dll"}, false);
-        for (File file : dlls) {
-            FileUtils.copyFileToDirectory(file, appDir);
-        }
+        FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
+        FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
 
         // If windows.iap_provider is set to Gameroom we need to output a "launch" file that FB Gameroom understands.
         String iapProvider = projectProperties.getStringValue("windows", "iap_provider", "");

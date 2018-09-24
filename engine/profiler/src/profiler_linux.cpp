@@ -8,12 +8,19 @@ static uint64_t _sample_cpu_last_t = 0;
 static long int _sample_cpu_last_tot = 0;
 static long int _sample_cpu_last_proc = 0;
 static double _sample_cpu_usage = 0.0;
+static bool _sample_cpu_enabled = true;
 
 static long int ParseTotalCPUUsage()
 {
     FILE* fp = NULL;
     if ((fp = fopen("/proc/stat", "r")) == NULL) {
         dmLogError("Could not open /proc/stat");
+        // If we can't read /proc/stat we might not have permission
+        // which is the case on Android 8+. For now we disable the
+        // CPU usage alltogether to avoid spamming the log with errors.
+        // There is a new issue for actually solving this and getting
+        // the data from another source: DEF-3497
+        _sample_cpu_enabled = false;
         return 0;
     }
 
@@ -56,6 +63,10 @@ static long int ParseProcStat()
 
 void dmProfilerExt::SampleCpuUsage()
 {
+    if (!_sample_cpu_enabled) {
+        return;
+    }
+
     uint64_t time = dmTime::GetTime();
     if (_sample_cpu_last_t == 0) {
         _sample_cpu_last_t = time;

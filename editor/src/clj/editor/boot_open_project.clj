@@ -12,7 +12,8 @@
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
-            [editor.error-reporting :as error-reporting]
+            [editor.disk :as disk]
+            [editor.disk-availability :as disk-availability]
             [editor.form-view :as form-view]
             [editor.git :as git]
             [editor.graph-view :as graph-view]
@@ -21,7 +22,6 @@
             [editor.html-view :as html-view]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
-            [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.resource-types :as resource-types]
@@ -41,7 +41,7 @@
   (:import [java.io File]
            [javafx.scene Node Scene]
            [javafx.stage Stage WindowEvent]
-           [javafx.scene.layout Region VBox AnchorPane]
+           [javafx.scene.layout Region VBox]
            [javafx.scene.control Label MenuBar SplitPane Tab TabPane TreeView]))
 
 (set! *warn-on-reflection* true)
@@ -76,30 +76,26 @@
     (workspace/resource-sync! workspace)
     workspace))
 
+(defn- async-reload!
+  ([workspace changes-view]
+   (async-reload! workspace changes-view []))
+  ([workspace changes-view moved-files]
+   (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)]
+     (disk/async-reload! render-reload-progress! workspace moved-files changes-view))))
+
 (defn- handle-application-focused! [workspace changes-view]
-  (when-not (sync/sync-dialog-open?)
-    (let [project-path (workspace/project-path workspace)
-          dependencies (workspace/dependencies workspace)
-          snapshot-cache (workspace/snapshot-cache workspace)]
-      (future
-        (error-reporting/catch-all!
-          (let [snapshot-info (workspace/make-snapshot-info workspace project-path dependencies snapshot-cache)]
-            (ui/run-later
-              (workspace/update-snapshot-cache! workspace (:snapshot-cache snapshot-info))
-              (let [render-fn (progress/throttle-render-progress (app-view/make-render-task-progress :resource-sync))
-                    new-snapshot (:snapshot snapshot-info)
-                    new-map (:map snapshot-info)]
-                (ui/with-progress [render-fn render-fn]
-                  (->> (workspace/resource-sync! workspace [] render-fn new-snapshot new-map)
-                       (changes-view/refresh-after-resource-sync! changes-view)))))))))))
+  (app-view/clear-build-launch-progress!)
+  (when (and (not (sync/sync-dialog-open?))
+             (disk-availability/available?))
+    (async-reload! workspace changes-view)))
 
 (defn- find-tab [^TabPane tabs id]
   (some #(and (= id (.getId ^Tab %)) %) (.getTabs tabs)))
 
-(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view]
+(defn- handle-resource-changes! [app-scene tab-panes open-views changes-view render-progress!]
   (ui/user-data! app-scene ::ui/refresh-requested? true)
   (app-view/remove-invalid-tabs! tab-panes open-views)
-  (changes-view/refresh! changes-view))
+  (changes-view/refresh! changes-view render-progress!))
 
 (defn- install-pending-update-check-timer! [^Stage stage ^Label label update-context]
   (let [update-visibility! (fn [] (ui/visible! label (let [update (updater/pending-update update-context)]
@@ -110,31 +106,21 @@
     (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
     (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
 
-(defn- init-pending-update-indicator! [^Stage stage ^Label label project update-context]
+(defn- init-pending-update-indicator! [^Stage stage ^Label label project changes-view update-context]
   (.setOnMouseClicked label
                       (ui/event-handler event
-                                        (when (dialogs/make-pending-update-dialog stage)
-                                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
-                                            ;; Save the project and block until complete. Before saving, perform a
-                                            ;; resource sync to ensure we do not overwrite external changes.
-                                            (workspace/resource-sync! (project/workspace project))
-                                            (project/save-all! project)
-                                            (updater/restart!)))))
+                        (when (dialogs/make-pending-update-dialog stage)
+                          (when (updater/install-pending-update! update-context (io/file (system/defold-resourcespath)))
+                            (let [render-reload-progress! (app-view/make-render-task-progress :resource-sync)
+                                  render-save-progress! (app-view/make-render-task-progress :save-all)]
+                              (ui/disable-ui!)
+                              (disk/async-save! render-reload-progress! render-save-progress! project nil ; Use nil for changes-view to skip refresh.
+                                                (fn [successful?]
+                                                  (if successful?
+                                                    (updater/restart!)
+                                                    (do (ui/enable-ui!)
+                                                        (changes-view/refresh! changes-view render-reload-progress!))))))))))
   (install-pending-update-check-timer! stage label update-context))
-
-(defn- update-status-pane-contents! [^AnchorPane status-pane content-prospects]
-  (let [content (first (.getChildren status-pane))
-        new-content (first (filter ui/visible? content-prospects))]
-    (when (not= content new-content)
-      (ui/children! status-pane (when new-content [new-content]))
-      (when new-content
-        (ui/fill-control new-content)))))
-
-(defn- init-status-pane-timer! [^Stage stage ^AnchorPane status-pane content-prospects]
-  (let [timer (ui/->timer 5 "update-status-pane" (fn [_ _] (update-status-pane-contents! status-pane content-prospects)))]
-    (update-status-pane-contents! status-pane content-prospects)
-    (.addEventHandler stage WindowEvent/WINDOW_SHOWN (ui/event-handler event (ui/timer-start! timer)))
-    (.addEventHandler stage WindowEvent/WINDOW_HIDING (ui/event-handler event (ui/timer-stop! timer)))))
 
 (defn- show-tracked-internal-files-warning! []
   (dialogs/make-alert-dialog (str "It looks like internal files such as downloaded dependencies or build output were placed under source control.\n"
@@ -145,18 +131,7 @@
 (defn load-stage [workspace project prefs update-context newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
-        scene      (Scene. root)
-        status-pane (.lookup root "#status-pane")
-        update-available-label (doto (Label. "Update Available")
-                                 (ui/visible! false)
-                                 (ui/add-style! "link-label"))]
-
-    (when update-context
-      (init-pending-update-indicator! stage update-available-label project update-context))
-
-    (init-status-pane-timer! stage status-pane
-                             [app-view/progress-hbox
-                              update-available-label])
+        scene      (Scene. root)]
 
     (ui/set-main-stage stage)
     (.setScene stage scene)
@@ -193,7 +168,7 @@
           search-results-view  (search-results-view/make-search-results-view! *view-graph*
                                                                               (.lookup root "#search-results-container")
                                                                               open-resource)
-          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs
+          changes-view         (changes-view/make-changes-view *view-graph* workspace prefs async-reload!
                                                                (.lookup root "#changes-container"))
           curve-view           (curve-view/make-view! app-view *view-graph*
                                                       (.lookup root "#curve-editor-container")
@@ -206,17 +181,22 @@
                                                       open-resource)]
       (ui/add-application-focused-callback! :main-stage handle-application-focused! workspace changes-view)
 
+      (when update-context
+        (let [update-available-label (.lookup root "#status-pane #update-available-label")]
+          (init-pending-update-indicator! stage update-available-label project changes-view update-context)))
+
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (util/is-mac-os?)
                                      (.isUseSystemMenuBar menu-bar))]
         (.setVisible menu-bar-space collapse-menu-bar?)
         (.setManaged menu-bar-space collapse-menu-bar?))
 
-      (workspace/add-resource-listener! workspace (reify resource/ResourceListener
-                                                    (handle-changes [_ _ _]
-                                                      (let [open-views (g/node-value app-view :open-views)
-                                                            panes (.getItems ^SplitPane editor-tabs-split)]
-                                                        (handle-resource-changes! scene panes open-views changes-view)))))
+      (workspace/add-resource-listener! workspace 0
+                                        (reify resource/ResourceListener
+                                          (handle-changes [_ _ render-progress!]
+                                            (let [open-views (g/node-value app-view :open-views)
+                                                  panes (.getItems ^SplitPane editor-tabs-split)]
+                                              (handle-resource-changes! scene panes open-views changes-view render-progress!)))))
 
       (ui/run-later
         (app-view/restore-split-positions! stage prefs))
@@ -290,7 +270,7 @@
                                                     :pref-width Region/USE_COMPUTED_SIZE})
                 ;; User chose to cancel sync.
                 (do (sync/interactive-cancel! (partial sync/cancel-flow-in-progress! git))
-                    (changes-view/resource-sync-after-git-change! changes-view workspace))
+                    (async-reload! workspace changes-view))
 
                 ;; User chose to resume sync.
                 (if-not (login/login prefs)
@@ -298,7 +278,7 @@
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
                     (sync/open-sync-dialog flow)
-                    (changes-view/resource-sync-after-git-change! changes-view workspace))))))
+                    (async-reload! workspace changes-view))))))
 
           ;; A sync was not in progress.
           (do
@@ -312,7 +292,7 @@
             (let [gitignore-was-modified? (git/ensure-gitignore-configured! git)
                   internal-files-are-tracked? (git/internal-files-are-tracked? git)]
               (if gitignore-was-modified?
-                (do (changes-view/refresh! changes-view)
+                (do (changes-view/refresh! changes-view app-view/render-main-task-progress!)
                     (ui/run-later
                       (dialogs/make-message-box "Updated .gitignore File"
                                                 (str "The .gitignore file was automatically updated to ignore build output and metadata files.\n"
