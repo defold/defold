@@ -439,7 +439,7 @@ public class BundleHelper {
                         if (info.resource != null && info.resource.endsWith(ExtenderClient.appManifestFilename)) {
                             for (ExtenderResource extResource : allSource) {
                                 if (extResource.getAbsPath().endsWith(info.resource)) {
-                                    issueResource = ((ExtenderUtil.FSAliasResource)extResource).getResource();
+                                    issueResource = ((ExtenderUtil.FSAppManifestResource)extResource).getResource();
                                     info.message = info.message.replace(extResource.getPath(), issueResource.getPath());
                                     break;
                                 }

@@ -2586,6 +2586,7 @@ namespace dmGameObject
                     if (res == INPUT_RESULT_CONSUMED)
                     {
                         memset(&input_action, 0, sizeof(InputAction));
+                        input_action.m_Consumed = 1;
                         break;
                     }
                 }
