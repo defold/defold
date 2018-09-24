@@ -431,8 +431,8 @@
 (g/deftype ^:private NodeIndex [(s/one s/Int "node-id") (s/one s/Int "index")])
 (g/deftype ^:private NameIndex [(s/one s/Str "name") (s/one s/Int "index")])
 
-(g/defnk override? [id-prefix] (some? id-prefix))
-(g/defnk no-override? [id-prefix] (nil? id-prefix))
+(g/defnk override-node? [_node-id] (g/override? _node-id))
+(g/defnk not-override-node? [_node-id] (not (g/override? _node-id)))
 
 (defn- validate-contains [severity fmt prop-kw node-id coll key]
   (validation/prop-error severity node-id
@@ -526,12 +526,12 @@
 
   (property id g/Str (default "")
             (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts "Id")))
-            (dynamic visible no-override?))
+            (dynamic visible not-override-node?))
   (property generated-id g/Str
             (dynamic label (g/constantly "Id"))
-            (value (gu/passthrough id))
+            (value (gu/passthrough id)) ; output id below
             (dynamic read-only? (g/constantly true))
-            (dynamic visible override?))
+            (dynamic visible override-node?))
   (property size types/Vec3 (default [0 0 0])
             (dynamic visible (g/fnk [type] (not= type :type-template))))
   (property color types/Color (default [1 1 1 1])
@@ -592,6 +592,7 @@
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type own-build-errors _overridden-properties]
             (cond-> {:node-id _node-id
+                     :node-outline-key id
                      :label id
                      :child-index child-index
                      :icon (node-icons type)
@@ -625,14 +626,16 @@
   (output scene-renderable g/Any (g/constantly nil))
   (output scene-outline-renderable g/Any (g/constantly nil))
   (output color+alpha types/Color (g/fnk [color alpha] (assoc color 3 alpha)))
-  (output scene g/Any :cached (g/fnk [_node-id aabb transform scene-children scene-renderable scene-outline-renderable scene-updatable]
+  (output scene g/Any :cached (g/fnk [_node-id id aabb transform scene-children scene-renderable scene-outline-renderable scene-updatable]
                                      (cond-> {:node-id _node-id
+                                              :node-outline-key id
                                               :aabb aabb
                                               :transform transform
                                               :renderable scene-renderable}
 
                                        scene-outline-renderable
                                        (assoc :children [{:node-id _node-id
+                                                          :node-outline-key id
                                                           :aabb aabb
                                                           :renderable scene-outline-renderable}])
 
@@ -1021,6 +1024,7 @@
   ;; TODO: embed error so can warn in outline
   ;; outline content not really used, only children if any.
   {:node-id 0
+   :node-outline-key ""
    :icon ""
    :label ""})
 
@@ -1046,7 +1050,7 @@
   (inherits GuiNode)
 
   (property template TemplateData
-            (dynamic read-only? override?)
+            (dynamic read-only? override-node?)
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "gui"
                                               :to-type (fn [v] (:resource v))
@@ -1151,9 +1155,9 @@
                                                 (merge template-overrides))))
   (output aabb g/Any (g/fnk [template-scene transform]
                        (geom/aabb-transform (:aabb template-scene (geom/null-aabb)) transform)))
-  (output scene-children g/Any (g/fnk [_node-id template-scene]
+  (output scene-children g/Any (g/fnk [_node-id id template-scene]
                                  (if-let [child-scenes (:children (add-renderable-tags template-scene #{:gui}))]
-                                   (mapv #(scene/claim-child-scene % _node-id) child-scenes)
+                                   (mapv (partial scene/claim-child-scene (:node-id template-scene) _node-id id) child-scenes)
                                    [])))
   (output scene-renderable g/Any :cached (g/fnk [color+alpha child-index layer-index inherit-alpha]
                                                 {:passes [pass/selection]
@@ -1328,10 +1332,10 @@
                                       (transduce (comp (keep :aabb)
                                                    (map #(geom/aabb-transform % transform)))
                                         geom/aabb-union self-aabb scene-children))))
-  (output scene g/Any :cached (g/fnk [_node-id aabb transform source-scene scene-children color+alpha inherit-alpha]
+  (output scene g/Any :cached (g/fnk [_node-id id aabb transform source-scene scene-children color+alpha inherit-alpha]
                                      (let [scene (if source-scene
                                                    (let [updatable (assoc (:updatable source-scene) :node-id _node-id)]
-                                                     (cond-> (scene/claim-scene source-scene _node-id)
+                                                     (cond-> (scene/claim-scene source-scene _node-id id)
                                                        updatable
                                                        ((partial scene/map-scene #(assoc % :updatable updatable)))))
                                                    {:renderable {:passes [pass/selection]
@@ -1428,6 +1432,7 @@
 
   (output node-outline outline/OutlineData (g/fnk [_node-id name texture-resource build-errors]
                                              (cond-> {:node-id _node-id
+                                                      :node-outline-key name
                                                       :label name
                                                       :icon texture-icon
                                                       :outline-error? (g/error-fatal? build-errors)}
@@ -1473,6 +1478,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name font-resource build-errors]
                                                      (cond-> {:node-id _node-id
+                                                              :node-outline-key name
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
@@ -1507,6 +1513,7 @@
   (output name+child-index NameIndex (g/fnk [name child-index] [name child-index]))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name child-index build-errors]
                                                           {:node-id _node-id
+                                                           :node-outline-key name
                                                            :label name
                                                            :icon layer-icon
                                                            :child-index child-index
@@ -1572,6 +1579,7 @@
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name spine-scene-resource build-errors]
                                                           (cond-> {:node-id _node-id
+                                                                   :node-outline-key name
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
                                                                    :outline-error? (g/error-fatal? build-errors)}
@@ -1614,6 +1622,7 @@
   (output dep-build-targets g/Any :cached (gu/passthrough dep-build-targets))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name particlefx-resource build-errors]
                                                      (cond-> {:node-id _node-id
+                                                              :node-outline-key name
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
@@ -1643,6 +1652,7 @@
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
   (property name g/Str
+            (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name"))))
   (property nodes g/Any
             (dynamic visible (g/constantly false))
@@ -1682,6 +1692,7 @@
   (input node-rt-msgs g/Any)
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
+                                                           :node-outline-key name
                                                            :label name
                                                            :icon layout-icon
                                                            :outline-error? (g/error-fatal? build-errors)}))
@@ -1697,9 +1708,10 @@
                                        (g/package-errors _node-id
                                                          (prop-unique-id-error _node-id :name name name-counts "Name")))))
 
-(defmacro gen-outline-fnk [label order sort-children? child-reqs]
+(defmacro gen-outline-fnk [label node-outline-key order sort-children? child-reqs]
   `(g/fnk [~'_node-id ~'child-outlines]
           {:node-id ~'_node-id
+           :node-outline-key ~node-outline-key
            :label ~label
            :icon ~virtual-icon
            :order ~order
@@ -1720,7 +1732,7 @@
   (input child-indices NodeIndex :array)
   (output child-scenes g/Any :cached (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output node-outline outline/OutlineData :cached
-          (gen-outline-fnk "Nodes" 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
+          (gen-outline-fnk "Nodes" nil 0 true (mapv (fn [[nt kw]] {:node-type nt :tx-attach-fn (gen-gui-node-attach-fn kw)}) node-type->kw)))
   (output scene g/Any :cached (g/fnk [_node-id child-scenes]
                                      {:node-id _node-id
                                       :aabb (reduce geom/aabb-union (geom/null-aabb) (map :aabb child-scenes))
@@ -1787,7 +1799,7 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Textures" 1 false [])))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Textures" "Textures" 1 false [])))
 
 (g/defnode FontsNode
   (inherits outline/OutlineNode)
@@ -1795,7 +1807,7 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Fonts" 2 false [])))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Fonts" "Fonts" 2 false [])))
 
 (g/defnode LayersNode
   (inherits core/Scope)
@@ -1815,7 +1827,7 @@
   (output layer->index g/Any :cached (g/fnk [ordered-layer-names]
                                        (zipmap ordered-layer-names (range))))
   (input child-indices NodeIndex :array)
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layers" 3 true [])))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layers" "Layers" 3 true [])))
 
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
@@ -1823,7 +1835,7 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" 4 false [])))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Layouts" "Layouts" 4 false [])))
 
 (g/defnode SpineScenesNode
   (inherits outline/OutlineNode)
@@ -1831,7 +1843,7 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Spine Scenes" 5 false [])))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Spine Scenes" "Spine Scenes" 5 false [])))
 
 (g/defnode ParticleFXResources
   (inherits outline/OutlineNode)
@@ -1839,7 +1851,7 @@
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
-  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Particle FX" 6 false [])))
+  (output node-outline outline/OutlineData :cached (gen-outline-fnk "Particle FX" "Particle FX" 6 false [])))
 
 (defn- apply-alpha [parent-alpha scene]
   (let [scene-alpha (get-in scene [:renderable :user-data :color 3] 1.0)]
@@ -2120,10 +2132,13 @@
   (input default-node-outline g/Any)
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id default-node-outline layout-node-outlines current-layout child-outlines own-build-errors]
-                 (let [node-outline (get layout-node-outlines current-layout default-node-outline)]
+                 (let [node-outline (get layout-node-outlines current-layout default-node-outline)
+                       label (:label pb-def)
+                       icon (:icon pb-def)]
                    {:node-id _node-id
-                    :label (:label pb-def)
-                    :icon (:icon pb-def)
+                    :node-outline-key label
+                    :label label
+                    :icon icon
                     :children (vec (sort-by :order (conj child-outlines node-outline)))
                     :outline-error? (g/error-fatal? own-build-errors)})))
   (input default-scene g/Any)

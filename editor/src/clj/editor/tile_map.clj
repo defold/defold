@@ -200,10 +200,11 @@
                    (geom/aabb-incorporate max-x max-y 0))}))))
 
 (g/defnk produce-layer-scene
-  [_node-id cell-map texture-set-data z gpu-texture shader blend-mode visible]
+  [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
       {:node-id _node-id
+       :node-outline-key id
        :aabb aabb
        :renderable {:render-fn render-layer
                     :tags #{:tilemap}
@@ -218,6 +219,7 @@
 (g/defnk produce-layer-outline
   [_node-id id]
   {:node-id _node-id
+   :node-outline-key id
    :label id
    :icon tile-map-layer-icon})
 
@@ -308,10 +310,11 @@
 
 (g/defnk produce-node-outline
   [_node-id child-outlines]
-  {:node-id  _node-id
-   :label    "Tile Map"
-   :icon     tile-map-icon
-   :children (vec (sort-by :label child-outlines))})
+  {:node-id          _node-id
+   :node-outline-key "Tile Map"
+   :label            "Tile Map"
+   :icon             tile-map-icon
+   :children         (vec (sort-by :label child-outlines))})
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]

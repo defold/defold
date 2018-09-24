@@ -20,6 +20,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.pipeline :as pipeline]
             [editor.pipeline.texture-set-gen :as texture-set-gen]
@@ -173,6 +174,7 @@
                                       (image->animation atlas-image id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id id image-resource order]
                                                           (cond-> {:node-id _node-id
+                                                                   :node-outline-key id
                                                                    :label id
                                                                    :order order
                                                                    :icon image-icon}
@@ -287,6 +289,7 @@
 
   (output node-outline outline/OutlineData :cached
     (g/fnk [_node-id id child-outlines] {:node-id _node-id
+                                         :node-outline-key id
                                          :label id
                                          :children (sort-by :order child-outlines)
                                          :icon animation-icon
@@ -382,7 +385,9 @@
   ((:f generator) (:args generator)))
 
 (defn- generate-packed-image [{:keys [_node-id image-resources texture-set-data-generator]}]
-  (let [buffered-images (mapv #(validation/resource-io-with-errors image-util/read-image % _node-id nil) image-resources)
+  (let [buffered-images (mapv #(resource-io/with-error-translation % _node-id nil
+                                 (image-util/read-image %))
+                              image-resources)
         errors (filter g/error? buffered-images)]
     (if (seq errors)
       (g/error-aggregate errors)
@@ -463,7 +468,8 @@
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resources]
                                               (let [flat-image-resources (flatten image-resources)
-                                                    shas                 (map #(validation/resource-io-with-errors resource/resource->sha1-hex % _node-id nil)
+                                                    shas                 (map #(resource-io/with-error-translation % _node-id nil
+                                                                                 (resource/resource->sha1-hex %))
                                                                               flat-image-resources)
                                                     errors               (filter g/error? shas)]
                                                 (if (seq errors)
@@ -495,14 +501,15 @@
   (output image-path->rect g/Any               :cached produce-image-path->rect)
   (output anim-ids         g/Any               :cached (gu/passthrough animation-ids))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines]
-                                                         {:node-id    _node-id
-                                                          :label      "Atlas"
-                                                          :children   (vec (sort-by atlas-outline-sort-by-fn child-outlines))
-                                                          :icon       atlas-icon
-                                                          :child-reqs [{:node-type    AtlasImage
-                                                                        :tx-attach-fn tx-attach-image-to-atlas}
-                                                                       {:node-type    AtlasAnimation
-                                                                        :tx-attach-fn attach-animation}]}))
+                                                         {:node-id          _node-id
+                                                          :node-outline-key "Atlas"
+                                                          :label            "Atlas"
+                                                          :children         (vec (sort-by atlas-outline-sort-by-fn child-outlines))
+                                                          :icon             atlas-icon
+                                                          :child-reqs       [{:node-type    AtlasImage
+                                                                              :tx-attach-fn tx-attach-image-to-atlas}
+                                                                             {:node-type    AtlasAnimation
+                                                                              :tx-attach-fn attach-animation}]}))
   (output save-value       g/Any          :cached produce-save-value)
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
