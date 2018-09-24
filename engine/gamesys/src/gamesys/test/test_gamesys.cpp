@@ -17,6 +17,8 @@ namespace dmGameSystem
     void DumpResourceRefs(dmGameObject::HCollection collection);
 }
 
+// Reloading these resources needs an update to clear any dirty data and get to a good state.
+static const char* update_after_reload[] = {"/tile/valid.tilemapc", "/tile/valid_tilegrid_collisionobject.goc"};
 
 const char* ROOT = "build/default/src/gamesys/test";
 
@@ -152,6 +154,15 @@ TEST_P(ComponentTest, Test)
 
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, component_name, 0));
 
+    for (int i = 0; i < sizeof(update_after_reload)/sizeof(update_after_reload[0]); ++i)
+    {
+        if(strcmp(update_after_reload[i], component_name) == 0)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            break;
+        }
+    }
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));

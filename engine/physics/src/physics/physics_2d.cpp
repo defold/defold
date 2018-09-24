@@ -435,49 +435,6 @@ namespace dmPhysics
         return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
     }
 
-     void CopyHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set)
-     {
-        b2HullSet* dst = (b2HullSet*) dst_hull_set;
-        b2HullSet* src = (b2HullSet*) src_hull_set;
-
-        b2Free(dst->m_vertices);
-        uint32 vertices_size = src->m_vertexCount * sizeof(src->m_vertices[0]);
-        dst->m_vertices = (b2Vec2*) b2Alloc(vertices_size);
-        memcpy(dst->m_vertices, src->m_vertices, vertices_size);
-        dst->m_vertexCount = src->m_vertexCount;
-
-        b2Free(dst->m_hulls);
-        uint32 hulls_size = src->m_hullCount * sizeof(src->m_hulls[0]);
-        dst->m_hulls = (b2HullSet::Hull*) b2Alloc(hulls_size);
-        memcpy(dst->m_hulls, src->m_hulls, hulls_size);
-        dst->m_hullCount = src->m_hullCount;
-     }
-
-     void CopyGridShape2D(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape)
-     {
-         b2GridShape* src_grid_shape = (b2GridShape*) src_coll_shape;
-         b2GridShape* dst_grid_shape = (b2GridShape*) dst_coll_shape;
-
-         dst_grid_shape->m_position = src_grid_shape->m_position;
-
-         b2Free(dst_grid_shape->m_cells);
-         uint32_t cell_count = src_grid_shape->m_columnCount * src_grid_shape->m_rowCount;
-         uint32_t cells_size = sizeof(b2GridShape::Cell) * cell_count;
-         dst_grid_shape->m_cells = (b2GridShape::Cell*) b2Alloc(cells_size);
-         memcpy(dst_grid_shape->m_cells, src_grid_shape->m_cells, cells_size);
-
-         b2Free(dst_grid_shape->m_cellFlags);
-         uint32_t flags_size = sizeof(b2GridShape::CellFlags) * cell_count;
-         dst_grid_shape->m_cellFlags = (b2GridShape::CellFlags*)b2Alloc(flags_size);
-         memcpy(dst_grid_shape->m_cellFlags, src_grid_shape->m_cellFlags, flags_size);
-
-         dst_grid_shape->m_cellWidth = src_grid_shape->m_cellWidth;
-         dst_grid_shape->m_cellHeight = src_grid_shape->m_cellHeight;
-
-         dst_grid_shape->m_rowCount = src_grid_shape->m_rowCount;
-         dst_grid_shape->m_columnCount = src_grid_shape->m_columnCount;
-     }
-
     void SetGridShapeHull(HCollisionObject2D collision_object, uint32_t shape_index, uint32_t row, uint32_t column, uint32_t hull, HullFlags flags)
     {
         b2Body* body = (b2Body*) collision_object;

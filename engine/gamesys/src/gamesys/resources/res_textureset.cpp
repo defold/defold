@@ -157,22 +157,14 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, texture_set_ddf, &tmp_tile_set, params.m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
-            if (tile_set->m_Texture)
-                dmResource::Release(params.m_Factory, tile_set->m_Texture);
-
-            if (tile_set->m_TextureSet)
-                dmDDF::FreeMessage(tile_set->m_TextureSet);
+            ReleaseResources(params.m_Factory, tile_set);
 
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
-            dmPhysics::CopyHullSet(tile_set->m_HullSet, tmp_tile_set.m_HullSet);
+            tile_set->m_HullSet = tmp_tile_set.m_HullSet;
             tile_set->m_AnimationIds.Swap(tmp_tile_set.m_AnimationIds);
             params.m_Resource->m_ResourceSize = GetResourceSize(tile_set, params.m_BufferSize);
-
-            // Release hullset. They are now deep-copied (swapped) into tile_set->m_HullSet.
-            if (tmp_tile_set.m_HullSet)
-                dmPhysics::DeleteHullSet2D(tmp_tile_set.m_HullSet);
         }
         else
         {

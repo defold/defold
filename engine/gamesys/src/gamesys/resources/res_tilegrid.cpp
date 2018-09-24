@@ -173,12 +173,7 @@ namespace dmGameSystem
             uint32_t layer_count_new = tmp_tile_grid.m_GridShapes.Size();
             uint32_t layer_count     = layer_count_new;
 
-            if (tile_grid->m_TextureSet)
-                dmResource::Release(params.m_Factory, tile_grid->m_TextureSet);
-            if (tile_grid->m_Material)
-                dmResource::Release(params.m_Factory, tile_grid->m_Material);
-            if (tile_grid->m_TileGrid)
-                dmDDF::FreeMessage(tile_grid->m_TileGrid);
+            ReleaseResources(params.m_Factory, tile_grid);
 
             tile_grid->m_TileGrid = tmp_tile_grid.m_TileGrid;
             tile_grid->m_Material = tmp_tile_grid.m_Material;
@@ -192,7 +187,7 @@ namespace dmGameSystem
                 uint32_t capacity = tile_grid->m_GridShapes.Capacity();
                 tile_grid->m_GridShapes.OffsetCapacity(layer_count_new - capacity);
                 tile_grid->m_GridShapes.SetSize(tile_grid_ddf->m_Layers.m_Count);
-                for (int i = capacity; i < layer_count_new; ++i)
+                for (uint32_t i = capacity; i < layer_count_new; ++i)
                 {
                     tile_grid->m_GridShapes[i] = tmp_tile_grid.m_GridShapes[i];
                 }
@@ -209,20 +204,12 @@ namespace dmGameSystem
 
             for (uint32_t i = 0; i < layer_count; ++i)
             {
-                dmPhysics::CopyGridShape2D(tile_grid->m_GridShapes[i], tmp_tile_grid.m_GridShapes[i]);
+                tile_grid->m_GridShapes[i] = tmp_tile_grid.m_GridShapes[i];
             }
 
             tile_grid->m_Dirty = 1;
 
             params.m_Resource->m_ResourceSize = GetResourceSize(tile_grid, params.m_BufferSize);
-
-            // Release these shapes. They are now deep-copied (swapped) into tile_grid->m_GridShapes.
-            uint32_t n = layer_count;
-            for (uint32_t i = 0; i < n; ++i)
-            {
-                if (tmp_tile_grid.m_GridShapes[i])
-                    dmPhysics::DeleteCollisionShape2D(tmp_tile_grid.m_GridShapes[i]);
-            }
         }
         else
         {

@@ -761,10 +761,10 @@ namespace dmGameSystem
         if (!CompCollisionObjectDispatchPhysicsMessages(physics_context, world, params.m_Collection))
             result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
 
-        uint32_t num_components = world->m_Components.Size();
         // Hot-reload is not available in release, so lets not iterate collision components in that case.
         if (dLib::IsDebugMode())
         {
+            uint32_t num_components = world->m_Components.Size();
             for (uint32_t i = 0; i < num_components; ++i)
             {
                 CollisionComponent* c = world->m_Components[i];
