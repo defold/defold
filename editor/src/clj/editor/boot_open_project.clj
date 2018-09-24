@@ -31,6 +31,7 @@
             [editor.ui :as ui]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
+            [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.sync :as sync]
             [editor.system :as system]
@@ -150,6 +151,7 @@
           console-tab          (first (.getTabs tool-tabs))
           console-grid-pane    (.lookup root "#console-grid-pane")
           workbench            (.lookup root "#workbench")
+          scene-visibility     (scene-visibility/make-scene-visibility-node! *view-graph*)
           app-view             (app-view/make-app-view *view-graph* project stage menu-bar editor-tabs-split tool-tabs)
           outline-view         (outline-view/make-outline-view *view-graph* *project-graph* outline app-view)
           properties-view      (properties-view/make-properties-view workspace project app-view *view-graph* (.lookup root "#properties"))
@@ -227,6 +229,7 @@
                          :web-server          web-server
                          :build-errors-view   build-errors-view
                          :console-view        console-view
+                         :scene-visibility    scene-visibility
                          :search-results-view search-results-view
                          :changes-view        changes-view
                          :main-stage          stage
@@ -241,7 +244,13 @@
             (g/connect project label app-view label))
           (g/connect project :_node-id app-view :project-id)
           (g/connect app-view :selected-node-ids outline-view :selection)
+          (g/connect app-view :hidden-node-outline-key-paths outline-view :hidden-node-outline-key-paths)
           (g/connect app-view :active-resource asset-browser :active-resource)
+          (g/connect app-view :active-resource-node scene-visibility :active-resource-node)
+          (g/connect app-view :active-scene scene-visibility :active-scene)
+          (g/connect outline-view :tree-selection scene-visibility :outline-selection)
+          (g/connect scene-visibility :hidden-renderable-tags app-view :hidden-renderable-tags)
+          (g/connect scene-visibility :hidden-node-outline-key-paths app-view :hidden-node-outline-key-paths)
           (for [label [:active-resource-node :active-outline :open-resource-nodes]]
             (g/connect app-view label outline-view label))
           (let [auto-pulls [[properties-view :pane]

@@ -93,6 +93,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id collection]
                                                      (cond-> {:node-id _node-id
+                                                              :node-outline-key "Collection Proxy"
                                                               :label "Collection Proxy"
                                                               :icon collection-proxy-icon}
 

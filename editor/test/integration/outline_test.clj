@@ -902,3 +902,20 @@
 
     (is (= ["sprite3" "sprite4" "sprite5"]
            (outline/resolve-ids ["sprite1" "sprite2" "sprite3"] #{"sprite" "sprite1" "sprite2"})))))
+
+(deftest gen-node-outline-keys-test
+  (is (= [] (outline/gen-node-outline-keys nil)))
+  (is (= ["a0"] (outline/gen-node-outline-keys ["a"])))
+  (is (= ["a0" "a1"] (outline/gen-node-outline-keys ["a" "a"])))
+  (is (= ["a0" "b0" "a1"] (outline/gen-node-outline-keys ["a" "b" "a"])))
+  (is (= ["a0" "b0" "c0" "b1" "a1" "b2"] (outline/gen-node-outline-keys ["a" "b" "c" "b" "a" "b"]))))
+
+(deftest next-node-outline-key-test
+  (is (= "a0" (outline/next-node-outline-key "a" #{})))
+  (is (= "a0" (outline/next-node-outline-key "a1" #{})))
+  (is (= "b0" (outline/next-node-outline-key "b11" #{})))
+  (is (= "a1" (outline/next-node-outline-key "a" #{"a0"})))
+  (is (= "a2" (outline/next-node-outline-key "a" #{"a1"})))
+  (is (= "a2" (outline/next-node-outline-key "a123" #{"a0" "a1" "b0" "b1" "b2" "b3"})))
+  (is (= "b4" (outline/next-node-outline-key "b123" #{"a0" "a1" "b0" "b1" "b2" "b3"})))
+  (is (= "b4" (outline/next-node-outline-key "b123" #{"a1" "b3"}))))

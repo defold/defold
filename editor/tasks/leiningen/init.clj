@@ -47,6 +47,7 @@
   [["clean"]
    ["local-jars"]
    ["builtins"]
+   ["ref-doc"]
    ["protobuf"]
    ["sass" "once"]
    ["pack"]])

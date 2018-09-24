@@ -48,7 +48,7 @@
 
 (defn- get-render-calls-by-pass
   [scene camera selection key-fn]
-  (let [render-data (scene/produce-render-data scene selection [] #{} camera)
+  (let [render-data (scene/produce-render-data scene selection [] #{} #{} camera)
         renderables (:renderables render-data)
         old-render-lines label/render-lines
         old-render-tris label/render-tris]
