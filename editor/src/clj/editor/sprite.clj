@@ -175,7 +175,7 @@
                                     :animation animation
                                     :blend-mode blend-mode}
                         :passes [pass/transparent pass/selection]})
-    true
+    (and (:width animation) (:height animation))
     (assoc :children [{:node-id _node-id
                        :aabb aabb
                        :renderable {:render-fn render-sprite-outlines
