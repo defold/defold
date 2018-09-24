@@ -47,11 +47,12 @@
    (scene-outline-name-paths [] scene))
   ([outline-name-path {:keys [node-id children] :as _scene}]
    (mapcat (fn [{child-node-id :node-id child-node-outline-key :node-outline-key :as child-scene}]
-             (if (= node-id child-node-id)
-               (scene-outline-name-paths outline-name-path child-scene)
-               (let [child-outline-name-path (conj outline-name-path child-node-outline-key)]
-                 (cons child-outline-name-path
-                       (scene-outline-name-paths child-outline-name-path child-scene)))))
+             (when (some? child-node-outline-key)
+               (if (= node-id child-node-id)
+                 (scene-outline-name-paths outline-name-path child-scene)
+                 (let [child-outline-name-path (conj outline-name-path child-node-outline-key)]
+                   (cons child-outline-name-path
+                         (scene-outline-name-paths child-outline-name-path child-scene))))))
            children)))
 
 (def ^:private outline-selection-entry->outline-name-path (comp not-empty vec next :node-outline-key-path))
