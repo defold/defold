@@ -431,8 +431,8 @@
 (g/deftype ^:private NodeIndex [(s/one s/Int "node-id") (s/one s/Int "index")])
 (g/deftype ^:private NameIndex [(s/one s/Str "name") (s/one s/Int "index")])
 
-(g/defnk override-node? [_node-id] (g/override? _node-id))
-(g/defnk not-override-node? [_node-id] (not (g/override? _node-id)))
+(g/defnk override-node? [_basis _node-id] (g/override? _basis _node-id))
+(g/defnk not-override-node? [_basis _node-id] (not (g/override? _basis _node-id)))
 
 (defn- validate-contains [severity fmt prop-kw node-id coll key]
   (validation/prop-error severity node-id
@@ -529,7 +529,7 @@
             (dynamic visible not-override-node?))
   (property generated-id g/Str
             (dynamic label (g/constantly "Id"))
-            (value (gu/passthrough id)) ; output id below
+            (value (gu/passthrough id)) ; see (output id ...) below
             (dynamic read-only? (g/constantly true))
             (dynamic visible override-node?))
   (property size types/Vec3 (default [0 0 0])
