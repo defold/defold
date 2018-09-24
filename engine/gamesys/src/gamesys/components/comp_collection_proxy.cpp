@@ -504,7 +504,13 @@ namespace dmGameSystem
     {
         CollectionProxyComponent* proxy = (CollectionProxyComponent*) *params.m_UserData;
         if (proxy->m_Enabled)
-            dmGameObject::DispatchInput(proxy->m_Collection, (dmGameObject::InputAction*)params.m_InputAction, 1);
+        {
+            dmGameObject::InputAction* input_action = (dmGameObject::InputAction*)params.m_InputAction;
+            dmGameObject::DispatchInput(proxy->m_Collection, input_action, 1);
+
+            if (input_action->m_Consumed)
+                return dmGameObject::INPUT_RESULT_CONSUMED;
+        }
         return dmGameObject::INPUT_RESULT_IGNORED;
     }
 

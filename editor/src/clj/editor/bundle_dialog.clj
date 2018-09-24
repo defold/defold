@@ -187,48 +187,68 @@
   (ui/with-controls view [header-info-label]
     (set-label-status! header-info-label (get-header-status issues-by-key key-order))))
 
-(defn- make-generic-controls [refresh!]
+(defn- make-choice-box
+  ^ChoiceBox [refresh! label-value-pairs]
   (assert (fn? refresh!))
-  (doto (VBox.)
-    (ui/add-style! "settings")
-    (ui/add-style! "generic")
-    (ui/children! [(doto (CheckBox. "Release mode") (.setId "release-mode-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
-                   (doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
-                   (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))])))
+  (assert (sequential? (not-empty label-value-pairs)))
+  (assert (every? (fn [[k v]] (and (string? (not-empty k)) (string? (not-empty v)))) label-value-pairs))
+  (let [values-by-label (into {} label-value-pairs)
+        labels-by-value (set/map-invert values-by-label)]
+    (doto (ChoiceBox. (ui/observable-list (map second label-value-pairs)))
+      (ui/on-action! refresh!)
+      (.setConverter (proxy [StringConverter] []
+                       (toString [value]
+                         (labels-by-value value))
+                       (fromString [label]
+                         (values-by-label label)))))))
+
+(defn- make-generic-controls [refresh! variant-choices]
+  (assert (fn? refresh!))
+  [(doto (VBox.)
+     (ui/add-style! "settings")
+     (ui/add-style! "generic")
+     (ui/children! [(labeled! "Variant"
+                              (doto (make-choice-box refresh! variant-choices)
+                                (.setId "variant-choice-box")))]))
+   (doto (VBox.)
+     (ui/add-style! "settings")
+     (ui/add-style! "toggles")
+     (ui/children! [(doto (CheckBox. "Generate build report") (.setId "generate-build-report-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))
+                    (doto (CheckBox. "Publish Live Update content") (.setId "publish-live-update-content-check-box") (.setFocusTraversable false) (ui/on-action! refresh!))]))])
 
 (defn- load-generic-prefs! [prefs view]
-  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
-    (ui/value! release-mode-check-box (prefs/get-prefs prefs "bundle-release-mode?" true))
+  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+    (ui/value! variant-choice-box (prefs/get-prefs prefs "bundle-variant" "debug"))
     (ui/value! generate-build-report-check-box (prefs/get-prefs prefs "bundle-generate-build-report?" false))
     (ui/value! publish-live-update-content-check-box (prefs/get-prefs prefs "bundle-publish-live-update-content?" false))))
 
 (defn- save-generic-prefs! [prefs view]
-  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
-    (prefs/set-prefs prefs "bundle-release-mode?" (ui/value release-mode-check-box))
+  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+    (prefs/set-prefs prefs "bundle-variant" (ui/value variant-choice-box))
     (prefs/set-prefs prefs "bundle-generate-build-report?" (ui/value generate-build-report-check-box))
     (prefs/set-prefs prefs "bundle-publish-live-update-content?" (ui/value publish-live-update-content-check-box))))
 
 (defn- get-generic-options [view]
-  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
-    {:release-mode? (ui/value release-mode-check-box)
+  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+    {:variant (ui/value variant-choice-box)
      :generate-build-report? (ui/value generate-build-report-check-box)
      :publish-live-update-content? (and (ui/value publish-live-update-content-check-box)
                                         (ui/editable publish-live-update-content-check-box))}))
 
 (defn- set-generic-options! [view options workspace]
-  (ui/with-controls view [release-mode-check-box generate-build-report-check-box publish-live-update-content-check-box]
-    (ui/value! release-mode-check-box (:release-mode? options))
+  (ui/with-controls view [variant-choice-box generate-build-report-check-box publish-live-update-content-check-box]
+    (ui/value! variant-choice-box (:variant options))
     (ui/value! generate-build-report-check-box (:generate-build-report? options))
     (doto publish-live-update-content-check-box
       (ui/value! (:publish-live-update-content? options)))))
 
-(deftype GenericBundleOptionsPresenter [workspace view title platform]
+(deftype GenericBundleOptionsPresenter [workspace view title platform variant-choices]
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (assert (string? (not-empty platform)))
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers title)
-       (make-generic-controls refresh!)]))
+      (into [(make-generic-headers title)]
+            (make-generic-controls refresh! variant-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view))
   (save-prefs! [_this prefs]
@@ -244,23 +264,12 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- make-platform-controls [refresh! bob-platform-choices]
-  (assert (fn? refresh!))
-  (assert (sequential? (not-empty bob-platform-choices)))
-  (assert (every? (fn [[k v]] (and (string? (not-empty k)) (string? (not-empty v)))) bob-platform-choices))
-  (let [platform-values-by-label (into {} bob-platform-choices)
-        platform-labels-by-value (set/map-invert platform-values-by-label)
-        platform-choice-box (doto (ChoiceBox. (ui/observable-list (map second bob-platform-choices)))
-                                  (.setId "platform-choice-box")
-                                  (ui/on-action! refresh!)
-                                  (.setConverter (proxy [StringConverter] []
-                                                   (toString [value]
-                                                     (platform-labels-by-value value))
-                                                   (fromString [label]
-                                                     (platform-values-by-label label)))))]
-    (doto (VBox.)
-      (ui/add-style! "settings")
-      (ui/add-style! "platform")
-      (ui/children! [(labeled! "Architecture" platform-choice-box)]))))
+  (doto (VBox.)
+    (ui/add-style! "settings")
+    (ui/add-style! "platform")
+    (ui/children! [(labeled! "Architecture"
+                             (doto (make-choice-box refresh! bob-platform-choices)
+                               (.setId "platform-choice-box")))])))
 
 (declare bundle-options-presenter)
 
@@ -288,13 +297,13 @@
   (ui/with-controls view [platform-choice-box]
     (ui/value! platform-choice-box (:platform options))))
 
-(deftype SelectablePlatformBundleOptionsPresenter [workspace view title platform bob-platform-choices bob-platform-default]
+(deftype SelectablePlatformBundleOptionsPresenter [workspace view title platform bob-platform-choices bob-platform-default variant-choices]
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers title)
-       (make-platform-controls refresh! bob-platform-choices)
-       (make-generic-controls refresh!)]))
+      (into [(make-generic-headers title)
+             (make-platform-controls refresh! bob-platform-choices)]
+            (make-generic-controls refresh! variant-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-platform-prefs! prefs view platform bob-platform-default))
@@ -373,13 +382,13 @@
                   (and (some? certificate) (nil? private-key))
                   [:fatal "Private key must be set if certificate is specified."])})
 
-(deftype AndroidBundleOptionsPresenter [workspace view]
+(deftype AndroidBundleOptionsPresenter [workspace view variant-choices]
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers "Bundle Android Application")
-       (make-android-controls refresh! owner-window)
-       (make-generic-controls refresh!)]))
+      (into [(make-generic-headers "Bundle Android Application")
+             (make-android-controls refresh! owner-window)]
+            (make-generic-controls refresh! variant-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-android-prefs! prefs view))
@@ -472,13 +481,13 @@
                            (not (existing-file-of-type? "mobileprovision" provisioning-profile))
                            [:fatal "Invalid provisioning profile."])})
 
-(deftype IOSBundleOptionsPresenter [workspace view]
+(deftype IOSBundleOptionsPresenter [workspace view variant-choices]
   BundleOptionsPresenter
   (make-views [this owner-window]
     (let [refresh! (make-presenter-refresher this)]
-      [(make-generic-headers "Bundle iOS Application")
-       (make-ios-controls refresh! owner-window)
-       (make-generic-controls refresh!)]))
+      (into [(make-generic-headers "Bundle iOS Application")
+             (make-ios-controls refresh! owner-window)]
+            (make-generic-controls refresh! variant-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-ios-prefs! prefs view (get-code-signing-identity-names)))
@@ -498,14 +507,19 @@
 
 ;; -----------------------------------------------------------------------------
 
+(def ^:private common-variants [["Debug" "debug"]
+                                ["Release" "release"]])
+
+(def ^:private desktop-variants (conj common-variants ["Headless" "headless"]))
+
 (defmulti bundle-options-presenter (fn [_workspace _view platform] platform))
 (defmethod bundle-options-presenter :default [_workspace _view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
-(defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view))
-(defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web"))
-(defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view))
-(defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux"))
-(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-darwin"))
-(defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32")))
+(defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view common-variants))
+(defmethod bundle-options-presenter :html5   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle HTML5 Application" "js-web" common-variants))
+(defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants))
+(defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants))
+(defmethod bundle-options-presenter :macos   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle macOS Application" "x86_64-darwin" desktop-variants))
+(defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32") desktop-variants))
 
 (handler/defhandler ::close :bundle-dialog
   (run [stage]

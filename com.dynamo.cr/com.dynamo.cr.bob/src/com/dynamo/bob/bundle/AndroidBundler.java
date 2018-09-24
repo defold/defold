@@ -65,7 +65,8 @@ public class AndroidBundler implements IBundler {
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Armv7Android);
 
         BobProjectProperties projectProperties = project.getProjectProperties();
-        final boolean debug = project.hasOption("debug");
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final boolean strip_executable = project.hasOption("strip-executable");
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
         String exeName = title.replace(' ', '_');
@@ -75,14 +76,15 @@ public class AndroidBundler implements IBundler {
 
         // If a custom engine was built we need to copy it
         Platform targetPlatform = Platform.Armv7Android;
-        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-        File bundleExe = defaultExe;
+
         ArrayList<File> classesDex = new ArrayList<File>();
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
-        if (extenderExe.exists()) {
-            bundleExe = extenderExe;
+        String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
+        File bundleExe = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+        if (bundleExe == null) {
+            bundleExe = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+        }
+        else {
             classesDex = new ArrayList<File>();
             int i = 1;
             while(true)
@@ -241,7 +243,7 @@ public class AndroidBundler implements IBundler {
 
             // Strip executable
             String strippedpath = bundleExe.getAbsolutePath();
-            if( !debug )
+            if( strip_executable )
             {
                 File tmp = File.createTempFile(title, "." + bundleExe.getName() + ".stripped");
                 tmp.deleteOnExit();
