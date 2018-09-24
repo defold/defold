@@ -120,7 +120,7 @@
           (let [evaluation-context (g/make-evaluation-context)
                 save-data (project/dirty-save-data-with-progress project evaluation-context render-save-progress!)]
             (project/write-save-data-to-disk! save-data {:render-progress! render-save-progress!})
-            (render-save-progress! (progress/make-indeterminate "Refreshing file status..."))
+            (render-save-progress! (progress/make-indeterminate "Reading timestamps..."))
             (let [updated-file-resource-status-map-entries (mapv save-data-status-map-entry save-data)]
               (render-save-progress! progress/done)
               (ui/run-later
