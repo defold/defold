@@ -26,6 +26,7 @@
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.graph-util :as gu]
             [editor.util :as util]
             [editor.keymap :as keymap]
@@ -45,7 +46,8 @@
             [editor.disk :as disk]
             [editor.disk-availability :as disk-availability]
             [editor.scene-visibility :as scene-visibility]
-            [editor.scene-cache :as scene-cache])
+            [editor.scene-cache :as scene-cache]
+            [editor.types :as types])
   (:import [com.defold.control TabPaneBehavior]
            [com.defold.editor Editor EditorApplication]
            [com.defold.editor Start]
@@ -105,13 +107,13 @@
   (property active-tool g/Keyword)
   (property manip-space g/Keyword)
 
-  (property visibility-filters-enabled g/Any)
-  (property hidden-renderable-tags g/Any)
-
   (input open-views g/Any :array)
   (input open-dirty-views g/Any :array)
   (input scene-view-ids g/Any :array)
-  (input outline g/Any)
+  (input hidden-renderable-tags types/RenderableTags)
+  (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
+  (input active-outline g/Any)
+  (input active-scene g/Any)
   (input project-id g/NodeID)
   (input selected-node-ids-by-resource-node g/Any)
   (input selected-node-properties-by-resource-node g/Any)
@@ -121,7 +123,10 @@
   (output open-views g/Any :cached (g/fnk [open-views] (into {} open-views)))
   (output open-dirty-views g/Any :cached (g/fnk [open-dirty-views] (into #{} (keep #(when (second %) (first %))) open-dirty-views)))
   (output active-tab Tab (g/fnk [^TabPane active-tab-pane] (some-> active-tab-pane ui/selected-tab)))
-  (output active-outline g/Any (gu/passthrough outline))
+  (output hidden-renderable-tags types/RenderableTags (gu/passthrough hidden-renderable-tags))
+  (output hidden-node-outline-key-paths types/NodeOutlineKeyPaths (gu/passthrough hidden-node-outline-key-paths))
+  (output active-outline g/Any (gu/passthrough active-outline))
+  (output active-scene g/Any (gu/passthrough active-scene))
   (output active-view g/NodeID (g/fnk [^Tab active-tab]
                                    (when active-tab
                                      (ui/user-data active-tab ::view))))
@@ -130,11 +135,6 @@
                                           {:view-id (ui/user-data active-tab ::view)
                                            :view-type (ui/user-data active-tab ::view-type)})))
 
-  (output effective-hidden-renderable-tags g/Any :cached (g/fnk [visibility-filters-enabled hidden-renderable-tags]
-                                                                (if visibility-filters-enabled
-                                                                  hidden-renderable-tags
-                                                                  (set/intersection hidden-renderable-tags #{:outline :grid}))))
-  
   (output active-resource-node g/NodeID :cached (g/fnk [active-view open-views] (:resource-node (get open-views active-view))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (->> open-views vals (map :resource-node))))
@@ -189,9 +189,13 @@
       (g/connect source-node source-label target-node target-label)
       [])))
 
-(defn- on-selected-tab-changed! [app-view app-scene resource-node]
+(defn- on-selected-tab-changed! [app-view app-scene resource-node view-type]
   (g/transact
-    (replace-connection resource-node :node-outline app-view :outline))
+    (concat
+      (replace-connection resource-node :node-outline app-view :active-outline)
+      (if (= :scene view-type)
+        (replace-connection resource-node :scene app-view :active-scene)
+        (disconnect-sources app-view :active-scene))))
   (g/invalidate-outputs! [[app-view :active-tab]])
   (ui/user-data! app-scene ::ui/refresh-requested? true))
 
@@ -211,21 +215,21 @@
   (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
 
 (handler/defhandler :show-visibility-settings :workbench
-  (run [app-view]
+  (run [app-view scene-visibility]
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)
                            (.. getContent (lookup "#show-visibility-settings")))]
-      (scene-visibility/show-visibility-settings btn app-view)))
-  (state [app-view]
+      (scene-visibility/show-visibility-settings! btn scene-visibility)))
+  (state [app-view scene-visibility]
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)
                            (.. getContent (lookup "#show-visibility-settings")))]
       ;; TODO: We have no mechanism for updating the style nor icon on
       ;; on the toolbar button. For now we piggyback on the state
       ;; update polling to set a style when the filters are active.
-      (let [visibility-filters-enabled? (g/node-value app-view :visibility-filters-enabled)
-            hidden-renderable-tags (g/node-value app-view :hidden-renderable-tags)
-            filters-active? (and visibility-filters-enabled? (some scene-visibility/toggleable-tags hidden-renderable-tags))]
+      (let [visibility-filters-enabled? (g/node-value scene-visibility :visibility-filters-enabled?)
+            filtered-renderable-tags (g/node-value scene-visibility :filtered-renderable-tags)
+            filters-active? (and visibility-filters-enabled? (some scene-visibility/toggleable-tags filtered-renderable-tags))]
         (if filters-active?
           (ui/add-style! btn "filters-active")
           (ui/remove-style! btn "filters-active")))
@@ -1076,6 +1080,9 @@ If you do not specifically require different script states, consider changing th
     second
     :resource-node))
 
+(defn- tab->view-type [^Tab tab]
+  (some-> tab (ui/user-data ::view-type) :id))
+
 (defn- configure-editor-tab-pane! [^TabPane tab-pane ^Scene app-scene app-view]
   (.setTabClosingPolicy tab-pane TabPane$TabClosingPolicy/ALL_TABS)
   (-> tab-pane
@@ -1084,7 +1091,7 @@ If you do not specifically require different script states, consider changing th
       (.addListener
         (reify ChangeListener
           (changed [_this _observable _old-val new-val]
-            (on-selected-tab-changed! app-view app-scene (tab->resource-node new-val))))))
+            (on-selected-tab-changed! app-view app-scene (tab->resource-node new-val) (tab->view-type new-val))))))
   (-> tab-pane
       (.getTabs)
       (.addListener
@@ -1114,11 +1121,12 @@ If you do not specifically require different script states, consider changing th
     (when (and (some? new-editor-tab-pane)
                (not (identical? old-editor-tab-pane new-editor-tab-pane)))
       (let [selected-tab (ui/selected-tab new-editor-tab-pane)
-            resource-node (tab->resource-node selected-tab)]
+            resource-node (tab->resource-node selected-tab)
+            view-type (tab->view-type selected-tab)]
         (ui/add-style! old-editor-tab-pane "inactive")
         (ui/remove-style! new-editor-tab-pane "inactive")
         (g/set-property! app-view :active-tab-pane new-editor-tab-pane)
-        (on-selected-tab-changed! app-view app-scene resource-node)))))
+        (on-selected-tab-changed! app-view app-scene resource-node view-type)))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane]
   (let [app-scene (.getScene stage)]
@@ -1132,9 +1140,7 @@ If you do not specifically require different script states, consider changing th
                                                                      :active-tab-pane editor-tab-pane
                                                                      :tool-tab-pane tool-tab-pane
                                                                      :active-tool :move
-                                                                     :manip-space :world
-                                                                     :visibility-filters-enabled true
-                                                                     :hidden-renderable-tags #{}))))]
+                                                                     :manip-space :world))))]
       (.add (.getItems editor-tabs-split) editor-tab-pane)
       (configure-editor-tab-pane! editor-tab-pane app-scene app-view)
       (ui/observe (.focusOwnerProperty app-scene)
@@ -1211,11 +1217,6 @@ If you do not specifically require different script states, consider changing th
             (string/replace tmpl (format "{%s}" (name key)) (str val)))
     tmpl args))
 
-(defn- defective-resource-node? [resource-node]
-  (let [value (g/node-value resource-node :valid-node-id+resource)]
-    (and (g/error? value)
-         (g/error-fatal? value))))
-
 (defn open-resource
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
@@ -1230,7 +1231,7 @@ If you do not specifically require different script states, consider changing th
                               (placeholder-resource/view-type workspace)
                               (first (:view-types resource-type)))
                             text-view-type)]
-     (if (defective-resource-node? resource-node)
+     (if (resource-node/defective? resource-node)
        (do (dialogs/make-alert-dialog (format "Unable to open '%s', since it appears damaged." (resource/proj-path resource)))
            false)
        (if-let [custom-editor (and (#{:code :text} (:id view-type))
