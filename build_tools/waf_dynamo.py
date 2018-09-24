@@ -1139,11 +1139,14 @@ def run_gtests(valgrind = False, configfile = None):
     if not Build.bld.env['VALGRIND']:
         valgrind = False
 
+    if not getattr(Options.options, 'with_valgrind', False):
+        valgrind = False
+
     if Build.bld.env.PLATFORM == 'js-web' and not Build.bld.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
 
-    for t in  Build.bld.all_task_gen:
+    for t in Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
@@ -1563,3 +1566,4 @@ def set_options(opt):
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
+    opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')

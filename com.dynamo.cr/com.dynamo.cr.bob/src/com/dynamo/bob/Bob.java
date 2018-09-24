@@ -36,6 +36,10 @@ import com.dynamo.bob.util.LibraryUtil;
 
 public class Bob {
 
+    public static final String VARIANT_DEBUG = "debug";
+    public static final String VARIANT_RELEASE = "release";
+    public static final String VARIANT_HEADLESS = "headless";
+
     private static boolean verbose = false;
     private static File rootFolder = null;
 
@@ -148,7 +152,7 @@ public class Bob {
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
         URL url = Bob.class.getResource("/libexec/" + exeName);
         if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s not found", exeName));
+            throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
         }
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
@@ -172,17 +176,31 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getDmengineExeName(Platform platform, boolean debug) {
-        if(debug) {
-            return "dmengine";
-        }
-        else {
-            return "dmengine_release";
+   public static String getDefaultDmengineExeName(String variant) {
+        switch (variant)
+        {
+            case VARIANT_DEBUG:
+                return "dmengine";
+            case VARIANT_RELEASE:
+                return "dmengine_release";
+            case VARIANT_HEADLESS:
+                return "dmengine_headless";
+            default:
+                throw new RuntimeException(String.format("Invalid variant %s", variant));
         }
     }
 
-    public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
-        return getExe(platform, getDmengineExeName(platform, debug));
+    public static String getDefaultDmenginePath(Platform platform, String variant) throws IOException {
+        return getExe(platform, getDefaultDmengineExeName(variant));
+    }
+
+    public static File getNativeExtensionEngine(Platform platform, String extenderExeDir) throws IOException
+    {
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
+        if (extenderExe.exists()) {
+            return extenderExe;
+        }
+        return null;
     }
 
     public static String getLib(Platform platform, String name) throws IOException {
@@ -221,7 +239,9 @@ public class Bob {
         options.addOption("ce", "certificate", true, "Certificate (Android)");
         options.addOption("pk", "private-key", true, "Private key (Android)");
 
-        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
+        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
+        options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
+        options.addOption(null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)");
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
         options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");
@@ -292,6 +312,18 @@ public class Bob {
             return;
         }
 
+        if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
+            System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
+            System.exit(1);
+            return;
+        }
+
+        if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
+            System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
+            System.exit(1);
+            return;
+        }
+
         String[] commands = cmd.getArgs();
         if (commands.length == 0) {
             commands = new String[] { "build" };
@@ -326,9 +358,19 @@ public class Bob {
             }
         }
 
+        if (!cmd.hasOption("variant")) {
+            if (cmd.hasOption("debug")) {
+                System.out.println("WARNING option 'debug' is deprecated, use options 'variant' and 'strip-executable' instead.");
+                project.setOption("variant", VARIANT_DEBUG);
+            } else {
+                project.setOption("variant", VARIANT_RELEASE);
+                project.setOption("strip-executable", "true");
+            }
+        }
+
         if (cmd.hasOption("texture-profiles")) {
             // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
-            System.out.println("WARNING option 'texture-profiles' is deprecated, setting 'texture-compression' option instead.");
+            System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
             String texCompression = cmd.getOptionValue("texture-profiles");
             if (cmd.hasOption("texture-compression")) {
                 texCompression = cmd.getOptionValue("texture-compression");

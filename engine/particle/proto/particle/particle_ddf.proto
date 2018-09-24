@@ -51,7 +51,8 @@ enum EmitterKey
     EMITTER_KEY_PARTICLE_ROTATION           = 11 [(displayName) = "Initial Rotation"];
     EMITTER_KEY_PARTICLE_STRETCH_FACTOR_X   = 12 [(displayName) = "Initial Stretch X"];
     EMITTER_KEY_PARTICLE_STRETCH_FACTOR_Y   = 13 [(displayName) = "Initial Stretch Y"];
-    EMITTER_KEY_COUNT                       = 14;
+    EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY   = 14 [(displayName) = "Initial Angular Velocity"];
+    EMITTER_KEY_COUNT                       = 15;
 }
 
 enum ParticleKey
@@ -64,7 +65,8 @@ enum ParticleKey
     PARTICLE_KEY_ROTATION           = 5 [(displayName) = "Life Rotation"];
     PARTICLE_KEY_STRETCH_FACTOR_X   = 6 [(displayName) = "Life Stretch X"];
     PARTICLE_KEY_STRETCH_FACTOR_Y   = 7 [(displayName) = "Life Stretch Y"];
-    PARTICLE_KEY_COUNT              = 8;
+    PARTICLE_KEY_ANGULAR_VELOCITY   = 8 [(displayName) = "Life Angular Velocity"];
+    PARTICLE_KEY_COUNT              = 9;
 }
 
 enum ModifierType
@@ -118,6 +120,7 @@ enum ParticleOrientation
     PARTICLE_ORIENTATION_DEFAULT = 0 [(displayName) = "Default"];
     PARTICLE_ORIENTATION_INITIAL_DIRECTION = 1 [(displayName) = "Initial Direction"];
     PARTICLE_ORIENTATION_MOVEMENT_DIRECTION = 2 [(displayName) = "Movement direction"];
+    PARTICLE_ORIENTATION_ANGULAR_VELOCITY = 3 [(displayName) = "Angular Velocity"];
 }
 
 message Emitter

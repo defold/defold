@@ -65,6 +65,25 @@ public class Push {
 
     private Activity activity;
 
+    // We need to store recieved notifications in memory until
+    // a listener has been registered on the Lua side.
+    private class StoredNotification {
+        public String json = "";
+        public int id = 0;
+        public boolean wasLocal = false;
+        public boolean wasActivated = false;
+
+        public StoredNotification(String json, int id, boolean wasLocal, boolean wasActivated)
+        {
+            this.json = json;
+            this.id = id;
+            this.wasLocal = wasLocal;
+            this.wasActivated = wasActivated;
+        }
+    }
+
+    private ArrayList<StoredNotification> storedNotifications = new ArrayList<StoredNotification>();
+
     public void start(Activity activity, IPushListener listener, String senderId, String projectTitle) {
         Log.d(TAG, String.format("Push started (%s %s)", listener, senderId));
 
@@ -86,6 +105,19 @@ public class Push {
     public void stop() {
         Log.d(TAG, "Push stopped");
         this.listener = null;
+    }
+
+    public void flushStoredNotifications() {
+        for (int i = 0; i < storedNotifications.size(); i++) {
+            StoredNotification n = storedNotifications.get(i);
+            if (n.wasLocal) {
+                this.listener.onLocalMessage(n.json, n.id, n.wasActivated);
+            } else {
+                this.listener.onMessage(n.json, n.wasActivated);
+            }
+        }
+
+        storedNotifications.clear();
     }
 
     public void register(final Activity activity) {
@@ -316,7 +348,7 @@ public class Push {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onMessage(json, wasActivated);
+            storedNotifications.add(new StoredNotification(json, 0, false, wasActivated));
 
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
@@ -346,7 +378,7 @@ public class Push {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onLocalMessage(json, id, wasActivated);
+            storedNotifications.add(new StoredNotification(json, id, true, wasActivated));
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
             Log.e(Push.TAG, "Failed to read local message from disk", e);

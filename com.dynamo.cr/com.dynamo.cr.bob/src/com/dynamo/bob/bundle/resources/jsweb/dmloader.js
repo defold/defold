@@ -585,7 +585,7 @@ var Module = {
         } else {
 
             // Need to set heap size before calling main
-            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
+            TOTAL_MEMORY = Module["TOTAL_MEMORY"] || TOTAL_MEMORY;
 
             Module.preloadAll();
             Progress.removeProgress();
