@@ -209,7 +209,7 @@ namespace dmGameSystem
 
             for (uint32_t i = 0; i < layer_count; ++i)
             {
-                dmPhysics::SwapGridShape2D(tile_grid->m_GridShapes[i], tmp_tile_grid.m_GridShapes[i]);
+                dmPhysics::CopyGridShape2D(tile_grid->m_GridShapes[i], tmp_tile_grid.m_GridShapes[i]);
             }
 
             tile_grid->m_Dirty = 1;

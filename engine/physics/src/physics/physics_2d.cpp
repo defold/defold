@@ -435,7 +435,7 @@ namespace dmPhysics
         return new b2GridShape((b2HullSet*) hull_set, p, cell_width * scale, cell_height * scale, row_count, column_count);
     }
 
-     void SwapHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set)
+     void CopyHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set)
      {
         b2HullSet* dst = (b2HullSet*) dst_hull_set;
         b2HullSet* src = (b2HullSet*) src_hull_set;
@@ -453,7 +453,7 @@ namespace dmPhysics
         dst->m_hullCount = src->m_hullCount;
      }
 
-     void SwapGridShape2D(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape)
+     void CopyGridShape2D(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape)
      {
          b2GridShape* src_grid_shape = (b2GridShape*) src_coll_shape;
          b2GridShape* dst_grid_shape = (b2GridShape*) dst_coll_shape;

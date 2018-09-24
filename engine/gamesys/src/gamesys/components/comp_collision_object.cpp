@@ -1,5 +1,6 @@
 #include "comp_collision_object.h"
 
+#include <dlib/dlib.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
@@ -716,7 +717,7 @@ namespace dmGameSystem
             }
             component->m_AddedToUpdate = true;
 
-            if (world->m_Components.Remaining() <= 0)
+            if (world->m_Components.Full())
                 world->m_Components.OffsetCapacity(32);
             world->m_Components.Push(component);
         }
@@ -761,25 +762,28 @@ namespace dmGameSystem
             result = dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
 
         uint32_t num_components = world->m_Components.Size();
-        for (uint32_t i = 0; i < num_components; ++i)
+        // Hot-reload is not available in release, so lets not iterate collision components in that case.
+        if (dLib::IsDebugMode())
         {
-            CollisionComponent* c = world->m_Components[i];
-            TileGridResource* tile_grid_res = c->m_Resource->m_TileGridResource;
-            if (tile_grid_res != 0x0 && tile_grid_res->m_Dirty)
+            for (uint32_t i = 0; i < num_components; ++i)
             {
-                dmGameSystemDDF::TileGrid* tile_grid_ddf = tile_grid_res->m_TileGrid;
-                CollisionObjectResource* resource = c->m_Resource;
-                dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
-                dmPhysics::CollisionObjectData data;
-                SetCollisionObjectData(world, c, c->m_Resource, ddf, true, data);
-                c->m_Mask = data.m_Mask;
+                CollisionComponent* c = world->m_Components[i];
+                TileGridResource* tile_grid_res = c->m_Resource->m_TileGridResource;
+                if (tile_grid_res != 0x0 && tile_grid_res->m_Dirty)
+                {
+                    CollisionObjectResource* resource = c->m_Resource;
+                    dmPhysicsDDF::CollisionObjectDesc* ddf = resource->m_DDF;
+                    dmPhysics::CollisionObjectData data;
+                    SetCollisionObjectData(world, c, c->m_Resource, ddf, true, data);
+                    c->m_Mask = data.m_Mask;
 
-                dmPhysics::DeleteCollisionObject2D(world->m_World2D, c->m_Object2D);
-                dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
-                c->m_Object2D = dmPhysics::NewCollisionObject2D(world->m_World2D, data, &shapes.Front(), shapes.Size());
+                    dmPhysics::DeleteCollisionObject2D(world->m_World2D, c->m_Object2D);
+                    dmArray<dmPhysics::HCollisionShape2D>& shapes = resource->m_TileGridResource->m_GridShapes;
+                    c->m_Object2D = dmPhysics::NewCollisionObject2D(world->m_World2D, data, &shapes.Front(), shapes.Size());
 
-                SetupTileGrid(world, c);
-                tile_grid_res->m_Dirty = 0;
+                    SetupTileGrid(world, c);
+                    tile_grid_res->m_Dirty = 0;
+                }
             }
         }
 

@@ -462,7 +462,7 @@ namespace dmPhysics
     * @param dst_hull_set The hull set to receive the swapped data
     * @param src_hull_set The hull set to swap data from
     */
-    void SwapHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set);
+    void CopyHullSet(HHullSet2D &dst_hull_set, HHullSet2D src_hull_set);
     
     /**
     * Frees the memory used by dst_coll_shape and deep-copies the members of src_coll_shape.
@@ -470,7 +470,7 @@ namespace dmPhysics
     * @param dst_coll_shape The grid shape to receive the swapped data
     * @param src_coll_shape The grid shape to swap data from
     */
-    void SwapGridShape2D(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape);
+    void CopyGridShape2D(HCollisionShape2D &dst_coll_shape, HCollisionShape2D src_coll_shape);
 
     /**
      * Set hull for cell in grid-shape

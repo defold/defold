@@ -166,7 +166,7 @@ namespace dmGameSystem
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);
-            dmPhysics::SwapHullSet(tile_set->m_HullSet, tmp_tile_set.m_HullSet);
+            dmPhysics::CopyHullSet(tile_set->m_HullSet, tmp_tile_set.m_HullSet);
             tile_set->m_AnimationIds.Swap(tmp_tile_set.m_AnimationIds);
             params.m_Resource->m_ResourceSize = GetResourceSize(tile_set, params.m_BufferSize);
 
