@@ -75,5 +75,19 @@
     &.child-error {
       @include colorize-disclosure-arrow($error-severity-fatal-dim);
     }
+
+    &.scene-visibility-hidden {
+      .tree-disclosure-node {
+        .arrow {
+          -fx-opacity: 40%;
+        }
+      }
+      .image-view {
+        -fx-opacity: 40%;
+      }
+      .text {
+        -fx-opacity: 40%;
+      }
+    }
   }
 }
