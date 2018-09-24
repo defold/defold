@@ -97,8 +97,8 @@ def transform_collisionobject(task, msg):
         msg.collision_shape = ''
 
     msg.collision_shape = msg.collision_shape.replace('.convexshape', '.convexshapec')
-    msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilegridc')
-    msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilegridc')
+    msg.collision_shape = msg.collision_shape.replace('.tilemap', '.tilemapc')
+    msg.collision_shape = msg.collision_shape.replace('.tilegrid', '.tilemapc')
     return msg
 
 def transform_particlefx(task, msg):
@@ -126,8 +126,8 @@ def transform_gameobject(task, msg):
         c.component = c.component.replace('.sprite', '.spritec')
         c.component = c.component.replace('.tileset', '.texturesetc')
         c.component = c.component.replace('.tilesource', '.texturesetc')
-        c.component = c.component.replace('.tilegrid', '.tilegridc')
-        c.component = c.component.replace('.tilemap', '.tilegridc')
+        c.component = c.component.replace('.tilemap', '.tilemapc')
+        c.component = c.component.replace('.tilegrid', '.tilemapc')
         c.component = c.component.replace('.spinemodel', '.spinemodelc')
         transform_properties(c.properties, c.property_decls)
     return msg
@@ -406,8 +406,8 @@ proto_compile_task('light', 'gamesys_ddf_pb2', 'LightDesc', '.light', '.lightc')
 proto_compile_task('label', 'label_ddf_pb2', 'LabelDesc', '.label', '.labelc', transform_label)
 proto_compile_task('render', 'render.render_ddf_pb2', 'render_ddf_pb2.RenderPrototypeDesc', '.render', '.renderc', transform_render)
 proto_compile_task('sprite', 'sprite_ddf_pb2', 'SpriteDesc', '.sprite', '.spritec', transform_sprite)
-proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilegridc', transform_tilegrid)
-proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilegridc', transform_tilegrid)
+proto_compile_task('tilegrid', 'tile_ddf_pb2', 'TileGrid', '.tilegrid', '.tilemapc', transform_tilegrid)
+proto_compile_task('tilemap', 'tile_ddf_pb2', 'TileGrid', '.tilemap', '.tilemapc', transform_tilegrid)
 proto_compile_task('sound', 'sound_ddf_pb2', 'SoundDesc', '.sound', '.soundc', transform_sound)
 proto_compile_task('spinemodel', 'spine_ddf_pb2', 'SpineModelDesc', '.spinemodel', '.spinemodelc', transform_spine_model)
 proto_compile_task('display_profiles', 'render.render_ddf_pb2', 'render_ddf_pb2.DisplayProfiles', '.display_profiles', '.display_profilesc')
