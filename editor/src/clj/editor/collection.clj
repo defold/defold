@@ -253,6 +253,7 @@
                           {:resource source-resource
                            :overrides ddf-component-properties}))
             (set (fn [evaluation-context self old-value new-value]
+                   (println :new-value new-value)
                    (concat
                      (if-let [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source)
@@ -262,10 +263,17 @@
                              project (project/get-project basis self)]
                          (project/connect-resource-node evaluation-context project new-resource self []
                                                         (fn [go-node]
+                                                          (println :go-node (g/node-value go-node :resource))
                                                           (let [component-overrides (into {} (map (fn [m]
                                                                                                     [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                                                                                            (:properties m)))])
                                                                                                   (:overrides new-value)))
+                                                                ;; IF the game object file does not exist, a corrensponding resource node will
+                                                                ;; just have been created/loaded by connect-resource-node (transactions added to
+                                                                ;; list before this override-call) - but g/override does not "see" any of connections
+                                                                ;; etc made - can't even look up anything about the node-id since the node is not yet
+                                                                ;; created. Currently get an exception here since arcs-by-tail tries to find the
+                                                                ;; original of the node. Which does not exist.
                                                                 override (g/override basis go-node {:traverse? or-go-traverse?})
                                                                 id-mapping (:id-mapping override)
                                                                 or-node (get id-mapping go-node)

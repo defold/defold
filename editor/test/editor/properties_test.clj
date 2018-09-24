@@ -106,12 +106,12 @@
                (is (every? #(= "1.0" %) (get-in properties [:my-prop :values])))
                (is (every? #(= "2.0" %) (get-in new-properties [:my-prop :values])))))
     (testing "Overridden properties"
-             (let [[user-node linked-node]
+             (let [[user-node]
                    (g/tx-nodes-added
                      (g/transact
                        (g/make-nodes world [user-node [UserProps :user-properties {:properties {:int {:edit-type {:type g/Int} :value 1}}
-                                                                                   :display-order [:int]}]]
-                                     (:tx-data (g/override user-node)))))
+                                                                                   :display-order [:int]}]])))
+                   [linked-node] (g/tx-nodes-added (g/transact (:tx-data (g/override user-node))))
                    property (fn [n] (-> [n] (coalesce-nodes) (first) (second)))]
                (is (not (properties/overridden? (property linked-node))))
                (is (every? #(= 1 %) (properties/values (property linked-node))))
@@ -208,7 +208,7 @@
 
 (g/defnode DynamicSetFn
   (property a g/Num)
-  (property count g/Any (default (atom 0)))
+  (property count g/Any)
 
   (output _properties g/Properties (g/fnk [_declared-properties]
                                           (assoc-in _declared-properties [:properties :a :edit-type :set-fn]
@@ -220,7 +220,7 @@
   (with-clean-system
     (let [n (first
               (tx-nodes
-                (g/make-nodes world [n DynamicSetFn])))
+                (g/make-nodes world [n [DynamicSetFn :count (atom 0)]])))
           p (:a (coalesce-nodes [n]))]
       (is (= 0 @(g/node-value n :count)))
       (properties/set-values! p [1])
