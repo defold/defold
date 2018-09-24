@@ -613,7 +613,7 @@ namespace dmParticle
             return;
 
         Instance* inst = GetInstance(context, instance);
-        
+
         if (IsSleeping(inst))
             return;
 
@@ -1316,6 +1316,7 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 Particle* particle = &particles[i];
+                particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
                 if (lengthSqr(particle->m_Velocity) > EPSILON)
                 {
                     Vector3 vel_norm = normalize(particle->m_Velocity);
