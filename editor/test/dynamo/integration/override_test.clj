@@ -144,26 +144,27 @@
 (deftest inherited-property
   (with-clean-system
     (let [prop :base-property
-          [main or-main] (tx-nodes (g/make-nodes world [main [MainNode prop "inherited"]]
-                                                 (:tx-data (g/override main {}))))]
+          [main] (tx-nodes (g/make-nodes world [main [MainNode prop "inherited"]]))
+          [or-main] (tx-nodes (:tx-data (g/override main {})))]
       (is (= "inherited" (g/node-value or-main prop))))))
 
 (deftest new-node-created
   (with-clean-system
-    (let [[main or-main sub] (tx-nodes (g/make-nodes world [main MainNode]
-                                                     (:tx-data (g/override main {}))
-                                                     (g/make-nodes world [sub SubNode]
-                                                                   (g/connect sub :_node-id main :sub-nodes))))]
+    (let [[main] (tx-nodes (g/make-nodes world [main MainNode]))
+          [or-main] (tx-nodes (:tx-data (g/override main {})))
+          [sub] (tx-nodes (g/make-nodes world [sub SubNode]
+                                        (g/connect sub :_node-id main :sub-nodes)))]
       (let [sub-nodes (g/node-value or-main :sub-nodes)]
         (is (= 1 (count sub-nodes)))
-        (is (not= [sub] sub-nodes)))
+        (is (not= [sub] sub-nodes))
+        (is (= sub (g/override-original (first sub-nodes)))))
       (g/transact (g/disconnect sub :_node-id main :sub-nodes))
       (is (empty? (g/node-value or-main :sub-nodes))))))
 
 (deftest new-node-created-cache-invalidation
   (with-clean-system
-    (let [[main or-main] (tx-nodes (g/make-nodes world [main MainNode]
-                                                 (:tx-data (g/override main {}))))
+    (let [[main] (tx-nodes (g/make-nodes world [main MainNode]))
+          [or-main] (tx-nodes (:tx-data (g/override main {})))
           _ (is (= [] (g/node-value or-main :cached-values)))
           [sub] (tx-nodes (g/make-nodes world [sub [SubNode :value "sub"]]
                                         (for [[from to] [[:_node-id :sub-nodes]
@@ -176,7 +177,7 @@
       (is (= [] (g/node-value or-main :cached-values))))))
 
 (g/defnode DetectCacheInvalidation
-  (property invalid-cache g/Any (default (atom 0)))
+  (property invalid-cache g/Any)
   (input value g/Str :cascade-delete)
   (output cached-value g/Str :cached (g/fnk [value invalid-cache]
                                             (swap! invalid-cache inc)
@@ -185,16 +186,16 @@
 (deftest inherit-targets []
   (testing "missing override"
            (with-clean-system
-             (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
-                                                                            cache DetectCacheInvalidation]
-                                                                     (g/connect main :value cache :value)
-                                                                     (:tx-data (g/override main {}))))]
+             (let [[main cache-node] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
+                                                                            cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
+                                                                     (g/connect main :value cache :value)))
+                   [or-main] (tx-nodes (:tx-data (g/override main {})))]
                (is (= cache-node (ffirst (g/targets-of main :value))))
                (is (empty? (g/targets-of or-main :value))))))
   (testing "existing override"
            (with-clean-system
              (let [[main cache-node] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
-                                                                    cache DetectCacheInvalidation]
+                                                                    cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                              (g/connect main :value cache :value)))
                    [or-cache-node or-main] (tx-nodes (:tx-data (g/override cache-node {})))]
                (is (= cache-node (ffirst (g/targets-of main :value))))
@@ -205,28 +206,29 @@
 
 (deftest inherit-sources []
   (testing "missing override"
-           (with-clean-system
-             (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main StringInput
-                                                                            cache DetectCacheInvalidation]
-                                                                     (g/connect cache :cached-value main :value)
-                                                                     (:tx-data (g/override main {}))))]
-               (is (= cache-node (ffirst (g/sources-of main :value))))
-               (is (= cache-node (ffirst (g/sources-of or-main :value)))))))
+    (with-clean-system
+      (let [[main cache-node] (tx-nodes (g/make-nodes world [main StringInput
+                                                             cache [DetectCacheInvalidation :invalid-cache (atom 0)]]))
+            ;; g/override below sees the system state right here; g/connect hasn't been transacted yet
+            [or-main] (tx-nodes (concat (g/connect cache-node :cached-value main :value)
+                                        (:tx-data (g/override main {}))))]
+        (is (= cache-node (ffirst (g/sources-of main :value))))
+        (is (= cache-node (ffirst (g/sources-of or-main :value)))))))
   (testing "existing override"
-           (with-clean-system
-             (let [[main cache-node] (tx-nodes (g/make-nodes world [main StringInput
-                                                                    cache DetectCacheInvalidation]
-                                                             (g/connect cache :cached-value main :value)))
-                   [or-main or-cache-node] (tx-nodes (:tx-data (g/override cache-node {})))]
-               (is (= cache-node (ffirst (g/sources-of main :value))))
-               (is (= or-cache-node (ffirst (g/sources-of or-main :value))))))))
+    (with-clean-system
+      (let [[main cache-node] (tx-nodes (g/make-nodes world [main StringInput
+                                                             cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
+                                                      (g/connect cache :cached-value main :value)))
+            [or-main or-cache-node] (tx-nodes (:tx-data (g/override cache-node {})))]
+        (is (= cache-node (ffirst (g/sources-of main :value))))
+        (is (= or-cache-node (ffirst (g/sources-of or-main :value))))))))
 
 (deftest lonely-override-leaves-cache []
   (with-clean-system
-    (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
-                                                                   cache DetectCacheInvalidation]
-                                                            (g/connect main :value cache :value)
-                                                            (:tx-data (g/override main {}))))]
+    (let [[main cache-node] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
+                                                           cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
+                                                    (g/connect main :value cache :value)))
+          [or-main] (tx-nodes (:tx-data (g/override main {})))]
       (is (= 0 @(g/node-value cache-node :invalid-cache)))
       (is (= "test" (g/node-value cache-node :cached-value)))
       (is (= 1 @(g/node-value cache-node :invalid-cache)))
@@ -720,8 +722,8 @@
 
 (deftest overloaded-outputs-and-types
   (with-clean-system
-    (let [[a b] (tx-nodes (g/make-nodes world [n [TypedOutputNode :value [1 2 3]]]
-                                        (:tx-data (g/override n))))]
+    (let [[a] (tx-nodes (g/make-nodes world [n [TypedOutputNode :value [1 2 3]]]))
+          [b] (tx-nodes (:tx-data (g/override a)))]
       (g/transact (g/set-property b :value [2 3 4]))
       (is (not= (g/node-value b :complex) (g/node-value a :complex))))))
 
@@ -733,13 +735,13 @@
 
 (deftest dynamic-id-in-properties
   (with-clean-system
-    (let [[node parent sub] (tx-nodes (g/make-nodes world [node [IDNode :id "child-id"]
-                                                           parent [IDNode :id "parent-id"]]
-                                                    (let [or-data (g/override node)
-                                                          or-node (get-in or-data [:id-mapping node])]
-                                                      (concat
-                                                        (:tx-data or-data)
-                                                        (g/connect parent :id or-node :super-id)))))]
+    (let [[node parent] (tx-nodes (g/make-nodes world [node [IDNode :id "child-id"]
+                                                       parent [IDNode :id "parent-id"]]))
+          [sub] (tx-nodes (let [or-data (g/override node)
+                                or-node (get-in or-data [:id-mapping node])]
+                            (concat
+                              (:tx-data or-data)
+                              (g/connect parent :id or-node :super-id))))]
       (is (= (g/node-value sub :id)
              (get-in (g/node-value sub :_declared-properties) [:properties :id :value]))))))
 
@@ -747,12 +749,12 @@
 
 (deftest reload-overrides
   (with-clean-system
-     (let [[node or-node] (tx-nodes (g/make-nodes world [node [support/ReloadNode :my-value "reload-test"]]
-                                                  (:tx-data (g/override node))))]
-       (g/transact (g/set-property or-node :my-value "new-value"))
-       (is (= "new-value" (get-in (g/node-value or-node :_properties) [:properties :my-value :value])))
-       (use 'dynamo.integration.override-test-support :reload)
-       (is (= "new-value" (get-in (g/node-value or-node :_properties) [:properties :my-value :value]))))))
+    (let [[node] (tx-nodes (g/make-nodes world [node [support/ReloadNode :my-value "reload-test"]]))
+          [or-node] (tx-nodes (:tx-data (g/override node)))]
+      (g/transact (g/set-property or-node :my-value "new-value"))
+      (is (= "new-value" (get-in (g/node-value or-node :_properties) [:properties :my-value :value])))
+      (use 'dynamo.integration.override-test-support :reload)
+      (is (= "new-value" (get-in (g/node-value or-node :_properties) [:properties :my-value :value]))))))
 
 ;; Dependency rules
 
@@ -788,40 +790,40 @@
           mains (mapv first all)
           subs (mapv second all)]
       (testing "value fnk"
-               (is (every? (deps [[main-0 :a-property]]) (outs mains :virt-property))))
+        (is (every? (deps [[main-0 :a-property]]) (outs mains :virt-property))))
       (testing "output"
-             (is (every? (deps [[main-0 :a-property]]) (outs mains :cached-output))))
+        (is (every? (deps [[main-0 :a-property]]) (outs mains :cached-output))))
       (testing "connections"
-              (is (every? conn? (for [[m s] all]
-                                  [s :_node-id m :sub-nodes])))
-              (is (every? no-conn? (for [mi (range 3)
-                                         si (range 3)
-                                         :when (not= mi si)
-                                         :let [m (nth mains mi)
-                                               s (nth subs si)]]
-                                     [s :_node-id m :sub-nodes]))))))
+        (is (every? conn? (for [[m s] all]
+                            [s :_node-id m :sub-nodes])))
+        (is (every? no-conn? (for [mi (range 3)
+                                   si (range 3)
+                                   :when (not= mi si)
+                                   :let [m (nth mains mi)
+                                         s (nth subs si)]]
+                               [s :_node-id m :sub-nodes]))))))
   (with-clean-system
-    (let [[src tgt src-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
-                                                         tgt TargetNode]
-                                                  (g/connect src :a-property tgt :in-value)
-                                                  (:tx-data (g/override src))))]
+    (let [[src tgt] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
+                                                   tgt TargetNode]
+                                            (g/connect src :a-property tgt :in-value)))
+          [src-1] (tx-nodes (:tx-data (g/override src)))]
       (testing "regular dep"
-               (is (every? (deps [[src :a-property]]) [[tgt :out-value]])))
+        (is (every? (deps [[src :a-property]]) [[tgt :out-value]])))
       (testing "no override deps"
-               (is (not-any? (deps [[src-1 :a-property]]) [[tgt :out-value]])))
+        (is (not-any? (deps [[src-1 :a-property]]) [[tgt :out-value]])))
       (testing "connections"
-              (is (conn? [src :a-property tgt :in-value]))
-              (is (no-conn? [src-1 :a-property tgt :in-value])))))
+        (is (conn? [src :a-property tgt :in-value]))
+        (is (no-conn? [src-1 :a-property tgt :in-value])))))
   (with-clean-system
-    (let [[src tgt tgt-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
-                                                         tgt TargetNode]
-                                                  (g/connect src :a-property tgt :in-value)
-                                                  (:tx-data (g/override tgt))))]
+    (let [[src tgt] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
+                                                   tgt TargetNode]
+                                            (g/connect src :a-property tgt :in-value)))
+          [tgt-1] (tx-nodes (:tx-data (g/override tgt)))]
       (testing "regular dep"
-               (is (every? (deps [[src :a-property]]) [[tgt :out-value] [tgt-1 :out-value]])))
+        (is (every? (deps [[src :a-property]]) [[tgt :out-value] [tgt-1 :out-value]])))
       (testing "connections"
-               (is (conn? [src :a-property tgt :in-value]))
-               (is (conn? [src :a-property tgt-1 :in-value])))))
+        (is (conn? [src :a-property tgt :in-value]))
+        (is (conn? [src :a-property tgt-1 :in-value])))))
   (with-clean-system
     (let [[sub-scene] (make-scene! world "sub-scene" [[VisualNode {:id "my-node" :value ""}]])
           [scene] (make-scene! world "scene" [[Template {:id "template" :template {:path "sub-scene" :overrides {}}}]
