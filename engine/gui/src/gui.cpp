@@ -1672,6 +1672,21 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                         lua_rawset(L, -3);
                     }
 
+                    if (ia->m_AccelerationSet)
+                    {
+                        lua_pushstring(L, "acc_x");
+                        lua_pushnumber(L, ia->m_AccX);
+                        lua_rawset(L,-3);
+
+                        lua_pushstring(L, "acc_y");
+                        lua_pushnumber(L, ia->m_AccY);
+                        lua_rawset(L,-3);
+
+                        lua_pushstring(L, "acc_z");
+                        lua_pushnumber(L, ia->m_AccZ);
+                        lua_rawset(L,-3);
+                    }
+
                     if (ia->m_TouchCount > 0)
                     {
                         int tc = ia->m_TouchCount;
@@ -2663,6 +2678,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         create_params.m_TrackIdxToPose     = rig_data.m_TrackIdxToPose;
         create_params.m_MeshId           = skin_id;
         create_params.m_DefaultAnimation = default_animation_id;
+
+        // We need to make sure the new rig scene has run an animation step to setup the
+        // pose since we could have been called mid frame in during a clone node call.
+        create_params.m_ForceAnimatePose = true;
 
         dmRig::Result res = dmRig::InstanceCreate(create_params);
         if (res != dmRig::RESULT_OK) {
@@ -3939,7 +3958,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             if (n->m_Node.m_RigInstance != 0x0)
             {
                 out_n->m_Node.m_RigInstance = 0x0;
-                SetNodeSpineScene(scene, *out_node, GetNodeSpineScene(scene, node), 0, 0, false);
+                SetNodeSpineScene(scene, *out_node, GetNodeSpineScene(scene, node), GetNodeSpineSkin(scene, node), GetNodeSpineAnimation(scene, node), false);
             }
 
             if (n->m_Node.m_ParticleInstance != 0x0)

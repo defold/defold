@@ -122,7 +122,7 @@
 (deftest autostage-test
   (with-git [git (new-git)]
     (testing "create files"
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (create-file git "/src/util.cpp" ""))
 
     (testing "Add and commit initial files"
@@ -182,7 +182,7 @@
 (deftest unified-status-test
   (testing "new file; unstaged and staged"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (is (= [{:score 0, :change-type :add, :old-path nil, :new-path "src/main.cpp"}] (git/unified-status git)))
       (add-src git)
       (is (= [{:score 0, :change-type :add, :old-path nil, :new-path "src/main.cpp"}] (git/unified-status git)))))
@@ -198,7 +198,7 @@
                         :old-path "src/before/original.cpp"
                         :score 100}]]
 
-      (create-file git "/src/before/original.cpp" "void main() {}")
+      (create-file git "/src/before/original.cpp" "void main() {}")
       (commit-src git)
       (is (= [] (git/unified-status git)))
 
@@ -214,23 +214,23 @@
     (with-git [git (new-git)
                expect {:score 0, :change-type :modify, :old-path "src/main.cpp", :new-path "src/main.cpp"}]
 
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (commit-src git)
       (is (= [] (git/unified-status git)))
 
-      (create-file git "/src/main.cpp" "void main2() {}")
+      (create-file git "/src/main.cpp" "void main2() {}")
       (is (= [expect] (git/unified-status git)))
       (add-src git)
       (is (= [expect] (git/unified-status git)))
 
-      (create-file git "/src/main.cpp" "void main2() {}\nint x;")
+      (create-file git "/src/main.cpp" "void main2() {}\nint x;")
       (add-src git)
       (is (= [expect] (git/unified-status git)))))
 
   (testing "delete and related"
     (with-git [git (new-git)]
 
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (commit-src git)
       (is (= [] (git/unified-status git)))
 
@@ -239,27 +239,27 @@
       (is (= [{:score 0, :change-type :delete, :old-path "src/main.cpp", :new-path nil}] (git/unified-status git)))
 
       ;; recreate src/main.cpp and expect in modified state
-      (create-file git "/src/main.cpp" "void main2() {}")
+      (create-file git "/src/main.cpp" "void main2() {}")
       (is (= [{:score 0, :change-type :modify, :old-path "src/main.cpp", :new-path "src/main.cpp"}] (git/unified-status git)))))
 
   (testing "rename in work tree"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (commit-src git)
       (is (= [] (git/unified-status git)))
 
-      (create-file git "/src/foo.cpp" "void main() {}")
+      (create-file git "/src/foo.cpp" "void main() {}")
       (delete-file git "src/main.cpp")
 
       (is (= [{:score 100, :change-type :rename, :old-path "src/main.cpp", :new-path "src/foo.cpp"}] (git/unified-status git)))))
 
   (testing "rename deleted and staged file"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (commit-src git)
       (is (= [] (git/unified-status git)))
 
-      (create-file git "/src/foo.cpp" "void main() {}")
+      (create-file git "/src/foo.cpp" "void main() {}")
       (-> git (.rm) (.addFilepattern "src/main.cpp") (.call))
 
       (is (= [{:score 100, :change-type :rename, :old-path "src/main.cpp", :new-path "src/foo.cpp"}] (git/unified-status git)))))
@@ -274,7 +274,7 @@
 
       (is (= [] (git/unified-status git)))
 
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (is (= [] (git/unified-status git))))))
 
 (deftest show-file-test
@@ -355,7 +355,7 @@
     (create-file git "src/main.cpp" "void main() {}")
     (commit-src git)
 
-    (create-file git "src/main.cpp" "void main2() {}")
+    (create-file git "src/main.cpp" "void main2() {}")
     (let [{:keys [modified changed]} (git/status git)]
       (is (= #{} changed))
       (is (= #{"src/main.cpp"} modified)))
@@ -759,14 +759,14 @@
 (deftest revert-test
   (testing "untracked"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (is (= #{"src/main.cpp"} (:untracked (git/status git))))
       (git/revert git ["src/main.cpp"])
       (is (= #{} (all-files (git/status git))))))
 
   (testing "new and staged"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
 
       (autostage git)
       (is (= #{"src/main.cpp"} (:added (git/status git))))
@@ -775,9 +775,9 @@
 
   (testing "changed"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (commit-src git)
-      (create-file git "/src/main.cpp" "void main2() {}")
+      (create-file git "/src/main.cpp" "void main2() {}")
 
       (is (= #{"src/main.cpp"} (:modified (git/status git))))
       (git/revert git ["src/main.cpp"])
@@ -785,9 +785,9 @@
 
   (testing "changed and staged"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
       (commit-src git)
-      (create-file git "/src/main.cpp" "void main2() {}")
+      (create-file git "/src/main.cpp" "void main2() {}")
 
       (is (= #{"src/main.cpp"} (:modified (git/status git))))
       (autostage git)
@@ -796,8 +796,8 @@
 
   (testing "deleted"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
-      (create-file git "/src/other.cpp" "void other() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/other.cpp" "void other() {}")
       (commit-src git)
 
       (delete-file git "src/main.cpp")
@@ -809,8 +809,8 @@
 
   (testing "deleted and staged"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
-      (create-file git "/src/other.cpp" "void other() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/other.cpp" "void other() {}")
       (commit-src git)
 
       (delete-file git "src/main.cpp")
@@ -823,11 +823,11 @@
 
   (testing "renamed"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
-      (create-file git "/src/other.cpp" "void other() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/other.cpp" "void other() {}")
       (commit-src git)
 
-      (create-file git "/src/foo.cpp" "void main() {}")
+      (create-file git "/src/foo.cpp" "void main() {}")
       (delete-file git "src/main.cpp")
       (delete-file git "src/other.cpp")
 
@@ -839,11 +839,11 @@
 
   (testing "renamed and staged"
     (with-git [git (new-git)]
-      (create-file git "/src/main.cpp" "void main() {}")
-      (create-file git "/src/other.cpp" "void other() {}")
+      (create-file git "/src/main.cpp" "void main() {}")
+      (create-file git "/src/other.cpp" "void other() {}")
       (commit-src git)
 
-      (create-file git "/src/foo.cpp" "void main() {}")
+      (create-file git "/src/foo.cpp" "void main() {}")
       (delete-file git "src/main.cpp")
       (delete-file git "src/other.cpp")
       (autostage git)
