@@ -129,6 +129,7 @@
 
 (g/defnk produce-go-outline [_node-id id source-outline source-resource child-outlines node-outline-extras]
   (-> {:node-id _node-id
+       :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) game-object/game-object-icon)
        :children (into (outline/natural-sort child-outlines) (:children source-outline))
@@ -154,6 +155,7 @@
   ;; TODO: embed error so can warn in outline
   ;; outline content not really used, only children if any.
   {:node-id 0
+   :node-outline-key ""
    :icon ""
    :label ""})
 
@@ -185,10 +187,10 @@
                                                                       :transform transform})])))
   (output build-error g/Err (g/constantly nil))
 
-  (output scene g/Any :cached (g/fnk [_node-id transform scene child-scenes]
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
                                      (let [aabb (reduce #(geom/aabb-union %1 (:aabb %2)) (or (:aabb scene) (geom/null-aabb)) child-scenes)
                                            aabb (geom/aabb-transform (geom/aabb-incorporate aabb 0 0 0) transform)]
-                                       (-> (scene/claim-scene scene _node-id)
+                                       (-> (scene/claim-scene scene _node-id id)
                                          (assoc :transform transform
                                                 :aabb aabb
                                                 :renderable {:passes [pass/selection]})
@@ -376,6 +378,7 @@
   (let [[go-outlines coll-outlines] (let [outlines (group-by #(g/node-instance? CollectionInstanceNode (:node-id %)) child-outlines)]
                                       [(get outlines false) (get outlines true)])]
     {:node-id _node-id
+     :node-outline-key "Collection"
      :label "Collection"
      :icon collection-icon
      :children (into (outline/natural-sort coll-outlines) (outline/natural-sort go-outlines))
@@ -467,6 +470,7 @@
 
 (g/defnk produce-coll-inst-outline [_node-id id source-resource source-outline source-id source-resource]
   (-> {:node-id _node-id
+       :node-outline-key id
        :label id
        :icon (or (not-empty (:icon source-outline)) collection-icon)
        :children (:children source-outline)}
@@ -561,8 +565,8 @@
                                             :rotation rotation
                                             :scale3 scale
                                             :instance-properties ddf-properties}))
-  (output scene g/Any :cached (g/fnk [_node-id transform scene]
-                                     (assoc (scene/claim-scene scene _node-id)
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
+                                     (assoc (scene/claim-scene scene _node-id id)
                                             :transform transform
                                             :aabb (geom/aabb-transform (or (:aabb scene) (geom/null-aabb)) transform)
                                             :renderable {:passes [pass/selection]})))

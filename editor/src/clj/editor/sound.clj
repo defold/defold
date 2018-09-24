@@ -55,6 +55,7 @@
 (g/defnk produce-outline-data
   [_node-id]
   {:node-id _node-id
+   :node-outline-key "Sound"
    :label "Sound"
    :icon sound-icon})
 
