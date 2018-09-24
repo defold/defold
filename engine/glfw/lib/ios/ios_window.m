@@ -651,7 +651,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     // If a touch both began and ended during one frame/update, set the phase as
     // tapped and we will send the released event during next update (see input.c).
-    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
+    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
         glfwt->Phase = GLFW_PHASE_TAPPED;
         return;
     }

@@ -21,6 +21,7 @@ def configure(conf):
 def build(bld):
     bld.add_group()
     bld.install_files('${PREFIX}/extender', 'build.yml')
+    bld.install_files('${PREFIX}/extender/variants', 'variants/*.appmanifest')
 
 def shutdown():
     pass

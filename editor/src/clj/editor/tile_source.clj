@@ -10,6 +10,7 @@
    [editor.image-util :as image-util]
    [editor.workspace :as workspace]
    [editor.resource :as resource]
+   [editor.resource-io :as resource-io]
    [editor.resource-node :as resource-node]
    [editor.defold-project :as project]
    [editor.handler :as handler]
@@ -523,7 +524,8 @@
 
 (defn- generate-packed-image [{:keys [_node-id texture-set-data-generator image-resource tile-source-attributes]}]
   (let [texture-set-data (call-generator texture-set-data-generator)
-        buffered-image (validation/resource-io-with-errors image-util/read-image image-resource _node-id :image)]
+        buffered-image (resource-io/with-error-translation image-resource _node-id :image
+                         (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
       buffered-image
       (texture-set-gen/layout-tile-source (:layout texture-set-data) buffered-image tile-source-attributes))))

@@ -18,7 +18,8 @@
             [editor.material :as material]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
-            [schema.core :as schema])
+            [schema.core :as schema]
+            [service.log :as log])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
            [com.defold.editor.pipeline BMFont]
            [editor.types AABB]
@@ -376,7 +377,9 @@
       (try
         (font-gen/generate pb-msg font font-resource-resolver)
         (catch Exception error
-          (g/->error _node-id :font :fatal font (str "Failed to generate bitmap from Font. " (.getMessage error)))))))
+          (let [message (str "Failed to generate bitmap from Font. " (.getMessage error))]
+            (log/error :msg message :exception error)
+            (g/->error _node-id :font :fatal font message))))))
 
 
 (defn- make-font-resource-resolver [font resource-map]

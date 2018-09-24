@@ -14,10 +14,10 @@
             [editor.math :as math]
             [editor.render :as render]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.rig :as rig]
             [editor.scene-cache :as scene-cache]
-            [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values])
   (:import [com.jogamp.opengl GL GL2]
@@ -211,15 +211,12 @@
   (rig/make-skeleton-build-target (resource/workspace resource) _node-id skeleton))
 
 (g/defnk produce-content [_node-id resource]
-  (try
-    (with-open [stream (io/input-stream resource)]
-      (collada/load-scene stream))
-    (catch NumberFormatException _
-      (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content}))
-    (catch java.io.FileNotFoundException _
-      (validation/file-not-found-error _node-id :content :fatal resource))
-    (catch Exception _
-      (validation/invalid-content-error _node-id :content :fatal resource))))
+  (resource-io/with-error-translation resource _node-id :content
+    (try
+      (with-open [stream (io/input-stream resource)]
+        (collada/load-scene stream))
+      (catch NumberFormatException _
+        (error-values/error-fatal "The scene contains invalid numbers, likely produced by a buggy exporter." {:type :invalid-content})))))
 
 (defn- vbuf-size [meshes]
   (reduce (fn [sz m] (max sz (alength ^ints (:indices m)))) 0 meshes))
