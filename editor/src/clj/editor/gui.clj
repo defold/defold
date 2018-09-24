@@ -431,8 +431,8 @@
 (g/deftype ^:private NodeIndex [(s/one s/Int "node-id") (s/one s/Int "index")])
 (g/deftype ^:private NameIndex [(s/one s/Str "name") (s/one s/Int "index")])
 
-(g/defnk override? [id-prefix] (some? id-prefix))
-(g/defnk no-override? [id-prefix] (nil? id-prefix))
+(g/defnk override-node? [_basis _node-id] (g/override? _basis _node-id))
+(g/defnk not-override-node? [_basis _node-id] (not (g/override? _basis _node-id)))
 
 (defn- validate-contains [severity fmt prop-kw node-id coll key]
   (validation/prop-error severity node-id
@@ -526,12 +526,12 @@
 
   (property id g/Str (default "")
             (dynamic error (g/fnk [_node-id id id-counts] (prop-unique-id-error _node-id :id id id-counts "Id")))
-            (dynamic visible no-override?))
+            (dynamic visible not-override-node?))
   (property generated-id g/Str
             (dynamic label (g/constantly "Id"))
-            (value (gu/passthrough id))
+            (value (gu/passthrough id)) ; see (output id ...) below
             (dynamic read-only? (g/constantly true))
-            (dynamic visible override?))
+            (dynamic visible override-node?))
   (property size types/Vec3 (default [0 0 0])
             (dynamic visible (g/fnk [type] (not= type :type-template))))
   (property color types/Color (default [1 1 1 1])
@@ -1050,7 +1050,7 @@
   (inherits GuiNode)
 
   (property template TemplateData
-            (dynamic read-only? override?)
+            (dynamic read-only? override-node?)
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "gui"
                                               :to-type (fn [v] (:resource v))
@@ -1652,6 +1652,7 @@
 (g/defnode LayoutNode
   (inherits outline/OutlineNode)
   (property name g/Str
+            (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name"))))
   (property nodes g/Any
             (dynamic visible (g/constantly false))
