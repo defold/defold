@@ -245,9 +245,9 @@
                        (gu/disconnect-all basis self :module-completion-infos)
                        (for [module new-value]
                          (let [path (lua/lua-module->path module)]
-                           (project/connect-resource-node evaluation-context project path self
-                                                          [[:build-targets :dep-build-targets]
-                                                           [:completion-info :module-completion-infos]]))))))))
+                           (:tx-data (project/connect-resource-node evaluation-context project path self
+                                                                    [[:build-targets :dep-build-targets]
+                                                                     [:completion-info :module-completion-infos]])))))))))
 
   (property script-properties g/Any
             (default [])
