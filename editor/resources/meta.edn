@@ -626,6 +626,10 @@
    :help "hide the navigation and status bars and lets your app capture all touch events on the screen",
    :default false,
    :path ["android" "immersive_mode"]}
+  {:type :boolean,
+   :help "helps you debug the application and also get files from the application",
+   :default false,
+   :path ["android" "debuggable"]}
   {:type :resource,
    :filter "icns",
    :preserve-extension true,
