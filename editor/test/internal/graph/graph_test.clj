@@ -116,7 +116,7 @@
 (deftest graph-override-cleanup
   (with-clean-system
     (let [[original override] (tx-nodes (g/make-nodes world [n (TestNode :val "original")]
-                                                      (:tx-data (g/override n))))
+                                                      (g/override n)))
           basis (is/basis system)]
       (is (= override (first (ig/get-overrides basis original))))
       (g/transact (g/delete-node original))
