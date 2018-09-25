@@ -11,6 +11,7 @@
             [editor.dialogs :as dialogs]
             [editor.engine :as engine]
             [editor.fs :as fs]
+            [editor.lua :as lua]
             [editor.handler :as handler]
             [editor.jfx :as jfx]
             [editor.login :as login]
@@ -982,6 +983,8 @@ If you do not specifically require different script states, consider changing th
                   :command :copy-project-path}
                  {:label "Copy Full Path"
                   :command :copy-full-path}
+                 {:label "Copy Require Path"
+                  :command :copy-require-path}
                  {:label "Referencing Files..."
                   :command :referencing-files}
                  {:label "Dependencies..."
@@ -1408,6 +1411,17 @@ If you do not specifically require different script states, consider changing th
   (run [selection app-view]
     (when-let [r (context-resource-file app-view selection)]
       (put-on-clipboard! (resource/abs-path r)))))
+
+(handler/defhandler :copy-require-path :global
+  (active? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                  (= "lua" (resource/type-ext r))))
+  (enabled? [app-view selection] (when-let [r (context-resource-file app-view selection)]
+                                   (and (resource/proj-path r)
+                                        (resource/exists? r))))
+  (run [selection app-view]
+     (when-let [r (context-resource-file app-view selection)]
+       (put-on-clipboard! (lua/path->lua-module (resource/proj-path r))))))
+
 
 (defn- gen-tooltip [workspace project app-view resource]
   (let [resource-type (resource/resource-type resource)
