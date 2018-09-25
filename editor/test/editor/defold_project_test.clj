@@ -21,7 +21,7 @@
   (property source-resource resource/Resource
             (set (fn [evaluation-context self _old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)]
-                     (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]])))))
+                     (:tx-data (project/connect-resource-node evaluation-context project new-value self [[:value :value-input]]))))))
   (input value-input g/Str))
 
 (g/defnode BNode
