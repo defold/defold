@@ -1058,8 +1058,8 @@
             (dynamic error (g/fnk [_node-id template-resource]
                              (prop-resource-error _node-id :template template-resource "Template")))
             (value (g/fnk [_node-id id template-resource template-overrides]
-                          (let [overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
-                            {:resource template-resource :overrides overrides})))
+                     (let [overrides (into {} (map (fn [[k v]] [(subs k (inc (count id))) v]) template-overrides))]
+                       {:resource template-resource :overrides overrides})))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
                          project (project/get-project basis self)
@@ -1069,49 +1069,49 @@
                          (g/delete-node current-scene)
                          [])
                        (if (and new-value (:resource new-value))
-                         (project/connect-resource-node evaluation-context project (:resource new-value) self []
-                                                        (fn [scene-node]
-                                                          (let [properties-by-node-id (comp (or (:overrides new-value) {})
-                                                                                        (into {} (map (fn [[k v]] [v k]))
-                                                                                          (g/node-value scene-node :node-ids evaluation-context)))
-                                                                override (g/override basis scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
-                                                                                                                    (if (not= src current-scene)
-                                                                                                                      (or (g/node-instance? basis GuiNode src)
-                                                                                                                          (g/node-instance? basis NodeTree src)
-                                                                                                                          (g/node-instance? basis GuiSceneNode src)
-                                                                                                                          (g/node-instance? basis LayoutsNode src)
-                                                                                                                          (g/node-instance? basis LayoutNode src))
-                                                                                                                      false))
-                                                                                                       :properties-by-node-id properties-by-node-id})
-                                                                id-mapping (:id-mapping override)
-                                                                or-scene (get id-mapping scene-node)]
-                                                            (concat
-                                                              (:tx-data override)
-                                                              (for [[from to] [[:node-ids :node-ids]
-                                                                               [:node-outline :template-outline]
-                                                                               [:template-scene :template-scene]
-                                                                               [:build-targets :template-build-targets]
-                                                                               [:build-errors :child-build-errors]
-                                                                               [:resource :template-resource]
-                                                                               [:pb-msg :scene-pb-msg]
-                                                                               [:rt-pb-msg :scene-rt-pb-msg]
-                                                                               [:node-overrides :template-overrides]]]
-                                                                (g/connect or-scene from self to))
-                                                              (for [[from to] [[:layer-names :layer-names]
-                                                                               [:texture-gpu-textures :aux-texture-gpu-textures]
-                                                                               [:texture-anim-datas :aux-texture-anim-datas]
-                                                                               [:texture-names :aux-texture-names]
-                                                                               [:font-shaders :aux-font-shaders]
-                                                                               [:font-datas :aux-font-datas]
-                                                                               [:font-names :aux-font-names]
-                                                                               [:spine-scene-element-ids :aux-spine-scene-element-ids]
-                                                                               [:spine-scene-infos :aux-spine-scene-infos]
-                                                                               [:spine-scene-names :aux-spine-scene-names]
-                                                                               [:particlefx-infos :aux-particlefx-infos]
-                                                                               [:particlefx-resource-names :aux-particlefx-resource-names]
-                                                                               [:template-prefix :id-prefix]
-                                                                               [:current-layout :current-layout]]]
-                                                                (g/connect self from or-scene to))))))
+                         (when-some [{connect-tx-data :tx-data scene-node :node-id} (project/connect-resource-node evaluation-context project (:resource new-value) self [])]
+                           (let [properties-by-node-id (comp (or (:overrides new-value) {})
+                                                             (into {} (map (fn [[k v]] [v k]))
+                                                                   (g/node-value scene-node :node-ids evaluation-context)))
+                                 override (g/override basis scene-node {:traverse? (fn [basis [src src-label tgt tgt-label]]
+                                                                                     (if (not= src current-scene)
+                                                                                       (or (g/node-instance? basis GuiNode src)
+                                                                                           (g/node-instance? basis NodeTree src)
+                                                                                           (g/node-instance? basis GuiSceneNode src)
+                                                                                           (g/node-instance? basis LayoutsNode src)
+                                                                                           (g/node-instance? basis LayoutNode src))
+                                                                                       false))
+                                                                        :properties-by-node-id properties-by-node-id})
+                                 id-mapping (:id-mapping override)
+                                 or-scene (get id-mapping scene-node)]
+                             (concat
+                               connect-tx-data
+                               (:tx-data override)
+                               (for [[from to] [[:node-ids :node-ids]
+                                                [:node-outline :template-outline]
+                                                [:template-scene :template-scene]
+                                                [:build-targets :template-build-targets]
+                                                [:build-errors :child-build-errors]
+                                                [:resource :template-resource]
+                                                [:pb-msg :scene-pb-msg]
+                                                [:rt-pb-msg :scene-rt-pb-msg]
+                                                [:node-overrides :template-overrides]]]
+                                 (g/connect or-scene from self to))
+                               (for [[from to] [[:layer-names :layer-names]
+                                                [:texture-gpu-textures :aux-texture-gpu-textures]
+                                                [:texture-anim-datas :aux-texture-anim-datas]
+                                                [:texture-names :aux-texture-names]
+                                                [:font-shaders :aux-font-shaders]
+                                                [:font-datas :aux-font-datas]
+                                                [:font-names :aux-font-names]
+                                                [:spine-scene-element-ids :aux-spine-scene-element-ids]
+                                                [:spine-scene-infos :aux-spine-scene-infos]
+                                                [:spine-scene-names :aux-spine-scene-names]
+                                                [:particlefx-infos :aux-particlefx-infos]
+                                                [:particlefx-resource-names :aux-particlefx-resource-names]
+                                                [:template-prefix :id-prefix]
+                                                [:current-layout :current-layout]]]
+                                 (g/connect self from or-scene to)))))
                          []))))))
 
   (display-order (into base-display-order [:template]))
