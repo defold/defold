@@ -257,47 +257,48 @@
                      (if-let [old-source (g/node-value self :source-id evaluation-context)]
                        (g/delete-node old-source)
                        [])
-                     (let [new-resource (:resource new-value)]
-                       (let [basis (:basis evaluation-context)
-                             project (project/get-project basis self)]
-                         (project/connect-resource-node evaluation-context project new-resource self []
-                                                        (fn [go-node]
-                                                          (let [component-overrides (into {} (map (fn [m]
-                                                                                                    [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
-                                                                                                                           (:properties m)))])
-                                                                                                  (:overrides new-value)))
-                                                                override (g/override basis go-node {:traverse? or-go-traverse?})
-                                                                id-mapping (:id-mapping override)
-                                                                or-node (get id-mapping go-node)
-                                                                component-ids (g/node-value go-node :component-ids evaluation-context)
-                                                                id-mapping (fn [id]
-                                                                             (-> id
-                                                                                 component-ids
-                                                                                 (g/node-value :source-id evaluation-context)
-                                                                                 id-mapping))]
-                                                            (concat
-                                                              (:tx-data override)
-                                                              (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                                (for [[from to] [[:_node-id                 :source-id]
-                                                                                 [:resource                 :source-resource]
-                                                                                 [:node-outline             :source-outline]
-                                                                                 [:scene                    :scene]
-                                                                                 [:ddf-component-properties :ddf-component-properties]]
-                                                                      :when (contains? outputs from)]
-                                                                  (g/connect or-node from self to)))
-                                                              (for [[from to] [[:build-targets :source-build-targets]]]
-                                                                (g/connect go-node from self to))
-                                                              (for [[from to] [[:url :base-url]]]
-                                                                (g/connect self from or-node to))
-                                                              (for [[id p] component-overrides
-                                                                    [key [type value]] p
-                                                                    :let [comp-id (id-mapping id)]]
-                                                                (let [refd-component (component-ids id)
-                                                                      refd-component-props (:properties (g/node-value refd-component :_properties evaluation-context))
-                                                                      original-type (get-in refd-component-props [key :type])
-                                                                      override-type (script/go-prop-type->property-types type)]
-                                                                  (when (= original-type override-type)
-                                                                    (g/set-property comp-id key value)))))))))))))
+                     (let [new-resource (:resource new-value)
+                           basis (:basis evaluation-context)
+                           project (project/get-project basis self)]
+                       (when-some [{connect-tx-data :tx-data go-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                         (let [component-overrides (into {}
+                                                         (map (fn [m]
+                                                                [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
+                                                                                       (:properties m)))])
+                                                              (:overrides new-value)))
+                               override (g/override basis go-node {:traverse? or-go-traverse?})
+                               id-mapping (:id-mapping override)
+                               or-node (get id-mapping go-node)
+                               component-ids (g/node-value go-node :component-ids evaluation-context)
+                               id-mapping (fn [id]
+                                            (-> id
+                                              component-ids
+                                              (g/node-value :source-id evaluation-context)
+                                              id-mapping))]
+                           (concat
+                             connect-tx-data
+                             (:tx-data override)
+                             (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                               (for [[from to] [[:_node-id                 :source-id]
+                                                [:resource                 :source-resource]
+                                                [:node-outline             :source-outline]
+                                                [:scene                    :scene]
+                                                [:ddf-component-properties :ddf-component-properties]]
+                                     :when (contains? outputs from)]
+                                 (g/connect or-node from self to)))
+                             (for [[from to] [[:build-targets :source-build-targets]]]
+                               (g/connect go-node from self to))
+                             (for [[from to] [[:url :base-url]]]
+                               (g/connect self from or-node to))
+                             (for [[id p] component-overrides
+                                   [key [type value]] p
+                                   :let [comp-id (id-mapping id)]]
+                               (let [refd-component (component-ids id)
+                                     refd-component-props (:properties (g/node-value refd-component :_properties evaluation-context))
+                                     original-type (get-in refd-component-props [key :type])
+                                     override-type (script/go-prop-type->property-types type)]
+                                 (when (= original-type override-type)
+                                   (g/set-property comp-id key value)))))))))))
             (dynamic error (g/fnk [_node-id source-resource]
                                   (path-error _node-id source-resource))))
 
@@ -499,44 +500,44 @@
              (if-let [old-source (g/node-value self :source-id evaluation-context)]
                (g/delete-node old-source)
                [])
-             (let [new-resource (:resource new-value)]
-               (let [basis (:basis evaluation-context)
-                     project (project/get-project basis self)]
-                 (project/connect-resource-node evaluation-context project new-resource self []
-                                                (fn [coll-node]
-                                                  (let [override (g/override basis coll-node {:traverse? or-coll-traverse?})
-                                                        id-mapping (:id-mapping override)
-                                                        go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
-                                                        component-overrides (for [{:keys [id properties]} (:overrides new-value)
-                                                                                  :let [comp-ids (-> id
-                                                                                                   go-inst-ids
-                                                                                                   (g/node-value :source-id evaluation-context)
-                                                                                                   (g/node-value :component-ids evaluation-context))]
-                                                                                  :when comp-ids
-                                                                                  {:keys [id properties]} properties
-                                                                                  :let [comp-id (-> id
-                                                                                                  comp-ids
-                                                                                                  (g/node-value :source-id evaluation-context))]
-                                                                                  p properties]
-                                                                              [(id-mapping comp-id) (properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
-                                                        or-node (get id-mapping coll-node)]
-                                                    (concat
-                                                      (:tx-data override)
-                                                      (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                        (for [[from to] [[:_node-id       :source-id]
-                                                                         [:resource       :source-resource]
-                                                                         [:node-outline   :source-outline]
-                                                                         [:scene          :scene]
-                                                                         [:ddf-properties :ddf-properties]
-                                                                         [:go-inst-ids    :go-inst-ids]]
-                                                              :when (contains? outputs from)]
-                                                          (g/connect or-node from self to)))
-                                                      (for [[from to] [[:build-targets :build-targets]]]
-                                                        (g/connect coll-node from self to))
-                                                      (for [[from to] [[:url :base-url]]]
-                                                        (g/connect self from or-node to))
-                                                      (for [[comp-id label value] component-overrides]
-                                                        (g/set-property comp-id label value)))))))))))
+             (let [new-resource (:resource new-value)
+                   basis (:basis evaluation-context)
+                   project (project/get-project basis self)]
+               (when-some [{connect-tx-data :tx-data coll-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                 (let [override (g/override basis coll-node {:traverse? or-coll-traverse?})
+                       id-mapping (:id-mapping override)
+                       go-inst-ids (g/node-value coll-node :go-inst-ids evaluation-context)
+                       component-overrides (for [{:keys [id properties]} (:overrides new-value)
+                                                 :let [comp-ids (-> id
+                                                                  go-inst-ids
+                                                                  (g/node-value :source-id evaluation-context)
+                                                                  (g/node-value :component-ids evaluation-context))]
+                                                 :when comp-ids
+                                                 {:keys [id properties]} properties
+                                                 :let [comp-id (-> id
+                                                                 comp-ids
+                                                                 (g/node-value :source-id evaluation-context))]
+                                                 p properties]
+                                             [(id-mapping comp-id) (properties/user-name->key (:id p)) (properties/str->go-prop (:value p) (:type p))])
+                       or-node (get id-mapping coll-node)]
+                   (concat
+                     connect-tx-data
+                     (:tx-data override)
+                     (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                       (for [[from to] [[:_node-id       :source-id]
+                                        [:resource       :source-resource]
+                                        [:node-outline   :source-outline]
+                                        [:scene          :scene]
+                                        [:ddf-properties :ddf-properties]
+                                        [:go-inst-ids    :go-inst-ids]]
+                             :when (contains? outputs from)]
+                         (g/connect or-node from self to)))
+                     (for [[from to] [[:build-targets :build-targets]]]
+                       (g/connect coll-node from self to))
+                     (for [[from to] [[:url :base-url]]]
+                       (g/connect self from or-node to))
+                     (for [[comp-id label value] component-overrides]
+                       (g/set-property comp-id label value)))))))))
     (dynamic error (g/fnk [_node-id source-resource]
                           (path-error _node-id source-resource)))
     (dynamic edit-type (g/fnk [source-resource]
