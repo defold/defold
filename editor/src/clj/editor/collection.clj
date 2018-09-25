@@ -264,11 +264,12 @@
                          (project/connect-resource-node evaluation-context project new-resource self []
                                                         (fn [go-node]
                                                           (println :go-node (g/node-value go-node :resource))
+                                                          (println :go-node :ec (g/node-value go-node :resource evaluation-context))
                                                           (let [component-overrides (into {} (map (fn [m]
                                                                                                     [(:id m) (into {} (map (fn [p] [(properties/user-name->key (:id p)) [(:type p) (properties/str->go-prop (:value p) (:type p))]])
                                                                                                                            (:properties m)))])
                                                                                                   (:overrides new-value)))
-                                                                ;; IF the game object file does not exist, a corrensponding resource node will
+                                                                ;; IF the game object file does not exist, a corresponding resource node will
                                                                 ;; just have been created/loaded by connect-resource-node (transactions added to
                                                                 ;; list before this override-call) - but g/override does not "see" any of connections
                                                                 ;; etc made - can't even look up anything about the node-id since the node is not yet
@@ -294,7 +295,7 @@
                                                                       :when (contains? outputs from)]
                                                                   (g/connect or-node from self to)))
                                                               (for [[from to] [[:build-targets :source-build-targets]]]
-                                                                (g/connect go-node from self to))
+                                                                (g/connect go-node from self to)) ;; <---- shouldn't this be or-node???
                                                               (for [[from to] [[:url :base-url]]]
                                                                 (g/connect self from or-node to))
                                                               (for [[id p] component-overrides

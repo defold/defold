@@ -102,6 +102,8 @@
                                          :exception e)
                                nil))
                            (resource-node-dependencies node-id))
+        _ (println (resource/resource->proj-path (g/node-value node-id :resource)) :->
+                   dependency-paths)
         dependency-nodes (keep nodes-by-resource-path dependency-paths)]
     dependency-nodes))
 
@@ -139,7 +141,12 @@
                                             node-id->resource)
         nodes-by-resource-path (merge old-nodes-by-resource-path loaded-nodes-by-resource-path)
         loaded-nodes (set node-ids)
-        load-deps (fn [node-id] (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context))
+        load-deps (fn [node-id]
+                    (let [deps (node-load-dependencies node-id loaded-nodes nodes-by-resource-path resource-node-dependencies evaluation-context)]
+                      #_(println (resource/resource->proj-path (g/node-value node-id :resource)) :->
+                               (map #(resource/resource->proj-path (g/node-value % :resource))
+                                    deps))
+                      deps))
         node-ids (sort-nodes-for-loading (sort-by (comp resource/resource->proj-path node-id->resource) node-ids) load-deps)
         basis (:basis evaluation-context)
         render-loading-progress! (progress/nest-render-progress render-progress! (progress/make "" 5 0) 4)
@@ -151,6 +158,7 @@
                          (render-loading-progress! (progress/make (str "Loading " resource-path)
                                                                   (count node-ids)
                                                                   node-index))
+                         #_(println (resource/resource->proj-path (node-id->resource node-id)))
                          [(g/callback render-processing-progress! (progress/make (str "Processing " resource-path)
                                                                                  (count node-ids)
                                                                                  node-index))
