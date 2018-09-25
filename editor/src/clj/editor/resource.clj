@@ -6,11 +6,10 @@
             [schema.core :as s]
             [editor.core :as core]
             [editor.fs :as fs]
-            [editor.handler :as handler]
             [util.digest :as digest])
-  (:import [java.io ByteArrayOutputStream File FilterOutputStream]
-           [java.nio.file FileSystem FileSystems PathMatcher]
-           [java.net URI URL]
+  (:import [java.io ByteArrayOutputStream File IOException]
+           [java.nio.file FileSystem FileSystems]
+           [java.net URI]
            [java.util.zip ZipEntry ZipInputStream]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
@@ -84,7 +83,18 @@
   (source-type [this] source-type)
   (exists? [this]
     (try
-      (.exists (io/file this))
+      ;; The path must match the casing of the file on disk exactly. We treat
+      ;; this as an error to make the user manually fix mismatches. We could fix
+      ;; such references automatically by using the canonical path to create the
+      ;; FileResource. However, some ids used by the engine are derived from the
+      ;; file names, most notably AtlasImage ids. Since these can be referenced
+      ;; from scripts, we make the user aware of the bad reference so she can
+      ;; fix it manually and hopefully remember to update the scripts too.
+      (let [file (io/file this)]
+        (and (.exists file)
+             (= abs-path (.getCanonicalPath file))))
+      (catch IOException _
+        false)
       (catch SecurityException _
         false)))
   (read-only? [this]
