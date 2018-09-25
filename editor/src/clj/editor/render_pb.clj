@@ -26,7 +26,7 @@
                          (project/disconnect-resource-node evaluation-context project old-value self connections)
                          (g/disconnect project :nil-resource self :material-resource))
                        (if new-value
-                         (project/connect-resource-node evaluation-context project new-value self connections)
+                         (:tx-data (project/connect-resource-node evaluation-context project new-value self connections))
                          (g/connect project :nil-resource self :material-resource))))))
            (dynamic visible (g/constantly false)))
 

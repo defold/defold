@@ -678,28 +678,31 @@
       [tx-data-context' created-resource-node-id creation-tx-data])))
 
 (defn connect-resource-node
-  ([evaluation-context project path-or-resource consumer-node connections]
-   (connect-resource-node evaluation-context project path-or-resource consumer-node connections nil))
-  ([evaluation-context project path-or-resource consumer-node connections attach-fn]
-   ;; TODO: This is typically run from a property setter, where currently the
-   ;; evaluation-context does not contain a cache. This makes resource lookups
-   ;; very costly as they need to produce the lookup maps every time.
-   ;; In large projects, this has a huge impact on load time. To work around
-   ;; this, we use the default, cached evaluation-context to resolve resources.
-   ;; This has been reported as DEFEDIT-1411.
-   (g/with-auto-evaluation-context default-evaluation-context
-     (when-some [resource (resolve-path-or-resource project path-or-resource default-evaluation-context)]
-       (let [[node-id creation-tx-data] (if-some [existing-resource-node-id (get-resource-node project resource default-evaluation-context)]
-                                          [existing-resource-node-id nil]
-                                          (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
-             node-type (resource-node-type resource)]
-         (concat
-           creation-tx-data
-           (when (or creation-tx-data *load-cache*)
-             (load-node project node-id node-type resource))
-           (connect-if-output node-type node-id consumer-node connections)
-           (when (some? attach-fn)
-             (attach-fn node-id))))))))
+  "Creates transaction steps for creating `connections` between the
+  corresponding node for `path-or-resource` and `consumer-node`. If
+  there is no corresponding node for `path-or-resource`, transactions
+  for creating and loading the node will be included. Returns map with
+  transactions in :tx-data and node-id corresponding to
+  `path-or-resource` in :node-id"
+  [evaluation-context project path-or-resource consumer-node connections]
+  ;; TODO: This is typically run from a property setter, where currently the
+  ;; evaluation-context does not contain a cache. This makes resource lookups
+  ;; very costly as they need to produce the lookup maps every time.
+  ;; In large projects, this has a huge impact on load time. To work around
+  ;; this, we use the default, cached evaluation-context to resolve resources.
+  ;; This has been reported as DEFEDIT-1411.
+  (g/with-auto-evaluation-context default-evaluation-context
+    (when-some [resource (resolve-path-or-resource project path-or-resource default-evaluation-context)]
+      (let [[node-id creation-tx-data] (if-some [existing-resource-node-id (get-resource-node project resource default-evaluation-context)]
+                                         [existing-resource-node-id nil]
+                                         (thread-util/swap-rest! (:tx-data-context evaluation-context) ensure-resource-node-created project resource))
+            node-type (resource-node-type resource)]
+        {:node-id node-id
+         :tx-data (concat
+                    creation-tx-data
+                    (when (or creation-tx-data *load-cache*)
+                      (load-node project node-id node-type resource))
+                    (connect-if-output node-type node-id consumer-node connections))}))))
 
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener
@@ -759,4 +762,4 @@
   (let [project (get-project (:basis evaluation-context) self)]
     (concat
       (when old-value (disconnect-resource-node evaluation-context project old-value self connections))
-      (when new-value (connect-resource-node evaluation-context project new-value self connections)))))
+      (when new-value (:tx-data (connect-resource-node evaluation-context project new-value self connections))))))
