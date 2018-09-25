@@ -267,28 +267,28 @@
                        (if override?
                          (let [basis (:basis evaluation-context)
                                project (project/get-project basis self)]
-                               (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
-                                 (let [override (g/override basis comp-node {:traverse? (constantly true)})
-                                       id-mapping (:id-mapping override)
-                                       or-node (get id-mapping comp-node)
-                                       comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
-                                   (concat
-                                     connect-tx-data
-                                     (:tx-data override)
-                                     (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                       (for [[from to] [[:_node-id :source-id]
-                                                        [:resource :source-resource]
-                                                        [:node-outline :source-outline]
-                                                        [:_properties :source-properties]
-                                                        [:scene :scene]
-                                                        [:build-targets :source-build-targets]]
-                                             :when (contains? outputs from)]
-                                         (g/connect or-node from self to)))
-                                     (for [[label [type value]] (:overrides new-value)]
-                                       (let [original-type (get-in comp-props [label :type])
-                                             override-type (script/go-prop-type->property-types type)]
-                                         (when (= original-type override-type)
-                                           (g/set-property or-node label value))))))))
+                           (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                             (let [override (g/override basis comp-node {:traverse? (constantly true)})
+                                   id-mapping (:id-mapping override)
+                                   or-node (get id-mapping comp-node)
+                                   comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
+                               (concat
+                                 connect-tx-data
+                                 (:tx-data override)
+                                 (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                   (for [[from to] [[:_node-id :source-id]
+                                                    [:resource :source-resource]
+                                                    [:node-outline :source-outline]
+                                                    [:_properties :source-properties]
+                                                    [:scene :scene]
+                                                    [:build-targets :source-build-targets]]
+                                         :when (contains? outputs from)]
+                                     (g/connect or-node from self to)))
+                                 (for [[label [type value]] (:overrides new-value)]
+                                   (let [original-type (get-in comp-props [label :type])
+                                         override-type (script/go-prop-type->property-types type)]
+                                     (when (= original-type override-type)
+                                       (g/set-property or-node label value))))))))
                          (project/resource-setter evaluation-context self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
