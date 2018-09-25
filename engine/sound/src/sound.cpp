@@ -4,7 +4,6 @@
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/profile.h>
-#include <dlib/time.h>
 
 #include "sound.h"
 #include "sound_codec.h"
@@ -180,8 +179,6 @@ namespace dmSound
 
         Stats                   m_Stats;
 
-        uint64_t                m_LastInstancePlayedNS;
-
         uint32_t                m_MixRate;
         uint32_t                m_FrameCount;
 
@@ -324,7 +321,6 @@ namespace dmSound
             sound->m_SoundData[i].m_Index = 0xffff;
         }
 
-        sound->m_LastInstancePlayedNS = dmTime::GetTime();
         sound->m_MixRate = device_info.m_MixRate;
         sound->m_FrameCount = params->m_FrameCount;
         for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
@@ -1191,21 +1187,22 @@ namespace dmSound
             return RESULT_OK;
         }
 
-        // Make sure to always query for free slots, this drives recovery of queued buffers
-        uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
         uint16_t active_instance_count = sound->m_InstancesPool.Size();
+
+        if (active_instance_count == 0 && sound->m_IsSoundActive == false)
+        {
+            return RESULT_NOTHING_TO_PLAY;
+        }
+
+        uint32_t free_slots = sound->m_DeviceType->m_FreeBufferSlots(sound->m_Device);
 
         if (active_instance_count == 0)
         {
             if (sound->m_IsSoundActive == true)
             {
-                uint64_t nowNS = dmTime::GetTime();
-
-                // Wait with releasing audio until all our queued buffers have played, if any queued buffers are still playing
+                // DEF-3512 Wait with releasing audio until all our queued buffers have played, if any queued buffers are still playing
                 // we will get the wrong result in isMusicPlaying on android since it detects our sounds as "other application".
-                // We add one buffer to the delay length to be on the safe side.
-                uint64_t queueLengthNS = (1000ull * 1000ull * ((SOUND_OUTBUFFER_COUNT - free_slots + 1) * sound->m_FrameCount)) / sound->m_MixRate;
-                if ((nowNS - sound->m_LastInstancePlayedNS) > queueLengthNS)
+                if (free_slots == SOUND_OUTBUFFER_COUNT)
                 {
                     bool ok = PlatformReleaseAudioFocus();
                     if (ok)
@@ -1220,8 +1217,6 @@ namespace dmSound
             }
             return RESULT_NOTHING_TO_PLAY;
         }
-
-        sound->m_LastInstancePlayedNS = dmTime::GetTime();
 
         // DEF-3130 Don't request the audio focus unless something is being played
         // This allows the client to check for sound.is_music_playing() and mute sounds accordingly
@@ -1255,9 +1250,9 @@ namespace dmSound
 
             Master(&mix_context);
 
-            // DEF-2540: Make sure to keep feeding the sound device, if you don't you'll get more slots free,
-            // thus updating sound (redundantly) every call, resulting in a huge performance hit.
-            // Also, you'll fast forward the sounds.
+            // DEF-2540: Make sure to keep feeding the sound device if audio is beegin generated,
+            // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
+            // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
