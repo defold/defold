@@ -1,6 +1,5 @@
 (ns editor.atlas
   (:require [clojure.string :as str]
-            [editor.protobuf :as protobuf]
             [dynamo.graph :as g]
             [editor.image :as image]
             [editor.image-util :as image-util]
@@ -9,7 +8,6 @@
             [editor.colors :as colors]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
-            [editor.ui :as ui]
             [editor.gl :as gl]
             [editor.gl.shader :as shader]
             [editor.gl.texture :as texture]
@@ -31,14 +29,13 @@
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
             [editor.graph-util :as gu])
-  (:import [com.dynamo.atlas.proto AtlasProto AtlasProto$Atlas]
-           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$Type]
-           [com.dynamo.textureset.proto TextureSetProto$Constants TextureSetProto$TextureSet TextureSetProto$TextureSetAnimation]
+  (:import [com.dynamo.atlas.proto AtlasProto$Atlas]
+           [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.tile.proto Tile$Playback]
-           [editor.types Animation Image Rect AABB]
+           [editor.types Animation Image AABB]
            [java.awt.image BufferedImage]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Point3d Vector3d Matrix4d]))
+           [javax.vecmath Point3d]))
 
 (set! *warn-on-reflection* true)
 
@@ -138,26 +135,35 @@
                          :flip-vertical   false
                          :playback        :playback-once-forward}))
 
+(defn- atlas-image-error [node-id image-resource]
+  (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource "Image"))
+
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
 
   (property size types/Vec2
-    (value (g/fnk [image-size] [(:width image-size 0) (:height image-size 0)]))
-    (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
-    (dynamic read-only? (g/constantly true)))
+            (value (g/fnk [maybe-image-size] [(:width maybe-image-size 0) (:height maybe-image-size 0)]))
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
+            (dynamic read-only? (g/constantly true)))
 
   (property image resource/Resource
-            (value (gu/passthrough image-resource))
+            (value (gu/passthrough maybe-image-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
-                                            [:resource :image-resource]
-                                            [:size :image-size])))
-            (dynamic visible (g/constantly false)))
+                                            [:resource :maybe-image-resource]
+                                            [:size :maybe-image-size])))
+            (dynamic error (g/fnk [_node-id maybe-image-resource]
+                             (atlas-image-error _node-id maybe-image-resource)))
+            (dynamic edit-type (g/constantly
+                                 {:type resource/Resource
+                                  :ext image/exts})))
 
-  (input image-resource resource/Resource)
-  (output image-resource resource/Resource (gu/passthrough image-resource))
+  (input maybe-image-resource resource/Resource)
+  (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource]
+                                             (or (atlas-image-error _node-id maybe-image-resource)
+                                                 maybe-image-resource)))
 
-  (input image-size g/Any)
+  (input maybe-image-size g/Any :substitute nil)
   (input image-path->rect g/Any)
 
   (input child->order g/Any)
@@ -167,18 +173,22 @@
   (input animation-updatable g/Any)
 
   (output path g/Str (g/fnk [image-resource] (resource/proj-path image-resource)))
-  (output id g/Str (g/fnk [path] (path->id path)))
-  (output atlas-image Image (g/fnk [path image-size]
-                              (Image. path nil (:width image-size) (:height image-size))))
+  (output id g/Str (g/fnk [maybe-image-resource] (some-> maybe-image-resource resource/proj-path path->id)))
+  (output atlas-image Image (g/fnk [maybe-image-size path]
+                              (Image. path nil (:width maybe-image-size) (:height maybe-image-size))))
   (output animation Animation (g/fnk [atlas-image id]
-                                      (image->animation atlas-image id)))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id image-resource order]
-                                                          (cond-> {:node-id _node-id
-                                                                   :node-outline-key id
-                                                                   :label id
-                                                                   :order order
-                                                                   :icon image-icon}
-                                                                  (resource/openable-resource? image-resource) (assoc :link image-resource :outline-reference? false))))
+                                (image->animation atlas-image id)))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id maybe-image-resource order]
+                                                     (let [label (or id "<unassigned>")]
+                                                       (cond-> {:node-id _node-id
+                                                                :node-outline-key label
+                                                                :label label
+                                                                :order order
+                                                                :icon image-icon
+                                                                :outline-error? (g/error-fatal? (atlas-image-error _node-id maybe-image-resource))}
+
+                                                               (resource/openable-resource? maybe-image-resource)
+                                                               (assoc :link maybe-image-resource :outline-reference? false)))))
   (output ddf-message g/Any (g/fnk [path order] {:image path :order order}))
   (output scene g/Any :cached produce-image-scene))
 
@@ -467,7 +477,7 @@
   (output layout-rects     g/Any               (g/fnk [texture-set-data] (:rects texture-set-data)))
 
   (output packed-image-generator g/Any (g/fnk [_node-id texture-set-data-generator image-resources]
-                                              (let [flat-image-resources (flatten image-resources)
+                                              (let [flat-image-resources (filterv some? (flatten image-resources))
                                                     shas                 (map #(resource-io/with-error-translation % _node-id nil
                                                                                  (resource/resource->sha1-hex %))
                                                                               flat-image-resources)
@@ -499,7 +509,7 @@
 
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
-  (output anim-ids         g/Any               :cached (gu/passthrough animation-ids))
+  (output anim-ids         g/Any               :cached (g/fnk [animation-ids] (filter some? animation-ids)))
   (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines]
                                                          {:node-id          _node-id
                                                           :node-outline-key "Atlas"
