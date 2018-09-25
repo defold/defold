@@ -1200,8 +1200,9 @@ namespace dmSound
         {
             if (sound->m_IsSoundActive == true)
             {
-                // DEF-3512 Wait with releasing audio until all our queued buffers have played, if any queued buffers are still playing
-                // we will get the wrong result in isMusicPlaying on android since it detects our sounds as "other application".
+                // DEF-3512 Wait with releasing audio focus until all our queued buffers have played, if any queued buffers are
+                // still playing we will get the wrong result in isMusicPlaying on android if we release audio focus to soon
+                // since it detects our buffered sounds as "other application".
                 if (free_slots == SOUND_OUTBUFFER_COUNT)
                 {
                     bool ok = PlatformReleaseAudioFocus();
@@ -1250,7 +1251,7 @@ namespace dmSound
 
             Master(&mix_context);
 
-            // DEF-2540: Make sure to keep feeding the sound device if audio is beegin generated,
+            // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
             sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
