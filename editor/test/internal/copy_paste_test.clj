@@ -314,7 +314,7 @@
                                                              (g/connect component :component-id game-object :component-id-pairs)
                                                              (g/connect game-object :base-url component :base-url)
                                                              (g/connect game-object :id-counts component :id-counts)))
-          [or-game-object] (g/tx-nodes-added (g/transact (:tx-data (g/override game-object))))]
+          [or-game-object] (g/tx-nodes-added (g/transact (g/override game-object)))]
 
       ;; Override a property.
       (g/set-property! or-game-object :test-property "override-value")
