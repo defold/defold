@@ -154,6 +154,7 @@ public class AndroidBundler implements IBundler {
         Map<String, IResource> allResources = ExtenderUtil.collectResources(project, targetPlatform);
 
         // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
+        // This step is used to detect which resources that shouldn't be manually bundled, since aapt does that for us.
         Map<String, IResource> bundleResources = null;
         {
             Map<String, IResource> newBundleResources = new HashMap<String, IResource>();
