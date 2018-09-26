@@ -8,6 +8,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -15,6 +16,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
@@ -58,11 +61,7 @@ public class AndroidBundler implements IBundler {
     private Pattern aaptResourceErrorRe = Pattern.compile("^invalid resource directory name:\\s(.+)\\s(.+)\\s.*$", Pattern.MULTILINE);
 
     @Override
-    public void bundleApplication(Project project, File bundleDir)
-            throws IOException, CompileExceptionError {
-
-        // Collect bundle/package resources to be included in APK zip
-        Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Armv7Android);
+    public void bundleApplication(Project project, File bundleDir) throws IOException, CompileExceptionError {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
@@ -119,7 +118,7 @@ public class AndroidBundler implements IBundler {
         FileUtils.forceMkdir(new File(appDir, "libs/armeabi-v7a"));
 
         // Create AndroidManifest.xml and output icon resources (if available)
-        BundleHelper helper = new BundleHelper(project, Platform.Armv7Android, bundleDir, "");
+        BundleHelper helper = new BundleHelper(project, targetPlatform, bundleDir, "");
         File manifestFile = new File(appDir, "AndroidManifest.xml");
         helper.createAndroidManifest(projectProperties, projectRoot, manifestFile, resDir, exeName);
 
@@ -131,12 +130,36 @@ public class AndroidBundler implements IBundler {
             aaptEnv.put("LD_LIBRARY_PATH", Bob.getPath(String.format("%s/lib", Platform.getHostPlatform().getPair())));
         }
 
-        List<String> androidResourceFolders = ExtenderUtil.getAndroidResourcePaths(project, targetPlatform);
+        // AAPT needs all resources on disc
+        File tmpResourceDir = Files.createTempDirectory("res").toFile();
+        Map<String, IResource> androidResources = ExtenderUtil.getAndroidResources(project);
+
+        // Write out all resources to disc. Needed for those resources that are located withing .zip files (libraries)
+        ExtenderUtil.storeAndroidResources(tmpResourceDir, androidResources);
+
+        // Find the actual android resource folders on disc
+        Set<String> androidResourceFolders = new HashSet<>();
+        {
+            Iterator<Map.Entry<String, IResource>> it = androidResources.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>) it.next();
+
+                String absPath = entry.getValue().getAbsPath();                                 // /topfolder/extension/res/android/res/path/to/res.xml
+                String relativePath = entry.getKey();                                           // path/to/res.xml
+                String dir = absPath.substring(0, absPath.length() - relativePath.length());    // /topfolder/extension/res/android/res
+                androidResourceFolders.add(dir);
+            }
+        }
+
+        // Collect bundle/package resources to be included in APK zip
+        Map<String, IResource> allResources = ExtenderUtil.collectResources(project, targetPlatform);
 
         // Remove any paths that begin with any android resource paths so they are not added twice (once by us, and once by aapt)
+        // This step is used to detect which resources that shouldn't be manually bundled, since aapt does that for us.
+        Map<String, IResource> bundleResources = null;
         {
             Map<String, IResource> newBundleResources = new HashMap<String, IResource>();
-            Iterator<Map.Entry<String, IResource>> it = bundleResources.entrySet().iterator();
+            Iterator<Map.Entry<String, IResource>> it = allResources.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<String, IResource> entry = (Map.Entry<String, IResource>)it.next();
 
@@ -170,10 +193,8 @@ public class AndroidBundler implements IBundler {
             args.add("--debug-mode");
         }
 
-        for( String s : androidResourceFolders )
-        {
-            args.add("-S"); args.add(s);
-        }
+        // Resources here will both be added to R.java, and also be added to the .apk file
+        args.add("-S"); args.add(tmpResourceDir.getAbsolutePath());
 
         args.add("-S"); args.add(resDir.getAbsolutePath());
         args.add("-S"); args.add(Bob.getPath("res/facebook"));
@@ -373,5 +394,6 @@ public class AndroidBundler implements IBundler {
         ap2.delete();
         ap3.delete();
         ap4.delete();
+        FileUtils.deleteDirectory(tmpResourceDir);
     }
 }
