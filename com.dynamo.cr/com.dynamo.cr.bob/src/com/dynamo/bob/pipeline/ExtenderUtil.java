@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -542,7 +544,22 @@ public class ExtenderUtil {
         return out;
     }
 
-    public static Map<String, IResource> getAndroidResource(Project project) throws CompileExceptionError {
+    // Collects all resources (even those inside the zip packages) and stores them into one single folder
+    public static void storeAndroidResources(File targetDirectory, Map<String, IResource> resources) throws IOException, CompileExceptionError {
+        for (String relativePath : resources.keySet()) {
+            IResource r = resources.get(relativePath);
+            File outputFile = new File(targetDirectory, relativePath);
+            if (!outputFile.getParentFile().exists()) {
+                outputFile.getParentFile().mkdirs();
+            } else if (outputFile.exists()) {
+                throw new CompileExceptionError(r, 0, "The resource already exists in another extension: " + relativePath);
+            }
+            byte[] data = r.getContent();
+            FileUtils.writeByteArrayToFile(outputFile, data);
+        }
+    }
+
+    public static Map<String, IResource> getAndroidResources(Project project) throws CompileExceptionError {
 
         Map<String, IResource> androidResources = new HashMap<String, IResource>();
         List<String> bundleExcludeList = trimExcludePaths(Arrays.asList(project.getProjectProperties().getStringValue("project", "bundle_exclude_resources", "").split(",")));
