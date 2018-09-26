@@ -634,7 +634,7 @@ public class Project {
                 javaROutput.deleteOnExit();
 
                 // Get all Android specific resources needed to create R.java files
-                Map<String, IResource> resources = ExtenderUtil.getAndroidResource(this);
+                Map<String, IResource> resources = ExtenderUtil.getAndroidResources(this);
                 ExtenderUtil.writeResourcesToDirectory(resources, resOutput);
                 resDirs.add(resOutput.getAbsolutePath());
 
