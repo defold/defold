@@ -72,6 +72,7 @@ public class AndroidBundler implements IBundler {
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");
+        boolean debuggable = Integer.parseInt(projectProperties.getStringValue("android", "debuggable", "0")) != 0;
 
         // If a custom engine was built we need to copy it
         Platform targetPlatform = Platform.Armv7Android;
@@ -186,8 +187,11 @@ public class AndroidBundler implements IBundler {
         args.add("--extra-packages");
         args.add("com.facebook:com.google.android.gms");
         args.add("-m");
-        //args.add("--debug-mode");
         args.add("--auto-add-overlay");
+
+        if (debuggable) {
+            args.add("--debug-mode");
+        }
 
         // Resources here will both be added to R.java, and also be added to the .apk file
         args.add("-S"); args.add(tmpResourceDir.getAbsolutePath());
