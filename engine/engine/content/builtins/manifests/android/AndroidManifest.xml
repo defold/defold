@@ -12,7 +12,7 @@
         {{#has-icons?}}
         android:icon="@drawable/icon"
         {{/has-icons?}}
-        android:label="{{project.title}}" android:hasCode="true" android:debuggable="false"
+        android:label="{{project.title}}" android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication">
 
         <!-- For Local Notifications -->
