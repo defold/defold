@@ -973,18 +973,19 @@ If you do not specifically require different script states, consider changing th
                  {:label "Join Tab Panes"
                   :command :join-tab-panes}
                  {:label :separator}
-                 {:label "Show in Asset Browser"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-asset-browser}
-                 {:label "Show in Desktop"
-                  :icon "icons/32/Icons_S_14_linkarrow.png"
-                  :command :show-in-desktop}
                  {:label "Copy Project Path"
                   :command :copy-project-path}
                  {:label "Copy Full Path"
                   :command :copy-full-path}
                  {:label "Copy Require Path"
                   :command :copy-require-path}
+                 {:label :separator}
+                 {:label "Show in Asset Browser"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-asset-browser}
+                 {:label "Show in Desktop"
+                  :icon "icons/32/Icons_S_14_linkarrow.png"
+                  :command :show-in-desktop}
                  {:label "Referencing Files..."
                   :command :referencing-files}
                  {:label "Dependencies..."
