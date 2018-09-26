@@ -111,7 +111,7 @@
                      (g/transact
                        (g/make-nodes world [user-node [UserProps :user-properties {:properties {:int {:edit-type {:type g/Int} :value 1}}
                                                                                    :display-order [:int]}]]
-                                     (:tx-data (g/override user-node)))))
+                                     (g/override user-node))))
                    property (fn [n] (-> [n] (coalesce-nodes) (first) (second)))]
                (is (not (properties/overridden? (property linked-node))))
                (is (every? #(= 1 %) (properties/values (property linked-node))))
