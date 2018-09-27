@@ -109,8 +109,8 @@
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
 // We check this at runtime through extensions supported
-#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_LUMINANCE)
-#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_LUMINANCE_ALPHA)
+#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE                 (GL_RED)
+#define DMGRAPHICS_TEXTURE_FORMAT_LUMINANCE_ALPHA           (GL_RG)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGB                       (GL_RGB)
 #define DMGRAPHICS_TEXTURE_FORMAT_RGBA                      (GL_RGBA)
 

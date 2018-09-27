@@ -117,6 +117,9 @@ PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = NULL;
 PFNGLUNIFORM4FVPROC glUniform4fv = NULL;
 PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = NULL;
 PFNGLUNIFORM1IPROC glUniform1i = NULL;
+PFNGLGETSTRINGIPROC glGetStringi = NULL;
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 
 #elif defined(__EMSCRIPTEN__)
 #include <GL/glext.h>
@@ -352,6 +355,8 @@ static void LogFrameBufferError(GLenum status)
 
     static bool IsExtensionSupported(const char* extension, const GLubyte* extensions)
     {
+		assert(extensions);
+
         // Copied from http://www.opengl.org/archives/resources/features/OGLextensions/
         const GLubyte *start;
 
@@ -459,6 +464,10 @@ static void LogFrameBufferError(GLenum status)
 
 
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params->m_Samples);
+
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
+        glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 2);
+
         int mode = GLFW_WINDOW;
         if (params->m_Fullscreen)
             mode = GLFW_FULLSCREEN;
@@ -531,6 +540,9 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glUniform4fv, "glUniform4fv", PFNGLUNIFORM4FVPROC);
         GET_PROC_ADDRESS(glUniformMatrix4fv, "glUniformMatrix4fv", PFNGLUNIFORMMATRIX4FVPROC);
         GET_PROC_ADDRESS(glUniform1i, "glUniform1i", PFNGLUNIFORM1IPROC);
+        GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
+        GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
+        GET_PROC_ADDRESS(glBindVertexArray, "glBindVertexArray", PFNGLBINDVERTEXARRAYPROC);
 
 #undef GET_PROC_ADDRESS
 #endif
@@ -578,7 +590,57 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
         // Check texture format support
-        const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+        // const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+
+        /*
+		const char** extensions = 0;
+
+		GLint n;
+		glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+		if (n > 0)
+		{
+			extensions = (const char**)malloc(n * sizeof(char*));
+			GLint i;
+			for (i = 0; i < n; i++)
+			{
+				extensions[i] = (char*)glGetStringi(GL_EXTENSIONS, i);
+			}
+		}
+        */
+
+        char* extensions_ptr = 0;
+
+        GLint n;
+		glGetIntegerv(GL_NUM_EXTENSIONS, &n);
+		if (n > 0)
+        {
+            int max_len = 0;
+            int cursor = 0;
+
+            for (GLint i = 0; i < n; i++)
+            {
+                char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                max_len += strlen((const char*)ext) + 1;
+            }
+
+            extensions_ptr = (char*) malloc(max_len);
+
+            for (GLint i = 0; i < n; i++)
+            {
+                char* ext = (char*) glGetStringi(GL_EXTENSIONS,i);
+                int str_len = strlen((const char*)ext);
+
+                strcpy(extensions_ptr + cursor, ext);
+
+                cursor += str_len;
+                extensions_ptr[cursor] = ' ';
+
+                cursor += 1;
+            }
+        }
+
+        const GLubyte* extensions = (const GLubyte*) extensions_ptr;
+
         if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
@@ -651,6 +713,14 @@ static void LogFrameBufferError(GLenum status)
                 JobQueueFinalize();
             }
         }
+			
+		if (extensions_ptr)
+			free(extensions_ptr);
+
+        GLuint vao;
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+
         return WINDOW_RESULT_OK;
     }
 
@@ -2079,10 +2149,12 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         assert(texture);
 
+/*
 #if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
+*/
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR
@@ -2096,10 +2168,12 @@ static void LogFrameBufferError(GLenum status)
     {
         assert(context);
 
+/*
 #if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR
 #endif
+*/
 
         glActiveTexture(TEXTURE_UNIT_NAMES[unit]);
         CHECK_GL_ERROR
