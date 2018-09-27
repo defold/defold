@@ -444,7 +444,7 @@
                        (proxy-super setStyle nil))
                      (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? parent-reference? child-error? child-overridden? scene-visibility]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
-                           label (if (and link outline-reference?) (format "%s - %s" label (resource/resource->proj-path link)) label)]
+                           label (if link (format "%s - %s" label (resource/resource->proj-path link)) label)]
                        (proxy-super setText label)
                        (proxy-super setGraphic (jfx/get-image-view icon 16))
                        (if parent-reference?
