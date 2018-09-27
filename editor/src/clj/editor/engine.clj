@@ -1,21 +1,20 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [editor.process :as process]
+            [editor.defold-project :as project]
+            [editor.engine.native-extensions :as native-extensions]
             [editor.prefs :as prefs]
-            [editor.error-reporting :as error-reporting]
+            [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.system :as system]
-            [editor.ui :as ui]
-            [editor.defold-project :as project]
-            [editor.workspace :as workspace]
-            [editor.engine.native-extensions :as native-extensions])
+            [editor.workspace :as workspace])
   (:import [com.defold.editor Platform]
-           [java.net HttpURLConnection InetSocketAddress Socket URI URL]
-           [java.io SequenceInputStream BufferedReader File InputStream ByteArrayOutputStream IOException]
-           [java.nio.charset Charset StandardCharsets]
-           [java.lang Process ProcessBuilder]))
+           [com.dynamo.resource.proto Resource$Reload]
+           [editor.workspace BuildResource]
+           [java.io BufferedReader File InputStream IOException]
+           [java.net HttpURLConnection InetSocketAddress Socket URI]
+           [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,18 +38,29 @@
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn reload-resource [target resource]
-  (let [uri  (URI. (str (:url target) "/post/@resource/reload"))
+(defn- reload-build-resource-proj-path! [target ^String build-resource-proj-path]
+  (let [uri (URI. (str (:url target) "/post/@resource/reload"))
         conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
-                            com.dynamo.resource.proto.Resource$Reload
-                            {:resource (str (resource/proj-path resource) "c")})))
+                            Resource$Reload
+                            {:resource build-resource-proj-path})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       (finally
         (.disconnect conn)))))
+
+(defn reload-build-resource! [target build-resource]
+  (assert (instance? BuildResource build-resource))
+  (reload-build-resource-proj-path! target (resource/proj-path build-resource)))
+
+(defn reload-source-resource! [target resource]
+  (assert (not (instance? BuildResource resource)))
+  (let [build-ext (:build-ext (resource/resource-type resource))
+        proj-path (resource/proj-path resource)
+        build-resource-proj-path (str (FilenameUtils/removeExtension proj-path) "." build-ext)]
+    (reload-build-resource-proj-path! target build-resource-proj-path)))
 
 (defn reboot! [target local-url debug?]
   (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))
