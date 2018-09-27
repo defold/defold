@@ -1,6 +1,7 @@
 (ns editor.atlas
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.app-view :as app-view]
             [editor.image :as image]
             [editor.image-util :as image-util]
             [editor.geom :as geom]
@@ -28,7 +29,8 @@
             [editor.outline :as outline]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
-            [editor.graph-util :as gu])
+            [editor.graph-util :as gu]
+            [schema.core :as s])
   (:import [com.dynamo.atlas.proto AtlasProto$Atlas]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
            [com.dynamo.tile.proto Tile$Playback]
@@ -42,6 +44,8 @@
 (def ^:const atlas-icon "icons/32/Icons_13-Atlas.png")
 (def ^:const animation-icon "icons/32/Icons_24-AT-Animation.png")
 (def ^:const image-icon "icons/32/Icons_25-AT-Image.png")
+
+(g/deftype ^:private NameCounts {s/Str s/Int})
 
 (vtx/defvertex texture-vtx
   (vec4 position)
@@ -135,11 +139,24 @@
                          :flip-vertical   false
                          :playback        :playback-once-forward}))
 
-(defn- atlas-image-error [node-id image-resource]
+(defn- unique-id-error [node-id id id-counts]
+  (or (validation/prop-error :fatal node-id :id validation/prop-empty? id "Id")
+      (validation/prop-error :fatal node-id :id (partial validation/prop-id-duplicate? id-counts) id)))
+
+(defn- validate-image-id [node-id id id-counts]
+  (when (and (some? id) (some? id-counts))
+    (unique-id-error node-id id id-counts)))
+
+(defn- validate-image-resource [node-id image-resource]
   (validation/prop-error :fatal node-id :image validation/prop-resource-missing? image-resource "Image"))
 
 (g/defnode AtlasImage
   (inherits outline/OutlineNode)
+
+  (property id g/Str
+            (value (g/fnk [maybe-image-resource] (some-> maybe-image-resource resource/proj-path path->id)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic error (g/fnk [_node-id id id-counts] (validate-image-id _node-id id id-counts))))
 
   (property size types/Vec2
             (value (g/fnk [maybe-image-size] [(:width maybe-image-size 0) (:height maybe-image-size 0)]))
@@ -153,14 +170,15 @@
                                             [:resource :maybe-image-resource]
                                             [:size :maybe-image-size])))
             (dynamic error (g/fnk [_node-id maybe-image-resource]
-                             (atlas-image-error _node-id maybe-image-resource)))
+                             (validate-image-resource _node-id maybe-image-resource)))
             (dynamic edit-type (g/constantly
                                  {:type resource/Resource
                                   :ext image/exts})))
 
+  (input id-counts NameCounts)
   (input maybe-image-resource resource/Resource)
   (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource]
-                                             (or (atlas-image-error _node-id maybe-image-resource)
+                                             (or (validate-image-resource _node-id maybe-image-resource)
                                                  maybe-image-resource)))
 
   (input maybe-image-size g/Any :substitute nil)
@@ -173,24 +191,27 @@
   (input animation-updatable g/Any)
 
   (output path g/Str (g/fnk [image-resource] (resource/proj-path image-resource)))
-  (output id g/Str (g/fnk [maybe-image-resource] (some-> maybe-image-resource resource/proj-path path->id)))
   (output atlas-image Image (g/fnk [maybe-image-size path]
                               (Image. path nil (:width maybe-image-size) (:height maybe-image-size))))
   (output animation Animation (g/fnk [atlas-image id]
                                 (image->animation atlas-image id)))
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id maybe-image-resource order]
-                                                     (let [label (or id "<unassigned>")]
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id build-errors id maybe-image-resource order]
+                                                     (let [label (or id "<No Image>")]
                                                        (cond-> {:node-id _node-id
                                                                 :node-outline-key label
                                                                 :label label
                                                                 :order order
                                                                 :icon image-icon
-                                                                :outline-error? (g/error-fatal? (atlas-image-error _node-id maybe-image-resource))}
+                                                                :outline-error? (g/error-fatal? build-errors)}
 
                                                                (resource/openable-resource? maybe-image-resource)
                                                                (assoc :link maybe-image-resource :outline-reference? false)))))
   (output ddf-message g/Any (g/fnk [path order] {:image path :order order}))
-  (output scene g/Any :cached produce-image-scene))
+  (output scene g/Any :cached produce-image-scene)
+  (output build-errors g/Any :cached (g/fnk [_node-id id id-counts maybe-image-resource]
+                                       (g/package-errors _node-id
+                                                         (validate-image-resource _node-id maybe-image-resource)
+                                                         (validate-image-id _node-id id id-counts)))))
 
 (defn- sort-by-and-strip-order [images]
   (->> images
@@ -205,37 +226,49 @@
    :playback playback
    :images (sort-by-and-strip-order img-ddf)})
 
-(defn- attach-image [parent labels image-node]
+(defn- attach-image-to-atlas [atlas-node image-node]
   (concat
-    (for [[from to] labels]
-      (g/connect image-node from parent to))
-    (g/connect image-node :_node-id             parent     :nodes)
-    (g/connect image-node :node-outline         parent     :child-outlines)
-    (g/connect image-node :ddf-message          parent     :img-ddf)
-    (g/connect image-node :scene                parent     :child-scenes)
-    (g/connect image-node :image-resource       parent     :image-resources)
-    (g/connect image-node :atlas-image          parent     :atlas-images)
-    (g/connect parent     :image-path->rect     image-node :image-path->rect)
-    (g/connect parent     :updatable            image-node :animation-updatable)
-    (g/connect parent     :child->order         image-node :child->order)))
+    (g/connect image-node :_node-id         atlas-node :nodes)
+    (g/connect image-node :animation        atlas-node :animations)
+    (g/connect image-node :atlas-image      atlas-node :atlas-images)
+    (g/connect image-node :build-errors     atlas-node :child-build-errors)
+    (g/connect image-node :ddf-message      atlas-node :img-ddf)
+    (g/connect image-node :id               atlas-node :animation-ids)
+    (g/connect image-node :image-resource   atlas-node :image-resources)
+    (g/connect image-node :node-outline     atlas-node :child-outlines)
+    (g/connect image-node :scene            atlas-node :child-scenes)
+    (g/connect atlas-node :child->order     image-node :child->order)
+    (g/connect atlas-node :id-counts        image-node :id-counts)
+    (g/connect atlas-node :image-path->rect image-node :image-path->rect)
+    (g/connect atlas-node :updatable        image-node :animation-updatable)))
 
-(defn- attach-animation [atlas-node animation-node]
+(defn- attach-image-to-animation [animation-node image-node]
   (concat
-   (g/connect animation-node :_node-id             atlas-node :nodes)
-   (g/connect animation-node :animation            atlas-node :animations)
-   (g/connect animation-node :id                   atlas-node :animation-ids)
-   (g/connect animation-node :node-outline         atlas-node :child-outlines)
-   (g/connect animation-node :ddf-message          atlas-node :anim-ddf)
-   (g/connect animation-node :scene                atlas-node :child-scenes)
-   (g/connect animation-node :image-resources      atlas-node :image-resources)
-   (g/connect atlas-node     :image-path->rect     animation-node :image-path->rect)
-   (g/connect atlas-node     :anim-data            animation-node :anim-data)
-   (g/connect atlas-node     :gpu-texture          animation-node :gpu-texture)))
+    (g/connect image-node     :_node-id         animation-node :nodes)
+    (g/connect image-node     :atlas-image      animation-node :atlas-images)
+    (g/connect image-node     :build-errors     animation-node :child-build-errors)
+    (g/connect image-node     :ddf-message      animation-node :img-ddf)
+    (g/connect image-node     :image-resource   animation-node :image-resources)
+    (g/connect image-node     :node-outline     animation-node :child-outlines)
+    (g/connect image-node     :scene            animation-node :child-scenes)
+    (g/connect animation-node :child->order     image-node     :child->order)
+    (g/connect animation-node :image-path->rect image-node     :image-path->rect)
+    (g/connect animation-node :updatable        image-node     :animation-updatable)))
 
-(defn- tx-attach-image-to-animation [animation-node image-node]
-  (attach-image animation-node
-                []
-                image-node))
+(defn- attach-animation-to-atlas [atlas-node animation-node]
+  (concat
+    (g/connect animation-node :_node-id         atlas-node     :nodes)
+    (g/connect animation-node :animation        atlas-node     :animations)
+    (g/connect animation-node :build-errors     atlas-node     :child-build-errors)
+    (g/connect animation-node :ddf-message      atlas-node     :anim-ddf)
+    (g/connect animation-node :id               atlas-node     :animation-ids)
+    (g/connect animation-node :image-resources  atlas-node     :image-resources)
+    (g/connect animation-node :node-outline     atlas-node     :child-outlines)
+    (g/connect animation-node :scene            atlas-node     :child-scenes)
+    (g/connect atlas-node     :anim-data        animation-node :anim-data)
+    (g/connect atlas-node     :gpu-texture      animation-node :gpu-texture)
+    (g/connect atlas-node     :id-counts        animation-node :id-counts)
+    (g/connect atlas-node     :image-path->rect animation-node :image-path->rect)))
 
 (defn render-animation
   [^GL2 gl render-args renderables n]
@@ -264,15 +297,21 @@
    :updatable  updatable
    :children   child-scenes})
 
+(defn- validate-animation-id [node-id id id-counts]
+  (unique-id-error node-id id id-counts))
+
+(defn- validate-animation-fps [node-id fps]
+  (validation/prop-error :fatal node-id :fps validation/prop-negative? fps "Fps"))
+
 (g/defnode AtlasAnimation
   (inherits core/Scope)
   (inherits outline/OutlineNode)
 
   (property id g/Str
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-empty? id)))
+            (dynamic error (g/fnk [_node-id id id-counts] (validate-animation-id _node-id id id-counts))))
   (property fps g/Int
             (default 30)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? fps)))
+            (dynamic error (g/fnk [_node-id fps] (validate-animation-fps _node-id fps))))
   (property flip-horizontal g/Bool)
   (property flip-vertical   g/Bool)
   (property playback        types/AnimationPlayback
@@ -283,7 +322,8 @@
   (input atlas-images Image :array)
   (input img-ddf g/Any :array)
   (input child-scenes g/Any :array)
-
+  (input child-build-errors g/Any :array)
+  (input id-counts NameCounts)
   (input anim-data g/Any)
 
   (input image-resources g/Any :array)
@@ -298,16 +338,26 @@
                                       (types/->Animation id atlas-images fps flip-horizontal flip-vertical playback)))
 
   (output node-outline outline/OutlineData :cached
-    (g/fnk [_node-id id child-outlines] {:node-id _node-id
-                                         :node-outline-key id
-                                         :label id
-                                         :children (sort-by :order child-outlines)
-                                         :icon animation-icon
-                                         :child-reqs [{:node-type AtlasImage
-                                                       :tx-attach-fn tx-attach-image-to-animation}]}))
+          (g/fnk [_node-id child-outlines id own-build-errors]
+            {:node-id _node-id
+             :node-outline-key id
+             :label id
+             :children (sort-by :order child-outlines)
+             :icon animation-icon
+             :outline-error? (g/error-fatal? own-build-errors)
+             :child-reqs [{:node-type AtlasImage
+                           :tx-attach-fn attach-image-to-animation}]}))
   (output ddf-message g/Any :cached produce-anim-ddf)
   (output updatable g/Any :cached produce-animation-updatable)
-  (output scene g/Any :cached produce-animation-scene))
+  (output scene g/Any :cached produce-animation-scene)
+  (output own-build-errors g/Any :cached (g/fnk [_node-id fps id id-counts]
+                                           (g/package-errors _node-id
+                                                             (validate-animation-id _node-id id id-counts)
+                                                             (validate-animation-fps _node-id fps))))
+  (output build-errors g/Any :cached (g/fnk [_node-id child-build-errors own-build-errors]
+                                       (g/package-errors _node-id
+                                                         child-build-errors
+                                                         own-build-errors))))
 
 (g/defnk produce-save-value [margin inner-padding extrude-borders img-ddf anim-ddf]
   {:margin margin
@@ -316,17 +366,27 @@
    :images (sort-by-and-strip-order img-ddf)
    :animations anim-ddf})
 
-(g/defnk produce-build-targets [_node-id resource texture-set packed-image-generator texture-profile build-settings]
-  (let [project           (project/get-project _node-id)
-        workspace         (project/workspace project)
-        compress?         (:compress-textures? build-settings false)
-        texture-target    (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)
-        pb-msg            texture-set
-        dep-build-targets [texture-target]]
-    [(pipeline/make-protobuf-build-target resource dep-build-targets
-                                          TextureSetProto$TextureSet
-                                          (assoc pb-msg :texture (-> texture-target :resource :resource))
-                                          [:texture])]))
+(defn- validate-margin [node-id margin]
+  (validation/prop-error :fatal node-id :margin validation/prop-negative? margin "Margin"))
+
+(defn- validate-inner-padding [node-id inner-padding]
+  (validation/prop-error :fatal node-id :inner-padding validation/prop-negative? inner-padding "Inner Padding"))
+
+(defn- validate-extrude-borders [node-id extrude-borders]
+  (validation/prop-error :fatal node-id :extrude-borders validation/prop-negative? extrude-borders "Extrude Borders"))
+
+(g/defnk produce-build-targets [_node-id resource texture-set packed-image-generator texture-profile build-settings build-errors]
+  (g/precluding-errors build-errors
+    (let [project           (project/get-project _node-id)
+          workspace         (project/workspace project)
+          compress?         (:compress-textures? build-settings false)
+          texture-target    (image/make-texture-build-target workspace _node-id packed-image-generator texture-profile compress?)
+          pb-msg            texture-set
+          dep-build-targets [texture-target]]
+      [(pipeline/make-protobuf-build-target resource dep-build-targets
+                                            TextureSetProto$TextureSet
+                                            (assoc pb-msg :texture (-> texture-target :resource :resource))
+                                            [:texture])])))
 
 (defn gen-renderable-vertex-buffer
   [width height]
@@ -415,12 +475,6 @@
                     [path (types/->Rect path x (- h height y) width height)]))
           layout-rects)))
 
-(defn- tx-attach-image-to-atlas [atlas-node image-node]
-  (attach-image atlas-node
-                [[:animation :animations]
-                 [:id :animation-ids]]
-                image-node))
-
 (defn- atlas-outline-sort-by-fn [v]
   [(:name (g/node-type* (:node-id v)))])
 
@@ -433,13 +487,13 @@
             (dynamic read-only? (g/constantly true)))
   (property margin g/Int
             (default 0)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? margin)))
+            (dynamic error (g/fnk [_node-id margin] (validate-margin _node-id margin))))
   (property inner-padding g/Int
             (default 0)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? inner-padding)))
+            (dynamic error (g/fnk [_node-id inner-padding] (validate-inner-padding _node-id inner-padding))))
   (property extrude-borders g/Int
             (default 0)
-            (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? extrude-borders)))
+            (dynamic error (g/fnk [_node-id extrude-borders] (validate-extrude-borders _node-id extrude-borders))))
 
   (output child->order g/Any :cached (g/fnk [nodes] (zipmap nodes (range))))
 
@@ -451,6 +505,7 @@
   (input img-ddf g/Any :array)
   (input anim-ddf g/Any :array)
   (input child-scenes g/Any :array)
+  (input child-build-errors g/Any :array)
   (input image-resources g/Any :array)
 
   (output texture-profile g/Any (g/fnk [texture-profiles resource]
@@ -510,49 +565,60 @@
   (output anim-data        g/Any               :cached produce-anim-data)
   (output image-path->rect g/Any               :cached produce-image-path->rect)
   (output anim-ids         g/Any               :cached (g/fnk [animation-ids] (filter some? animation-ids)))
-  (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines]
+  (output id-counts        NameCounts          :cached (g/fnk [anim-ids] (frequencies anim-ids)))
+  (output node-outline     outline/OutlineData :cached (g/fnk [_node-id child-outlines own-build-errors]
                                                          {:node-id          _node-id
                                                           :node-outline-key "Atlas"
                                                           :label            "Atlas"
                                                           :children         (vec (sort-by atlas-outline-sort-by-fn child-outlines))
                                                           :icon             atlas-icon
+                                                          :outline-error?   (g/error-fatal? own-build-errors)
                                                           :child-reqs       [{:node-type    AtlasImage
-                                                                              :tx-attach-fn tx-attach-image-to-atlas}
+                                                                              :tx-attach-fn attach-image-to-atlas}
                                                                              {:node-type    AtlasAnimation
-                                                                              :tx-attach-fn attach-animation}]}))
+                                                                              :tx-attach-fn attach-animation-to-atlas}]}))
   (output save-value       g/Any          :cached produce-save-value)
+  (output build-errors     g/Any          :cached produce-build-errors)
   (output build-targets    g/Any          :cached produce-build-targets)
   (output updatable        g/Any          (g/fnk [] nil))
-  (output scene            g/Any          :cached produce-scene))
+  (output scene            g/Any          :cached produce-scene)
+  (output own-build-errors g/Any          :cached (g/fnk [_node-id extrude-borders inner-padding margin]
+                                                    (g/package-errors _node-id
+                                                                      (validate-margin _node-id margin)
+                                                                      (validate-inner-padding _node-id inner-padding)
+                                                                      (validate-extrude-borders _node-id extrude-borders))))
+  (output build-errors     g/Any          :cached (g/fnk [_node-id child-build-errors own-build-errors]
+                                                    (g/package-errors _node-id
+                                                                      child-build-errors
+                                                                      own-build-errors))))
 
-(defn- attach-image-nodes
-  [parent labels image-resources]
+(defn- make-image-nodes
+  [attach-fn parent image-resources]
   (let [graph-id (g/node-id->graph-id parent)]
     (for [image-resource image-resources]
       (g/make-nodes
         graph-id
         [atlas-image [AtlasImage {:image image-resource}]]
-        (attach-image parent labels atlas-image)))))
+        (attach-fn parent atlas-image)))))
 
+(def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))
+(def ^:private make-image-nodes-in-animation (partial make-image-nodes attach-image-to-animation))
 
 (defn add-images [atlas-node img-resources]
   ; used by tests
-  (attach-image-nodes atlas-node
-                      [[:animation :animations]
-                       [:id :animation-ids]]
-                      img-resources))
+  (make-image-nodes-in-atlas atlas-node img-resources))
 
-(defn- attach-atlas-animation [atlas-node anim]
+(defn- make-atlas-animation [atlas-node anim]
   (let [graph-id (g/node-id->graph-id atlas-node)
         project (project/get-project atlas-node)
         workspace (project/workspace project)
         image-resources (keep #(workspace/resolve-workspace-resource workspace (:image %)) (:images anim))]
     (g/make-nodes
-     graph-id
-     [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
-                  :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
-     (attach-animation atlas-node atlas-anim)
-     (attach-image-nodes atlas-anim [] image-resources))))
+      graph-id
+      [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
+                   :fps (:fps anim) :playback (:playback anim) :id (:id anim)]]
+      (attach-animation-to-atlas atlas-node atlas-anim)
+      (make-image-nodes-in-animation atlas-anim image-resources))))
 
 (defn- update-int->bool [keys m]
   (reduce (fn [m key]
@@ -571,11 +637,8 @@
       (g/set-property self :margin (:margin atlas))
       (g/set-property self :inner-padding (:inner-padding atlas))
       (g/set-property self :extrude-borders (:extrude-borders atlas))
-      (attach-image-nodes self
-                          [[:animation :animations]
-                           [:id :animation-ids]]
-                          image-resources)
-      (map (comp (partial attach-atlas-animation self)
+      (make-image-nodes-in-atlas self image-resources)
+      (map (comp (partial make-atlas-animation self)
                  (partial update-int->bool [:flip-horizontal :flip-vertical]))
            (:animations atlas)))))
 
@@ -602,35 +665,49 @@
    :playback :playback-loop-forward
    :id "New Animation"})
 
-(defn- add-animation-group-handler [atlas-node]
-  (g/transact
-   (concat
-    (g/operation-label "Add Animation Group")
-    (attach-atlas-animation atlas-node default-animation))))
+(defn- add-animation-group-handler [app-view atlas-node]
+  (let [op-seq (gensym)
+        [animation-node] (g/tx-nodes-added
+                           (g/transact
+                             (concat
+                               (g/operation-sequence op-seq)
+                               (g/operation-label "Add Animation Group")
+                               (make-atlas-animation atlas-node default-animation))))]
+    (g/transact
+      (concat
+        (g/operation-sequence op-seq)
+        (app-view/select app-view [animation-node])))))
 
 (handler/defhandler :add :workbench
   (label [] "Add Animation Group")
   (active? [selection] (selection->atlas selection))
-  (run [selection] (add-animation-group-handler (selection->atlas selection))))
+  (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
 
-(defn- add-images-handler [workspace project labels parent] ; parent = new parent of images
-  (when-let [image-resources (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
+(defn- add-images-handler [workspace project parent] ; parent = new parent of images
+  (when-some [image-resources (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
     (g/transact
-     (concat
-      (g/operation-label "Add Images")
-      (attach-image-nodes parent labels image-resources)))))
+      (concat
+        (g/operation-label "Add Images")
+        (cond
+          (g/node-instance? AtlasNode parent)
+          (make-image-nodes-in-atlas parent image-resources)
+
+          (g/node-instance? AtlasAnimation parent)
+          (make-image-nodes-in-animation parent image-resources)
+
+          :else
+          (let [parent-node-type @(g/node-type* parent)]
+            (throw (ex-info (str "Unsupported parent type " (:name parent-node-type))
+                            {:parent-node-type parent-node-type}))))))))
 
 (handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
   (run [project selection] (let [workspace (project/workspace project)]
                              (if-let [atlas-node (selection->atlas selection)]
-                               (add-images-handler workspace project
-                                                   [[:animation :animations]
-                                                    [:id :animation-ids]]
-                                                   atlas-node)
+                               (add-images-handler workspace project atlas-node)
                                (when-let [animation-node (selection->animation selection)]
-                                 (add-images-handler workspace project [] animation-node))))))
+                                 (add-images-handler workspace project animation-node))))))
 
 (defn- vec-move
   [v x offset]
