@@ -128,8 +128,9 @@
   (when *tps-debug*
     (send-off tps-counter tick (System/nanoTime)))
   (let [basis     (is/basis @*the-system*)
-        id-gens   (is/id-generators @*the-system*)
-        tx-result (it/transact* (it/new-transaction-context basis id-gens) txs)]
+        id-generators   (is/id-generators @*the-system*)
+        override-id-generator (is/override-id-generator @*the-system*)
+        tx-result (it/transact* (it/new-transaction-context basis id-generators override-id-generator) txs)]
     (when (= :ok (:status tx-result))
       (is/merge-graphs! @*the-system* (get-in tx-result [:basis :graphs]) (:graphs-modified tx-result) (:outputs-modified tx-result) (:nodes-deleted tx-result)))
     tx-result))
@@ -1135,30 +1136,14 @@
 (defn- traverse-cascade-delete [basis [src-id src-label tgt-id tgt-label]]
   (get (cascade-deletes (node-type* basis tgt-id)) tgt-label))
 
-(defn- make-override-node
-  [graph-id override-id original-node-id properties]
-  (in/make-override-node override-id (is/next-node-id @*the-system* graph-id) original-node-id properties))
-
 (defn override
   ([root-id]
    (override root-id {}))
   ([root-id opts]
-   (override (now) root-id opts))
-  ([basis root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}}]
-   (let [graph-id (node-id->graph-id root-id)
-         preds [traverse-cascade-delete traverse?]
-         traverse-fn (partial predecessors (every-arc-pred in-same-graph? traverse-cascade-delete traverse?))
-         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
-         override-id (is/next-override-id @*the-system* graph-id)
-         overrides (mapv (partial make-override-node graph-id override-id) node-ids (map properties-by-node-id node-ids))
-         override-node-ids (map gt/node-id overrides)
-         original-node-id->override-node-id (zipmap node-ids override-node-ids)
-         new-override-nodes-tx-data (map it/new-node overrides)
-         new-override-tx-data (concat
-                                (it/new-override override-id root-id traverse-fn)
-                                (map (fn [node-id new-id] (it/override-node node-id new-id)) node-ids override-node-ids))]
-     {:id-mapping original-node-id->override-node-id
-      :tx-data (concat new-override-nodes-tx-data new-override-tx-data)})))
+   (override root-id opts (clojure.core/constantly [])))
+  ([root-id {:keys [traverse? properties-by-node-id] :or {traverse? (clojure.core/constantly true) properties-by-node-id (clojure.core/constantly {})}} init-fn]
+   (let [traverse-fn (partial predecessors (every-arc-pred in-same-graph? traverse-cascade-delete traverse?))]
+     (it/override root-id traverse-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]
   (it/transfer-overrides from-id->to-id))

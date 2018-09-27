@@ -124,7 +124,7 @@
                            (g/disconnect project :nil-resource self :animation-resources)))
                        (for [new-resource new-value]
                          (if new-resource
-                           (project/connect-resource-node evaluation-context project new-resource self connections)
+                           (:tx-data (project/connect-resource-node evaluation-context project new-resource self connections))
                            (g/connect project :nil-resource self :animation-resources)))))))
             (dynamic visible (g/constantly false)))
 
