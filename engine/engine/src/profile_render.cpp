@@ -41,7 +41,7 @@ namespace dmProfileRender
 
     using namespace Vectormath::Aos;
 
-    typedef uint16_t TIndex;
+    typedef uint32_t TIndex;
     typedef uint32_t TNameHash;
 
     static TNameHash GetSampleSumHash(TNameHash scope_hash, TNameHash sample_hash)
@@ -112,6 +112,10 @@ namespace dmProfileRender
     typedef dmHashTable<TNameHash, TIndex> TIndexLookupTable;
     typedef dmHashTable<TNameHash, const char*> TNameLookupTable;
 
+    // The raw data of a frame, length of arrays are omitted since we use this block
+    // either by building a ProfileSnapshot where we have the lengths explicitly or
+    // we it is used from RenderProfile which has the length of the arrays implicitly
+    // via hash tables for name-hash -> item
     struct ProfileFrame
     {
         ProfileFrame(
@@ -137,6 +141,7 @@ namespace dmProfileRender
         float m_MaxFrameTime;
     };
 
+    // The compicated allocation of a frame is to make sure we only do one allocation per frame
     static size_t ProfileFrameSize(TIndex max_scope_count, TIndex max_sample_sum_count, TIndex max_counter_count, TIndex max_sample_count)
     {
         const size_t scopes_size = sizeof(Scope) * max_scope_count;
@@ -182,6 +187,8 @@ namespace dmProfileRender
         return s;
     }
 
+    // A snapshot of a frame without efficient lookups, focuses on keeping it
+    // small. When presenting a frame the lookup tables are rebuilt from the raw data
     struct ProfileSnapshot
     {
         ProfileSnapshot(
@@ -215,6 +222,7 @@ namespace dmProfileRender
         TIndex m_SampleCount;
     };
 
+    // The compicated allocation of a snapshot is to make sure we only do one allocation per frame
     static size_t ProfileSnapshotSize(TIndex scope_count, TIndex sample_sum_count, TIndex counter_count, TIndex sample_count)
     {
         const size_t scopes_size = sizeof(Scope) * scope_count;
@@ -280,6 +288,8 @@ namespace dmProfileRender
         return snapshot;
     }
 
+    // Stats from each data type is kept in separate data containers so they
+    // can be easily stripped from the frame when storing them in the recording buffer
     struct ScopeStats
     {
         uint64_t m_LastSeenTick;
@@ -884,6 +894,10 @@ namespace dmProfileRender
         }
     }
 
+    // Sorting is a bit more complex since we need sort of the data array but lookup the stats
+    // data to determine order. After we sorted the data array we need to update the stats
+    // array so it matches since we only have one lookup from hash to index and both the data
+    // and stats for an item need to be on the same index
     struct ScopeSortPred
     {
         ScopeSortPred(RenderProfile* render_profile)
@@ -924,7 +938,7 @@ namespace dmProfileRender
         {
             uint32_t scope_count = render_profile->m_ScopeLookup.Size();
 
-            std::sort(&frame->m_Scopes[0], &frame->m_Scopes[scope_count], ScopeSortPred(render_profile));
+            std::stable_sort(&frame->m_Scopes[0], &frame->m_Scopes[scope_count], ScopeSortPred(render_profile));
             for (uint32_t i = 0; i < scope_count; ++i)
             {
                 Scope* scope = &frame->m_Scopes[i];
@@ -1488,6 +1502,7 @@ namespace dmProfileRender
         TIndex max_counter_count,
         TIndex max_sample_count)
     {
+        // The compicated allocation of a render profile is to make sure we allocated all the data needed in a single allocation
         const TIndex max_name_count = max_scope_count + max_sample_sum_count + max_counter_count;
         const size_t scope_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_scope_count * 2) / 3, max_scope_count * 2);
         const size_t sample_sum_lookup_data_size = HASHTABLE_BUFFER_SIZE(TIndexLookupTable::Entry, (max_sample_sum_count * 2) / 3, max_sample_sum_count * 2);
