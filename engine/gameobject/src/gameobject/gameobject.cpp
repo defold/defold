@@ -982,13 +982,16 @@ namespace dmGameObject
                 ComponentSetPropertiesParams params;
                 params.m_Instance = instance;
                 params.m_UserData = component_instance_data;
-                PropertyResult result = CreatePropertySetUserDataLua(component_type->m_Context, property_buffer, property_buffer_size, &params.m_PropertySet.m_UserData);
-                if (result == PROPERTY_RESULT_OK)
+
+                params.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerLua(component_type->m_Context, property_buffer, property_buffer_size);
+                if (params.m_PropertySet.m_UserData == 0x0)
                 {
-                    params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserDataLua;
-                    params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackLua;
-                    result = component.m_Type->m_SetPropertiesFunction(params);
+                    dmLogError("Could not load properties parameters when spawning '%s'.", prototype_name);
+                    return false;
                 }
+                params.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
+                params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertyContainerCallback;
+                PropertyResult result = component.m_Type->m_SetPropertiesFunction(params);
                 if (result != PROPERTY_RESULT_OK)
                 {
                     dmLogError("Could not load properties when spawning '%s'.", prototype_name);
@@ -1243,39 +1246,97 @@ namespace dmGameObject
                         }
                         ComponentSetPropertiesParams params;
                         params.m_Instance = instance;
+
+                        HPropertyContainer properties = 0x0;
+
+                        InstancePropertyBuffer *instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
+                        if (instance_properties != 0x0)
+                        {
+                            // TODO use the component type identification system once it has been implemented (related to set_tile for tile maps)
+                            // TODO this is a bit of a hack, the function should be added as a component callback instead so that the context can be properly handled
+                            if (strcmp(type->m_Name, "scriptc") == 0 && type->m_SetPropertiesFunction != 0x0)
+                            {
+                                void* component_context = type->m_Context;
+                                uint8_t* instance_properties_buffer = instance_properties->property_buffer;
+                                uint32_t instance_properties_buffer_size = instance_properties->property_buffer_size;
+
+                                properties = CreatePropertyContainerLua(component_context, instance_properties_buffer, instance_properties_buffer_size);
+                                if (properties == 0x0)
+                                {
+                                    dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
+                                    success = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!success)
+                        {
+                            break;
+                        }
+
                         uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
                         for (uint32_t prop_i = 0; prop_i < comp_prop_count; ++prop_i)
                         {
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                bool r = CreatePropertySetUserData(&comp_prop.m_PropertyDecls, &params.m_PropertySet.m_UserData);
-                                if (!r)
+                                dmArray<dmhash_t> script_ids;
+                                dmArray<PropertyVar> script_vars;
+
+                                HPropertyContainer ddf_properties = CreatePropertyContainerDDF(&comp_prop.m_PropertyDecls);
+                                if (ddf_properties == 0x0)
                                 {
-                                    dmLogError("Could not read properties of game object '%s' in collection.", instance_desc.m_Id);
+                                    dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
                                     success = false;
+                                    break;
+                                }
+                                if (properties != 0x0)
+                                {
+                                    HPropertyContainer merged_properties = MergePropertyContainers(ddf_properties, properties);
+                                    if (merged_properties == 0x0)
+                                    {
+                                        dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
+                                        DestroyPropertyContainer(ddf_properties);
+                                        success = false;
+                                        break;
+                                    }
+                                    properties = merged_properties;
                                 }
                                 else
                                 {
-                                    params.m_PropertySet.m_GetPropertyCallback = GetPropertyCallbackDDF;
-                                    params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertySetUserData;
+                                    properties = ddf_properties;
                                 }
                                 break;
                             }
                         }
+
+                        if (!success)
+                        {
+                            break;
+                        }
+
+                        if (properties != 0x0)
+                        {
+                            params.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
+                            params.m_PropertySet.m_FreeUserDataCallback = DestroyPropertyContainerCallback;
+                            params.m_PropertySet.m_UserData = (uintptr_t)properties;
+                        }
+
                         uintptr_t* component_instance_data = &instance->m_ComponentInstanceUserData[component_instance_data_index];
                         params.m_UserData = component_instance_data;
-                        type->m_SetPropertiesFunction(params);
+
+                        PropertyResult result = type->m_SetPropertiesFunction(params);
+                        if (result != PROPERTY_RESULT_OK)
+                        {
+                            dmLogError("Could not load properties when spawning '%s'.", instance_desc.m_Id);
+                            DestroyPropertyContainer(properties);
+                            success = false;
+                            break;
+                        }
                     }
                     if (component.m_Type->m_InstanceHasUserData)
                         ++component_instance_data_index;
-                }
-
-                // If there is any user supplied properties for this instance, then they should be set now.
-                InstancePropertyBuffer *instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
-                if (instance_properties)
-                {
-                    SetScriptPropertiesFromBuffer(instance, instance_desc.m_Id, instance_properties->property_buffer, instance_properties->property_buffer_size);
                 }
             } else {
                 ReleaseIdentifier(collection, instance);

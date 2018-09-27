@@ -54,6 +54,50 @@ namespace dmGameObject
     void SetPropertySet(HProperties properties, PropertyLayer layer, const PropertySet& set);
 
     PropertyResult GetProperty(const HProperties properties, dmhash_t id, PropertyVar& var);
+
+    typedef struct PropertyContainer* HPropertyContainer;
+    typedef struct PropertyContainerBuilder* HPropertyContainerBuilder;
+
+    struct PropertyContainerParameters
+    {
+        PropertyContainerParameters()
+            : m_NumberCount(0)
+            , m_HashCount(0)
+            , m_URLStringCount(0)
+            , m_URLStringSize(0)
+            , m_URLCount(0)
+            , m_Vector3Count(0)
+            , m_Vector4Count(0)
+            , m_QuatCount(0)
+            , m_BoolCount(0)
+        { }
+        uint32_t m_NumberCount;
+        uint32_t m_HashCount;
+        uint32_t m_URLStringCount;
+        uint32_t m_URLStringSize;
+        uint32_t m_URLCount;
+        uint32_t m_Vector3Count;
+        uint32_t m_Vector4Count;
+        uint32_t m_QuatCount;
+        uint32_t m_BoolCount;
+    };
+
+    HPropertyContainerBuilder CreatePropertyContainerBuilder(const PropertyContainerParameters& params);
+    void PushNumber(HPropertyContainerBuilder builder, dmhash_t id, float value);
+    void PushVector3(HPropertyContainerBuilder builder, dmhash_t id, const float values[3]);
+    void PushVector4(HPropertyContainerBuilder builder, dmhash_t id, const float values[4]);
+    void PushQuat(HPropertyContainerBuilder builder, dmhash_t id, const float values[4]);
+    void PushBool(HPropertyContainerBuilder builder, dmhash_t id, float value);
+    void PushHash(HPropertyContainerBuilder builder, dmhash_t id, dmhash_t value);
+    void PushURLString(HPropertyContainerBuilder builder, dmhash_t id, const char* value);
+    void PushURL(HPropertyContainerBuilder builder, dmhash_t id, const char value[sizeof(dmMessage::URL)]);
+    HPropertyContainer CreatePropertyContainer(HPropertyContainerBuilder builder);
+
+    HPropertyContainer MergePropertyContainers(HPropertyContainer container, HPropertyContainer overrides);
+
+    PropertyResult PropertyContainerGetPropertyCallback(const HProperties properties, uintptr_t user_data, dmhash_t id, PropertyVar& out_var);
+    void DestroyPropertyContainer(HPropertyContainer container);
+    void DestroyPropertyContainerCallback(uintptr_t user_data);
 }
 
 #endif // GAMEOBJECT_PROPS_H
