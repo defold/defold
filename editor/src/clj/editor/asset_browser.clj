@@ -97,8 +97,8 @@
                   :command :referencing-files}
                  {:label "Dependencies..."
                   :command :dependencies}
-                 {:label "Hot Reload"
-                  :command :hot-reload}
+                 {:label "Hot Reload File"
+                  :command :hot-reload-file}
                  {:label :separator}
                  {:label "New"
                   :command :new-file
