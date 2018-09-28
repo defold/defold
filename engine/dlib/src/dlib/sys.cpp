@@ -796,19 +796,14 @@ namespace dmSys
         JNIEnv* env = 0;
         activity->vm->AttachCurrentThread( &env, 0);
 
-        jclass native_activity_class = env->FindClass("android/app/NativeActivity");
-        jmethodID methodID_func = env->GetMethodID(native_activity_class, "getPackageManager", "()Landroid/content/pm/PackageManager;");
-        jobject package_manager = env->CallObjectMethod(activity->clazz, methodID_func);
-        jclass pm_class = env->GetObjectClass(package_manager);
-        jmethodID methodID_pm = env->GetMethodID(pm_class, "getPackageInfo", "(Ljava/lang/String;I)Landroid/content/pm/PackageInfo;");
+        jclass def_activity_class = env->GetObjectClass(activity->clazz);
+        jmethodID isAppInstalled = env->GetMethodID(def_activity_class, "isAppInstalled", "(Ljava/lang/String;)Z");
         jstring str_url = env->NewStringUTF(id);
-        env->CallObjectMethod(package_manager, methodID_pm, str_url);
-        jthrowable exception = env->ExceptionOccurred();
-        env->ExceptionClear();
+        jboolean installed = env->CallBooleanMethod(activity->clazz, isAppInstalled, str_url);
         env->DeleteLocalRef(str_url);
+
         activity->vm->DetachCurrentThread();
 
-        bool installed = exception == NULL;
         info->m_Installed = installed;
         return installed;
     }

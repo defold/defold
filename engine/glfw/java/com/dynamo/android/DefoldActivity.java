@@ -28,6 +28,8 @@ import android.text.InputType;
 import android.view.inputmethod.CompletionInfo;
 import android.view.ViewGroup;
 
+import android.content.pm.PackageInfo;
+
 import com.google.android.gms.ads.identifier.AdvertisingIdClient;
 import com.google.android.gms.common.*;
 
@@ -83,6 +85,16 @@ public class DefoldActivity extends NativeActivity {
     private static boolean activityVisible;
     public static boolean isActivityVisible() {
         return activityVisible;
+    }
+
+    public boolean isAppInstalled(String appPackageName) {
+        PackageManager packageManager = this.getPackageManager();
+        try {
+            PackageInfo info = packageManager.getPackageInfo(appPackageName, 0);
+            return info != null;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
     }
 
     private static final String TAG = "DefoldActivity";
@@ -506,6 +518,6 @@ public class DefoldActivity extends NativeActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         nativeOnActivityResult(this, requestCode,resultCode, data);
     }
-    
+
     public static native void nativeOnActivityResult(Activity activity, int requestCode, int resultCode, Intent data);
 }
