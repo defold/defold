@@ -3176,12 +3176,19 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
     dmGui::HNode n3 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX);
     dmGui::SetNodeId(m_Scene, n3, 0x3);
 
+    pos = Point3(30, 30, 0);
+    size = Vector3(10, 10, 0);
+    dmGui::HNode n4 = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_PARTICLEFX);
+    dmGui::SetNodeId(m_Scene, n4, 0x4);
+
     dmGui::SetNodeParent(m_Scene, n2, n1, false);
     dmGui::SetNodeParent(m_Scene, n3, n2, false);
+    dmGui::SetNodeParent(m_Scene, n4, n2, false);
 
     dmGui::InternalNode* nn1 = dmGui::GetNode(m_Scene, n1);
     dmGui::InternalNode* nn2 = dmGui::GetNode(m_Scene, n2);
     dmGui::InternalNode* nn3 = dmGui::GetNode(m_Scene, n3);
+    dmGui::InternalNode* nn4 = dmGui::GetNode(m_Scene, n4);
 
     Matrix4 transform;
     (void)transform;
@@ -3190,6 +3197,7 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_STRETCH);
     dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_STRETCH);
+    dmGui::SetNodeAdjustMode(m_Scene, n4, dmGui::ADJUST_MODE_STRETCH);
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
@@ -3201,12 +3209,15 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_FIT);
     dmGui::SetNodeAdjustMode(m_Scene, n2, dmGui::ADJUST_MODE_FIT);
     dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_FIT);
+    dmGui::SetNodeAdjustMode(m_Scene, n4, dmGui::ADJUST_MODE_FIT);
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
+    dmGui::CalculateNodeTransform(m_Scene, nn4, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
     ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
     ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
     ASSERT_TRUE( IsEqual( Vector4(2, 2, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(2, 2, 2, 1), nn4->m_Node.m_LocalAdjustScale ) ); // DEF-3421 particlefx nodes should get uniform scale from adjust modes
 
     //
     dmGui::SetNodeAdjustMode(m_Scene, n1, dmGui::ADJUST_MODE_ZOOM);
@@ -3214,10 +3225,12 @@ TEST_F(dmGuiTest, CalculateNodeTransform)
     dmGui::SetNodeAdjustMode(m_Scene, n3, dmGui::ADJUST_MODE_ZOOM);
 
     dmGui::CalculateNodeTransform(m_Scene, nn3, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
+    dmGui::CalculateNodeTransform(m_Scene, nn4, dmGui::CalculateNodeTransformFlags(dmGui::CALCULATE_NODE_BOUNDARY | dmGui::CALCULATE_NODE_INCLUDE_SIZE | dmGui::CALCULATE_NODE_RESET_PIVOT), transform);
 
     ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn1->m_Node.m_LocalAdjustScale ) );
     ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn2->m_Node.m_LocalAdjustScale ) );
     ASSERT_TRUE( IsEqual( Vector4(4, 4, 1, 1), nn3->m_Node.m_LocalAdjustScale ) );
+    ASSERT_TRUE( IsEqual( Vector4(4, 4, 4, 1), nn4->m_Node.m_LocalAdjustScale ) ); // DEF-3421 particlefx nodes should get uniform scale from adjust modes
 }
 
 TEST_F(dmGuiTest, CalculateNodeTransformCached)

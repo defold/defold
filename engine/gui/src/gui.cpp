@@ -2271,22 +2271,27 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         scene->m_Animations.SetSize(0);
     }
 
-    static Vector4 ApplyAdjustOnReferenceScale(const Vector4& reference_scale, uint32_t adjust_mode)
+    static Vector4 ApplyAdjustOnReferenceScale(const Vector4& reference_scale, uint32_t adjust_mode, uint32_t node_type)
     {
         Vector4 parent_adjust_scale = reference_scale;
+        parent_adjust_scale.setZ(1.0f);
         if (adjust_mode == dmGui::ADJUST_MODE_FIT)
         {
             float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
             parent_adjust_scale.setX(uniform);
             parent_adjust_scale.setY(uniform);
+            if (node_type == NODE_TYPE_PARTICLEFX)
+                parent_adjust_scale.setZ(uniform);
+
         }
         else if (adjust_mode == dmGui::ADJUST_MODE_ZOOM)
         {
             float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
             parent_adjust_scale.setX(uniform);
             parent_adjust_scale.setY(uniform);
+            if (node_type == NODE_TYPE_PARTICLEFX)
+               parent_adjust_scale.setZ(uniform);
         }
-        parent_adjust_scale.setZ(1.0f);
         parent_adjust_scale.setW(1.0f);
         return parent_adjust_scale;
     }
@@ -2300,7 +2305,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         Node& node = n->m_Node;
         // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
-        Vector4 adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node.m_AdjustMode);
+        Vector4 adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node.m_AdjustMode, node.m_NodeType);
 
         Context* context = scene->m_Context;
         Vector4 parent_dims;
@@ -3864,10 +3869,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 {
                     CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
                     reference_scale = parent_node->m_Node.m_LocalAdjustScale;
-                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
+                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode, n->m_Node.m_NodeType);
                 } else {
                     reference_scale = CalculateReferenceScale(scene, 0x0);
-                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
+                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode, n->m_Node.m_NodeType);
                     parent_m = Matrix4::scale(adjust_scale.getXYZ());
 
                     Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
