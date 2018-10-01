@@ -177,11 +177,13 @@
 
   (input id-counts NameCounts)
   (input maybe-image-resource resource/Resource)
-  (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource]
-                                             (or (validate-image-resource _node-id maybe-image-resource)
+  (output image-resource resource/Resource (g/fnk [_node-id maybe-image-resource maybe-image-size]
+                                             ;; Depending on maybe-image-size provides ErrorValues from the image/ImageNode,
+                                             ;; but we also want to guard against a non-assigned Image here.
+                                             (or (validation/prop-error :fatal _node-id :image validation/prop-nil? maybe-image-resource "Image")
                                                  maybe-image-resource)))
 
-  (input maybe-image-size g/Any :substitute nil)
+  (input maybe-image-size g/Any)
   (input image-path->rect g/Any)
 
   (input child->order g/Any)
@@ -190,7 +192,7 @@
 
   (input animation-updatable g/Any)
 
-  (output path g/Str (g/fnk [image-resource] (resource/proj-path image-resource)))
+  (output path g/Str (g/fnk [maybe-image-resource] (resource/resource->proj-path maybe-image-resource)))
   (output atlas-image Image (g/fnk [maybe-image-size path]
                               (Image. path nil (:width maybe-image-size) (:height maybe-image-size))))
   (output animation Animation (g/fnk [atlas-image id]
