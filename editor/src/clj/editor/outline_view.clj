@@ -203,16 +203,20 @@
                  {:label "Open As"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open-as}
+                 {:label :separator}
+                 {:label "Copy Project Path"
+                  :command :copy-project-path}
+                 {:label "Copy Full Path"
+                  :command :copy-full-path}
+                 {:label "Copy Require Path"
+                  :command :copy-require-path}
+                 {:label :separator}
                  {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-asset-browser}
                  {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
-                 {:label "Copy Project Path"
-                  :command :copy-project-path}
-                 {:label "Copy Full Path"
-                  :command :copy-full-path}
                  {:label "Referencing Files..."
                   :command :referencing-files}
                  {:label "Dependencies..."
