@@ -104,8 +104,9 @@
     (run! #(render-rect gl (-> % :user-data :rect) [1.0 1.0 1.0 1.0]) renderables)))
 
 (g/defnk produce-image-scene
-  [_node-id path order image-path->rect animation-updatable]
-  (let [rect (get image-path->rect path)
+  [_node-id image-resource order image-path->rect animation-updatable]
+  (let [path (resource/proj-path image-resource)
+        rect (get image-path->rect path)
         aabb (geom/rect->aabb rect)]
     {:node-id _node-id
      :aabb aabb
@@ -192,9 +193,8 @@
 
   (input animation-updatable g/Any)
 
-  (output path g/Str (g/fnk [maybe-image-resource] (resource/resource->proj-path maybe-image-resource)))
-  (output atlas-image Image (g/fnk [maybe-image-size path]
-                              (Image. path nil (:width maybe-image-size) (:height maybe-image-size))))
+  (output atlas-image Image (g/fnk [image-resource maybe-image-size]
+                              (Image. (resource/proj-path image-resource) nil (:width maybe-image-size) (:height maybe-image-size))))
   (output animation Animation (g/fnk [atlas-image id]
                                 (image->animation atlas-image id)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id build-errors id maybe-image-resource order]
@@ -208,7 +208,8 @@
 
                                                                (resource/openable-resource? maybe-image-resource)
                                                                (assoc :link maybe-image-resource :outline-reference? false)))))
-  (output ddf-message g/Any (g/fnk [path order] {:image path :order order}))
+  (output ddf-message g/Any (g/fnk [maybe-image-resource order]
+                              {:image (resource/resource->proj-path maybe-image-resource) :order order}))
   (output scene g/Any :cached produce-image-scene)
   (output build-errors g/Any :cached (g/fnk [_node-id id id-counts maybe-image-resource]
                                        (g/package-errors _node-id
@@ -614,7 +615,7 @@
   (let [graph-id (g/node-id->graph-id atlas-node)
         project (project/get-project atlas-node)
         workspace (project/workspace project)
-        image-resources (keep #(workspace/resolve-workspace-resource workspace (:image %)) (:images anim))]
+        image-resources (mapv (comp (partial workspace/resolve-workspace-resource workspace) :image) (:images anim))]
     (g/make-nodes
       graph-id
       [atlas-anim [AtlasAnimation :flip-horizontal (:flip-horizontal anim) :flip-vertical (:flip-vertical anim)
@@ -632,7 +633,12 @@
 
 (defn load-atlas [project self resource atlas]
   (let [workspace (project/workspace project)
-        image-resources (keep #(workspace/resolve-workspace-resource workspace (:image %)) (:images atlas))]
+        image-resources (into []
+                              (comp (map :image)
+                                    (remove empty?)
+                                    (distinct)
+                                    (map (partial workspace/resolve-workspace-resource workspace)))
+                              (:images atlas))]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)
@@ -705,11 +711,10 @@
 (handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
-  (run [project selection] (let [workspace (project/workspace project)]
-                             (if-let [atlas-node (selection->atlas selection)]
-                               (add-images-handler workspace project atlas-node)
-                               (when-let [animation-node (selection->animation selection)]
-                                 (add-images-handler workspace project animation-node))))))
+  (run [project selection] (when-some [parent-node (or (selection->atlas selection)
+                                                       (selection->animation selection))]
+                             (let [workspace (project/workspace project)]
+                               (add-images-handler workspace project parent-node)))))
 
 (defn- vec-move
   [v x offset]
