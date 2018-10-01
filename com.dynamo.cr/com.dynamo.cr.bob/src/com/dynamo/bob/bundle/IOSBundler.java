@@ -21,6 +21,14 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 
+import java.awt.AlphaComposite;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.net.URL;
+
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -34,7 +42,7 @@ import com.dynamo.bob.util.Exec.Result;
 public class IOSBundler implements IBundler {
     private static Logger logger = Logger.getLogger(IOSBundler.class.getName());
 
-    private void copyIcon(BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
+    private void copyImage(BobProjectProperties projectProperties, String projectRoot, File appDir, String name, String outName)
             throws IOException {
         String resource = projectProperties.getStringValue("ios", name);
         if (resource != null && resource.length() > 0) {
@@ -42,6 +50,99 @@ public class IOSBundler implements IBundler {
             File outFile = new File(appDir, outName);
             FileUtils.copyFile(inFile, outFile);
         }
+    }
+
+    private BufferedImage resizeImage(BufferedImage originalImage, int size) {
+        BufferedImage resizedImage = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = resizedImage.createGraphics();
+
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        g.drawImage(originalImage, 0, 0, size, size, null);
+        g.dispose();
+        g.setComposite(AlphaComposite.Src);
+
+
+        return resizedImage;
+    }
+
+    private void copyIcon(BobProjectProperties projectProperties, String projectRoot, File appDir, BufferedImage fallbackImage, String propertyName, String outName, int size) throws IOException
+    {
+        File outFile = new File(appDir, outName);
+
+        // If the property was found just copy icon file to output folder.
+        if (propertyName.length() > 0) {
+            String resource = projectProperties.getStringValue("ios", propertyName);
+            if (resource != null && resource.length() > 0) {
+                File inFile = new File(projectRoot, resource);
+                FileUtils.copyFile(inFile, outFile);
+                return;
+            }
+        }
+
+        // Resize fallback image if resource wasn't specified or found.
+        ImageIO.write(resizeImage(fallbackImage, size), "png", outFile);
+    }
+
+    private void copyIcons(BobProjectProperties projectProperties, String projectRoot, File appDir) throws IOException
+    {
+        // Find largest input icon
+        String[] iconPropNames = { "app_icon_57x57", "app_icon_72x72", "app_icon_76x76", "app_icon_114x114", "app_icon_120x120", "app_icon_144x144", "app_icon_152x152", "app_icon_167x167", "app_icon_180x180" };
+        String largestIcon = null;
+        for (String propName : iconPropNames) {
+            String resource = projectProperties.getStringValue("ios", propName);
+            if (resource != null && resource.length() > 0) {
+                largestIcon = resource;
+            }
+        }
+
+        // Try to use the largest icon as a fallback, otherwise use a builtin icon.
+        File largetIconFile = null;
+        if (largestIcon != null) {
+            largetIconFile = new File(projectRoot, largestIcon);
+        } else {
+            URL defaultIconURL = getClass().getResource("resources/ios/default_icon.png");
+            byte[] defaultIconData = IOUtils.toByteArray(defaultIconURL);
+            largetIconFile = File.createTempFile("temp", "default_icon.png");
+            FileUtils.writeByteArrayToFile(largetIconFile, defaultIconData);
+        }
+
+        // Get fallback icon as an image
+        BufferedImage largestIconImage = ImageIO.read(largetIconFile);
+
+        // Copy game.project specified icons
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,   "app_icon_57x57",             "AppIcon57x57.png",  57);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage, "app_icon_114x114",          "AppIcon57x57@2x.png", 114);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,   "app_icon_72x72",        "AppIcon72x72~ipad.png",  72);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage, "app_icon_144x144",     "AppIcon72x72@2x~ipad.png", 144);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,   "app_icon_76x76",        "AppIcon76x76~ipad.png",  76);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage, "app_icon_152x152",     "AppIcon76x76@2x~ipad.png", 152);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage, "app_icon_120x120",          "AppIcon60x60@2x.png", 120);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage, "app_icon_180x180",          "AppIcon60x60@3x.png", 180);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage, "app_icon_167x167", "AppIcon83.5x83.5@2x~ipad.png", 167);
+
+        // Copy "unspecified" icons
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",        "AppIcon20x20~ipad.png",  20);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",          "AppIcon20x20@2x.png",  40);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",     "AppIcon20x20@2x~ipad.png",  40);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",          "AppIcon20x20@3x.png",  60);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",             "AppIcon29x29.png",  29);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",        "AppIcon29x29~ipad.png",  29);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",          "AppIcon29x29@2x.png",  58);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",     "AppIcon29x29@2x~ipad.png",  58);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",          "AppIcon29x29@3x.png",  87);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",        "AppIcon40x40~ipad.png",  40);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",          "AppIcon40x40@2x.png",  80);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",     "AppIcon40x40@2x~ipad.png",  80);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",          "AppIcon40x40@3x.png", 120);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",     "AppIcon50x50@2x~ipad.png", 100);
+        copyIcon(projectProperties, projectRoot, appDir, largestIconImage,                 "",        "AppIcon50x50~ipad.png",  50);
+
+        // Write precompiled Assets.car
+        URL assetsCarURL = getClass().getResource("resources/ios/Assets.car");
+        FileUtils.writeByteArrayToFile(new File(appDir, "Assets.car"), IOUtils.toByteArray(assetsCarURL));
     }
 
     private void logProcess(Process process)
@@ -179,55 +280,47 @@ public class IOSBundler implements IBundler {
         }
 
         // Copy icons
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_57x57", "Icon.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_114x114", "Icon@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_72x72", "Icon-72.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_144x144", "Icon-72@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_76x76", "Icon-76.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_152x152", "Icon-76@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_120x120", "Icon-60@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_180x180", "Icon-60@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "app_icon_167x167", "Icon-167.png");
+        copyIcons(projectProperties, projectRoot, appDir);
 
         // Copy launch images
         // iphone 3, 4, 5 portrait
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_320x480", "Default.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_640x960", "Default@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_640x1136", "Default-568h@2x.png");
 
         // ipad portrait+landscape
         // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_768x1004", "Default-Portrait-1024h.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_768x1024", "Default-Portrait-1024h.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1024x748", "Default-Landscape-1024h.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1024x768", "Default-Landscape-1024h.png");
 
         // iPhone 6, 7 and 8 (portrait+landscape)
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_750x1334", "Default-Portrait-667h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1334x750", "Default-Landscape-667h@2x.png");
 
         // iPhone 6 plus portrait+landscape
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1242x2208", "Default-Portrait-736h@3x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2208x1242", "Default-Landscape-736h@3x.png");
 
         // iPad retina portrait+landscape
         // backward compatibility with old game.project files with the incorrect launch image sizes
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1536x2008", "Default-Portrait-1024h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1536x2048", "Default-Portrait-1024h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
 
         // iPad pro (10.5")
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
 
         // iPad pro (12.9")
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
 
         // iPhone X (portrait+landscape)
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
-        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_1125x2436", "Default-Portrait-812h@3x.png");
+        copyImage(projectProperties, projectRoot, appDir, "launch_image_2436x1125", "Default-Landscape-812h@3x.png");
 
         List<String> applicationQueriesSchemes = new ArrayList<String>();
         List<String> urlSchemes = new ArrayList<String>();

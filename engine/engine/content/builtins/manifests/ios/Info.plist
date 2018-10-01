@@ -3,44 +3,48 @@
 <plist version="1.0">
 <dict>
         <key>BuildMachineOSBuild</key>
-        <string>13A603</string>
+        <string>17G65</string>
         <key>CFBundleDevelopmentRegion</key>
         <string>en</string>
         <key>CFBundleDisplayName</key>
         <string>{{project.title}}</string>
         <key>CFBundleExecutable</key>
         <string>{{project.title}}</string>
-        <key>CFBundleIconFiles</key>
-        <array>
-                <string>Icon-167.png</string>
-                <string>Icon-60@3x.png</string>
-                <string>Icon-60@2x.png</string>
-                <string>Icon-76@2x.png</string>
-                <string>Icon-76.png</string>
-                <string>Icon@2x.png</string>
-                <string>Icon.png</string>
-                <string>Icon-72@2x.png</string>
-                <string>Icon-72.png</string>
-        </array>
         <key>CFBundleIcons</key>
         <dict>
-                <key>CFBundlePrimaryIcon</key>
-                <dict>
-                        <key>CFBundleIconFiles</key>
-                        <array>
-                                <string>Icon-167.png</string>
-                                <string>Icon-60@3x.png</string>
-                                <string>Icon-60@2x.png</string>
-                                <string>Icon-76@2x.png</string>
-                                <string>Icon-76.png</string>
-                                <string>Icon@2x.png</string>
-                                <string>Icon.png</string>
-                                <string>Icon-72@2x.png</string>
-                                <string>Icon-72.png</string>
-                        </array>
-                        <key>UIPrerenderedIcon</key>
-                        <{{ios.pre_renderered_icons}}/>
-                </dict>
+            <key>CFBundlePrimaryIcon</key>
+            <dict>
+                <key>CFBundleIconFiles</key>
+                <array>
+                    <string>AppIcon20x20</string>
+                    <string>AppIcon29x29</string>
+                    <string>AppIcon40x40</string>
+                    <string>AppIcon57x57</string>
+                    <string>AppIcon60x60</string>
+                </array>
+                <key>CFBundleIconName</key>
+                <string>AppIcon</string>
+            </dict>
+        </dict>
+        <key>CFBundleIcons~ipad</key>
+        <dict>
+            <key>CFBundlePrimaryIcon</key>
+            <dict>
+                <key>CFBundleIconFiles</key>
+                <array>
+                    <string>AppIcon20x20</string>
+                    <string>AppIcon29x29</string>
+                    <string>AppIcon40x40</string>
+                    <string>AppIcon57x57</string>
+                    <string>AppIcon60x60</string>
+                    <string>AppIcon50x50</string>
+                    <string>AppIcon72x72</string>
+                    <string>AppIcon76x76</string>
+                    <string>AppIcon83.5x83.5</string>
+                </array>
+                <key>CFBundleIconName</key>
+                <string>AppIcon</string>
+            </dict>
         </dict>
         <key>CFBundleIdentifier</key>
         <string>{{ios.bundle_identifier}}</string>
@@ -58,24 +62,26 @@
         <array>
                 <string>iPhoneOS</string>
         </array>
+        <key>UIRequiresFullScreen</key>
+        <true/>
         <key>CFBundleVersion</key>
         <string>{{project.version}}</string>
         <key>DTCompiler</key>
         <string>com.apple.compilers.llvm.clang.1_0</string>
         <key>DTPlatformBuild</key>
-        <string>11B508</string>
+        <string>16A366</string>
         <key>DTPlatformName</key>
         <string>iphoneos</string>
         <key>DTPlatformVersion</key>
-        <string>7.0</string>
+        <string>11.2</string>
         <key>DTSDKBuild</key>
-        <string>11B508</string>
+        <string>16A366</string>
         <key>DTSDKName</key>
-        <string>iphoneos7.0</string>
+        <string>iphoneos11.2</string>
         <key>DTXcode</key>
         <string>0501</string>
         <key>DTXcodeBuild</key>
-        <string>5A2053</string>
+        <string>10A255</string>
         <key>UIFileSharingEnabled</key>
         <{{project.write_log}}/>
         <key>LSRequiresIPhoneOS</key>
