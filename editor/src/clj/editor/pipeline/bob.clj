@@ -24,95 +24,31 @@
 (def skip-dirs #{".git" "build/default" ".internal"})
 (def html5-url-prefix "/html5")
 
-(defn- ->subtask-progress [^IProgress parent steps-claimed-from-parent msg-stack-atom indeterminate-atom]
-  (assert (instance? IProgress parent))
-  (assert (number? steps-claimed-from-parent))
-  (let [step-atom (atom 1)
-        work-atom (atom {:performed 0
-                         :reported 0
-                         :remaining steps-claimed-from-parent})]
-    (reify IProgress
-      (subProgress [this steps-claimed-from-this]
-        (->subtask-progress this steps-claimed-from-this msg-stack-atom indeterminate-atom))
-      (worked [this subtask-amount]
-        (error-reporting/catch-all!
-          (let [parent-amount (* subtask-amount @step-atom)]
-            (when (pos? parent-amount)
-              (let [unreported-work-volatile (volatile! 0)]
-                (swap! work-atom (fn [{:keys [performed remaining reported] :as work}]
-                                   ;; Bob often reports insufficient subtask
-                                   ;; steps, since some tasks can put additional
-                                   ;; tasks in the queue. To guard against that,
-                                   ;; we report indeterminate progress if a
-                                   ;; subtask exceeds the  claimed steps.
-                                   (if (zero? remaining)
-                                     (do
-                                       (reset! indeterminate-atom true) ; Flag as indeterminate.
-                                       (reset! step-atom 0) ; Disable advance.
-                                       work)
-                                     (let [performed (min (+ performed parent-amount) steps-claimed-from-parent)
-                                           unreported (quot (- performed reported) 1)]
-                                       (vreset! unreported-work-volatile unreported)
-                                       {:performed performed
-                                        :reported (+ reported unreported)
-                                        :remaining (- remaining unreported)}))))
-                (let [unreported-work @unreported-work-volatile]
-                  (.worked parent unreported-work)))))))
-      (beginTask [this name subtask-steps]
-        (error-reporting/catch-all!
-          (swap! msg-stack-atom conj name)
-          (let [step (if (pos? subtask-steps)
-                       (/ steps-claimed-from-parent subtask-steps)
-                       0)] ; Indeterminate - don't advance.
-            (reset! step-atom step)
-            (when (zero? step)
-              (reset! indeterminate-atom true)) ; Flag as indeterminate.
-            (.worked parent 0)))) ; Trigger render-progress! in parent.
-      (done [this]
-        (error-reporting/catch-all!
-          (let [remaining-work (:remaining @work-atom)]
-            (swap! work-atom assoc :remaining 0)
-            (reset! indeterminate-atom false)
-            (.worked parent remaining-work)
-            (swap! msg-stack-atom pop))))
-      (isCanceled [this]
-        (.isCanceled parent)))))
-
-(defn- ->progress [render-progress!]
-  (assert (ifn? render-progress!))
-  (let [msg-stack-atom (atom [])
-        indeterminate-atom (atom false)
-        progress-atom (atom (progress/make-indeterminate ""))
-        decorate-progress (fn [progress]
-                            (if @indeterminate-atom
-                              (progress/make-indeterminate (peek @msg-stack-atom))
-                              (progress/with-message progress (peek @msg-stack-atom))))]
-    (reify IProgress
-      (subProgress [this work-claimed-from-this]
-        (->subtask-progress this work-claimed-from-this msg-stack-atom indeterminate-atom))
-      (worked [this amount]
-        (error-reporting/catch-all!
-          (-> progress-atom
-              (swap! progress/advance amount)
-              decorate-progress
-              render-progress!)))
-      (beginTask [this name steps]
-        (error-reporting/catch-all!
-          (swap! msg-stack-atom conj name)
-          (-> progress-atom
-              (reset! (if (= -1 steps)
-                        (progress/make-indeterminate name)
-                        (progress/make name steps)))
-              decorate-progress
-              render-progress!)))
-      (done [this]
-        (error-reporting/catch-all!
-          (swap! msg-stack-atom pop)
-          (-> progress-atom
-              (reset! progress/done)
-              render-progress!)))
-      (isCanceled [this]
-        false))))
+(defn ->progress
+  ([render-progress!]
+   (->progress render-progress! (atom [])))
+  ([render-progress! msg-stack-atom]
+   (assert (ifn? render-progress!))
+   (assert (vector? @msg-stack-atom))
+   (reify IProgress
+     (isCanceled [_this]
+       false)
+     (subProgress [_this _work-claimed-from-this]
+       (->progress render-progress! msg-stack-atom))
+     (beginTask [_this name _steps]
+       (error-reporting/catch-all!
+         (swap! msg-stack-atom conj name)
+         (render-progress! (progress/make-indeterminate name))))
+     (worked [_this _amount]
+       ;; Bob reports misleading progress amounts.
+       ;; We report only "busy" and the name of the task.
+       nil)
+     (done [_this]
+       (error-reporting/catch-all!
+         (let [msg (peek (swap! msg-stack-atom pop))]
+           (render-progress! (if (some? msg)
+                               (progress/make-indeterminate msg)
+                               progress/done))))))))
 
 (defn- ->graph-resource-scanner [ws]
   (let [res-map (->> (g/node-value ws :resource-map)
@@ -275,6 +211,7 @@
         compress-archive? (get proj-settings ["project" "compress_archive"])
         [email auth] (login/credentials prefs)]
     (cond-> {"platform" "js-web"
+             "variant" "debug"
              "archive" "true"
              "bundle-output" (str output-path)
              "build-server" build-server-url

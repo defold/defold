@@ -851,7 +851,6 @@
 
 (defn- override [node-id]
   (-> (g/override node-id {})
-    :tx-data
     tx-nodes))
 
 (deftest overridden-properties
