@@ -1486,6 +1486,9 @@ namespace dmParticle
         dmArray<Particle>& particles = emitter->m_Particles;
         EvaluateParticleProperties(emitter, prototype->m_ParticleProperties, ddf, dt);
         float emitter_t = dmMath::Select(-ddf->m_Duration, 0.0f, emitter->m_Timer / ddf->m_Duration);
+        float scale = 1.0f;
+        if (ddf->m_Space == EMISSION_SPACE_WORLD)
+            scale = instance->m_WorldTransform.GetScale();
         // Apply modifiers
         uint32_t modifier_count = prototype->m_Modifiers.Size();
         for (uint32_t i = 0; i < modifier_count; ++i)
@@ -1497,7 +1500,7 @@ namespace dmParticle
             case dmParticleDDF::MODIFIER_TYPE_ACCELERATION:
                 {
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyAcceleration(particles, modifier->m_Properties, rotation, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyAcceleration(particles, modifier->m_Properties, rotation, scale, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_DRAG:
@@ -1509,14 +1512,14 @@ namespace dmParticle
             case dmParticleDDF::MODIFIER_TYPE_RADIAL:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
-                    ApplyRadial(particles, modifier->m_Properties, position, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyRadial(particles, modifier->m_Properties, position, scale, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_VORTEX:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyVortex(particles, modifier->m_Properties, position, rotation, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyVortex(particles, modifier->m_Properties, position, rotation, scale, emitter_t, dt);
                 }
                 break;
             }
