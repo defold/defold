@@ -53,6 +53,26 @@
 (defn prune-context! [context]
   (swap! object-caches prune-context context))
 
+(defn- clear-all [caches]
+  (into {}
+        (map (fn [[cache-id meta]]
+               (let [destroy-batch-fn (:destroy-batch-fn meta)]
+                 [cache-id (update meta :caches
+                                   (fn [caches-by-context]
+                                     (into {}
+                                           (map (fn [[context cache]]
+                                                  [context (when (some? cache)
+                                                             (let [evicted-keys (mapv first cache)
+                                                                   dead-objects (mapv second cache)]
+                                                               (when (seq dead-objects)
+                                                                 (destroy-batch-fn context (map first dead-objects) (map second dead-objects)))
+                                                               (reduce cache/evict cache evicted-keys)))]))
+                                           caches-by-context)))])))
+        caches))
+
+(defn clear-all! []
+  (swap! object-caches clear-all))
+
 (defn- drop-context [caches context]
   (into {}
         (map (fn [[cache-id meta]]
