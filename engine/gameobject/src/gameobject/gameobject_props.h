@@ -83,10 +83,7 @@ namespace dmGameObject
     };
 
     HPropertyContainerBuilder CreatePropertyContainerBuilder(const PropertyContainerParameters& params);
-    void PushNumber(HPropertyContainerBuilder builder, dmhash_t id, float value);
-    void PushVector3(HPropertyContainerBuilder builder, dmhash_t id, const float values[3]);
-    void PushVector4(HPropertyContainerBuilder builder, dmhash_t id, const float values[4]);
-    void PushQuat(HPropertyContainerBuilder builder, dmhash_t id, const float values[4]);
+    void PushFloatType(HPropertyContainerBuilder builder, dmhash_t id, PropertyType type, const float values[]);
     void PushBool(HPropertyContainerBuilder builder, dmhash_t id, bool value);
     void PushHash(HPropertyContainerBuilder builder, dmhash_t id, dmhash_t value);
     void PushURLString(HPropertyContainerBuilder builder, dmhash_t id, const char* value);

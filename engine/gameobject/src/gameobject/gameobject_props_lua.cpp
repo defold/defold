@@ -193,7 +193,10 @@ namespace dmGameObject
                 switch(GetPropertyType(L, -1))
                 {
                     case PROPERTY_TYPE_NUMBER:
-                        PushNumber(builder, id, lua_tonumber(L, -1));
+                        {
+                            float number = lua_tonumber(L, -1);
+                            PushFloatType(builder, id, PROPERTY_TYPE_NUMBER, &number);
+                        }
                         break;
                     case PROPERTY_TYPE_HASH:
                         PushHash(builder, id, dmScript::CheckHash(L, -1));
@@ -202,13 +205,13 @@ namespace dmGameObject
                         PushURL(builder, id, (const char*)dmScript::CheckURL(L, -1));
                         break;
                     case PROPERTY_TYPE_VECTOR3:
-                        PushVector3(builder, id, (const float*)dmScript::CheckVector3(L, -1));
+                        PushFloatType(builder, id, PROPERTY_TYPE_VECTOR3, (const float*)dmScript::CheckVector3(L, -1));
                         break;
                     case PROPERTY_TYPE_VECTOR4:
-                        PushVector4(builder, id, (const float*)dmScript::CheckVector4(L, -1));
+                        PushFloatType(builder, id, PROPERTY_TYPE_VECTOR4, (const float*)dmScript::CheckVector4(L, -1));
                         break;
                     case PROPERTY_TYPE_QUAT:
-                        PushQuat(builder, id, (const float*)dmScript::CheckQuat(L, -1));
+                        PushFloatType(builder, id, PROPERTY_TYPE_QUAT, (const float*)dmScript::CheckQuat(L, -1));
                         break;
                     case PROPERTY_TYPE_BOOLEAN:
                         PushBool(builder, id, lua_toboolean(L, -1) != 0);

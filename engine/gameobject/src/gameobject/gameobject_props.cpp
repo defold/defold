@@ -108,6 +108,16 @@ namespace dmGameObject
         float* m_FloatData;
         char* m_URLData;
         char* m_StringData;
+        // The actual data for the arrays is stored here, all the data is allocated in one chunk of memory
+        // [optional padding to align dmhash_t ID array]
+        // dmhash_t [entry_count]               The ID hash of each entry
+        // uint32_t [entry_count]               The offset into respective data array depending on type
+        // PropertyContainerType [entry_count]  The type of the entry
+        // [optional padding to align dmhash_t data]
+        // dmhash_t [hash_count]                All the hash values
+        // float [float_count]                  All the number, vector3, vector4 and quad values
+        // char [32*url_count]                  All the URLs (dmMessage::URL in char[32] form)
+        // char [url_string_size + bool_count]  All the string for string based urls and one char per boolean
     };
 
     struct PropertyContainerBuilder
@@ -132,10 +142,10 @@ namespace dmGameObject
     {
         uint32_t prop_count = params.m_NumberCount + params.m_HashCount + params.m_URLStringCount + params.m_URLCount + params.m_Vector3Count + params.m_Vector4Count + params.m_QuatCount + params.m_BoolCount;
 
-        size_t struct_size = sizeof(PropertyContainer);
+        size_t struct_size = DM_ALIGN(sizeof(PropertyContainer), 8);
         size_t ids_size = DM_ALIGN(sizeof(dmhash_t) * prop_count, 4);
         size_t indexes_size = DM_ALIGN(sizeof(uint32_t) * prop_count, 4);
-        size_t types_size = DM_ALIGN(sizeof(PropertyContainerType) * prop_count, 4);
+        size_t types_size = DM_ALIGN(sizeof(PropertyContainerType) * prop_count, 8);
         size_t hashes_size = DM_ALIGN(sizeof(uint64_t) * params.m_HashCount, 4);
         size_t floats_size = DM_ALIGN(sizeof(float) * (params.m_NumberCount + params.m_Vector3Count * 3 + params.m_Vector4Count * 4 + params.m_QuatCount * 4), 4);
         size_t url_size = DM_ALIGN(params.m_URLCount * sizeof(dmMessage::URL), 1);
@@ -204,63 +214,41 @@ namespace dmGameObject
         return builder;
     }
 
-    void PushNumber(HPropertyContainerBuilder builder, dmhash_t id, float value)
+    void PushFloatType(HPropertyContainerBuilder builder, dmhash_t id, PropertyType type, const float values[])
     {
         assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
         uint32_t entry_offset = builder->m_EntryOffset;
         uint32_t float_offset = builder->m_FloatOffset;
         builder->m_PropertyContainer->m_Ids[entry_offset] = id;
         builder->m_PropertyContainer->m_Indexes[entry_offset] = float_offset;
-        builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_NUMBER;
-        builder->m_PropertyContainer->m_FloatData[float_offset] = value;
-        builder->m_FloatOffset += 1;
-        ++builder->m_EntryOffset;
-    }
-
-    void PushVector3(HPropertyContainerBuilder builder, dmhash_t id, const float values[3])
-    {
-        assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
-        uint32_t entry_offset = builder->m_EntryOffset;
-        uint32_t float_offset = builder->m_FloatOffset;
-        builder->m_PropertyContainer->m_Ids[entry_offset] = id;
-        builder->m_PropertyContainer->m_Indexes[entry_offset] = float_offset;
-        builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_VECTOR3;
-        builder->m_PropertyContainer->m_FloatData[float_offset + 0] = values[0];
-        builder->m_PropertyContainer->m_FloatData[float_offset + 1] = values[1];
-        builder->m_PropertyContainer->m_FloatData[float_offset + 2] = values[2];
-        builder->m_FloatOffset += 3;
-        ++builder->m_EntryOffset;
-    }
-
-    void PushVector4(HPropertyContainerBuilder builder, dmhash_t id, const float values[4])
-    {
-        assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
-        uint32_t entry_offset = builder->m_EntryOffset;
-        uint32_t float_offset = builder->m_FloatOffset;
-        builder->m_PropertyContainer->m_Ids[entry_offset] = id;
-        builder->m_PropertyContainer->m_Indexes[entry_offset] = float_offset;
-        builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_VECTOR4;
-        builder->m_PropertyContainer->m_FloatData[float_offset + 0] = values[0];
-        builder->m_PropertyContainer->m_FloatData[float_offset + 1] = values[1];
-        builder->m_PropertyContainer->m_FloatData[float_offset + 2] = values[2];
-        builder->m_PropertyContainer->m_FloatData[float_offset + 3] = values[3];
-        builder->m_FloatOffset += 4;
-        ++builder->m_EntryOffset;
-    }
-
-    void PushQuat(HPropertyContainerBuilder builder, dmhash_t id, const float values[4])
-    {
-        assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
-        uint32_t entry_offset = builder->m_EntryOffset;
-        uint32_t float_offset = builder->m_FloatOffset;
-        builder->m_PropertyContainer->m_Ids[entry_offset] = id;
-        builder->m_PropertyContainer->m_Indexes[entry_offset] = float_offset;
-        builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_QUAT;
-        builder->m_PropertyContainer->m_FloatData[float_offset + 0] = values[0];
-        builder->m_PropertyContainer->m_FloatData[float_offset + 1] = values[1];
-        builder->m_PropertyContainer->m_FloatData[float_offset + 2] = values[2];
-        builder->m_PropertyContainer->m_FloatData[float_offset + 3] = values[3];
-        builder->m_FloatOffset += 4;
+        uint32_t count = 0;
+        switch (type)
+        {
+            case PROPERTY_TYPE_NUMBER:
+                count = 1;
+                builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_NUMBER;
+                break;
+            case PROPERTY_TYPE_VECTOR3:
+                count = 3;
+                builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_VECTOR3;
+                break;
+            case PROPERTY_TYPE_VECTOR4:
+                count = 4;
+                builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_VECTOR4;
+                break;
+            case PROPERTY_TYPE_QUAT:
+                count = 4;
+                builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_QUAT;
+                break;
+            default:
+                assert(false);
+                return;
+        }
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            builder->m_PropertyContainer->m_FloatData[float_offset + i] = values[i];
+        }
+        builder->m_FloatOffset += count;
         ++builder->m_EntryOffset;
     }
 
@@ -378,7 +366,7 @@ namespace dmGameObject
         switch(container->m_Types[i])
         {
             case PROPERTY_CONTAINER_TYPE_NUMBER:
-                PushNumber(builder, container->m_Ids[i], container->m_FloatData[container->m_Indexes[i]]);
+                PushFloatType(builder, container->m_Ids[i], PROPERTY_TYPE_NUMBER, &container->m_FloatData[container->m_Indexes[i]]);
                 break;
             case PROPERTY_CONTAINER_TYPE_HASH:
                 PushHash(builder, container->m_Ids[i], container->m_HashData[container->m_Indexes[i]]);
@@ -387,13 +375,13 @@ namespace dmGameObject
                 PushURL(builder, container->m_Ids[i], &container->m_URLData[container->m_Indexes[i]]);
                 break;
             case PROPERTY_CONTAINER_TYPE_VECTOR3:
-                PushVector3(builder, container->m_Ids[i], &container->m_FloatData[container->m_Indexes[i]]);
+                PushFloatType(builder, container->m_Ids[i],PROPERTY_TYPE_VECTOR3, &container->m_FloatData[container->m_Indexes[i]]);
                 break;
             case PROPERTY_CONTAINER_TYPE_VECTOR4:
-                PushVector4(builder, container->m_Ids[i], &container->m_FloatData[container->m_Indexes[i]]);
+                PushFloatType(builder, container->m_Ids[i], PROPERTY_TYPE_VECTOR4, &container->m_FloatData[container->m_Indexes[i]]);
                 break;
             case PROPERTY_CONTAINER_TYPE_QUAT:
-                PushQuat(builder, container->m_Ids[i], &container->m_FloatData[container->m_Indexes[i]]);
+                PushFloatType(builder, container->m_Ids[i], PROPERTY_TYPE_QUAT, &container->m_FloatData[container->m_Indexes[i]]);
                 break;
             case PROPERTY_CONTAINER_TYPE_BOOLEAN:
                 PushBool(builder, container->m_Ids[i], container->m_StringData[container->m_Indexes[i]] != 0);

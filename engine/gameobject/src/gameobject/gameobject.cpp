@@ -975,8 +975,7 @@ namespace dmGameObject
             {
                 component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
             }
-            // TODO use the component type identification system once it has been implemented (related to set_tile for tile maps)
-            // TODO this is a bit of a hack, the function should be added as a component callback instead so that the context can be properly handled
+
             if (strcmp(component.m_Type->m_Name, "scriptc") == 0 && component.m_Type->m_SetPropertiesFunction != 0x0)
             {
                 ComponentSetPropertiesParams params;
@@ -1267,8 +1266,6 @@ namespace dmGameObject
                         InstancePropertyBuffer *instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
                         if (instance_properties != 0x0)
                         {
-                            // TODO use the component type identification system once it has been implemented (related to set_tile for tile maps)
-                            // TODO this is a bit of a hack, the function should be added as a component callback instead so that the context can be properly handled
                             if (strcmp(type->m_Name, "scriptc") == 0 && type->m_SetPropertiesFunction != 0x0)
                             {
                                 void* component_context = type->m_Context;
@@ -1305,13 +1302,9 @@ namespace dmGameObject
                                 break;
                             }
                         }
-                        else if (ddf_properties != 0x0)
+                        else
                         {
-                            properties = ddf_properties;
-                        }
-                        else if (lua_properties != 0x0)
-                        {
-                            properties = lua_properties;
+                            properties = ddf_properties ? ddf_properties : lua_properties;
                         }
 
                         ComponentSetPropertiesParams params;

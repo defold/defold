@@ -27,22 +27,22 @@ namespace dmGameObject
         for (uint32_t i = 0; i < prop_descs->m_NumberEntries.m_Count; ++i)
         {
             const dmPropertiesDDF::PropertyDeclarationEntry& entry = prop_descs->m_NumberEntries.m_Data[i];
-            PushNumber(builder, entry.m_Id, prop_descs->m_FloatValues[entry.m_Index]);
+            PushFloatType(builder, entry.m_Id, PROPERTY_TYPE_NUMBER, &prop_descs->m_FloatValues[entry.m_Index]);
         }
         for (uint32_t i = 0; i < prop_descs->m_Vector3Entries.m_Count; ++i)
         {
             const dmPropertiesDDF::PropertyDeclarationEntry& entry = prop_descs->m_Vector3Entries.m_Data[i];
-            PushVector3(builder, entry.m_Id, &prop_descs->m_FloatValues[entry.m_Index]);
+            PushFloatType(builder, entry.m_Id, PROPERTY_TYPE_VECTOR3, &prop_descs->m_FloatValues[entry.m_Index]);
         }
         for (uint32_t i = 0; i < prop_descs->m_Vector4Entries.m_Count; ++i)
         {
             const dmPropertiesDDF::PropertyDeclarationEntry& entry = prop_descs->m_Vector4Entries.m_Data[i];
-            PushVector4(builder, entry.m_Id, &prop_descs->m_FloatValues[entry.m_Index]);
+            PushFloatType(builder, entry.m_Id, PROPERTY_TYPE_VECTOR4, &prop_descs->m_FloatValues[entry.m_Index]);
         }
         for (uint32_t i = 0; i < prop_descs->m_QuatEntries.m_Count; ++i)
         {
             const dmPropertiesDDF::PropertyDeclarationEntry& entry = prop_descs->m_QuatEntries.m_Data[i];
-            PushQuat(builder, entry.m_Id, &prop_descs->m_FloatValues[entry.m_Index]);
+            PushFloatType(builder, entry.m_Id, PROPERTY_TYPE_QUAT, &prop_descs->m_FloatValues[entry.m_Index]);
         }
         for (uint32_t i = 0; i < prop_descs->m_BoolEntries.m_Count; ++i)
         {

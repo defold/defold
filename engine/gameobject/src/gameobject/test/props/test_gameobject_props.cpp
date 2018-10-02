@@ -583,16 +583,16 @@ TEST(GameObjectProps, TestCreatePropertyContainer)
     params.m_URLStringSize += strlen("url_string_second") + 1;
     dmGameObject::HPropertyContainerBuilder builder = dmGameObject::CreatePropertyContainerBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
-    dmGameObject::PushNumber(builder, dmHashString64("NumberFirst"), numberFirst);
-    dmGameObject::PushNumber(builder, dmHashString64("NumberSecond"), numberSecond);
+    dmGameObject::PushFloatType(builder, dmHashString64("NumberFirst"), dmGameObject::PROPERTY_TYPE_NUMBER, &numberFirst);
+    dmGameObject::PushFloatType(builder, dmHashString64("NumberSecond"), dmGameObject::PROPERTY_TYPE_NUMBER, &numberSecond);
     dmGameObject::PushHash(builder, dmHashString64("HashFirst"), hashFirst);
     dmGameObject::PushURLString(builder, dmHashString64("URLStringFirst"), urlStringFirst);
     dmGameObject::PushURLString(builder, dmHashString64("URLStringSecond"), urlStringSecond);
     dmGameObject::PushURL(builder, dmHashString64("URLFirst"), urlFirst);
-    dmGameObject::PushVector3(builder, dmHashString64("Vector3First"), vector3First);
-    dmGameObject::PushVector3(builder, dmHashString64("Vector3Second"), vector3Second);
-    dmGameObject::PushVector4(builder, dmHashString64("Vector4First"), vector4First);
-    dmGameObject::PushQuat(builder, dmHashString64("QuatFirst"), quatFirst);
+    dmGameObject::PushFloatType(builder, dmHashString64("Vector3First"), dmGameObject::PROPERTY_TYPE_VECTOR3, vector3First);
+    dmGameObject::PushFloatType(builder, dmHashString64("Vector3Second"), dmGameObject::PROPERTY_TYPE_VECTOR3, vector3Second);
+    dmGameObject::PushFloatType(builder, dmHashString64("Vector4First"), dmGameObject::PROPERTY_TYPE_VECTOR4, vector4First);
+    dmGameObject::PushFloatType(builder, dmHashString64("QuatFirst"), dmGameObject::PROPERTY_TYPE_QUAT, quatFirst);
     dmGameObject::PushBool(builder, dmHashString64("BoolFirst"), boolFirst);
     dmGameObject::PushBool(builder, dmHashString64("BoolSecond"), boolSecond);
     dmGameObject::HPropertyContainer c = dmGameObject::CreatePropertyContainer(builder);
@@ -653,6 +653,7 @@ TEST(GameObjectProps, TestMergePropertyContainer)
                                 1, 2};
     float VECTOR3[3] = {1, 2, 3};
     float VECTOR3_OVERIDE[3] = {-1, -2, -3};
+    float VECTOR3_2[3] = {10, -21, -30};
 
     dmGameObject::PropertyContainerParameters params;
     params.m_NumberCount = 1;
@@ -662,20 +663,21 @@ TEST(GameObjectProps, TestMergePropertyContainer)
     params.m_URLStringSize += strlen("/url") + 1;
     dmGameObject::HPropertyContainerBuilder builder = dmGameObject::CreatePropertyContainerBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
-    dmGameObject::PushNumber(builder, dmHashString64("number"), NUMBER);
+    dmGameObject::PushFloatType(builder, dmHashString64("number"), dmGameObject::PROPERTY_TYPE_NUMBER, &NUMBER);
     dmGameObject::PushURLString(builder, dmHashString64("url"), URL);
-    dmGameObject::PushVector3(builder, dmHashString64("vector3"), VECTOR3);
+    dmGameObject::PushFloatType(builder, dmHashString64("vector3"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3);
 
     dmGameObject::HPropertyContainer c = dmGameObject::CreatePropertyContainer(builder);
     ASSERT_NE(c, (dmGameObject::HPropertyContainer)0x0);
 
     params = dmGameObject::PropertyContainerParameters();
     params.m_URLCount = 1;
-    params.m_Vector3Count = 1;
+    params.m_Vector3Count = 2;
     builder = dmGameObject::CreatePropertyContainerBuilder(params);
     ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
     dmGameObject::PushURL(builder, dmHashString64("url"), URL_OVERIDE);
-    dmGameObject::PushVector3(builder, dmHashString64("vector3"), VECTOR3_OVERIDE);
+    dmGameObject::PushFloatType(builder, dmHashString64("vector3"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3_OVERIDE);
+    dmGameObject::PushFloatType(builder, dmHashString64("vector3-2"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3_2);
 
     dmGameObject::HPropertyContainer o = dmGameObject::CreatePropertyContainer(builder);
     ASSERT_NE(o, (dmGameObject::HPropertyContainer)0x0);
@@ -700,6 +702,12 @@ TEST(GameObjectProps, TestMergePropertyContainer)
     ASSERT_EQ(VECTOR3_OVERIDE[0], var.m_V4[0]);
     ASSERT_EQ(VECTOR3_OVERIDE[1], var.m_V4[1]);
     ASSERT_EQ(VECTOR3_OVERIDE[2], var.m_V4[2]);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)m, dmHashString64("vector3-2"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, var.m_Type);
+    ASSERT_EQ(VECTOR3_2[0], var.m_V4[0]);
+    ASSERT_EQ(VECTOR3_2[1], var.m_V4[1]);
+    ASSERT_EQ(VECTOR3_2[2], var.m_V4[2]);
 
     dmGameObject::DestroyPropertyContainer(m);
 }
