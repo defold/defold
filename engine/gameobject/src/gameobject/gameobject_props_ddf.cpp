@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <dlib/align.h>
-
 namespace dmGameObject
 {
     HPropertyContainer CreatePropertyContainerFromDDF(const dmPropertiesDDF::PropertyDeclarations* prop_descs)
@@ -49,7 +47,7 @@ namespace dmGameObject
         for (uint32_t i = 0; i < prop_descs->m_BoolEntries.m_Count; ++i)
         {
             const dmPropertiesDDF::PropertyDeclarationEntry& entry = prop_descs->m_BoolEntries.m_Data[i];
-            PushBool(builder, entry.m_Id, prop_descs->m_FloatValues[entry.m_Index]);
+            PushBool(builder, entry.m_Id, prop_descs->m_FloatValues[entry.m_Index] != 0.0f);
         }
         for (uint32_t i = 0; i < prop_descs->m_HashEntries.m_Count; ++i)
         {

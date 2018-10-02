@@ -211,7 +211,7 @@ namespace dmGameObject
                         PushQuat(builder, id, (const float*)dmScript::CheckQuat(L, -1));
                         break;
                     case PROPERTY_TYPE_BOOLEAN:
-                        PushBool(builder, id, lua_toboolean(L, -1));
+                        PushBool(builder, id, lua_toboolean(L, -1) != 0);
                         break;
                     case PROPERTY_TYPE_COUNT:
                         assert(false);

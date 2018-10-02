@@ -87,7 +87,7 @@ namespace dmGameObject
     void PushVector3(HPropertyContainerBuilder builder, dmhash_t id, const float values[3]);
     void PushVector4(HPropertyContainerBuilder builder, dmhash_t id, const float values[4]);
     void PushQuat(HPropertyContainerBuilder builder, dmhash_t id, const float values[4]);
-    void PushBool(HPropertyContainerBuilder builder, dmhash_t id, float value);
+    void PushBool(HPropertyContainerBuilder builder, dmhash_t id, bool value);
     void PushHash(HPropertyContainerBuilder builder, dmhash_t id, dmhash_t value);
     void PushURLString(HPropertyContainerBuilder builder, dmhash_t id, const char* value);
     void PushURL(HPropertyContainerBuilder builder, dmhash_t id, const char value[sizeof(dmMessage::URL)]);

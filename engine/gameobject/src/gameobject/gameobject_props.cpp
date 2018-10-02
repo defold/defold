@@ -137,9 +137,9 @@ namespace dmGameObject
         size_t indexes_size = DM_ALIGN(sizeof(uint32_t) * prop_count, 4);
         size_t types_size = DM_ALIGN(sizeof(PropertyContainerType) * prop_count, 4);
         size_t hashes_size = DM_ALIGN(sizeof(uint64_t) * params.m_HashCount, 4);
-        size_t floats_size = DM_ALIGN(sizeof(float) * (params.m_NumberCount + params.m_Vector3Count * 3 + params.m_Vector4Count * 4 + params.m_QuatCount * 4 + params.m_BoolCount), 4);
+        size_t floats_size = DM_ALIGN(sizeof(float) * (params.m_NumberCount + params.m_Vector3Count * 3 + params.m_Vector4Count * 4 + params.m_QuatCount * 4), 4);
         size_t url_size = DM_ALIGN(params.m_URLCount * sizeof(dmMessage::URL), 1);
-        size_t strings_size = params.m_URLStringSize;
+        size_t strings_size = params.m_URLStringSize + params.m_BoolCount;
 
         size_t property_container_size = struct_size + 
             ids_size +
@@ -264,16 +264,16 @@ namespace dmGameObject
         ++builder->m_EntryOffset;
     }
 
-    void PushBool(HPropertyContainerBuilder builder, dmhash_t id, float value)
+    void PushBool(HPropertyContainerBuilder builder, dmhash_t id, bool value)
     {
         assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
         uint32_t entry_offset = builder->m_EntryOffset;
-        uint32_t float_offset = builder->m_FloatOffset;
+        uint32_t float_offset = builder->m_StringOffset;
         builder->m_PropertyContainer->m_Ids[entry_offset] = id;
         builder->m_PropertyContainer->m_Indexes[entry_offset] = float_offset;
         builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_BOOLEAN;
-        builder->m_PropertyContainer->m_FloatData[float_offset] = value;
-        builder->m_FloatOffset += 1;
+        builder->m_PropertyContainer->m_StringData[float_offset] = value ? 1 : 0;
+        builder->m_StringOffset += 1;
         ++builder->m_EntryOffset;
     }
 
@@ -324,16 +324,18 @@ namespace dmGameObject
         return result;
     }
 
-    static bool HasId(HPropertyContainer container, dmhash_t id)
+    static uint32_t INVALID_ENTRY_INDEX = 0xffffffffu;
+
+    static uint32_t FindId(HPropertyContainer container, dmhash_t id)
     {
         for (uint32_t i = 0; i < container->m_Count; ++i)
         {
             if (container->m_Ids[i] == id)
             {
-                return true;
+                return i;
             }
         }
-        return false;
+        return INVALID_ENTRY_INDEX;
     }
 
     static void CountEntry(PropertyContainerParameters& params, HPropertyContainer container, uint32_t i)
@@ -394,7 +396,7 @@ namespace dmGameObject
                 PushQuat(builder, container->m_Ids[i], &container->m_FloatData[container->m_Indexes[i]]);
                 break;
             case PROPERTY_CONTAINER_TYPE_BOOLEAN:
-                PushBool(builder, container->m_Ids[i], container->m_FloatData[container->m_Indexes[i]]);
+                PushBool(builder, container->m_Ids[i], container->m_StringData[container->m_Indexes[i]] != 0);
                 break;
             case PROPERTY_CONTAINER_TYPE_URL_STRING:
                 PushURLString(builder, container->m_Ids[i], &container->m_StringData[container->m_Indexes[i]]);
@@ -415,7 +417,7 @@ namespace dmGameObject
 
         for (uint32_t i = 0; i < container->m_Count; ++i)
         {
-            if (HasId(overrides, container->m_Ids[i]))
+            if (FindId(overrides, container->m_Ids[i]) != INVALID_ENTRY_INDEX)
             {
                 continue;
             }
@@ -431,7 +433,7 @@ namespace dmGameObject
 
         for (uint32_t i = 0; i < container->m_Count; ++i)
         {
-            if (HasId(overrides, container->m_Ids[i]))
+            if (FindId(overrides, container->m_Ids[i]) != INVALID_ENTRY_INDEX)
             {
                 continue;
             }
@@ -460,64 +462,62 @@ namespace dmGameObject
             return PROPERTY_RESULT_NOT_FOUND;
         }
         PropertyContainer* property_container = (PropertyContainer*)user_data;
-        for (uint32_t i = 0; i < property_container->m_Count; ++i)
+        uint32_t i = FindId(property_container, id);
+        if (i == INVALID_ENTRY_INDEX)
         {
-            if (property_container->m_Ids[i] == id)
-            {
-                uint32_t index = property_container->m_Indexes[i];
-                switch(property_container->m_Types[i])
-                {
-                    case PROPERTY_CONTAINER_TYPE_NUMBER:
-                        out_var.m_Number = property_container->m_FloatData[index];
-                        out_var.m_Type = PROPERTY_TYPE_NUMBER;
-                        break;
-                    case PROPERTY_CONTAINER_TYPE_HASH:
-                        out_var.m_Hash = property_container->m_HashData[index];
-                        out_var.m_Type = PROPERTY_TYPE_HASH;
-                        break;
-                    case PROPERTY_CONTAINER_TYPE_URL_STRING:
-                        if (!ResolveURL(properties, &property_container->m_StringData[index], (dmMessage::URL*) out_var.m_URL))
-                        {
-                            return PROPERTY_RESULT_INVALID_FORMAT;
-                        }
-                        out_var.m_Type = PROPERTY_TYPE_URL;
-                        break;
-                    case PROPERTY_CONTAINER_TYPE_URL:
-                        memcpy(&out_var.m_URL, &property_container->m_URLData[index], sizeof(dmMessage::URL));
-                        out_var.m_Type = PROPERTY_TYPE_URL;
-                        break;
-                    case PROPERTY_CONTAINER_TYPE_VECTOR3:
-                        out_var.m_V4[0] = property_container->m_FloatData[index+0];
-                        out_var.m_V4[1] = property_container->m_FloatData[index+1];
-                        out_var.m_V4[2] = property_container->m_FloatData[index+2];
-                        out_var.m_Type = PROPERTY_TYPE_VECTOR3;
-                        break;
-                    case PROPERTY_CONTAINER_TYPE_VECTOR4:
-                        out_var.m_V4[0] = property_container->m_FloatData[index+0];
-                        out_var.m_V4[1] = property_container->m_FloatData[index+1];
-                        out_var.m_V4[2] = property_container->m_FloatData[index+2];
-                        out_var.m_V4[3] = property_container->m_FloatData[index+3];
-                        out_var.m_Type = PROPERTY_TYPE_VECTOR4;
-                        break;
-                    case PROPERTY_CONTAINER_TYPE_QUAT:
-                        out_var.m_V4[0] = property_container->m_FloatData[index+0];
-                        out_var.m_V4[1] = property_container->m_FloatData[index+1];
-                        out_var.m_V4[2] = property_container->m_FloatData[index+2];
-                        out_var.m_V4[3] = property_container->m_FloatData[index+3];
-                        out_var.m_Type = PROPERTY_TYPE_QUAT;
-                        break;
-                    case PROPERTY_CONTAINER_TYPE_BOOLEAN:
-                        out_var.m_Bool = property_container->m_FloatData[index] != 0.f;
-                        out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
-                        break;
-                    default:
-                        assert(false);
-                        break;
-                }
-                return PROPERTY_RESULT_OK;
-            }
+            return PROPERTY_RESULT_NOT_FOUND;
         }
-        return PROPERTY_RESULT_NOT_FOUND;
+        uint32_t index = property_container->m_Indexes[i];
+        switch(property_container->m_Types[i])
+        {
+            case PROPERTY_CONTAINER_TYPE_NUMBER:
+                out_var.m_Number = property_container->m_FloatData[index];
+                out_var.m_Type = PROPERTY_TYPE_NUMBER;
+                break;
+            case PROPERTY_CONTAINER_TYPE_HASH:
+                out_var.m_Hash = property_container->m_HashData[index];
+                out_var.m_Type = PROPERTY_TYPE_HASH;
+                break;
+            case PROPERTY_CONTAINER_TYPE_URL_STRING:
+                if (!ResolveURL(properties, &property_container->m_StringData[index], (dmMessage::URL*) out_var.m_URL))
+                {
+                    return PROPERTY_RESULT_INVALID_FORMAT;
+                }
+                out_var.m_Type = PROPERTY_TYPE_URL;
+                break;
+            case PROPERTY_CONTAINER_TYPE_URL:
+                memcpy(&out_var.m_URL, &property_container->m_URLData[index], sizeof(dmMessage::URL));
+                out_var.m_Type = PROPERTY_TYPE_URL;
+                break;
+            case PROPERTY_CONTAINER_TYPE_VECTOR3:
+                out_var.m_V4[0] = property_container->m_FloatData[index+0];
+                out_var.m_V4[1] = property_container->m_FloatData[index+1];
+                out_var.m_V4[2] = property_container->m_FloatData[index+2];
+                out_var.m_Type = PROPERTY_TYPE_VECTOR3;
+                break;
+            case PROPERTY_CONTAINER_TYPE_VECTOR4:
+                out_var.m_V4[0] = property_container->m_FloatData[index+0];
+                out_var.m_V4[1] = property_container->m_FloatData[index+1];
+                out_var.m_V4[2] = property_container->m_FloatData[index+2];
+                out_var.m_V4[3] = property_container->m_FloatData[index+3];
+                out_var.m_Type = PROPERTY_TYPE_VECTOR4;
+                break;
+            case PROPERTY_CONTAINER_TYPE_QUAT:
+                out_var.m_V4[0] = property_container->m_FloatData[index+0];
+                out_var.m_V4[1] = property_container->m_FloatData[index+1];
+                out_var.m_V4[2] = property_container->m_FloatData[index+2];
+                out_var.m_V4[3] = property_container->m_FloatData[index+3];
+                out_var.m_Type = PROPERTY_TYPE_QUAT;
+                break;
+            case PROPERTY_CONTAINER_TYPE_BOOLEAN:
+                out_var.m_Bool = property_container->m_StringData[index] != 0;
+                out_var.m_Type = PROPERTY_TYPE_BOOLEAN;
+                break;
+            default:
+                assert(false);
+                break;
+        }
+        return PROPERTY_RESULT_OK;
     }
 
     void DestroyPropertyContainer(HPropertyContainer container)
