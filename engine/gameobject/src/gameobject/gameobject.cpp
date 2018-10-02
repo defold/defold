@@ -1244,11 +1244,8 @@ namespace dmGameObject
                             success = false;
                             break;
                         }
-                        ComponentSetPropertiesParams params;
-                        params.m_Instance = instance;
 
                         HPropertyContainer properties = 0x0;
-
                         InstancePropertyBuffer *instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
                         if (instance_properties != 0x0)
                         {
@@ -1270,19 +1267,12 @@ namespace dmGameObject
                             }
                         }
 
-                        if (!success)
-                        {
-                            break;
-                        }
-
                         uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
                         for (uint32_t prop_i = 0; prop_i < comp_prop_count; ++prop_i)
                         {
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                dmArray<dmhash_t> script_ids;
-                                dmArray<PropertyVar> script_vars;
 
                                 HPropertyContainer ddf_properties = CreatePropertyContainerDDF(&comp_prop.m_PropertyDecls);
                                 if (ddf_properties == 0x0)
@@ -1315,6 +1305,9 @@ namespace dmGameObject
                         {
                             break;
                         }
+
+                        ComponentSetPropertiesParams params;
+                        params.m_Instance = instance;
 
                         if (properties != 0x0)
                         {
