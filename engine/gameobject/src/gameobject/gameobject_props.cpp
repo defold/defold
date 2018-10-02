@@ -435,7 +435,7 @@ namespace dmGameObject
             {
                 continue;
             }
-            PushEntry(builder, overrides, i);
+            PushEntry(builder, container, i);
         }
 
         DestroyPropertyContainer(container);
