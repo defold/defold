@@ -133,7 +133,7 @@ namespace dmGameObject
         }
     }
 
-    HPropertyContainer CreatePropertyContainerLua(void* component_context, uint8_t* buffer, uint32_t buffer_size)
+    HPropertyContainer CreatePropertyContainerFromLua(void* component_context, uint8_t* buffer, uint32_t buffer_size)
     {
         lua_State* L = dmScript::GetLuaState((dmScript::HContext)component_context);
         DM_LUA_STACK_CHECK(L, 0);

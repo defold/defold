@@ -77,7 +77,7 @@ namespace dmGameObject
                                                                               component_desc.m_Rotation);
                 c.m_PropertySet.m_GetPropertyCallback = PropertyContainerGetPropertyCallback;
 
-                c.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerDDF(&component_desc.m_PropertyDecls);
+                c.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerFromDDF(&component_desc.m_PropertyDecls);
                 if (c.m_PropertySet.m_UserData == 0)
                 {
                     return dmResource::RESULT_FORMAT_ERROR;

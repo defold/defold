@@ -142,7 +142,7 @@ namespace dmGameObject
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-                                set_params.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerDDF(&comp_prop.m_PropertyDecls);
+                                set_params.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerFromDDF(&comp_prop.m_PropertyDecls);
                                 if (set_params.m_PropertySet.m_UserData == 0x0)
                                 {
                                     dmLogError("Could not read properties of game object '%s' in collection %s.", instance_desc.m_Id, filename);

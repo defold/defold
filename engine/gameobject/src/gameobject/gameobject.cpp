@@ -983,7 +983,7 @@ namespace dmGameObject
                 params.m_Instance = instance;
                 params.m_UserData = component_instance_data;
 
-                params.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerLua(component_type->m_Context, property_buffer, property_buffer_size);
+                params.m_PropertySet.m_UserData = (uintptr_t)CreatePropertyContainerFromLua(component_type->m_Context, property_buffer, property_buffer_size);
                 if (params.m_PropertySet.m_UserData == 0x0)
                 {
                     dmLogError("Could not load properties parameters when spawning '%s'.", prototype_name);
@@ -1245,7 +1245,25 @@ namespace dmGameObject
                             break;
                         }
 
-                        HPropertyContainer properties = 0x0;
+                        HPropertyContainer ddf_properties = 0x0;
+                        uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
+                        for (uint32_t prop_i = 0; prop_i < comp_prop_count; ++prop_i)
+                        {
+                            const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
+                            if (dmHashString64(comp_prop.m_Id) == component.m_Id)
+                            {
+
+                                ddf_properties = CreatePropertyContainerFromDDF(&comp_prop.m_PropertyDecls);
+                                if (ddf_properties == 0x0)
+                                {
+                                    dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
+                                    success = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        HPropertyContainer lua_properties = 0x0;
                         InstancePropertyBuffer *instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
                         if (instance_properties != 0x0)
                         {
@@ -1257,53 +1275,43 @@ namespace dmGameObject
                                 uint8_t* instance_properties_buffer = instance_properties->property_buffer;
                                 uint32_t instance_properties_buffer_size = instance_properties->property_buffer_size;
 
-                                properties = CreatePropertyContainerLua(component_context, instance_properties_buffer, instance_properties_buffer_size);
-                                if (properties == 0x0)
+                                lua_properties = CreatePropertyContainerFromLua(component_context, instance_properties_buffer, instance_properties_buffer_size);
+                                if (lua_properties == 0x0)
                                 {
                                     dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
                                     success = false;
                                     break;
                                 }
-                            }
-                        }
-
-                        uint32_t comp_prop_count = instance_desc.m_ComponentProperties.m_Count;
-                        for (uint32_t prop_i = 0; prop_i < comp_prop_count; ++prop_i)
-                        {
-                            const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
-                            if (dmHashString64(comp_prop.m_Id) == component.m_Id)
-                            {
-
-                                HPropertyContainer ddf_properties = CreatePropertyContainerDDF(&comp_prop.m_PropertyDecls);
-                                if (ddf_properties == 0x0)
-                                {
-                                    dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
-                                    success = false;
-                                    break;
-                                }
-                                if (properties != 0x0)
-                                {
-                                    HPropertyContainer merged_properties = MergePropertyContainers(ddf_properties, properties);
-                                    if (merged_properties == 0x0)
-                                    {
-                                        dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
-                                        DestroyPropertyContainer(ddf_properties);
-                                        success = false;
-                                        break;
-                                    }
-                                    properties = merged_properties;
-                                }
-                                else
-                                {
-                                    properties = ddf_properties;
-                                }
-                                break;
                             }
                         }
 
                         if (!success)
                         {
+                            DestroyPropertyContainer(lua_properties);
+                            DestroyPropertyContainer(ddf_properties);
                             break;
+                        }
+
+                        HPropertyContainer properties = 0x0;
+                        if (ddf_properties != 0x0 && lua_properties !=0x0)
+                        {
+                            properties = MergePropertyContainers(ddf_properties, lua_properties);
+                            DestroyPropertyContainer(lua_properties);
+                            DestroyPropertyContainer(ddf_properties);
+                            if (properties == 0x0)
+                            {
+                                dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
+                                success = false;
+                                break;
+                            }
+                        }
+                        else if (ddf_properties != 0x0)
+                        {
+                            properties = ddf_properties;
+                        }
+                        else if (lua_properties != 0x0)
+                        {
+                            properties = lua_properties;
                         }
 
                         ComponentSetPropertiesParams params;
