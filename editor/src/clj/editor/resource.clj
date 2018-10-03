@@ -92,7 +92,7 @@
       ;; fix it manually and hopefully remember to update the scripts too.
       (let [file (io/file this)]
         (and (.exists file)
-             (string/ends-with? (.getCanonicalPath file) project-path)))
+             (string/ends-with? (->unix-seps (.getCanonicalPath file)) project-path)))
       (catch IOException _
         false)
       (catch SecurityException _
