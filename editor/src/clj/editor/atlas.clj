@@ -691,30 +691,37 @@
   (active? [selection] (selection->atlas selection))
   (run [app-view selection] (add-animation-group-handler app-view (selection->atlas selection))))
 
-(defn- add-images-handler [workspace project parent] ; parent = new parent of images
+(defn- add-images-handler [app-view workspace project parent] ; parent = new parent of images
   (when-some [image-resources (seq (dialogs/make-resource-dialog workspace project {:ext image/exts :title "Select Images" :selection :multiple}))]
-    (g/transact
-      (concat
-        (g/operation-label "Add Images")
-        (cond
-          (g/node-instance? AtlasNode parent)
-          (make-image-nodes-in-atlas parent image-resources)
+    (let [op-seq (gensym)
+          image-nodes (g/tx-nodes-added
+                        (g/transact
+                          (concat
+                            (g/operation-sequence op-seq)
+                            (g/operation-label "Add Images")
+                            (cond
+                              (g/node-instance? AtlasNode parent)
+                              (make-image-nodes-in-atlas parent image-resources)
 
-          (g/node-instance? AtlasAnimation parent)
-          (make-image-nodes-in-animation parent image-resources)
+                              (g/node-instance? AtlasAnimation parent)
+                              (make-image-nodes-in-animation parent image-resources)
 
-          :else
-          (let [parent-node-type @(g/node-type* parent)]
-            (throw (ex-info (str "Unsupported parent type " (:name parent-node-type))
-                            {:parent-node-type parent-node-type}))))))))
+                              :else
+                              (let [parent-node-type @(g/node-type* parent)]
+                                (throw (ex-info (str "Unsupported parent type " (:name parent-node-type))
+                                                {:parent-node-type parent-node-type})))))))]
+      (g/transact
+        (concat
+          (g/operation-sequence op-seq)
+          (app-view/select app-view image-nodes))))))
 
 (handler/defhandler :add-from-file :workbench
   (label [] "Add Images...")
   (active? [selection] (or (selection->atlas selection) (selection->animation selection)))
-  (run [project selection] (when-some [parent-node (or (selection->atlas selection)
-                                                       (selection->animation selection))]
-                             (let [workspace (project/workspace project)]
-                               (add-images-handler workspace project parent-node)))))
+  (run [app-view project selection] (when-some [parent-node (or (selection->atlas selection)
+                                                                (selection->animation selection))]
+                                      (let [workspace (project/workspace project)]
+                                        (add-images-handler app-view workspace project parent-node)))))
 
 (defn- vec-move
   [v x offset]
