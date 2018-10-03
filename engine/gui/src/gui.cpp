@@ -2271,17 +2271,14 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         scene->m_Animations.SetSize(0);
     }
 
-    static Vector4 ApplyAdjustOnReferenceScale(const Vector4& reference_scale, uint32_t adjust_mode, uint32_t node_type)
+    static Vector4 ApplyAdjustOnReferenceScale(const Vector4& reference_scale, uint32_t adjust_mode)
     {
         Vector4 parent_adjust_scale = reference_scale;
-        parent_adjust_scale.setZ(1.0f);
         if (adjust_mode == dmGui::ADJUST_MODE_FIT)
         {
             float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
             parent_adjust_scale.setX(uniform);
             parent_adjust_scale.setY(uniform);
-            if (node_type == NODE_TYPE_PARTICLEFX)
-                parent_adjust_scale.setZ(uniform);
 
         }
         else if (adjust_mode == dmGui::ADJUST_MODE_ZOOM)
@@ -2289,9 +2286,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             float uniform = dmMath::Max(reference_scale.getX(), reference_scale.getY());
             parent_adjust_scale.setX(uniform);
             parent_adjust_scale.setY(uniform);
-            if (node_type == NODE_TYPE_PARTICLEFX)
-               parent_adjust_scale.setZ(uniform);
         }
+        parent_adjust_scale.setZ(1.0f);
         parent_adjust_scale.setW(1.0f);
         return parent_adjust_scale;
     }
@@ -2305,7 +2301,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
         Node& node = n->m_Node;
         // Apply ref-scaling to scale uniformly, select the smallest scale component to make sure everything fits
-        Vector4 adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node.m_AdjustMode, node.m_NodeType);
+        Vector4 adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, node.m_AdjustMode);
 
         Context* context = scene->m_Context;
         Vector4 parent_dims;
@@ -3137,13 +3133,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
         dmParticle::HInstance inst = dmParticle::CreateInstance(scene->m_ParticlefxContext, particlefx_prototype, callbackdata);
 
+        if (n->m_Node.m_AdjustMode == ADJUST_MODE_STRETCH)
+        {
+            n->m_Node.m_AdjustMode = ADJUST_MODE_FIT;
+            dmLogOnceWarning("Adjust mode \"Stretch\" is not supported by particlefx nodes, falling back to \"Fit\" instead (node '%s').", dmHashReverseSafe64(n->m_NameHash));
+        }
+
         // Set initial transform
         Matrix4 trans;
         CalculateNodeTransform(scene, n, (CalculateNodeTransformFlags)(CALCULATE_NODE_INCLUDE_SIZE), trans);
         dmTransform::Transform transform = dmTransform::ToTransform(trans);
+        float scale = transform.GetScalePtr()[0];
         dmParticle::SetPosition(scene->m_ParticlefxContext, inst, Point3(transform.GetTranslation()));
         dmParticle::SetRotation(scene->m_ParticlefxContext, inst, transform.GetRotation());
-        dmParticle::SetScale(scene->m_ParticlefxContext, inst, transform.GetUniformScale());
+        dmParticle::SetScale(scene->m_ParticlefxContext, inst, scale);
 
         uint32_t count = scene->m_AliveParticlefxs.Size();
         scene->m_AliveParticlefxs.SetSize(count + 1);
@@ -3869,10 +3872,10 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 {
                     CalculateNodeTransform(scene, parent_node, CalculateNodeTransformFlags(), parent_m);
                     reference_scale = parent_node->m_Node.m_LocalAdjustScale;
-                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode, n->m_Node.m_NodeType);
+                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
                 } else {
                     reference_scale = CalculateReferenceScale(scene, 0x0);
-                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode, n->m_Node.m_NodeType);
+                    adjust_scale = ApplyAdjustOnReferenceScale(reference_scale, n->m_Node.m_AdjustMode);
                     parent_m = Matrix4::scale(adjust_scale.getXYZ());
 
                     Vector4 parent_dims = Vector4((float) scene->m_Width, (float) scene->m_Height, 0.0f, 1.0f);
