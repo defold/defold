@@ -102,7 +102,7 @@
 
 (defn- decorate
   ([hidden-node-outline-key-paths root]
-   (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root))))
+   (:item (decorate hidden-node-outline-key-paths [] [] (assoc root :root? true) false)))
   ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference?]
    (let [node-id-path (conj node-id-path node-id)
          node-outline-key-path (if (empty? node-outline-key-path)
@@ -446,9 +446,11 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? parent-reference? child-error? child-overridden? scene-visibility]} item
+                     (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? outline-show-link? parent-reference? child-error? child-overridden? scene-visibility]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
-                           label (if link (format "%s - %s" label (resource/resource->proj-path link)) label)]
+                           show-link? (and (some? link)
+                                           (or outline-reference? outline-show-link?))
+                           label (if show-link? (format "%s - %s" label (resource/resource->proj-path link)) label)]
                        (proxy-super setText label)
                        (proxy-super setGraphic (jfx/get-image-view icon 16))
                        (if parent-reference?
@@ -492,18 +494,6 @@
       ;; TODO - handle selection order
       (app-view/select! app-view selection))))
 
-(defn- outline-data->resource [outline-data]
-  ;; The resource property on ResourceNodes take priority over :link metadata.
-  ;; This allows for ResourceNodes such as components to :link to a primary
-  ;; related resource. For example, a CollectionProxy can :link to the
-  ;; Collection it instantiates, or a SpineModel can link to its SpineScene.
-  (let [node-id (:node-id outline-data)]
-    (or (when (g/node-instance? resource/ResourceNode node-id)
-          (let [resource (g/node-value node-id :resource)]
-            (when (resource/openable-resource? resource)
-              resource)))
-        (:link outline-data))))
-
 (defn- setup-tree-view [proj-graph ^TreeView tree-view outline-view app-view]
   (let [drag-entered-handler (ui/event-handler e (drag-entered proj-graph outline-view e))
         drag-exited-handler (ui/event-handler e (drag-exited e))]
@@ -518,7 +508,7 @@
       (ui/bind-double-click! :open)
       (ui/register-context-menu ::outline-menu)
       (ui/context! :outline {} (SelectionProvider. outline-view) {} {java.lang.Long :node-id
-                                                                     resource/Resource outline-data->resource}))))
+                                                                     resource/Resource :link}))))
 
 (defn make-outline-view [view-graph proj-graph tree-view app-view]
   (let [outline-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph OutlineView :raw-tree-view tree-view))))]
