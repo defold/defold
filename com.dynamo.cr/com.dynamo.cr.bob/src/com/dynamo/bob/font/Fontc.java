@@ -378,16 +378,12 @@ public class Fontc {
             cell_height = Math.max(cell_height, height);
         }
 
-        // cell_height = max_descent + max_ascent + padding * 2 + cell_padding * 2;
+        // Add padding to min/max ascent since we add corresponding padding to each glyph later
+        // Note that the fontMapBuilder max/min descents will be updated later with these values
+        int fontMapMaxAscent  = (int) fontMapBuilder.getMaxAscent() + padding;
+        int fontMapMaxDescent = (int) fontMapBuilder.getMaxDescent() + padding;
 
-        // Add padding to fontMapBuilder since we add padding to each glyph later
-        int fontMapMaxAscent  = (int) (fontMapBuilder.getMaxAscent() + padding);
-        int fontMapMaxDescent = (int) (fontMapBuilder.getMaxDescent() + padding);
-
-        cell_height = fontMapMaxAscent + fontMapMaxDescent;
-
-        fontMapBuilder.setMaxAscent(fontMapMaxAscent);
-        fontMapBuilder.setMaxDescent(fontMapMaxDescent);
+        cell_height = fontMapMaxAscent + fontMapMaxDescent + cell_padding * 2;
 
         // Some hardware don't like doing subimage updates on non-aligned cell positions.
         if (channelCount == 3) {
@@ -516,6 +512,8 @@ public class Fontc {
         fontMapBuilder.setCacheCellWidth(cell_width);
         fontMapBuilder.setCacheCellHeight(cell_height);
         fontMapBuilder.setGlyphChannels(channelCount);
+        fontMapBuilder.setMaxAscent(fontMapMaxAscent);
+        fontMapBuilder.setMaxDescent(fontMapMaxDescent);
 
         BufferedImage previewImage = null;
         if (preview) {
