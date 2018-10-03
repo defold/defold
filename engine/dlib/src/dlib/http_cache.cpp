@@ -398,22 +398,6 @@ namespace dmHttpCache
         return RESULT_OK;
     }
 
-    static const char* GetRelativePath(const char* _uri)
-    {
-        // Make the URI port independent (e.g. http://127.0.0.1:34567//build/default/player/cannon.goc)
-        const char* uri = _uri;
-        uri = strstr(uri, "://");
-        if (uri) {
-            uri += 3;                       // 127.0.0.1:34567//build/default/player/cannon.goc
-            uri = strchr(uri, '/');         // //build/default/player/cannon.goc
-            while (uri && uri[0] == '/')
-                uri++;                      // build/default/player/cannon.goc
-        } else {
-            uri = _uri;
-        }
-        return uri;
-    }
-
     Result Begin(HCache cache, const char* uri, const char* etag, uint32_t max_age, HCacheCreator* cache_creator)
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
@@ -424,7 +408,6 @@ namespace dmHttpCache
             return RESULT_INVAL;
         }
 
-        uri = GetRelativePath(uri);
         uint64_t uri_hash = dmHashString64(uri);
 
         HashState64 hash_state;
@@ -647,7 +630,6 @@ namespace dmHttpCache
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
-        uri = GetRelativePath(uri);
         uint64_t uri_hash = dmHashString64(uri);
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         if (entry != 0)
@@ -669,7 +651,6 @@ namespace dmHttpCache
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
-        uri = GetRelativePath(uri);
         uint64_t uri_hash = dmHashString64(uri);
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         if (entry != 0)
@@ -688,7 +669,6 @@ namespace dmHttpCache
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
-        uri = GetRelativePath(uri);
         HashState64 hash_state;
         dmHashInit64(&hash_state, false);
         dmHashUpdateBuffer64(&hash_state, uri, strlen(uri));
@@ -733,7 +713,6 @@ namespace dmHttpCache
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
-        uri = GetRelativePath(uri);
         uint64_t uri_hash = dmHashString64(uri);
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         if (entry != 0)
@@ -751,7 +730,6 @@ namespace dmHttpCache
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
-        uri = GetRelativePath(uri);
         HashState64 hash_state;
         dmHashInit64(&hash_state, false);
         dmHashUpdateBuffer64(&hash_state, uri, strlen(uri));
