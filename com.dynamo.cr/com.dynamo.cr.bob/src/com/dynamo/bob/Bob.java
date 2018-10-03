@@ -105,35 +105,39 @@ public class Bob {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
-        ZipEntry entry = zipStream.getNextEntry();
-        while (entry != null)
-        {
-            if (!entry.isDirectory()) {
+        try{
+            ZipEntry entry = zipStream.getNextEntry();
+            while (entry != null)
+            {
+                if (!entry.isDirectory()) {
 
-                File dstFile = new File(toFolder, entry.getName());
-                dstFile.deleteOnExit();
-                dstFile.getParentFile().mkdirs();
+                    File dstFile = new File(toFolder, entry.getName());
+                    dstFile.deleteOnExit();
+                    dstFile.getParentFile().mkdirs();
 
-                OutputStream fileStream = null;
+                    OutputStream fileStream = null;
 
-                try {
-                    final byte[] buf;
-                    int i;
+                    try {
+                        final byte[] buf;
+                        int i;
 
-                    fileStream = new FileOutputStream(dstFile);
-                    buf = new byte[1024];
-                    i = 0;
+                        fileStream = new FileOutputStream(dstFile);
+                        buf = new byte[1024];
+                        i = 0;
 
-                    while((i = zipStream.read(buf)) != -1) {
-                        fileStream.write(buf, 0, i);
+                        while((i = zipStream.read(buf)) != -1) {
+                            fileStream.write(buf, 0, i);
+                        }
+                    } finally {
+                        IOUtils.closeQuietly(fileStream);
                     }
-                } finally {
-                    IOUtils.closeQuietly(fileStream);
+                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
-                verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
-            }
 
-            entry = zipStream.getNextEntry();
+                entry = zipStream.getNextEntry();
+            }
+        } finally {
+            IOUtils.closeQuietly(zipStream);
         }
     }
 
