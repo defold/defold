@@ -23,7 +23,7 @@ namespace dmHttpCache
     // Magic file header for index file
     const uint32_t MAGIC = 0xCAAAAAAC;
     // Current index file version
-    const uint32_t VERSION = 6;
+    const uint32_t VERSION = 7;
 
     // Maximum number of cache entry creations in flight
     const uint32_t MAX_CACHE_CREATORS = 16;
@@ -37,6 +37,8 @@ namespace dmHttpCache
         uint32_t m_Version;
         // Checksum of the index payload, ie the data that follows the header
         uint64_t m_Checksum;
+        uint32_t m_SizeOfEntry;     // Making sure the size is double checked
+        uint32_t m_SizeOfFileEntry; // Making sure the size is double checked
     };
 
     /*
@@ -163,6 +165,14 @@ namespace dmHttpCache
         }
     }
 
+    static bool IsValidHeader(IndexHeader* header)
+    {
+         return header->m_Magic == MAGIC &&
+                header->m_Version == VERSION &&
+                header->m_SizeOfEntry == (uint32_t)sizeof(Entry) &&
+                header->m_SizeOfFileEntry == (uint32_t)sizeof(FileEntry);
+    }
+
     Result Open(NewParams* params, HCache* cache)
     {
         const char* path = params->m_Path;
@@ -208,13 +218,13 @@ namespace dmHttpCache
             void* buffer = malloc(size);
             (void)fread(buffer, 1, size, f);
             IndexHeader* header = (IndexHeader*) buffer;
-            if (size < (sizeof(IndexHeader)))
+            if (size < (sizeof(IndexHeader)) || !IsValidHeader(header))
             {
                 dmLogError("Invalid cache index file '%s'. Removing file.", cache_file);
                 // We remove the file and return RESULT_OK
                 dmSys::Unlink(cache_file);
             }
-            else if (header->m_Magic == MAGIC && header->m_Version == VERSION)
+            else
             {
                 uint64_t checksum = dmHashBuffer64((void*) (((uintptr_t) buffer) + sizeof(IndexHeader)), size - sizeof(IndexHeader));
                 if (checksum != header->m_Checksum)
@@ -249,13 +259,6 @@ namespace dmHttpCache
                         }
                     }
                 }
-            }
-            else
-            {
-                if (((uint32_t*) buffer)[0] != MAGIC)
-                    dmLogError("Invalid cache index file '%s'. Removing file.", cache_file);
-                // We remove the file and return RESULT_OK
-                dmSys::Unlink(cache_file);
             }
             free(buffer);
             fclose(f);
@@ -315,6 +318,8 @@ namespace dmHttpCache
         header.m_Magic = MAGIC;
         header.m_Version = VERSION;
         header.m_Checksum = 0;
+        header.m_SizeOfEntry = (uint32_t)sizeof(Entry);
+        header.m_SizeOfFileEntry = (uint32_t)sizeof(FileEntry);
         size_t n_written = fwrite(&header, 1, sizeof(header), f);
         if (n_written != sizeof(header))
         {
