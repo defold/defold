@@ -971,16 +971,12 @@ namespace dmGameObject
             Prototype::Component& component = components[i];
             ComponentType* component_type = component.m_Type;
             uintptr_t* component_instance_data = 0;
-            if (component.m_Type->m_SetPropertiesFunction == 0x0)
-            {
-                continue;
-            }
             if (component_type->m_InstanceHasUserData)
             {
                 component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
             }
 
-            if (strcmp(component.m_Type->m_Name, "scriptc") == 0)
+            if (strcmp(component.m_Type->m_Name, "scriptc") == 0 && component.m_Type->m_SetPropertiesFunction != 0x0)
             {
                 ComponentSetPropertiesParams params;
                 params.m_Instance = instance;
