@@ -142,13 +142,14 @@ namespace dmGameObject
     {
         uint32_t prop_count = params.m_NumberCount + params.m_HashCount + params.m_URLStringCount + params.m_URLCount + params.m_Vector3Count + params.m_Vector4Count + params.m_QuatCount + params.m_BoolCount;
 
-        size_t struct_size = DM_ALIGN(sizeof(PropertyContainer), 8);
-        size_t ids_size = DM_ALIGN(sizeof(dmhash_t) * prop_count, 4);
-        size_t indexes_size = DM_ALIGN(sizeof(uint32_t) * prop_count, 4);
-        size_t types_size = DM_ALIGN(sizeof(PropertyContainerType) * prop_count, 8);
-        size_t hashes_size = DM_ALIGN(sizeof(uint64_t) * params.m_HashCount, 4);
-        size_t floats_size = DM_ALIGN(sizeof(float) * (params.m_NumberCount + params.m_Vector3Count * 3 + params.m_Vector4Count * 4 + params.m_QuatCount * 4), 4);
-        size_t url_size = DM_ALIGN(params.m_URLCount * sizeof(dmMessage::URL), 1);
+        // The sizes are aligned so the data following after will be properly aligned.
+        size_t struct_size = DM_ALIGN(sizeof(PropertyContainer), 8);                    // Align IDs at 64-bit
+        size_t ids_size = DM_ALIGN(sizeof(dmhash_t) * prop_count, 4);                   // Align Indexes at 32-bit
+        size_t indexes_size = DM_ALIGN(sizeof(uint32_t) * prop_count, 4);               // Align Types at 32-bit
+        size_t types_size = DM_ALIGN(sizeof(PropertyContainerType) * prop_count, 8);    // Align Hashes at 64-bit
+        size_t hashes_size = DM_ALIGN(sizeof(uint64_t) * params.m_HashCount, 4);        // Align Floats at 32-bit
+        size_t floats_size = DM_ALIGN(sizeof(float) * (params.m_NumberCount + params.m_Vector3Count * 3 + params.m_Vector4Count * 4 + params.m_QuatCount * 4), 8);  // Align URLS at 64-bit
+        size_t url_size = params.m_URLCount * sizeof(dmMessage::URL);                   // Strings does not need to be aligned
         size_t strings_size = params.m_URLStringSize + params.m_BoolCount;
 
         size_t property_container_size = struct_size + 
@@ -184,11 +185,11 @@ namespace dmGameObject
         result->m_HashData = (dmhash_t*)(p);
         p += hashes_size;
 
-        result->m_URLData = (char*)(p);
-        p += url_size;
-
         result->m_FloatData = (float*)(p);
         p += floats_size;
+
+        result->m_URLData = (char*)(p);
+        p += url_size;
 
         result->m_StringData = (char*)(p);
         p += strings_size;
@@ -214,95 +215,86 @@ namespace dmGameObject
         return builder;
     }
 
-    void PushFloatType(HPropertyContainerBuilder builder, dmhash_t id, PropertyType type, const float values[])
+
+    static uint32_t AllocateEntry(HPropertyContainerBuilder builder, dmhash_t id, PropertyContainerType type)
     {
         assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
-        uint32_t entry_offset = builder->m_EntryOffset;
-        uint32_t float_offset = builder->m_FloatOffset;
+        uint32_t entry_offset = builder->m_EntryOffset++;
         builder->m_PropertyContainer->m_Ids[entry_offset] = id;
-        builder->m_PropertyContainer->m_Indexes[entry_offset] = float_offset;
-        uint32_t count = 0;
+        builder->m_PropertyContainer->m_Types[entry_offset] = type;
+        return entry_offset;
+    }
+
+    void PushFloatType(HPropertyContainerBuilder builder, dmhash_t id, PropertyType type, const float values[])
+    {
+        uint32_t entry_offset;
+        uint32_t count;
         switch (type)
         {
             case PROPERTY_TYPE_NUMBER:
+                entry_offset = AllocateEntry(builder, id, PROPERTY_CONTAINER_TYPE_NUMBER);
                 count = 1;
-                builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_NUMBER;
                 break;
             case PROPERTY_TYPE_VECTOR3:
+                entry_offset = AllocateEntry(builder, id, PROPERTY_CONTAINER_TYPE_VECTOR3);
                 count = 3;
-                builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_VECTOR3;
                 break;
             case PROPERTY_TYPE_VECTOR4:
+                entry_offset = AllocateEntry(builder, id, PROPERTY_CONTAINER_TYPE_VECTOR4);
                 count = 4;
-                builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_VECTOR4;
                 break;
             case PROPERTY_TYPE_QUAT:
+                entry_offset = AllocateEntry(builder, id, PROPERTY_CONTAINER_TYPE_QUAT);
                 count = 4;
-                builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_QUAT;
                 break;
             default:
                 assert(false);
                 return;
         }
+        uint32_t float_offset = builder->m_FloatOffset;
+        builder->m_PropertyContainer->m_Indexes[entry_offset] = float_offset;
         for (uint32_t i = 0; i < count; ++i)
         {
             builder->m_PropertyContainer->m_FloatData[float_offset + i] = values[i];
         }
         builder->m_FloatOffset += count;
-        ++builder->m_EntryOffset;
     }
 
     void PushBool(HPropertyContainerBuilder builder, dmhash_t id, bool value)
     {
-        assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
-        uint32_t entry_offset = builder->m_EntryOffset;
-        uint32_t float_offset = builder->m_StringOffset;
-        builder->m_PropertyContainer->m_Ids[entry_offset] = id;
-        builder->m_PropertyContainer->m_Indexes[entry_offset] = float_offset;
-        builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_BOOLEAN;
-        builder->m_PropertyContainer->m_StringData[float_offset] = value ? 1 : 0;
+        uint32_t entry_offset = AllocateEntry(builder, id, PROPERTY_CONTAINER_TYPE_BOOLEAN);
+        uint32_t bool_offset = builder->m_StringOffset;
+        builder->m_PropertyContainer->m_Indexes[entry_offset] = bool_offset;
+        builder->m_PropertyContainer->m_StringData[bool_offset] = value ? 1 : 0;
         builder->m_StringOffset += 1;
-        ++builder->m_EntryOffset;
     }
 
     void PushHash(HPropertyContainerBuilder builder, dmhash_t id, dmhash_t value)
     {
-        assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
-        uint32_t entry_offset = builder->m_EntryOffset;
+        uint32_t entry_offset = AllocateEntry(builder, id, PROPERTY_CONTAINER_TYPE_HASH);
         uint32_t hash_offset = builder->m_HashOffset;
-        builder->m_PropertyContainer->m_Ids[entry_offset] = id;
         builder->m_PropertyContainer->m_Indexes[entry_offset] = hash_offset;
-        builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_HASH;
         builder->m_PropertyContainer->m_HashData[hash_offset] = value;
         builder->m_HashOffset += 1;
-        ++builder->m_EntryOffset;
     }
 
     void PushURLString(HPropertyContainerBuilder builder, dmhash_t id, const char* value)
     {
-        assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
-        uint32_t entry_offset = builder->m_EntryOffset;
+        uint32_t entry_offset = AllocateEntry(builder, id, PROPERTY_CONTAINER_TYPE_URL_STRING);
         uint32_t string_offset = builder->m_StringOffset;
-        builder->m_PropertyContainer->m_Ids[entry_offset] = id;
         builder->m_PropertyContainer->m_Indexes[entry_offset] = string_offset;
-        builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_URL_STRING;
         size_t string_length = strlen(value) + 1;
         memcpy(&builder->m_PropertyContainer->m_StringData[string_offset], value, string_length);
         builder->m_StringOffset += string_length;
-        ++builder->m_EntryOffset;
     }
 
     void PushURL(HPropertyContainerBuilder builder, dmhash_t id, const char value[sizeof(dmMessage::URL)])
     {
-        assert(builder->m_EntryOffset < builder->m_PropertyContainer->m_Count);
-        uint32_t entry_offset = builder->m_EntryOffset;
+        uint32_t entry_offset = AllocateEntry(builder, id, PROPERTY_CONTAINER_TYPE_URL);
         uint32_t url_offset = builder->m_URLOffset;
-        builder->m_PropertyContainer->m_Ids[entry_offset] = id;
         builder->m_PropertyContainer->m_Indexes[entry_offset] = url_offset;
-        builder->m_PropertyContainer->m_Types[entry_offset] = PROPERTY_CONTAINER_TYPE_URL;
         memcpy(&builder->m_PropertyContainer->m_URLData[url_offset], value, sizeof(dmMessage::URL));
         builder->m_URLOffset += sizeof(dmMessage::URL);
-        ++builder->m_EntryOffset;
     }
 
     HPropertyContainer CreatePropertyContainer(HPropertyContainerBuilder builder)
