@@ -971,12 +971,16 @@ namespace dmGameObject
             Prototype::Component& component = components[i];
             ComponentType* component_type = component.m_Type;
             uintptr_t* component_instance_data = 0;
+            if (component.m_Type->m_SetPropertiesFunction == 0x0)
+            {
+                continue;
+            }
             if (component_type->m_InstanceHasUserData)
             {
                 component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data++];
             }
 
-            if (strcmp(component.m_Type->m_Name, "scriptc") == 0 && component.m_Type->m_SetPropertiesFunction != 0x0)
+            if (strcmp(component.m_Type->m_Name, "scriptc") == 0)
             {
                 ComponentSetPropertiesParams params;
                 params.m_Instance = instance;
@@ -1239,7 +1243,7 @@ namespace dmGameObject
                     {
                         if (!type->m_InstanceHasUserData)
                         {
-                            dmLogError("Unable to set properties for the component '%s' in game object '%s' since it has no ability to store them.", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id);
+                            dmLogError("Unable to set properties for the component '%s' in game object '%s' in collection '%s' since it has no ability to store them.", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                             success = false;
                             break;
                         }
@@ -1251,14 +1255,13 @@ namespace dmGameObject
                             const dmGameObjectDDF::ComponentPropertyDesc& comp_prop = instance_desc.m_ComponentProperties[prop_i];
                             if (dmHashString64(comp_prop.m_Id) == component.m_Id)
                             {
-
                                 ddf_properties = CreatePropertyContainerFromDDF(&comp_prop.m_PropertyDecls);
                                 if (ddf_properties == 0x0)
                                 {
-                                    dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
+                                    dmLogError("Could not read properties parameters for the component '%s' in game object '%s' in collection '%s'.", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                                     success = false;
-                                    break;
                                 }
+                                break;
                             }
                         }
 
@@ -1266,7 +1269,7 @@ namespace dmGameObject
                         InstancePropertyBuffer *instance_properties = property_buffers->Get(dmHashString64(instance_desc.m_Id));
                         if (instance_properties != 0x0)
                         {
-                            if (strcmp(type->m_Name, "scriptc") == 0 && type->m_SetPropertiesFunction != 0x0)
+                            if (strcmp(type->m_Name, "scriptc") == 0)
                             {
                                 void* component_context = type->m_Context;
                                 uint8_t* instance_properties_buffer = instance_properties->property_buffer;
@@ -1275,9 +1278,8 @@ namespace dmGameObject
                                 lua_properties = CreatePropertyContainerFromLua(component_context, instance_properties_buffer, instance_properties_buffer_size);
                                 if (lua_properties == 0x0)
                                 {
-                                    dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
+                                    dmLogError("Could not read script properties parameters for the component '%s' in game object '%s' in collection '%s'", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                                     success = false;
-                                    break;
                                 }
                             }
                         }
@@ -1297,7 +1299,7 @@ namespace dmGameObject
                             DestroyPropertyContainer(ddf_properties);
                             if (properties == 0x0)
                             {
-                                dmLogError("Could not read properties parameters of game object '%s' in collection.", instance_desc.m_Id);
+                                dmLogError("Could not merge properties parameters for the component '%s' in game object '%s' in collection '%s'", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                                 success = false;
                                 break;
                             }
@@ -1323,7 +1325,7 @@ namespace dmGameObject
                         PropertyResult result = type->m_SetPropertiesFunction(params);
                         if (result != PROPERTY_RESULT_OK)
                         {
-                            dmLogError("Could not load properties when spawning '%s'.", instance_desc.m_Id);
+                            dmLogError("Could not load properties for component '%s' when spawning '%s' in collection '%s'.", dmHashReverseSafe64(component.m_Id), instance_desc.m_Id, collection_desc->m_Name);
                             DestroyPropertyContainer(properties);
                             success = false;
                             break;
