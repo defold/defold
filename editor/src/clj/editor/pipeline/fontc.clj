@@ -94,7 +94,7 @@
                             max-width
                             (let [^long width (glyph-cell-widths index)]
                               (recur (max width max-width)
-                                     (inc index)))))
+                                     (dec index)))))
         max-height (+ line-height padding padding)]
     (if (or (zero? max-width) (zero? max-height))
       (throw (ex-info "No glyph with sane width/height" {}))
