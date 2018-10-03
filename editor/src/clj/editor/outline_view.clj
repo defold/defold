@@ -102,7 +102,7 @@
 
 (defn- decorate
   ([hidden-node-outline-key-paths root]
-   (:item (decorate hidden-node-outline-key-paths [] [] (assoc root :root? true) false)))
+   (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root))))
   ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference?]
    (let [node-id-path (conj node-id-path node-id)
          node-outline-key-path (if (empty? node-outline-key-path)
