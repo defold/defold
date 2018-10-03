@@ -2279,7 +2279,6 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             float uniform = dmMath::Min(reference_scale.getX(), reference_scale.getY());
             parent_adjust_scale.setX(uniform);
             parent_adjust_scale.setY(uniform);
-
         }
         else if (adjust_mode == dmGui::ADJUST_MODE_ZOOM)
         {
