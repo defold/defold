@@ -207,7 +207,7 @@
                                                                 :outline-error? (g/error-fatal? build-errors)}
 
                                                                (resource/openable-resource? maybe-image-resource)
-                                                               (assoc :link maybe-image-resource :outline-reference? false)))))
+                                                               (assoc :link maybe-image-resource :outline-show-link? true)))))
   (output ddf-message g/Any (g/fnk [maybe-image-resource order]
                               {:image (resource/resource->proj-path maybe-image-resource) :order order}))
   (output scene g/Any :cached produce-image-scene)
