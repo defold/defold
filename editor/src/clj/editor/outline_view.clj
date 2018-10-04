@@ -7,6 +7,7 @@
    [editor.jfx :as jfx]
    [editor.outline :as outline]
    [editor.resource :as resource]
+   [editor.types :as types]
    [editor.ui :as ui])
   (:import
    (com.defold.control TreeCell)
@@ -100,30 +101,44 @@
             (ui/scroll-to-item! tree-view first-item)))))))
 
 (defn- decorate
-  ([root]
-   (:item (decorate [] root (:outline-reference? root))))
-  ([path item parent-reference?]
-   (let [path (conj path (:node-id item))
-         data (mapv #(decorate path % (or parent-reference? (:outline-reference? item))) (:children item))
+  ([hidden-node-outline-key-paths root]
+   (:item (decorate hidden-node-outline-key-paths [] [] root (:outline-reference? root))))
+  ([hidden-node-outline-key-paths node-id-path node-outline-key-path {:keys [node-id] :as item} parent-reference?]
+   (let [node-id-path (conj node-id-path node-id)
+         node-outline-key-path (if (empty? node-outline-key-path)
+                                 [node-id]
+                                 (if-some [node-outline-key (:node-outline-key item)]
+                                   (conj node-outline-key-path node-outline-key)
+                                   node-outline-key-path))
+         data (mapv #(decorate hidden-node-outline-key-paths node-id-path node-outline-key-path % (or parent-reference? (:outline-reference? item))) (:children item))
          item (assoc item
-                :path path
+                :node-id-path node-id-path
+                :node-outline-key-path node-outline-key-path
                 :parent-reference? parent-reference?
                 :children (mapv :item data)
                 :child-error? (boolean (some :child-error? data))
-                :child-overridden? (boolean (some :child-overridden? data)))]
+                :child-overridden? (boolean (some :child-overridden? data))
+                :scene-visibility (if (contains? hidden-node-outline-key-paths node-outline-key-path)
+                                    :hidden
+                                    :visible))]
      {:item item
       :child-error? (or (:child-error? item) (:outline-error? item))
       :child-overridden? (or (:child-overridden? item) (:outline-overridden? item))})))
 
 (g/defnk produce-tree-root
-  [active-outline active-resource-node open-resource-nodes raw-tree-view]
+  [active-outline active-resource-node open-resource-nodes raw-tree-view hidden-node-outline-key-paths]
   (let [resource-node-set (set open-resource-nodes)
         root-cache (or (ui/user-data raw-tree-view ::root-cache) {})
-        [root outline] (get root-cache active-resource-node)
-        new-root (if (or (not= outline active-outline) (and (nil? root) (nil? outline)))
-                   (sync-tree root (tree-item (decorate active-outline)))
+        [root outline old-hidden-node-outline-key-paths] (get root-cache active-resource-node)
+        new-root (if (or (not= outline active-outline)
+                         (not= old-hidden-node-outline-key-paths hidden-node-outline-key-paths)
+                         (and (nil? root) (nil? outline)))
+                   (sync-tree root (tree-item (decorate hidden-node-outline-key-paths active-outline)))
                    root)
-        new-cache (assoc (map-filter (fn [[resource-node _]] (contains? resource-node-set resource-node)) root-cache) active-resource-node [new-root active-outline])]
+        new-cache (assoc (map-filter (fn [[resource-node _]]
+                                       (contains? resource-node-set resource-node))
+                                     root-cache)
+                    active-resource-node [new-root active-outline hidden-node-outline-key-paths])]
     (ui/user-data! raw-tree-view ::root-cache new-cache)
     new-root))
 
@@ -168,11 +183,12 @@
   (input active-resource-node g/NodeID :substitute nil)
   (input open-resource-nodes g/Any :substitute [])
   (input selection g/Any :substitute [])
+  (input hidden-node-outline-key-paths types/NodeOutlineKeyPaths)
 
   (output root TreeItem :cached produce-tree-root)
   (output tree-view TreeView :cached update-tree-view)
   (output tree-selection g/Any :cached (g/fnk [tree-view] (ui/selection tree-view)))
-  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (mapv ->iterator (ui/selection-root-items tree-view (comp :path item->value) (comp :node-id item->value)))))
+  (output tree-selection-root-its g/Any :cached (g/fnk [tree-view] (mapv ->iterator (ui/selection-root-items tree-view (comp :node-id-path item->value) (comp :node-id item->value)))))
   (output succeeding-tree-selection g/Any :cached (g/fnk [tree-view tree-selection-root-its]
                                                          (->> tree-selection-root-its
                                                            (mapv :tree-item)
@@ -187,16 +203,20 @@
                  {:label "Open As"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :open-as}
+                 {:label :separator}
+                 {:label "Copy Project Path"
+                  :command :copy-project-path}
+                 {:label "Copy Full Path"
+                  :command :copy-full-path}
+                 {:label "Copy Require Path"
+                  :command :copy-require-path}
+                 {:label :separator}
                  {:label "Show in Asset Browser"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-asset-browser}
                  {:label "Show in Desktop"
                   :icon "icons/32/Icons_S_14_linkarrow.png"
                   :command :show-in-desktop}
-                 {:label "Copy Project Path"
-                  :command :copy-project-path}
-                 {:label "Copy Full Path"
-                  :command :copy-full-path}
                  {:label "Referencing Files..."
                   :command :referencing-files}
                  {:label "Dependencies..."
@@ -224,7 +244,18 @@
                   :command :paste}
                  {:label "Delete"
                   :icon "icons/32/Icons_M_06_trash.png"
-                  :command :delete}])
+                  :command :delete}
+                 {:label :separator}
+                 {:label "Hide Objects"
+                  :command :hide-selected}
+                 {:label "Hide Unselected Objects"
+                  :command :hide-unselected}
+                 {:label "Show Objects"
+                  :command :show-selected}
+                 {:label "Show Last Hidden Objects"
+                  :command :show-last-hidden}
+                 {:label "Show All Hidden Objects"
+                  :command :show-all-hidden}])
 
 (defn- selection->nodes [selection]
   (handler/adapt-every selection Long))
@@ -415,7 +446,7 @@
                        (proxy-super setGraphic nil)
                        (proxy-super setContextMenu nil)
                        (proxy-super setStyle nil))
-                     (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? parent-reference? child-error? child-overridden?]} item
+                     (let [{:keys [label icon link outline-error? outline-overridden? outline-reference? parent-reference? child-error? child-overridden? scene-visibility]} item
                            icon (if outline-error? "icons/32/Icons_E_02_error.png" icon)
                            label (if (and link outline-reference?) (format "%s - %s" label (resource/resource->proj-path link)) label)]
                        (proxy-super setText label)
@@ -437,7 +468,10 @@
                          (ui/remove-style! this "child-error"))
                        (if child-overridden?
                          (ui/add-style! this "child-overridden")
-                         (ui/remove-style! this "child-overridden")))))))]
+                         (ui/remove-style! this "child-overridden"))
+                       (if (= :hidden scene-visibility)
+                         (ui/add-style! this "scene-visibility-hidden")
+                         (ui/remove-style! this "scene-visibility-hidden")))))))]
     (doto cell
       (.setOnDragEntered drag-entered-handler)
       (.setOnDragExited drag-exited-handler))))

@@ -1,0 +1,13 @@
+go.property("weight", 50)
+go.property("size", 100)
+go.property("anim", hash("yayaya"))
+
+function init(self)
+	assert(50, self.weight)
+	assert(200, self.size)
+	assert(hash("rabbitv3_wolverine") == self.anim)
+end
+
+function update(self, dt)
+	msg.post("test_collectionfactoryprops:/go#script", "spawned")
+end

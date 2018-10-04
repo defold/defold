@@ -180,6 +180,7 @@
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id collision-groups-data]
             {:node-id _node-id
+             :node-outline-key id
              :label id
              :icon collision-icon
              :color (collision-groups/color collision-groups-data id)})))
@@ -263,7 +264,11 @@
   (input anim-data g/Any)
   (input gpu-texture g/Any)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id]
+                                                     {:node-id _node-id
+                                                      :node-outline-key id
+                                                      :label id
+                                                      :icon animation-icon}))
   (output ddf-message g/Any produce-animation-ddf)
   (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message}))
   (output updatable g/Any produce-animation-updatable)
@@ -302,6 +307,7 @@
   (let [[coll-outlines anim-outlines] (let [outlines (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
                                         [(get outlines true) (get outlines false)])]
     {:node-id _node-id
+     :node-outline-key "Tile Source"
      :label "Tile Source"
      :icon tile-source-icon
      :children (into (outline/natural-sort coll-outlines) (outline/natural-sort anim-outlines))

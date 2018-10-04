@@ -70,11 +70,15 @@
 
 (defn- source-outline-subst [err]
   (if-let [resource (get-in err [:user-data :resource])]
-    (let [rt (resource/resource-type resource)]
+    (let [rt (resource/resource-type resource)
+          label (or (:label rt) (:ext rt) "unknown")
+          icon (or (:icon rt) unknown-icon)]
       {:node-id (:node-id err)
-       :label (or (:label rt) (:ext rt) "unknown")
-       :icon (or (:icon rt) unknown-icon)})
+       :node-outline-key label
+       :label label
+       :icon icon})
     {:node-id -1
+     :node-outline-key ""
      :icon ""
      :label ""}))
 
@@ -164,6 +168,7 @@
                         (and (not= source-id -1) source-id))
             overridden? (boolean (some (fn [[_ p]] (contains? p :original-value)) (:properties source-properties)))]
         (-> {:node-id _node-id
+             :node-outline-key id
              :label id
              :icon (or (not-empty (:icon source-outline)) unknown-icon)
              :outline-overridden? overridden?
@@ -173,7 +178,7 @@
             source-id (assoc :alt-outline source-outline))))))
   (output ddf-message g/Any (g/fnk [rt-ddf-message] (dissoc rt-ddf-message :property-decls)))
   (output rt-ddf-message g/Any :abstract)
-  (output scene g/Any :cached (g/fnk [_node-id transform scene]
+  (output scene g/Any :cached (g/fnk [_node-id id transform scene]
                                 (let [transform (if-let [local-transform (:transform scene)]
                                                   (doto (Matrix4d. ^Matrix4d transform)
                                                     (.mul ^Matrix4d local-transform))
@@ -181,7 +186,7 @@
                                       updatable (some-> (:updatable scene)
                                                   (assoc :node-id _node-id))]
                                   (cond-> scene
-                                    true (scene/claim-scene _node-id)
+                                    true (scene/claim-scene _node-id id)
                                     true (assoc :transform transform
                                            :aabb (geom/aabb-transform (geom/aabb-incorporate (get scene :aabb (geom/null-aabb)) 0 0 0) transform))
                                     updatable ((partial scene/map-scene #(assoc % :updatable updatable)))))))
@@ -262,28 +267,28 @@
                        (if override?
                          (let [basis (:basis evaluation-context)
                                project (project/get-project basis self)]
-                           (project/connect-resource-node evaluation-context project new-resource self []
-                                                          (fn [comp-node]
-                                                            (let [override (g/override basis comp-node {:traverse? (constantly true)})
-                                                                  id-mapping (:id-mapping override)
-                                                                  or-node (get id-mapping comp-node)
-                                                                  comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
-                                                              (concat
-                                                                (:tx-data override)
-                                                                (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
-                                                                  (for [[from to] [[:_node-id :source-id]
-                                                                                   [:resource :source-resource]
-                                                                                   [:node-outline :source-outline]
-                                                                                   [:_properties :source-properties]
-                                                                                   [:scene :scene]
-                                                                                   [:build-targets :source-build-targets]]
-                                                                        :when (contains? outputs from)]
-                                                                    (g/connect or-node from self to)))
-                                                                (for [[label [type value]] (:overrides new-value)]
-                                                                  (let [original-type (get-in comp-props [label :type])
-                                                                        override-type (script/go-prop-type->property-types type)]
-                                                                    (when (= original-type override-type)
-                                                                      (g/set-property or-node label value)))))))))
+                           (when-some [{connect-tx-data :tx-data comp-node :node-id} (project/connect-resource-node evaluation-context project new-resource self [])]
+                             (concat
+                               connect-tx-data
+                               (g/override comp-node {:traverse? (constantly true)}
+                                           (fn [evaluation-context id-mapping]
+                                             (let [or-node (get id-mapping comp-node)
+                                                   comp-props (:properties (g/node-value comp-node :_properties evaluation-context))]
+                                               (concat
+                                                 (let [outputs (g/output-labels (:node-type (resource/resource-type new-resource)))]
+                                                   (for [[from to] [[:_node-id :source-id]
+                                                                    [:resource :source-resource]
+                                                                    [:node-outline :source-outline]
+                                                                    [:_properties :source-properties]
+                                                                    [:scene :scene]
+                                                                    [:build-targets :source-build-targets]]
+                                                         :when (contains? outputs from)]
+                                                     (g/connect or-node from self to)))
+                                                 (for [[label [type value]] (:overrides new-value)]
+                                                   (let [original-type (get-in comp-props [label :type])
+                                                         override-type (script/go-prop-type->property-types type)]
+                                                     (when (= original-type override-type)
+                                                       (g/set-property or-node label value)))))))))))
                          (project/resource-setter evaluation-context self (:resource old-value) (:resource new-value)
                                                   [:resource :source-resource]
                                                   [:node-outline :source-outline]
@@ -377,6 +382,7 @@
 
 (g/defnk produce-go-outline [_node-id child-outlines]
   {:node-id _node-id
+   :node-outline-key "Game Object"
    :label "Game Object"
    :icon game-object-icon
    :children (outline/natural-sort child-outlines)

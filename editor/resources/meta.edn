@@ -441,13 +441,23 @@
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPad Pro portrait launch image (.png)",
+   :help "iPad Pro 12.9 portrait launch image (.png)",
    :path ["ios" "launch_image_2048x2732"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
-   :help "iPad Pro landscape launch image (.png)",
+   :help "iPad Pro 12.9 landscape launch image (.png)",
    :path ["ios" "launch_image_2732x2048"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro 10.5 portrait launch image (.png)",
+   :path ["ios" "launch_image_1668x2224"]}
+  {:type :resource,
+   :filter "png",
+   :preserve-extension true,
+   :help "iPad Pro 10.5 landscape launch image (.png)",
+   :path ["ios" "launch_image_2224x1668"]}
   {:type :resource,
    :filter "png",
    :preserve-extension true,
@@ -616,6 +626,10 @@
    :help "hide the navigation and status bars and lets your app capture all touch events on the screen",
    :default false,
    :path ["android" "immersive_mode"]}
+  {:type :boolean,
+   :help "helps you debug the application and also get files from the application",
+   :default false,
+   :path ["android" "debuggable"]}
   {:type :resource,
    :filter "icns",
    :preserve-extension true,
