@@ -41,12 +41,8 @@ DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
 EMSCRIPTEN_VERSION_STR = "1.38.12"
-# The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
-EMSCRIPTEN_VERSION_STR_LINUX = "master"
-EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_SDK_LINUX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
+EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
 PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
@@ -454,11 +450,7 @@ class Configuration(object):
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
     def _form_ems_path(self):
-        path = ''
-        if 'linux' in self.host:
-            path = join(self.ext, EMSCRIPTEN_DIR_LINUX)
-        else:
-            path = join(self.ext, EMSCRIPTEN_DIR)
+        path = join(self.ext, EMSCRIPTEN_DIR)
         return path
 
     def install_ems(self):
@@ -472,9 +464,7 @@ class Configuration(object):
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
 
     def get_ems_sdk_name(self):
-        sdk = EMSCRIPTEN_SDK_OSX
-        if 'linux' in self.host:
-            sdk = EMSCRIPTEN_SDK_LINUX
+        sdk = EMSCRIPTEN_SDK
         return sdk;
 
     def get_ems_exe_path(self):
@@ -500,8 +490,6 @@ class Configuration(object):
             print 'No .emscripten file.'
             err = True
         emsDir = join(self.ext, EMSCRIPTEN_DIR)
-        if self.host == 'linux':
-            emsDir = join(self.ext, EMSCRIPTEN_DIR_LINUX)
         if not os.path.isdir(emsDir):
             print 'Emscripten tools not installed.'
             err = True
