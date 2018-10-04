@@ -312,12 +312,12 @@ public class Fontc {
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             fontMapBuilder.setSdfSpread(sdf_spread);
-            
+
             // Transform outline edge from pixel unit to edge offset in distance field unit
             float outline_edge = -(fontDesc.getOutlineWidth() / (sdf_spread)); // Map to [-1, 1]
             outline_edge = outline_edge * (1.0f - edge) + edge; // Map to edge distribution
             fontMapBuilder.setSdfOutline(outline_edge);
-            
+
             fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
             fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
@@ -366,6 +366,7 @@ public class Fontc {
         // this includes cell padding.
         int cell_width = 0;
         int cell_height = 0;
+
         for (int i = 0; i < glyphs.size(); i++) {
             Glyph glyph = glyphs.get(i);
             if (glyph.width <= 0.0f) {
@@ -376,6 +377,13 @@ public class Fontc {
             cell_width = Math.max(cell_width, width);
             cell_height = Math.max(cell_height, height);
         }
+
+        // Add padding to min/max ascent since we add corresponding padding to each glyph later
+        // Note that the fontMapBuilder max/min descents will be updated later with these values
+        int fontMapMaxAscent  = (int) fontMapBuilder.getMaxAscent() + padding;
+        int fontMapMaxDescent = (int) fontMapBuilder.getMaxDescent() + padding;
+
+        cell_height = fontMapMaxAscent + fontMapMaxDescent + cell_padding * 2;
 
         // Some hardware don't like doing subimage updates on non-aligned cell positions.
         if (channelCount == 3) {
@@ -504,7 +512,8 @@ public class Fontc {
         fontMapBuilder.setCacheCellWidth(cell_width);
         fontMapBuilder.setCacheCellHeight(cell_height);
         fontMapBuilder.setGlyphChannels(channelCount);
-
+        fontMapBuilder.setMaxAscent(fontMapMaxAscent);
+        fontMapBuilder.setMaxDescent(fontMapMaxDescent);
 
         BufferedImage previewImage = null;
         if (preview) {
