@@ -1297,7 +1297,7 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_X].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_X])
-            SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_Y].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_Y])            
+            SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_Y].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_Y])
             Vector4 c = particle->GetSourceColor();
             particle->SetScale(Vector3(properties[PARTICLE_KEY_SCALE]));
             particle->SetColor(Vector4(dmMath::Clamp(c.getX() * properties[PARTICLE_KEY_RED], 0.0f, 1.0f),
