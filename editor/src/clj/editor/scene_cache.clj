@@ -53,6 +53,9 @@
 (defn prune-context! [context]
   (swap! object-caches prune-context context))
 
+;; This should is used for debugging purposes. In order to update objects in any cache,
+;; we must preserve the cache keys so that re-creation of objects can be triggered
+;; when needed (e.g when modifying preview rendering).
 (defn- clear-all [caches]
   (into {}
         (map (fn [[cache-id meta]]
