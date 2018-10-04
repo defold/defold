@@ -18,6 +18,7 @@
             [editor.material :as material]
             [editor.validation :as validation]
             [editor.gl.pass :as pass]
+            [editor.gl.shader :as shader]
             [schema.core :as schema]
             [service.log :as log])
   (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
@@ -28,7 +29,7 @@
            [java.nio ByteBuffer]
            [java.nio.file Paths]
            [com.jogamp.opengl GL GL2]
-           [javax.vecmath Matrix4d Point3d Vector3d]
+           [javax.vecmath Matrix4d Point3d Vector3d Vector4d]
            [com.google.protobuf ByteString]
            [org.apache.commons.io FilenameUtils]))
 
@@ -296,8 +297,9 @@
   (let [user-data (get (first renderables) :user-data)
         gpu-texture (:texture user-data)
         font-map (:font-map user-data)
-        max-width (:cache-width font-map)
-        text-layout (layout-text font-map (:text user-data) true max-width 0 1)
+        cache-width (:cache-width font-map)
+        cache-height (:cache-height font-map)
+        text-layout (layout-text font-map (:text user-data) true cache-width 0 1)
         vertex-buffer (gen-vertex-buffer gl user-data [{:text-layout text-layout
                                                         :align :left
                                                         :offset [0.0 0.0]
@@ -307,8 +309,14 @@
         type (:type user-data)
         vcount (count vertex-buffer)]
     (when (> vcount 0)
-      (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)]
+      (let [vertex-binding (vtx/use-with ::vb vertex-buffer material-shader)
+            cache-width-recip (/ 1.0 cache-width)
+            cache-height-recip (/ 1.0 cache-height)
+            cache-cell-width-ratio (/ (:cache-cell-width font-map) cache-width)
+            cache-cell-height-ratio (/ (:cache-cell-height font-map) cache-height)
+            texture-size-recip (Vector4d. cache-width-recip cache-height-recip cache-cell-width-ratio cache-cell-height-ratio)]
         (gl/with-gl-bindings gl render-args [material-shader vertex-binding gpu-texture]
+          (shader/set-uniform material-shader gl "texture_size_recip" texture-size-recip)
           (gl/gl-draw-arrays gl GL/GL_TRIANGLES 0 vcount))))))
 
 (g/defnk produce-scene [_node-id aabb gpu-texture font-map material material-shader type preview-text]
@@ -637,7 +645,7 @@
 (defn- make-glyph-cache
   [^GL2 gl params]
   (let [{:keys [font-map texture]} params
-        {:keys [cache-width cache-height cache-cell-width cache-cell-height]} font-map
+        {:keys [cache-width cache-height cache-cell-width cache-cell-height max-ascent]} font-map
         data-format (glyph-channels->data-format (:glyph-channels font-map))
         size (* (int (/ cache-width cache-cell-width)) (int (/ cache-height cache-cell-height)))
         w (int (/ cache-width cache-cell-width))
@@ -654,7 +662,7 @@
                                (if-not (< cell size)
                                  (assoc m glyph ::not-available)
                                  (let [x (* (mod cell w) cache-cell-width)
-                                       y (* (int (/ cell w)) cache-cell-height)
+                                       y (+ (* (int (/ cell w)) cache-cell-height) (- max-ascent (:ascent glyph)))
                                        p (* 2 (:glyph-padding font-map))
                                        w (+ (:width glyph) p)
                                        h (+ (:ascent glyph) (:descent glyph) p)
