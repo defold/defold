@@ -9,5 +9,5 @@ components {
 embedded_components {
   id: "collectionproxy"
   type: "collectionproxy"
-  data: "collection: \"/\"\nexclude: false\n"
+  data: "collection: \"/logic/session/session.collection\"\nexclude: false\n"
 }
