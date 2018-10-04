@@ -1296,12 +1296,8 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_GREEN].m_Segments[segment_index], x, properties[PARTICLE_KEY_GREEN])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
-            SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_X].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_X])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_Y].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_Y])
-            SAMPLE_PROP(particle_properties[PARTICLE_KEY_ANGULAR_VELOCITY].m_Segments[segment_index], x, properties[PARTICLE_KEY_ANGULAR_VELOCITY])
-
-
             Vector4 c = particle->GetSourceColor();
             particle->SetScale(Vector3(properties[PARTICLE_KEY_SCALE]));
             particle->SetColor(Vector4(dmMath::Clamp(c.getX() * properties[PARTICLE_KEY_RED], 0.0f, 1.0f),
@@ -1316,6 +1312,9 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
                 particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
                 if (lengthSqr(particle->m_Velocity) > EPSILON)
                 {
@@ -1332,6 +1331,9 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ANGULAR_VELOCITY].m_Segments[segment_index], x, properties[PARTICLE_KEY_ANGULAR_VELOCITY])
                 particle->SetRotation(particle->GetRotation() * Quat::rotationZ(DEG_RAD * (particle->m_SourceAngularVelocity * (properties[PARTICLE_KEY_ANGULAR_VELOCITY])) * dt));
             }
 
@@ -1339,6 +1341,9 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
                 particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
             }
         }
