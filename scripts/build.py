@@ -30,7 +30,7 @@ PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
 
-PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
+PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
 PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
@@ -40,7 +40,7 @@ PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "1.35.0"
+EMSCRIPTEN_VERSION_STR = "1.38.12"
 # The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
 EMSCRIPTEN_VERSION_STR_LINUX = "master"
 EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)

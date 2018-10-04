@@ -288,11 +288,11 @@ def default_flags(self):
     elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
+                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'WASM=0', '-s', 'BINARYEN_METHOD="asmjs"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8", "ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'WASM=0', '-s', 'BINARYEN_METHOD="asmjs"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8", "ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
 
     elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
