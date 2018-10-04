@@ -1039,6 +1039,15 @@
                                         (update-in [:renderable :user-data :gpu-texture] texture/set-params tex-params)
                                         (assoc-in [:renderable :user-data :skin] skin))
                                     spine-scene-scene))))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id own-build-errors spine-scene]
+                                                     (cond-> {:node-id _node-id
+                                                              :node-outline-key "Spine Model"
+                                                              :label "Spine Model"
+                                                              :icon spine-model-icon
+                                                              :outline-error? (g/error-fatal? own-build-errors)}
+
+                                                             (resource/openable-resource? spine-scene)
+                                                             (assoc :link spine-scene :outline-reference? false))))
   (output model-pb g/Any produce-model-pb)
   (output save-value g/Any (gu/passthrough model-pb))
   (output own-build-errors g/Any :cached produce-model-own-build-errors)
