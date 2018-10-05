@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<StackPane id="state-not-signed-in" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+    <VBox styleClass="empty-list-overlay" translateY="186" spacing="8">
+        <fx:include source="globe-icon.fxml" />
+        <Label styleClass="hero-text" text="You need to sign in to view your projects in the Defold cloud." maxWidth="220" />
+        <Button id="sign-in-with-browser-button" styleClass="df-button" text="Sign in with Google">
+            <VBox.margin>
+                <Insets>
+                    <top>40</top>
+                    <bottom>14</bottom>
+                </Insets>
+            </VBox.margin>
+        </Button>
+        <Button id="sign-in-with-browser-button" styleClass="df-button" text="Sign in with Google">
+            <VBox.margin>
+                <Insets>
+                    <top>40</top>
+                    <bottom>14</bottom>
+                </Insets>
+            </VBox.margin>
+        </Button>
+
+        <Hyperlink id="create-account-button" text="Create Account" />
+    </VBox>
+</StackPane>
