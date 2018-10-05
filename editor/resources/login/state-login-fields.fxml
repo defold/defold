@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox id="state-login-fields" xmlns="http://javafx.com/javafx">
+    <Label styleClass="header-label" text="Sign in to your Defold account" />
+    <HBox styleClass="labeled-field">
+        <Label text="E-mail" />
+        <TextField id="email-field" />
+    </HBox>
+    <VBox>
+        <HBox styleClass="labeled-field">
+            <Label text="Password" />
+            <PasswordField id="password-field" />
+        </HBox>
+        <Hyperlink id="forgot-password-button" text="Forgot password?" />
+    </VBox>
+    <HBox styleClass="buttons-hbox">
+        <Button id="cancel-button" text="Go Back" />
+        <Button id="submit-button" text="Sign In" />
+    </HBox>
+</VBox>
