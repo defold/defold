@@ -1595,7 +1595,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     {
         if(PFN_glInvalidateFramebuffer != NULL)
         {
-            if(context->m_FrameBufferDiscardBits)
+            if(context->m_FrameBufferInvalidateBits)
             {
                 static uint32_t attachment_types[][3] = {
                     {DMGRAPHICS_RENDER_BUFFER_COLOR, DMGRAPHICS_RENDER_BUFFER_DEPTH, DMGRAPHICS_RENDER_BUFFER_STENCIL},
@@ -1604,21 +1604,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
                 uint32_t *attachment_lut = &attachment_types[context->m_FrameBufferIsAttachment][0];
                 GLenum types[MAX_BUFFER_TYPE_COUNT];
                 uint32_t types_count = 0;
-                if(context->m_FrameBufferDiscardBits & BUFFER_TYPE_COLOR_BIT)
+                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_COLOR_BIT)
                 {
                     types[types_count++] = attachment_lut[0];
                 }
-                if(context->m_FrameBufferDiscardBits & BUFFER_TYPE_DEPTH_BIT)
+                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_DEPTH_BIT)
                 {
                     types[types_count++] = attachment_lut[1];
                 }
-                if(context->m_FrameBufferDiscardBits & BUFFER_TYPE_STENCIL_BIT)
+                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_STENCIL_BIT)
                 {
                     types[types_count++] = attachment_lut[2];
                 }
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
-            context->m_FrameBufferDiscardBits = transient_buffer_types;
+            context->m_FrameBufferInvalidateBits = transient_buffer_types;
             context->m_FrameBufferIsAttachment = render_target != NULL;
         }
         glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
