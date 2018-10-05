@@ -814,18 +814,11 @@ namespace dmGraphics
         delete rt;
     }
 
-    void EnableRenderTarget(HContext context, HRenderTarget rendertarget)
+    void SetRenderTarget(HContext context, HRenderTarget rendertarget, uint32_t transient_buffer_types)
     {
+        (void) transient_buffer_types;
         assert(context);
-        assert(rendertarget);
         context->m_CurrentFrameBuffer = &rendertarget->m_FrameBuffer;
-    }
-
-    void DisableRenderTarget(HContext context, HRenderTarget rendertarget)
-    {
-        assert(context);
-        assert(rendertarget);
-        context->m_CurrentFrameBuffer = &context->m_MainFrameBuffer;
     }
 
     HTexture GetRenderTargetTexture(HRenderTarget rendertarget, BufferType buffer_type)

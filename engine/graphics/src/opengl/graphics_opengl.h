@@ -32,6 +32,8 @@ namespace dmGraphics
         uint32_t                m_ModificationVersion;
         uint32_t                m_TextureFormatSupport;
         uint32_t                m_DepthBufferBits;
+        uint32_t                m_FrameBufferInvalidateBits;
+        uint32_t                m_FrameBufferIsAttachment : 1;
         uint32_t                m_PackedDepthStencil : 1;
         uint32_t                m_WindowOpened : 1;
         uint32_t                m_VerifyGraphicsCalls : 1;
