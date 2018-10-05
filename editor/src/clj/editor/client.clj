@@ -1,15 +1,13 @@
 (ns editor.client
   (:require [editor.protobuf :as protobuf]
-            [editor.prefs :as prefs]
-            [service.log :as log])
+            [editor.prefs :as prefs])
   (:import [clojure.lang ExceptionInfo]
            [com.defold.editor.client DefoldAuthFilter]
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
-           [com.dynamo.cr.protocol.proto Protocol$UserInfo Protocol$NewProject Protocol$ProjectInfo]
-           [com.google.protobuf Message]
            [com.sun.jersey.api.client Client ClientHandlerException ClientResponse WebResource WebResource$Builder UniformInterfaceException]
-           [com.sun.jersey.api.client.config ClientConfig DefaultClientConfig]
+           [com.sun.jersey.api.client.config DefaultClientConfig]
            [java.io InputStream ByteArrayInputStream]
+           [java.lang AutoCloseable]
            [java.net URI]
            [javax.ws.rs.core MediaType]))
 
@@ -21,14 +19,20 @@
     (.add (.getClasses cc) ProtobufProviders$ProtobufMessageBodyWriter)
     cc))
 
+(defrecord ClientWrapper [^Client client prefs]
+  AutoCloseable
+  (close [_this] (.destroy client)))
+
 (defn make-client [prefs]
   (let [client (Client/create (make-client-config))
         email (prefs/get-prefs prefs "email" nil)
         token (prefs/get-prefs prefs "token" nil)]
     (when (and email token)
       (.addFilter client (DefoldAuthFilter. email token nil)))
-    {:client client
-     :prefs prefs}))
+    (->ClientWrapper client prefs)))
+
+(defn destroy-client! [{:keys client}]
+  (.destroy client))
 
 (def ^"[Ljavax.ws.rs.core.MediaType;" ^:private
   media-types
