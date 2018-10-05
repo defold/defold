@@ -10,6 +10,7 @@
 #include <dlib/array.h>
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
+#include <dlib/dstrings.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -143,6 +144,12 @@ using namespace Vectormath::Aos;
 #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
 #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
+
+// Cross-platform OpenGL/ES extension points. We define our own function pointer typedefs to handle the combination of statically or dynamically linked or core functionality.
+// The alternative is a matrix of conditional typedefs, linked statically/dynamically or core. OpenGL function prototypes does not change, so this is safe.
+typedef void (* DM_PFNGLINVALIDATEFRAMEBUFFERPROC) (GLenum target, GLsizei numAttachments, const GLenum *attachments);
+DM_PFNGLINVALIDATEFRAMEBUFFERPROC PFN_glInvalidateFramebuffer = NULL;
+
 
 namespace dmGraphics
 {
@@ -380,6 +387,47 @@ static void LogFrameBufferError(GLenum status)
         return false;
     }
 
+static uintptr_t GetExtProcAddress(const char* name, const char* extension_name, const char* core_name, const GLubyte* extensions)
+{
+    /*
+        Check in order
+        1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
+        2) EXT - Extensions agreed upon by multiple OpenGL vendors
+        3) OES - Vendor specific code for the OpenGL ES working group
+        4) Optinally check as core function (if not GLES and core_name is set)
+    */
+    uintptr_t func = 0x0;
+    static const char* ext_name_str[][2] = {{"GL_ARB_", "ARB"}, {"GL_EXT_", "EXT"}, {"GL_OES_", "OES"}};
+    char proc_str[256];
+    for(uint32_t i = 0; i < sizeof(ext_name_str)/sizeof(*ext_name_str); ++i)
+    {
+        // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
+        size_t l = dmStrlCpy(proc_str, ext_name_str[i][0], 8);
+        dmStrlCpy(proc_str + l, extension_name, 256-l);
+        if(!IsExtensionSupported(proc_str,  extensions))
+            continue;
+        l = dmStrlCpy(proc_str, name, 255);
+        dmStrlCpy(proc_str + l, ext_name_str[i][1], 256-l);
+        func = (uintptr_t) glfwGetProcAddress(proc_str);
+        if(func != 0x0)
+        {
+            break;
+        }
+    }
+#if !defined(GL_ES_VERSION_2_0) and !defined(__EMSCRIPTEN__)
+    if(func == 0 && core_name)
+    {
+        // On OpenGL, optionally check for core driver support if extension wasn't found (i.e extension has become part of core OpenGL)
+        func = (uintptr_t) glfwGetProcAddress(core_name);
+    }
+#endif
+    return func;
+}
+
+#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type)\
+    if (function == 0x0)\
+        function = (type) GetExtProcAddress(name, extension_name, core_name, extensions);
+
     static bool ValidateAsyncJobProcessing(HContext context)
     {
         // Test async texture access
@@ -577,8 +625,11 @@ static void LogFrameBufferError(GLenum status)
             (void) SetFrontProcess( &psn );
 #endif
 
-        // Check texture format support
+        // Extension support
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
+
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC);
+
         if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
         {
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
@@ -1548,16 +1599,41 @@ static void LogFrameBufferError(GLenum status)
         delete render_target;
     }
 
-    void EnableRenderTarget(HContext context, HRenderTarget render_target)
+    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types)
     {
-        glBindFramebuffer(GL_FRAMEBUFFER, render_target->m_Id);
-        CHECK_GL_ERROR
-        CHECK_GL_FRAMEBUFFER_ERROR
-    }
-
-    void DisableRenderTarget(HContext context, HRenderTarget render_target)
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, glfwGetDefaultFramebuffer());
+        if(PFN_glInvalidateFramebuffer != NULL)
+        {
+            if(context->m_FrameBufferInvalidateBits)
+            {
+                static uint32_t attachment_types[][3] = {
+                    {DMGRAPHICS_RENDER_BUFFER_COLOR, DMGRAPHICS_RENDER_BUFFER_DEPTH, DMGRAPHICS_RENDER_BUFFER_STENCIL},
+                    {DMGRAPHICS_RENDER_BUFFER_COLOR_ATTACHMENT, DMGRAPHICS_RENDER_BUFFER_DEPTH_ATTACHMENT, DMGRAPHICS_RENDER_BUFFER_STENCIL_ATTACHMENT}
+                };
+                uint32_t *attachment_lut = &attachment_types[context->m_FrameBufferInvalidateAttachments][0];
+                GLenum types[MAX_BUFFER_TYPE_COUNT];
+                uint32_t types_count = 0;
+                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_COLOR_BIT)
+                {
+                    types[types_count++] = attachment_lut[0];
+                }
+                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_DEPTH_BIT)
+                {
+                    types[types_count++] = attachment_lut[1];
+                }
+                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_STENCIL_BIT)
+                {
+                    types[types_count++] = attachment_lut[2];
+                }
+                PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
+            }
+            context->m_FrameBufferInvalidateBits = transient_buffer_types;
+#if defined(__MACH__) && ( defined(__arm__) || defined(__arm64__) )
+            context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
+#else
+            context->m_FrameBufferInvalidateAttachments = render_target != NULL;
+#endif
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, render_target == NULL ? glfwGetDefaultFramebuffer() : render_target->m_Id);
         CHECK_GL_ERROR
         CHECK_GL_FRAMEBUFFER_ERROR
     }
