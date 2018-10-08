@@ -5702,6 +5702,35 @@ TEST_F(dmGuiTest, PlayNodeParticlefxInitialTransform)
     UnloadParticlefxPrototype(prototype);
 }
 
+// DEF-3421 Adjust mode "Stretch" is not supported for particlefx nodes, should default to "Fit" instead.
+TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
+{
+    uint32_t width = 100;
+    uint32_t height = 100;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(10,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+    dmGui::InternalNode* n = dmGui::GetNode(m_Scene, node_pfx);
+
+    n->m_Node.m_AdjustMode = (uint32_t) dmGui::ADJUST_MODE_STRETCH;
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::PlayNodeParticlefx(m_Scene, node_pfx, 0));    
+    ASSERT_EQ(dmGui::ADJUST_MODE_FIT, (dmGui::AdjustMode)n->m_Node.m_AdjustMode);
+
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
 struct EmitterStateChangedCallbackTestData
 {
     bool m_CallbackWasCalled;
