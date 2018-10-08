@@ -95,7 +95,7 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".gui_scriptc", LuaModule.class);
         extToMessageClass.put(".render_scriptc", LuaModule.class);
         extToMessageClass.put(".luac", LuaModule.class);
-        extToMessageClass.put(".tilegridc", TileGrid.class);
+        extToMessageClass.put(".tilemapc", TileGrid.class);
         extToMessageClass.put(".collisionobjectc", CollisionObjectDesc.class);
         extToMessageClass.put(".spritec", SpriteDesc.class);
         extToMessageClass.put(".factoryc", FactoryDesc.class);
