@@ -21,7 +21,7 @@
 
 (defn prop-negative? [v name]
   (when (< v 0)
-    (format "'%s' must be positive" name)))
+    (format "'%s' cannot be negative" name)))
 
 (defn prop-zero-or-below? [v name]
   (when (<= v 0)

@@ -494,9 +494,8 @@ static int32_t handleInput(struct android_app* app, AInputEvent* event)
             if (g_KeyboardActive) {
                 // Implicitly hide keyboard
                 _glfwShowKeyboard(0, 0, 0);
-            } else {
-                _glfwInputKey( GLFW_KEY_BACK, glfw_action );
             }
+            _glfwInputKey( GLFW_KEY_BACK, glfw_action );
             return 1;
         case AKEYCODE_ESCAPE: _glfwInputKey( GLFW_KEY_ESC, glfw_action ); return 1;
         case AKEYCODE_F1: _glfwInputKey( GLFW_KEY_F1, glfw_action ); return 1;
