@@ -1,0 +1,17 @@
+name: "test_collectionfactoryprops"
+scale_along_z: 0
+embedded_instances {
+id: "go"
+data: "components {\n"
+"  id: \"script\"\n"
+"  component: \"/collectionfactoryprops/cfp.script\"\n"
+"}\n"
+"embedded_components {\n"
+"  id: \"collectionfactory\"\n"
+"  type: \"collectionfactory\"\n"
+"  data: \"prototype: \\\"/collectionfactoryprops/spawnee.collection\\\"\\n"
+"load_dynamically: false\\n"
+"\"\n"
+"}\n"
+""
+}

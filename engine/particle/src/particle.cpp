@@ -1296,12 +1296,8 @@ namespace dmParticle
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_GREEN].m_Segments[segment_index], x, properties[PARTICLE_KEY_GREEN])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_BLUE].m_Segments[segment_index], x, properties[PARTICLE_KEY_BLUE])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_ALPHA].m_Segments[segment_index], x, properties[PARTICLE_KEY_ALPHA])
-            SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_X].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_X])
             SAMPLE_PROP(particle_properties[PARTICLE_KEY_STRETCH_FACTOR_Y].m_Segments[segment_index], x, properties[PARTICLE_KEY_STRETCH_FACTOR_Y])
-            SAMPLE_PROP(particle_properties[PARTICLE_KEY_ANGULAR_VELOCITY].m_Segments[segment_index], x, properties[PARTICLE_KEY_ANGULAR_VELOCITY])
-
-
             Vector4 c = particle->GetSourceColor();
             particle->SetScale(Vector3(properties[PARTICLE_KEY_SCALE]));
             particle->SetColor(Vector4(dmMath::Clamp(c.getX() * properties[PARTICLE_KEY_RED], 0.0f, 1.0f),
@@ -1316,6 +1312,9 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
                 particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
                 if (lengthSqr(particle->m_Velocity) > EPSILON)
                 {
@@ -1332,6 +1331,9 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ANGULAR_VELOCITY].m_Segments[segment_index], x, properties[PARTICLE_KEY_ANGULAR_VELOCITY])
                 particle->SetRotation(particle->GetRotation() * Quat::rotationZ(DEG_RAD * (particle->m_SourceAngularVelocity * (properties[PARTICLE_KEY_ANGULAR_VELOCITY])) * dt));
             }
 
@@ -1339,6 +1341,9 @@ namespace dmParticle
             for (uint32_t i = 0; i < count; ++i)
             {
                 Particle* particle = &particles[i];
+                float x = dmMath::Select(-particle->GetMaxLifeTime(), 0.0f, 1.0f - particle->GetTimeLeft() * particle->GetooMaxLifeTime());
+                uint32_t segment_index = dmMath::Min((uint32_t)(x * PROPERTY_SAMPLE_COUNT), PROPERTY_SAMPLE_COUNT - 1);
+                SAMPLE_PROP(particle_properties[PARTICLE_KEY_ROTATION].m_Segments[segment_index], x, properties[PARTICLE_KEY_ROTATION])
                 particle->SetRotation(particle->GetSourceRotation() * dmVMath::QuatFromAngle(2, DEG_RAD * properties[PARTICLE_KEY_ROTATION]));
             }
         }
@@ -1486,6 +1491,9 @@ namespace dmParticle
         dmArray<Particle>& particles = emitter->m_Particles;
         EvaluateParticleProperties(emitter, prototype->m_ParticleProperties, ddf, dt);
         float emitter_t = dmMath::Select(-ddf->m_Duration, 0.0f, emitter->m_Timer / ddf->m_Duration);
+        float scale = 1.0f;
+        if (ddf->m_Space == EMISSION_SPACE_WORLD)
+            scale = instance->m_WorldTransform.GetScale();
         // Apply modifiers
         uint32_t modifier_count = prototype->m_Modifiers.Size();
         for (uint32_t i = 0; i < modifier_count; ++i)
@@ -1497,7 +1505,7 @@ namespace dmParticle
             case dmParticleDDF::MODIFIER_TYPE_ACCELERATION:
                 {
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyAcceleration(particles, modifier->m_Properties, rotation, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyAcceleration(particles, modifier->m_Properties, rotation, scale, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_DRAG:
@@ -1509,14 +1517,14 @@ namespace dmParticle
             case dmParticleDDF::MODIFIER_TYPE_RADIAL:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
-                    ApplyRadial(particles, modifier->m_Properties, position, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyRadial(particles, modifier->m_Properties, position, scale, emitter_t, dt);
                 }
                 break;
             case dmParticleDDF::MODIFIER_TYPE_VORTEX:
                 {
                     Point3 position = CalculateModifierPosition(instance, ddf, modifier_ddf);
                     Quat rotation = CalculateModifierRotation(instance, ddf, modifier_ddf);
-                    ApplyVortex(particles, modifier->m_Properties, position, rotation, instance->m_WorldTransform.GetScale(), emitter_t, dt);
+                    ApplyVortex(particles, modifier->m_Properties, position, rotation, scale, emitter_t, dt);
                 }
                 break;
             }

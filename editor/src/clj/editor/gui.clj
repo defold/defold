@@ -673,12 +673,24 @@
   (when (references-gui-resource? evaluation-context node-id :layer old-name)
     (g/set-property node-id :layer new-name)))
 
+(defn- validate-particlefx-adjust-mode [node-id adjust-mode]
+  (validation/prop-error :warning
+                         node-id
+                         :adjust-mode
+                         (fn [adjust-mode]
+                           (when (= adjust-mode :adjust-mode-stretch)
+                             "Adjust mode \"Stretch\" not supported for particlefx nodes."))
+                         adjust-mode))
+
 (g/defnode VisualNode
   (inherits GuiNode)
 
   (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
   (property adjust-mode g/Keyword (default :adjust-mode-fit)
+            (dynamic error (g/fnk [_node-id adjust-mode type]
+                                  (when (= type :type-particlefx)
+                                    (validate-particlefx-adjust-mode _node-id adjust-mode))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$AdjustMode))))
   (property pivot g/Keyword (default :pivot-center)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$Pivot))))
