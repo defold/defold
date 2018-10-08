@@ -211,6 +211,7 @@
         compress-archive? (get proj-settings ["project" "compress_archive"])
         [email auth] (login/credentials prefs)]
     (cond-> {"platform" "js-web"
+             "variant" "debug"
              "archive" "true"
              "bundle-output" (str output-path)
              "build-server" build-server-url

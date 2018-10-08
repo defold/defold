@@ -673,12 +673,24 @@
   (when (references-gui-resource? evaluation-context node-id :layer old-name)
     (g/set-property node-id :layer new-name)))
 
+(defn- validate-particlefx-adjust-mode [node-id adjust-mode]
+  (validation/prop-error :warning
+                         node-id
+                         :adjust-mode
+                         (fn [adjust-mode]
+                           (when (= adjust-mode :adjust-mode-stretch)
+                             "Adjust mode \"Stretch\" not supported for particlefx nodes."))
+                         adjust-mode))
+
 (g/defnode VisualNode
   (inherits GuiNode)
 
   (property blend-mode g/Keyword (default :blend-mode-alpha)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
   (property adjust-mode g/Keyword (default :adjust-mode-fit)
+            (dynamic error (g/fnk [_node-id adjust-mode type]
+                                  (when (= type :type-particlefx)
+                                    (validate-particlefx-adjust-mode _node-id adjust-mode))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$AdjustMode))))
   (property pivot g/Keyword (default :pivot-center)
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$Pivot))))
@@ -1436,7 +1448,7 @@
                                                       :label name
                                                       :icon texture-icon
                                                       :outline-error? (g/error-fatal? build-errors)}
-                                                     (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-reference? false))))
+                                                     (resource/openable-resource? texture-resource) (assoc :link texture-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name texture-resource]
                          {:name name
                           :texture (resource/resource->proj-path texture-resource)}))
@@ -1482,7 +1494,7 @@
                                                               :label name
                                                               :icon font-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-reference? false))))
+                                                             (resource/openable-resource? font-resource) (assoc :link font-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name font-resource]
                               {:name name
                                :font (resource/resource->proj-path font-resource)}))
@@ -1583,7 +1595,7 @@
                                                                    :label name
                                                                    :icon spine/spine-scene-icon
                                                                    :outline-error? (g/error-fatal? build-errors)}
-                                                                  (resource/openable-resource? spine-scene-resource) (assoc :link spine-scene-resource :outline-reference? false))))
+                                                                  (resource/openable-resource? spine-scene-resource) (assoc :link spine-scene-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name spine-scene]
                               {:name name
                                :spine-scene (resource/resource->proj-path spine-scene)}))
@@ -1626,7 +1638,7 @@
                                                               :label name
                                                               :icon particlefx/particle-fx-icon
                                                               :outline-error? (g/error-fatal? build-errors)}
-                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-reference? false))))
+                                                             (resource/openable-resource? particlefx-resource) (assoc :link particlefx-resource :outline-show-link? true))))
   (output pb-msg g/Any (g/fnk [name particlefx]
                               {:name name
                                :particlefx (resource/resource->proj-path particlefx)}))
