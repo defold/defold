@@ -9,11 +9,13 @@
 
 The adb output says where it is located (different location on different devices)
 
-If the device has `su`, you can try these commands:
+If the app is [debuggable](), you can get the crash log like so:
+
+	$ adb shell "run-as com.defold.adtest sh -c 'cat /data/data/com.defold.adtest/files/_crash'" > ./_crash
+
+If the device has `su`, you can try these commands (The device likely has to be rooted):
 
 	$ adb pull /data/data/com.defold.examples/files/_crash ./_crash
-	or
-	$ adb -d shell "run-as com.example.test cat /data/data/com.defold.examples/files/_crash" > ./_crash
 
 If those fail, try the [Device File Explorer](https://developer.android.com/studio/debug/device-file-explorer) in Android Studio.
 

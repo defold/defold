@@ -152,7 +152,7 @@ range_error:
             if (factory_result == dmResource::RESULT_OK)
             {
                 dmResource::ResourceType tile_grid_type;
-                factory_result = dmResource::GetTypeFromExtension(factory, "tilegridc", &tile_grid_type);
+                factory_result = dmResource::GetTypeFromExtension(factory, "tilemapc", &tile_grid_type);
                 if (factory_result == dmResource::RESULT_OK)
                 {
                     dmResource::ResourceType res_type;

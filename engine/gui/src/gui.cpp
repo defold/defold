@@ -3132,13 +3132,20 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
         dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
         dmParticle::HInstance inst = dmParticle::CreateInstance(scene->m_ParticlefxContext, particlefx_prototype, callbackdata);
 
+        if (n->m_Node.m_AdjustMode == ADJUST_MODE_STRETCH)
+        {
+            n->m_Node.m_AdjustMode = ADJUST_MODE_FIT;
+            dmLogOnceWarning("Adjust mode \"Stretch\" is not supported by particlefx nodes, falling back to \"Fit\" instead (node '%s').", dmHashReverseSafe64(n->m_NameHash));
+        }
+
         // Set initial transform
         Matrix4 trans;
         CalculateNodeTransform(scene, n, (CalculateNodeTransformFlags)(CALCULATE_NODE_INCLUDE_SIZE), trans);
         dmTransform::Transform transform = dmTransform::ToTransform(trans);
+        float scale = transform.GetScalePtr()[0];
         dmParticle::SetPosition(scene->m_ParticlefxContext, inst, Point3(transform.GetTranslation()));
         dmParticle::SetRotation(scene->m_ParticlefxContext, inst, transform.GetRotation());
-        dmParticle::SetScale(scene->m_ParticlefxContext, inst, transform.GetUniformScale());
+        dmParticle::SetScale(scene->m_ParticlefxContext, inst, scale);
 
         uint32_t count = scene->m_AliveParticlefxs.Size();
         scene->m_AliveParticlefxs.SetSize(count + 1);

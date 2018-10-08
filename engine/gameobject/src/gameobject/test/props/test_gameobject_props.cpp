@@ -8,6 +8,7 @@
 #include "../gameobject_private.h"
 #include "../gameobject_script.h"
 #include "../proto/gameobject/gameobject_ddf.h"
+#include "../gameobject_props.h"
 
 using namespace Vectormath::Aos;
 
@@ -550,6 +551,166 @@ TEST_F(PropsTest, PropsSetCompNotFound)
 }
 
 #undef ASSERT_SPAWN_FAILS
+
+TEST(GameObjectProps, TestCreatePropertyContainer)
+{
+    const float numberFirst = 1.f;
+    const float numberSecond = 2.f;
+    dmhash_t hashFirst = dmHashString64("hash_first");
+    const char urlStringFirst[] = "url_string_first";
+    const char urlStringSecond[] = "url_string_second";
+    const char urlFirst[32] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+                                1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+                                1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+                                1, 2};
+    float vector3First[3] = {1, 2, 3};
+    float vector3Second[3] = {-1, -2, -3};
+    float vector4First[4] = {1, 2, 3};
+    float quatFirst[4] = {1, 2, 3};
+    bool boolFirst = true;
+    bool boolSecond = false;
+
+    dmGameObject::PropertyContainerParameters params;
+    params.m_NumberCount = 2;
+    params.m_HashCount = 1;
+    params.m_URLStringCount = 2;
+    params.m_URLCount = 1;
+    params.m_Vector3Count = 2;
+    params.m_Vector4Count = 1;
+    params.m_QuatCount = 1;
+    params.m_BoolCount = 2;
+    params.m_URLStringSize += strlen("url_string_first") + 1;
+    params.m_URLStringSize += strlen("url_string_second") + 1;
+    dmGameObject::HPropertyContainerBuilder builder = dmGameObject::CreatePropertyContainerBuilder(params);
+    ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
+    dmGameObject::PushFloatType(builder, dmHashString64("NumberFirst"), dmGameObject::PROPERTY_TYPE_NUMBER, &numberFirst);
+    dmGameObject::PushFloatType(builder, dmHashString64("NumberSecond"), dmGameObject::PROPERTY_TYPE_NUMBER, &numberSecond);
+    dmGameObject::PushHash(builder, dmHashString64("HashFirst"), hashFirst);
+    dmGameObject::PushURLString(builder, dmHashString64("URLStringFirst"), urlStringFirst);
+    dmGameObject::PushURLString(builder, dmHashString64("URLStringSecond"), urlStringSecond);
+    dmGameObject::PushURL(builder, dmHashString64("URLFirst"), urlFirst);
+    dmGameObject::PushFloatType(builder, dmHashString64("Vector3First"), dmGameObject::PROPERTY_TYPE_VECTOR3, vector3First);
+    dmGameObject::PushFloatType(builder, dmHashString64("Vector3Second"), dmGameObject::PROPERTY_TYPE_VECTOR3, vector3Second);
+    dmGameObject::PushFloatType(builder, dmHashString64("Vector4First"), dmGameObject::PROPERTY_TYPE_VECTOR4, vector4First);
+    dmGameObject::PushFloatType(builder, dmHashString64("QuatFirst"), dmGameObject::PROPERTY_TYPE_QUAT, quatFirst);
+    dmGameObject::PushBool(builder, dmHashString64("BoolFirst"), boolFirst);
+    dmGameObject::PushBool(builder, dmHashString64("BoolSecond"), boolSecond);
+    dmGameObject::HPropertyContainer c = dmGameObject::CreatePropertyContainer(builder);
+    ASSERT_NE(c, (dmGameObject::HPropertyContainer)0x0);
+    dmGameObject::PropertyVar var;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_NOT_FOUND, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("NonExistant"), var));
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("NumberFirst"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, var.m_Type);
+    ASSERT_EQ(numberFirst, var.m_Number);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("NumberSecond"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, var.m_Type);
+    ASSERT_EQ(numberSecond, var.m_Number);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("HashFirst"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_HASH, var.m_Type);
+    ASSERT_EQ(hashFirst, var.m_Hash);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("URLFirst"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_URL, var.m_Type);
+    ASSERT_EQ(0, memcmp(urlFirst, var.m_URL, 32));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("Vector3First"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, var.m_Type);
+    ASSERT_EQ(vector3First[0], var.m_V4[0]);
+    ASSERT_EQ(vector3First[1], var.m_V4[1]);
+    ASSERT_EQ(vector3First[2], var.m_V4[2]);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("Vector3Second"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, var.m_Type);
+    ASSERT_EQ(vector3Second[0], var.m_V4[0]);
+    ASSERT_EQ(vector3Second[1], var.m_V4[1]);
+    ASSERT_EQ(vector3Second[2], var.m_V4[2]);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("Vector4First"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR4, var.m_Type);
+    ASSERT_EQ(vector4First[0], var.m_V4[0]);
+    ASSERT_EQ(vector4First[1], var.m_V4[1]);
+    ASSERT_EQ(vector4First[2], var.m_V4[2]);
+    ASSERT_EQ(vector4First[3], var.m_V4[3]);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("QuatFirst"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_QUAT, var.m_Type);
+    ASSERT_EQ(vector4First[0], var.m_V4[0]);
+    ASSERT_EQ(vector4First[1], var.m_V4[1]);
+    ASSERT_EQ(vector4First[2], var.m_V4[2]);
+    ASSERT_EQ(vector4First[3], var.m_V4[3]);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("BoolFirst"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_BOOLEAN, var.m_Type);
+    ASSERT_EQ(boolFirst, var.m_Bool);
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)c, dmHashString64("BoolSecond"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_BOOLEAN, var.m_Type);
+    ASSERT_EQ(boolSecond, var.m_Bool);
+    dmGameObject::DestroyPropertyContainer(c);
+}
+
+TEST(GameObjectProps, TestMergePropertyContainer)
+{
+    const float NUMBER = 1.f;
+    const char URL[] = "/url";
+    const char URL_OVERIDE[32] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+                                1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+                                1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+                                1, 2};
+    float VECTOR3[3] = {1, 2, 3};
+    float VECTOR3_OVERIDE[3] = {-1, -2, -3};
+    float VECTOR3_2[3] = {10, -21, -30};
+
+    dmGameObject::PropertyContainerParameters params;
+    params.m_NumberCount = 1;
+    params.m_URLStringCount = 1;
+    params.m_URLCount = 0;
+    params.m_Vector3Count = 1;
+    params.m_URLStringSize += strlen("/url") + 1;
+    dmGameObject::HPropertyContainerBuilder builder = dmGameObject::CreatePropertyContainerBuilder(params);
+    ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
+    dmGameObject::PushFloatType(builder, dmHashString64("number"), dmGameObject::PROPERTY_TYPE_NUMBER, &NUMBER);
+    dmGameObject::PushURLString(builder, dmHashString64("url"), URL);
+    dmGameObject::PushFloatType(builder, dmHashString64("vector3"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3);
+
+    dmGameObject::HPropertyContainer c = dmGameObject::CreatePropertyContainer(builder);
+    ASSERT_NE(c, (dmGameObject::HPropertyContainer)0x0);
+
+    params = dmGameObject::PropertyContainerParameters();
+    params.m_URLCount = 1;
+    params.m_Vector3Count = 2;
+    builder = dmGameObject::CreatePropertyContainerBuilder(params);
+    ASSERT_NE(builder, (dmGameObject::HPropertyContainerBuilder)0x0);
+    dmGameObject::PushURL(builder, dmHashString64("url"), URL_OVERIDE);
+    dmGameObject::PushFloatType(builder, dmHashString64("vector3"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3_OVERIDE);
+    dmGameObject::PushFloatType(builder, dmHashString64("vector3-2"), dmGameObject::PROPERTY_TYPE_VECTOR3, VECTOR3_2);
+
+    dmGameObject::HPropertyContainer o = dmGameObject::CreatePropertyContainer(builder);
+    ASSERT_NE(o, (dmGameObject::HPropertyContainer)0x0);
+
+    dmGameObject::HPropertyContainer m = dmGameObject::MergePropertyContainers(c, o);
+    ASSERT_NE(m, (dmGameObject::HPropertyContainer)0x0);
+    dmGameObject::DestroyPropertyContainer(c);
+    dmGameObject::DestroyPropertyContainer(o);
+
+    dmGameObject::PropertyVar var;
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)m, dmHashString64("number"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_NUMBER, var.m_Type);
+    ASSERT_EQ(NUMBER, var.m_Number);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)m, dmHashString64("url"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_URL, var.m_Type);
+    ASSERT_EQ(0, memcmp(URL_OVERIDE, var.m_URL, 32));
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)m, dmHashString64("vector3"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, var.m_Type);
+    ASSERT_EQ(VECTOR3_OVERIDE[0], var.m_V4[0]);
+    ASSERT_EQ(VECTOR3_OVERIDE[1], var.m_V4[1]);
+    ASSERT_EQ(VECTOR3_OVERIDE[2], var.m_V4[2]);
+
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::PropertyContainerGetPropertyCallback(0x0, (uintptr_t)m, dmHashString64("vector3-2"), var));
+    ASSERT_EQ(dmGameObject::PROPERTY_TYPE_VECTOR3, var.m_Type);
+    ASSERT_EQ(VECTOR3_2[0], var.m_V4[0]);
+    ASSERT_EQ(VECTOR3_2[1], var.m_V4[1]);
+    ASSERT_EQ(VECTOR3_2[2], var.m_V4[2]);
+
+    dmGameObject::DestroyPropertyContainer(m);
+}
 
 int main(int argc, char **argv)
 {
