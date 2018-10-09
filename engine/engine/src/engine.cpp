@@ -408,8 +408,8 @@ namespace dmEngine
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        int swap_interval = 60 / engine->m_UpdateFrequency;
+        // engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
+        int swap_interval = 1;//60 / engine->m_UpdateFrequency;
         SetSwapInterval(engine, swap_interval);
     }
 
@@ -589,7 +589,12 @@ namespace dmEngine
         engine->m_FlipTime = dmTime::GetTime();
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
-        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
+
+        uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+        dmLogWarning("engine refresh rate: %u", refresh_rate);
+
+        SetUpdateFrequency(engine, refresh_rate);
+        // SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;

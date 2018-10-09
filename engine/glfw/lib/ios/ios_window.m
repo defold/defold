@@ -289,7 +289,8 @@ The view content is basically an EAGL surface you render your OpenGL scene into.
 Note that setting the view non-opaque will only work if the EAGL surface has an alpha channel.
 */
 @interface EAGLView : UIView<UIKeyInput, UITextInput> {
-
+@public
+    CADisplayLink* displayLink;
 @private
     GLint backingWidth;
     GLint backingHeight;
@@ -297,7 +298,6 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     EAGLContext *auxContext;
     GLuint viewRenderbuffer, viewFramebuffer;
     GLuint depthStencilRenderbuffer;
-    CADisplayLink* displayLink;
     int countDown;
     int swapInterval;
     UIKeyboardType keyboardType;
@@ -1383,6 +1383,21 @@ _GLFWwin g_Savewin;
 
 @end
 
+int _glfwPlatformGetWindowRefreshRate( void )
+{
+    EAGLView* view = (EAGLView*) _glfwWin.view;
+    CADisplayLink* displayLink = view->displayLink;
+
+    printf("displayLink.duration: %f\n", displayLink.duration);
+    @try { // displayLink.preferredFramesPerSecond only supported on iOS 10.0 and higher.
+        printf("displayLink.preferredFramesPerSecond: %i\n", displayLink.preferredFramesPerSecond);
+    } @catch (NSException* exception) {
+        printf("### Caught exception when calling displayLink.preferredFramesPerSecond, defaulting to 60Hz\n");
+        return 60;
+    }
+
+    return displayLink.preferredFramesPerSecond;
+}
 
 int  _glfwPlatformOpenWindow( int width, int height,
                               const _GLFWwndconfig *wndconfig,

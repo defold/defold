@@ -115,6 +115,13 @@ namespace dmGraphics
         return WINDOW_RESULT_OK;
     }
 
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        dmLogInfo("NULL GetWindowRefreshRate!");
+        assert(context);
+        return 60;
+    }
+
     void CloseWindow(HContext context)
     {
         assert(context);
