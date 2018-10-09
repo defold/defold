@@ -1,4 +1,5 @@
-FROM ubuntu:18.04
+#FROM i386/ubuntu:16.04
+FROM ubuntu:16.04
 
 # Base stuff
 RUN \
@@ -30,28 +31,14 @@ RUN \
     libglw1-mesa-dev \
     freeglut3-dev
 
-#  rm -rf /var/lib/apt/lists/*
-
-# i386 Support
 RUN \
-  dpkg --add-architecture i386 && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
-    gcc-multilib \
-    g++-multilib \
-    uuid-dev:i386 \
-    libxi-dev:i386 \
-    libglu1-mesa-dev:i386 \
-    libgl1-mesa-dev:i386 \
-    libx11-dev:i386 \
-    freeglut3-dev:i386 \
-    libopenal-dev:i386
-
-RUN \
-  dpkg --add-architecture i386 && \
-  apt-get update && \
-  apt-get install -y --no-install-recommends \
-    clang
+    clang-6.0 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-6.0 1000 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-6.0 1000 && \
+    update-alternatives --config clang && \
+    update-alternatives --config clang++
 
 RUN \
   apt-get install -y --no-install-recommends \

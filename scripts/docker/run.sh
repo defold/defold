@@ -5,7 +5,4 @@ if [ "$DIR" == "" ]; then
     DIR=`pwd`
 fi
 
-
-#docker run --rm -it builder-base -v .:/home/builder /bin/bash
-docker run -t -i -v ${DIR}:/home/builder ubuntu
-#docker exec -ubuilder -it builder-base /bin/bash
+docker run --hostname=ubuntu --name=ubuntu -t -i -v ${DIR}:/home/builder ubuntu
