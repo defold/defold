@@ -419,6 +419,8 @@ namespace dmGraphics
      */
     void Finalize();
 
+    uint32_t GetWindowRefreshRate(HContext context);
+
     /**
      * Open a window
      * @param context Graphics context handle

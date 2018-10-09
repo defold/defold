@@ -92,6 +92,66 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextN
     (*env)->ReleaseStringUTFChars(env, text, text_chrs);
 }
 
+int _glfwPlatformGetWindowRefreshRate( void )
+{
+    LOGV("__glfwPlatformGetWindowRefreshRate");
+    if (_glfwWin.display == EGL_NO_DISPLAY || _glfwWin.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
+    {
+        return 0;
+    }
+
+    float refresh_rate = 0.0f;
+    jint result;
+
+    JavaVM* lJavaVM = g_AndroidApp->activity->vm;
+    JNIEnv* lJNIEnv = g_AndroidApp->activity->env;
+
+    JavaVMAttachArgs lJavaVMAttachArgs;
+    lJavaVMAttachArgs.version = JNI_VERSION_1_6;
+    lJavaVMAttachArgs.name = "NativeThread";
+    lJavaVMAttachArgs.group = NULL;
+
+    result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
+    if (result == JNI_ERR) {
+         return 60; // assume 60hz if this fails
+    }
+
+    jobject native_activity = g_AndroidApp->activity->clazz;
+    jclass native_activity_class = (*lJNIEnv)->GetObjectClass(lJNIEnv, native_activity);
+    jclass native_window_manager_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/WindowManager");
+    jclass native_display_class = (*lJNIEnv)->FindClass(lJNIEnv, "android/view/Display");
+
+    if (native_window_manager_class)
+    {
+        jmethodID get_window_manager = (*lJNIEnv)->GetMethodID(lJNIEnv, native_activity_class, "getWindowManager", "()Landroid/view/WindowManager;");
+        jmethodID get_default_display = (*lJNIEnv)->GetMethodID(lJNIEnv, native_window_manager_class, "getDefaultDisplay", "()Landroid/view/Display;");
+        jmethodID get_refresh_rate = (*lJNIEnv)->GetMethodID(lJNIEnv, native_display_class, "getRefreshRate", "()F");
+        if (get_refresh_rate)
+        {
+            jobject window_manager = (*lJNIEnv)->CallObjectMethod(lJNIEnv, native_activity, get_window_manager);
+
+            if (window_manager)
+            {
+                jobject display = (*lJNIEnv)->CallObjectMethod(lJNIEnv, window_manager, get_default_display);
+
+                if (display)
+                {
+                    refresh_rate = (*lJNIEnv)->CallFloatMethod(lJNIEnv, display, get_refresh_rate);
+                }
+            }
+        }
+    }
+    (*lJavaVM)->DetachCurrentThread(lJavaVM);
+
+    LOGV("refresh_rate: %f", refresh_rate);
+
+    return (int)(refresh_rate + 0.5f);
+
+    /*
+    // http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
+    */
+}
+
 int _glfwPlatformOpenWindow( int width__, int height__,
                              const _GLFWwndconfig* wndconfig__,
                              const _GLFWfbconfig* fbconfig__ )

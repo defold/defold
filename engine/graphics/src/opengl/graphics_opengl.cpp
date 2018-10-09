@@ -705,6 +705,23 @@ static void LogFrameBufferError(GLenum status)
             return 0;
     }
 
+    uint32_t GetWindowRefreshRate(HContext context)
+    {
+        dmLogInfo("GetWindowRefreshRate! asserting context...");
+        assert(context);
+        dmLogInfo("DONE");
+        if (context->m_WindowOpened)
+        {
+            dmLogInfo("Windows opened, calling into glfw!");
+            return glfwGetWindowRefreshRate();
+        }
+        else
+        {
+            dmLogInfo("Window NOT opened, returning...");
+            return 0;
+        }
+    }
+
     uint32_t GetDisplayDpi(HContext context)
     {
         assert(context);

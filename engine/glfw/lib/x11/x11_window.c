@@ -1385,7 +1385,33 @@ static GLboolean processSingleEvent( void )
     return GL_FALSE;
 }
 
-
+int _glfwPlatformGetWindowRefreshRate()
+{
+// Retrieve refresh rate if possible
+#if defined( _GLFW_HAS_XRANDR )
+    if( _glfwLibrary.XRandR.available )
+    {
+        sc = XRRGetScreenInfo( _glfwLibrary.display, _glfwWin.root );
+        short refresh_rate = XRRConfigCurrentRate( sc );
+        printf("#### Linux, has XrandR, refresh_rate: %u\n", refresh_rate);
+        return refresh_rate;
+    }
+#elif defined( _GLFW_HAS_XF86VIDMODE )
+    if( _glfwLibrary.XF86VidMode.available )
+    {
+        // Use the XF86VidMode extension to get current video mode
+        XF86VidModeGetModeLine( _glfwLibrary.display, _glfwWin.screen,
+                                &dotclock, &modeline );
+        pixels_per_second = 1000.0f * (float) dotclock;
+        pixels_per_frame  = (float) modeline.htotal * modeline.vtotal;
+        int refresh_rate = (int)(pixels_per_second/pixels_per_frame+0.5);
+        printf("#### Linux, has XF86VIDMODE, refresh_rate: %u\n", refresh_rate);
+        return refresh_rate;
+    }
+#endif
+    printf("### Linux has neither XrandR or XF86VIDMODE :( Defaulting to 60Hz\n");
+    return 60;
+}
 
 //************************************************************************
 //****               Platform implementation functions                ****
