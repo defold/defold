@@ -444,7 +444,7 @@
                           {:resource template-resource :overrides source-overrides}))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         current-scene (g/node-feeding-into self :template-resource)]
+                         current-scene (g/node-feeding-into basis self :template-resource)]
                      (concat
                        (if current-scene
                          (g/delete-node current-scene)
@@ -480,7 +480,7 @@
   (property nodes g/Any
             (set (fn [evaluation-context self _ new-value]
                    (let [basis (:basis evaluation-context)
-                         current-tree (g/node-feeding-into self :node-tree)]
+                         current-tree (g/node-feeding-into basis self :node-tree)]
                      (concat
                        (if current-tree
                          (g/delete-node current-tree)
@@ -933,7 +933,7 @@
         (is (= 1 (count (keep g/node-by-id all-script-nodes))))
         (is (empty? (mapcat g/overrides all-script-nodes)))))))
 
-(defn remove-idx [v ix]
+(defn- remove-idx [v ix]
   (into (subvec v 0 ix) (subvec v (inc ix))))
 
 (defn- all-system-nodes []
@@ -962,7 +962,7 @@
         (doseq [node all-nodes]
           (let [outputs (g/outputs node)
                 outputs-freqs (frequencies outputs)
-                merged-outputs (reduce conj [] (apply concat (vals (node-outputs node))))
+                merged-outputs (into [] cat (vals (node-outputs node)))
                 merged-outputs-freqs (frequencies merged-outputs)
                 freq-diff [:all-merged (not-empty (set/difference (set outputs-freqs) (set merged-outputs-freqs)))
                            :merged-all (not-empty (set/difference (set merged-outputs-freqs) (set outputs-freqs)))]]
@@ -971,7 +971,7 @@
         (doseq [node all-nodes]
           (let [inputs (g/inputs node)
                 inputs-freqs (frequencies inputs)
-                merged-inputs (apply concat (vals (node-inputs node)))
+                merged-inputs (into [] cat (vals (node-inputs node)))
                 merged-inputs-freqs (frequencies merged-inputs)
                 freq-diff [:all-merged (not-empty (set/difference (set inputs-freqs) (set merged-inputs-freqs)))
                            :merged-all (not-empty (set/difference (set merged-inputs-freqs) (set inputs-freqs)))]]
@@ -993,3 +993,4 @@
         (let [output-freqs (frequencies (mapcat g/outputs all-nodes))
               input-freqs (frequencies (mapcat g/inputs all-nodes))]
           (is (= output-freqs input-freqs)))))))
+
