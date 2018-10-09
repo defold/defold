@@ -148,6 +148,40 @@ namespace dmExtension
             __declspec(allocate(".CRT$XCU")) int (* _Fp ## symbol)(void) = symbol ## Wrapper;
     #endif
 
+    /*# onActivityResult callback typedef
+     *
+     * Activity result callback function type. Monitors events from the main activity.
+     * Used with RegisterOnActivityResultListener() and UnregisterOnActivityResultListener()
+     *
+     * @typedef
+     * @name OnActivityResult
+     * @param env [type:void*]
+     * @param activity [type:void*]
+     * @param request_code [type:int32_t]
+     * @param result_code [type:int32_t]
+     * @param result [type:void*]
+     */
+    typedef void (*OnActivityResult)(void* env, void* activity, int32_t request_code, int32_t result_code, void* result);
+
+    /*# register Android activity result callback
+     *
+     * Registers an activity result callback. Multiple listeners are allowed.
+     *
+     * @note [icon:android] Only available on Android
+     * @param [type:OnActivityResult] listener
+     */
+    void RegisterAndroidOnActivityResultListener(OnActivityResult listener);
+
+    /*# unregister Android activity result callback
+     *
+     * Unregisters an activity result callback
+     *
+     * @note [icon:android] Only available on Android
+     * @param [type:OnActivityResult] listener
+     */
+    void UnregisterAndroidOnActivityResultListener(OnActivityResult listener);
+
+
     /**
     * Extension desc bytesize declaration. Internal
     */
@@ -220,10 +254,11 @@ namespace dmExtension
      * This function is only available on iOS. [icon:ios]
      *
      * @name RegisteriOSUIApplicationDelegate
-     * @param delegate an id<UIApplicationDelegate> See https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
+     * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
      *
      * @examples
      * ```cpp
+     *
      * // myextension_ios.mm
      *
      * id<UIApplicationDelegate> g_MyApplicationDelegate;
@@ -257,7 +292,7 @@ namespace dmExtension
      * Deregister a previously registered iOS application delegate
      *
      * This function is only available on iOS. [icon:ios]
-     * 
+     *
      * @name UnregisteriOSUIApplicationDelegate
      * @param delegate an id<UIApplicationDelegate>
      * @examples
@@ -273,5 +308,65 @@ namespace dmExtension
      */
     void UnregisteriOSUIApplicationDelegate(void* delegate);
 }
+
+/*# Platform defines
+ *
+ * The platform defines are specified automatically by the build server
+ */
+
+/*# Set if the platform is iPhoneOS [icon:ios]
+ *
+ * Set if the platform is iPhoneOS [icon:ios]
+ *
+ * @macro
+ * @name DM_PLATFORM_IOS
+ *
+ */
+
+/*# Set if the platform is Android [icon:android]
+ *
+ * Set if the platform is Android [icon:android]
+ *
+ * @macro
+ * @name DM_PLATFORM_ANDROID
+ *
+ */
+
+/*# Set if the platform is Html5 [icon:html5]
+ *
+ * Set if the platform is Html5 [icon:html5]
+ *
+ * @macro
+ * @name DM_PLATFORM_HTML5
+ *
+ */
+
+/*# Set if the platform is OSX [icon:macos]
+ *
+ * Set if the platform is OSX [icon:macos]
+ *
+ * @macro
+ * @name DM_PLATFORM_OSX
+ *
+ */
+
+/*# Set if the platform is Linux [icon:linux]
+ *
+ * Set if the platform is Linux [icon:linux]
+ *
+ * @macro
+ * @name DM_PLATFORM_LINUX
+ *
+ */
+
+/*# Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
+ *
+ * Set if the platform is Windows [icon:windows] (on both x86 and x86_64)
+ *
+ * @macro
+ * @name DM_PLATFORM_WIN32
+ *
+ */
+
 
 #endif // #ifndef DMSDK_EXTENSION

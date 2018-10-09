@@ -501,24 +501,33 @@ namespace dmResource
         return 0;
     }
 
-    // Returns if anything completed
+    static uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index);
+
+    // Returns 1 if an item is found that has completed its loading from the load queue
     static uint32_t PreloaderUpdateOneItem(HPreloader preloader, int32_t index)
     {
-        if (index < 0)
-        {
-            // becuase we do recursion
-            return 0;
-        }
-
         DM_PROFILE(Resource, "PreloaderUpdateOneItem");
-        PreloadRequest *req = &preloader->m_Request[index];
-
-        if (req->m_LoadResult != RESULT_PENDING)
+        while (index >= 0)
         {
-            // Done means no children to worry about; go to sibling.
-            return PreloaderUpdateOneItem(preloader, req->m_NextSibling);
+            PreloadRequest *req = &preloader->m_Request[index];
+            if (req->m_LoadResult == RESULT_PENDING)
+            {
+                if (DoPreloaderUpdateOneReq(preloader, index))
+                {
+                    return 1;
+                }
+            }
+            index = req->m_NextSibling;
         }
+        return 0;
+    }
 
+    // Returns 1 if the item or any of its children is found that has completed its loading from the load queue
+    static uint32_t DoPreloaderUpdateOneReq(HPreloader preloader, int32_t index)
+    {
+        DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
+
+        PreloadRequest *req = &preloader->m_Request[index];
         // If it does not have a load request, it would have a buffer if it
         // had started a load.
         if (!req->m_LoadRequest && !req->m_Buffer && !req->m_Resource)
@@ -535,7 +544,7 @@ namespace dmResource
             {
                 // Already being loaded elsewhere; we can wait on that to complete, unless the item
                 // exists above us in the tree; then the loop is infinite and we can abort
-                int32_t parent = preloader->m_Request[index].m_Parent;
+                int32_t parent = req->m_Parent;
                 int32_t go_up = parent;
                 while (go_up != -1)
                 {
@@ -612,7 +621,7 @@ namespace dmResource
                 return 1;
         }
 
-        return PreloaderUpdateOneItem(preloader, req->m_NextSibling);
+        return 0;
     }
 
     static Result PostCreateUpdateOneItem(HPreloader preloader, bool& empty_run)

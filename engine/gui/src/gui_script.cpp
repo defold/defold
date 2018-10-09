@@ -3008,9 +3008,12 @@ namespace dmGui
      * @name gui.set_parent
      * @param node [type:node] node for which to set its parent
      * @param parent [type:node] parent node to set
+     * @param keep_scene_transform [type:boolean] optional flag to make the scene position being perserved
      */
     static int LuaSetParent(lua_State* L)
     {
+        int top = lua_gettop(L);
+
         HNode hnode;
         InternalNode* n = LuaCheckNode(L, 1, &hnode);
         if(n->m_Node.m_IsBone) {
@@ -3021,8 +3024,13 @@ namespace dmGui
         {
             parent = GetNodeHandle(LuaCheckNode(L, 2, &hnode));
         }
+        bool keep_scene_transform = false;
+        if (top > 2 && lua_isboolean(L, 3) && lua_toboolean(L, 3))
+        {
+            keep_scene_transform = true;
+        }
         Scene* scene = GuiScriptInstance_Check(L);
-        dmGui::Result result = dmGui::SetNodeParent(scene, GetNodeHandle(n), parent);
+        dmGui::Result result = dmGui::SetNodeParent(scene, GetNodeHandle(n), parent, keep_scene_transform);
         switch (result)
         {
         case dmGui::RESULT_INF_RECURSION:
@@ -3111,7 +3119,7 @@ namespace dmGui
             result = CloneNodeToTable(L, scene, node, &out_node);
             if (result == dmGui::RESULT_OK)
             {
-                dmGui::SetNodeParent(scene, out_node, parent);
+                dmGui::SetNodeParent(scene, out_node, parent, false);
             }
             index = node->m_NextIndex;
         }
@@ -3154,7 +3162,7 @@ namespace dmGui
                 {
                     parent = GetNodeHandle(&scene->m_Nodes[root->m_ParentIndex]);
                 }
-                dmGui::SetNodeParent(scene, out_node, parent);
+                dmGui::SetNodeParent(scene, out_node, parent, false);
             }
         }
         else
@@ -3448,13 +3456,48 @@ namespace dmGui
     LUASET(name, property)\
 
     LUAGETSETV3(Position, PROPERTY_POSITION)
-    LUAGETSETV3(Rotation, PROPERTY_ROTATION)
     LUAGETSETV3(Scale, PROPERTY_SCALE)
     LUAGETSETV4(Color, PROPERTY_COLOR)
     LUAGETSETV4(Outline, PROPERTY_OUTLINE)
     LUAGETSETV4(Shadow, PROPERTY_SHADOW)
 
 #undef LUAGETSET
+
+    // Custom setter and getter for gui.set_rotation to be able to handle
+    // pass a quaternion for rotations of GUI nodes.
+    int LuaGetRotation(lua_State* L)
+    {
+        InternalNode* n = LuaCheckNode(L, 1, 0);
+        const Vector4& v = n->m_Node.m_Properties[PROPERTY_ROTATION];
+        dmScript::PushVector3(L, Vector3(v.getX(), v.getY(), v.getZ()));
+        return 1;
+    }
+
+    int LuaSetRotation(lua_State* L)
+    {
+        HNode hnode;
+        InternalNode* n = LuaCheckNode(L, 1, &hnode);
+        if (n->m_Node.m_IsBone) {
+            return 0;
+        }
+        Vector4 v;
+        if (dmScript::IsVector3(L, 2))
+        {
+            Scene* scene = GetScene(L);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            v = Vector4(*dmScript::CheckVector3(L, 2), original.getW());
+        } else if (dmScript::IsVector4(L, 2)) {
+            v = *dmScript::CheckVector4(L, 2);
+        } else {
+            Scene* scene = GetScene(L);
+            Vector4 original = dmGui::GetNodeProperty(scene, hnode, PROPERTY_ROTATION);
+            Quat* q = dmScript::CheckQuat(L, 2);
+            v = Vector4(dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW()), original.getW());
+        }
+        n->m_Node.m_Properties[PROPERTY_ROTATION] = v;
+        n->m_Node.m_DirtyLocal = 1;
+        return 0;
+    }
 
     void SetDefaultNewContextParams(NewContextParams* params)
     {

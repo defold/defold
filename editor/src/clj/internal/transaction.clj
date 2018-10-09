@@ -48,18 +48,26 @@
   [{:type     :delete-node
     :node-id  node-id}])
 
-(defn new-override
+(defn- new-override
   [override-id root-id traverse-fn]
   [{:type :new-override
     :override-id override-id
     :root-id root-id
     :traverse-fn traverse-fn}])
 
-(defn override-node
+(defn- override-node
   [original-node-id override-node-id]
   [{:type        :override-node
     :original-node-id original-node-id
     :override-node-id override-node-id}])
+
+(defn override
+  [root-id traverse-fn init-fn properties-by-node-id]
+  [{:type :override
+    :root-id root-id
+    :traverse-fn traverse-fn
+    :init-fn init-fn
+    :properties-by-node-id properties-by-node-id}])
 
 (defn transfer-overrides [from-id->to-id]
   [{:type         :transfer-overrides
@@ -87,6 +95,12 @@
   [{:type :update-graph-value
     :gid  gid
     :fn   f
+    :args args}])
+
+(defn callback
+  [f args]
+  [{:type :callback
+    :fn f
     :args args}])
 
 (defn connect
@@ -165,6 +179,9 @@
 
 (defn- next-node-id [ctx gid]
   (is/next-node-id* (:node-id-generators ctx) gid))
+
+(defn- next-override-id [ctx gid]
+  (is/next-override-id* (:override-id-generator ctx) gid))
 
 (defmulti perform
   "A multimethod used for defining methods that perform the individual
@@ -307,12 +324,37 @@
   [ctx {:keys [original-node-id override-node-id]}]
   (ctx-override-node ctx original-node-id override-node-id))
 
-(declare apply-tx ctx-add-node)
+(declare apply-tx)
+
+(defmethod perform :override
+  [ctx {:keys [root-id traverse-fn init-fn properties-by-node-id]}]
+  (let [basis (:basis ctx)
+        graph-id (gt/node-id->graph-id root-id)
+        node-ids (ig/pre-traverse basis [root-id] traverse-fn)
+        override-id (next-override-id ctx graph-id)
+        override-nodes (mapv #(in/make-override-node override-id (next-node-id ctx graph-id) % (properties-by-node-id %)) node-ids)
+        override-node-ids (map gt/node-id override-nodes)
+        original-node-id->override-node-id (zipmap node-ids override-node-ids)
+        new-override-nodes-tx-data (map new-node override-nodes)
+        new-override-tx-data (concat
+                               (new-override override-id root-id traverse-fn)
+                               (map
+                                 (fn [node-id override-node-id]
+                                   (override-node node-id override-node-id))
+                                 node-ids
+                                 override-node-ids))]
+    (as-> ctx ctx'
+      (apply-tx ctx' (concat new-override-nodes-tx-data
+                             new-override-tx-data))
+      (apply-tx ctx' (init-fn (in/custom-evaluation-context {:basis (:basis ctx')})
+                              original-node-id->override-node-id)))))
 
 (defn- node-id->override-id [basis node-id]
   (->> node-id
     (gt/node-by-id-at basis)
     gt/override-id))
+
+(declare ctx-add-node)
 
 (defn- ctx-make-override-nodes [ctx override-id node-ids]
   (reduce (fn [ctx node-id]
@@ -494,6 +536,10 @@
           (ctx-set-property-to-nil node-id node property)))
       ctx)))
 
+(defmethod perform :callback [ctx {:keys [fn args]}]
+  (apply fn args)
+  ctx)
+
 (defn- ctx-disconnect-single [ctx target target-id target-label]
   (if (= :one (in/input-cardinality (gt/node-type target (:basis ctx)) target-label))
     (disconnect-inputs ctx target-id target-label)
@@ -641,20 +687,21 @@
              :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified)))))
 
 (defn new-transaction-context
-  [basis node-id-generators]
-  {:basis               basis
-   :nodes-affected      {}
-   :nodes-added         []
-   :nodes-modified      #{}
-   :nodes-deleted       {}
-   :outputs-modified    #{}
-   :graphs-modified     #{}
-   :successors-changed  {}
-   :node-id-generators node-id-generators
-   :completed           []
-   :txid                (new-txid)
-   :tx-data-context     (atom {})
-   :deferred-setters    []})
+  [basis node-id-generators override-id-generator]
+  {:basis                 basis
+   :nodes-affected        {}
+   :nodes-added           []
+   :nodes-modified        #{}
+   :nodes-deleted         {}
+   :outputs-modified      #{}
+   :graphs-modified       #{}
+   :successors-changed    {}
+   :node-id-generators    node-id-generators
+   :override-id-generator override-id-generator
+   :completed             []
+   :txid                  (new-txid)
+   :tx-data-context       (atom {})
+   :deferred-setters      []})
 
 (defn- update-successors
   [{:keys [successors-changed] :as ctx}]

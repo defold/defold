@@ -10,6 +10,7 @@ namespace dmRig
     static const uint32_t INVALID_BONE_INDEX = 0xffff;
     static const float CURSOR_EPSILON = 0.0001f;
     static const int SIGNAL_DELTA_UNCHANGED = 0x10cced; // Used to indicate if a draw order was unchanged for a certain slot
+    static const uint32_t INVALID_ATTACHMENT_INDEX = 0xffffffffu;
 
     static const float white[] = {1.0f, 1.0f, 1.0, 1.0f};
 
@@ -635,7 +636,7 @@ namespace dmRig
             }
 
             // Make sure we have enough space in the draw order deltas scratch buffer.
-            int slot_count = instance->m_MeshSet->m_SlotCount;
+            uint32_t slot_count = instance->m_MeshSet->m_SlotCount;
             int slot_changed = 0;
             if (context->m_ScratchDrawOrderDeltas.Capacity() < slot_count) {
                 context->m_ScratchDrawOrderDeltas.OffsetCapacity(slot_count - context->m_ScratchDrawOrderDeltas.Capacity());
@@ -643,7 +644,7 @@ namespace dmRig
             context->m_ScratchDrawOrderDeltas.SetSize(slot_count);
 
             // Reset draw order deltas to "unchanged" constant.
-            for (int i = 0; i < slot_count; i++) {
+            for (uint32_t i = 0; i < slot_count; i++) {
                 instance->m_DrawOrder[i] = i;
                 context->m_ScratchDrawOrderDeltas[i] = SIGNAL_DELTA_UNCHANGED;
             }
@@ -717,12 +718,11 @@ namespace dmRig
                 dmArray<IKTarget>& ik_targets = instance->m_IKTargets;
 
 
-                for (int32_t i = 0; i < count; ++i) {
+                for (uint32_t i = 0; i < count; ++i) {
                     const dmRigDDF::IK* ik = &skeleton->m_Iks[i];
 
                     // transform local space hiearchy for pose
                     dmTransform::Transform parent_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Parent], ik->m_Parent);
-                    dmTransform::Transform parent_t_local = parent_t;
                     dmTransform::Transform target_t = GetPoseTransform(bind_pose, pose, pose[ik->m_Target], ik->m_Target);
                     const uint32_t parent_parent_index = skeleton->m_Bones[ik->m_Parent].m_Parent;
                     dmTransform::Transform parent_parent_t;
@@ -962,7 +962,7 @@ namespace dmRig
         int slot_count = draw_order.Size();
 
         // Make sure we have enough capacity to store our unchanged slots list.
-        if (unchanged.Capacity() < slot_count) {
+        if (unchanged.Capacity() < (uint32_t)slot_count) {
             unchanged.OffsetCapacity(slot_count - unchanged.Capacity());
         }
         unchanged.SetSize(slot_count);
@@ -1013,12 +1013,12 @@ namespace dmRig
             MeshSlotPose* mesh_slot_pose = &instance->m_MeshSlotPose[slot_index];
 
             // Get attachment index for current slot
-            int active_attachment = mesh_slot_pose->m_ActiveAttachment;
-            if (active_attachment >= 0) {
+            uint32_t active_attachment = mesh_slot_pose->m_ActiveAttachment;
+            if (active_attachment != INVALID_ATTACHMENT_INDEX) {
 
                 // Check if there is any mesh on current attachment
-                int mesh_attachment_index = mesh_slot_pose->m_MeshSlot->m_MeshAttachments[active_attachment];
-                if (mesh_attachment_index >= 0) {
+                uint32_t mesh_attachment_index = mesh_slot_pose->m_MeshSlot->m_MeshAttachments[active_attachment];
+                if (mesh_attachment_index != INVALID_ATTACHMENT_INDEX) {
                     const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
                     vertex_count += mesh_attachment->m_Indices.m_Count;
                 }
@@ -1216,7 +1216,7 @@ namespace dmRig
 
     static void PoseToInfluence(const dmArray<uint32_t>& pose_idx_to_influence, const dmArray<Matrix4>& in_pose, dmArray<Matrix4>& out_pose)
     {
-        for (int i = 0; i < pose_idx_to_influence.Size(); ++i)
+        for (uint32_t i = 0; i < pose_idx_to_influence.Size(); ++i)
         {
             uint32_t j = pose_idx_to_influence[i];
             out_pose[j] = in_pose[i];
@@ -1312,8 +1312,8 @@ namespace dmRig
             return vertex_data_out;
 
         } else if (mesh_slot_count == 1) {
-            int active_attachment = instance->m_MeshSlotPose[0].m_ActiveAttachment;
-            if (active_attachment == -1 || mesh_entry->m_MeshSlots[0].m_MeshAttachments[active_attachment] == -1) {
+            uint32_t active_attachment = instance->m_MeshSlotPose[0].m_ActiveAttachment;
+            if (active_attachment == INVALID_ATTACHMENT_INDEX || mesh_entry->m_MeshSlots[0].m_MeshAttachments[active_attachment] == INVALID_ATTACHMENT_INDEX) {
                 return vertex_data_out;
             }
         }
@@ -1391,12 +1391,12 @@ namespace dmRig
             const dmRigDDF::MeshSlot* mesh_slot = mesh_slot_pose->m_MeshSlot;
 
             // Get active attachment in the current slot.
-            int active_attachment = mesh_slot_pose->m_ActiveAttachment;
-            if (active_attachment >= 0) {
+            uint32_t active_attachment = mesh_slot_pose->m_ActiveAttachment;
+            if (active_attachment != INVALID_ATTACHMENT_INDEX) {
 
                 // Check if the attachment point has a mesh assigned
-                int mesh_attachment_index = mesh_slot->m_MeshAttachments[active_attachment];
-                if (mesh_attachment_index >= 0)
+                uint32_t mesh_attachment_index = mesh_slot->m_MeshAttachments[active_attachment];
+                if (mesh_attachment_index != INVALID_ATTACHMENT_INDEX)
                 {
                     // Lookup the mesh from the list of all the available meshes.
                     const Mesh* mesh_attachment = &instance->m_MeshSet->m_MeshAttachments[mesh_attachment_index];
@@ -1608,6 +1608,15 @@ namespace dmRig
             (void)PlayAnimation(instance, params.m_DefaultAnimation, dmRig::PLAYBACK_LOOP_FORWARD, 0.0f, 0.0f, 1.0f);
         }
 
+        // m_ForceAnimatePose should be set if the animation step needs to run once (with dt 0)
+        // to setup the pose to the current cursor.
+        // Useful if pose needs to be calculated before draw but dmRig::Update will not be called
+        // before that happens, for example cloning a GUI spine node happens in script update,
+        // which comes after the regular dmRig::Update.
+        if (params.m_ForceAnimatePose) {
+            DoAnimate(context, instance, 0.0f);
+        }
+
         return dmRig::RESULT_OK;
     }
 
@@ -1679,7 +1688,7 @@ namespace dmRig
         uint32_t anim_bone_list_count = animationset.m_BoneList.m_Count;
         uint32_t mesh_bone_list_count = meshset.m_BoneList.m_Count;
 
-        for (int bi = 0; bi < bone_count; ++bi)
+        for (uint32_t bi = 0; bi < bone_count; ++bi)
         {
             uint64_t bone_id = skeleton.m_Bones[bi].m_Id;
 

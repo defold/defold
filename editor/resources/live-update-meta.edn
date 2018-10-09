@@ -41,7 +41,7 @@
    :path ["liveupdate" "privatekey"]}
   {:type :comma-separated-list,
    :help "List of supported engine versions",
-   :default "0.0.0",
+   :default ["0.0.0"],
    :presentation-category "Manifest"
    :path ["liveupdate" "supported-versions"]}]
  :categories

@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <vectormath/cpp/vectormath_aos.h>
 
+#include <dmsdk/graphics/graphics.h>
+
 #if defined(__AVM2__)
 #include "flash/graphics_flash_defines.h"
 #else
@@ -140,6 +142,13 @@ namespace dmGraphics
     {
         uint8_t m_FormatToBPP[TEXTURE_FORMAT_COUNT];
         TextureFormatToBPP();
+    };
+
+    // Translation table to translate RenderTargetAttachment to BufferType
+    struct AttachmentToBufferType
+    {
+        BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
+        AttachmentToBufferType();
     };
 
     // Texture type

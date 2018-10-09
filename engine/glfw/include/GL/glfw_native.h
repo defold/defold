@@ -26,6 +26,7 @@ extern "C" {
     typedef void* EGLSurface;
     typedef void* JavaVM;
     typedef void* jobject;
+    typedef void* android_app;
 #endif
 
 #if defined(_WIN32)
@@ -69,6 +70,11 @@ GLFWAPI EGLContext glfwGetAndroidEGLContext(void);
 GLFWAPI EGLSurface glfwGetAndroidEGLSurface(void);
 GLFWAPI JavaVM* glfwGetAndroidJavaVM(void);
 GLFWAPI jobject glfwGetAndroidActivity(void);
+#if defined(ANDROID)
+GLFWAPI struct android_app* glfwGetAndroidApp(void);
+#else
+GLFWAPI android_app* glfwGetAndroidApp(void);
+#endif
 
 GLFWAPI Window glfwGetX11Window(void);
 GLFWAPI GLXContext glfwGetX11GLXContext(void);

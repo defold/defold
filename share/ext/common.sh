@@ -120,7 +120,6 @@ function save_function() {
 }
 
 function windows_path_to_posix() {
-    #echo $1
     echo "/$1" | sed -e 's/\\/\//g' -e 's/C:/c/' -e 's/ /\\ /g' -e 's/(/\\(/g' -e 's/)/\\)/g'
 }
 
@@ -150,10 +149,10 @@ function cmi_setup_vs2015_env() {
     c_VSINSTALLDIR=$(windows_path_to_posix "$VSINSTALLDIR")
     c_WindowsSdkDir=$(windows_path_to_posix "$WindowsSdkDir")
     c_FrameworkDir=$(windows_path_to_posix "$FrameworkDir")
-    
+
     echo BEFORE VSINSTALLDIR == $VSINSTALLDIR
     echo BEFORE c_VSINSTALLDIR == $c_VSINSTALLDIR
-    
+
     export PATH="${c_WindowsSdkDir}bin:$PATH"
     export PATH="${c_WindowsSdkDir}bin/NETFX 4.0 Tools:$PATH"
     export PATH="${c_VSINSTALLDIR}VC/VCPackages:$PATH"
@@ -287,6 +286,7 @@ function cmi() {
             export CXX=${EMSCRIPTEN}/em++
             export AR=${EMSCRIPTEN}/emar
             export LD=${EMSCRIPTEN}/em++
+            export RANLIB=${EMSCRIPTEN}/emranlib
             cmi_cross $1 $1
             ;;
 

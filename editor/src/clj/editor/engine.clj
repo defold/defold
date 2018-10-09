@@ -168,8 +168,9 @@
 
 (defn get-engine [project prefs platform]
   (or (custom-engine prefs platform)
-      (if-let [native-extension-roots (native-extensions/extension-roots project)]
-        (let [build-server (native-extensions/get-build-server-url prefs)]
+      (if (native-extensions/has-extensions? project)
+        (let [build-server (native-extensions/get-build-server-url prefs)
+              native-extension-roots (native-extensions/extension-roots project)]
           (native-extensions/get-engine project native-extension-roots platform build-server))
         (bundled-engine platform))))
 

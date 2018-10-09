@@ -114,7 +114,8 @@ public class IOSBundler implements IBundler {
         // Collect bundle/package resources to be included in .App directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, Platform.Arm64Darwin);
 
-        boolean debug = project.hasOption("debug");
+        final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+        final boolean strip_executable = project.hasOption("strip-executable");
 
         File exeArmv7 = null;
         File exeArm64 = null;
@@ -125,24 +126,24 @@ public class IOSBundler implements IBundler {
         // armv7 exe
         {
             Platform targetPlatform = Platform.Armv7Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-            exeArmv7 = defaultExe;
-            if (extenderExe.exists()) {
+            exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+            if (exeArmv7 == null) {
+                exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            }
+            else {
                 logger.log(Level.INFO, "Using extender exe for Armv7");
-                exeArmv7 = extenderExe;
             }
         }
 
         // arm64 exe
         {
             Platform targetPlatform = Platform.Arm64Darwin;
-            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(targetPlatform.getExtenderPair(), targetPlatform.formatBinaryName("dmengine"))));
-            File defaultExe = new File(Bob.getDmengineExe(targetPlatform, debug));
-            exeArm64 = defaultExe;
-            if (extenderExe.exists()) {
+            exeArm64 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
+            if (exeArm64 == null) {
+                exeArm64 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            }
+            else {
                 logger.log(Level.INFO, "Using extender exe for Arm64");
-                exeArm64 = extenderExe;
             }
         }
 
@@ -216,7 +217,11 @@ public class IOSBundler implements IBundler {
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1496", "Default-Landscape-1024h@2x.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x1536", "Default-Landscape-1024h@2x.png");
 
-        // iPad pro (12")
+        // iPad pro (10.5")
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_1668x2224", "Default-Portrait-1112h@2x.png");
+        copyIcon(projectProperties, projectRoot, appDir, "launch_image_2224x1668", "Default-Landscape-1112h@2x.png");
+
+        // iPad pro (12.9")
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2048x2732", "Default-Portrait-1366h@2x.png");
         copyIcon(projectProperties, projectRoot, appDir, "launch_image_2732x2048", "Default-Landscape-1366h@2x.png");
 
@@ -260,8 +265,8 @@ public class IOSBundler implements IBundler {
 
         List<String> orientationSupport = new ArrayList<String>();
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false)==false) {
-            Integer displayWidth = projectProperties.getIntValue("display", "width");
-            Integer displayHeight = projectProperties.getIntValue("display", "height");
+            Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
+            Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
             if((displayWidth != null & displayHeight != null) && (displayWidth > displayHeight)) {
                 orientationSupport.add("LandscapeRight");
             } else {
@@ -276,7 +281,7 @@ public class IOSBundler implements IBundler {
         properties.put("orientation-support", orientationSupport);
 
         BundleHelper helper = new BundleHelper(project, Platform.Armv7Darwin, bundleDir, ".app");
-        helper.format(properties, "ios", "infoplist", "resources/ios/Info.plist", new File(appDir, "Info.plist"));
+        helper.format(properties, "ios", "infoplist", new File(appDir, "Info.plist"));
 
         // Copy bundle resources into .app folder
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
@@ -303,7 +308,7 @@ public class IOSBundler implements IBundler {
         }
 
         // Strip executable
-        if( !debug )
+        if( strip_executable )
         {
             Result stripResult = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "strip_ios"), exe);
             if (stripResult.ret == 0) {

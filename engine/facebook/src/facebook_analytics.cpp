@@ -149,7 +149,18 @@ void dmFacebook::Analytics::GetParameterTable(lua_State* L, int index, const cha
         values[position] = lua_tostring(L, -2);
         lua_pop(L, 2);
 
-        ++position;
+        if (keys[position] == 0x0)
+        {
+            dmLogError("Unsupported parameter type for key, must be string or number.");
+        }
+        else if (values[position] == 0x0)
+        {
+            dmLogError("Unsupported parameter value type for key '%s', value must be string or number.", keys[position]);
+        }
+        else
+        {
+            ++position;
+        }
     }
 
     lua_pop(L, 1);

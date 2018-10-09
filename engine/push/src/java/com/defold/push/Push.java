@@ -23,6 +23,7 @@ import org.json.JSONObject;
 import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.NotificationChannel;
 import android.app.PendingIntent;
 import android.app.AlarmManager;
 import android.content.ComponentName;
@@ -36,6 +37,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Build;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
@@ -50,6 +52,7 @@ public class Push {
     public static final String ACTION_FORWARD_PUSH = "com.defold.push.FORWARD";
     public static final String SAVED_PUSH_MESSAGE_NAME = "saved_push_message";
     public static final String SAVED_LOCAL_MESSAGE_NAME = "saved_local_message";
+    public static final String NOTIFICATION_CHANNEL_ID = "com.dynamo.android.notification_channel";
     private static final int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
 
     private String senderId = "";
@@ -62,8 +65,38 @@ public class Push {
 
     private Activity activity;
 
-    public void start(Activity activity, IPushListener listener, String senderId) {
+    // We need to store recieved notifications in memory until
+    // a listener has been registered on the Lua side.
+    private class StoredNotification {
+        public String json = "";
+        public int id = 0;
+        public boolean wasLocal = false;
+        public boolean wasActivated = false;
+
+        public StoredNotification(String json, int id, boolean wasLocal, boolean wasActivated)
+        {
+            this.json = json;
+            this.id = id;
+            this.wasLocal = wasLocal;
+            this.wasActivated = wasActivated;
+        }
+    }
+
+    private ArrayList<StoredNotification> storedNotifications = new ArrayList<StoredNotification>();
+
+    public void start(Activity activity, IPushListener listener, String senderId, String projectTitle) {
         Log.d(TAG, String.format("Push started (%s %s)", listener, senderId));
+
+        // Create the NotificationChannel, but only on API 26+ because
+        // the NotificationChannel class is new and not in the support library
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, projectTitle, NotificationManager.IMPORTANCE_DEFAULT);
+            channel.enableVibration(true);
+            channel.setDescription("");
+
+            NotificationManager notificationManager = (NotificationManager)activity.getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+        }
         this.activity = activity;
         this.listener = listener;
         this.senderId = senderId;
@@ -72,6 +105,19 @@ public class Push {
     public void stop() {
         Log.d(TAG, "Push stopped");
         this.listener = null;
+    }
+
+    public void flushStoredNotifications() {
+        for (int i = 0; i < storedNotifications.size(); i++) {
+            StoredNotification n = storedNotifications.get(i);
+            if (n.wasLocal) {
+                this.listener.onLocalMessage(n.json, n.id, n.wasActivated);
+            } else {
+                this.listener.onMessage(n.json, n.wasActivated);
+            }
+        }
+
+        storedNotifications.clear();
     }
 
     public void register(final Activity activity) {
@@ -302,7 +348,7 @@ public class Push {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onMessage(json, wasActivated);
+            storedNotifications.add(new StoredNotification(json, 0, false, wasActivated));
 
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
@@ -332,7 +378,7 @@ public class Push {
                 json += line;
                 line = r.readLine();
             }
-            this.listener.onLocalMessage(json, id, wasActivated);
+            storedNotifications.add(new StoredNotification(json, id, true, wasActivated));
         } catch (FileNotFoundException e) {
         } catch (IOException e) {
             Log.e(Push.TAG, "Failed to read local message from disk", e);
@@ -531,9 +577,10 @@ public class Push {
                 text = "New message";
             }
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(context)
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_ID)
                     .setContentTitle(title)
                     .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                     .setContentText(text);
 
             // Find icons if they were supplied, fallback to app icon

@@ -10,6 +10,7 @@
    [editor.image-util :as image-util]
    [editor.workspace :as workspace]
    [editor.resource :as resource]
+   [editor.resource-io :as resource-io]
    [editor.resource-node :as resource-node]
    [editor.defold-project :as project]
    [editor.handler :as handler]
@@ -179,6 +180,7 @@
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id collision-groups-data]
             {:node-id _node-id
+             :node-outline-key id
              :label id
              :icon collision-icon
              :color (collision-groups/color collision-groups-data id)})))
@@ -262,7 +264,11 @@
   (input anim-data g/Any)
   (input gpu-texture g/Any)
 
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id] {:node-id _node-id :label id :icon animation-icon}))
+  (output node-outline outline/OutlineData :cached (g/fnk [_node-id id]
+                                                     {:node-id _node-id
+                                                      :node-outline-key id
+                                                      :label id
+                                                      :icon animation-icon}))
   (output ddf-message g/Any produce-animation-ddf)
   (output animation-data g/Any (g/fnk [_node-id ddf-message] {:node-id _node-id :ddf-message ddf-message}))
   (output updatable g/Any produce-animation-updatable)
@@ -301,6 +307,7 @@
   (let [[coll-outlines anim-outlines] (let [outlines (group-by #(g/node-instance? CollisionGroupNode (:node-id %)) child-outlines)]
                                         [(get outlines true) (get outlines false)])]
     {:node-id _node-id
+     :node-outline-key "Tile Source"
      :label "Tile Source"
      :icon tile-source-icon
      :children (into (outline/natural-sort coll-outlines) (outline/natural-sort anim-outlines))
@@ -523,7 +530,8 @@
 
 (defn- generate-packed-image [{:keys [_node-id texture-set-data-generator image-resource tile-source-attributes]}]
   (let [texture-set-data (call-generator texture-set-data-generator)
-        buffered-image (validation/resource-io-with-errors image-util/read-image image-resource _node-id :image)]
+        buffered-image (resource-io/with-error-translation image-resource _node-id :image
+                         (image-util/read-image image-resource))]
     (if (g/error? buffered-image)
       buffered-image
       (texture-set-gen/layout-tile-source (:layout texture-set-data) buffered-image tile-source-attributes))))

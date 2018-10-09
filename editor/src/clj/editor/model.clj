@@ -153,7 +153,7 @@
                            (g/disconnect project :nil-resource self :texture-resources)))
                        (for [r new-value]
                          (if r
-                           (project/connect-resource-node evaluation-context project r self connections)
+                           (:tx-data (project/connect-resource-node evaluation-context project r self connections))
                            (g/connect project :nil-resource self :texture-resources)))))))
             (dynamic visible (g/constantly false)))
   (property skeleton resource/Resource

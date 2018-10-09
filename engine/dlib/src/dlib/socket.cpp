@@ -169,7 +169,7 @@ namespace dmSocket
         // Implements the Hamming Distance algorithm.
         // https://en.wikipedia.org/wiki/Hamming_distance
         uint32_t difference = 0;
-        for (int i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
+        for (uint32_t i = 0; i < (sizeof(a.m_address) / sizeof(uint32_t)); ++i)
         {
             uint32_t current = a.m_address[i] ^ b.m_address[i];
             while (current != 0)
@@ -951,6 +951,7 @@ namespace dmSocket
             DM_SOCKET_RESULT_TO_STRING_CASE(CONNREFUSED);
             DM_SOCKET_RESULT_TO_STRING_CASE(ADDRINUSE);
             DM_SOCKET_RESULT_TO_STRING_CASE(CONNABORTED);
+            DM_SOCKET_RESULT_TO_STRING_CASE(INPROGRESS);
 
             DM_SOCKET_RESULT_TO_STRING_CASE(HOST_NOT_FOUND);
             DM_SOCKET_RESULT_TO_STRING_CASE(TRY_AGAIN);

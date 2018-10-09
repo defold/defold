@@ -1,18 +1,22 @@
 (ns editor.boot
   (:require
    [clojure.java.io :as io]
+   [clojure.java.shell :as shell]
    [clojure.stacktrace :as stack]
+   [clojure.string :as string]
    [clojure.tools.cli :as cli]
    [editor.code.view :as code-view]
    [editor.dialogs :as dialogs]
    [editor.error-reporting :as error-reporting]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
+   [editor.system :as system]
    [editor.ui :as ui]
    [editor.updater :as updater]
    [editor.welcome :as welcome]
    [service.log :as log])
   (:import
+   [java.io IOException]
    [java.util Arrays]
    [javax.imageio ImageIO]))
 
@@ -44,11 +48,11 @@
 (defn- open-project-with-progress-dialog
   [namespace-loader prefs project update-context newly-created?]
   (ui/modal-progress
-   "Loading project" 100
+   "Loading project"
    (fn [render-progress!]
-     (let [namespace-progress (progress/make "Loading editor" 1304) ; magic number from reading namespace-counter after load.
-           render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 2))
-           render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 2 1))
+     (let [namespace-progress (progress/make "Loading editor" 1256) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
+           render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 2)
+           render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 2) 3)
            project-file (io/file project)]
        (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
        ;; ensure that namespace loading has completed
@@ -72,6 +76,30 @@
     (ui/run-now
       (dialogs/make-error-dialog ex-map sentry-id-promise))))
 
+(defn- try-shell-command! [command & args]
+  (try
+    (let [{:keys [out err]} (apply shell/sh command args)]
+      (when (empty? err)
+        (string/trim-newline out)))
+    (catch IOException _
+      ;; The specified command does not exist.
+      nil)))
+
+(defn- set-sha1-revisions-from-repo! []
+  ;; Use the sha1 of the HEAD commit as the editor revision.
+  (when (empty? (system/defold-editor-sha1))
+    (when-some [editor-sha1 (try-shell-command! "git" "rev-list" "-n" "1" "HEAD")]
+      (system/set-defold-editor-sha1! editor-sha1)))
+
+  ;; Try to find the engine revision by looking at the VERSION file in the root
+  ;; of the Defold repo. On a stable engine branch, the contents of this file
+  ;; will correspond to a Git tag. If the tag is present, it will point to the
+  ;; engine revision. This is required when building native extensions.
+  (when (empty? (system/defold-engine-sha1))
+    (let [version (string/trim-newline (slurp "../VERSION"))]
+      (when-some [engine-sha1 (try-shell-command! "git" "rev-list" "-n" "1" version)]
+        (system/set-defold-engine-sha1! engine-sha1)))))
+
 (defn disable-imageio-cache!
   []
   ;; Disabling ImageIO cache speeds up reading images from disk significantly
@@ -82,6 +110,8 @@
   [["-prefs" "--preferences PATH" "Path to preferences file"]])
 
 (defn main [args]
+  (when (system/defold-dev?)
+    (set-sha1-revisions-from-repo!))
   (error-reporting/setup-error-reporting! {:notifier {:notify-fn notify-user}
                                            :sentry   {:project-id "97739"
                                                       :key        "9e25fea9bc334227b588829dd60265c1"

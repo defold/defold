@@ -261,7 +261,7 @@ namespace dmBuffer
      * uint8_t* bytes = 0x0;
      * uint32_t size = 0;
      *
-     * dmBuffer::Result r = dmBuffer::GetBytes(buffer, (void*)&bytes, &size);
+     * dmBuffer::Result r = dmBuffer::GetBytes(buffer, (void**)&bytes, &size);
      *
      * if (r == dmBuffer::RESULT_OK) {
      *     for (int i = 0; i < size; ++i)

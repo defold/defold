@@ -3,18 +3,18 @@
 def build(bld):
     test_physics = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_physics.cpp',
-                                    uselib = 'DLIB GTEST PLATFORM_THREAD',
-                                    uselib_local = 'physics BulletDynamics BulletCollision LinearMath Box2D',
-                                    includes = ['../../../src', '../../../src/bullet', '../../../src/box2d'],
+                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
+                                    uselib_local = 'physics Box2D',
+                                    includes = ['../../../src', '../../../src/box2d'],
                                     target = 'test_physics')
 
     test_physics.install_path = None
 
     test_physics_2d = bld.new_task_gen(features = 'cxx cprogram test',
                                     source = 'test_physics_2d.cpp',
-                                    uselib = 'DLIB GTEST PLATFORM_THREAD',
-                                    uselib_local = 'physics BulletDynamics BulletCollision LinearMath Box2D',
-                                    includes = ['../../../src', '../../../src/bullet', '../../../src/box2d'],
+                                    uselib = 'DLIB GTEST PLATFORM_THREAD BULLET',
+                                    uselib_local = 'physics Box2D',
+                                    includes = ['../../../src', '../../../src/box2d'],
                                     target = 'test_physics_2d')
 
     test_physics_2d.install_path = None

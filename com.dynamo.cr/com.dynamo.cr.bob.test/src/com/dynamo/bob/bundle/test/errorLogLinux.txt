@@ -12,3 +12,7 @@ upload/androidnative/src/main.cpp:17:1: error: ‘ubar’ does not name a type
 /tmp/job8173429454298199869/upload/androidnative/src/main.cpp:166: undefined reference to `Foobar()'
 collect2: error: ld returned 1 exit status
 
+
+/usr/bin/g++ build/main_tmp2de2c484-d933-4884-ac1f-308aca1e8fdf.o -o build/dmengine -L/tmp/job8662069236459163032/build -L/tmp/job8662069236459163032/upload/steamworks/lib/x86_64-linux -L/var/extender/sdk/1b90c9a905d634b766b467e3536458b9210ec812/defoldsdk//lib/x86_64-linux -L/var/extender/sdk/1b90c9a905d634b766b467e3536458b9210ec812/defoldsdk//ext/lib/x86_64-linux -Wl,-Bstatic -Wl,--start-group -lengine_service -laxtls -lwebviewext -ladtruthext -lprofilerext -lgameroomext -lfacebookext -liapext -lpushext -liacext -lrecord -lgameobject -lddf -lresource -lgamesys -lgraphics -lphysics -lBulletDynamics -lBulletCollision -lLinearMath -lBox2D -lrender -lscript -llua -lextension -lhid -linput -lparticle -lrig -ldlib -ldmglfw -lgui -ltracking -lcrashext -lliveupdate -lsound -ltremolo -lvpx -lengine -l955ad1e0-fcad-4d05-9247-7117dbe57ab6 -lsteam_api -Wl,--end-group -Wl,-Bdynamic -lopenal -lXext -lX11 -lXi -lGL -lGLU -lpthread -lm -ldl
+/usr/bin/ld: cannot find -lsteam_api
+collect2: error: ld returned 1 exit status

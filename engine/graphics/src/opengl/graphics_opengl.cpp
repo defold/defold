@@ -810,6 +810,7 @@ static void LogFrameBufferError(GLenum status)
     WRAP_GLFW_NATIVE_HANDLE_CALL(EGLSurface, AndroidEGLSurface);
     WRAP_GLFW_NATIVE_HANDLE_CALL(JavaVM*, AndroidJavaVM);
     WRAP_GLFW_NATIVE_HANDLE_CALL(jobject, AndroidActivity);
+    WRAP_GLFW_NATIVE_HANDLE_CALL(android_app*, AndroidApp);
     WRAP_GLFW_NATIVE_HANDLE_CALL(Window, X11Window);
     WRAP_GLFW_NATIVE_HANDLE_CALL(GLXContext, X11GLXContext);
 
@@ -1732,6 +1733,19 @@ static void LogFrameBufferError(GLenum status)
         JobQueuePush(j);
     }
 
+    HandleResult GetTextureHandle(HTexture texture, void** out_handle)
+    {
+        *out_handle = 0x0;
+
+        if (!texture) {
+            return HANDLE_RESULT_ERROR;
+        }
+
+        *out_handle = &texture->m_Texture;
+
+        return HANDLE_RESULT_OK;
+    }
+
     static inline uint32_t GetTextureFormatBPP(TextureFormat format)
     {
         static TextureFormatToBPP g_TextureFormatToBPP;
@@ -1795,7 +1809,7 @@ static void LogFrameBufferError(GLenum status)
         GLenum gl_format;
         GLenum gl_type = DMGRAPHICS_TYPE_UNSIGNED_BYTE;
         // Only used for uncompressed formats
-        GLint internal_format;
+        GLint internal_format = -1;
         switch (params.m_Format)
         {
         case TEXTURE_FORMAT_LUMINANCE:

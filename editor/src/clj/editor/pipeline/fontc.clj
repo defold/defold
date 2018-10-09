@@ -83,18 +83,22 @@
          :glyph-data-size (:glyph-data-size glyph-extents)}))
     semi-glyphs glyph-extents))
 
-(defn- max-glyph-cell-wh [glyph-extents]
-  (let [wh (transduce (filter (comp positive-wh? :glyph-wh))
-                      (completing
-                        (fn [max-wh {:keys [glyph-cell-wh]}]
-                          (-> max-wh
-                              (update :width max (:width glyph-cell-wh))
-                              (update :height max (:height glyph-cell-wh)))))
-                      {:width 0 :height 0}
-                      glyph-extents)]
-    (if (or (= (:width wh) 0) (= (:height wh) 0))
-      (throw (ex-info "No glyph with sane width/height"))
-      wh)))
+(defn- max-glyph-cell-wh [glyph-extents ^long line-height ^long padding ^long glyph-cell-padding]
+  (let [glyph-cell-widths (into (vector-of :long)
+                                (comp (filter (comp positive-wh? :glyph-wh))
+                                      (map (comp :width :glyph-cell-wh)))
+                                glyph-extents)
+        ^long max-width (loop [max-width 0
+                               index (dec (count glyph-cell-widths))]
+                          (if (neg? index)
+                            max-width
+                            (let [^long width (glyph-cell-widths index)]
+                              (recur (max width max-width)
+                                     (dec index)))))
+        max-height (+ line-height padding padding glyph-cell-padding glyph-cell-padding)]
+    (if (or (zero? max-width) (zero? max-height))
+      (throw (ex-info "No glyph with sane width/height" {}))
+      {:width max-width :height max-height})))
 
 (defn- draw-bm-font-glyph ^BufferedImage [glyph ^BufferedImage bm-image]
   (.getSubimage bm-image
@@ -148,10 +152,11 @@
                      (catch FileNotFoundException e
                        (throw (ex-info (str "Could not find BMFont image resource: " path) {:path path} e)))
                      (catch IOException e
-                       (throw (ex-info (str "Error while reading BMFont image resource" {:path path} e))))))
+                       (throw (ex-info (str "Error while reading BMFont image resource:" path) {:path path} e)))))
         channel-count 4
         glyph-extents (make-glyph-extents channel-count padding glyph-cell-padding semi-glyphs)
-        cache-cell-wh (max-glyph-cell-wh glyph-extents)
+        line-height (.lineHeight bm-font)
+        cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)]
 
@@ -193,8 +198,8 @@
     
     {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
      :material (str (:material font-desc) "c")
-     :max-ascent (float (reduce max 0 (map :ascent semi-glyphs)))
-     :max-descent (float (reduce max 0 (map :descent semi-glyphs)))
+     :max-ascent (+ (float (reduce max 0 (map :ascent semi-glyphs))) padding)
+     :max-descent (+ (float (reduce max 0 (map :descent semi-glyphs))) padding)
      :image-format (:output-format font-desc)
      :cache-width (:width cache-wh)
      :cache-height (:height cache-wh)
@@ -386,8 +391,9 @@
                                (> ^double (:outline-alpha font-desc) 0.0))
                         3 1)
         glyph-extents (make-glyph-extents channel-count padding glyph-cell-padding semi-glyphs)
+        line-height (+ (.getMaxAscent font-metrics) (.getMaxDescent font-metrics))
         ;; BOB: "Some hardware don't like doing subimage updates on non-aligned cell positions."
-        cache-cell-wh (cond-> (max-glyph-cell-wh glyph-extents)
+        cache-cell-wh (cond-> (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
                         (= channel-count 3)
                         (update :width #(* (int (Math/ceil (/ ^double % 4.0))) 4)))
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
@@ -430,13 +436,12 @@
             (sequence positive-glyph-extent-pairs-xf
                       semi-glyphs
                       glyph-extents)))
-
     {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
      :material (str (:material font-desc) "c")
      :shadow-x (:shadow-x font-desc)
      :shadow-y (:shadow-y font-desc)
-     :max-ascent (float (.getMaxAscent font-metrics))
-     :max-descent (float (.getMaxDescent font-metrics))
+     :max-ascent (+ (float (.getMaxAscent font-metrics)) padding)
+     :max-descent (+ (float (.getMaxDescent font-metrics)) padding)
      :image-format (:output-format font-desc)
      :cache-width (:width cache-wh)
      :cache-height (:height cache-wh)
@@ -526,7 +531,8 @@
         sdf-spread (+ (Math/sqrt 2.0) ^double (:outline-width font-desc))
         edge 0.75
         glyph-extents (make-glyph-extents channel-count padding glyph-cell-padding semi-glyphs)
-        cache-cell-wh (max-glyph-cell-wh glyph-extents)
+        line-height (+ (.getMaxAscent font-metrics) (.getMaxDescent font-metrics))
+        cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)]
 
@@ -555,8 +561,8 @@
      :material (str (:material font-desc) "c")
      :shadow-x (:shadow-x font-desc)
      :shadow-y (:shadow-y font-desc)
-     :max-ascent (float (.getMaxAscent font-metrics))
-     :max-descent (float (.getMaxDescent font-metrics))
+     :max-ascent (+ (float (.getMaxAscent font-metrics)) padding)
+     :max-descent (+ (float (.getMaxDescent font-metrics)) padding)
      :image-format (:output-format font-desc)
      :sdf-spread sdf-spread
      :sdf-outline (let [outline-edge (- (/ ^double (:outline-width font-desc) sdf-spread))]
