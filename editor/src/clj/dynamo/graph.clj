@@ -93,7 +93,7 @@
    nil)
   ([sys-atom node-id]
    (let [outputs (cached-outputs (node-type* node-id))
-         entries (map #(do [node-id %]) outputs)]
+         entries (map (partial vector node-id) outputs)]
      (dosync (alter (:cache @sys-atom) c/cache-invalidate entries))
      nil)))
 
@@ -953,7 +953,7 @@
   [node]
   (let [labels (-> (node-type* node)
                    (in/output-labels))]
-    (invalidate-outputs! (map #(do [node %]) labels))))
+    (invalidate-outputs! (map (partial vector node) labels))))
 
 (defn node-instance*?
   "Returns true if the node is a member of a given type, including
