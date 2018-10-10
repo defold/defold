@@ -4,6 +4,7 @@
   (:import [clojure.lang ExceptionInfo]
            [com.defold.editor.client DefoldAuthFilter]
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
+           [com.dynamo.cr.protocol.proto Protocol$LoginInfo Protocol$NewProject Protocol$ProjectInfo Protocol$ProjectInfoList Protocol$TokenExchangeInfo Protocol$UserInfo]
            [com.sun.jersey.api.client Client ClientHandlerException ClientResponse WebResource WebResource$Builder UniformInterfaceException]
            [com.sun.jersey.api.client.config DefaultClientConfig]
            [java.io InputStream ByteArrayInputStream]
@@ -23,7 +24,8 @@
   AutoCloseable
   (close [_this] (.destroy client)))
 
-(defn make-client [prefs]
+(defn make-client
+  ^AutoCloseable [prefs]
   (let [client (Client/create (make-client-config))
         email (prefs/get-prefs prefs "email" nil)
         token (prefs/get-prefs prefs "token" nil)]
@@ -31,7 +33,7 @@
       (.addFilter client (DefoldAuthFilter. email token nil)))
     (->ClientWrapper client prefs)))
 
-(defn destroy-client! [{:keys client}]
+(defn destroy-client! [{:keys [^Client client]}]
   (.destroy client))
 
 (def ^"[Ljavax.ws.rs.core.MediaType;" ^:private
@@ -53,9 +55,16 @@
       (.accept resource accept-types)
       (.getRequestBuilder resource))))
 
-(defn cr-get [client paths ^Class pb-resp-class]
-  (let [builder (cr-resource client paths media-types)]
-    (protobuf/pb->map (.get builder pb-resp-class))))
+(defn- cr-get
+  ([client paths ^Class pb-resp-class]
+   (let [builder (cr-resource client paths media-types)]
+     (protobuf/pb->map (.get builder pb-resp-class))))
+  ([client paths headers ^Class pb-resp-class]
+   (let [^WebResource$Builder builder (reduce (fn [^WebResource$Builder builder [k v]]
+                                                (.header builder k v))
+                                              (cr-resource client paths media-types)
+                                              headers)]
+     (protobuf/pb->map (.get builder pb-resp-class)))))
 
 (defn- resp->clj [^ClientResponse resp]
   {:status (.getStatus resp)
@@ -87,6 +96,23 @@
   (let [stream (ByteArrayInputStream. (protobuf/map->bytes pb-class pb-map))]
     (cr-post client paths stream ProtobufProviders/APPLICATION_XPROTOBUF_TYPE pb-resp-class)))
 
+(defn login-with-email [client email password]
+  (assert (string? (not-empty email)))
+  (assert (string? (not-empty password)))
+  (try
+    (cr-get client ["login"] {"X-Email" email "X-Password" password} Protocol$LoginInfo)
+    (catch UniformInterfaceException error
+      ;; 401 Unauthorized response is expected. Throw on other errors.
+      (if (not= 401 (.getStatus (.getResponse error)))
+        (throw error)
+        {:error-message "Wrong E-mail address or Password"}))))
+
+(defn exchange-info [client token]
+  (let [exchange-info (cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
+    (if (= (:type exchange-info) :SIGNUP)
+      (throw (Exception. "This account is not associated with defold.com yet. Please go to defold.com to signup"))
+      exchange-info)))
+
 (defn user-info [client]
   (when-let [email (prefs/get-prefs (:prefs client) "email" nil)]
     (cr-get client ["users" email] Protocol$UserInfo)))
@@ -104,3 +130,10 @@
     (catch ExceptionInfo e
       (let [resp (ex-data e)]
         (throw (ex-info (format "Could not create new project %d: %s" (:status resp) (:message resp)) resp))))))
+
+(defn- compare-project-names [p1 p2]
+  (.compareToIgnoreCase ^String (:name p1) ^String (:name p2)))
+
+(defn fetch-projects [client]
+  (let [project-info-list (cr-get client ["projects" -1] Protocol$ProjectInfoList)]
+    (sort compare-project-names (:projects project-info-list))))

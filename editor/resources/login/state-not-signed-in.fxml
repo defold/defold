@@ -4,27 +4,23 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<StackPane id="state-not-signed-in" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
-    <VBox styleClass="empty-list-overlay" translateY="186" spacing="8">
+<VBox id="state-not-signed-in" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+    <VBox VBox.vgrow="ALWAYS" maxWidth="-Infinity" />
+    <VBox styleClass="explanation-overlay">
         <fx:include source="globe-icon.fxml" />
-        <Label styleClass="hero-text" text="You need to sign in to view your projects in the Defold cloud." maxWidth="220" />
+        <Label styleClass="hero-text" text="You need to sign in to view your&#10;projects in the Defold cloud." />
         <Button id="sign-in-with-browser-button" styleClass="df-button" text="Sign in with Google">
             <VBox.margin>
                 <Insets>
-                    <top>40</top>
-                    <bottom>14</bottom>
+                    <top>24</top>
+                    <bottom>16</bottom>
                 </Insets>
             </VBox.margin>
         </Button>
-        <Button id="sign-in-with-browser-button" styleClass="df-button" text="Sign in with Google">
-            <VBox.margin>
-                <Insets>
-                    <top>40</top>
-                    <bottom>14</bottom>
-                </Insets>
-            </VBox.margin>
-        </Button>
-
-        <Hyperlink id="create-account-button" text="Create Account" />
+        <Hyperlink id="sign-in-with-email-button" text="Sign in with E-mail" />
     </VBox>
-</StackPane>
+    <HBox styleClass="footer" VBox.vgrow="ALWAYS" maxWidth="-Infinity">
+        <Label text="Don't have an account? " />
+        <Hyperlink id="create-account-button" text="Create Account" />
+    </HBox>
+</VBox>

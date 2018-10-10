@@ -9,7 +9,7 @@
 <?import javafx.scene.image.Image?>
 <?import javafx.scene.layout.*?>
 
-<StackPane id="welcome-dialog" maxHeight="672" maxWidth="1000" minHeight="672" minWidth="1000" prefHeight="672" prefWidth="1000" stylesheets="/editor.css" xmlns="http://javafx.com/javafx/8">
+<StackPane id="welcome-dialog" styleClass="df-style" maxHeight="672" maxWidth="1000" minHeight="672" minWidth="1000" prefHeight="672" prefWidth="1000" stylesheets="/editor.css" xmlns="http://javafx.com/javafx/8">
     <HBox id="dialog-contents">
         <VBox id="left-pane">
             <VBox styleClass="defold-logo">
