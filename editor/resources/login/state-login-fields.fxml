@@ -3,21 +3,45 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox id="state-login-fields" xmlns="http://javafx.com/javafx">
-    <Label styleClass="header-label" text="Sign in to your Defold account" />
-    <HBox styleClass="labeled-field">
-        <Label text="E-mail" />
-        <TextField id="email-field" />
-    </HBox>
-    <VBox>
-        <HBox styleClass="labeled-field">
-            <Label text="Password" />
-            <PasswordField id="password-field" />
+<VBox id="state-login-fields" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx">
+    <VBox VBox.vgrow="ALWAYS" maxWidth="-Infinity" />
+    <VBox styleClass="explanation-overlay">
+        <Label styleClass="df-header, sign-in-header" text="Sign in to your Defold account" />
+        <GridPane styleClass="login-fields">
+            <columnConstraints>
+                <ColumnConstraints hgrow="NEVER" halignment="RIGHT" minWidth="72" />
+                <ColumnConstraints hgrow="NEVER" prefWidth="304" />
+                <ColumnConstraints hgrow="NEVER" minWidth="72" />
+            </columnConstraints>
+            <rowConstraints>
+                <RowConstraints vgrow="NEVER" prefHeight="27" />
+                <RowConstraints vgrow="NEVER" prefHeight="27" valignment="TOP" />
+                <RowConstraints vgrow="NEVER" prefHeight="27" />
+                <RowConstraints vgrow="NEVER" prefHeight="27" valignment="TOP" />
+            </rowConstraints>
+
+            <!-- E-mail -->
+            <Label text="E-mail" styleClass="field-label" GridPane.rowIndex="0" GridPane.columnIndex="0" />
+            <TextField id="email-field" GridPane.rowIndex="0" GridPane.columnIndex="1" />
+            <Label id="email-error-label" text="Invalid E-mail address" styleClass="df-tiny-text" GridPane.rowIndex="1" GridPane.columnIndex="1" />
+
+            <!-- Password -->
+            <Label text="Password" styleClass="field-label" GridPane.rowIndex="2" GridPane.columnIndex="0" />
+            <PasswordField id="password-field" GridPane.rowIndex="2" GridPane.columnIndex="1" />
+            <HBox GridPane.rowIndex="3" GridPane.columnIndex="1">
+                <Label id="password-error-label" text="Wrong password" styleClass="df-tiny-text" HBox.hgrow="ALWAYS" />
+                <Hyperlink id="forgot-password-button" styleClass="df-tiny-text" text="Forgot password?" />
+            </HBox>
+        </GridPane>
+
+        <!-- Buttons -->
+        <HBox styleClass="buttons-hbox">
+            <Button id="cancel-button" styleClass="df-button, dim" text="Go Back" />
+            <Button id="submit-button" styleClass="df-button" text="Sign In" />
         </HBox>
-        <Hyperlink id="forgot-password-button" text="Forgot password?" />
     </VBox>
-    <HBox styleClass="buttons-hbox">
-        <Button id="cancel-button" text="Go Back" />
-        <Button id="submit-button" text="Sign In" />
+    <HBox styleClass="footer" VBox.vgrow="ALWAYS" maxWidth="-Infinity">
+        <Label text="Don't have an account? " />
+        <Hyperlink id="create-account-button" text="Create Account" />
     </HBox>
 </VBox>
