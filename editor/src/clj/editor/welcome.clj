@@ -4,11 +4,12 @@
             [clojure.pprint :as pprint]
             [clojure.string :as string]
             [editor.analytics :as analytics]
-            [editor.dashboard :as dashboard]
+            [editor.client :as client]
             [editor.dialogs :as dialogs]
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.git :as git]
+            [editor.login :as login]
             [editor.prefs :as prefs]
             [editor.settings-core :as settings-core]
             [editor.system :as system]
@@ -494,7 +495,8 @@
                                          (ui/text! filter-field "")
                                          (future
                                            (error-reporting/catch-all!
-                                             (reset! dashboard-projects-atom (dashboard/fetch-projects dashboard-client)))))
+                                             (with-open [client (client/make-client (:prefs dashboard-client))]
+                                               (reset! dashboard-projects-atom (client/fetch-projects client))))))
             refresh-dashboard-projects-list! (fn [filter-text dashboard-projects]
                                                (ui/text! empty-dashboard-projects-list-text
                                                          (if (empty? dashboard-projects)
@@ -503,7 +505,7 @@
                                                (ui/items! dashboard-projects-list
                                                           (filter-dashboard-projects filter-text dashboard-projects)))]
         ;; Configure sign-in UI elements.
-        (dashboard/configure-sign-in-ui-elements! dashboard-client import-project-pane)
+        (login/configure-sign-in-ui-elements! import-project-pane dashboard-client)
 
         ;; Show / hide various elements based on sign-in state.
         (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
@@ -567,7 +569,7 @@
                                              (when (= :signed-in sign-in-state) ; I.e. became :signed-in.
                                                (reload-dashboard-projects!))))
 
-        (when (= :signed-in (sign-in-state sign-in-state-property))
+        (when (= :signed-in (.get sign-in-state-property))
           (reload-dashboard-projects!))))
     import-project-pane))
 
@@ -736,7 +738,7 @@
 
                                           :else
                                           (error-reporting/report-exception! error))))))))
-         dashboard-client (dashboard/make-dashboard-client prefs)
+         dashboard-client (login/make-dashboard-client prefs)
          left-pane (.lookup root "#left-pane")
          pane-buttons-container (.lookup left-pane "#pane-buttons-container")
          sign-out-button (.lookup left-pane "#sign-out-button")
@@ -756,7 +758,7 @@
      (ui/set-main-stage stage)
 
      ;; Ensure any server started by the dashboard client is shut down when the stage is closed.
-     (ui/on-closed! stage (fn [_] (dashboard/shutdown-dashboard-client! dashboard-client)))
+     (ui/on-closed! stage (fn [_] (login/stop-sign-in-response-server! dashboard-client)))
 
      ;; Install pending update check.
      (when (some? update-context)
@@ -777,7 +779,7 @@
      (.selectToggle pane-buttons-toggle-group home-pane-button)
 
      ;; Configure the sign-out button.
-     (dashboard/configure-sign-out-button! dashboard-client sign-out-button)
+     (login/configure-sign-out-button! sign-out-button dashboard-client)
 
      ;; Apply opts if supplied.
      (when-some [{:keys [x y pane-index]} opts]

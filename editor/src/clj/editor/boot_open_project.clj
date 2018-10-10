@@ -129,7 +129,7 @@
                                   "\n"
                                   "To fix this, make a commit where you delete the .internal and build directories, then reopen the project.")))
 
-(defn load-stage [workspace project prefs update-context newly-created?]
+(defn load-stage [workspace project prefs dashboard-client update-context newly-created?]
   (let [^VBox root (ui/load-fxml "editor.fxml")
         stage      (ui/make-stage)
         scene      (Scene. root)]
@@ -221,6 +221,7 @@
                              #_(g/transact (g/delete-node project))))
 
       (let [context-env {:app-view            app-view
+                         :dashboard-client    dashboard-client
                          :project             project
                          :project-graph       (project/graph project)
                          :prefs               prefs
@@ -266,8 +267,7 @@
         (.removeAll (.getTabs tool-tabs) (to-array (mapv #(find-tab tool-tabs %) ["graph-tab" "css-tab"]))))
 
       ;; If sync was in progress when we shut down the editor we offer to resume the sync process.
-      (let [git   (g/node-value changes-view :git)
-            prefs (g/node-value changes-view :prefs)]
+      (let [git (g/node-value changes-view :git)]
         (if (sync/flow-in-progress? git)
           (ui/run-later
             (loop []
@@ -282,7 +282,7 @@
                     (async-reload! workspace changes-view))
 
                 ;; User chose to resume sync.
-                (if-not (login/login prefs)
+                (if-not (login/sign-in! dashboard-client)
                   (recur) ;; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
@@ -323,14 +323,14 @@
                                                         "The project might not work without them. To download, connect to the internet and choose Fetch Libraries from the Project menu."]))))
 
 (defn open-project
-  [^File game-project-file prefs render-progress! update-context newly-created?]
+  [^File game-project-file prefs render-progress! dashboard-client update-context newly-created?]
   (let [project-path (.getPath (.getParentFile game-project-file))
         build-settings (workspace/make-build-settings prefs)
         workspace    (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/login prefs))]
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/sign-in! dashboard-client))]
     (ui/run-now
-      (load-stage workspace project prefs update-context newly-created?)
+      (load-stage workspace project prefs dashboard-client update-context newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
         (show-missing-dependencies-alert! missing-dependencies)))
     (g/reset-undo! *project-graph*)

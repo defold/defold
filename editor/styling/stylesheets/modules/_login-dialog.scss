@@ -1,0 +1,45 @@
+#login-dialog {
+  -fx-background-color: $df-dark-grey1;
+
+  HBox, VBox {
+    -fx-spacing: 0; // Fight crazy non-zero default.
+  }
+}
+
+.login-state {
+  -fx-alignment: center;
+
+  #password-error-label {
+    -fx-max-width: Infinity;
+  }
+
+  .label {
+    -fx-opacity: 0.75;
+  }
+
+  .field-label {
+    -fx-padding: 0px 8px 0px 0px;
+    -fx-text-alignment: right;
+  }
+
+  .sign-in-header {
+    -fx-alignment: center;
+    -fx-padding: 0px 0px 16px 0px;
+    -fx-text-alignment: center;
+  }
+
+  .login-fields {
+    -fx-alignment: center;
+  }
+
+  .buttons-hbox {
+    -fx-alignment: center;
+    -fx-padding: 32px 0px 0px 0px;
+    -fx-spacing: 8px !important;
+  }
+
+  .footer {
+    -fx-alignment: bottom-center;
+    -fx-padding: 0px 0px 16px 0px;
+  }
+}

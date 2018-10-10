@@ -266,11 +266,11 @@
             (recur))
           (dialogs/make-alert-dialog (cancel-result-message result)))))))
 
-(defn- upload-project! [project-path project-title prefs on-new-git! settings render-progress!]
+(defn- upload-project! [project-path project-title prefs dashboard-client on-new-git! settings render-progress!]
   (let [msgs (:msgs settings)]
     (try
-      (when (login/login prefs)
-        (let [client (client/make-client prefs)]
+      (when (login/sign-in! dashboard-client)
+        (with-open [client (client/make-client prefs)]
           (when-let [user-id (some-> client
                                (client/user-info)
                                (:id))]
@@ -300,9 +300,9 @@
      (catch Throwable t
        {:error {:exception t :message (.getMessage t)}}))))
 
-(defn begin-first-flow! [project-path project-title prefs on-new-git!]
+(defn begin-first-flow! [project-path project-title prefs dashboard-client on-new-git!]
   (let [flow {:state :first/start
-              :f     (partial upload-project! project-path project-title prefs on-new-git!)}
+              :f     (partial upload-project! project-path project-title prefs dashboard-client on-new-git!)}
         !flow (atom flow)]
     (try
       (add-watch !flow ::on-flow-changed on-flow-changed)
