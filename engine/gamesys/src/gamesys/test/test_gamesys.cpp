@@ -104,6 +104,27 @@ TEST_P(ResourceTest, TestPreload)
     dmResource::Release(m_Factory, resource);
 }
 
+TEST_F(ResourceTest, TestReloadTextureSet)
+{
+    const char* texture_set_path_a   = "/textureset/valid_a.texturesetc";
+    const char* texture_set_path_b   = "/textureset/valid_b.texturesetc";
+    const char* texture_set_path_tmp = "/textureset/tmp.texturesetc";
+
+    void* resource = NULL;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, texture_set_path_a, &resource));
+    ASSERT_NE((void*)0, resource);
+
+    // Swap compiled resources to simulate an atlas update
+    ASSERT_TRUE(CopyResource(texture_set_path_a, texture_set_path_tmp));
+    ASSERT_TRUE(CopyResource(texture_set_path_b, texture_set_path_a));
+    ASSERT_TRUE(CopyResource(texture_set_path_tmp, texture_set_path_b));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, texture_set_path_a, 0));
+
+    dmResource::Release(m_Factory, resource);
+}
+
 TEST_P(ResourceFailTest, Test)
 {
     const ResourceFailParams& p = GetParam();
