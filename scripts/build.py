@@ -1849,9 +1849,13 @@ instructions.configure=\
     def _form_env(self):
         env = dict(os.environ)
 
+        host = self.host2
+        if 'x86-' in host:
+            host = self.host
+
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
         env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
-                                                     '%s/ext/lib/%s' % (self.dynamo_home, self.host2)])
+                                                     '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
 
         env['PYTHONPATH'] = os.path.pathsep.join(['%s/lib/python' % self.dynamo_home,
                                                   '%s/build_tools' % self.defold,
@@ -1860,10 +1864,6 @@ instructions.configure=\
         env['DYNAMO_HOME'] = self.dynamo_home
 
         go_root = '%s/ext/go/%s/go' % (self.dynamo_home, self.target_platform)
-
-        host = self.host2
-        if 'x86-' in host:
-            host = self.host
 
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
