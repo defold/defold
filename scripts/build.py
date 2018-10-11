@@ -782,6 +782,8 @@ class Configuration(object):
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
         host = self.host2
+        if 'x86-' in host:
+            host = self.host
         if host == 'darwin':
             host = 'x86_64-darwin'
         # There is a dependency between 32-bit python and the ctypes lib produced in dlib (something goes wrong when compiling .proto files)
@@ -1859,10 +1861,14 @@ instructions.configure=\
 
         go_root = '%s/ext/go/%s/go' % (self.dynamo_home, self.target_platform)
 
+        host = self.host2
+        if 'x86-' in host:
+            host = self.host
+
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host2),
+                                      '%s/ext/bin/%s' % (self.dynamo_home, host),
                                       '%s/bin' % go_root])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
@@ -2013,7 +2019,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     if len(args) == 0:
         parser.error('No command specified')
 
-    target_platform = options.target_platform if options.target_platform else get_host_platform2()
+    target_platform = options.target_platform
+    if not options.target_platform:
+        target_platform = get_host_platform2()
+        if 'x86-' in target_platform:
+            target_platform = get_host_platform() # we need even more cleanup to use "x86-linux" format for everything
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
