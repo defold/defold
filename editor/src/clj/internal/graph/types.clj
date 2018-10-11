@@ -4,9 +4,10 @@
 
 (set! *warn-on-reflection* true)
 
-(defprotocol Arc
-  (head [this] "returns [source-node source-label]")
-  (tail [this] "returns [target-node target-label]"))
+(defrecord Arc [source target sourceLabel targetLabel])
+
+(defn head [^Arc arc] [(.source arc) (.sourceLabel arc)])
+(defn tail [^Arc arc] [(.target arc) (.targetLabel arc)])
 
 (defn node-id? [v] (integer? v))
 
