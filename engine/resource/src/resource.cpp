@@ -527,14 +527,27 @@ Result VerifyManifestHash(HFactory factory, Manifest* manifest, const uint8_t* e
     // Load public key
     dmPath::Dirname(factory->m_UriParts.m_Path, game_dir, DMPATH_MAX_PATH);
     dmPath::Concat(game_dir, "game.public.der", public_key_path, DMPATH_MAX_PATH);
-    dmSys::ResourceSize(public_key_path, &pub_key_size);
+    dmSys::Result sys_res = dmSys::ResourceSize(public_key_path, &pub_key_size);
+    if (sys_res != dmSys::RESULT_OK)
+    {
+        dmLogError("Failed to get size of public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
+        free(pub_key_buf);
+        return RESULT_IO_ERROR;
+    }
     pub_key_buf = (uint8_t*)malloc(pub_key_size);
     assert(pub_key_buf);
-    dmSys::Result sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
+    sys_res = dmSys::LoadResource(public_key_path, pub_key_buf, pub_key_size, &out_resource_size);
 
     if (sys_res != dmSys::RESULT_OK)
     {
         dmLogError("Failed to load public key for manifest verification (%i) at path: %s", sys_res, public_key_path);
+        free(pub_key_buf);
+        return RESULT_IO_ERROR;
+    }
+
+    if (out_resource_size != pub_key_size)
+    {
+        dmLogError("Failed to load public key for manifest verification at path: %s, tried reading %d bytes, got %d bytes", public_key_path, pub_key_size, out_resource_size);
         free(pub_key_buf);
         return RESULT_IO_ERROR;
     }
