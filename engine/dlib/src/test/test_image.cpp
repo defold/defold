@@ -5,6 +5,7 @@
 
 #include "data/color_check_2x2.png.embed.h"
 #include "data/color_check_2x2_premult.png.embed.h"
+#include "data/color_check_2x2_indexed.png.embed.h"
 #include "data/case2319.jpg.embed.h"
 #include "data/color16_check_2x2.png.embed.h"
 #include "data/gray_check_2x2.png.embed.h"
@@ -19,34 +20,6 @@
  * convert src/test/data/color_check_2x2.png -depth 16 -define png:color-type='2' -define png:bit-depth=16 src/test/color16_check_2x2.png
  */
 
-// Hack to save RGB-textures in tga-format for debugging
-static void SaveTga(const void* lpBits, uint32_t width, uint32_t height, FILE* fptr)
-{
-    putc(0,fptr);
-    putc(0,fptr);
-    putc(2,fptr);                         /* uncompressed RGB */
-    putc(0,fptr); putc(0,fptr);
-    putc(0,fptr); putc(0,fptr);
-    putc(0,fptr);
-    putc(0,fptr); putc(0,fptr);           /* X origin */
-    putc(0,fptr); putc(0,fptr);           /* y origin */
-    putc((width & 0x00FF),fptr);
-    putc((width & 0xFF00) / 256,fptr);
-    putc((height & 0x00FF),fptr);
-    putc((height & 0xFF00) / 256,fptr);
-    putc(24,fptr);                        /* 24 bit bitmap */
-    putc(0,fptr);
-
-    for (uint32_t y = 0; y <  height; ++y) {
-        const uint8_t* p = (const uint8_t*) lpBits;
-        p += (height - y - 1) * width * 3;
-        for (uint32_t x = 0; x <  width * 3; x += 3) {
-            putc(((int) p[x + 2]) & 0xff, fptr);
-            putc(((int) p[x + 1]) & 0xff, fptr);
-            putc(((int) p[x + 0]) & 0xff, fptr);
-        }
-    }
-}
 
 TEST(dmImage, Empty)
 {
@@ -129,6 +102,36 @@ TEST(dmImage, Premult)
     ASSERT_EQ(0U, (uint32_t) b[i++]);
     ASSERT_EQ(0U, (uint32_t) b[i++]);
     ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    dmImage::Free(&image);
+}
+
+TEST(dmImage, Indexed)
+{
+    dmImage::Image image;
+    dmImage::Result r =  dmImage::Load(COLOR_CHECK_2X2_INDEXED_PNG, COLOR_CHECK_2X2_INDEXED_PNG_SIZE, true, &image);
+    ASSERT_EQ(dmImage::RESULT_OK, r);
+    ASSERT_EQ(2U, image.m_Width);
+    ASSERT_EQ(2U, image.m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGB, image.m_Type);
+    ASSERT_NE((void*) 0, image.m_Buffer);
+
+    const uint8_t* b = (const uint8_t*) image.m_Buffer;
+    int i = 0;
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(0U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
+    ASSERT_EQ(255U, (uint32_t) b[i++]);
     ASSERT_EQ(0U, (uint32_t) b[i++]);
     dmImage::Free(&image);
 }
@@ -243,10 +246,6 @@ TEST(dmImage, case2319)
     ASSERT_EQ(240U, image.m_Height);
     ASSERT_EQ(dmImage::TYPE_RGB, image.m_Type);
     ASSERT_NE((void*) 0, image.m_Buffer);
-
-    FILE* file = fopen("tmp/test.tga", "wb");
-    SaveTga(image.m_Buffer, image.m_Width, image.m_Height, file);
-    fclose(file);
 
     const uint8_t* b = (const uint8_t*) image.m_Buffer;
     int i = 0;
