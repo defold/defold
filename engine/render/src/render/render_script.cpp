@@ -789,7 +789,8 @@ namespace dmRender
      * 
      * `transient`
      * : [type:number] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
-     *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and this is the case both are considered non-transient if exclusively selected!
+     *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and when this is the case both are considered non-transient if exclusively selected!
+     *  A buffer type defined that doesn't exist in the render target is silently ignored.
      *
      * - `render.BUFFER_COLOR_BIT`
      * - `render.BUFFER_DEPTH_BIT`
