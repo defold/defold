@@ -784,12 +784,12 @@ namespace dmRender
      * render target until it is replaced by a subsequent call to set_render_target.
      *
      * @name render.set_render_target
-     * @param render_target [type:render_target] render target to set. nil or render.RENDER_TARGET_DEFAULT to set the default render target
+     * @param render_target [type:render_target] render target to set. render.RENDER_TARGET_DEFAULT to set the default render target
      * @param [options] [type:table] optional table with behaviour parameters
      * 
      * `transient`
      * : [type:number] Transient frame buffer types are only valid while the render target is active, i.e becomes undefined when a new target is set by a subsequent call to set_render_target.
-     *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer which implies both are considered transient even if exclusively selected!
+     *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and this is the case both are considered non-transient if exclusively selected!
      *
      * - `render.BUFFER_COLOR_BIT`
      * - `render.BUFFER_DEPTH_BIT`
@@ -798,7 +798,7 @@ namespace dmRender
      * @examples
      *
      * How to set a render target and draw to it and then switch back to the default render target
-     * The render target defines only the depth/stencil buffers as transient meaning they will be invalidated when a new target is set, allowing for driver optimisation if supported.
+     * The render target defines the depth/stencil buffers as transient, when set_render_target is called the next time the buffers may be invalidated and allow for optimisations depending on driver support
      * 
      * ```lua
      * function update(self)
@@ -810,7 +810,7 @@ namespace dmRender
      * 
      *     -- set default render target. This also invalidates the depth and stencil buffers of the current target (self.my_render_target)
      *     --  which can be an optimisation on some hardware
-     *     render.set_render_target(nil)
+     *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
      * 
      * end
      * ```
@@ -863,7 +863,7 @@ namespace dmRender
     /*# enables a render target
      *
      * Enables a render target. Subsequent draw operations will be to the enabled render target until
-     * a subsequent call to render.enable_render_target or render.disable_render_target.
+     * a subsequent call to render.enable_render_target, render.disable_render_target or render.set_render_target.
      *
      * @name render.enable_render_target
      * @param render_target [type:render_target] render target to enable

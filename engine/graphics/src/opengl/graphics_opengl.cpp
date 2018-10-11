@@ -145,10 +145,6 @@ using namespace Vectormath::Aos;
 #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
 #endif
 
-// Cross-platform OpenGL/ES extension points. We define our own function pointer typedefs to handle the combination of statically or dynamically linked or core functionality.
-// The alternative is a matrix of conditional typedefs, linked statically/dynamically or core. OpenGL function prototypes does not change, so this is safe.
-typedef void (* DM_PFNGLINVALIDATEFRAMEBUFFERPROC) (GLenum target, GLsizei numAttachments, const GLenum *attachments);
-DM_PFNGLINVALIDATEFRAMEBUFFERPROC PFN_glInvalidateFramebuffer = NULL;
 
 
 namespace dmGraphics
@@ -274,6 +270,11 @@ static void LogFrameBufferError(GLenum status)
     extern BufferType BUFFER_TYPES[MAX_BUFFER_TYPE_COUNT];
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
+    // Cross-platform OpenGL/ES extension points. We define our own function pointer typedefs to handle the combination of statically or dynamically linked or core functionality.
+    // The alternative is a matrix of conditional typedefs, linked statically/dynamically or core. OpenGL function prototypes does not change, so this is safe.
+    typedef void (* DM_PFNGLINVALIDATEFRAMEBUFFERPROC) (GLenum target, GLsizei numAttachments, const GLenum *attachments);
+    DM_PFNGLINVALIDATEFRAMEBUFFERPROC PFN_glInvalidateFramebuffer = NULL;
+
     Context* g_Context = 0x0;
 
     Context::Context(const ContextParams& params)
@@ -394,20 +395,21 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         1) ARB - Extensions officially approved by the OpenGL Architecture Review Board
         2) EXT - Extensions agreed upon by multiple OpenGL vendors
         3) OES - Vendor specific code for the OpenGL ES working group
-        4) Optinally check as core function (if not GLES and core_name is set)
+        4) Optionally check as core function (if not GLES and core_name is set)
     */
     uintptr_t func = 0x0;
-    static const char* ext_name_str[][2] = {{"GL_ARB_", "ARB"}, {"GL_EXT_", "EXT"}, {"GL_OES_", "OES"}};
+    static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
+    static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
     char proc_str[256];
-    for(uint32_t i = 0; i < sizeof(ext_name_str)/sizeof(*ext_name_str); ++i)
+    for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
     {
         // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
-        size_t l = dmStrlCpy(proc_str, ext_name_str[i][0], 8);
+        size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
         dmStrlCpy(proc_str + l, extension_name, 256-l);
         if(!IsExtensionSupported(proc_str,  extensions))
             continue;
         l = dmStrlCpy(proc_str, name, 255);
-        dmStrlCpy(proc_str + l, ext_name_str[i][1], 256-l);
+        dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
         func = (uintptr_t) glfwGetProcAddress(proc_str);
         if(func != 0x0)
         {
@@ -424,7 +426,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
     return func;
 }
 
-#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type)\
+#define DMGRAPHICS_GET_PROC_ADDRESS_EXT(function, name, extension_name, core_name, type, extensions)\
     if (function == 0x0)\
         function = (type) GetExtProcAddress(name, extension_name, core_name, extensions);
 
@@ -628,7 +630,7 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         // Extension support
         const GLubyte* extensions = glGetString(GL_EXTENSIONS);
 
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer, "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, extensions);
 
         if (IsExtensionSupported("GL_IMG_texture_compression_pvrtc", extensions))
         {
@@ -1605,24 +1607,25 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         {
             if(context->m_FrameBufferInvalidateBits)
             {
-                static uint32_t attachment_types[][3] = {
-                    {DMGRAPHICS_RENDER_BUFFER_COLOR, DMGRAPHICS_RENDER_BUFFER_DEPTH, DMGRAPHICS_RENDER_BUFFER_STENCIL},
-                    {DMGRAPHICS_RENDER_BUFFER_COLOR_ATTACHMENT, DMGRAPHICS_RENDER_BUFFER_DEPTH_ATTACHMENT, DMGRAPHICS_RENDER_BUFFER_STENCIL_ATTACHMENT}
-                };
-                uint32_t *attachment_lut = &attachment_types[context->m_FrameBufferInvalidateAttachments][0];
+                uint32_t invalidate_bits = context->m_FrameBufferInvalidateBits;
+                if((invalidate_bits & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) && (context->m_PackedDepthStencil))
+                {
+                    // if packed depth/stencil buffer is used and either is set as transient, force both non-transient (as both will otherwise be transient).
+                    invalidate_bits &= ~(BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT);
+                }
                 GLenum types[MAX_BUFFER_TYPE_COUNT];
                 uint32_t types_count = 0;
-                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_COLOR_BIT)
+                if(invalidate_bits & BUFFER_TYPE_COLOR_BIT)
                 {
-                    types[types_count++] = attachment_lut[0];
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_COLOR_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_COLOR;
                 }
-                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_DEPTH_BIT)
+                if(invalidate_bits & BUFFER_TYPE_DEPTH_BIT)
                 {
-                    types[types_count++] = attachment_lut[1];
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_DEPTH_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_DEPTH;
                 }
-                if(context->m_FrameBufferInvalidateBits & BUFFER_TYPE_STENCIL_BIT)
+                if(invalidate_bits & BUFFER_TYPE_STENCIL_BIT)
                 {
-                    types[types_count++] = attachment_lut[2];
+                    types[types_count++] = context->m_FrameBufferInvalidateAttachments ? DMGRAPHICS_RENDER_BUFFER_STENCIL_ATTACHMENT : DMGRAPHICS_RENDER_BUFFER_STENCIL;
                 }
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
