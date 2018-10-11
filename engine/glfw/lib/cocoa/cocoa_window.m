@@ -255,11 +255,9 @@ static const unsigned int MAC_TO_GLFW_KEYCODE_MAPPING[128] =
 
 int _glfwPlatformGetWindowRefreshRate( void )
 {
-    printf("%s\n", "Cocoa _platformGetWindowRefreshRate");
     CVTime time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod((CVDisplayLinkRef)_glfwWin.displayLink);
-    float hz = (float)time.timeScale / (float)time.timeValue;
-    printf("hz = %f\n", hz);
-    return (hz + 0.5f); // ceil to nearest integer
+    float refresh_rate = (float)time.timeScale / (float)time.timeValue;
+    return (refresh_rate + 0.5f);
 }
 
 //========================================================================

@@ -94,7 +94,8 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextN
 
 int _glfwPlatformGetWindowRefreshRate( void )
 {
-    LOGV("__glfwPlatformGetWindowRefreshRate");
+    // http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
+    
     if (_glfwWin.display == EGL_NO_DISPLAY || _glfwWin.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
     {
         return 0;
@@ -113,7 +114,7 @@ int _glfwPlatformGetWindowRefreshRate( void )
 
     result = (*lJavaVM)->AttachCurrentThread(lJavaVM, &lJNIEnv, &lJavaVMAttachArgs);
     if (result == JNI_ERR) {
-         return 60; // assume 60hz if this fails
+         return 0;
     }
 
     jobject native_activity = g_AndroidApp->activity->clazz;
@@ -143,13 +144,7 @@ int _glfwPlatformGetWindowRefreshRate( void )
     }
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 
-    LOGV("refresh_rate: %f", refresh_rate);
-
     return (int)(refresh_rate + 0.5f);
-
-    /*
-    // http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
-    */
 }
 
 int _glfwPlatformOpenWindow( int width__, int height__,

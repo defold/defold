@@ -1388,15 +1388,11 @@ int _glfwPlatformGetWindowRefreshRate( void )
     EAGLView* view = (EAGLView*) _glfwWin.view;
     CADisplayLink* displayLink = view->displayLink;
 
-    printf("displayLink.duration: %f\n", displayLink.duration);
     @try { // displayLink.preferredFramesPerSecond only supported on iOS 10.0 and higher.
-        printf("displayLink.preferredFramesPerSecond: %i\n", displayLink.preferredFramesPerSecond);
+        return displayLink.preferredFramesPerSecond;
     } @catch (NSException* exception) {
-        printf("### Caught exception when calling displayLink.preferredFramesPerSecond, defaulting to 60Hz\n");
-        return 60;
+        return 0;
     }
-
-    return displayLink.preferredFramesPerSecond;
 }
 
 int  _glfwPlatformOpenWindow( int width, int height,

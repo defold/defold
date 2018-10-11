@@ -1779,7 +1779,6 @@ void _glfwPlatformRefreshWindowParams( void )
     if( EnumDisplaySettings( NULL, mode, &dm ) )
     {
         _glfwWin.refreshRate = dm.dmDisplayFrequency;
-        printf("###### 1 windows, _glfwWin.refreshRate: %i\n", _glfwWin.refreshRate);
         if( _glfwWin.refreshRate <= 1 )
         {
             _glfwWin.refreshRate = 0;
@@ -1788,7 +1787,6 @@ void _glfwPlatformRefreshWindowParams( void )
     else
     {
         _glfwWin.refreshRate = 0;
-        printf("###### 2 windows, _glfwWin.refreshRate: %i\n", _glfwWin.refreshRate);
     }
 }
 
