@@ -290,14 +290,11 @@
 ;;
 ;; Example: Implicit arcs where target override chain has intermediate overrides.
 ;;
-;;    O/template2,template,landscape   ~~> I/template,landscape2,square,landscape1
+;;    O/template,landscape2            ~> I/template,landscape2,square,landscape1
 ;;                                    ~
 ;;                                    ~
-;;    O/template,landscape2           ~
-;;                                   ~
-;;                                   ~
 ;;    O/landscape2                   ~ ~> I/landscape2,square,landscape1
-;;                                  ~~~
+;;                                   ~~
 ;;                                  ~
 ;;                        O/square ~~~~~> I/square,landscape1
 ;;
@@ -324,7 +321,7 @@
 ;;
 ;; We create the square override, including both O and
 ;; I/landscape1. Since there is an implicit arc between O and
-;; I/landscape, there will be an implicit arc between their override
+;; I/landscape1, there will be an implicit arc between their override
 ;; nodes O/square and I/square,landscape1.
 ;;
 ;; We create the landscape2 override, including the original O and
@@ -335,11 +332,8 @@
 ;; O/square.
 ;;
 ;; We create the template override, including O/landscape2 and
-;; I/landscape2,quare,landscape1. I/template,landscape2,square,landscape1
+;; I/landscape2,square,landscape1. I/template,landscape2,square,landscape1
 ;; "still" has an implicit arc from O/square.
-;;
-;; We create the template2 override. Nothing much happens. Just added
-;; for confusion :)
 ;;
 ;; The common rule in these examples is that for the implicit arcs to a
 ;; particular target node, the source node override chain should be the
