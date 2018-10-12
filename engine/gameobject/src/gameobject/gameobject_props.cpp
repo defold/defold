@@ -6,6 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/memory.h>
 #include <script/script.h>
 
 #include "gameobject_private.h"
@@ -169,8 +170,8 @@ namespace dmGameObject
 
         size_t property_container_size = strings_offset + strings_size;
 
-        void* mem = malloc(property_container_size);
-        if (mem == 0x0)
+        void* mem;
+        if (dmMemory::RESULT_OK != dmMemory::AlignedMalloc(&mem, 8, property_container_size))
         {
             return 0x0;
         }
@@ -200,7 +201,7 @@ namespace dmGameObject
         HPropertyContainerBuilder builder = new PropertyContainerBuilder(container);
         if (builder == 0x0)
         {
-            free(container);
+            DestroyPropertyContainer(container);
             return 0x0;
         }
         return builder;
@@ -493,7 +494,7 @@ namespace dmGameObject
 
     void DestroyPropertyContainer(HPropertyContainer container)
     {
-        free(container);
+        dmMemory::AlignedFree(container);
     }
 
     void DestroyPropertyContainerCallback(uintptr_t user_data)
