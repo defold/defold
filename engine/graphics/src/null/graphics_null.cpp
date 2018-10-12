@@ -119,7 +119,7 @@ namespace dmGraphics
     {
         dmLogInfo("NULL GetWindowRefreshRate!");
         assert(context);
-        return 60;
+        return 0;
     }
 
     void CloseWindow(HContext context)
