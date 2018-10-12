@@ -301,7 +301,7 @@
 
 (defn- flag-successors-changed [ctx changes]
   (let [successors (get ctx :successors-changed)]
-    (assoc ctx :successors-changed (reduce (fn [succuccessors [node-id label]]
+    (assoc ctx :successors-changed (reduce (fn [successors [node-id label]]
                                              (if-let [node-succ (get successors node-id #{})]
                                                (assoc successors node-id (conj node-succ label))
                                                successors))
@@ -468,13 +468,13 @@
         (-> ctx
             (update :basis property-default-setter node-id node property old-value new-value)
             (cond->
-                (not= old-value new-value)
+              (not= old-value new-value)
               (cond->
-                  (not override-node?) (mark-output-activated node-id property)
-                  override-node? (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
-                                                                   (not (gt/property-overridden? node property)) (conj :_overridden-properties)))
-                  (not (nil? setter-fn))
-                  ((fn [ctx] (apply-tx ctx (call-setter-fn ctx property setter-fn (:basis ctx) node-id old-value new-value)))))))))))
+                (not override-node?) (mark-output-activated node-id property)
+                override-node? (mark-outputs-activated node-id (cond-> (if dynamic? [property :_properties] [property])
+                                                                 (not (gt/property-overridden? node property)) (conj :_overridden-properties)))
+                (not (nil? setter-fn))
+                ((fn [ctx] (apply-tx ctx (call-setter-fn ctx property setter-fn (:basis ctx) node-id old-value new-value)))))))))))
 
 (defn- apply-defaults [ctx node]
   (let [node-id (gt/node-id node)

@@ -734,13 +734,13 @@
   (let [multivalued? (vector? original-form)
         form (if multivalued? (first original-form) original-form)
         autotype (cond
-                       (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form))
-                       (util/class-symbol? form) `(->ClassType ~form ~form))
+                   (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form))
+                   (util/class-symbol? form) `(->ClassType ~form ~form))
         typeref (cond
-                       (ref? form) form
-                       (util/protocol-symbol? form) (named->vtr form)
-                       (util/class-symbol? form) (named->vtr (.getName ^Class (resolve form)))
-                       (named? form) (named->vtr form))]
+                  (ref? form) form
+                  (util/protocol-symbol? form) (named->vtr form)
+                  (util/class-symbol? form) (named->vtr (.getName ^Class (resolve form)))
+                  (named? form) (named->vtr form))]
     (assert (not (nil? typeref))
             (str "defnode " where " requires a value type but was supplied with '"
                  original-form "' which cannot be used as a type"))
@@ -844,14 +844,14 @@
                   (contains? internal-keys klabel)
                   (update :flags #(conj (or % #{}) :internal)))
         outdef (-> propdef
-                    (dissoc :setter :dynamics :value)
-                    (assoc :fn
-                           (if-let [evaluator (-> propdef :value :fn)]
-                             evaluator
-                             `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
+                 (dissoc :setter :dynamics :value)
+                 (assoc :fn
+                        (if-let [evaluator (-> propdef :value :fn)]
+                          evaluator
+                          `(dynamo.graph/fnk [~'this ~label] (get ~'this ~klabel)))))
         desc {:property {klabel propdef}
-                 :property-order-decl (if (contains? internal-keys klabel) [] [klabel])
-                 :output {klabel outdef}}]
+              :property-order-decl (if (contains? internal-keys klabel) [] [klabel])
+              :output {klabel outdef}}]
     desc))
 
 (def ^:private output-flags #{:cached :abstract :unjammable})
@@ -1189,7 +1189,7 @@
 (defn- collect-base-property-value-form
   [self-name ctx-name nodeid-sym description prop-name]
   (let [property-definition (get-in description [:property prop-name])
-        default?            (not (:value property-definition))]
+        default? (not (:value property-definition))]
     (if default?
       (with-tracer-calls-form self-name ctx-name prop-name :raw-property
         (check-dry-run-form ctx-name `(gt/get-property ~self-name (:basis ~ctx-name) ~prop-name)))
@@ -1202,16 +1202,16 @@
 (defn- collect-property-value-form
   [self-name ctx-name nodeid-sym description prop]
   (let [property-definition (get-in description [:property prop])
-        default?            (not (:value property-definition))
+        default? (not (:value property-definition))
         get-expr (if default?
-                              (with-tracer-calls-form self-name ctx-name prop :raw-property
-                                (check-dry-run-form ctx-name `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)))
-                              (with-tracer-calls-form self-name ctx-name prop :property
-                                (call-with-error-checked-fnky-arguments-form self-name ctx-name nodeid-sym prop description
-                                                                             (get-in property-definition [:value :arguments])
-                                                                             (check-dry-run-form ctx-name
-                                                                                                 `(var ~(dollar-name (:name description) [:property prop :value]))
-                                                                                                 `(constantly nil)))))]
+                   (with-tracer-calls-form self-name ctx-name prop :raw-property
+                     (check-dry-run-form ctx-name `(gt/get-property ~self-name (:basis ~ctx-name) ~prop)))
+                   (with-tracer-calls-form self-name ctx-name prop :property
+                     (call-with-error-checked-fnky-arguments-form self-name ctx-name nodeid-sym prop description
+                                                                  (get-in property-definition [:value :arguments])
+                                                                  (check-dry-run-form ctx-name
+                                                                                      `(var ~(dollar-name (:name description) [:property prop :value]))
+                                                                                      `(constantly nil)))))]
     get-expr))
 
 (defn- fnk-argument-form
@@ -1446,10 +1446,10 @@
       `(fn [~self-name ~ctx-name]
          (let [~nodeid-sym (gt/node-id ~self-name)
                ~display-order (-> (gt/node-type ~self-name (:basis ~ctx-name))
-                                  (property-display-order))
+                                (property-display-order))
                ~value-map ~(apply merge {}
-                                      (for [[p _] (filter (comp external-property? val) props)]
-                                        {p (property-value-exprs self-name ctx-name nodeid-sym description p (get props p))}))]
+                                  (for [[p _] (filter (comp external-property? val) props)]
+                                    {p (property-value-exprs self-name ctx-name nodeid-sym description p (get props p))}))]
            ~(check-dry-run-form ctx-name (assemble-properties-map-form nodeid-sym value-map display-order)))))))
 
 (defn- node-input-value-function-form
@@ -1504,11 +1504,11 @@
           (when-not (:dry-run evaluation-context)
             (let [static-props (all-properties type)
                   props (reduce-kv (fn [p k v]
-                                             (if (and (not (contains? static-props k))
-                                                      (= original-id (:node-id v)))
-                                               (assoc-in p [:properties k :value] (:value v))
-                                               p))
-                                           props orig-props)]
+                                     (if (and (not (contains? static-props k))
+                                              (= original-id (:node-id v)))
+                                       (assoc-in p [:properties k :value] (:value v))
+                                       p))
+                                   props orig-props)]
               (reduce (fn [props [k v]]
                         (let [prop-type (get-in props [:properties k :type])]
                           (if (nil? (s/check (prop-type->schema prop-type) v))
