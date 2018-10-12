@@ -6,6 +6,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <dlib/memory.h>
 #include <script/script.h>
 
 #include "gameobject_private.h"
@@ -143,58 +144,49 @@ namespace dmGameObject
         uint32_t prop_count = params.m_NumberCount + params.m_HashCount + params.m_URLStringCount + params.m_URLCount + params.m_Vector3Count + params.m_Vector4Count + params.m_QuatCount + params.m_BoolCount;
 
         // The sizes are aligned so the data following after will be properly aligned.
-        size_t struct_size = DM_ALIGN(sizeof(PropertyContainer), 8);                    // Align IDs at 64-bit
-        size_t ids_size = DM_ALIGN(sizeof(dmhash_t) * prop_count, 4);                   // Align Indexes at 32-bit
-        size_t indexes_size = DM_ALIGN(sizeof(uint32_t) * prop_count, 4);               // Align Types at 32-bit
-        size_t types_size = DM_ALIGN(sizeof(PropertyContainerType) * prop_count, 8);    // Align Hashes at 64-bit
-        size_t hashes_size = DM_ALIGN(sizeof(uint64_t) * params.m_HashCount, 4);        // Align Floats at 32-bit
-        size_t floats_size = DM_ALIGN(sizeof(float) * (params.m_NumberCount + params.m_Vector3Count * 3 + params.m_Vector4Count * 4 + params.m_QuatCount * 4), 8);  // Align URLS at 64-bit
-        size_t url_size = params.m_URLCount * sizeof(dmMessage::URL);                   // Strings does not need to be aligned
+        size_t struct_offset = 0;
+        size_t struct_size = sizeof(PropertyContainer);
+
+        size_t ids_offset = DM_ALIGN(struct_offset + struct_size, 8);
+        size_t ids_size = sizeof(dmhash_t) * prop_count;
+
+        size_t indexes_offset = DM_ALIGN(ids_offset + ids_size, 4);
+        size_t indexes_size = sizeof(uint32_t) * prop_count;
+
+        size_t types_offset = DM_ALIGN(indexes_offset + indexes_size, 4);
+        size_t types_size = sizeof(PropertyContainerType) * prop_count;
+
+        size_t hashes_offset = DM_ALIGN(types_offset + types_size, 8);
+        size_t hashes_size = sizeof(uint64_t) * params.m_HashCount;
+
+        size_t floats_offset = DM_ALIGN(hashes_offset + hashes_size, 4);
+        size_t floats_size = sizeof(float) * (params.m_NumberCount + params.m_Vector3Count * 3 + params.m_Vector4Count * 4 + params.m_QuatCount * 4);
+
+        size_t urls_offset = DM_ALIGN(floats_offset + floats_size, 8);
+        size_t urls_size = params.m_URLCount * sizeof(dmMessage::URL);
+
+        size_t strings_offset = urls_offset + urls_size;
         size_t strings_size = params.m_URLStringSize + params.m_BoolCount;
 
-        size_t property_container_size = struct_size + 
-            ids_size +
-            indexes_size +
-            types_size +
-            hashes_size +
-            floats_size +
-            url_size +
-            strings_size;
+        size_t property_container_size = strings_offset + strings_size;
 
-        void* mem = malloc(property_container_size);
-        if (mem == 0x0)
+        void* mem;
+        if (dmMemory::RESULT_OK != dmMemory::AlignedMalloc(&mem, 8, property_container_size))
         {
             return 0x0;
         }
         uint8_t* p = (uint8_t*)(mem);
 
-        PropertyContainer* result = (PropertyContainer*)mem;
+        PropertyContainer* result = (PropertyContainer*)&p[struct_offset];
 
         result->m_Count = prop_count;
-        p += struct_size;
-
-        result->m_Ids = (dmhash_t*)(p);
-        p += ids_size;
-
-        result->m_Indexes = (uint32_t*)(p);
-        p += indexes_size;
-
-        result->m_Types = (PropertyContainerType*)(p);
-        p += types_size;
-
-        result->m_HashData = (dmhash_t*)(p);
-        p += hashes_size;
-
-        result->m_FloatData = (float*)(p);
-        p += floats_size;
-
-        result->m_URLData = (char*)(p);
-        p += url_size;
-
-        result->m_StringData = (char*)(p);
-        p += strings_size;
-
-        assert(p == &((uint8_t*)(mem))[property_container_size]);
+        result->m_Ids = (dmhash_t*)&p[ids_offset];
+        result->m_Indexes = (uint32_t*)&p[indexes_offset];
+        result->m_Types = (PropertyContainerType*)&p[types_offset];
+        result->m_HashData = (dmhash_t*)&p[hashes_offset];
+        result->m_FloatData = (float*)&p[floats_offset];
+        result->m_URLData = (char*)&p[urls_offset];
+        result->m_StringData = (char*)&p[strings_offset];
 
         return result;
     }
@@ -209,7 +201,7 @@ namespace dmGameObject
         HPropertyContainerBuilder builder = new PropertyContainerBuilder(container);
         if (builder == 0x0)
         {
-            free(container);
+            DestroyPropertyContainer(container);
             return 0x0;
         }
         return builder;
@@ -502,7 +494,7 @@ namespace dmGameObject
 
     void DestroyPropertyContainer(HPropertyContainer container)
     {
-        free(container);
+        dmMemory::AlignedFree(container);
     }
 
     void DestroyPropertyContainerCallback(uintptr_t user_data)
