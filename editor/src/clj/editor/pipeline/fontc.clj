@@ -93,7 +93,7 @@
                       {:width 0 :height 0}
                       glyph-extents)]
     (if (or (= (:width wh) 0) (= (:height wh) 0))
-      (throw (ex-info "No glyph with sane width/height"))
+      (throw (ex-info "No glyph size information. Incompatible font format?" {}))
       wh)))
 
 (defn- draw-bm-font-glyph ^BufferedImage [glyph ^BufferedImage bm-image]
