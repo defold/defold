@@ -173,9 +173,9 @@
                             (if-let [geom-data (seq (:geom-data user-data))]
                               (let [[r g b a] (premul (:color user-data))]
                                 (loop [vb vb
-                                       [[x y z :as v] & vs] (geom/transf-p world-transform geom-data)
+                                       [[x y z :as vtx] & vs] (geom/transf-p world-transform geom-data)
                                        [[u v :as uv] & uvs] (:uv-data user-data)]
-                                  (if v
+                                  (if vtx
                                     (recur (uv-color-vtx-put! vb x y z u v r g b a) vs uvs)
                                     vb)))
                               vb))
@@ -277,9 +277,6 @@
     (cond-> (geom/chain segments (partial geom/rotate [0 0 angle]) ps)
       corners? (cornify max-angle)
       cut-off? (into (geom/rotate [0 0 max-angle] ps)))))
-
-(defn- pairs [v]
-  (filter (fn [[v0 v1]] (> (Math/abs (double (- v1 v0))) 0)) (partition 2 1 v)))
 
 (defn- v3->v4 [v3 default]
   (conj (or v3 default) 1.0))
@@ -807,6 +804,24 @@
 
 ;; Box nodes
 
+(defn- empty-box? [[[x0 y0] [_x0 y1] [x1 _y1] [_x1 _y0]]]
+  (or (= x0 x1) (= y0 y1)))
+
+(def ^:private box-triangles-vertice-order [0 1 3 3 1 2])
+
+(defn box->triangles [box]
+  ;; box vertices are in order TL BL BR TR
+  ;; turns:
+  ;; 0---3
+  ;; |   |
+  ;; 1---2
+  ;;
+  ;; into:
+  ;; 0--3       3
+  ;; | /   +   /|
+  ;; 1/       1-2
+  (map box box-triangles-vertice-order))
+
 (g/defnode BoxNode
   (inherits ShapeNode)
 
@@ -819,34 +834,38 @@
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
-                 (let [[w h _] size
-                       offset (pivot-offset pivot size)
-                       order [0 1 3 3 1 2]
-                       x-vals (pairs [0 (get slice9 0) (- w (get slice9 2)) w])
-                       y-vals (pairs [0 (get slice9 3) (- h (get slice9 1)) h])
-                       corners (for [[x0 x1] x-vals
-                                     [y0 y1] y-vals]
-                                 (geom/transl offset [[x0 y0 0] [x0 y1 0] [x1 y1 0] [x1 y0 0]]))
-                       vs (vec (mapcat #(map (partial nth %) order) corners))
-                       tex anim-data
-                       tex-w (:width tex 1)
-                       tex-h (:height tex 1)
-                       u-vals (pairs [0 (/ (get slice9 0) tex-w) (- 1 (/ (get slice9 2) tex-w)) 1])
-                       v-vals (pairs [1 (- 1 (/ (get slice9 3) tex-h)) (/ (get slice9 1) tex-h) 0])
-                       uv-trans (get-in tex [:uv-transforms 0])
-                       uvs (for [[u0 u1] u-vals
-                                 [v0 v1] v-vals]
-                             (geom/uv-trans uv-trans [[u0 v0] [u0 v1] [u1 v1] [u1 v0]]))
-                       uvs (vec (mapcat #(map (partial nth %) order) uvs))
-                       lines (vec (mapcat #(interleave % (drop 1 (cycle %))) corners))
-                       user-data {:geom-data vs
-                                  :line-data lines
-                                  :uv-data uvs
-                                  :color color+alpha
-                                  :renderable-tags #{:gui-shape}}]
-                   (cond-> user-data
-                     (not= :clipping-mode-none clipping-mode)
-                     (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
+            (let [[w h _] size
+                  x-ranges (partition 2 1 [0 (get slice9 0) (- w (get slice9 2)) w]) ; x ranges for 9 slice (0 -- left inset, left inset -- right inset, right inset -- width)
+                  y-ranges (partition 2 1 [0 (get slice9 3) (- h (get slice9 1)) h])
+                  xy-translation (pivot-offset pivot size)
+                  xy-boxes (for [[x0 x1] x-ranges
+                                 [y0 y1] y-ranges]
+                             (geom/transl xy-translation [[x0 y0 0] [x0 y1 0] [x1 y1 0] [x1 y0 0]])) ; 9 boxes / quads from ranges. CCW order on vertices. TL, BL, BR, TR
+                  texture-width (:width anim-data 1)
+                  texture-height (:height anim-data 1)
+                  u-ranges (partition 2 1 [0 (/ (get slice9 0) texture-width) (- 1 (/ (get slice9 2) texture-width)) 1])
+                  v-ranges (partition 2 1 [1 (- 1 (/ (get slice9 3) texture-height)) (/ (get slice9 1) texture-height) 0])
+                  uv-transform (get-in anim-data [:uv-transforms 0])
+                  uv-boxes (for [[u0 u1] u-ranges
+                                 [v0 v1] v-ranges]
+                             (geom/uv-trans uv-transform [[u0 v0] [u0 v1] [u1 v1] [u1 v0]]))
+                  pruned-xy-boxes+uv-boxes (into []
+                                                 (remove (fn [[xy-box uv-box]]
+                                                           (empty-box? xy-box)))
+                                                 (map vector xy-boxes uv-boxes)) ; skip 9 slice boxes where sides collapse
+                  xy-boxes' (map first pruned-xy-boxes+uv-boxes)
+                  uv-boxes' (map second pruned-xy-boxes+uv-boxes)
+                  xys (mapcat box->triangles xy-boxes')
+                  uvs (mapcat box->triangles uv-boxes')
+                  lines (mapcat (fn [box-corners] (interleave box-corners (drop 1 (cycle box-corners)))) xy-boxes')
+                  user-data {:geom-data xys
+                             :line-data lines
+                             :uv-data uvs
+                             :color color+alpha
+                             :renderable-tags #{:gui-shape}}]
+              (cond-> user-data
+                    (not= :clipping-mode-none clipping-mode)
+                    (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
 
 ;; Pie nodes
 
