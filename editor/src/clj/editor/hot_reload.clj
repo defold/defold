@@ -47,21 +47,36 @@
 (defn build-handler [workspace project request]
   (handler workspace project request))
 
+(defn- string->url
+  ^URI [^String str]
+  (when (some? str)
+    (try
+      (URI. str)
+      (catch java.net.URISyntaxException _
+        nil))))
+
+(defn- body->valid-entries [workspace ^bytes body]
+  (into []
+        (comp
+          (keep (fn [line]
+                  (let [[url-string etag] (string/split line #" ")]
+                    (when (and url-string etag)
+                      [url-string etag]))))
+          (keep (fn [[url-string etag]]
+                  (when-some [url (string->url url-string)]
+                    [url etag])))
+          (keep (fn [[^URI url etag]]
+                  (let [path (.. url normalize getPath)]
+                    (when (< (count url-prefix) (count path))
+                      (let [proj-path (subs path (count url-prefix))]
+                        (when (= etag (workspace/etag workspace proj-path))
+                          path)))))))
+        (string/split-lines (String. body))))
+
 (defn- v-e-handler [workspace project {:keys [url method headers ^bytes body]}]
   (if (not= method "POST")
     bad-request
-    (let [entries (->> (String. body)
-                    string/split-lines
-                    (keep (fn [line]
-                            (when (seq line)
-                              (let [[url etag] (string/split line #" ")
-                                    path (-> (URI. url)
-                                           (.normalize)
-                                           (.getPath))
-                                    local-path (subs path (count url-prefix))]
-                                (when (= etag (workspace/etag workspace local-path))
-                                  path))))))
-          out-body (string/join "\n" entries)]
+    (let [out-body (string/join "\n" (body->valid-entries workspace body))]
       {:code 200
        :headers {"Content-Length" (str (count out-body))}
        :body out-body})))
