@@ -467,7 +467,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
-    dmGraphics::EnableRenderTarget(m_Context, target);
+    dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     uint32_t width = WIDTH;
@@ -499,7 +499,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
     delete [] data;
 
-    dmGraphics::DisableRenderTarget(m_Context, target);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
     dmGraphics::DeleteRenderTarget(target);
 }
 
@@ -521,7 +521,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
-    dmGraphics::EnableRenderTarget(m_Context, target);
+    dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_DEPTH);
@@ -547,7 +547,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     ASSERT_EQ(0, memcmp(data, texture_data, data_size));
     delete [] data;
 
-    dmGraphics::DisableRenderTarget(m_Context, target);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
     dmGraphics::DeleteRenderTarget(target);
 }
 
