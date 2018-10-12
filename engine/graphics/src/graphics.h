@@ -599,8 +599,7 @@ namespace dmGraphics
 
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const TextureCreationParams creation_params[MAX_BUFFER_TYPE_COUNT], const TextureParams params[MAX_BUFFER_TYPE_COUNT]);
     void DeleteRenderTarget(HRenderTarget render_target);
-    void EnableRenderTarget(HContext context, HRenderTarget render_target);
-    void DisableRenderTarget(HContext context, HRenderTarget render_target);
+    void SetRenderTarget(HContext context, HRenderTarget render_target, uint32_t transient_buffer_types);
     HTexture GetRenderTargetTexture(HRenderTarget render_target, BufferType buffer_type);
     void GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
