@@ -358,8 +358,8 @@ ordinary paths."
 (defn etags [workspace]
   (g/user-data workspace ::etags))
 
-(defn etag [workspace path]
-  (get (etags workspace) path))
+(defn etag [workspace proj-path]
+  (get (etags workspace) proj-path))
 
 (defn etags! [workspace etags]
   (g/user-data! workspace ::etags etags))
