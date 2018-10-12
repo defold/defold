@@ -4108,7 +4108,11 @@ namespace dmGui
             return DM_LUA_ERROR("Out of nodes (max %d)", scene->m_Nodes.Capacity());
         }
 
-        dmGui::SetNodeParticlefx(scene, node, particlefx);
+        dmGui::Result r = dmGui::SetNodeParticlefx(scene, node, particlefx);
+        if (r == RESULT_RESOURCE_NOT_FOUND) {
+            char name[128];
+            return DM_LUA_ERROR("No particlefx resource '%s' found.", dmScript::GetStringFromHashOrString(L, 2, name, sizeof(name)));
+        }
         LuaPushNode(L, scene, node);
         return 1;
     }
