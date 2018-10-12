@@ -861,7 +861,8 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*# enables a render target
+    /* DEPRECATED. NO API DOC GENERATED.
+     * enables a render target
      *
      * Enables a render target. Subsequent draw operations will be to the enabled render target until
      * a subsequent call to render.enable_render_target, render.disable_render_target or render.set_render_target.
@@ -904,7 +905,8 @@ namespace dmRender
             return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
     }
 
-    /*# disables a render target
+    /* DEPRECATED. NO API DOC GENERATED.
+     * disables a render target
      *
      * Disables a previously enabled render target. Subsequent draw operations
      * will be drawn to the default frame buffer unless another render target is
