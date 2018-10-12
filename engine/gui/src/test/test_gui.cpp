@@ -5731,6 +5731,32 @@ TEST_F(dmGuiTest, PlayNodeParticlefxAdjustModeStretch)
     UnloadParticlefxPrototype(prototype);
 }
 
+TEST_F(dmGuiTest, NewNodeParticlefx)
+{
+    uint32_t width = 100;
+    uint32_t height = 50;
+
+    dmGui::SetPhysicalResolution(m_Context, width, height);
+    dmGui::SetSceneResolution(m_Scene, width, height);
+
+    dmParticle::HPrototype prototype;
+    const char* particlefx_name = "once.particlefxc";
+    LoadParticlefxPrototype(particlefx_name, &prototype);
+
+    dmGui::Result res = dmGui::AddParticlefx(m_Scene, particlefx_name, (void*)prototype);
+    ASSERT_EQ(res, dmGui::RESULT_OK);
+
+    dmhash_t particlefx_id = dmHashString64(particlefx_name);
+    dmhash_t particlefx_id_wrong = dmHashString64("this_resource_does_not_exist.particlefxc");
+    dmGui::HNode node_pfx = dmGui::NewNode(m_Scene, Point3(0,0,0), Vector3(1,1,1), dmGui::NODE_TYPE_PARTICLEFX);
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id));
+    ASSERT_EQ(dmGui::RESULT_RESOURCE_NOT_FOUND, dmGui::SetNodeParticlefx(m_Scene, node_pfx, particlefx_id_wrong));
+
+    dmGui::FinalScene(m_Scene);
+    UnloadParticlefxPrototype(prototype);
+}
+
 struct EmitterStateChangedCallbackTestData
 {
     bool m_CallbackWasCalled;
