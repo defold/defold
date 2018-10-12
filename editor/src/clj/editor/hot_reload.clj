@@ -60,14 +60,11 @@
         (comp
           (keep (fn [line]
                   (let [[url-string etag] (string/split line #" ")]
-                    (when (and url-string etag)
-                      [url-string etag]))))
-          (keep (fn [[url-string etag]]
-                  (when-some [url (string->url url-string)]
-                    [url etag])))
+                    (when-some [url (some-> url-string string->url)]
+                      [url etag]))))
           (keep (fn [[^URI url etag]]
                   (let [path (.. url normalize getPath)]
-                    (when (< (count url-prefix) (count path))
+                    (when (string/starts-with? path url-prefix)
                       (let [proj-path (subs path (count url-prefix))]
                         (when (= etag (workspace/etag workspace proj-path))
                           path)))))))
@@ -76,10 +73,11 @@
 (defn- v-e-handler [workspace project {:keys [url method headers ^bytes body]}]
   (if (not= method "POST")
     bad-request
-    (let [out-body (string/join "\n" (body->valid-entries workspace body))]
+    (let [body-str (string/join "\n" (body->valid-entries workspace body))
+          body (.getBytes body-str "UTF-8")]
       {:code 200
-       :headers {"Content-Length" (str (count out-body))}
-       :body out-body})))
+       :headers {"Content-Length" (str (count body))}
+       :body body})))
 
 (defn verify-etags-handler [workspace project request]
   (v-e-handler workspace project request))
