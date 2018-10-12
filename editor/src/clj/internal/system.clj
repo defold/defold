@@ -81,16 +81,16 @@
       {:graph (get-in warped-basis [:graphs graph-id])
        :outputs-to-refresh outputs-to-refresh})))
 
-(defn last-graph            [system]     (-> system :last-graph))
-(defn system-cache          [system]     (some-> system :cache deref))
-(defn graphs                [system]     (-> system :graphs))
+(defn last-graph            [system]          (-> system :last-graph))
+(defn system-cache          [system]          (some-> system :cache deref))
+(defn graphs                [system]          (-> system :graphs))
 (defn graph-ref             [system graph-id] (-> system :graphs (get graph-id)))
 (defn graph                 [system graph-id] (some-> system (graph-ref graph-id) deref))
 (defn graph-time            [system graph-id] (-> system (graph graph-id) :tx-id))
 (defn graph-history         [system graph-id] (-> system :history (get graph-id)))
-(defn basis                 [system]     (ig/multigraph-basis (map-vals deref (graphs system))))
-(defn id-generators         [system]     (-> system :id-generators))
-(defn override-id-generator [system]     (-> system :override-id-generator))
+(defn basis                 [system]          (ig/multigraph-basis (map-vals deref (graphs system))))
+(defn id-generators         [system]          (-> system :id-generators))
+(defn override-id-generator [system]          (-> system :override-id-generator))
 
 (defn- bump-invalidate-counters
   [invalidate-map entries]
