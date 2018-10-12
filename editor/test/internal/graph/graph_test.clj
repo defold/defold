@@ -30,8 +30,8 @@
     (is (nil? (ig/node-id->node g id)))
     (is (empty? (filter #(= "Any ig/node value" %) (ig/node-values g))))))
 
-(defn targets [g n l] (map gt/tail (get-in g [:sarcs n l])))
-(defn sources [g n l] (map gt/head (get-in g [:tarcs n l])))
+(defn targets [g n l] (map gt/target (get-in g [:sarcs n l])))
+(defn sources [g n l] (map gt/source (get-in g [:tarcs n l])))
 
 (defn- source-arcs-without-targets
   [g]
