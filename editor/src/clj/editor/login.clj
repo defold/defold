@@ -1,19 +1,21 @@
 (ns editor.login
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [editor.client :as client]
             [editor.error-reporting :as error-reporting]
             [editor.prefs :as prefs]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
+            [internal.graph.error-values :as error-values]
             [service.log :as log]
             [util.thread-util :refer [preset!]])
   (:import (clojure.lang Atom)
            (fi.iki.elonen NanoHTTPD NanoHTTPD$IHTTPSession NanoHTTPD$Response NanoHTTPD$Response$Status)
            (java.net URLEncoder)
            (java.util.prefs Preferences)
-           (javafx.beans.binding Bindings)
-           (javafx.beans.property SimpleObjectProperty SimpleStringProperty)
+           (javafx.beans.property SimpleObjectProperty)
            (javafx.scene Scene)
-           (javafx.scene.control ButtonBase TextField)
+           (javafx.scene.control ButtonBase Label TextField)
            (javafx.scene.input Clipboard ClipboardContent)))
 
 (set! *warn-on-reflection* true)
@@ -98,9 +100,6 @@
   (assert (case sign-in-state (:not-signed-in :browser-open :login-fields :signed-in) true false))
   (.set sign-in-state-property sign-in-state))
 
-(defn- set-message! [^SimpleStringProperty string-property message]
-  (.set string-property message))
-
 (defn dashboard-client? [value]
   (and (map? value)
        (instance? Atom (:sign-in-response-server-atom value))
@@ -126,9 +125,9 @@
   stores the login token in prefs and sets the sign-in-state-property to signal
   a successful login. If bad credentials are provided, returns to the login
   fields and sets the error-message-property to notify the user."
-  [{:keys [prefs sign-in-state-property] :as _dashboard-client} error-message-property ^String email ^String password]
+  [{:keys [prefs sign-in-state-property] :as _dashboard-client} ^SimpleObjectProperty login-error-property ^String email ^String password]
   (assert (= :login-fields (sign-in-state sign-in-state-property)))
-  (set-message! error-message-property "")
+  (.set login-error-property nil)
   (set-sign-in-state! sign-in-state-property :login-fields-submitted)
 
   ;; Disregard delayed response if the user navigated away from the login fields.
@@ -143,7 +142,7 @@
               (when-not @sign-in-cancelled-atom
                 (if-some [error-message (:error-message login-info)]
                   (do
-                    (set-message! error-message-property error-message)
+                    (.set login-error-property (error-values/error-fatal error-message))
                     (set-sign-in-state! sign-in-state-property :login-fields))
                   (do
                     (prefs/set-prefs prefs last-used-email-prefs-key email)
@@ -210,30 +209,66 @@
 ;; UI elements
 ;; -----------------------------------------------------------------------------
 
+(def ^:private email-regex #"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$") ; Not exhaustive, but should cover 99% of emails found in the wild.
+
+(defn- email-error-value [^String email]
+  (cond
+    (string/blank? email)
+    (error-values/error-fatal "Required")
+
+    (not (.find (re-matcher email-regex email)))
+    (error-values/error-fatal "Must be a valid E-mail address")))
+
+(defn- password-error-value [^String password]
+  (when (string/blank? password)
+    (error-values/error-fatal "Required")))
+
 (defn- configure-state-login-fields! [state-login-fields {:keys [prefs ^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
-  (let [error-message-property (SimpleStringProperty.)]
+  (let [email-validation-error-property (SimpleObjectProperty.)
+        password-validation-error-property (SimpleObjectProperty.)
+        login-error-property (SimpleObjectProperty.)]
     (ui/bind-presence! state-login-fields
-                       (Bindings/or (Bindings/equal :login-fields sign-in-state-property)
-                                    (Bindings/equal :login-fields-submitted sign-in-state-property)))
-    (ui/with-controls state-login-fields [cancel-button ^TextField email-field forgot-password-button ^TextField password-field ^ButtonBase submit-button]
+                       (b/or (b/= :login-fields sign-in-state-property)
+                             (b/= :login-fields-submitted sign-in-state-property)))
+    (ui/with-controls state-login-fields [cancel-button ^Label email-error-label ^TextField email-field forgot-password-button ^Label password-error-label ^TextField password-field ^ButtonBase submit-button]
       (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
-      (ui/on-action! submit-button (fn [_] (begin-sign-in-with-email! dashboard-client error-message-property (.getText email-field) (.getText password-field))))
+      (ui/on-action! submit-button (fn [_] (begin-sign-in-with-email! dashboard-client login-error-property (.getText email-field) (.getText password-field))))
       (ui/on-action! forgot-password-button (fn [_] (ui/open-url "https://www.defold.com"))) ;; TODO: Direct link to Forgot Password page.
 
       ;; When clicked, disable the submit button until we get a response.
-      (.bind (.disableProperty submit-button)
-             (Bindings/equal :login-fields-submitted sign-in-state-property))
+      ;; We also disable the submit button if the form contains errors.
+      (b/bind! (.disableProperty submit-button)
+               (b/or (b/= :login-fields-submitted sign-in-state-property)
+                     (b/blank? (.textProperty email-field))
+                     (b/blank? (.textProperty password-field))
+                     (b/some? email-validation-error-property)
+                     (b/some? password-validation-error-property)))
 
-      ;; Highlight fields when faulty.
-      (ui/observe error-message-property
-                  (fn [_ _ error-message]
-                    (if (empty? error-message)
-                      (do
-                        (ui/remove-style! email-field "field-error")
-                        (ui/remove-style! password-field "field-error"))
-                      (do
-                        (ui/add-style! email-field "field-error")
-                        (ui/add-style! password-field "field-error")))))
+      ;; Email field errors.
+      (let [email-error-property (b/when-not (.focusedProperty email-field)
+                                   (b/if (b/some? login-error-property)
+                                     login-error-property
+                                     email-validation-error-property))]
+        (b/bind! (.visibleProperty email-error-label) (b/some? email-error-property))
+        (b/bind! (.textProperty email-error-label) (b/map email-error-property :message))
+        (ui/bind-error-value-style! email-error-property [email-field email-error-label])
+        (ui/on-focus! email-field (fn [got-focus?]
+                                    (when-not got-focus?
+                                      (.set email-validation-error-property
+                                            (email-error-value (.getText email-field)))))))
+
+      ;; Password field errors.
+      (let [password-error-property (b/when-not (.focusedProperty password-field)
+                                      (b/if (b/some? login-error-property)
+                                        login-error-property
+                                        password-validation-error-property))]
+        (b/bind! (.visibleProperty password-error-label) (b/some? password-error-property))
+        (b/bind! (.textProperty password-error-label) (b/map password-error-property :message))
+        (ui/bind-error-value-style! password-error-property [password-field password-error-label])
+        (ui/on-focus! password-field (fn [got-focus?]
+                                       (when-not got-focus?
+                                         (.set password-validation-error-property
+                                               (password-error-value (.getText password-field)))))))
 
       ;; Populate fields from prefs when entering the login fields state.
       (ui/observe sign-in-state-property
@@ -243,14 +278,14 @@
                       (ui/text! email-field (prefs/get-prefs prefs last-used-email-prefs-key ""))))))))
 
 (defn- configure-state-not-signed-in! [state-not-signed-in {:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
-  (ui/bind-presence! state-not-signed-in (Bindings/equal :not-signed-in sign-in-state-property))
+  (ui/bind-presence! state-not-signed-in (b/= :not-signed-in sign-in-state-property))
   (ui/with-controls state-not-signed-in [create-account-button sign-in-with-browser-button sign-in-with-email-button]
     (ui/on-action! sign-in-with-browser-button (fn [_] (begin-sign-in-with-browser! dashboard-client)))
     (ui/on-action! sign-in-with-email-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))
     (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))))
 
 (defn- configure-state-state-browser-open! [state-browser-open {:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
-  (ui/bind-presence! state-browser-open (Bindings/equal :browser-open sign-in-state-property))
+  (ui/bind-presence! state-browser-open (b/= :browser-open sign-in-state-property))
   (ui/with-controls state-browser-open [cancel-button copy-sign-in-url-button]
     (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
     (ui/on-action! copy-sign-in-url-button (fn [_] (copy-sign-in-url! dashboard-client (Clipboard/getSystemClipboard))))))
@@ -266,7 +301,7 @@
 
 (defn configure-sign-out-button! [sign-out-button {:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
   (assert (dashboard-client? dashboard-client))
-  (ui/bind-presence! sign-out-button (Bindings/equal :signed-in sign-in-state-property))
+  (ui/bind-presence! sign-out-button (b/= :signed-in sign-in-state-property))
   (ui/on-action! sign-out-button (fn [_] (sign-out! dashboard-client))))
 
 (defn- show-sign-in-dialog! [{:keys [sign-in-state-property] :as dashboard-client}]
