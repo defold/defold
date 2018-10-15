@@ -12,6 +12,7 @@
    [editor.menu :as menu]
    [editor.ui.tree-view-hack :as tree-view-hack]
    [editor.util :as eutil]
+   [internal.graph.error-values :as error-values]
    [internal.util :as util]
    [service.log :as log]
    [util.profiler :as profiler])
@@ -28,6 +29,7 @@
    [javafx.application Platform]
    [javafx.beans InvalidationListener]
    [javafx.beans.binding Bindings]
+   [javafx.beans.property SimpleObjectProperty]
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
@@ -353,6 +355,30 @@
 
 (defn remove-style! [^Styleable node ^String class]
   (remove-styles! node [class]))
+
+(defn error-value-style
+  ^String [error-value]
+  (cond
+    (error-values/error-fatal? error-value) "error"
+    (error-values/error-warning? error-value) "warning"
+    (error-values/error-info? error-value) "info"))
+
+(defn set-error-value-style! [^Styleable node ^String error-value-style]
+  (remove-styles! node (case error-value-style ; Fails on invalid argument.
+                         nil ["error" "info" "warning"]
+                         "error" ["info" "warning"]
+                         "warning" ["error" "info"]
+                         "info" ["error" "warning"]))
+  (when (some? error-value-style)
+    (add-style! node error-value-style)))
+
+(defn bind-error-value-style! [^SimpleObjectProperty error-value-property styleable-nodes]
+  (assert (every? (partial instance? Styleable) styleable-nodes))
+  (observe error-value-property
+           (fn [_ _ error-value]
+             (let [style (error-value-style error-value)]
+               (doseq [node styleable-nodes]
+                 (set-error-value-style! node style))))))
 
 (defn update-tree-cell-style! [^TreeCell cell]
   (let [tree-view (.getTreeView cell)
