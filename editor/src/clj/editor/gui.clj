@@ -804,12 +804,9 @@
 
 ;; Box nodes
 
-(defn- empty-box? [[[x0 y0] [_x0 y1] [x1 _y1] [_x1 _y0]]]
-  (or (= x0 x1) (= y0 y1)))
+(def ^:private box-triangles-vertex-order [0 1 3 3 1 2])
 
-(def ^:private box-triangles-vertice-order [0 1 3 3 1 2])
-
-(defn box->triangles [box]
+(defn box->triangle-vertices [box]
   ;; box vertices are in order TL BL BR TR
   ;; turns:
   ;; 0---3
@@ -820,7 +817,18 @@
   ;; 0--3       3
   ;; | /   +   /|
   ;; 1/       1-2
-  (map box box-triangles-vertice-order))
+  (map box box-triangles-vertex-order))
+
+(defn- box-corner-coords->vertices2 [[x0 y0 x1 y1]]
+  [[x0 y0] [x0 y1] [x1 y1] [x1 y0]])
+
+(defn- box-corner-coords->vertices3 [[x0 y0 x1 y1]]
+  [[x0 y0 0.0] [x0 y1 0.0] [x1 y1 0.0] [x1 y0 0.0]])
+
+(defn- ranges->box-corner-coords [x-ranges y-ranges]
+  (for [[x0 x1] x-ranges
+        [y0 y1] y-ranges]
+    [x0 y0 x1 y1]))
 
 (g/defnode BoxNode
   (inherits ShapeNode)
@@ -834,33 +842,29 @@
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
-            (let [[w h _] size
-                  x-ranges (partition 2 1 [0 (get slice9 0) (- w (get slice9 2)) w]) ; x ranges for 9 slice (0 -- left inset, left inset -- right inset, right inset -- width)
-                  y-ranges (partition 2 1 [0 (get slice9 3) (- h (get slice9 1)) h])
-                  xy-translation (pivot-offset pivot size)
-                  xy-boxes (for [[x0 x1] x-ranges
-                                 [y0 y1] y-ranges]
-                             (geom/transl xy-translation [[x0 y0 0] [x0 y1 0] [x1 y1 0] [x1 y0 0]])) ; 9 boxes / quads from ranges. CCW order on vertices. TL, BL, BR, TR
+            (let [[box-width box-height _] size
                   texture-width (:width anim-data 1)
                   texture-height (:height anim-data 1)
-                  u-ranges (partition 2 1 [0 (/ (get slice9 0) texture-width) (- 1 (/ (get slice9 2) texture-width)) 1])
-                  v-ranges (partition 2 1 [1 (- 1 (/ (get slice9 3) texture-height)) (/ (get slice9 1) texture-height) 0])
+                  x+u-ranges (into []
+                                   (remove (fn [[[x0 x1] [u0 u1]]] (= x0 x1)))
+                                   (map vector
+                                        (partition 2 1 [0.0 (get slice9 0) (- box-width (get slice9 2)) box-width])
+                                        (partition 2 1 [0.0 (/ (get slice9 0) texture-width) (- 1.0 (/ (get slice9 2) texture-width)) 1.0])))
+                  y+v-ranges (into []
+                                   (remove (fn [[[y0 y1] [v0 v1]]] (= y0 y1)))
+                                   (map vector
+                                        (partition 2 1 [0.0 (get slice9 3) (- box-height (get slice9 1)) box-height])
+                                        (partition 2 1 [1.0 (- 1.0 (/ (get slice9 3) texture-height)) (/ (get slice9 1) texture-height) 0.0])))
+                  xy-box-coords (ranges->box-corner-coords (map first x+u-ranges) (map first y+v-ranges))
+                  xy-translation (pivot-offset pivot size)
+                  xy-boxes (map (comp (partial geom/transl xy-translation) box-corner-coords->vertices3) xy-box-coords)
+                  uv-box-coords (ranges->box-corner-coords (map second x+u-ranges) (map second y+v-ranges))
                   uv-transform (get-in anim-data [:uv-transforms 0])
-                  uv-boxes (for [[u0 u1] u-ranges
-                                 [v0 v1] v-ranges]
-                             (geom/uv-trans uv-transform [[u0 v0] [u0 v1] [u1 v1] [u1 v0]]))
-                  pruned-xy-boxes+uv-boxes (into []
-                                                 (remove (fn [[xy-box uv-box]]
-                                                           (empty-box? xy-box)))
-                                                 (map vector xy-boxes uv-boxes)) ; skip 9 slice boxes where sides collapse
-                  xy-boxes' (map first pruned-xy-boxes+uv-boxes)
-                  uv-boxes' (map second pruned-xy-boxes+uv-boxes)
-                  xys (mapcat box->triangles xy-boxes')
-                  uvs (mapcat box->triangles uv-boxes')
-                  lines (mapcat (fn [box-corners] (interleave box-corners (drop 1 (cycle box-corners)))) xy-boxes')
-                  user-data {:geom-data xys
+                  uv-boxes (map (comp (partial geom/uv-trans uv-transform) box-corner-coords->vertices2) uv-box-coords)
+                  lines (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices)))) xy-boxes)
+                  user-data {:geom-data (mapcat box->triangle-vertices xy-boxes)
                              :line-data lines
-                             :uv-data uvs
+                             :uv-data (mapcat box->triangle-vertices uv-boxes)
                              :color color+alpha
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
