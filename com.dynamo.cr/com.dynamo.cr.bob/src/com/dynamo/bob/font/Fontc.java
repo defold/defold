@@ -796,6 +796,7 @@ public class Fontc {
             InputStreamReader reader = new InputStreamReader(stream);
             FontDesc.Builder builder = FontDesc.newBuilder();
             TextFormat.merge(reader, builder);
+            reader.close();
             FontDesc fontDesc = builder.build();
             if (fontDesc.getFont().length() == 0) {
                 System.err.println("No ttf font specified in " + args[0] + ".");
