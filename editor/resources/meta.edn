@@ -24,6 +24,16 @@
    "a comma separated list of resources that will be included in the project. If directories are specified, all files and directories in that directory are recursively included",
    :default "",
    :path ["project" "custom_resources"]}
+  {:type :string,
+   :help
+   "A directory containing resource files and folders that should be copied as-is into the resulting package when bundling.\nSee documentation for details",
+   :default "",
+   :path ["project" "bundle_resources"]}
+  {:type :string,
+   :help
+   "A comma separated list of resources that should not be included in the bundle",
+   :default "",
+   :path ["project" "bundle_exclude_resources"]}
   {:type :resource,
    :filter "collection",
    :help
