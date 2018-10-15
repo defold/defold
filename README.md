@@ -195,6 +195,10 @@ Since the executable doesn't install anymore, easiest to create a wrapper:
     - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
         Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
+	
+    - Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
+	python -m pip install --upgrade pip
+        pip install setuptools --upgrade
 
     - [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
 
