@@ -83,7 +83,7 @@ static int Set(lua_State* L)
  *
  * @name resource.load
  *
- * @param path [type:string|hash] The path to the resource
+ * @param path [type:string] The path to the resource
  * @return buffer [type:buffer] Returns the buffer stored on disc
  *
  * @examples
@@ -221,7 +221,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  *   self.width = 128
  *   self.buffer = buffer.create(self.width * self.height, { {name=hash("rgb"), type=buffer.VALUE_TYPE_UINT8, count=3} } )
  *   self.stream = buffer.get_stream(self.buffer, hash("rgb"))
- *   
+ *
  *   for y=1,self.height do
  *       for x=1,self.width do
  *           local index = (y-1) * self.width * 3 + (x-1) * 3 + 1
@@ -357,35 +357,35 @@ static const luaL_reg Module_methods[] =
 
  /*# LIVEUPDATE_INVALID_RESOURCE
  * The handled resource is invalid.
- * 
+ *
  * @name resource.LIVEUPDATE_INVALID_RESOURCE
  * @variable
  */
 
  /*# LIVEUPDATE_VERSION_MISMATCH
  * Mismatch between manifest expected version and actual version.
- * 
+ *
  * @name resource.LIVEUPDATE_VERSION_MISMATCH
  * @variable
  */
 
  /*# LIVEUPDATE_ENGINE_VERSION_MISMATCH
  * Mismatch between running engine version and engine versions supported by manifest.
- * 
+ *
  * @name resource.LIVEUPDATE_ENGINE_VERSION_MISMATCH
  * @variable
  */
 
  /*# LIVEUPDATE_SIGNATURE_MISMATCH
  * Mismatch between manifest expected signature and actual signature.
- * 
+ *
  * @name resource.LIVEUPDATE_SIGNATURE_MISMATCH
  * @variable
  */
 
  /*# LIVEUPDATE_SCHEME_MISMATCH
  * Mismatch between scheme used to load resources. Resources are loaded with a different scheme than from manifest, for example over HTTP or directly from file. This is typically the case when running the game directly from the editor instead of from a bundle.
- * 
+ *
  * @name resource.LIVEUPDATE_SCHEME_MISMATCH
  * @variable
  */
