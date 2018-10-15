@@ -15,6 +15,20 @@
 
   .label {
     -fx-opacity: 0.75;
+
+    &.error, &.warning, &.info {
+      -fx-opacity: 1;
+    }
+
+    &.error { -fx-text-fill: $error-severity-fatal; }
+    &.warning { -fx-text-fill: $error-severity-warning; }
+    &.info { -fx-text-fill: $error-severity-info; }
+  }
+
+  .text-field {
+    &.error { -fx-border-color: $error-severity-fatal; }
+    &.warning { -fx-border-color: $error-severity-warning; }
+    &.info { -fx-border-color: $error-severity-info; }
   }
 
   .field-label {
