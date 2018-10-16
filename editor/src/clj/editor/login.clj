@@ -14,6 +14,7 @@
            (java.net URLEncoder)
            (java.util.prefs Preferences)
            (javafx.beans.property SimpleObjectProperty)
+           (javafx.beans.value ChangeListener)
            (javafx.scene Scene)
            (javafx.scene.control ButtonBase Label TextField)
            (javafx.scene.input Clipboard ClipboardContent)))
@@ -48,7 +49,7 @@
   ^NanoHTTPD [client {:keys [on-success on-error]}]
   (doto (proxy [NanoHTTPD] [0]
           (serve [^NanoHTTPD$IHTTPSession session]
-            (if-let [[token action] (parse-url (.getUri session))]
+            (if-let [[token _action] (parse-url (.getUri session))]
               (try
                 (let [exchange-info (client/exchange-info client token)]
                   (on-success exchange-info)
@@ -97,7 +98,7 @@
   (.get sign-in-state-property))
 
 (defn- set-sign-in-state! [^SimpleObjectProperty sign-in-state-property sign-in-state]
-  (assert (case sign-in-state (:not-signed-in :browser-open :login-fields :signed-in) true false))
+  (assert (case sign-in-state (:not-signed-in :browser-open :login-fields :login-fields-submitted :signed-in) true false))
   (.set sign-in-state-property sign-in-state))
 
 (defn dashboard-client? [value]
@@ -115,9 +116,17 @@
      :sign-in-state-property sign-in-state-property
      :prefs prefs}))
 
-(defn stop-sign-in-response-server! [{:keys [sign-in-response-server-atom] :as _dashboard-client}]
-  (when-some [sign-in-response-server (preset! sign-in-response-server-atom nil)]
-    (stop-server-now! sign-in-response-server)))
+(defn abort-incomplete-sign-in!
+  "Returns true if the user is signed in. Otherwise, cleans up any resources and
+  restores the dashboard-client to the initial state, then return false."
+  [{:keys [sign-in-response-server-atom sign-in-state-property] :as _dashboard-client}]
+  (if (= :signed-in (sign-in-state sign-in-state-property))
+    true
+    (let [sign-in-response-server (preset! sign-in-response-server-atom nil)]
+      (when (some? sign-in-response-server)
+        (stop-server-now! sign-in-response-server))
+      (set-sign-in-state! sign-in-state-property :not-signed-in)
+      false)))
 
 (defn- begin-sign-in-with-email!
   "Sign in with E-mail and password on a background thread. The request is
@@ -188,11 +197,9 @@
 
 (defn- cancel-sign-in!
   "Cancel the sign-in process and return to the :not-signed-in screen."
-  [{:keys [sign-in-response-server-atom sign-in-state-property] :as _dashboard-client}]
-  (assert (case (sign-in-state sign-in-state-property) (:browser-open :login-fields) true false))
-  (when-some [sign-in-response-server (preset! sign-in-response-server-atom nil)]
-    (stop-server-now! sign-in-response-server))
-  (set-sign-in-state! sign-in-state-property :not-signed-in))
+  [{:keys [sign-in-state-property] :as dashboard-client}]
+  (assert (case (sign-in-state sign-in-state-property) (:browser-open :login-fields :login-fields-submitted) true false))
+  (abort-incomplete-sign-in! dashboard-client))
 
 (defn- copy-sign-in-url!
   "Copy the sign-in url from the sign-in response server to the clipboard.
@@ -214,26 +221,76 @@
 (defn- email-error-value [^String email]
   (cond
     (string/blank? email)
-    (error-values/error-fatal "Required")
+    (error-values/error-info "Required")
 
     (not (.find (re-matcher email-regex email)))
     (error-values/error-fatal "Must be a valid E-mail address")))
 
 (defn- password-error-value [^String password]
   (when (string/blank? password)
-    (error-values/error-fatal "Required")))
+    (error-values/error-info "Required")))
 
-(defn- configure-state-login-fields! [state-login-fields {:keys [prefs ^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
+(defn- severity-style-class [severity]
+  (case severity
+    nil nil
+    :fatal "error"
+    :warning "warning"
+    :info "info"))
+
+(def ^:private error-value-style-class (comp severity-style-class :severity))
+
+(defn- configure-state-login-fields! [state-login-fields {:keys [prefs sign-in-state-property] :as dashboard-client}]
   (let [email-validation-error-property (SimpleObjectProperty.)
         password-validation-error-property (SimpleObjectProperty.)
         login-error-property (SimpleObjectProperty.)]
     (ui/bind-presence! state-login-fields
                        (b/or (b/= :login-fields sign-in-state-property)
                              (b/= :login-fields-submitted sign-in-state-property)))
-    (ui/with-controls state-login-fields [cancel-button ^Label email-error-label ^TextField email-field forgot-password-button ^Label password-error-label ^TextField password-field ^ButtonBase submit-button]
-      (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
-      (ui/on-action! submit-button (fn [_] (begin-sign-in-with-email! dashboard-client login-error-property (.getText email-field) (.getText password-field))))
-      (ui/on-action! forgot-password-button (fn [_] (ui/open-url "https://www.defold.com"))) ;; TODO: Direct link to Forgot Password page.
+    (ui/with-controls state-login-fields [cancel-button create-account-button ^Label email-error-label ^TextField email-field forgot-password-button ^Label password-error-label ^TextField password-field ^ButtonBase submit-button]
+      (let [on-submit! (fn [_] (begin-sign-in-with-email! dashboard-client login-error-property (.getText email-field) (.getText password-field)))]
+        (ui/on-action! password-field on-submit!)
+        (ui/on-action! submit-button on-submit!)
+        (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
+        (ui/on-action! forgot-password-button (fn [_] (ui/open-url "https://www.defold.com"))) ;; TODO: Direct link to Forgot Password page.
+        (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com"))))
+
+      ;; Populate email field from prefs.
+      (ui/text! email-field (prefs/get-prefs prefs last-used-email-prefs-key ""))
+
+      ;; Clear password field when entering the login fields state, then move
+      ;; focus to the relevant input field.
+      (ui/observe sign-in-state-property
+                  (fn [_ old-sign-in-state new-sign-in-state]
+                    (when (and (= :login-fields new-sign-in-state)
+                               (not= :login-fields-submitted old-sign-in-state))
+                      (ui/text! password-field "")
+                      (let [focused-field (if (some? (.getValue email-validation-error-property))
+                                            email-field
+                                            password-field)]
+                        (ui/request-focus! focused-field)))))
+
+      ;; Clear login error when any of the fields are edited.
+      (ui/observe (.textProperty email-field) (fn [_ _ _] (.set login-error-property nil)))
+      (ui/observe (.textProperty password-field) (fn [_ _ _] (.set login-error-property nil)))
+
+      ;; Email field errors.
+      (let [email-error-style (b/map error-value-style-class email-validation-error-property)]
+        (b/bind! email-validation-error-property (b/map email-error-value (.textProperty email-field)))
+        (b/bind! (.textProperty email-error-label) (b/map :message email-validation-error-property))
+        (b/bind-style! email-error-label :error-severity email-error-style)
+        (b/bind-style! email-field :error-severity (b/when-not (.focusedProperty email-field)
+                                                     email-error-style)))
+
+      ;; Password field errors.
+      (let [password-error (b/if (b/some? login-error-property)
+                             login-error-property
+                             password-validation-error-property)
+            password-error-style (b/map error-value-style-class password-error)]
+        (b/bind! password-validation-error-property (b/map password-error-value (.textProperty password-field)))
+        (b/bind! (.textProperty password-error-label) (b/map :message password-error))
+        (b/bind-style! password-error-label :error-severity password-error-style)
+        (b/bind-style! password-field :error-severity (b/when-not (.focusedProperty password-field)
+                                                        password-error-style)))
 
       ;; When clicked, disable the submit button until we get a response.
       ;; We also disable the submit button if the form contains errors.
@@ -242,49 +299,16 @@
                      (b/blank? (.textProperty email-field))
                      (b/blank? (.textProperty password-field))
                      (b/some? email-validation-error-property)
-                     (b/some? password-validation-error-property)))
+                     (b/some? password-validation-error-property))))))
 
-      ;; Email field errors.
-      (let [email-error-property (b/when-not (.focusedProperty email-field)
-                                   (b/if (b/some? login-error-property)
-                                     login-error-property
-                                     email-validation-error-property))]
-        (b/bind! (.visibleProperty email-error-label) (b/some? email-error-property))
-        (b/bind! (.textProperty email-error-label) (b/map email-error-property :message))
-        (ui/bind-error-value-style! email-error-property [email-field email-error-label])
-        (ui/on-focus! email-field (fn [got-focus?]
-                                    (when-not got-focus?
-                                      (.set email-validation-error-property
-                                            (email-error-value (.getText email-field)))))))
-
-      ;; Password field errors.
-      (let [password-error-property (b/when-not (.focusedProperty password-field)
-                                      (b/if (b/some? login-error-property)
-                                        login-error-property
-                                        password-validation-error-property))]
-        (b/bind! (.visibleProperty password-error-label) (b/some? password-error-property))
-        (b/bind! (.textProperty password-error-label) (b/map password-error-property :message))
-        (ui/bind-error-value-style! password-error-property [password-field password-error-label])
-        (ui/on-focus! password-field (fn [got-focus?]
-                                       (when-not got-focus?
-                                         (.set password-validation-error-property
-                                               (password-error-value (.getText password-field)))))))
-
-      ;; Populate fields from prefs when entering the login fields state.
-      (ui/observe sign-in-state-property
-                  (fn [_ old-sign-in-state new-sign-in-state]
-                    (when (and (= :login-fields new-sign-in-state)
-                               (not= :login-fields-submitted old-sign-in-state))
-                      (ui/text! email-field (prefs/get-prefs prefs last-used-email-prefs-key ""))))))))
-
-(defn- configure-state-not-signed-in! [state-not-signed-in {:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
+(defn- configure-state-not-signed-in! [state-not-signed-in {:keys [sign-in-state-property] :as dashboard-client}]
   (ui/bind-presence! state-not-signed-in (b/= :not-signed-in sign-in-state-property))
   (ui/with-controls state-not-signed-in [create-account-button sign-in-with-browser-button sign-in-with-email-button]
     (ui/on-action! sign-in-with-browser-button (fn [_] (begin-sign-in-with-browser! dashboard-client)))
     (ui/on-action! sign-in-with-email-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))
     (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))))
 
-(defn- configure-state-state-browser-open! [state-browser-open {:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
+(defn- configure-state-state-browser-open! [state-browser-open {:keys [sign-in-state-property] :as dashboard-client}]
   (ui/bind-presence! state-browser-open (b/= :browser-open sign-in-state-property))
   (ui/with-controls state-browser-open [cancel-button copy-sign-in-url-button]
     (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
@@ -299,20 +323,27 @@
 
 (declare sign-out!)
 
-(defn configure-sign-out-button! [sign-out-button {:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
+(defn configure-sign-out-button! [sign-out-button {:keys [sign-in-state-property] :as dashboard-client}]
   (assert (dashboard-client? dashboard-client))
   (ui/bind-presence! sign-out-button (b/= :signed-in sign-in-state-property))
   (ui/on-action! sign-out-button (fn [_] (sign-out! dashboard-client))))
 
-(defn- show-sign-in-dialog! [{:keys [sign-in-state-property] :as dashboard-client}]
+(defn- show-sign-in-dialog! [{:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
   (let [root (doto (ui/load-fxml "login/login-dialog.fxml")
                (configure-sign-in-ui-elements! dashboard-client))
         scene (Scene. root)
         stage (doto (ui/make-dialog-stage)
                 (ui/title! "Sign In")
-                (.setScene scene))]
+                (.setScene scene))
+        sign-in-state-listener (reify ChangeListener
+                                 (changed [_ _ _ sign-in-state]
+                                   (when (= :signed-in sign-in-state)
+                                     (ui/close! stage))))]
+    (.addListener sign-in-state-property sign-in-state-listener)
     (ui/show-and-wait! stage)
-    (= :signed-in (sign-in-state sign-in-state-property))))
+    (let [signed-in? (abort-incomplete-sign-in! dashboard-client)]
+      (.removeListener sign-in-state-property sign-in-state-listener)
+      signed-in?)))
 
 (defn sign-in!
   "Ensures the user is signed in to the Defold dashboard. If the user is already
