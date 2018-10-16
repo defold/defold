@@ -144,11 +144,27 @@ def build(bld):
     dlib.find_sources_in_dirs(source_dirs)
     dlib.source.extend(webp_source_no_neon)
 
+    # Create a separate library, in order to separate it from the ASAN builds
+    dlib_noasan = bld.new_task_gen(features = 'cc cxx cstaticlib skip_asan',
+                            includes = '.',
+                            add_objects = local_objs,
+                            target = 'dlib_noasan',
+                            defines= ['VALGRIND'] + extra_defines)
+    dlib_noasan.find_sources_in_dirs(source_dirs)
+    dlib_noasan.source.extend(webp_source_no_neon)
+
     axtls = bld.new_task_gen(features = 'cxx cstaticlib',
                             includes = '.',
                             target = 'axtls',
                             defines= ['VALGRIND'] + extra_defines)
     axtls.find_sources_in_dirs(axtls_dirs)
+
+    # Create a separate library, in order to separate it from the ASAN builds
+    axtls_noasan = bld.new_task_gen(features = 'cxx cstaticlib skip_asan',
+                            includes = '.',
+                            target = 'axtls_noasan',
+                            defines= ['VALGRIND'] + extra_defines)
+    axtls_noasan.find_sources_in_dirs(axtls_dirs)
 
     if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
@@ -164,10 +180,10 @@ def build(bld):
 
 
     if bld.env['PLATFORM'] != 'as3-web':
-        dlib = bld.new_task_gen(features = 'cc cxx cshlib',
+        dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
                                 includes = '.',
                                 add_objects = local_objs,
-                                uselib_local = 'axtls',
+                                uselib_local = 'axtls_noasan',
                                 target = 'dlib_shared',
                                 defines= ['VALGRIND'] + extra_defines,
                                 uselib = 'UUID PLATFORM_SOCKET')
