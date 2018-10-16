@@ -868,8 +868,8 @@
                              :color color+alpha
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
-                    (not= :clipping-mode-none clipping-mode)
-                    (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
+                (not= :clipping-mode-none clipping-mode)
+                (assoc :clipping {:mode clipping-mode :inverted clipping-inverted :visible clipping-visible}))))))
 
 ;; Pie nodes
 
