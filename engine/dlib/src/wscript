@@ -171,13 +171,14 @@ def build(bld):
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
         dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
+        dlib_noasan.source = [x for x in dlib.source if not x.endswith('.mm')]
 
     if bld.env.PLATFORM == 'as3-web':
         dlib.source.remove(os.path.join('dlib', 'socket.cpp'))
+        dlib_noasan.source.remove(os.path.join('dlib', 'socket.cpp'))
     else:
         dlib.source.remove(os.path.join('dlib', 'socket_null.cpp'))
-
-
+        dlib_noasan.source.remove(os.path.join('dlib', 'socket_null.cpp'))
 
     if bld.env['PLATFORM'] != 'as3-web':
         dlib = bld.new_task_gen(features = 'cc cxx cshlib skip_asan',
