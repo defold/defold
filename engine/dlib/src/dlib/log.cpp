@@ -14,6 +14,8 @@
 #include "path.h"
 #include "sys.h"
 #include "network_constants.h"
+#include "align.h"
+#include "message.h"
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -436,9 +438,9 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
     }
 
 
-    // NOTE: Must be less than DM_MESSAGE_PAGE_SIZE
-    const int str_buf_size = 2048;
-    char tmp_buf[sizeof(dmLogMessage) + str_buf_size];
+    // NOTE: Must be less than DM_MESSAGE_PAGE_SIZE - sizeof(dmMessage::Message) (DM_MESSAGE_PAGE_SIZE is 4096, declared in message.cpp)
+    const int str_buf_size = 4096 - DM_ALIGN(sizeof(dmLogMessage) + sizeof(dmMessage::Message), 16);
+    char tmp_buf[str_buf_size];
     dmLogMessage* msg = (dmLogMessage*) &tmp_buf[0];
     char* str_buf = &tmp_buf[sizeof(dmLogMessage)];
 
@@ -487,7 +489,7 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
         receiver.m_Socket = self->m_MessgeSocket;
         receiver.m_Path = 0;
         receiver.m_Fragment = 0;
-        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLogMessage) + n + 1, sizeof(tmp_buf)), 0);
+        dmMessage::Post(0, &receiver, 0, 0, 0, msg, dmMath::Min(sizeof(dmLogMessage) + actual_n + 1, sizeof(tmp_buf)), 0);
     }
 }
 
