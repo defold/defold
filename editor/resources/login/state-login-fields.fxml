@@ -30,18 +30,18 @@
             <PasswordField id="password-field" GridPane.rowIndex="2" GridPane.columnIndex="1" />
             <HBox GridPane.rowIndex="3" GridPane.columnIndex="1">
                 <Label id="password-error-label" text="Wrong password" styleClass="df-tiny-text" HBox.hgrow="ALWAYS" />
-                <Hyperlink id="forgot-password-button" styleClass="df-tiny-text" text="Forgot password?" />
+                <Hyperlink id="forgot-password-button" styleClass="df-tiny-text" text="Forgot password?" focusTraversable="false" />
             </HBox>
         </GridPane>
 
         <!-- Buttons -->
         <HBox styleClass="buttons-hbox">
-            <Button id="cancel-button" styleClass="df-button, dim" text="Go Back" />
-            <Button id="submit-button" styleClass="df-button" text="Sign In" />
+            <Button id="cancel-button" styleClass="df-button, extra-dim" text="Go Back" focusTraversable="false" />
+            <Button id="submit-button" styleClass="df-button" text="Sign In" focusTraversable="false" />
         </HBox>
     </VBox>
     <HBox styleClass="footer" VBox.vgrow="ALWAYS" maxWidth="-Infinity">
         <Label text="Don't have an account? " />
-        <Hyperlink id="create-account-button" text="Create Account" />
+        <Hyperlink id="create-account-button" text="Create Account" focusTraversable="false" />
     </HBox>
 </VBox>
