@@ -60,6 +60,18 @@ $df-bright-blue: #5BC0FF;
     }
   }
 
+  .df-button.extra-dim {
+    -fx-border-color: $df-grey2;
+    -fx-text-fill: $df-grey2;
+    -fx-opacity: 0.75;
+
+    &:hover {
+      -fx-border-color: lighten($df-grey2, 9%);
+      -fx-text-fill: lighten($df-grey2, 9%);
+      -fx-opacity: 0.8;
+    }
+  }
+
   .df-header {
     -fx-fill: #A6B2BF;
     -fx-font-family: "Source Sans Pro Light";

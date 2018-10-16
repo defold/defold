@@ -885,7 +885,7 @@ If you do not specifically require different script states, consider changing th
                              {:label "Hot Reload"
                               :command :hot-reload}
                              {:label :separator}
-                             {:label "Logout"
+                             {:label "Sign Out"
                               :command :logout}
                              {:label "Preferences..."
                               :command :preferences}
