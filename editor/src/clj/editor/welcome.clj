@@ -609,6 +609,7 @@
 
 (defn- make-pane-button [label pane]
   (doto (RadioButton.)
+    (.setFocusTraversable false)
     (ui/user-data! :pane pane)
     (ui/add-style! "pane-button")
     (ui/text! label)))
@@ -758,7 +759,7 @@
      (ui/set-main-stage stage)
 
      ;; Ensure any server started by the dashboard client is shut down when the stage is closed.
-     (ui/on-closed! stage (fn [_] (login/stop-sign-in-response-server! dashboard-client)))
+     (ui/on-closed! stage (fn [_] (login/abort-incomplete-sign-in! dashboard-client)))
 
      ;; Install pending update check.
      (when (some? update-context)
