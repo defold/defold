@@ -336,7 +336,7 @@ namespace dmScript
         return 0;
     }
 
-    static bool PushValueAsString(lua_State* L, int index)
+    static const char* PushValueAsString(lua_State* L, int index)
     {
         lua_pushvalue(L, index);
         // [-1] value
@@ -348,12 +348,12 @@ namespace dmScript
         // [-1] value
         lua_call(L, 1, 1);
         // [-1] result
-        if (lua_tostring(L, -1) == 0x0)
+        const char* result = lua_tostring(L, -1);
+        if (result == 0x0)
         {
             lua_pop(L, 1);
-            return false;
         }
-        return true;
+        return result;
     }
 
     static int DoLuaPPrintTable(lua_State* L, int index, dmPPrint::Printer* printer, dmHashTable<uintptr_t, bool>& printed_tables) {
@@ -397,7 +397,8 @@ namespace dmScript
         {
             int value_type = lua_type(L, -1);
 
-            if (!PushValueAsString(L, -2))
+            const char* key_string = PushValueAsString(L, -2);
+            if (key_string == 0x0)
             {
                 return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             }
@@ -406,7 +407,7 @@ namespace dmScript
             // [-2] value
             // [-1] key name
 
-            printer->Printf("%s = ", lua_tostring(L, -1));
+            printer->Printf("%s = ", key_string);
             lua_pop(L, 1);
             // [-3] table
             // [-2] key
@@ -422,7 +423,8 @@ namespace dmScript
             }
             else
             {
-                if (!PushValueAsString(L, -1))
+                const char* value_string = PushValueAsString(L, -1);
+                if (value_string == 0x0)
                 {
                     return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
                 }
@@ -431,7 +433,7 @@ namespace dmScript
                 // [-2] value
                 // [-1] value name
 
-                printer->Printf("%s,\n", lua_tostring(L, -1));
+                printer->Printf("%s,\n", value_string);
                 lua_pop(L, 1);
                 // [-3] table
                 // [-2] key
@@ -509,12 +511,12 @@ namespace dmScript
             }
             else
             {
-                if (!PushValueAsString(L, s))
+                const char* value_str = PushValueAsString(L, s);
+                if (value_str = 0x0)
                 {
                     return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
                 }
-                const char* s = lua_tostring(L, -1);
-                printer.Printf("%s,\n", s);
+                printer.Printf("%s,\n", value_str);
                 lua_pop(L, 1);
             }
         }
