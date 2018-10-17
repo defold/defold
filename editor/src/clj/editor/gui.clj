@@ -843,24 +843,39 @@
   (output scene-renderable-user-data g/Any :cached
           (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
             (let [[box-width box-height _] size
+                  tex-coords (get-in anim-data [:frames 0 :tex-coords]) ; [[X Y]]
+                  ;; Sample tex-coords if anim from tile source:
+                  ;;  no flip: [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]] TL BL BR TR.  T-B-B-T L-L-R-R
+                  ;;   flip-h: [[0.5566406 0.140625] [0.5566406 1.0] [0.0 1.0] [0.0 0.140625]] "TR BR BL TL" T-B-B-T R-R-L-L
+                  ;;   flip-v: [[0.0 1.0] [0.0 0.140625] [0.5566406 0.140625] [0.5566406 1.0]] "BL TL TR BR" B-T-T-B L-L-R-R
+                  ;; flip-h+v: [[0.5566406 1.0] [0.5566406 0.140625] [0.0 0.140625] [0.0 1.0]] "BR TR TL BL" B-T-T-B R-R-L-L
                   texture-width (:width anim-data 1)
                   texture-height (:height anim-data 1)
+                  [u0 u1] [(get-in tex-coords [1 0] 0.0) (get-in tex-coords [2 0] 1.0)]
+                  u-delta (- u1 u0)
+                  [v0 v1] [(get-in tex-coords [0 1] 0.0) (get-in tex-coords [1 1] 1.0)]
+                  v-delta (- v1 v0)
                   x+u-ranges (into []
                                    (remove (fn [[[x0 x1] [u0 u1]]] (= x0 x1)))
                                    (map vector
                                         (partition 2 1 [0.0 (get slice9 0) (- box-width (get slice9 2)) box-width])
-                                        (partition 2 1 [0.0 (/ (get slice9 0) texture-width) (- 1.0 (/ (get slice9 2) texture-width)) 1.0])))
+                                        (partition 2 1 [u0
+                                                        (+ u0 (* u-delta (/ (get slice9 0) texture-width)))
+                                                        (- u1 (* u-delta (/ (get slice9 2) texture-width)))
+                                                        u1])))
                   y+v-ranges (into []
                                    (remove (fn [[[y0 y1] [v0 v1]]] (= y0 y1)))
                                    (map vector
                                         (partition 2 1 [0.0 (get slice9 3) (- box-height (get slice9 1)) box-height])
-                                        (partition 2 1 [1.0 (- 1.0 (/ (get slice9 3) texture-height)) (/ (get slice9 1) texture-height) 0.0])))
+                                        (partition 2 1 [v0
+                                                        (+ v0 (* v-delta (/ (get slice9 1) texture-height)))
+                                                        (- v1 (* v-delta (/ (get slice9 3) texture-height)))
+                                                        v1])))
                   xy-box-coords (ranges->box-corner-coords (map first x+u-ranges) (map first y+v-ranges))
                   xy-translation (pivot-offset pivot size)
                   xy-boxes (map (comp (partial geom/transl xy-translation) box-corner-coords->vertices3) xy-box-coords)
                   uv-box-coords (ranges->box-corner-coords (map second x+u-ranges) (map second y+v-ranges))
-                  uv-transform (get-in anim-data [:uv-transforms 0])
-                  uv-boxes (map (comp (partial geom/uv-trans uv-transform) box-corner-coords->vertices2) uv-box-coords)
+                  uv-boxes (map box-corner-coords->vertices2 uv-box-coords)
                   lines (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices)))) xy-boxes)
                   user-data {:geom-data (mapcat box->triangle-vertices xy-boxes)
                              :line-data lines
