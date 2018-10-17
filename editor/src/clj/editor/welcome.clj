@@ -758,7 +758,8 @@
      ;; Make ourselves the main stage.
      (ui/set-main-stage stage)
 
-     ;; Ensure any server started by the dashboard client is shut down when the stage is closed.
+     ;; If a sign-in was initiated but never completed, make sure we start from
+     ;; the beginning on successive sign-in attempts.
      (ui/on-closed! stage (fn [_] (login/abort-incomplete-sign-in! dashboard-client)))
 
      ;; Install pending update check.

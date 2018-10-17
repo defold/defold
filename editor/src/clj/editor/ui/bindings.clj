@@ -46,6 +46,12 @@
 (defn unbind! [^Property property]
   (.unbind property))
 
+(defn bind-bidirectional! [^Property property ^Property other]
+  (.bindBidirectional property other))
+
+(defn unbind-bidirectional! [^Property property ^Property other]
+  (.unbindBidirectional property other))
+
 (defn bind-style!
   "Create a binding that applies a style class to a node. Since style classes
   must be added and removed from the styleable node, each style binding occupies
