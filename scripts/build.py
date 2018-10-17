@@ -453,6 +453,11 @@ class Configuration(object):
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
+        # Simple way to reduce number of warnings in the build
+        proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
+        if not os.path.exists(proto_path):
+            os.makedirs(proto_path)
+
     def _form_ems_path(self):
         path = ''
         if 'linux' in self.host:
@@ -776,10 +781,12 @@ class Configuration(object):
     def build_engine(self):
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
-        host = self.host
+        host = self.host2
+        if 'x86-' in host:
+            host = self.host
         if host == 'darwin':
             host = 'x86_64-darwin'
-        # There is a dependency between 32-bit python and the ctypes lib produced in dlib
+        # There is a dependency between 32-bit python and the ctypes lib produced in dlib (something goes wrong when compiling .proto files)
         if host == 'x86_64-darwin' and self.target_platform != 'darwin':
             self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
         if host == 'x86_64-win32' and self.target_platform != 'win32':
@@ -1842,6 +1849,10 @@ instructions.configure=\
     def _form_env(self):
         env = dict(os.environ)
 
+        host = self.host2
+        if 'x86-' in host:
+            host = self.host
+
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
         env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
@@ -1857,7 +1868,7 @@ instructions.configure=\
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host),
+                                      '%s/ext/bin/%s' % (self.dynamo_home, host),
                                       '%s/bin' % go_root])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
@@ -2008,7 +2019,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     if len(args) == 0:
         parser.error('No command specified')
 
-    target_platform = options.target_platform if options.target_platform else get_host_platform()
+    target_platform = options.target_platform
+    if not options.target_platform:
+        target_platform = get_host_platform2()
+        if 'x86-' in target_platform:
+            target_platform = get_host_platform() # we need even more cleanup to use "x86-linux" format for everything
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,

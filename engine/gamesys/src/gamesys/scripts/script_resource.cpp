@@ -35,11 +35,11 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     const char* format = 0;
     switch(result)
     {
-    case dmResource::RESULT_RESOURCE_NOT_FOUND: format = "The resource was not found: %llu, %s"; break;
-    case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation: %llu, %s"; break;
-    default:                                    format = "The resource was not updated: %llu, %s"; break;
+    case dmResource::RESULT_RESOURCE_NOT_FOUND: format = "The resource was not found (%d): %llu, %s"; break;
+    case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation (%d): %llu, %s"; break;
+    default:                                    format = "The resource was not updated (%d): %llu, %s"; break;
     }
-    DM_SNPRINTF(msg, sizeof(msg), format, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
+    DM_SNPRINTF(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
     return luaL_error(L, "%s", msg);
 }
 
@@ -68,7 +68,11 @@ static int Set(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 2);
 
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, buffer->m_Buffer);
+    uint32_t datasize = 0;
+    void* data = 0;
+    dmBuffer::GetBytes(buffer->m_Buffer, &data, &datasize);
+
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, data, datasize);
     if( r != dmResource::RESULT_OK )
     {
         assert(top == lua_gettop(L));
