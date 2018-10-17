@@ -92,6 +92,7 @@ namespace dmRender
         uint8_t m_CacheCellPadding;
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
+        dmRenderDDF::FontRenderMode    m_RenderMode;
     };
 
     /**

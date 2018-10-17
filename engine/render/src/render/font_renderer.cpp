@@ -42,6 +42,7 @@ namespace dmRender
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
+    , m_RenderMode(dmRenderDDF::MODE_SINGLE_LAYER)
     {
 
     }
@@ -66,6 +67,7 @@ namespace dmRender
         , m_CacheCellWidth(0)
         , m_CacheCellHeight(0)
         , m_CacheCellPadding(0)
+        , m_RenderMode(dmRenderDDF::MODE_SINGLE_LAYER)
         {
 
         }
@@ -102,6 +104,7 @@ namespace dmRender
         Glyph**                 m_Cache;
         uint32_t                m_CacheCursor;
         dmGraphics::TextureFormat m_CacheFormat;
+        dmRenderDDF::FontRenderMode m_RenderMode;
 
         uint32_t                m_CacheColumns;
         uint32_t                m_CacheRows;
@@ -150,6 +153,7 @@ namespace dmRender
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
+        font_map->m_RenderMode = params.m_RenderMode;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -238,6 +242,7 @@ namespace dmRender
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
+        font_map->m_RenderMode = params.m_RenderMode;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;

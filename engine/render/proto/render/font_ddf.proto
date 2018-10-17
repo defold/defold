@@ -12,6 +12,12 @@ enum FontTextureFormat
     TYPE_DISTANCE_FIELD  = 1 [(displayName) = "Distance Field"];
 }
 
+enum FontRenderMode
+{
+    MODE_SINGLE_LAYER = 0 [(displayName) = "Single Layer"];
+    MODE_MULTI_LAYER  = 1 [(displayName) = "Multi Layer"];
+}
+
 message FontDesc
 {
     required string font = 1 [(resource)=true];
@@ -31,6 +37,7 @@ message FontDesc
     optional bool all_chars = 14 [default = false];
     optional uint32 cache_width = 15 [default = 0];
     optional uint32 cache_height = 16 [default = 0];
+    optional FontRenderMode render_mode = 17 [default = MODE_SINGLE_LAYER];
 }
 
 message FontMap
@@ -76,4 +83,5 @@ message FontMap
     optional float alpha = 21 [default = 1.0];
     optional float outline_alpha = 22 [default = 1.0];
     optional float shadow_alpha = 23 [default = 1.0];
+    optional FontRenderMode render_mode = 24 [default = MODE_SINGLE_LAYER];
 }
