@@ -241,6 +241,14 @@ int _glfwPlatformInit( void )
     // Implicitly create shared NSApplication instance
     [GLFWApplication sharedApplication];
 
+    _glfwLibrary.OpenGLFramework =
+        CFBundleGetBundleWithIdentifier( CFSTR( "com.apple.opengl" ) );
+    if( _glfwLibrary.OpenGLFramework == NULL )
+    {
+        fprintf( stderr, "glfwInit failing because you aren't linked to OpenGL\n" );
+        return GL_FALSE;
+    }
+
     NSString* resourcePath = [[NSBundle mainBundle] resourcePath];
 
     char* prev_cwd = getcwd(0, 0);
