@@ -36,7 +36,7 @@ extern "C" void JSWriteDump(char* json_stacktrace) {
     dmJson::Document doc = { 0 };
     if (dmJson::Parse(json_stacktrace, &doc) == dmJson::RESULT_OK)
     {
-        uint32_t len = dmMath::Min(dmCrash::AppState::EXTRA_MAX - 1, strlen(json_stacktrace));
+        uint32_t len = dmMath::Min((size_t)(dmCrash::AppState::EXTRA_MAX - 1), strlen(json_stacktrace));
         strncpy(dmCrash::g_AppState.m_Extra, json_stacktrace, len);
         dmCrash::WriteCrash(dmCrash::g_FilePath, &dmCrash::g_AppState);
         dmJson::Free(&doc);
