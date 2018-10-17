@@ -46,8 +46,6 @@ namespace dmScript
     const char* META_TABLE_IS_VALID                 = "__is_valid";
     const char* META_GET_INSTANCE_CONTEXT_TABLE_REF = "__get_instance_context_table_ref";
 
-    const char* PPRINT_TRUNCATE_MESSAGE             = "...\n[Output truncated]";
-
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
@@ -316,7 +314,7 @@ namespace dmScript
     {
         int n = lua_gettop(L);
         lua_getglobal(L, "tostring");
-        char buffer[2048];
+        char buffer[DM_LOG_MAX_STRING_SIZE];
         buffer[0] = 0;
         for (int i = 1; i <= n; ++i)
         {
@@ -338,7 +336,7 @@ namespace dmScript
         return 0;
     }
 
-    static bool ToString(lua_State* L, int index)
+    static bool PushValueAsString(lua_State* L, int index)
     {
         lua_pushvalue(L, index);
         // [-1] value
@@ -399,7 +397,7 @@ namespace dmScript
         {
             int value_type = lua_type(L, -1);
 
-            if (!ToString(L, -2))
+            if (!PushValueAsString(L, -2))
             {
                 return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
             }
@@ -424,7 +422,7 @@ namespace dmScript
             }
             else
             {
-                if (!ToString(L, -1))
+                if (!PushValueAsString(L, -1))
                 {
                     return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
                 }
@@ -449,6 +447,8 @@ namespace dmScript
 
         printer->Indent(-2);
         printer->Printf("},\n");
+
+        printed_tables.Erase((uintptr_t)table_data);
 
         lua_pop(L, 1);
         return 0;
@@ -493,8 +493,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
         int n = lua_gettop(L);
 
-        // NOTE: We limit the size of buf to the maximum logging string allowed in log.cpp 
-        char buf[3584];
+        char buf[DM_LOG_MAX_STRING_SIZE];
         dmPPrint::Printer printer(buf, sizeof(buf));
         dmHashTable<uintptr_t, bool> printed_tables;
         for (int s = 1; s <= n; ++s)
@@ -510,7 +509,7 @@ namespace dmScript
             }
             else
             {
-                if (!ToString(L, s))
+                if (!PushValueAsString(L, s))
                 {
                     return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
                 }
@@ -518,11 +517,6 @@ namespace dmScript
                 printer.Printf("%s,\n", s);
                 lua_pop(L, 1);
             }
-        }
-
-        if (printer.m_Overflow)
-        {
-            strcpy(&buf[sizeof(buf) - (strlen(PPRINT_TRUNCATE_MESSAGE) + 1)], PPRINT_TRUNCATE_MESSAGE);
         }
 
         dmLogUserDebug("%s", buf);

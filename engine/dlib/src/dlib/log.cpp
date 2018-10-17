@@ -21,6 +21,7 @@
 #include <android/log.h>
 #endif
 
+const char* LOG_OUTPUT_TRUNCATED_MESSAGE = "...\n[Output truncated]\n";
 const int DM_LOG_MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection
@@ -31,18 +32,6 @@ struct dmLogConnection
     }
 
     dmSocket::Socket m_Socket;
-};
-
-struct dmLogMessage
-{
-    enum Type
-    {
-        MESSAGE = 0,
-        SHUTDOWN = 1,
-    };
-
-    uint8_t m_Type;
-    char    m_Message[0];
 };
 
 static const uint32_t DLIB_MAX_LOG_CONNECTIONS = 16;
@@ -437,26 +426,29 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
             break;
     }
 
-
-    // NOTE: Must be less than DM_MESSAGE_PAGE_SIZE - sizeof(dmMessage::Message) (DM_MESSAGE_PAGE_SIZE is 4096, declared in message.cpp)
-    const int str_buf_size = 4096 - DM_ALIGN(sizeof(dmLogMessage) + sizeof(dmMessage::Message), 16);
-    char tmp_buf[str_buf_size];
+    char tmp_buf[sizeof(dmLogMessage) + DM_LOG_MAX_STRING_SIZE];
     dmLogMessage* msg = (dmLogMessage*) &tmp_buf[0];
     char* str_buf = &tmp_buf[sizeof(dmLogMessage)];
 
     int n = 0;
-    n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "%s:%s: ", severity_str, domain);
-    if (n < str_buf_size)
+    n += DM_SNPRINTF(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
+    if (n < DM_LOG_MAX_STRING_SIZE)
     {
-        n += vsnprintf(str_buf + n, str_buf_size - n, format, lst);
+        n += vsnprintf(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, format, lst);
     }
 
-    if (n < str_buf_size)
+    if (n < DM_LOG_MAX_STRING_SIZE)
     {
-        n += DM_SNPRINTF(str_buf + n, str_buf_size - n, "\n");
+        n += DM_SNPRINTF(str_buf + n, DM_LOG_MAX_STRING_SIZE - n, "\n");
     }
-    str_buf[str_buf_size-1] = '\0';
-    int actual_n = dmMath::Min(n, str_buf_size-1);
+
+    if (n >= DM_LOG_MAX_STRING_SIZE)
+    {
+        strcpy(&str_buf[DM_LOG_MAX_STRING_SIZE - (strlen(LOG_OUTPUT_TRUNCATED_MESSAGE) + 1)], LOG_OUTPUT_TRUNCATED_MESSAGE);
+    }
+
+    str_buf[DM_LOG_MAX_STRING_SIZE-1] = '\0';
+    int actual_n = dmMath::Min(n, (int)(DM_LOG_MAX_STRING_SIZE-1));
 
     g_TotalBytesLogged += actual_n;
 

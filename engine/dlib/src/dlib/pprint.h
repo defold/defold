@@ -40,7 +40,6 @@ namespace dmPPrint
         int     m_Cursor;
         int     m_Indent;
         bool    m_StartLine;
-        bool    m_Overflow;
     };
 }
 

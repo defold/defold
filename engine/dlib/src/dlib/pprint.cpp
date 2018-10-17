@@ -16,16 +16,11 @@ namespace dmPPrint
         m_Cursor = 0;
         m_Indent = 0;
         m_StartLine = true;
-        m_Overflow = false;
         m_Buffer[0] = '\0';
     }
 
     void Printer::Printf(const char* format, ...)
     {
-        if (m_Overflow)
-        {
-            return;
-        }
         va_list argp;
         va_start(argp, format);
 
@@ -40,14 +35,10 @@ namespace dmPPrint
 
         int c = m_BufferSize - m_Cursor;
     #if defined(_WIN32)
-        int print_len = _vsnprintf_s(m_Buffer + m_Cursor, c, _TRUNCATE, format, argp);
+        _vsnprintf_s(m_Buffer + m_Cursor, c, _TRUNCATE, format, argp);
     #else
-        int print_len = vsnprintf(m_Buffer + m_Cursor, c, format, argp);
+        vsnprintf(m_Buffer + m_Cursor, c, format, argp);
     #endif
-        if (print_len >= c)
-        {
-            m_Overflow = true;
-        }
 
         m_Buffer[m_BufferSize-1] = '\0';
         m_Cursor = strlen(m_Buffer);
