@@ -21,7 +21,7 @@
             [editor.gl.shader :as shader]
             [schema.core :as schema]
             [service.log :as log])
-  (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat]
+  (:import [com.dynamo.render.proto Font$FontDesc Font$FontMap Font$FontTextureFormat Font$FontRenderMode]
            [com.defold.editor.pipeline BMFont]
            [editor.types AABB]
            [editor.gl.shader ShaderLifecycle]
@@ -342,7 +342,7 @@
 
 (g/defnk produce-pb-msg [pb font material size antialias alpha outline-alpha outline-width
                          shadow-alpha shadow-blur shadow-x shadow-y extra-characters output-format
-                         all-chars cache-width cache-height]
+                         all-chars cache-width cache-height render-mode]
   ;; The reason we use the originally loaded pb is to retain any default values
   ;; This is important for the saved file to not contain more data than it would
   ;; have when saved with Editor1
@@ -362,7 +362,8 @@
           :output-format output-format
           :all-chars all-chars
           :cache-width cache-width
-          :cache-height cache-height}))
+          :cache-height cache-height
+          :render-mode render-mode}))
 
 (defn- make-font-map [_node-id font type pb-msg font-resource-resolver]
   (or (when-let [errors (->> (concat [(validation/prop-error :fatal _node-id :font validation/prop-nil? font "Font")
@@ -532,6 +533,8 @@
 
   (property output-format g/Keyword
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontTextureFormat))))
+  (property render-mode g/Keyword
+            (dynamic edit-type (g/constantly (properties/->pb-choicebox Font$FontRenderMode))))
   (property size g/Int
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-zero-or-below? size)))

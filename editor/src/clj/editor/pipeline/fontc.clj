@@ -443,6 +443,7 @@
      :max-ascent (+ (float (.getMaxAscent font-metrics)) padding)
      :max-descent (+ (float (.getMaxDescent font-metrics)) padding)
      :image-format (:output-format font-desc)
+     :render-mode (:render-mode font-desc)
      :cache-width (:width cache-wh)
      :cache-height (:height cache-wh)
      :glyph-padding glyph-cell-padding
@@ -564,6 +565,7 @@
      :max-ascent (+ (float (.getMaxAscent font-metrics)) padding)
      :max-descent (+ (float (.getMaxDescent font-metrics)) padding)
      :image-format (:output-format font-desc)
+     :render-mode (:render-mode font-desc)
      :sdf-spread sdf-spread
      :sdf-outline (let [outline-edge (- (/ ^double (:outline-width font-desc) sdf-spread))]
                     (+ (* outline-edge (- 1.0 edge)) edge))
