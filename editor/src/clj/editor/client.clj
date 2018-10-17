@@ -107,6 +107,16 @@
         (throw error)
         {:error-message "Wrong E-mail address or Password"}))))
 
+(defn reset-password [client ^String email]
+  (assert (string? (not-empty email)))
+  ;; TODO! Post password reset request to server & handle response.
+
+  ;; ********************************
+  ;; TEST DURING DEVELOPMENT! REMOVE!
+  ;; ********************************
+  (let [successful? (.endsWith email "@defold.com")]
+    successful?))
+
 (defn exchange-info [client token]
   (let [exchange-info (cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
     (if (= (:type exchange-info) :SIGNUP)

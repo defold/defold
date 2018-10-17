@@ -6,4 +6,6 @@
     <fx:include source="/login/state-not-signed-in.fxml" />
     <fx:include source="/login/state-browser-open.fxml" />
     <fx:include source="/login/state-login-fields.fxml" />
+    <fx:include source="/login/state-forgot-password.fxml" />
+    <fx:include source="/login/state-email-sent.fxml" />
 </StackPane>
