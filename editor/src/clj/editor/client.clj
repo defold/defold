@@ -48,9 +48,16 @@
                       {:server-url server-url})))
     server-url))
 
-(defn- cr-resource ^WebResource$Builder [client paths ^"[Ljavax.ws.rs.core.MediaType;" accept-types]
-  (let [{:keys [^Client client prefs]} client
-        ^WebResource resource (reduce (fn [^WebResource resource path] (.path resource (str path))) (.resource client (server-url prefs)) paths)]
+(defn- web-resource
+  ^WebResource [{:keys [^Client client prefs] :as _client} paths]
+  (reduce (fn [^WebResource resource path]
+            (.path resource (str path)))
+          (.resource client (server-url prefs))
+          paths))
+
+(defn- cr-resource
+  ^WebResource$Builder [client paths ^"[Ljavax.ws.rs.core.MediaType;" accept-types]
+  (let [resource (web-resource client paths)]
     (if (seq accept-types)
       (.accept resource accept-types)
       (.getRequestBuilder resource))))
@@ -102,20 +109,28 @@
   (try
     (cr-get client ["login"] {"X-Email" email "X-Password" password} Protocol$LoginInfo)
     (catch UniformInterfaceException error
-      ;; 401 Unauthorized response is expected. Throw on other errors.
+      ;; A "401 Unauthorized" response means there is no Defold account for the
+      ;; specified E-mail address or the password did not match.
+      ;; Throw on other errors.
       (if (not= 401 (.getStatus (.getResponse error)))
         (throw error)
         {:error-message "Wrong E-mail address or Password"}))))
 
-(defn reset-password [client ^String email]
+(defn forgot-password [client ^String email]
   (assert (string? (not-empty email)))
-  ;; TODO! Post password reset request to server & handle response.
-
-  ;; ********************************
-  ;; TEST DURING DEVELOPMENT! REMOVE!
-  ;; ********************************
-  (let [successful? (.endsWith email "@defold.com")]
-    successful?))
+  (try
+    (-> (web-resource client ["users" "password" "forgot"])
+        (.queryParam "email" email)
+        (.post))
+    ;; An E-mail with a password reset link was sent to the provided E-mail address.
+    true
+    (catch UniformInterfaceException error
+      ;; A "404 Not Found" response means there is no Defold account for the
+      ;; specified E-mail address.
+      ;; Throw on other errors.
+      (if (= 404 (.getStatus (.getResponse error)))
+        false ;; E-mail not found.
+        (throw error)))))
 
 (defn exchange-info [client token]
   (let [exchange-info (cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
