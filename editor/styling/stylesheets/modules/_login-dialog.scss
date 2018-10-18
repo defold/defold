@@ -7,8 +7,6 @@
 }
 
 .login-state {
-  -fx-alignment: center;
-
   #password-error-label {
     -fx-max-width: Infinity;
   }
@@ -16,8 +14,8 @@
   .label {
     -fx-opacity: 0.75;
 
-    &.error, &.warning {
-      -fx-opacity: 1;
+    &.error, &.warning, &.df-error-banner {
+      -fx-opacity: 1.0;
     }
 
     &.error { -fx-text-fill: $error-severity-fatal; }
@@ -53,5 +51,9 @@
   .footer {
     -fx-alignment: bottom-center;
     -fx-padding: 0px 0px 16px 0px;
+  }
+
+  .explanation-overlay {
+    -fx-min-height: 230px;
   }
 }
