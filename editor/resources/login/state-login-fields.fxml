@@ -3,9 +3,17 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox id="state-login-fields" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx">
-    <VBox VBox.vgrow="ALWAYS" maxWidth="-Infinity" />
-    <VBox styleClass="explanation-overlay">
+<GridPane id="state-login-fields" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx">
+    <columnConstraints>
+        <ColumnConstraints hgrow="ALWAYS" halignment="CENTER" />
+    </columnConstraints>
+    <rowConstraints>
+        <RowConstraints vgrow="ALWAYS" valignment="TOP" prefHeight="0" />
+        <RowConstraints vgrow="NEVER" valignment="TOP" />
+        <RowConstraints vgrow="ALWAYS" valignment="BOTTOM" prefHeight="0" />
+    </rowConstraints>
+    <Label GridPane.rowIndex="0" id="error-banner-label" styleClass="df-error-banner" text="Communication Error: 407 Proxy Authentication Required&#10;Please ensure a firewall is not interfering with the connection" />
+    <VBox GridPane.rowIndex="1" styleClass="explanation-overlay">
         <Label styleClass="df-header, sign-in-header" text="Sign in to your Defold account" />
         <GridPane styleClass="login-fields">
             <columnConstraints>
@@ -40,8 +48,8 @@
             <Button id="submit-button" styleClass="df-button" text="Sign In" focusTraversable="false" />
         </HBox>
     </VBox>
-    <HBox styleClass="footer" VBox.vgrow="ALWAYS" maxWidth="-Infinity">
+    <HBox GridPane.rowIndex="2" styleClass="footer" maxWidth="-Infinity">
         <Label text="Don't have an account? " />
         <Hyperlink id="create-account-button" text="Create Account" focusTraversable="false" />
     </HBox>
-</VBox>
+</GridPane>

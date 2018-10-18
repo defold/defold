@@ -127,14 +127,23 @@
       (set-sign-in-state! sign-in-state-property :not-signed-in)
       false)))
 
+(defn- connection-error-value [{:keys [reason type]}]
+  (assert (= :connection-error type))
+  (error-values/error-fatal (str reason "\nPlease ensure you are connected to the Internet")))
+
+(defn- bad-response-error-value [{:keys [code reason type]}]
+  (assert (= :bad-response type))
+  (error-values/error-fatal (str "Communication Error: " code " " reason "\nPlease ensure a firewall is not interfering with the connection")))
+
 (defn- begin-sign-in-with-email!
   "Sign in with E-mail and password on a background thread. The request is
   cancelled if the user navigates away from the login fields. If successful,
   stores the login token in prefs and sets the sign-in-state-property to signal
   a successful login. If bad credentials are provided, returns to the login
   fields and sets the error-message-property to notify the user."
-  [{:keys [prefs sign-in-state-property] :as _dashboard-client} ^SimpleObjectProperty account-error-property ^String email ^String password]
+  [{:keys [prefs sign-in-state-property] :as _dashboard-client} ^SimpleObjectProperty network-error-property ^SimpleObjectProperty account-error-property ^String email ^String password]
   (assert (= :login-fields (sign-in-state sign-in-state-property)))
+  (.set network-error-property nil)
   (.set account-error-property nil)
   (set-sign-in-state! sign-in-state-property :login-fields-submitted)
 
@@ -144,43 +153,60 @@
     (future
       (try
         (with-open [client (client/make-client prefs)]
-          (let [login-info (client/login-with-email client email password)]
+          (let [result (client/login-with-email client email password)]
             (ui/run-later
               ;; User might have left the login form, in which case we ignore the response.
               ;; In effect, this cancels the login, since we do not store the login token.
               (when-not @navigated-away-atom
-                (if-some [error-message (:error-message login-info)]
-                  (do
-                    (.set account-error-property (error-values/error-fatal error-message))
-                    (set-sign-in-state! sign-in-state-property :login-fields))
-                  (do
+                (if (= :success (:type result))
+                  (let [login-info (:login-info result)]
                     (prefs/set-prefs prefs last-used-email-prefs-key email)
                     (set-prefs-from-successful-login! prefs login-info)
-                    (set-sign-in-state! sign-in-state-property :signed-in)))))))
+                    (set-sign-in-state! sign-in-state-property :signed-in))
+                  (do
+                    (set-sign-in-state! sign-in-state-property :login-fields)
+                    (case (:type result)
+                      :connection-error
+                      (.set network-error-property (connection-error-value result))
+
+                      :bad-response
+                      (.set network-error-property (bad-response-error-value result))
+
+                      :unauthorized
+                      (.set account-error-property (error-values/error-fatal "Wrong E-mail address or Password")))))))))
         (catch Throwable error
           (error-reporting/report-exception! error)
           (ui/run-later
             (set-sign-in-state! sign-in-state-property :login-fields)))))))
 
 (defn- begin-reset-password!
-  [{:keys [prefs sign-in-state-property] :as _dashboard-client} ^SimpleObjectProperty account-error-property ^String email]
+  [{:keys [prefs sign-in-state-property] :as _dashboard-client} ^SimpleObjectProperty network-error-property ^SimpleObjectProperty account-error-property ^String email]
   (assert (= :forgot-password (sign-in-state sign-in-state-property)))
+  (.set network-error-property nil)
   (.set account-error-property nil)
   (set-sign-in-state! sign-in-state-property :forgot-password-submitted)
   (let [navigated-away-atom (atom false)]
     (future
       (try
         (with-open [client (client/make-client prefs)]
-          (let [successful? (client/forgot-password client email)]
+          (let [result (client/forgot-password client email)]
             (ui/run-later
               ;; The user might have navigated away before we get a response back.
               ;; In case the password reset was successful, we still want to
               ;; inform the user that it happened.
-              (if successful?
+              (if (= :success (:type result))
                 (set-sign-in-state! sign-in-state-property :email-sent)
                 (when-not @navigated-away-atom
-                  (.set account-error-property (error-values/error-fatal "Account not found"))
-                  (set-sign-in-state! sign-in-state-property :forgot-password))))))
+                  (set-sign-in-state! sign-in-state-property :forgot-password)
+                  (case (:type result)
+                    :connection-error
+                    (.set network-error-property (connection-error-value result))
+
+                    :bad-response
+                    (.set network-error-property (bad-response-error-value result))
+
+                    :not-found ; There is no Defold account for the specified E-mail address.
+                    (.set account-error-property (error-values/error-fatal "This address does not have a Defold account"))))))))
         (catch Throwable error
           (error-reporting/report-exception! error)
           (ui/run-later
@@ -275,22 +301,29 @@
     (b/bind! (.textProperty error-label) (b/map :message error-observable))
     (b/bind-style! error-label :error-severity error-style)
     (b/bind-style! field :error-severity (b/when-not (.focusedProperty field)
-                                                     error-style))))
+                                           error-style))))
 
 (defn- configure-state-login-fields! [state-login-fields {:keys [prefs sign-in-state-property] :as dashboard-client}]
   (let [email-validation-error-property (SimpleObjectProperty.)
         password-validation-error-property (SimpleObjectProperty.)
+        network-error-property (SimpleObjectProperty.)
         account-error-property (SimpleObjectProperty.)]
     (ui/bind-presence! state-login-fields
                        (b/or (b/= :login-fields sign-in-state-property)
                              (b/= :login-fields-submitted sign-in-state-property)))
-    (ui/with-controls state-login-fields [cancel-button create-account-button ^Label email-error-label ^TextField email-field forgot-password-button ^Label password-error-label ^TextField password-field ^ButtonBase submit-button]
-      (let [on-submit! (fn [_] (begin-sign-in-with-email! dashboard-client account-error-property (.getText email-field) (.getText password-field)))]
+    (ui/with-controls state-login-fields [cancel-button create-account-button email-error-label ^TextField email-field ^Label error-banner-label forgot-password-button password-error-label ^TextField password-field ^ButtonBase submit-button]
+      (let [on-submit! (fn [_]
+                         (when (ui/enabled? submit-button)
+                           (begin-sign-in-with-email! dashboard-client network-error-property account-error-property (.getText email-field) (.getText password-field))))]
         (ui/on-action! password-field on-submit!)
         (ui/on-action! submit-button on-submit!)
         (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
         (ui/on-action! forgot-password-button (fn [_] (set-sign-in-state! sign-in-state-property :forgot-password)))
         (ui/on-action! create-account-button (fn [_] (ui/open-url create-account-url))))
+
+      ;; Display network errors as a banner.
+      (ui/bind-presence! error-banner-label (b/some? network-error-property))
+      (b/bind! (.textProperty error-banner-label) (b/map :message network-error-property))
 
       ;; Populate email field from prefs.
       (ui/text! email-field (prefs/get-prefs prefs last-used-email-prefs-key ""))
@@ -343,14 +376,21 @@
 
 (defn- configure-state-forgot-password! [state-forgot-password {:keys [sign-in-state-property] :as dashboard-client}]
   (let [email-validation-error-property (SimpleObjectProperty.)
+        network-error-property (SimpleObjectProperty.)
         account-error-property (SimpleObjectProperty.)]
     (ui/bind-presence! state-forgot-password (b/or (b/= :forgot-password sign-in-state-property)
                                                    (b/= :forgot-password-submitted sign-in-state-property)))
-    (ui/with-controls state-forgot-password [cancel-button ^TextField email-field email-error-label ^ButtonBase submit-button]
-      (let [on-submit! (fn [_] (begin-reset-password! dashboard-client account-error-property (.getText email-field)))]
+    (ui/with-controls state-forgot-password [cancel-button ^TextField email-field email-error-label ^Label error-banner-label ^ButtonBase submit-button]
+      (let [on-submit! (fn [_]
+                         (when (ui/enabled? submit-button)
+                           (begin-reset-password! dashboard-client network-error-property account-error-property (.getText email-field))))]
         (ui/on-action! email-field on-submit!)
         (ui/on-action! submit-button on-submit!)
         (ui/on-action! cancel-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields))))
+
+      ;; Display network errors as a banner.
+      (ui/bind-presence! error-banner-label (b/some? network-error-property))
+      (b/bind! (.textProperty error-banner-label) (b/map :message network-error-property))
 
       ;; Move focus to the email field when entering the forgot password state.
       (ui/observe sign-in-state-property

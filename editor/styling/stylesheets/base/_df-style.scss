@@ -83,6 +83,21 @@ $df-bright-blue: #5BC0FF;
     -fx-font-size: 11px;
   }
 
+  .df-error-banner {
+    -fx-alignment: center;
+    -fx-border-color: $error-severity-warning;
+    -fx-border-insets: 17px 17px 0px 17px;
+    -fx-border-radius: 4px;
+    -fx-border-width: 1px;
+    -fx-font-size: 14px;
+    -fx-line-spacing: 3px;
+    -fx-padding: 10px;
+    -fx-text-alignment: center;
+    -fx-text-fill: $error-severity-warning;
+    -fx-wrap-text: true;
+    -fx-max-width: Infinity;
+  }
+
   // ---------------------------------------------------------------------------
   // Specific constructs
   // ---------------------------------------------------------------------------

@@ -4,9 +4,16 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox id="state-email-sent" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
-    <VBox VBox.vgrow="ALWAYS" maxWidth="-Infinity" />
-    <VBox styleClass="explanation-overlay">
+<GridPane id="state-email-sent" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+    <columnConstraints>
+        <ColumnConstraints hgrow="ALWAYS" halignment="CENTER" />
+    </columnConstraints>
+    <rowConstraints>
+        <RowConstraints vgrow="ALWAYS" valignment="TOP" prefHeight="0" />
+        <RowConstraints vgrow="NEVER" valignment="TOP" />
+        <RowConstraints vgrow="ALWAYS" valignment="BOTTOM" prefHeight="0" />
+    </rowConstraints>
+    <VBox GridPane.rowIndex="1" styleClass="explanation-overlay">
         <fx:include source="globe-icon.fxml" />
         <Label styleClass="hero-text" text="We've sent you an E-mail with&#10;a password reset link." />
         <Button id="cancel-button" styleClass="df-button" text="Go Back">
@@ -18,5 +25,4 @@
             </VBox.margin>
         </Button>
     </VBox>
-    <VBox VBox.vgrow="ALWAYS" maxWidth="-Infinity" />
-</VBox>
+</GridPane>

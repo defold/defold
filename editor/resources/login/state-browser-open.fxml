@@ -4,9 +4,16 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<VBox id="state-browser-open" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
-    <VBox VBox.vgrow="ALWAYS" maxWidth="-Infinity" />
-    <VBox styleClass="explanation-overlay">
+<GridPane id="state-browser-open" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+    <columnConstraints>
+        <ColumnConstraints hgrow="ALWAYS" halignment="CENTER" />
+    </columnConstraints>
+    <rowConstraints>
+        <RowConstraints vgrow="ALWAYS" valignment="TOP" prefHeight="0" />
+        <RowConstraints vgrow="NEVER" valignment="TOP" />
+        <RowConstraints vgrow="ALWAYS" valignment="BOTTOM" prefHeight="0" />
+    </rowConstraints>
+    <VBox GridPane.rowIndex="1" styleClass="explanation-overlay">
         <fx:include source="globe-icon.fxml" />
         <Label styleClass="hero-text" text="We've opened a web browser window.&#10;Use your Google account to sign in." />
         <Button id="cancel-button" styleClass="df-button" text="Cancel and Go Back">
@@ -18,11 +25,11 @@
             </VBox.margin>
         </Button>
     </VBox>
-    <VBox styleClass="footer" VBox.vgrow="ALWAYS" maxWidth="-Infinity">
+    <VBox GridPane.rowIndex="2" styleClass="footer" maxWidth="-Infinity">
         <Label text="Don't see a browser window?" />
         <HBox maxWidth="-Infinity">
             <Hyperlink id="copy-sign-in-url-button" text="Copy URL" />
             <Label text=" and paste it into your browser."/>
         </HBox>
     </VBox>
-</VBox>
+</GridPane>
