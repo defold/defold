@@ -14,8 +14,6 @@
 #include "path.h"
 #include "sys.h"
 #include "network_constants.h"
-#include "align.h"
-#include "message.h"
 
 #ifdef ANDROID
 #include <android/log.h>
