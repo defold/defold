@@ -63,7 +63,8 @@ public abstract class ShaderProgramBuilder extends CopyBuilder {
             // see JIRA issue: DEF-1786.
             // We still want to have correct line reporting on most devices so
             // only output the "#line N" directive in debug builds.
-            if (project.hasOption("debug")) {
+            boolean hasVariantDebug = project.hasOption("variant") && project.getOptions().get("variant").toString().equals("debug");
+            if (project.hasOption("debug") || hasVariantDebug) {
                 writer.printf(Locale.ROOT, "#line %d", directiveLineCount);
                 writer.println();
             }
