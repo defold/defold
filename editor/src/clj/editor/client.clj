@@ -1,6 +1,7 @@
 (ns editor.client
   (:require [editor.protobuf :as protobuf]
-            [editor.prefs :as prefs])
+            [editor.prefs :as prefs]
+            [service.log :as log])
   (:import [clojure.lang ExceptionInfo]
            [com.defold.editor.client DefoldAuthFilter]
            [com.defold.editor.providers ProtobufProviders ProtobufProviders$ProtobufMessageBodyReader ProtobufProviders$ProtobufMessageBodyWriter]
@@ -107,14 +108,26 @@
   (assert (string? (not-empty email)))
   (assert (string? (not-empty password)))
   (try
-    (cr-get client ["login"] {"X-Email" email "X-Password" password} Protocol$LoginInfo)
+    (let [login-info (cr-get client ["login"] {"X-Email" email "X-Password" password} Protocol$LoginInfo)]
+      {:type :success
+       :login-info login-info})
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
     (catch UniformInterfaceException error
       ;; A "401 Unauthorized" response means there is no Defold account for the
       ;; specified E-mail address or the password did not match.
-      ;; Throw on other errors.
-      (if (not= 401 (.getStatus (.getResponse error)))
-        (throw error)
-        {:error-message "Wrong E-mail address or Password"}))))
+      (let [status-info (.getStatusInfo (.getResponse error))
+            status-code (.getStatusCode status-info)]
+        (if (= 401 status-code)
+          {:type :unauthorized}
+          (do
+            (log/error :exception error)
+            {:type :bad-response
+             :message (.getReasonPhrase status-info)
+             :code status-code}))))))
 
 (defn forgot-password [client ^String email]
   (assert (string? (not-empty email)))
@@ -123,14 +136,24 @@
         (.queryParam "email" email)
         (.post))
     ;; An E-mail with a password reset link was sent to the provided E-mail address.
-    true
+    {:type :success}
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
     (catch UniformInterfaceException error
       ;; A "404 Not Found" response means there is no Defold account for the
       ;; specified E-mail address.
-      ;; Throw on other errors.
-      (if (= 404 (.getStatus (.getResponse error)))
-        false ;; E-mail not found.
-        (throw error)))))
+      (let [status-info (.getStatusInfo (.getResponse error))
+            status-code (.getStatusCode status-info)]
+        (if (= 404 status-code)
+          {:type :not-found}
+          (do
+            (log/error :exception error)
+            {:type :bad-response
+             :reason (.getReasonPhrase status-info)
+             :code status-code}))))))
 
 (defn exchange-info [client token]
   (let [exchange-info (cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
