@@ -88,16 +88,23 @@
    "start the application full screen instead of windowed",
    :default false,
    :path ["display" "fullscreen"]}
+  {:type :string,
+   :help
+   "Vertical sync, rely on hardware vsync or use software timing",
+   :default "hardware",
+   :path ["display" "vsync"]
+   :options [["hardware" "Hardware"] ["software" "Software"]]
+   }
   {:type :integer,
    :help
-   "frame update frequency, 60 by default. Valid values are 60, 30, 20, 15, 12, 10, 6, 5, 4, 3, 2 and 1",
+   "Software frame cap, 60 by default. used when \"Software\" vsync is selected",
    :default 60,
-   :path ["display" "update_frequency"]
-   :options [[60 "60"] [30 "30"] [20 "20"] [15 "15"] [12 "12"] [10 "10"] [6 "6"] [5 "5"] [4 "4"] [3 "3"] [2 "2"] [1 "1"]]
+   :path ["display" "frame_cap"]
+   :title "Frame cap",
    }
   {:type :boolean,
    :help
-   "measure frame step time against actual time instead of locking to update_frequency",
+   "measure frame time step against actual time instead of locking to frame_cap, used when \"Software\" vsync is selected",
    :default false,
    :path ["display" "variable_dt"]}
   {:type :resource,

@@ -9,7 +9,8 @@
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.view :as view])
+            [editor.view :as view]
+            [editor.util :as util])
   (:import [java.util Collection]
            [javafx.scene Parent Node]
            [javafx.scene.input KeyCode ContextMenuEvent]
@@ -80,6 +81,19 @@
     (ui/on-key! ctrl (fn [key]
                        (when (= key KeyCode/ESCAPE)
                          (cancel))))))
+
+(defn get-form-setting-value [form-data path d]
+  (let [data (get (get form-data :values) path d)]
+    data))
+
+(defn update-section-setting [section path f]
+  (if-let [index (first (util/positions #(= path (:path %)) (get section :fields)))]
+    (update-in section [:fields index] f)
+    section))
+
+(defn update-form-setting [form-data path f]
+  (update form-data :sections (fn [section] (mapv #(update-section-setting % path f) section))))
+
 
 (defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [tf (TextField.)
@@ -818,7 +832,8 @@
                                    (.setDisable grid false)
                                    (let [selected-field-values (@content selected-index)]
                                      (update-fields (ui/user-data grid ::ui-update-fns)
-                                                    (build-form-values selected-field-values))))
+                                                    (build-form-values selected-field-values)
+                                                    #{})))
                                  (do
                                    (.setDisable grid true)
                                    (wipe-fields (ui/user-data grid ::ui-update-fns)))))
@@ -913,14 +928,19 @@
                                (ui/children! label-box [label])
                                (GridPane/setConstraints label 0 0))))
                            
-        update-ui-fn (fn [{:keys [value source]}]
-                       (let [value (condp = source
-                                         :explicit value
-                                         :default (form/field-default field-info)
-                                         nil)
-                             overridden? (and (form/optional-field? field-info) (= source :explicit))]
-                         ((:update api) value)
-                         (update-label-box overridden?)))]
+        update-ui-fn (fn [update-data]
+                       (if (contains? update-data :enabled?)
+                         (let [enabled? (:enabled? update-data)]
+                           (ui/enable! label-box enabled?)
+                           (ui/enable! control enabled?))
+                         (let [{:keys [value source]} update-data
+                               value (condp = source
+                                       :explicit value
+                                       :default (form/field-default field-info)
+                                       nil)
+                               overridden? (and (form/optional-field? field-info) (= source :explicit))]
+                           ((:update api) value)
+                           (update-label-box overridden?))))]
 
     (GridPane/setFillWidth label-box true)
     (GridPane/setValignment label-box (field-label-valign field-info))
@@ -949,7 +969,10 @@
             (remove :hidden?)
             (map (fn [field-info] (create-field-grid-row field-info field-ops ctxt))))))))
 
-(defn- update-fields [updaters field-values]
+(defn- update-fields [updaters field-values disabled-paths]
+  (println disabled-paths)
+  (doseq [[path updater] updaters]
+    (updater {:enabled? (not (contains? disabled-paths path))}))
   (doseq [[path val] field-values]
     (when-let [updater (updaters path)]
       (updater {:value val :source :explicit})))
@@ -959,7 +982,7 @@
 
 (defn update-form [form form-data]
   (let [updaters (ui/user-data form ::update-ui-fns)]
-    (update-fields updaters (:values form-data))
+    (update-fields updaters (:values form-data) (:disabled-paths form-data))
     form))
 
 (defn- add-grid-row [^GridPane grid row row-data]
@@ -1037,7 +1060,7 @@
   (let [workspace (:workspace opts)
         project (:project opts)
         view-id (g/make-node! graph FormView :parent-view parent :workspace workspace :project project)
-        repainter (ui/->timer 10 "refresh-form-view" (fn [_ _] (g/node-value view-id :form)))]
+          repainter (ui/->timer 10 "refresh-form-view" (fn [_ _] (g/node-value view-id :form)))]
     (g/transact
       (concat
         (g/connect resource-node :form-data view-id :form-data)))
