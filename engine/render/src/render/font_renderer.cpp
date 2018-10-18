@@ -62,12 +62,12 @@ namespace dmRender
         , m_GlyphData(0)
         , m_Cache(0)
         , m_CacheCursor(0)
+        , m_RenderMode(dmRenderDDF::MODE_SINGLE_LAYER)
         , m_CacheColumns(0)
         , m_CacheRows(0)
         , m_CacheCellWidth(0)
         , m_CacheCellHeight(0)
         , m_CacheCellPadding(0)
-        , m_RenderMode(dmRenderDDF::MODE_SINGLE_LAYER)
         {
 
         }
@@ -332,6 +332,7 @@ namespace dmRender
                 {"outline_color", 3, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
                 {"shadow_color", 4, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
                 {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
+                {"layer_mask", 6, 1, dmGraphics::TYPE_UNSIGNED_BYTE, false},
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));
@@ -569,6 +570,78 @@ namespace dmRender
         float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
 
         uint32_t vertexindex = 0;
+        uint32_t valid_glyph_count = 0;
+
+        uint8_t  vertices_per_quad = 6;
+        uint8_t  layer_count       = 1;
+
+        if (font_map->m_RenderMode == dmRenderDDF::MODE_MULTI_LAYER)
+        {
+            // This branching is based on how the bitmap glyph data is generated,
+            // at this point we don't know that the actual bitmap has both these
+            // channels, but we need to make sure we can render them anyway..
+            //
+            // Note: should we set layer count or a layer mode enum from the bitmap generation?
+            if (font_map->m_OutlineAlpha > 0.0)
+            {
+                layer_count++;
+
+                if (font_map->m_ShadowAlpha > 0.0)
+                {
+                    layer_count++;
+                }
+            }
+
+            // Need to count how many glyphs we are supposed to output so that we
+            // can calculate correct layer offsets into the vertex array later.
+            for (int line = 0; line < line_count; ++line)
+            {
+                TextLine& l = lines[line];
+                const char* cursor = &text[l.m_Index];
+                bool inner_break = false;
+
+                for (int j = 0; j < l.m_Count; ++j)
+                {
+                    uint32_t c = dmUtf8::NextChar(&cursor);
+                    Glyph* g   = GetGlyph(font_map, c);
+
+                    if (!g)
+                    {
+                        continue;
+                    }
+
+                    if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
+                    {
+                        inner_break = true;
+                        break;
+                    }
+
+                    if (g->m_Width > 0)
+                    {
+                        // Calculate y-offset in cache-cell space by moving glyphs down to baseline
+                        int16_t px_cell_offset_y = font_map->m_MaxAscent - (int16_t)g->m_Ascent;
+
+                        if (!g->m_InCache)
+                        {
+                            AddGlyphToCache(font_map, text_context, g, px_cell_offset_y);
+                        }
+
+                        if (g->m_InCache)
+                        {
+                            valid_glyph_count++;
+
+                            vertexindex += vertices_per_quad;
+                        }
+                    }
+                }
+
+                if (inner_break)
+                    break;
+            }
+
+            vertexindex = 0;
+        }
+
         for (int line = 0; line < line_count; ++line) {
             TextLine& l = lines[line];
             int16_t x = (int16_t)(x_offset - OffsetX(te.m_Align, l.m_Width) + 0.5f);
@@ -584,17 +657,18 @@ namespace dmRender
                     continue;
                 }
 
-                if (vertexindex + 6 >= num_vertices)
+                // Look ahead and see if we can produce vertices for the next glyph or not
+                if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
                 {
                     dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", num_vertices / 6);
-                    return vertexindex;
+                    return vertexindex * layer_count;
                 }
+
                 if (g->m_Width > 0)
                 {
-                    int16_t width = (int16_t)g->m_Width;
-                    int16_t descent = (int16_t)g->m_Descent;
-                    int16_t ascent = (int16_t)g->m_Ascent;
-                    int16_t cache_cell_padding = (int16_t)font_map->m_CacheCellPadding;
+                    int16_t width   = (int16_t) g->m_Width;
+                    int16_t descent = (int16_t) g->m_Descent;
+                    int16_t ascent  = (int16_t) g->m_Ascent;
 
                     // Calculate y-offset in cache-cell space by moving glyphs down to baseline
                     int16_t px_cell_offset_y = font_map->m_MaxAscent - ascent;
@@ -606,30 +680,34 @@ namespace dmRender
                     if (g->m_InCache) {
                         g->m_Frame = text_context.m_Frame;
 
-                        GlyphVertex& v1 = vertices[vertexindex];
-                        GlyphVertex& v2 = *(&v1 + 1);
-                        GlyphVertex& v3 = *(&v1 + 2);
-                        GlyphVertex& v4 = *(&v1 + 3);
-                        GlyphVertex& v5 = *(&v1 + 4);
-                        GlyphVertex& v6 = *(&v1 + 5);
-                        vertexindex += 6;
+                        uint32_t face_index    = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-1);
+                        uint32_t outline_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-2);
+                        uint32_t shadow_index  = vertexindex;
 
-                        (Vector4&) v1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
-                        (Vector4&) v2.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
-                        (Vector4&) v3.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y - descent, 0, 1);
-                        (Vector4&) v6.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y + ascent, 0, 1);
+                        // Set face vertices first, this will always hold since we can't have less than 1 layer
+                        GlyphVertex& v1_layer1 = vertices[face_index];
+                        GlyphVertex& v2_layer1 = *(&v1_layer1 + 1);
+                        GlyphVertex& v3_layer1 = *(&v1_layer1 + 2);
+                        GlyphVertex& v4_layer1 = *(&v1_layer1 + 3);
+                        GlyphVertex& v5_layer1 = *(&v1_layer1 + 4);
+                        GlyphVertex& v6_layer1 = *(&v1_layer1 + 5);
 
-                        v1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
-                        v1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
+                        (Vector4&) v1_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
+                        (Vector4&) v2_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
+                        (Vector4&) v3_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y - descent, 0, 1);
+                        (Vector4&) v6_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y + ascent, 0, 1);
 
-                        v2.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
-                        v2.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
+                        v1_layer1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
+                        v1_layer1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
 
-                        v3.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
-                        v3.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
+                        v2_layer1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
+                        v2_layer1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
-                        v6.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
-                        v6.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
+                        v3_layer1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
+                        v3_layer1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
+
+                        v6_layer1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
+                        v6_layer1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
                         #define SET_VERTEX_PARAMS(v) \
                             v.m_FaceColor = face_color; \
@@ -639,23 +717,92 @@ namespace dmRender
                             v.m_SdfParams[1] = sdf_outline; \
                             v.m_SdfParams[2] = sdf_smoothing; \
                             v.m_SdfParams[3] = sdf_scale; \
+                            v.m_LayerMask    = 0;
 
-                        SET_VERTEX_PARAMS(v1)
-                        SET_VERTEX_PARAMS(v2)
-                        SET_VERTEX_PARAMS(v3)
-                        SET_VERTEX_PARAMS(v6)
+                        SET_VERTEX_PARAMS(v1_layer1)
+                        SET_VERTEX_PARAMS(v2_layer1)
+                        SET_VERTEX_PARAMS(v3_layer1)
+                        SET_VERTEX_PARAMS(v6_layer1)
 
                         #undef SET_VERTEX_PARAMS
 
-                        v4 = v3;
-                        v5 = v2;
+                        v4_layer1 = v3_layer1;
+                        v5_layer1 = v2_layer1;
+
+                        // Set outline vertices
+                        if (layer_count > 1)
+                        {
+                            GlyphVertex& v1_layer2 = vertices[outline_index];
+                            GlyphVertex& v2_layer2 = *(&v1_layer2 + 1);
+                            GlyphVertex& v3_layer2 = *(&v1_layer2 + 2);
+                            GlyphVertex& v4_layer2 = *(&v1_layer2 + 3);
+                            GlyphVertex& v5_layer2 = *(&v1_layer2 + 4);
+                            GlyphVertex& v6_layer2 = *(&v1_layer2 + 5);
+
+                            v1_layer2 = v1_layer1;
+                            v2_layer2 = v2_layer1;
+                            v3_layer2 = v3_layer1;
+                            v4_layer2 = v4_layer1;
+                            v5_layer2 = v5_layer1;
+                            v6_layer2 = v6_layer1;
+
+                            v1_layer2.m_LayerMask = 1;
+                            v2_layer2.m_LayerMask = 1;
+                            v3_layer2.m_LayerMask = 1;
+                            v4_layer2.m_LayerMask = 1;
+                            v5_layer2.m_LayerMask = 1;
+                            v6_layer2.m_LayerMask = 1;
+                        }
+
+                        // Set shadow vertices
+                        if (layer_count > 2)
+                        {
+                            float shadow_x = font_map->m_ShadowX;
+                            float shadow_y = font_map->m_ShadowY;
+
+                            GlyphVertex& v1_layer3 = vertices[shadow_index];
+                            GlyphVertex& v2_layer3 = *(&v1_layer3 + 1);
+                            GlyphVertex& v3_layer3 = *(&v1_layer3 + 2);
+                            GlyphVertex& v4_layer3 = *(&v1_layer3 + 3);
+                            GlyphVertex& v5_layer3 = *(&v1_layer3 + 4);
+                            GlyphVertex& v6_layer3 = *(&v1_layer3 + 5);
+
+                            v1_layer3 = v1_layer1;
+                            v2_layer3 = v2_layer1;
+                            v3_layer3 = v3_layer1;
+                            v6_layer3 = v6_layer1;
+
+                            v1_layer3.m_Position[0] += shadow_x;
+                            v1_layer3.m_Position[1] += shadow_y;
+
+                            v2_layer3.m_Position[0] += shadow_x;
+                            v2_layer3.m_Position[1] += shadow_y;
+
+                            v3_layer3.m_Position[0] += shadow_x;
+                            v3_layer3.m_Position[1] += shadow_y;
+
+                            v6_layer3.m_Position[0] += shadow_x;
+                            v6_layer3.m_Position[1] += shadow_y;
+
+                            v4_layer3 = v3_layer3;
+                            v5_layer3 = v2_layer3;
+
+                            v1_layer3.m_LayerMask = 2;
+                            v2_layer3.m_LayerMask = 2;
+                            v3_layer3.m_LayerMask = 2;
+                            v4_layer3.m_LayerMask = 2;
+                            v5_layer3.m_LayerMask = 2;
+                            v6_layer3.m_LayerMask = 2;
+                        }
+
+                        vertexindex += vertices_per_quad;
                     }
                 }
                 x += (int16_t)(g->m_Advance + tracking);
             }
         }
 
-        return vertexindex;
+        return vertexindex * layer_count;
     }
 
     static void CreateFontRenderBatch(HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
