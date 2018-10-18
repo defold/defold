@@ -84,6 +84,12 @@ namespace dmEngine
         uint32_t            m_Fps;
     };
 
+    enum Vsync
+    {
+        VSYNC_HARDWARE = 0,
+        VSYNC_SOFTWARE = 1,
+    };
+
     struct Engine
     {
         Engine(dmEngineService::HEngineService engine_service);
@@ -147,6 +153,7 @@ namespace dmEngine
         uint32_t                                    m_Height;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        Vsync                                       m_Vsync;
 
         RecordData                                  m_RecordData;
     };

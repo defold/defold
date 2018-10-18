@@ -397,19 +397,25 @@ namespace dmEngine
 
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
-        swap_interval = dmMath::Max(0, swap_interval);
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
-        engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
+        if (!engine->m_UseVariableDt)
+        {
+            swap_interval = dmMath::Max(0, swap_interval);
+#if !defined(__EMSCRIPTEN__)
+            // For backward-compatability, hardware vsync with swap_interval 0 should result in sw vsync
+            engine->m_UseSwVsync = (engine->m_Vsync == VSYNC_SOFTWARE || (engine->m_Vsync == VSYNC_HARDWARE && swap_interval == 0));
+            dmLogWarning("Using sw vsync?: %i", engine->m_UseSwVsync);
 #endif
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+            if (engine->m_Vsync == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
+                engine->m_UpdateFrequency /= swap_interval;
+            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        }
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
+        dmLogError("SetUpdateFrequency: %u", frequency);
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        int swap_interval = 1;
-        SetSwapInterval(engine, swap_interval);
     }
 
     /*
@@ -589,13 +595,46 @@ namespace dmEngine
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
-        uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext); // 0 if refresh rate read not successful. In that case, read from config.
-        dmLogWarning("engine refresh rate read: %u", refresh_rate);
-        if (refresh_rate == 0)
+        const char* vsync = dmConfigFile::GetString(engine->m_Config, "display.vsync", "hardware");
+        dmLogWarning("#### display.vsync: %s", vsync);
+        uint32_t refresh_rate = 60;
+        uint32_t swap_interval = 1;
+        if (engine->m_UseVariableDt) // 'variable_dt' uses realtime dt and doesn't care about framecaps or swap intervals
         {
-            refresh_rate = (float) dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60);
+            if (strcmp(vsync, "hardware") == 0)
+            {
+                dmLogWarning("Settings vsync mode 'Hardware' and 'variable_dt' are mutually exclusive. Using 'variable_dt'.");
+            }
+            engine->m_Vsync = VSYNC_SOFTWARE;
+        }
+        else
+        {
+            if (strcmp(vsync, "software") == 0)
+            {
+                // Software vsync
+                refresh_rate = dmConfigFile::GetInt(engine->m_Config, "display.frame_cap", 60);
+                swap_interval = 0;
+                engine->m_Vsync = VSYNC_SOFTWARE;
+            }
+            else
+            {
+                if (strcmp(vsync, "hardware") != 0)
+                {
+                    dmLogWarning("Unsupported vsync type '%s', falling back to 'hardware'.", vsync);
+                }
+                refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+                dmLogWarning("HW engine refresh rate read: %u", refresh_rate);
+                if (refresh_rate == 0)
+                {
+                    refresh_rate = 60;
+                    dmLogWarning("Unable to get display refresh rate, defaulting to 60.")
+                }
+                swap_interval = 1;
+                engine->m_Vsync = VSYNC_HARDWARE;
+            }
         }
         SetUpdateFrequency(engine, refresh_rate);
+        SetSwapInterval(engine, swap_interval);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1128,9 +1167,7 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-        // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
-
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+#if !defined(__EMSCRIPTEN__)
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t prev_flip_time = engine->m_FlipTime;
 #endif
@@ -1328,15 +1365,15 @@ bail:
                 }
 #endif
 
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+#if !defined(__EMSCRIPTEN__)
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
                     int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
-                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough
+                    if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 100) // only bother with sleep if diff b/w target and actual time is big enough
                     {
                         DM_PROFILE(Engine, "SoftwareVsync");
-                        while (remainder > 500) // dont bother with less than 0.5ms
+                        while (remainder > 100) // dont bother with less than 0.5ms
                         {
                             uint64_t t1 = dmTime::GetTime();
                             dmTime::Sleep(100); // sleep in chunks of 0.1ms
@@ -1565,8 +1602,14 @@ bail:
             }
             else if (descriptor == dmEngineDDF::SetUpdateFrequency::m_DDFDescriptor)
             {
+                dmLogOnceWarning("Message 'set_update_frequency' is deprecated. To limit framerate use 'set_frame_cap' instead.")
                 dmEngineDDF::SetUpdateFrequency* m = (dmEngineDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
+            }
+            else if (descriptor == dmEngineDDF::SetFrameCap::m_DDFDescriptor)
+            {
+                dmEngineDDF::SetFrameCap* m = (dmEngineDDF::SetFrameCap*) message->m_Data;
+                SetUpdateFrequency(self, (uint32_t) m->m_FrameCap);
             }
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
             {
