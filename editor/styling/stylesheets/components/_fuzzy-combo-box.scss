@@ -41,15 +41,15 @@
   }
 }
 
-.fuzzy-combo-box.error #fuzzy-choices-list-view {
+.fuzzy-combo-box.field-error #fuzzy-choices-list-view {
   -fx-background-color: $defold-red;
 }
 
-.fuzzy-combo-box.warning #fuzzy-choices-list-view {
+.fuzzy-combo-box.field-warning #fuzzy-choices-list-view {
   -fx-background-color: $defold-yellow;
 }
 
-.fuzzy-combo-box.info #fuzzy-choices-list-view {
+.fuzzy-combo-box.field-info #fuzzy-choices-list-view {
   -fx-background-color: $defold-light-blue;
 }
 
