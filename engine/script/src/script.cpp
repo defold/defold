@@ -1121,6 +1121,7 @@ namespace dmScript
         int result = lua_pcall(L, nargs, nresult, err_index);
         lua_remove(L, err_index);
         if (result == LUA_ERRMEM) {
+            lua_pop(L, 1);  // Pop BacktraceErrorHandler since it will not be called on OOM
             dmLogError("Lua memory allocation error.");
         } else if (result != 0) {
             // extract the individual fields for printing and passing
