@@ -22,6 +22,7 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^:private last-used-email-prefs-key "login-last-used-email")
+(defonce ^:private create-account-url "https://www.defold.com/account/signup/")
 
 (defn- logged-in? [prefs]
   (if (nil? (prefs/get-prefs prefs "email" nil))
@@ -170,7 +171,7 @@
     (future
       (try
         (with-open [client (client/make-client prefs)]
-          (let [successful? (client/reset-password client email)]
+          (let [successful? (client/forgot-password client email)]
             (ui/run-later
               ;; The user might have navigated away before we get a response back.
               ;; In case the password reset was successful, we still want to
@@ -289,7 +290,7 @@
         (ui/on-action! submit-button on-submit!)
         (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
         (ui/on-action! forgot-password-button (fn [_] (set-sign-in-state! sign-in-state-property :forgot-password)))
-        (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com"))))
+        (ui/on-action! create-account-button (fn [_] (ui/open-url create-account-url))))
 
       ;; Populate email field from prefs.
       (ui/text! email-field (prefs/get-prefs prefs last-used-email-prefs-key ""))
@@ -332,7 +333,7 @@
   (ui/with-controls state-not-signed-in [create-account-button sign-in-with-browser-button sign-in-with-email-button]
     (ui/on-action! sign-in-with-browser-button (fn [_] (begin-sign-in-with-browser! dashboard-client)))
     (ui/on-action! sign-in-with-email-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))
-    (ui/on-action! create-account-button (fn [_] (ui/open-url "https://www.defold.com")))))
+    (ui/on-action! create-account-button (fn [_] (ui/open-url create-account-url)))))
 
 (defn- configure-state-browser-open! [state-browser-open {:keys [sign-in-state-property] :as dashboard-client}]
   (ui/bind-presence! state-browser-open (b/= :browser-open sign-in-state-property))
