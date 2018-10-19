@@ -63,7 +63,7 @@ namespace dmGameSystem
         params.m_CacheCellPadding = ddf->m_GlyphPadding;
 
         params.m_ImageFormat = ddf->m_ImageFormat;
-        params.m_RenderMode = ddf->m_RenderMode;
+        params.m_LayerMask = ddf->m_LayerMask;
 
         // Copy and unpack glyphdata
         params.m_GlyphData = malloc(ddf->m_GlyphData.m_Count);
