@@ -6,19 +6,32 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce analytics (when-let [version (sys/defold-version)]
-                     (Analytics. (str (Editor/getSupportPath)) "UA-83690-7" version)))
+(defonce ^:private ^Analytics analytics
+  (when-some [version (sys/defold-version)]
+    (Analytics. (str (Editor/getSupportPath)) "UA-83690-7" version)))
+
+(defn enabled? []
+  (some? analytics))
+
+(defn- with-analytics [track-fn]
+  (when analytics
+    (try
+      (track-fn)
+      (catch Throwable error
+        (log/error :exception error)))))
+
+(defn set-user-id! [user-id]
+  (assert (or (nil? user-id)
+              (and (integer? user-id)
+                   (pos? user-id))))
+  (with-analytics #(.setUID analytics (str user-id))))
 
 (defn track-event [category action label]
-  (when analytics
-    (try
-      (.trackEvent ^Analytics analytics category action label)
-      (catch Throwable e
-        (log/error :exception e)))))
+  (with-analytics #(.trackEvent analytics category action label)))
+
+(defn track-exception [exception]
+  (let [description (.getSimpleName (class exception))]
+    (with-analytics #(.trackException analytics description))))
 
 (defn track-screen [screen-name]
-  (when analytics
-    (try
-      (.trackScreen ^Analytics analytics "defold" screen-name)
-      (catch Throwable e
-        (log/error :exception e)))))
+  (with-analytics #(.trackScreen analytics "defold" screen-name)))
