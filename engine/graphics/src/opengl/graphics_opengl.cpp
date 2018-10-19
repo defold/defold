@@ -11,6 +11,13 @@
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
 #include <dlib/dstrings.h>
+#include <ddf/ddf.h>
+#include <vulkan/vulkan.h>
+
+
+#if (defined(__MACH__) && !defined(__arm__))
+#include <MoltenVK/mvk_vulkan.h>
+#endif
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -20,6 +27,8 @@
 #include "../graphics_native.h"
 #include "async/job_queue.h"
 #include "graphics_opengl.h"
+#include "graphics_ddf.h"
+
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
@@ -498,6 +507,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
     {
+#if (defined(__MACH__) && !defined(__arm__))
+        VkInstance instance;
+        //VkResult result = vkCreateInstance(0x0, 0x0, &instance);
+#endif
+
         assert(context);
         assert(params);
 
@@ -1331,6 +1345,27 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
         assert(program);
         glDeleteShader(program);
         CHECK_GL_ERROR
+    }
+
+    void* GetShaderProgramData(HContext context, void* shader_desc, uint32_t& data_len)
+    {
+    	assert(shader_desc);
+        ShaderDesc* desc = (ShaderDesc*) shader_desc;
+    	for(uint32_t i = 0; i < desc->m_Shaders.m_Count; ++i)
+    	{
+    		if(desc->m_Shaders.m_Data->m_Language == dmGraphics::ShaderDesc::LANGUAGE_GLSL)
+    		{
+    			data_len = desc->m_Shaders.m_Data->m_Source.m_Count;
+				return desc->m_Shaders.m_Data->m_Source.m_Data;
+    		}
+    	}
+    	data_len = 0;
+    	return 0x0;
+    }
+
+    ShaderProgramLanguage GetShaderProgramLanguage(HContext context)
+    {
+        return SHADER_PROGRAM_LANGUAGE_GLSL;
     }
 
     void EnableProgram(HContext context, HProgram program)

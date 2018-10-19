@@ -9,6 +9,9 @@
 #include <render/render.h>
 #include <render/material_ddf.h>
 
+#include "res_fragment_program.h"
+#include "res_vertex_program.h"
+
 namespace dmGameSystem
 {
     static dmGraphics::TextureWrap wrap_lut[] = {dmGraphics::TEXTURE_WRAP_REPEAT,
@@ -42,11 +45,11 @@ namespace dmGameSystem
 
     struct MaterialResources
     {
-        MaterialResources() : m_DDF(0x0), m_FragmentProgram(0), m_VertexProgram(0) {}
+        MaterialResources() : m_DDF(0x0), m_FragmentProgramResource(0), m_VertexProgramResource(0) {}
 
         dmRenderDDF::MaterialDesc* m_DDF;
-        dmGraphics::HFragmentProgram m_FragmentProgram;
-        dmGraphics::HVertexProgram m_VertexProgram;
+        FragmentProgramResource* m_FragmentProgramResource;
+        VertexProgramResource* m_VertexProgramResource;
     };
 
     bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
@@ -65,11 +68,11 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
 
         dmResource::Result factory_e;
-        factory_e = dmResource::Get(factory, resources->m_DDF->m_VertexProgram, (void**) &resources->m_VertexProgram);
+        factory_e = dmResource::Get(factory, resources->m_DDF->m_VertexProgram, (void**) &resources->m_VertexProgramResource);
         if ( factory_e != dmResource::RESULT_OK)
             return factory_e;
 
-        factory_e = dmResource::Get(factory, resources->m_DDF->m_FragmentProgram, (void**) &resources->m_FragmentProgram);
+        factory_e = dmResource::Get(factory, resources->m_DDF->m_FragmentProgram, (void**) &resources->m_FragmentProgramResource);
         if ( factory_e != dmResource::RESULT_OK)
             return factory_e;
 
@@ -160,10 +163,10 @@ namespace dmGameSystem
     {
         if (resources->m_DDF)
             dmDDF::FreeMessage(resources->m_DDF);
-        if (resources->m_FragmentProgram)
-            dmResource::Release(factory, (void*)resources->m_FragmentProgram);
-        if (resources->m_VertexProgram)
-            dmResource::Release(factory, (void*)resources->m_VertexProgram);
+        if (resources->m_FragmentProgramResource)
+            dmResource::Release(factory, (void*)resources->m_FragmentProgramResource);
+        if (resources->m_VertexProgramResource)
+            dmResource::Release(factory, (void*)resources->m_VertexProgramResource);
     }
 
     dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams& params)
@@ -173,7 +176,7 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params.m_Factory, params.m_Buffer, params.m_BufferSize, &resources, params.m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
+            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgramResource->m_Program, resources.m_FragmentProgramResource->m_Program);
 
             dmResource::SResourceDescriptor desc;
             dmResource::Result factory_e;
@@ -203,9 +206,6 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
         dmRender::HMaterial material = (dmRender::HMaterial) params.m_Resource->m_Resource;
         dmResource::UnregisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, material);
-
-        dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialFragmentProgram(material));
-        dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialVertexProgram(material));
         dmRender::DeleteMaterial(render_context, material);
 
         return dmResource::RESULT_OK;
@@ -218,8 +218,6 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HMaterial material = (dmRender::HMaterial) params.m_Resource->m_Resource;
-            dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialFragmentProgram(material));
-            dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialVertexProgram(material));
             dmRender::ClearMaterialTags(material);
             SetMaterial(material, &resources);
         }

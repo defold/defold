@@ -51,6 +51,7 @@ import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.gui.proto.Gui;
 import com.dynamo.input.proto.Input.GamepadMaps;
 import com.dynamo.input.proto.Input.InputBinding;
@@ -105,6 +106,8 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".soundc", SoundDesc.class);
         extToMessageClass.put(".labelc", LabelDesc.class);
         extToMessageClass.put(".modelc", Model.class);
+        extToMessageClass.put(".fpc", ShaderDesc.Shader.class);
+        extToMessageClass.put(".vpc", ShaderDesc.Shader.class);
         extToMessageClass.put(".input_bindingc", InputBinding.class);
         extToMessageClass.put(".gamepadsc", GamepadMaps.class);
         extToMessageClass.put(".renderc", RenderPrototypeDesc.class);
@@ -121,8 +124,6 @@ public class GameProjectBuilder extends Builder<Void> {
         extToMessageClass.put(".display_profilesc", DisplayProfiles.class);
 
         leafResourceTypes.add(".texturec");
-        leafResourceTypes.add(".vpc");
-        leafResourceTypes.add(".fpc");
         leafResourceTypes.add(".wavc");
         leafResourceTypes.add(".oggc");
     }
@@ -580,7 +581,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
                 project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
                 project.getPublisher().Publish();
-                
+
                 manifestTmpFileHandle.delete();
                 File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
                 if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
