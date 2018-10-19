@@ -1,20 +1,29 @@
 package com.dynamo.bob.pipeline;
 
-import java.io.PrintWriter;
+import java.io.IOException;
 
 import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderProgramBuilder;
 
 @BuilderParams(name = "VertexProgram", inExts = ".vp", outExt = ".vpc")
 public class VertexProgramBuilder extends ShaderProgramBuilder {
 
-    @Override
-    public void writeExtraDirectives(PrintWriter writer) {
-        writer.println("#ifndef GL_ES");
-        writer.println("#define lowp");
-        writer.println("#define mediump");
-        writer.println("#define highp");
-        writer.println("#endif");
+    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+
+
+        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+            .setName(params.name())
+            .addInput(input);
+        taskBuilder.addOutput(input.changeExt(params.outExt()));
+
+        return taskBuilder.build();
+    }
+
+    public static void main(String[] args) throws IOException, CompileExceptionError {
+        ShaderProgramBuilder.main(args);
     }
 
 }
