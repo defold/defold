@@ -6,11 +6,13 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
+#include <ddf/ddf.h>
 
 #include "../graphics.h"
 #include "../graphics_native.h"
 #include "graphics_null.h"
 #include "glsl_uniform_parser.h"
+#include "graphics_ddf.h"
 
 using namespace Vectormath::Aos;
 
@@ -689,6 +691,27 @@ namespace dmGraphics
         FragmentProgram* p = (FragmentProgram*)program;
         delete [] (char*)p->m_Data;
         delete p;
+    }
+
+    void* GetShaderProgramData(HContext context, void* shader_desc, uint32_t& data_len)
+    {
+        assert(shader_desc);
+        ShaderDesc* desc = (ShaderDesc*) shader_desc;
+        for(uint32_t i = 0; i < desc->m_Shaders.m_Count; ++i)
+        {
+            if(desc->m_Shaders.m_Data->m_Language == dmGraphics::ShaderDesc::LANGUAGE_GLSL)
+            {
+                data_len = desc->m_Shaders.m_Data->m_Source.m_Count;
+                return desc->m_Shaders.m_Data->m_Source.m_Data;
+            }
+        }
+        data_len = 0;
+        return 0x0;
+    }
+
+    ShaderProgramLanguage GetShaderProgramLanguage(HContext context)
+    {
+        return SHADER_PROGRAM_LANGUAGE_GLSL;
     }
 
     void EnableProgram(HContext context, HProgram program)
