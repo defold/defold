@@ -11,6 +11,35 @@ public class ShaderUtil {
 
     public static class ES2ToES3Converter {
 
+        /*
+         * ES2ToES3Converter is converting shaders using old shader language syntax into GLES version 310 compliant shaders or GL version 140 compliant shaders depending on target (GLES or GL)
+         *
+         * The following rules apply
+         *
+         * * Shader version and profile (#version xxx xx) is overridden if declared in the shader (default is minimum per target, see above)
+         *
+         * Vertex Shaders:
+         * * "attribute" keyword is changed to "in"
+         * * "varying" keyword is changed to "out"
+         * * Uniform declarations are wrapped to global space uniform buffers
+         *   - Unless the type is opaque (sampler, image or atomic_uint)
+         *
+         * Fragment Shaders:
+         * * "varying" keyword is changed to "out"
+         * * Uniform declarations are wrapped to global space uniform buffers
+         *   - Unless the type is opaque (sampler, image or atomic_uint)
+         * * Precision meduimp float is added to ES shaders if not existing
+         * * If exists, gl_FragColor or gl_FragData are converted to a generated out attribute.
+         *   - If they exist (otherwise, one can assume this is already a compliant shader)
+         *   - On ES targets only (GL targets accepts old style)
+         *   - Placed after the first precision statement (if ES)
+         *
+         * Note: This covers known cases, but if the shader has reserved variable names of (newer) keywords as "in", "out" or "texture" they will have to be modified by the writer.
+         * This would have to be done in any case upgrading shaders from GLES2 and is nothing we can patch as changing those members names would instead mean the run-time access (get/set uniform)
+         * will fail which is even worse.
+         *
+         */
+
         public static class Result {
             public String shaderVersion = "";
             public String shaderProfile = "";
