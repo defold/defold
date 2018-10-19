@@ -63,15 +63,17 @@
               (NanoHTTPD$Response. (NanoHTTPD$Response$Status/NOT_FOUND) NanoHTTPD/MIME_PLAINTEXT "Not found"))))
     (.start)))
 
-(defn- set-prefs-from-successful-login! [prefs {:keys [auth-token email first-name last-name]}]
+(defn- set-prefs-from-successful-login! [prefs {:keys [auth-token email first-name last-name user-id]}]
   (assert (string? auth-token))
   (assert (string? email))
   (assert (string? first-name))
   (assert (string? last-name))
+  (assert (integer? user-id))
   (prefs/set-prefs prefs "email" email)
   (prefs/set-prefs prefs "first-name" first-name)
   (prefs/set-prefs prefs "last-name" last-name)
-  (prefs/set-prefs prefs "token" auth-token))
+  (prefs/set-prefs prefs "token" auth-token)
+  (prefs/set-prefs prefs "user-id" user-id))
 
 (defn login-page-url
   ^String [^NanoHTTPD server]
@@ -473,6 +475,7 @@
   (prefs/set-prefs prefs "first-name" nil)
   (prefs/set-prefs prefs "last-name" nil)
   (prefs/set-prefs prefs "token" nil)
+  (prefs/set-prefs prefs "user-id" nil)
   (set-sign-in-state! sign-in-state-property :not-signed-in))
 
 (defn can-sign-out? [{:keys [prefs] :as _dashboard-client}]
