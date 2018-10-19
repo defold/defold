@@ -143,13 +143,13 @@ namespace dmRender
 
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
-        void*                           m_VertexProgramData;
-        void*                           m_FragmentProgramData;
+        void*                           m_VertexShaderDesc;
+        void*                           m_FragmentShaderDesc;
         uint32_t                        m_MaxRenderTypes;
         uint32_t                        m_MaxInstances;
         uint32_t                        m_MaxRenderTargets;
-        uint32_t                        m_VertexProgramDataSize;
-        uint32_t                        m_FragmentProgramDataSize;
+        uint32_t                        m_VertexShaderDescSize;
+        uint32_t                        m_FragmentShaderDescSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_CommandBufferSize;
         /// Max debug vertex count
