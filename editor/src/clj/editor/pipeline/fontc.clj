@@ -377,6 +377,26 @@
       (throw (ex-info "No character glyphs were included! Maybe turn on 'all_chars'?" {})))
     semi-glyphs))
 
+(defn- calculate-ttf-layer-mask [font-desc]
+  (let [antialias (int->boolean (:antialias font-desc))
+        alpha (:alpha font-desc)
+        shadow-alpha (:shadow-alpha font-desc)
+        outline-alpha (:outline-alpha font-desc)
+        outline-width (:outline-width font-desc)
+        render-mode (:render-mode font-desc)
+        face-layer 0x1
+        outline-layer (if (and (> outline-width 0.0)
+                               (> outline-alpha 0.0)
+                               (= render-mode :mode-multi-layer)
+                               antialias)
+                        0x2 0x0)
+        shadow-layer (if (and (> shadow-alpha 0.0)
+                              (> alpha 0.0)
+                              (= render-mode :mode-multi-layer)
+                              antialias)
+                        0x4 0x0)]
+    (bit-or face-layer outline-layer shadow-layer)))
+
 (defn- compile-ttf-bitmap [font-desc font-resource]
   (let [font (create-ttf-font font-desc font-resource)
         antialias (int->boolean (:antialias font-desc))
@@ -397,7 +417,8 @@
                         (= channel-count 3)
                         (update :width #(* (int (Math/ceil (/ ^double % 4.0))) 4)))
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
-        glyph-data-bank (make-glyph-data-bank glyph-extents)]
+        glyph-data-bank (make-glyph-data-bank glyph-extents)
+        layer-mask (calculate-ttf-layer-mask font-desc)]
     
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
@@ -443,7 +464,7 @@
      :max-ascent (+ (float (.getMaxAscent font-metrics)) padding)
      :max-descent (+ (float (.getMaxDescent font-metrics)) padding)
      :image-format (:output-format font-desc)
-     :render-mode (:render-mode font-desc)
+     :layer-mask layer-mask
      :cache-width (:width cache-wh)
      :cache-height (:height cache-wh)
      :glyph-padding glyph-cell-padding
