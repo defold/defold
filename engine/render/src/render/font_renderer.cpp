@@ -636,7 +636,9 @@ namespace dmRender
                 }
 
                 if (inner_break)
+                {
                     break;
+                }
             }
 
             vertexindex = 0;
@@ -686,11 +688,11 @@ namespace dmRender
 
                         // Set face vertices first, this will always hold since we can't have less than 1 layer
                         GlyphVertex& v1_layer1 = vertices[face_index];
-                        GlyphVertex& v2_layer1 = *(&v1_layer1 + 1);
-                        GlyphVertex& v3_layer1 = *(&v1_layer1 + 2);
-                        GlyphVertex& v4_layer1 = *(&v1_layer1 + 3);
-                        GlyphVertex& v5_layer1 = *(&v1_layer1 + 4);
-                        GlyphVertex& v6_layer1 = *(&v1_layer1 + 5);
+                        GlyphVertex& v2_layer1 = vertices[face_index + 1];
+                        GlyphVertex& v3_layer1 = vertices[face_index + 2];
+                        GlyphVertex& v4_layer1 = vertices[face_index + 3];
+                        GlyphVertex& v5_layer1 = vertices[face_index + 4];
+                        GlyphVertex& v6_layer1 = vertices[face_index + 5];
 
                         (Vector4&) v1_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
                         (Vector4&) v2_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
@@ -733,11 +735,11 @@ namespace dmRender
                         if (layer_count > 1)
                         {
                             GlyphVertex& v1_layer2 = vertices[outline_index];
-                            GlyphVertex& v2_layer2 = *(&v1_layer2 + 1);
-                            GlyphVertex& v3_layer2 = *(&v1_layer2 + 2);
-                            GlyphVertex& v4_layer2 = *(&v1_layer2 + 3);
-                            GlyphVertex& v5_layer2 = *(&v1_layer2 + 4);
-                            GlyphVertex& v6_layer2 = *(&v1_layer2 + 5);
+                            GlyphVertex& v2_layer2 = vertices[outline_index + 1];
+                            GlyphVertex& v3_layer2 = vertices[outline_index + 2];
+                            GlyphVertex& v4_layer2 = vertices[outline_index + 3];
+                            GlyphVertex& v5_layer2 = vertices[outline_index + 4];
+                            GlyphVertex& v6_layer2 = vertices[outline_index + 5];
 
                             v1_layer2 = v1_layer1;
                             v2_layer2 = v2_layer1;
@@ -761,11 +763,11 @@ namespace dmRender
                             float shadow_y = font_map->m_ShadowY;
 
                             GlyphVertex& v1_layer3 = vertices[shadow_index];
-                            GlyphVertex& v2_layer3 = *(&v1_layer3 + 1);
-                            GlyphVertex& v3_layer3 = *(&v1_layer3 + 2);
-                            GlyphVertex& v4_layer3 = *(&v1_layer3 + 3);
-                            GlyphVertex& v5_layer3 = *(&v1_layer3 + 4);
-                            GlyphVertex& v6_layer3 = *(&v1_layer3 + 5);
+                            GlyphVertex& v2_layer3 = vertices[shadow_index + 1];
+                            GlyphVertex& v3_layer3 = vertices[shadow_index + 2];
+                            GlyphVertex& v4_layer3 = vertices[shadow_index + 3];
+                            GlyphVertex& v5_layer3 = vertices[shadow_index + 4];
+                            GlyphVertex& v6_layer3 = vertices[shadow_index + 5];
 
                             v1_layer3 = v1_layer1;
                             v2_layer3 = v2_layer1;
