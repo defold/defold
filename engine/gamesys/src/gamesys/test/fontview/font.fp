@@ -3,11 +3,11 @@ varying lowp vec4 var_face_color;
 varying lowp vec4 var_outline_color;
 
 uniform lowp vec4 texture_size_recip;
-uniform lowp sampler2D texture;
+uniform lowp sampler2D DIFFUSE_TEXTURE;
 
 void main()
 {
     // Outline
-    lowp vec2 t = texture2D(texture, var_texcoord0.xy).xy;
+    lowp vec2 t = texture2D(DIFFUSE_TEXTURE, var_texcoord0.xy).xy;
     gl_FragColor = mix(vec4(var_face_color.xyz, t.x), var_outline_color, t.y);
 }

@@ -7,6 +7,7 @@
 #include <dlib/log.h>
 
 #include <graphics/graphics.h>
+#include <graphics/graphics_ddf.h>
 
 #include "render.h"
 #include "render_private.h"
@@ -21,7 +22,7 @@ namespace dmRender
         Vector4 m_Color;
     };
 
-    void InitializeDebugRenderer(dmRender::HRenderContext render_context, uint32_t max_vertex_count, const void* vp_data, uint32_t vp_data_size, const void* fp_data, uint32_t fp_data_size)
+    void InitializeDebugRenderer(dmRender::HRenderContext render_context, uint32_t max_vertex_count, const void* vp_desc, uint32_t vp_desc_size, const void* fp_desc, uint32_t fp_desc_size)
     {
         DebugRenderer& debug_renderer = render_context->m_DebugRenderer;
         debug_renderer.m_MaxVertexCount = max_vertex_count;
@@ -38,11 +39,38 @@ namespace dmRender
         debug_renderer.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, 2);
 
         dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
-        if (vp_data_size > 0)
-            vertex_program = dmGraphics::NewVertexProgram(render_context->m_GraphicsContext, vp_data, vp_data_size);
+        dmGraphics::ShaderDesc* shader_desc;
+        if (vp_desc_size > 0)
+        {
+            dmDDF::Result e = dmDDF::LoadMessage(vp_desc, vp_desc_size, &dmGraphics_ShaderDesc_DESCRIPTOR, (void**) &shader_desc);
+            if (e != dmDDF::RESULT_OK)
+            {
+                dmLogWarning("Failed to create DebugRenderer vertex shader (%d)", e);
+            }
+            else
+            {
+                uint32_t data_len;
+                void* data =  dmGraphics::GetShaderProgramData(render_context->m_GraphicsContext, shader_desc, data_len);
+                vertex_program = dmGraphics::NewVertexProgram(render_context->m_GraphicsContext, data, data_len);
+                dmDDF::FreeMessage(shader_desc);
+            }
+        }
         dmGraphics::HFragmentProgram fragment_program = dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE;
-        if (fp_data_size > 0)
-            fragment_program = dmGraphics::NewFragmentProgram(render_context->m_GraphicsContext, fp_data, fp_data_size);
+        if ((vertex_program != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE) && (fp_desc_size > 0))
+        {
+            dmDDF::Result e = dmDDF::LoadMessage(fp_desc, fp_desc_size, &dmGraphics_ShaderDesc_DESCRIPTOR, (void**) &shader_desc);
+            if (e != dmDDF::RESULT_OK)
+            {
+                dmLogWarning("Failed to create DebugRenderer fragment shader (%d)", e);
+            }
+            else
+            {
+                uint32_t data_len;
+                void* data =  dmGraphics::GetShaderProgramData(render_context->m_GraphicsContext, shader_desc, data_len);
+                fragment_program = dmGraphics::NewFragmentProgram(render_context->m_GraphicsContext, data, data_len);
+                dmDDF::FreeMessage(shader_desc);
+            }
+        }
 
         HMaterial material3d = NewMaterial(render_context, vertex_program, fragment_program);
         SetMaterialProgramConstantType(material3d, dmHashString64("view_proj"), dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ);
