@@ -31,6 +31,7 @@ public class Analytics extends Thread {
     private String tid;
     private String applicationVersion;
     private String cid = UUID.randomUUID().toString();
+    private String uid = "";
     private List<String[][]> events = new LinkedList<>();
     private static int SEND_INTERVAL = 300;
     private static int MAX_BATCH = 16;
@@ -52,6 +53,11 @@ public class Analytics extends Thread {
         }
         writeCID(path, cid);
         start();
+    }
+
+    public void setUID(String uid) {
+        assert(uid != null);
+        this.uid = uid;
     }
 
     private static String loadCID(String path) {
@@ -97,10 +103,24 @@ public class Analytics extends Thread {
                 {"v", "1"},
                 {"tid", tid},
                 {"cid", cid},
+                {"uid", uid},
                 {"t", "event"},
                 {"ec", category},
                 {"ea", action},
                 {"el", label},
+        };
+
+        insertEvent(event);
+    }
+
+    public void trackException(String description) {
+        String[][] event = new String[][] {
+                {"v", "1"},
+                {"tid", tid},
+                {"cid", cid},
+                {"uid", uid},
+                {"t", "exception"},
+                {"exd", description}
         };
 
         insertEvent(event);
@@ -111,6 +131,7 @@ public class Analytics extends Thread {
                 {"v", "1"},
                 {"tid", tid},
                 {"cid", cid},
+                {"uid", uid},
                 {"t", "screenview"},
                 {"an", application},
                 {"av", applicationVersion},

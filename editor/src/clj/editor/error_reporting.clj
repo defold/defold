@@ -1,11 +1,11 @@
 (ns editor.error-reporting
   (:require
+   [editor.analytics :as analytics]
    [editor.sentry :as sentry]
    [editor.system :as system]
    [service.log :as log])
   (:import
-   (java.util.concurrent LinkedBlockingQueue)
-   (org.apache.commons.lang.exception ExceptionUtils)))
+   (java.util.concurrent LinkedBlockingQueue)))
 
 (set! *warn-on-reflection* true)
 
@@ -96,6 +96,7 @@
          (when (system/defold-dev?)
            (log/debug :msg "Suppressed unhandled" :exception exception))
          (do (log/error :exception exception)
+             (analytics/track-exception exception)
              (let [sentry-id-promise (sentry-reporter exception thread)]
                (exception-notifier ex-map sentry-id-promise)
                nil))))
