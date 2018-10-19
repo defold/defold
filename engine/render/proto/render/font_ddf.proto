@@ -83,5 +83,5 @@ message FontMap
     optional float alpha = 21 [default = 1.0];
     optional float outline_alpha = 22 [default = 1.0];
     optional float shadow_alpha = 23 [default = 1.0];
-    optional FontRenderMode render_mode = 24 [default = MODE_SINGLE_LAYER];
+    optional uint32 layer_mask = 24 [default = 1];
 }

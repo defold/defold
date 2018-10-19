@@ -41,8 +41,8 @@ namespace dmRender
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
+    , m_LayerMask(1)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
-    , m_RenderMode(dmRenderDDF::MODE_SINGLE_LAYER)
     {
 
     }
@@ -62,12 +62,12 @@ namespace dmRender
         , m_GlyphData(0)
         , m_Cache(0)
         , m_CacheCursor(0)
-        , m_RenderMode(dmRenderDDF::MODE_SINGLE_LAYER)
         , m_CacheColumns(0)
         , m_CacheRows(0)
         , m_CacheCellWidth(0)
         , m_CacheCellHeight(0)
         , m_CacheCellPadding(0)
+        , m_LayerMask(1)
         {
 
         }
@@ -104,7 +104,6 @@ namespace dmRender
         Glyph**                 m_Cache;
         uint32_t                m_CacheCursor;
         dmGraphics::TextureFormat m_CacheFormat;
-        dmRenderDDF::FontRenderMode m_RenderMode;
 
         uint32_t                m_CacheColumns;
         uint32_t                m_CacheRows;
@@ -112,6 +111,7 @@ namespace dmRender
         uint32_t                m_CacheCellWidth;
         uint32_t                m_CacheCellHeight;
         uint8_t                 m_CacheCellPadding;
+        uint8_t                 m_LayerMask;
     };
 
     static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n);
@@ -153,7 +153,7 @@ namespace dmRender
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
-        font_map->m_RenderMode = params.m_RenderMode;
+        font_map->m_LayerMask = params.m_LayerMask;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -242,7 +242,7 @@ namespace dmRender
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
-        font_map->m_RenderMode = params.m_RenderMode;
+        font_map->m_LayerMask = params.m_LayerMask;
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
@@ -332,7 +332,7 @@ namespace dmRender
                 {"outline_color", 3, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
                 {"shadow_color", 4, 4, dmGraphics::TYPE_UNSIGNED_BYTE, true},
                 {"sdf_params", 5, 4, dmGraphics::TYPE_FLOAT, false},
-                {"layer_mask", 6, 1, dmGraphics::TYPE_UNSIGNED_BYTE, false},
+                {"layer_mask", 6, 3, dmGraphics::TYPE_UNSIGNED_BYTE, false},
         };
 
         text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, ve, sizeof(ve) / sizeof(dmGraphics::VertexElement), sizeof(GlyphVertex));
@@ -571,29 +571,23 @@ namespace dmRender
 
         uint32_t vertexindex = 0;
         uint32_t valid_glyph_count = 0;
-
         uint8_t  vertices_per_quad = 6;
         uint8_t  layer_count       = 1;
+        uint8_t  layer_mask        = font_map->m_LayerMask;
 
-        if (font_map->m_RenderMode == dmRenderDDF::MODE_MULTI_LAYER)
+        #define LAYER_FACE    0x1
+        #define LAYER_OUTLINE 0x2
+        #define LAYER_SHADOW  0x4
+        #define HAS_LAYER(mask,layer) ((mask & layer) == layer)
+
+        assert(HAS_LAYER(layer_mask,LAYER_FACE));
+
+        if (HAS_LAYER(layer_mask,LAYER_OUTLINE) || HAS_LAYER(layer_mask,LAYER_SHADOW))
         {
-            // This branching is based on how the bitmap glyph data is generated,
-            // at this point we don't know that the actual bitmap has both these
-            // channels, but we need to make sure we can render them anyway..
-            //
-            // Note: should we set layer count or a layer mode enum from the bitmap generation?
-            if (font_map->m_OutlineAlpha > 0.0)
-            {
-                layer_count++;
+            layer_count += HAS_LAYER(layer_mask,LAYER_OUTLINE) + HAS_LAYER(layer_mask,LAYER_SHADOW);
 
-                if (font_map->m_ShadowAlpha > 0.0)
-                {
-                    layer_count++;
-                }
-            }
-
-            // Need to count how many glyphs we are supposed to output so that we
-            // can calculate correct layer offsets into the vertex array later.
+            // When we are doing layered rendering, we need to count how many glyphs we are
+            // supposed to output so that we can calculate correct layer offsets into the vertex array later.
             for (int line = 0; line < line_count; ++line)
             {
                 TextLine& l = lines[line];
@@ -618,9 +612,10 @@ namespace dmRender
 
                     if (g->m_Width > 0)
                     {
-                        // Calculate y-offset in cache-cell space by moving glyphs down to baseline
                         int16_t px_cell_offset_y = font_map->m_MaxAscent - (int16_t)g->m_Ascent;
 
+                        // Prepare the cache here aswell since we only count glyphs we definately
+                        // will render.
                         if (!g->m_InCache)
                         {
                             AddGlyphToCache(font_map, text_context, g, px_cell_offset_y);
@@ -682,9 +677,7 @@ namespace dmRender
                     if (g->m_InCache) {
                         g->m_Frame = text_context.m_Frame;
 
-                        uint32_t face_index    = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-1);
-                        uint32_t outline_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-2);
-                        uint32_t shadow_index  = vertexindex;
+                        uint32_t face_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-1);
 
                         // Set face vertices first, this will always hold since we can't have less than 1 layer
                         GlyphVertex& v1_layer1 = vertices[face_index];
@@ -718,8 +711,7 @@ namespace dmRender
                             v.m_SdfParams[0] = sdf_edge_value; \
                             v.m_SdfParams[1] = sdf_outline; \
                             v.m_SdfParams[2] = sdf_smoothing; \
-                            v.m_SdfParams[3] = sdf_scale; \
-                            v.m_LayerMask    = 0;
+                            v.m_SdfParams[3] = sdf_scale;
 
                         SET_VERTEX_PARAMS(v1_layer1)
                         SET_VERTEX_PARAMS(v2_layer1)
@@ -728,12 +720,19 @@ namespace dmRender
 
                         #undef SET_VERTEX_PARAMS
 
+                        #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
+                            v.m_LayerMask[0] = f; \
+                            v.m_LayerMask[1] = o; \
+                            v.m_LayerMask[2] = s;
+
                         v4_layer1 = v3_layer1;
                         v5_layer1 = v2_layer1;
 
                         // Set outline vertices
-                        if (layer_count > 1)
+                        if (HAS_LAYER(layer_mask,LAYER_OUTLINE))
                         {
+                            uint32_t outline_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-2);
+
                             GlyphVertex& v1_layer2 = vertices[outline_index];
                             GlyphVertex& v2_layer2 = vertices[outline_index + 1];
                             GlyphVertex& v3_layer2 = vertices[outline_index + 2];
@@ -748,19 +747,20 @@ namespace dmRender
                             v5_layer2 = v5_layer1;
                             v6_layer2 = v6_layer1;
 
-                            v1_layer2.m_LayerMask = 1;
-                            v2_layer2.m_LayerMask = 1;
-                            v3_layer2.m_LayerMask = 1;
-                            v4_layer2.m_LayerMask = 1;
-                            v5_layer2.m_LayerMask = 1;
-                            v6_layer2.m_LayerMask = 1;
+                            SET_VERTEX_LAYER_MASK(v1_layer2,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v2_layer2,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v3_layer2,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v4_layer2,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v5_layer2,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v6_layer2,0,1,0)
                         }
 
                         // Set shadow vertices
-                        if (layer_count > 2)
+                        if (HAS_LAYER(layer_mask,LAYER_SHADOW))
                         {
-                            float shadow_x = font_map->m_ShadowX;
-                            float shadow_y = font_map->m_ShadowY;
+                            uint32_t shadow_index = vertexindex;
+                            float shadow_x        = font_map->m_ShadowX;
+                            float shadow_y        = font_map->m_ShadowY;
 
                             GlyphVertex& v1_layer3 = vertices[shadow_index];
                             GlyphVertex& v2_layer3 = vertices[shadow_index + 1];
@@ -789,13 +789,26 @@ namespace dmRender
                             v4_layer3 = v3_layer3;
                             v5_layer3 = v2_layer3;
 
-                            v1_layer3.m_LayerMask = 2;
-                            v2_layer3.m_LayerMask = 2;
-                            v3_layer3.m_LayerMask = 2;
-                            v4_layer3.m_LayerMask = 2;
-                            v5_layer3.m_LayerMask = 2;
-                            v6_layer3.m_LayerMask = 2;
+                            SET_VERTEX_LAYER_MASK(v1_layer3,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v2_layer3,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v3_layer3,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v4_layer3,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v5_layer3,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v6_layer3,0,0,1)
                         }
+
+                        uint8_t is_one_layer = layer_count > 1 ? 0 : 1;
+
+                        // These are set last since we copy the
+                        // Calculated vertices to the other layers
+                        SET_VERTEX_LAYER_MASK(v1_layer1,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v2_layer1,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v3_layer1,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v4_layer1,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v5_layer1,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v6_layer1,1,is_one_layer,is_one_layer)
+
+                        #undef SET_VERTEX_LAYER_MASK
 
                         vertexindex += vertices_per_quad;
                     }
@@ -803,6 +816,11 @@ namespace dmRender
                 x += (int16_t)(g->m_Advance + tracking);
             }
         }
+
+        #undef LAYER_FACE
+        #undef LAYER_OUTLINE
+        #undef LAYER_SHADOW
+        #undef HAS_LAYER
 
         return vertexindex * layer_count;
     }

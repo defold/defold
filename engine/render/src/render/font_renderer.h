@@ -49,7 +49,7 @@ namespace dmRender
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
         float    m_SdfParams[4];
-        uint8_t  m_LayerMask;
+        uint8_t  m_LayerMask[3];
     };
 
     /**
@@ -91,9 +91,9 @@ namespace dmRender
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
         uint8_t m_CacheCellPadding;
+        uint8_t m_LayerMask;
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
-        dmRenderDDF::FontRenderMode    m_RenderMode;
     };
 
     /**
