@@ -14,7 +14,7 @@
  *
  * testfile.py:
  *
- * #!/usr/bin/python
+ * #!/usr/bin/env python
  * import lz4
  * s = "foo"
  * compressed_data = lz4.LZ4_compress(s)
