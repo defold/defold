@@ -344,8 +344,8 @@ TEST_F(dmGraphicsTest, TestProgram)
             "    lowp vec4 tint_pm = vec4(tint.xyz * tint.w, tint.w);\n"
             "    gl_FragColor = texture2D(DIFFUSE_TEXTURE, var_texcoord0.xy) * tint_pm;\n"
             "}\n";
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, vertex_data, 1024);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, fragment_data, 1024);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, vertex_data, strlen(vertex_data));
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, fragment_data, strlen(fragment_data));
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
@@ -370,7 +370,11 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
     dmGraphics::SetConstantV4(m_Context, &constant, 0);
-    dmGraphics::SetConstantM4(m_Context, &constant, 1);
+    Vector4 matrix[4] = {   Vector4(1.0f, 2.0f, 3.0f, 4.0f),
+                            Vector4(5.0f, 6.0f, 7.0f, 8.0f),
+                            Vector4(9.0f, 10.0f, 11.0f, 12.0f),
+                            Vector4(13.0f, 14.0f, 15.0f, 16.0f) };
+    dmGraphics::SetConstantM4(m_Context, matrix, 4);
     char* program_data = new char[1024];
     *program_data = 0;
     dmGraphics::ReloadVertexProgram(vp, program_data, 1024);
@@ -467,7 +471,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
-    dmGraphics::EnableRenderTarget(m_Context, target);
+    dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     uint32_t width = WIDTH;
@@ -499,7 +503,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     ASSERT_EQ(0, memcmp(data, m_Context->m_CurrentFrameBuffer->m_ColorBuffer, data_size));
     delete [] data;
 
-    dmGraphics::DisableRenderTarget(m_Context, target);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
     dmGraphics::DeleteRenderTarget(target);
 }
 
@@ -521,7 +525,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, creation_params, params);
-    dmGraphics::EnableRenderTarget(m_Context, target);
+    dmGraphics::SetRenderTarget(m_Context, target, 0);
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(target, dmGraphics::ATTACHMENT_DEPTH);
@@ -547,7 +551,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     ASSERT_EQ(0, memcmp(data, texture_data, data_size));
     delete [] data;
 
-    dmGraphics::DisableRenderTarget(m_Context, target);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
     dmGraphics::DeleteRenderTarget(target);
 }
 
