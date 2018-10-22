@@ -79,43 +79,44 @@ namespace dmRender
         {
             dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
             int32_t location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
-            if (location != -1) {
-                dmhash_t name_hash = dmHashString64(buffer);
+            if (location == -1) {
+                continue;
+            }
+            dmhash_t name_hash = dmHashString64(buffer);
 
-                if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
+            if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
+            {
+                m->m_NameHashToLocation.Put(name_hash, location);
+                MaterialConstant constant;
+                constant.m_Constant = Constant(name_hash, location);
+                if (type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
-                    m->m_NameHashToLocation.Put(name_hash, location);
-                    MaterialConstant constant;
-                    constant.m_Constant = Constant(name_hash, location);
-                    if (type == dmGraphics::TYPE_FLOAT_VEC4)
-                    {
-                        size_t original_size = strlen(buffer);
-                        dmStrlCat(buffer, ".x", sizeof(buffer));
-                        constant.m_ElementIds[0] = dmHashString64(buffer);
-                        buffer[original_size] = 0;
-                        dmStrlCat(buffer, ".y", sizeof(buffer));
-                        constant.m_ElementIds[1] = dmHashString64(buffer);
-                        buffer[original_size] = 0;
-                        dmStrlCat(buffer, ".z", sizeof(buffer));
-                        constant.m_ElementIds[2] = dmHashString64(buffer);
-                        buffer[original_size] = 0;
-                        dmStrlCat(buffer, ".w", sizeof(buffer));
-                        constant.m_ElementIds[3] = dmHashString64(buffer);
-                        buffer[original_size] = 0;
-                    } else {
-                        // Clear element ids, otherwise we will compare against
-                        // uninitialized values in GetMaterialProgramConstantInfo.
-                        constant.m_ElementIds[0] = 0;
-                        constant.m_ElementIds[1] = 0;
-                        constant.m_ElementIds[2] = 0;
-                        constant.m_ElementIds[3] = 0;
-                    }
-                    m->m_Constants.Push(constant);
+                    size_t original_size = strlen(buffer);
+                    dmStrlCat(buffer, ".x", sizeof(buffer));
+                    constant.m_ElementIds[0] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".y", sizeof(buffer));
+                    constant.m_ElementIds[1] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".z", sizeof(buffer));
+                    constant.m_ElementIds[2] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                    dmStrlCat(buffer, ".w", sizeof(buffer));
+                    constant.m_ElementIds[3] = dmHashString64(buffer);
+                    buffer[original_size] = 0;
+                } else {
+                    // Clear element ids, otherwise we will compare against
+                    // uninitialized values in GetMaterialProgramConstantInfo.
+                    constant.m_ElementIds[0] = 0;
+                    constant.m_ElementIds[1] = 0;
+                    constant.m_ElementIds[2] = 0;
+                    constant.m_ElementIds[3] = 0;
                 }
-                else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
-                {
-                    m->m_NameHashToLocation.Put(name_hash, location);
-                }
+                m->m_Constants.Push(constant);
+            }
+            else if (type == dmGraphics::TYPE_SAMPLER_2D || type == dmGraphics::TYPE_SAMPLER_CUBE)
+            {
+                m->m_NameHashToLocation.Put(name_hash, location);
             }
         }
 
