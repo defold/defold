@@ -242,7 +242,7 @@ namespace dmSys
 
 #if !defined(__arm__) && !defined(__arm64__)
     // NOTE: iOS implementation in sys_cocoa.mm
-    Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
+    __attribute__((no_sanitize_address)) Result GetApplicationSupportPath(const char* application_name, char* path, uint32_t path_len)
     {
         FSRef file;
         FSFindFolder(kUserDomain, kApplicationSupportFolderType, kCreateFolder, &file);
