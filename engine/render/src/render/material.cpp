@@ -79,6 +79,14 @@ namespace dmRender
         {
             dmGraphics::GetUniformName(m->m_Program, i, buffer, sizeof(buffer), &type);
             int32_t location = dmGraphics::GetUniformLocation(m->m_Program, buffer);
+
+            // DEF-2971-hotfix
+            // Previously this check was an assert. In Emscripten 1.38.3 they made changes
+            // to how uniforms are collected and reported back from WebGL. Simply speaking
+            // in previous Emscripten versions you would get "valid" locations for uniforms
+            // that wasn't used, but after the upgrade these unused uniforms will return -1
+            // as location instead. The fix here is to avoid asserting on such values, but
+            // not saving them in the m_Constants and m_NameHashToLocation structs.
             if (location == -1) {
                 continue;
             }
