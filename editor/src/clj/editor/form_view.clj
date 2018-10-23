@@ -833,6 +833,7 @@
                                    (let [selected-field-values (@content selected-index)]
                                      (update-fields (ui/user-data grid ::ui-update-fns)
                                                     (build-form-values selected-field-values)
+                                                    #{}
                                                     #{})))
                                  (do
                                    (.setDisable grid true)
@@ -929,6 +930,9 @@
                                (GridPane/setConstraints label 0 0))))
                            
         update-ui-fn (fn [update-data]
+                       (when (:deprecated? update-data)
+                         (ui/tooltip! control (:tooltip (update-data :deprecated-path)))
+                         (ui/add-style! control "field-warning"))
                        (if (contains? update-data :enabled?)
                          (let [enabled? (:enabled? update-data)]
                            (ui/enable! label-box enabled?)
@@ -969,10 +973,9 @@
             (remove :hidden?)
             (map (fn [field-info] (create-field-grid-row field-info field-ops ctxt))))))))
 
-(defn- update-fields [updaters field-values disabled-paths]
-  (println disabled-paths)
+(defn- update-fields [updaters field-values disabled-paths deprecated-paths]
   (doseq [[path updater] updaters]
-    (updater {:enabled? (not (contains? disabled-paths path))}))
+    (updater {:enabled? (not (contains? disabled-paths path)) :deprecated? (contains? deprecated-paths path) :deprecated-path (get deprecated-paths path)}))
   (doseq [[path val] field-values]
     (when-let [updater (updaters path)]
       (updater {:value val :source :explicit})))
@@ -982,7 +985,7 @@
 
 (defn update-form [form form-data]
   (let [updaters (ui/user-data form ::update-ui-fns)]
-    (update-fields updaters (:values form-data) (:disabled-paths form-data))
+    (update-fields updaters (:values form-data) (:disabled-paths form-data) (:deprecated-paths form-data))
     form))
 
 (defn- add-grid-row [^GridPane grid row row-data]
