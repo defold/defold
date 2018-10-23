@@ -113,6 +113,7 @@ def build(bld):
     create_test(bld, 'test_image', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/color_check_2x2.png',
                                 'data/color_check_2x2_premult.png',
+                                'data/color_check_2x2_indexed.png',
                                 'data/case2319.jpg',
                                 'data/color16_check_2x2.png',
                                 'data/gray_check_2x2.png',
