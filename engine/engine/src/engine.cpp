@@ -595,45 +595,53 @@ namespace dmEngine
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
 
-        const char* vsync = dmConfigFile::GetString(engine->m_Config, "display.vsync", "hardware");
-        dmLogWarning("#### display.vsync: %s", vsync);
-        uint32_t refresh_rate = 60;
+        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
+        dmLogWarning("#### display.vsync: %u", setting_vsync);
+        uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
+        uint32_t update_frequency = setting_update_frequency;
         uint32_t swap_interval = 1;
-        if (engine->m_UseVariableDt) // 'variable_dt' uses realtime dt and doesn't care about framecaps or swap intervals
+
+        if (!setting_vsync)
         {
-            if (strcmp(vsync, "hardware") == 0)
-            {
-                dmLogWarning("Settings vsync mode 'Hardware' and 'variable_dt' are mutually exclusive. Using 'variable_dt'.");
-            }
+            engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0 use variable_dt
+            swap_interval = 0;
             engine->m_Vsync = VSYNC_SOFTWARE;
+
+            // update_frequency is ignored if we use variable_dt, not need to set a specific value
+            // if (engine->m_UseVariableDt)
+            // {
+            //     update_frequency = 10;
+            // }
+
+            dmLogInfo("Vsync software, engine->m_UseVariableDt: %i", engine->m_UseVariableDt)
         }
         else
         {
-            if (strcmp(vsync, "software") == 0)
+            engine->m_UseVariableDt = 0;
+            uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+            dmLogWarning("HW engine refresh rate read: %u", refresh_rate);
+            if (refresh_rate == 0) // default to 60 if read failed
             {
-                // Software vsync
-                refresh_rate = dmConfigFile::GetInt(engine->m_Config, "display.frame_cap", 60);
-                swap_interval = 0;
-                engine->m_Vsync = VSYNC_SOFTWARE;
+                refresh_rate = 60;
+                dmLogWarning("Unable to get display refresh rate, defaulting to 60.")
+            }
+
+            update_frequency = refresh_rate;
+            // Calc closest integer swap-interval from refresh rate and setting_update_frequency
+            if (setting_update_frequency == 0) // If 0 or empty, run in monitor native rate
+            {
+                swap_interval = 1;
             }
             else
             {
-                if (strcmp(vsync, "hardware") != 0)
-                {
-                    dmLogWarning("Unsupported vsync type '%s', falling back to 'hardware'.", vsync);
-                }
-                refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
-                dmLogWarning("HW engine refresh rate read: %u", refresh_rate);
-                if (refresh_rate == 0)
-                {
-                    refresh_rate = 60;
-                    dmLogWarning("Unable to get display refresh rate, defaulting to 60.")
-                }
-                swap_interval = 1;
-                engine->m_Vsync = VSYNC_HARDWARE;
+                float fswap_interval = refresh_rate / setting_update_frequency;
+                dmLogInfo("fswap_interval: %f", fswap_interval);
+                swap_interval = dmMath::Max(1U, (uint32_t) fswap_interval);
             }
+            engine->m_Vsync = VSYNC_HARDWARE;
         }
-        SetUpdateFrequency(engine, refresh_rate);
+
+        SetUpdateFrequency(engine, update_frequency);
         SetSwapInterval(engine, swap_interval);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
@@ -1178,6 +1186,7 @@ bail:
         float fixed_dt = 1.0f / fps;
         float dt = fixed_dt;
         bool variable_dt = engine->m_UseVariableDt;
+        dmLogError("Step variable_dt: %i", variable_dt);
         if (variable_dt && time > engine->m_PreviousFrameTime) {
             dt = (float)((time - engine->m_PreviousFrameTime) * 0.000001);
             // safety mechanism for crazy; GetTime() is not guaranteed to always
@@ -1386,6 +1395,12 @@ bail:
 
                 uint64_t flip_time_start = dmTime::GetTime();
                 dmGraphics::Flip(engine->m_GraphicsContext);
+
+                // If frame time including flip is obviously too fast, fallback to use measured actual time instead (variable_dt)
+                uint64_t frame_time = dmTime::GetTime() - engine->m_FlipTime;
+                dmLogInfo("frame_time: %llu, target_frametime: %llu", frame_time, target_frametime);
+                engine->m_UseVariableDt = frame_time < 0.3 * target_frametime; // arbitrary measure of "too fast", in this case less than 30% of target frame time.
+
                 engine->m_FlipTime = dmTime::GetTime();
                 engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
 

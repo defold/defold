@@ -8,14 +8,10 @@
             [editor.fs :as fs]
             [editor.graph-util :as gu]
             [editor.game-project-core :as gpcore]
-            [editor.defold-project :as project]
-            [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [service.log :as log])
-  (:import [java.io File]
-           [org.apache.commons.io IOUtils]))
+            [editor.resource-node :as resource-node])
+  (:import [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -126,7 +122,25 @@
       :build-fn build-game-project
       :user-data {:raw-settings raw-settings
                   :path->built-resource-settings path->built-resource-settings}
-      :deps dep-build-targets}]))  
+      :deps dep-build-targets}]))
+
+(defn- frame-cap-enabled? [form-data]
+  (and
+    (= false (form-view/get-form-setting-value form-data ["display" "vsync"] true))
+    (= false (form-view/get-form-setting-value form-data ["display" "variable_dt"] false))))
+
+(defn- variable-dt-enabled? [form-data]
+  (= false (form-view/get-form-setting-value form-data ["display" "vsync"] true)))
+
+
+(defn- append-disabled-paths [form-data]
+  (cond-> (assoc form-data :disabled-paths #{})
+
+          (not (frame-cap-enabled? form-data))
+          (update :disabled-paths conj ["display" "frame_cap"])
+
+          (not (variable-dt-enabled? form-data))
+          (update :disabled-paths conj ["display" "variable_dt"])))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)
@@ -142,7 +156,9 @@
   (output settings-map g/Any (gu/passthrough settings-map))
 
   (input form-data g/Any)
-  (output form-data g/Any :cached (gu/passthrough form-data))
+  (output form-data g/Any :cached
+          (g/fnk [form-data]
+                 (append-disabled-paths form-data)))
 
   (input raw-settings g/Any)
   (input resource-settings g/Any)

@@ -91,11 +91,12 @@
 
 (defn- make-form-data [form-ops meta-info settings]
   (let [meta-settings (:settings meta-info)
+        deprecated-paths (:deprecated-paths meta-info)
         categories (distinct (mapv settings-core/presentation-category meta-settings))
         category->settings (group-by settings-core/presentation-category meta-settings)
         sections (mapv #(make-form-section % (get-in meta-info [:categories %]) (category->settings %)) categories)
         values (make-form-values-map settings)]
-    {:form-ops form-ops :sections sections :values values}))
+    {:form-ops form-ops :sections sections :values values :deprecated-paths deprecated-paths}))
 
 (g/defnk produce-form-data [_node-id meta-info raw-settings resource-setting-nodes resource-settings]
   (let [meta-settings (:settings meta-info)
