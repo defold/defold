@@ -995,15 +995,18 @@
                   xy-box-coords (ranges->box-corner-coords (steps->ranges x-steps) (steps->ranges y-steps))
                   non-empty-xy-box-coords+uv-boxes (into []
                                                          (filter (fn [[[x0 y0 x1 y1] uv-box]]
-                                                                 (and (not= x0 x1) (not= y0 y1))))
+                                                                   (and (not= x0 x1) (not= y0 y1))))
                                                          (map vector xy-box-coords uv-boxes))
-                  non-empty-xy-boxes (map (comp (partial geom/transl (pivot-offset pivot size)) box-corner-coords->vertices3 first)
-                                          non-empty-xy-box-coords+uv-boxes)
-                  non-empty-uv-boxes (map second non-empty-xy-box-coords+uv-boxes)
-                  lines (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices)))) non-empty-xy-boxes)
-                  user-data {:geom-data (mapcat box->triangle-vertices non-empty-xy-boxes)
-                             :line-data lines
-                             :uv-data (mapcat box->triangle-vertices non-empty-uv-boxes)
+                  non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset pivot size))
+                                                 box-corner-coords->vertices3
+                                                 first)
+                                           non-empty-xy-box-coords+uv-boxes)
+                  user-data {:geom-data (into [] (mapcat box->triangle-vertices) non-empty-xy-boxes)
+                             :line-data (into [] (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices))))) non-empty-xy-boxes)
+                             :uv-data (into [] (comp
+                                                 (map second)
+                                                 (mapcat box->triangle-vertices))
+                                            non-empty-xy-box-coords+uv-boxes)
                              :color color+alpha
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
