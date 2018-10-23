@@ -10,7 +10,6 @@ with trailing white-spaces.
 API documentation is generated from source comments. See README_DOCS.md for help on style and
 conventions.
 
-
 For Eclipse:
 
 * Install [AnyEditTools](http://andrei.gmxhome.de/eclipse.html) for easy Tabs to Spaces support
