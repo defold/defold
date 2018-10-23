@@ -60,7 +60,7 @@ TEST_F(ScriptImageTest, TestImage)
 
     lua_getglobal(L, "functions");
     ASSERT_EQ(LUA_TTABLE, lua_type(L, -1));
-    lua_getfield(L, -1, "test_image");
+    lua_getfield(L, -1, "test_images");
     ASSERT_EQ(LUA_TFUNCTION, lua_type(L, -1));
     int result = dmScript::PCall(L, 0, LUA_MULTRET);
     if (result == LUA_ERRRUN)

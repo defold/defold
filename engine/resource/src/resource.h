@@ -8,11 +8,6 @@
 #include "liveupdate_ddf.h"
 #include "resource_archive.h"
 
-namespace dmBuffer
-{
-    typedef uint32_t HBuffer;
-}
-
 namespace dmResource
 {
     const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
@@ -467,7 +462,7 @@ namespace dmResource
      * @param buffer The buffer
      * @return RESULT_OK on success
      */
-    Result SetResource(HFactory factory, uint64_t hashed_name, dmBuffer::HBuffer buffer);
+    Result SetResource(HFactory factory, uint64_t hashed_name, void* buffer, uint32_t size);
 
     /**
      * Updates a preexisting resource with new data

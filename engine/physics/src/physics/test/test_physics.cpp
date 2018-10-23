@@ -1798,9 +1798,10 @@ TYPED_TEST(PhysicsTest, TriggerEnterExitOverflow)
     typename TypeParam::CollisionObjectType bodies[it_count];
     typename TypeParam::CollisionShapeType shapes[it_count];
 
+    VisualObject vo[it_count];
     for (uint32_t i = 0; i < it_count; ++i)
     {
-        VisualObject vo_a;
+        VisualObject& vo_a = vo[i];
         vo_a.m_Position.setX(1.0f);
         dmPhysics::CollisionObjectData data_a;
         typename TypeParam::CollisionShapeType shape_a = (*TestFixture::m_Test.m_NewSphereShapeFunc)(TestFixture::m_Context, radius);
