@@ -164,6 +164,10 @@ If eclipse doesn’t get the JDK setup automatically:
 
 * OSX: On OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
+Make sure you have python2 installed by running `which python2`.
+If that is not the case symlink python2 to python or python2.7(if installed already), which is enough to build Emscripten.
+`ln -s /usr/bin/python2.7 /usr/local/bin/python2`
+
 ### General Setup
 
 #### Linux
