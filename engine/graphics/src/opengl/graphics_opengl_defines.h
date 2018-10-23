@@ -105,6 +105,24 @@
 #else
 #define DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL            (GL_STENCIL_INDEX8)
 #endif
+#ifdef GL_COLOR_EXT
+#define DMGRAPHICS_RENDER_BUFFER_COLOR                      (GL_COLOR_EXT)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_COLOR                      (0x1800)
+#endif
+#ifdef GL_DEPTH_EXT
+#define DMGRAPHICS_RENDER_BUFFER_DEPTH                      (GL_DEPTH_EXT)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_DEPTH                      (0x1801)
+#endif
+#ifdef GL_STENCIL_EXT
+#define DMGRAPHICS_RENDER_BUFFER_STENCIL                    (GL_STENCIL_EXT)
+#else
+#define DMGRAPHICS_RENDER_BUFFER_STENCIL                    (0x1802)
+#endif
+#define DMGRAPHICS_RENDER_BUFFER_COLOR_ATTACHMENT           (GL_COLOR_ATTACHMENT0)
+#define DMGRAPHICS_RENDER_BUFFER_DEPTH_ATTACHMENT           (GL_DEPTH_ATTACHMENT)
+#define DMGRAPHICS_RENDER_BUFFER_STENCIL_ATTACHMENT         (GL_STENCIL_ATTACHMENT)
 
 // Texture formats
 // Some platforms (e.g Android) supports texture formats even when undefined
