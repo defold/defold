@@ -283,7 +283,6 @@ namespace dmResourceArchive
             ++filename_count;
         }
 
-        uint32_t entry_count = 0, entry_offset = 0, hash_len = 0, hash_offset = 0, hash_total_size = 0, entries_total_size = 0;
         FILE* f_index = fopen(index_file_path, "rb");
         FILE* f_data = 0;
         FILE* f_lu_data = 0;
@@ -317,14 +316,14 @@ namespace dmResourceArchive
             return RESULT_VERSION_MISMATCH;
         }
 
-        entry_count = JAVA_TO_C(ai->m_EntryDataCount);
-        entry_offset = JAVA_TO_C(ai->m_EntryDataOffset);
-        hash_len = JAVA_TO_C(ai->m_HashLength);
-        hash_offset = JAVA_TO_C(ai->m_HashOffset);
+        uint32_t entry_count = JAVA_TO_C(ai->m_EntryDataCount);
+        uint32_t entry_offset = JAVA_TO_C(ai->m_EntryDataOffset);
+        uint32_t hash_len = JAVA_TO_C(ai->m_HashLength);
+        uint32_t hash_offset = JAVA_TO_C(ai->m_HashOffset);
 
         fseek(f_index, hash_offset, SEEK_SET);
         aic->m_Hashes = new uint8_t[entry_count * DMRESOURCE_MAX_HASH];
-        hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
+        uint32_t hash_total_size = entry_count * DMRESOURCE_MAX_HASH;
         if (fread(aic->m_Hashes, 1, hash_total_size, f_index) != hash_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);
@@ -333,7 +332,7 @@ namespace dmResourceArchive
 
         fseek(f_index, entry_offset, SEEK_SET);
         aic->m_Entries = new EntryData[entry_count];
-        entries_total_size = entry_count * sizeof(EntryData);
+        uint32_t entries_total_size = entry_count * sizeof(EntryData);
         if (fread(aic->m_Entries, 1, entries_total_size, f_index) != entries_total_size)
         {
             CleanupResources(f_index, f_data, f_lu_data, aic);

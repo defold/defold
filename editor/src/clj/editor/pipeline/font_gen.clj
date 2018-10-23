@@ -13,9 +13,9 @@
 
 (defn generate [font-desc font-resource resolver]
   (when font-resource
-    (with-open [font-stream (io/input-stream font-resource)]
-      (fontc/compile-font font-desc font-resource (make-input-stream-resolver resolver))
-      #_(let [^Font$FontDesc pb-font-desc (protobuf/map->pb Font$FontDesc font-desc)
+    (fontc/compile-font font-desc font-resource (make-input-stream-resolver resolver))
+    #_(with-open [font-stream (io/input-stream font-resource)]
+      (let [^Font$FontDesc pb-font-desc (protobuf/map->pb Font$FontDesc font-desc)
             font-res-resolver (reify Fontc$FontResourceResolver
                                 (getResource [this resource-name]
                                   (io/input-stream (resolver resource-name))))
