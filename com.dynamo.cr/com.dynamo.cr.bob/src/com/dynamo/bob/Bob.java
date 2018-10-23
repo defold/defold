@@ -58,7 +58,18 @@ public class Bob {
                 try {
                     FileUtils.deleteDirectory(tmpDirFile);
                 } catch (IOException e) {
-                    throw new RuntimeException("Failed to delete temp directory: " + tmpDirFile, e);
+                    // DE 20181012
+                    // DEF-3533 Building with Bob causes exception when cleaning temp directory
+                    // Failing to delete the files is not fatal, but not 100% clean.
+                    // On Win32 we fail to delete dlls that are loaded since the OS locks them and this code runs before
+                    // the dlls are unloaded.
+                    // There is no explicit API to unload DLLs in Java/JNI, to accomplish this we need to do the
+                    // class loading for the native functions differently and use a more indirect calling convention for
+                    // com.defold.libs.TexcLibrary.
+                    // See https://web.archive.org/web/20140704120535/http://www.codethesis.com/blog/unload-java-jni-dll
+                    //
+                    // For now we just issue a warning that we don't fully clean up.
+                    System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
             }
         }));
@@ -105,35 +116,39 @@ public class Bob {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
-        ZipEntry entry = zipStream.getNextEntry();
-        while (entry != null)
-        {
-            if (!entry.isDirectory()) {
+        try{
+            ZipEntry entry = zipStream.getNextEntry();
+            while (entry != null)
+            {
+                if (!entry.isDirectory()) {
 
-                File dstFile = new File(toFolder, entry.getName());
-                dstFile.deleteOnExit();
-                dstFile.getParentFile().mkdirs();
+                    File dstFile = new File(toFolder, entry.getName());
+                    dstFile.deleteOnExit();
+                    dstFile.getParentFile().mkdirs();
 
-                OutputStream fileStream = null;
+                    OutputStream fileStream = null;
 
-                try {
-                    final byte[] buf;
-                    int i;
+                    try {
+                        final byte[] buf;
+                        int i;
 
-                    fileStream = new FileOutputStream(dstFile);
-                    buf = new byte[1024];
-                    i = 0;
+                        fileStream = new FileOutputStream(dstFile);
+                        buf = new byte[1024];
+                        i = 0;
 
-                    while((i = zipStream.read(buf)) != -1) {
-                        fileStream.write(buf, 0, i);
+                        while((i = zipStream.read(buf)) != -1) {
+                            fileStream.write(buf, 0, i);
+                        }
+                    } finally {
+                        IOUtils.closeQuietly(fileStream);
                     }
-                } finally {
-                    IOUtils.closeQuietly(fileStream);
+                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
-                verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
-            }
 
-            entry = zipStream.getNextEntry();
+                entry = zipStream.getNextEntry();
+            }
+        } finally {
+            IOUtils.closeQuietly(zipStream);
         }
     }
 

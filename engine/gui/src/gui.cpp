@@ -2826,8 +2826,7 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             return RESULT_WRONG_TYPE;
         }
 
-        dmParticle::HPrototype particlefx_prototype = *(scene->m_Particlefxs.Get(particlefx_id));
-        if (particlefx_prototype == 0 ) {
+        if (scene->m_Particlefxs.Get(particlefx_id) == 0) {
             return RESULT_RESOURCE_NOT_FOUND;
         }
 

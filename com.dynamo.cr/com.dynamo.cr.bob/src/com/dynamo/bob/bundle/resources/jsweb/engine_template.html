@@ -109,7 +109,9 @@
 		custom_heap_size: {{DEFOLD_HEAP_SIZE}}
 	}
 
-	Module.runApp("canvas", extra_params);
+	Module['onRuntimeInitialized'] = function() {
+		Module.runApp("canvas", extra_params);
+	};
 
 	/* Fullscreen button */
 	document.getElementById("fullscreen").onclick = function (e) {

@@ -2,7 +2,6 @@
 #define DM_IMAGE_H
 
 #include <stdint.h>
-#include <string.h>
 
 namespace dmImage
 {
@@ -22,11 +21,7 @@ namespace dmImage
 
     struct Image
     {
-        Image()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-
+        Image() : m_Width(0), m_Height(0), m_Type(TYPE_RGB), m_Buffer(0) {}
         uint32_t m_Width;
         uint32_t m_Height;
         Type     m_Type;
