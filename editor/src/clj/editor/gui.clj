@@ -807,20 +807,49 @@
 (def ^:private box-triangles-vertex-order [0 1 3 3 1 2])
 
 (defn box->triangle-vertices [box]
-  ;; box vertices are in order TL BL BR TR
+  ;; box vertices are in order BL TL TR BR
+  ;;
   ;; turns:
-  ;; 0---3
-  ;; |   |
   ;; 1---2
+  ;; |   |
+  ;; 0---3
   ;;
   ;; into:
-  ;; 0--3       3
-  ;; | /   +   /|
-  ;; 1/       1-2
+  ;; 1     1-2
+  ;; |\  +  \|
+  ;; 0-3     3
+  ;;
+  ;; normal uv box vertices are in order BL TL TR BR
+  ;;
+  ;; turns:
+  ;; 1---2
+  ;; |   |
+  ;; 0---3
+  ;;
+  ;; into:
+  ;; 1     1-2
+  ;; |\  +  \|
+  ;; 0-3     3
+  ;;
+  ;; _rotated_ uv box vertices are in order TL TR BR BL
+  ;;
+  ;; turns:
+  ;;
+  ;; 0---1
+  ;; |   |
+  ;; 3---2
+  ;;
+  ;; into:
+  ;; 0-1     1
+  ;; |/  +  /|
+  ;; 3     3-2
   (map box box-triangles-vertex-order))
 
 (defn- box-corner-coords->vertices2 [[x0 y0 x1 y1]]
   [[x0 y0] [x0 y1] [x1 y1] [x1 y0]])
+
+(defn- rotated-box-corner-coords->vertices2 [[x0 y0 x1 y1]]
+  [[x0 y0] [x1 y0] [x1 y1] [x0 y1]])
 
 (defn- box-corner-coords->vertices3 [[x0 y0 x1 y1]]
   [[x0 y0 0.0] [x0 y1 0.0] [x1 y1 0.0] [x1 y0 0.0]])
@@ -830,10 +859,18 @@
         [y0 y1] y-ranges]
     [x0 y0 x1 y1]))
 
+(defn- ranges->rotated-box-corner-coords [x-ranges y-ranges]
+  (for [[y0 y1] y-ranges
+        [x0 x1] x-ranges]
+    [x0 y0 x1 y1]))
+
+(defn- steps->ranges [v]
+  (partition 2 1 v))
+
 (g/defnode BoxNode
   (inherits ShapeNode)
 
-  (property slice9 types/Vec4 (default [0 0 0 0]))
+  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0]))
 
   (display-order (into base-display-order
                        [:size-mode :texture :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
@@ -841,30 +878,135 @@
 
   ;; Overloaded outputs
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
-            (let [[box-width box-height _] size
-                  texture-width (:width anim-data 1)
+          (g/fnk [id pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
+            (let [texture-width (:width anim-data 1)
                   texture-height (:height anim-data 1)
-                  x+u-ranges (into []
-                                   (remove (fn [[[x0 x1] [u0 u1]]] (= x0 x1)))
-                                   (map vector
-                                        (partition 2 1 [0.0 (get slice9 0) (- box-width (get slice9 2)) box-width])
-                                        (partition 2 1 [0.0 (/ (get slice9 0) texture-width) (- 1.0 (/ (get slice9 2) texture-width)) 1.0])))
-                  y+v-ranges (into []
-                                   (remove (fn [[[y0 y1] [v0 v1]]] (= y0 y1)))
-                                   (map vector
-                                        (partition 2 1 [0.0 (get slice9 3) (- box-height (get slice9 1)) box-height])
-                                        (partition 2 1 [1.0 (- 1.0 (/ (get slice9 3) texture-height)) (/ (get slice9 1) texture-height) 0.0])))
-                  xy-box-coords (ranges->box-corner-coords (map first x+u-ranges) (map first y+v-ranges))
-                  xy-translation (pivot-offset pivot size)
-                  xy-boxes (map (comp (partial geom/transl xy-translation) box-corner-coords->vertices3) xy-box-coords)
-                  uv-box-coords (ranges->box-corner-coords (map second x+u-ranges) (map second y+v-ranges))
-                  uv-transform (get-in anim-data [:uv-transforms 0])
-                  uv-boxes (map (comp (partial geom/uv-trans uv-transform) box-corner-coords->vertices2) uv-box-coords)
-                  lines (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices)))) xy-boxes)
-                  user-data {:geom-data (mapcat box->triangle-vertices xy-boxes)
-                             :line-data lines
-                             :uv-data (mapcat box->triangle-vertices uv-boxes)
+                  ;; Sample tex-coords if anim from tile source:
+                  ;;
+                  ;;  no flip:  [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]]   TL BL BR TR     T-B-B-T L-L-R-R
+                  ;;   flip-h:  [[0.5566406 0.140625] [0.5566406 1.0] [0.0 1.0] [0.0 0.140625]]   "TR BR BL TL"   T-B-B-T R-R-L-L
+                  ;;   flip-v:  [[0.0 1.0] [0.0 0.140625] [0.5566406 0.140625] [0.5566406 1.0]]   "BL TL TR BR"   B-T-T-B L-L-R-R
+                  ;; flip-h+v:  [[0.5566406 1.0] [0.5566406 0.140625] [0.0 0.140625] [0.0 1.0]]   "BR TR TL BL"   B-T-T-B R-R-L-L
+                  ;;
+                  ;; Sample tex-coords from rotated (90 CW) image in atlas:
+                  ;;           [[0.0 1.0] [0.8691406 1.0] [0.8691406 0.375] [0.0 0.375]]          TL TR BR BL
+                  ;;
+                  ;; See texture_set_ddf.proto for further info on tex-coords format. Looks like minV/maxV have been swapped?
+                  tex-coords (get-in anim-data [:frames 0 :tex-coords])
+                  ;; In comp_gui.cpp RenderBoxNodes we determine whether the texture is rotated like this:
+                  uv-rotated? (and tex-coords
+                                   (not= (get-in tex-coords [0 0])
+                                         (get-in tex-coords [1 0]))
+                                   (not= (get-in tex-coords [1 1])
+                                         (get-in tex-coords [2 1])))
+                  [u0 v0] (get tex-coords 0 [0.0 0.0])
+                  [u1 v1] (get tex-coords 2 [1.0 1.0])
+                  u-delta (- u1 u0)
+                  v-delta (- v1 v0)
+                  uv-boxes (if-not uv-rotated?
+                             ;;    ^
+                             ;;    |
+                             ;;
+                             ;;   v1   ___________
+                             ;;       |           |
+                             ;;       |           |
+                             ;;   v1- |   -   X   |
+                             ;;       |           |
+                             ;;       | *       * |
+                             ;;       |  *     *  |
+                             ;;   v0+ |    ***    |
+                             ;;       |           |
+                             ;;   v0   -----------
+                             ;;       u0 u0+ u1- u1 -->
+                             ;;
+                             ;; uv-box vertex order is:
+                             ;;
+                             ;; 1---2
+                             ;; |   |
+                             ;; |   |
+                             ;; 0---3
+                             ;;
+                             ;; Slice 9 uv-box order:
+                             ;;
+                             ;;  ___________
+                             ;; |   |   |   |
+                             ;; | 3 | 6 | 9 |
+                             ;; |---|---|---|
+                             ;; | 2 | 5 | 8 |
+                             ;; |---|---|---|
+                             ;; | 1 | 4 | 7 |
+                             ;; |   |   |   |
+                             ;;  -----------
+                             (let [u-steps [u0
+                                            (+ u0 (* u-delta (/ (get slice9 0) texture-width)))
+                                            (- u1 (* u-delta (/ (get slice9 2) texture-width)))
+                                            u1]
+                                   v-steps [v0
+                                            (+ v0 (* v-delta (/ (get slice9 3) texture-height)))
+                                            (- v1 (* v-delta (/ (get slice9 1) texture-height)))
+                                            v1]
+                                   uv-box-coords (ranges->box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
+                               (map box-corner-coords->vertices2 uv-box-coords))
+                             ;;   ^
+                             ;;   |
+                             ;;
+                             ;;  v0   __________________
+                             ;;      |                  |
+                             ;;  v0+ |     *            |
+                             ;;      |    *       -     |
+                             ;;      |   *              |
+                             ;;      |    *       X     |
+                             ;;  v1- |     *            |
+                             ;;      |                  |
+                             ;;  v1   ------------------
+                             ;;      u0  u0+      u1-  u1 -->
+                             ;;
+                             ;;  uv-box vertex order (handled by rotated-box-corner-coords->vertices2) is:
+                             ;;
+                             ;;  0---1
+                             ;;  |   |
+                             ;;  |   |
+                             ;;  3---2
+                             ;;
+                             ;; Slice 9 uv-box order (ranges->rotated-box-corner-coords):
+                             ;;
+                             ;;  ___________
+                             ;; |   |   |   |
+                             ;; | 1 | 2 | 3 |
+                             ;; |---|---|---|
+                             ;; | 4 | 5 | 6 |
+                             ;; |---|---|---|
+                             ;; | 7 | 8 | 9 |
+                             ;; |   |   |   |
+                             ;;  -----------
+                             (let [u-steps [u0
+                                            (+ u0 (* u-delta (/ (get slice9 3) texture-height)))
+                                            (- u1 (* u-delta (/ (get slice9 1) texture-height)))
+                                            u1]
+                                   v-steps [v0
+                                            (+ v0 (* v-delta (/ (get slice9 0) texture-width)))
+                                            (- v1 (* v-delta (/ (get slice9 2) texture-width)))
+                                            v1]
+                                   uv-box-coords (ranges->rotated-box-corner-coords (steps->ranges u-steps) (steps->ranges v-steps))]
+                               (map rotated-box-corner-coords->vertices2 uv-box-coords)))
+                  [box-width box-height _] size
+                  x-steps [0.0 (get slice9 0) (- box-width (get slice9 2)) box-width]
+                  y-steps [0.0 (get slice9 3) (- box-height (get slice9 1)) box-height]
+                  xy-box-coords (ranges->box-corner-coords (steps->ranges x-steps) (steps->ranges y-steps))
+                  non-empty-xy-box-coords+uv-boxes (into []
+                                                         (filter (fn [[[x0 y0 x1 y1] uv-box]]
+                                                                   (and (not= x0 x1) (not= y0 y1))))
+                                                         (map vector xy-box-coords uv-boxes))
+                  non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset pivot size))
+                                                 box-corner-coords->vertices3
+                                                 first)
+                                           non-empty-xy-box-coords+uv-boxes)
+                  user-data {:geom-data (into [] (mapcat box->triangle-vertices) non-empty-xy-boxes)
+                             :line-data (into [] (mapcat (fn [box-vertices] (interleave box-vertices (drop 1 (cycle box-vertices))))) non-empty-xy-boxes)
+                             :uv-data (into [] (comp
+                                                 (map second)
+                                                 (mapcat box->triangle-vertices))
+                                            non-empty-xy-box-coords+uv-boxes)
                              :color color+alpha
                              :renderable-tags #{:gui-shape}}]
               (cond-> user-data
