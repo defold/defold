@@ -31,7 +31,7 @@ var LibraryDmSys = {
             if (null == DMSYS._cstr) {
                 var str = DMSYS.GetUserPersistentDataRoot();
                 DMSYS._cstr = _malloc(str.length + 1);
-                Module.writeStringToMemory(str, DMSYS._cstr);
+                Module.stringToUTF8(str, DMSYS._cstr, str.length + 1);
             }
             return DMSYS._cstr;
         },
@@ -44,14 +44,14 @@ var LibraryDmSys = {
             var jsdefault = Pointer_stringify(defaultlang);
             var preferred = navigator == undefined ? jsdefault : (navigator.languages ? navigator.languages[0] : (navigator.language || navigator.userLanguage || navigator.browserLanguage || navigator.systemLanguage || jsdefault) );
             var buffer = _malloc(preferred.length + 1);
-            writeStringToMemory(preferred, buffer);
+            Module.stringToUTF8(preferred, buffer, preferred.length + 1);
             return buffer;
         },
 
         dmSysGetUserAgent: function() {
             var useragent = navigator.userAgent;
             var buffer = _malloc(useragent.length + 1);
-            writeStringToMemory(useragent, buffer);
+            Module.stringToUTF8(useragent, buffer, useragent.length + 1);
             return buffer;
         },
 
