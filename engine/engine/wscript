@@ -76,7 +76,7 @@ namespace dmEngineVersion
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
-    elif operating_sys == 'web' and architecture == 'js':
+    elif 'web' in operating_sys:
         pass
 
     conf.env['LIB_GTEST'] = 'gtest'
@@ -160,16 +160,19 @@ def build(bld):
     except BuildUtilityException as ex:
         conf.fatal(ex.msg)
 
-    if build_util.get_target_os() == 'web' and build_util.get_target_architecture() == 'js':
+    if build_util.get_target_os() == 'web':
         srcPath = os.path.join('build', 'default', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
             filePath = os.path.join(srcPath, 'dmengine' + build + '.js.mem')
             if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/js-web', filePath)
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
             filePath = os.path.join(srcPath, 'dmengine' + build + '.js.symbols')
             if (os.path.exists(filePath)):
-                bld.install_files('${PREFIX}/bin/js-web', filePath)
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
+            filePath = os.path.join(srcPath, 'dmengine' + build + '.wasm')
+            if (os.path.exists(filePath)):
+                bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)
 
 def shutdown():
     # unit tests disabled on win32 for now

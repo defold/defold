@@ -408,7 +408,7 @@ public class BundleHelper {
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -503,14 +503,18 @@ public class BundleHelper {
             }
         }
 
-        try {
-            Path source = zip.getPath(srcName);
-            try (FileOutputStream out = new FileOutputStream(outputEngine)) {
-                Files.copy(source, out);
+        for (int i = 0; i < srcNames.size(); i++) {
+            String srcName = srcNames.get(i);
+            File outputEngine = outputEngines.get(i);
+            try {
+                Path source = zip.getPath(srcName);
+                try (FileOutputStream out = new FileOutputStream(outputEngine)) {
+                    Files.copy(source, out);
+                }
+                outputEngine.setExecutable(true);
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());
             }
-            outputEngine.setExecutable(true);
-        } catch (IOException e) {
-            throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());
         }
     }
 

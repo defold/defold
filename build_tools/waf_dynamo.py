@@ -183,7 +183,7 @@ def default_flags(self):
     build_util = create_build_utility(self.env)
 
     opt_level = Options.options.opt_level
-    if opt_level == "2" and 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
+    if opt_level == "2" and 'web' == build_util.get_target_os():
         opt_level = "3" # emscripten highest opt level
     elif opt_level == "0" and 'win' in build_util.get_target_os():
         opt_level = "d" # how to disable optimizations in windows
@@ -281,14 +281,27 @@ def default_flags(self):
                 '--sysroot=%s' % sysroot,
                 '-Wl,--fix-cortex-a8', '-Wl,--no-undefined', '-Wl,-z,noexecstack', '-landroid', '-fpic', '-z', 'text',
                 '-L%s' % stl_lib])
-    elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
+    elif 'web' == build_util.get_target_os():
+
+        wasm_enabled = 0
+        legacy_vm_support = 0
+        binaryen_method = "asmjs"
+        if 'js' == build_util.get_target_architecture():
+            wasm_enabled = 0
+            legacy_vm_support = 1
+            binaryen_method = "asmjs"
+        elif 'wasm' == build_util.get_target_architecture():
+            wasm_enabled = 1
+            legacy_vm_support = 0
+            binaryen_method = "native-wasm"
+
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'LEGACY_VM_SUPPORT=1', '-s', 'WASM=0', '-s', 'BINARYEN_METHOD="asmjs"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8", "ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
+                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'BINARYEN_TRAP_MODE="clamp"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=1', '-s', 'WASM=0', '-s', 'BINARYEN_METHOD="asmjs"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8", "ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=%d' % legacy_vm_support, '-s', 'WASM=%d' % wasm_enabled, '-s', 'BINARYEN_METHOD="%s"' % binaryen_method, '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8","ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump","_main"]'])
 
     elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
@@ -1155,7 +1168,7 @@ def run_gtests(valgrind = False, configfile = None):
     if not getattr(Options.options, 'with_valgrind', False):
         valgrind = False
 
-    if Build.bld.env.PLATFORM == 'js-web' and not Build.bld.env['NODEJS']:
+    if 'web' in Build.bld.env.PLATFORM and not Build.bld.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
 
@@ -1163,7 +1176,7 @@ def run_gtests(valgrind = False, configfile = None):
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
-            if Build.bld.env.PLATFORM == 'js-web':
+            if 'web' in Build.bld.env.PLATFORM:
                 cmd = '%s %s' % (Build.bld.env['NODEJS'], cmd)
             if valgrind:
                 dynamo_home = os.getenv('DYNAMO_HOME')
@@ -1206,7 +1219,7 @@ def as3_link_flags_pattern(self):
 @after('apply_obj_vars')
 def js_web_link_flags(self):
     platform = self.env['PLATFORM']
-    if platform == 'js-web':
+    if 'web' in platform:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.link_task.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
@@ -1216,7 +1229,7 @@ def js_web_link_flags(self):
 def test_flags(self):
 # When building tests for the web, we disable emission of emscripten js.mem init files,
 # as the assumption when these are loaded is that the cwd will contain these items.
-    if self.env['PLATFORM'] == 'js-web':
+    if 'web' in self.env['PLATFORM']:
         for f in ['CCFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
             self.env.append_value(f, ['--memory-init-file', '0'])
 
@@ -1224,7 +1237,7 @@ def test_flags(self):
 @after('apply_obj_vars')
 def js_web_web_link_flags(self):
     platform = self.env['PLATFORM']
-    if platform == 'js-web':
+    if 'web' in platform:
         lib_dirs = None
         if 'JS_LIB_PATHS' in self.env:
             lib_dirs = self.env['JS_LIB_PATHS']
@@ -1464,7 +1477,7 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
-    if 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
+    if 'web' == build_util.get_target_os() and ('js' == build_util.get_target_architecture() or 'wasm' == build_util.get_target_architecture()):
         bin = os.environ.get('EMSCRIPTEN')
         if None == bin:
             conf.fatal('EMSCRIPTEN environment variable does not exist')
