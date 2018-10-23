@@ -15,7 +15,8 @@
   (property marker g/Int))
 
 (g/defnode Downstream
-  (input consumer g/Keyword))
+  (input consumer g/Keyword)
+  (input array-consumer g/Keyword :array))
 
 (defn safe+ [x y] (int (or (and x (+ x y)) y)))
 
@@ -31,7 +32,23 @@
             after                 (:basis (g/transact (it/connect id1 :b id2 :consumer)))]
         (is (= [id1 :b]        (first (g/sources after id2 :consumer))))
         (is (= [id2 :consumer] (first (g/targets after id1 :b)))))))
-
+  (testing "connections have cardinality"
+    (with-clean-system
+      (let [[id1 id2] (tx-nodes (g/make-node world Resource)
+                                (g/make-node world Downstream))]
+        (g/transact (g/connect id1 :b id2 :array-consumer))
+        (g/transact (g/connect id1 :b id2 :array-consumer))
+        (is (= 2 (count (g/sources-of id2 :array-consumer))))
+        (is (= 2 (count (g/inputs id2)))))))
+  (testing "disconnect disconnects all matching"
+    (with-clean-system
+      (let [[id1 id2] (tx-nodes (g/make-node world Resource)
+                                (g/make-node world Downstream))]
+        (g/transact (g/connect id1 :b id2 :array-consumer))
+        (g/transact (g/connect id1 :b id2 :array-consumer))
+        (g/transact (g/disconnect id1 :b id2 :array-consumer))
+        (is (= 0 (count (g/sources-of id2 :array-consumer))))
+        (is (= 0 (count (g/inputs id2)))))))
   (testing "disconnect two singly-connected nodes"
     (with-clean-system
       (let [[id1 id2] (tx-nodes (g/make-node world Resource)

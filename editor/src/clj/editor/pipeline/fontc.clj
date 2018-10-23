@@ -97,7 +97,7 @@
                                      (dec index)))))
         max-height (+ line-height padding padding glyph-cell-padding glyph-cell-padding)]
     (if (or (zero? max-width) (zero? max-height))
-      (throw (ex-info "No glyph with sane width/height" {}))
+      (throw (ex-info "No glyph size information. Incompatible font format?" {}))
       {:width max-width :height max-height})))
 
 (defn- draw-bm-font-glyph ^BufferedImage [glyph ^BufferedImage bm-image]
