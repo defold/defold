@@ -49,7 +49,8 @@
   (vec2 texcoord0)
   (vec4 face_color)
   (vec4 outline_color)
-  (vec4 shadow_color))
+  (vec4 shadow_color)
+  (vec3 layer_mask))
 
 (vtx/defvertex ^:no-put DFVertex
   (vec3 position)
@@ -79,15 +80,17 @@
       (.putFloat bb sdf-edge) (.putFloat bb sdf-outline) (.putFloat bb sdf-smoothing) (.putFloat bb sdf-spread))))
 
 (defn- wrap-with-colors
-  [put-pos-uv-fn color outline shadow]
+  [put-pos-uv-fn color outline shadow layer-mask]
   (let [[color-r color-g color-b color-a] color
         [outline-r outline-g outline-b outline-a] outline
-        [shadow-r shadow-g shadow-b shadow-a] shadow]
+        [shadow-r shadow-g shadow-b shadow-a] shadow
+        [layer-mask-r layer-mask-g layer-mask-b] layer-mask]
     (fn [^ByteBuffer bb x y z u v]
       (put-pos-uv-fn bb x y z u v)
       (.putFloat bb color-r) (.putFloat bb color-g) (.putFloat bb color-b) (.putFloat bb color-a)
       (.putFloat bb outline-r) (.putFloat bb outline-g) (.putFloat bb outline-b) (.putFloat bb outline-a)
-      (.putFloat bb shadow-r) (.putFloat bb shadow-g) (.putFloat bb shadow-b) (.putFloat bb shadow-a))))
+      (.putFloat bb shadow-r) (.putFloat bb shadow-g) (.putFloat bb shadow-b) (.putFloat bb shadow-a)
+      (.putFloat bb layer-mask-r) (.putFloat bb layer-mask-g) (.putFloat bb layer-mask-b))))
 
 (defn- make-put-glyph-quad-fn
   [font-map]
@@ -222,12 +225,19 @@
              text-entries))
 
 (defn- vertex-count
-  [text-entries]
-  (* 6 (glyph-count text-entries)))
+  [text-entries layer-count]
+  (* 6 (glyph-count text-entries) layer-count))
+
+(defn- count-layers-in-mask
+  [layer-mask]
+  (reduce + (map (fn [bit]
+                    (min (bit-and layer-mask bit) 1))
+                    [0x1 0x2 0x4])))
 
 (defn- make-vbuf
-  [type text-entries]
-  (let [vcount (vertex-count text-entries)]
+  [type text-entries layer-mask]
+  (let [layer-count (count-layers-in-mask layer-mask)
+        vcount (vertex-count text-entries layer-count)]
     (case type
       (:defold :bitmap) (->DefoldVertex vcount)
       :distance-field   (->DFVertex vcount))))
@@ -241,7 +251,7 @@
         char->glyph (comp (font-map->glyphs font-map) int)
         line-height (+ ^long (:max-ascent font-map) ^long (:max-descent font-map))]
     (reduce (fn [vbuf entry]
-              (let [put-pos-uv-fn (wrap-with-colors put-pos-uv-fn (:color entry) (:outline entry) (:shadow entry))
+              (let [put-pos-uv-fn (wrap-with-colors put-pos-uv-fn (:color entry) (:outline entry) (:shadow entry) [0 0 0])
                     text-layout (:text-layout entry)
                     text-tracking (* line-height ^long (:text-tracking text-layout 0))
                     ^double text-leading (:text-leading text-layout 1)
@@ -278,8 +288,8 @@
             text-entries)))
 
 (defn gen-vertex-buffer
-  [^GL2 gl {:keys [type] :as font-data} text-entries]
-  (let [vbuf (make-vbuf type text-entries)
+  [^GL2 gl {:keys [type font-map] :as font-data} text-entries]
+  (let [vbuf (make-vbuf type text-entries (:layer-mask font-map))
         glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
                                                  (select-keys font-data [:font-map :texture]))]
     (vtx/flip! (fill-vertex-buffer gl vbuf font-data text-entries glyph-cache))))
@@ -287,8 +297,9 @@
 (defn request-vertex-buffer
   [^GL2 gl request-id font-data text-entries]
   (let [glyph-cache (scene-cache/request-object! ::glyph-caches (:texture font-data) gl
-                                                 (select-keys font-data [:font-map :texture]))]
-    (scene-cache/request-object! ::vb [request-id (:type font-data) (vertex-count text-entries)] gl
+                                                 (select-keys font-data [:font-map :texture]))
+        layer-count (count-layers-in-mask (:layer-mask (:font-map font-data)))]
+    (scene-cache/request-object! ::vb [request-id (:type font-data) (vertex-count text-entries layer-count)] gl
                                  {:font-data font-data
                                   :text-entries text-entries
                                   :glyph-cache glyph-cache})))
@@ -695,7 +706,7 @@
 
 (defn- make-vb
   [^GL2 gl {:keys [font-data text-entries glyph-cache] :as data}]
-  (let [vb (make-vbuf (:type font-data) text-entries)]
+  (let [vb (make-vbuf (:type font-data) text-entries (:layer-mask (:font-map font-data)))]
     (vtx/flip! (fill-vertex-buffer gl vb font-data text-entries glyph-cache))))
 
 (defn- destroy-vbs
