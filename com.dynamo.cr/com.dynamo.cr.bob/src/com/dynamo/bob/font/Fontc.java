@@ -47,6 +47,7 @@ import com.dynamo.bob.font.BMFont.Char;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.dynamo.render.proto.Font.FontRenderMode;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.TextFormat;
 
@@ -358,6 +359,24 @@ public class Fontc {
             channelCount = 1;
         }
 
+        int fontMapLayerMask = 0x1;
+
+        if (this.fontDesc.getAntialias() != 0 &&
+            this.fontDesc.getOutlineAlpha() > 0 &&
+            this.fontDesc.getOutlineWidth() > 0 &&
+            this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
+        {
+            fontMapLayerMask += 0x2;
+        }
+
+        if (this.fontDesc.getAntialias() != 0 &&
+            this.fontDesc.getShadowAlpha() > 0 &&
+            this.fontDesc.getAlpha() > 0 &&
+            this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
+        {
+            fontMapLayerMask += 0x4;
+        }
+
         // We keep track of offset into the glyph data bank,
         // this is saved for each glyph to know where their bitmap data is stored.
         int dataOffset = 0;
@@ -514,6 +533,7 @@ public class Fontc {
         fontMapBuilder.setGlyphChannels(channelCount);
         fontMapBuilder.setMaxAscent(fontMapMaxAscent);
         fontMapBuilder.setMaxDescent(fontMapMaxDescent);
+        fontMapBuilder.setLayerMask(fontMapLayerMask);
 
         BufferedImage previewImage = null;
         if (preview) {

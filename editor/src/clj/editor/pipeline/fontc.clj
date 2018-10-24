@@ -379,10 +379,10 @@
 
 (defn- calculate-ttf-layer-mask [font-desc]
   (let [antialias (int->boolean (:antialias font-desc))
-        alpha (:alpha font-desc)
-        shadow-alpha (:shadow-alpha font-desc)
-        outline-alpha (:outline-alpha font-desc)
-        outline-width (:outline-width font-desc)
+        ^double alpha (:alpha font-desc)
+        ^double shadow-alpha (:shadow-alpha font-desc)
+        ^double outline-alpha (:outline-alpha font-desc)
+        ^double outline-width (:outline-width font-desc)
         render-mode (:render-mode font-desc)
         face-layer 0x1
         outline-layer (if (and (> outline-width 0.0)
@@ -419,7 +419,6 @@
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
         layer-mask (calculate-ttf-layer-mask font-desc)]
-    
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
               (let [^BufferedImage glyph-image (let [face-color (Color. ^double (:alpha font-desc) 0.0 0.0)
