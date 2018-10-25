@@ -10,7 +10,8 @@
             [editor.game-project-core :as gpcore]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node])
+            [editor.resource-node :as resource-node]
+            [editor.form-view :as form-view])
   (:import [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -139,8 +140,9 @@
           (not (frame-cap-enabled? form-data))
           (update :disabled-paths conj ["display" "frame_cap"])
 
-          (not (variable-dt-enabled? form-data))
-          (update :disabled-paths conj ["display" "variable_dt"])))
+          ;;(not (variable-dt-enabled? form-data))
+          ;;(update :disabled-paths conj ["display" "variable_dt"])))
+          ))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)

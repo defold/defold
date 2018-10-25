@@ -729,7 +729,10 @@
    :path ["liveupdate" "settings"]}]
 
  :deprecated-paths
- {["display" "variable_dt"] {:tooltip "This setting is deprecated. Uncheck \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."}}
+ {["display" "variable_dt"]
+  {:type :boolean
+   :severity "error"
+   :tooltip "This setting is deprecated. Uncheck \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."}}
 
  :categories
  {"sound" {:help "Sound related settings"},
