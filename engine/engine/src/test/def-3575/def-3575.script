@@ -1,0 +1,36 @@
+function init(self)
+    local label_str = ""
+
+	for i = 32, 127 do
+		label_str = label_str .. string.char(i)
+	end
+
+	label.set_text("#label", label_str)
+end
+
+function update(self, dt)
+
+	local success = false
+
+	local metrics_valid = {
+		max_ascent = 13,
+		width = 771,
+		height = 17,
+		max_descent = 4
+	}
+
+	local metrics = label.get_text_metrics("#label")
+
+	success = metrics_valid.max_ascent  == metrics.max_ascent and
+			  metrics_valid.max_descent == metrics.max_descent and
+			  metrics_valid.width       == metrics.width and
+			  metrics_valid.height      == metrics.height
+
+	pprint(metrics,metrics_valid)
+
+    if success then
+        msg.post("@system:", "exit", { code = 0 })
+    else
+        msg.post("@system:", "exit", { code = 1 })
+    end
+end
