@@ -400,8 +400,8 @@ namespace dmEngine
         if (!engine->m_UseVariableDt)
         {
             swap_interval = dmMath::Max(0, swap_interval);
-#if !defined(__EMSCRIPTEN__)
-            // For backward-compatability, hardware vsync with swap_interval 0 should result in sw vsync
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+            // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
             engine->m_UseSwVsync = (engine->m_Vsync == VSYNC_SOFTWARE || (engine->m_Vsync == VSYNC_HARDWARE && swap_interval == 0));
             dmLogWarning("Using sw vsync?: %i", engine->m_UseSwVsync);
 #endif
@@ -1175,7 +1175,7 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-#if !defined(__EMSCRIPTEN__)
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t prev_flip_time = engine->m_FlipTime;
 #endif
@@ -1374,7 +1374,7 @@ bail:
                 }
 #endif
 
-#if !defined(__EMSCRIPTEN__)
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
@@ -1391,19 +1391,19 @@ bail:
                         }
                     }
                 }
-#endif
-
                 uint64_t flip_time_start = dmTime::GetTime();
+#endif
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
-                // If frame time including flip is obviously too fast, fallback to use measured actual time instead (variable_dt)
-                uint64_t frame_time = dmTime::GetTime() - engine->m_FlipTime;
-                dmLogInfo("frame_time: %llu, target_frametime: %llu", frame_time, target_frametime);
-                engine->m_UseVariableDt = frame_time < 0.3 * target_frametime; // arbitrary measure of "too fast", in this case less than 30% of target frame time.
-
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
+                // -- BEGIN If frame time including flip is obviously too fast, fallback to measured actual time instead (variable_dt)
+                //uint64_t frame_time = dmTime::GetTime() - engine->m_FlipTime;
+                //dmLogInfo("frame_time: %llu, target_frametime: %llu", frame_time, target_frametime);
+                //engine->m_UseVariableDt = engine->m_Vsync == VSYNC_HARDWARE && frame_time < 0.3 * target_frametime; // arbitrary measure of "too fast", in this case less than 30% of target frame time.
+                // -- END
                 engine->m_FlipTime = dmTime::GetTime();
                 engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
-
+#endif
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
                 {

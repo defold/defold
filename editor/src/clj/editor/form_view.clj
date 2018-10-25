@@ -932,7 +932,7 @@
         update-ui-fn (fn [update-data]
                        (when (:deprecated? update-data)
                          (ui/tooltip! control (:tooltip (update-data :deprecated-path)))
-                         (ui/add-style! control "field-warning"))
+                         (ui/add-style! control "field-error"))
                        (if (contains? update-data :enabled?)
                          (let [enabled? (:enabled? update-data)]
                            (ui/enable! label-box enabled?)
