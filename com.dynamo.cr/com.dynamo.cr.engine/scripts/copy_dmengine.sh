@@ -9,6 +9,7 @@ mkdir -p engine/ios
 mkdir -p engine/arm64-ios
 mkdir -p engine/android
 mkdir -p engine/js-web
+mkdir -p engine/wasm-web
 
 SHA1=`git log --pretty=%H -n1`
 

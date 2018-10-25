@@ -166,7 +166,6 @@ public class HTML5Bundler implements IBundler {
         String enginePrefix = title;
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
-        String jsMemInit = null;
         List<File> binsAsmjs = null;
         List<File> binsWasm = null;
 
@@ -176,7 +175,6 @@ public class HTML5Bundler implements IBundler {
             binsAsmjs = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
             if (binsAsmjs == null) {
                 binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
-                // jsMemInit = Bob.getDefaultDmenginePath(targetPlatform, variant) + ".mem";
             }
             else {
                 logger.log(Level.INFO, "Using extender binary for Asm.js");
@@ -280,14 +278,6 @@ public class HTML5Bundler implements IBundler {
 
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
-
-        // Memory initialisation file
-        if (jsMemInit != null) {
-            File jsMemFile = new File(jsMemInit);
-            if (jsMemFile.exists()) {
-                FileUtils.copyFile(jsMemFile, new File(appDir, String.format("%s.js.mem", title)));
-            }
-        }
 
         format(html, infoData, new File(appDir, "index.html"));
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));

@@ -14,6 +14,7 @@ mkdir -p libexec/armv7-darwin
 mkdir -p libexec/arm64-darwin
 mkdir -p libexec/armv7-android
 mkdir -p libexec/js-web
+mkdir -p libexec/wasm-web
 
 SHA1=`git log --pretty=%H -n1`
 
