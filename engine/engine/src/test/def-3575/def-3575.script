@@ -10,8 +10,6 @@ end
 
 function update(self, dt)
 
-	local success = false
-
 	local metrics_valid = {
 		max_ascent = 13,
 		width = 771,
@@ -19,14 +17,12 @@ function update(self, dt)
 		max_descent = 4
 	}
 
+	-- Test that we are getting the expected value back from get_text_metrics
 	local metrics = label.get_text_metrics("#label")
-
-	success = metrics_valid.max_ascent  == metrics.max_ascent and
-			  metrics_valid.max_descent == metrics.max_descent and
-			  metrics_valid.width       == metrics.width and
-			  metrics_valid.height      == metrics.height
-
-	pprint(metrics,metrics_valid)
+	local success = metrics_valid.max_ascent  == metrics.max_ascent and
+			        metrics_valid.max_descent == metrics.max_descent and
+			        metrics_valid.width       == metrics.width and
+			        metrics_valid.height      == metrics.height
 
     if success then
         msg.post("@system:", "exit", { code = 0 })
