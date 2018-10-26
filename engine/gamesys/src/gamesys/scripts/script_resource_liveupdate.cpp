@@ -125,6 +125,7 @@ namespace dmLiveUpdate
             if (ret != 0)
             {
                 dmLogError("Error while running store_manifest callback");
+                lua_pop(L, 1);
             }
         }
         else
