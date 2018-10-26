@@ -1,14 +1,16 @@
 (ns editor.console
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [split-lines]]
+            [editor.code.util :refer [re-match-result-seq split-lines]]
             [editor.code.view :as view]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.ui :as ui]
             [util.thread-util :refer [preset!]])
   (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
+           (java.util.regex MatchResult)
            (javafx.beans.property SimpleStringProperty)
            (javafx.scene Parent Scene)
            (javafx.scene.canvas Canvas GraphicsContext)
@@ -299,26 +301,54 @@
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
-(defn- make-line-region
-  ^CursorRange [^long row [type line]]
+(def ^:private line-sub-regions-pattern #"(?<=^|\"|\s)(\/[^\s:\"]+)(?::?)(\d+)?")
+
+(defn- make-line-sub-regions [resource-map row line]
+  (keep (fn [^MatchResult result]
+          (let [resource-proj-path (.group result 1)]
+            (when (contains? resource-map resource-proj-path)
+              (let [resource-row (some-> (.group result 2) Long/parseUnsignedLong)
+                    start-col (.start result)
+                    end-col (if (string/ends-with? (.group result) ":")
+                              (dec (.end result))
+                              (.end result))]
+                (cond-> (assoc (data/->CursorRange (data/->Cursor row start-col)
+                                                   (data/->Cursor row end-col))
+                          :type :resource-reference
+                          :proj-path resource-proj-path)
+
+                        (some? resource-row)
+                        (assoc :row resource-row))))))
+        (re-match-result-seq line-sub-regions-pattern line)))
+
+(defn- make-line-regions
+  ^CursorRange [resource-map ^long row [type line]]
   (assert (keyword? type))
   (assert (string? line))
-  (assoc (data/->CursorRange (data/->Cursor row 0)
-                             (data/->Cursor row (count line)))
-    :type type))
+  (cons (assoc (data/->CursorRange (data/->Cursor row 0)
+                                   (data/->Cursor row (count line)))
+          :type type)
+        (make-line-sub-regions resource-map row line)))
 
-(defn- append-distinct-lines [{:keys [lines regions] :as props} entries]
-  (merge props (data/append-distinct-lines lines regions (mapv second entries))))
+(defn- append-distinct-lines [{:keys [lines regions] :as props} entries resource-map]
+  (merge props
+         (data/append-distinct-lines lines regions
+                                     (mapv second entries)
+                                     (partial make-line-sub-regions resource-map))))
 
-(defn- append-regioned-lines [{:keys [lines regions] :as props} entries]
+(defn- append-regioned-lines [{:keys [lines regions] :as props} entries resource-map]
   (assoc props
     :lines (into lines (map second) entries)
-    :regions (into regions (map make-line-region (iterate inc (count lines)) entries))))
+    :regions (into regions
+                   (mapcat (partial make-line-regions resource-map)
+                           (iterate inc (count lines))
+                           entries))))
 
-(defn- repaint-console-view! [view-node elapsed-time]
+(defn- repaint-console-view! [view-node workspace elapsed-time]
   (let [{:keys [clear? entries]} (flip-pending!)]
     (when (or clear? (seq entries))
-      (let [^LayoutInfo prev-layout (g/node-value view-node :layout)
+      (let [resource-map (g/node-value workspace :resource-map)
+            ^LayoutInfo prev-layout (g/node-value view-node :layout)
             prev-lines (g/node-value view-node :lines)
             prev-regions (g/node-value view-node :regions)
             prev-document-width (if clear? 0.0 (.document-width prev-layout))
@@ -327,8 +357,8 @@
             was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
             props (reduce (fn [props entries]
                             (if (nil? (ffirst entries))
-                              (append-distinct-lines props entries)
-                              (append-regioned-lines props entries)))
+                              (append-distinct-lines props entries resource-map)
+                              (append-regioned-lines props entries resource-map)))
                           {:lines (if clear? [""] prev-lines)
                            :regions (if clear? [] prev-regions)}
                           (partition-by #(nil? (first %)) entries))]
@@ -371,7 +401,7 @@
        ["editor.selection.background.inactive" (.interpolate selection-background-color background-color 0.25)]
        ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]])))
 
-(defn make-console! [graph ^Tab console-tab ^GridPane console-grid-pane]
+(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
         view-node (setup-view! (g/make-node! graph ConsoleNode)
@@ -388,7 +418,7 @@
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node)
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))
-                                                         (repaint-console-view! view-node elapsed-time))))
+                                                         (repaint-console-view! view-node workspace elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :term-field (.lookup tool-bar "#search-console")
                      :view-node view-node}]
