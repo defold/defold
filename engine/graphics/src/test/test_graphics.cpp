@@ -422,6 +422,44 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(texture);
 }
 
+TEST_F(dmGraphicsTest, TestSetTextureBounds)
+{
+    dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureParams params;
+
+    creation_params.m_Width = WIDTH;
+    creation_params.m_Height = HEIGHT;
+    creation_params.m_OriginalWidth = WIDTH;
+    creation_params.m_OriginalHeight = HEIGHT;
+
+    params.m_DataSize  = WIDTH * HEIGHT;
+    params.m_Data      = new char[params.m_DataSize];
+    params.m_Width     = WIDTH;
+    params.m_Height    = HEIGHT;
+    params.m_Format    = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_SubUpdate = true;
+    params.m_X         = WIDTH / 2;
+    params.m_Y         = HEIGHT / 2;
+
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+
+    delete [] (char*)params.m_Data;
+
+    params.m_X         = 0;
+    params.m_Y         = 0;
+    params.m_Width     = WIDTH + 1;
+    params.m_Height    = HEIGHT + 1;
+    params.m_DataSize  = params.m_Width * params.m_Height;
+    params.m_Data      = new char[params.m_DataSize];
+
+    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+
+    delete [] (char*)params.m_Data;
+
+    dmGraphics::DeleteTexture(texture);
+}
+
 TEST_F(dmGraphicsTest, TestMaxTextureSize)
 {
     ASSERT_NE(dmGraphics::GetMaxTextureSize(m_Context), 0);
