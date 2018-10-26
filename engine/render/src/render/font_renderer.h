@@ -89,6 +89,7 @@ namespace dmRender
 
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
+        uint32_t m_CacheCellMaxAscent;
         uint8_t m_CacheCellPadding;
 
         dmRenderDDF::FontTextureFormat m_ImageFormat;
