@@ -75,7 +75,7 @@ public class ManifestTest {
             }
 
             for (String[] entry : this.resources) {
-                manifestBuilder.addResourceEntry(entry[0], entry[1].getBytes());
+                manifestBuilder.addResourceEntry(entry[0], entry[1].getBytes(), (byte) 0);
             }
 
             this.manifestHeader = manifestBuilder.buildManifestHeader();

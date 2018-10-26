@@ -605,6 +605,11 @@ namespace dmResource
     Result StoreManifest(Manifest* manifest);
 
     /**
+     * Verify that all resources the manifest expects to be bundled actually are bundled.
+     */
+    Result VerifyResourcesBundled(HFactory factory, Manifest* manifest);
+
+    /**
      * Loads the public RSA key from the bundle.
      * Uses the public key to decrypt the manifest signature to get the content hash.
      * Compares the decrypted content hash to the expected content hash.
