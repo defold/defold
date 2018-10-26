@@ -65,6 +65,7 @@ namespace dmRender
         , m_CacheRows(0)
         , m_CacheCellWidth(0)
         , m_CacheCellHeight(0)
+        , m_CacheCellMaxAscent(0)
         , m_CacheCellPadding(0)
         {
 
@@ -108,6 +109,7 @@ namespace dmRender
 
         uint32_t                m_CacheCellWidth;
         uint32_t                m_CacheCellHeight;
+        uint32_t                m_CacheCellMaxAscent;
         uint8_t                 m_CacheCellPadding;
     };
 
@@ -157,6 +159,7 @@ namespace dmRender
 
         font_map->m_CacheCellWidth = params.m_CacheCellWidth;
         font_map->m_CacheCellHeight = params.m_CacheCellHeight;
+        font_map->m_CacheCellMaxAscent = params.m_CacheCellMaxAscent;
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
 
         font_map->m_CacheColumns = params.m_CacheWidth / params.m_CacheCellWidth;
@@ -245,6 +248,7 @@ namespace dmRender
 
         font_map->m_CacheCellWidth = params.m_CacheCellWidth;
         font_map->m_CacheCellHeight = params.m_CacheCellHeight;
+        font_map->m_CacheCellMaxAscent = params.m_CacheCellMaxAscent;
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
 
         font_map->m_CacheColumns = params.m_CacheWidth / params.m_CacheCellWidth;
@@ -592,7 +596,7 @@ namespace dmRender
                     int16_t cache_cell_padding = (int16_t)font_map->m_CacheCellPadding;
 
                     // Calculate y-offset in cache-cell space by moving glyphs down to baseline
-                    int16_t px_cell_offset_y = font_map->m_MaxAscent - ascent;
+                    int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - ascent;
 
                     if (!g->m_InCache) {
                         AddGlyphToCache(font_map, text_context, g, px_cell_offset_y);

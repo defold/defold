@@ -645,7 +645,7 @@
 (defn- make-glyph-cache
   [^GL2 gl params]
   (let [{:keys [font-map texture]} params
-        {:keys [cache-width cache-height cache-cell-width cache-cell-height max-ascent]} font-map
+        {:keys [cache-width cache-height cache-cell-width cache-cell-height cache-cell-max-ascent]} font-map
         data-format (glyph-channels->data-format (:glyph-channels font-map))
         size (* (int (/ cache-width cache-cell-width)) (int (/ cache-height cache-cell-height)))
         w (int (/ cache-width cache-cell-width))
@@ -662,7 +662,7 @@
                                (if-not (< cell size)
                                  (assoc m glyph ::not-available)
                                  (let [x (* (mod cell w) cache-cell-width)
-                                       y (+ (* (int (/ cell w)) cache-cell-height) (- max-ascent (:ascent glyph)))
+                                       y (+ (* (int (/ cell w)) cache-cell-height) (- cache-cell-max-ascent (:ascent glyph)))
                                        p (* 2 (:glyph-padding font-map))
                                        w (+ (:width glyph) p)
                                        h (+ (:ascent glyph) (:descent glyph) p)
