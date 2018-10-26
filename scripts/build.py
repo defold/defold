@@ -46,7 +46,7 @@ EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_
 PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
-ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac adtruth webview profiler facebook crash engine sdk".split()
+ENGINE_LIBS = "ddf particle glfw graphics lua hid input physics resource extension script tracking render rig gameobject gui sound liveupdate gamesys tools record gameroom iap push iac webview profiler facebook crash engine sdk".split()
 
 class ExecException(Exception):
     def __init__(self, retcode, output):
