@@ -92,6 +92,7 @@
 
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id]
                                                      {:node-id _node-id
+                                                      :node-outline-key "Camera"
                                                       :label "Camera"
                                                       :icon camera-icon}))
 

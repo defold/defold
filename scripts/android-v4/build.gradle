@@ -1,0 +1,108 @@
+apply plugin: 'java'
+
+repositories {
+    maven {
+        url "https://maven.google.com/"
+    }
+    mavenCentral()
+}
+
+dependencies {
+    compile 'com.android.support:support-v4:27.1.1'
+    compile 'com.android.support:support-compat:27.1.1'
+    compile 'com.android.support:support-core-utils:27.1.1'
+    compile 'com.android.support:support-core-ui:27.1.1'
+    compile 'com.android.support:support-media-compat:27.1.1'
+    compile 'com.android.support:support-fragment:27.1.1'
+    compile 'com.android.support:support-annotations:27.1.1'
+    compile 'android.arch.core:common:1.1.0'
+    compile 'android.arch.core:runtime:1.1.0'
+    compile 'android.arch.lifecycle:common:1.1.1'
+    compile 'android.arch.lifecycle:compiler:1.1.1'
+    compile 'android.arch.lifecycle:extensions:1.1.1'
+    compile 'android.arch.lifecycle:reactivestreams:1.1.1'
+    compile 'android.arch.lifecycle:runtime:1.1.1'
+}
+
+def resultDirectory = "${project.buildDir}/result"
+def packedDirectory = "${resultDirectory}/packed"
+def unpackedDirectory = "${resultDirectory}/unpacked"
+def unpackedClassesDirectory = "${unpackedDirectory}/classes"
+def packageOutputDirectory = "${project.buildDir}/package"
+def packageDirectory = "${packageOutputDirectory}/share/java"
+
+task copyArtifacts() {
+    outputs.dir packedDirectory
+
+    project.configurations.runtime.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+        println "${artifact.moduleVersion.id.group}.${artifact.name}-${artifact.moduleVersion.id.version}.${artifact.extension}"
+        copy {
+            from artifact.file
+            into packedDirectory
+            rename "(.*)", "${artifact.moduleVersion.id.group}.${artifact.name}-${artifact.moduleVersion.id.version}.${artifact.extension}"
+        }
+    }
+}
+
+task unzipJars(dependsOn: copyArtifacts) {
+    inputs.dir packedDirectory
+    outputs.dir unpackedClassesDirectory
+
+    doLast {
+        println('*** Unzip jars')
+        fileTree(dir: packedDirectory).include('*.jar').each { lib ->
+            copy {
+                println "Unzip $lib.name"
+                from zipTree(lib)
+                into unpackedClassesDirectory
+                exclude 'META-INF/'
+                exclude 'NOTICE.txt'
+            }
+        }
+    }
+}
+
+task unzipAars(dependsOn: unzipJars) {
+    inputs.dir packedDirectory
+    outputs.dir unpackedClassesDirectory
+
+    doLast {
+        println('*** Unzip aars')
+        fileTree(dir: packedDirectory).include('*.aar').each { lib ->
+            copy {
+                println "Unzip $lib.name"
+                def dirName = lib.name - '.aar'
+                from zipTree(lib)
+                into "${packedDirectory}/aar/${dirName}"
+            }
+        }
+        println('*** Unzip jars from aars')
+        fileTree(dir: "${packedDirectory}/aar").include('**/*.jar').each { lib ->
+            copy {
+                println "Unzip $lib.name"
+                from zipTree(lib)
+                into unpackedClassesDirectory
+                exclude 'META-INF/'
+            }
+        }
+    }
+}
+
+task zipClasses(dependsOn: unzipAars, type: Zip) {
+    from unpackedClassesDirectory
+    archiveName 'android-support-v4.jar'
+    destinationDir file("${packageDirectory}")
+}
+
+task createDefoldPackage(dependsOn: zipClasses, type: Tar) {
+    from packageOutputDirectory
+    archiveName 'android-support-v4-armv7-android.tar.gz'
+    compression = Compression.GZIP
+    destinationDir file("./")
+}
+
+build.dependsOn createDefoldPackage
+
+clean {
+    delete "${project.buildDir}"
+}

@@ -209,7 +209,7 @@ namespace dmScript
         size_t value_len = 0;
         const char* value = lua_tolstring(L, index, &value_len);
         uint32_t total_size = value_len + sizeof(uint32_t);
-        if (buffer_end - buffer < total_size)
+        if (buffer_end - buffer < (intptr_t)total_size)
         {
             luaL_error(L, "buffer (%d bytes) too small for table, exceeded at '%s' for element #%d", buffer_size, value, count);
         }
@@ -224,7 +224,7 @@ namespace dmScript
     static uint32_t LoadOldTSTRING(lua_State* L, const char* buffer, const char* buffer_end, uint32_t count)
     {
         uint32_t total_size = strlen(buffer) + 1;
-        if (buffer_end - buffer < total_size)
+        if (buffer_end - buffer < (intptr_t)total_size)
         {
             luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d", count, total_size, (uint32_t)(buffer_end - buffer));
         }
@@ -239,7 +239,7 @@ namespace dmScript
         uint32_t_1_align* u32ptr = (uint32_t_1_align*)buffer;
         size_t value_len = (size_t)*u32ptr;
         uint32_t total_size = value_len + sizeof(uint32_t);
-        if (buffer_end - buffer < total_size)
+        if (buffer_end - buffer < (intptr_t)total_size)
         {
             luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d   bytes left: %d", count, total_size, (uint32_t)(buffer_end - buffer));
         }

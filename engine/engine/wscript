@@ -105,6 +105,7 @@ namespace dmEngineVersion
     conf.env['STATICLIB_INPUT'] = 'input'
     conf.env['STATICLIB_LIVEUPDATE'] = 'liveupdate'
 
+    conf.env['STATICLIB_BOLTS'] = 'Bolts'
     conf.env['STATICLIB_FBSDKCORE'] = 'FBSDKCore'
     conf.env['STATICLIB_FBSDKLOGIN'] = 'FBSDKLogin'
     conf.env['STATICLIB_FBSDKSHARE'] = 'FBSDKShare'
@@ -113,7 +114,6 @@ namespace dmEngineVersion
     conf.env['STATICLIB_GAMEROOMEXT'] = 'gameroomext'
     conf.env['STATICLIB_IAPEXT'] = 'iapext'
     conf.env['STATICLIB_PUSHEXT'] = 'pushext'
-    conf.env['STATICLIB_ADTRUTHEXT'] = 'adtruthext'
     conf.env['STATICLIB_WEBVIEWEXT'] = 'webviewext'
     conf.env['STATICLIB_IACEXT'] = 'iacext'
     conf.env['STATICLIB_PROFILEREXT'] = 'profilerext'

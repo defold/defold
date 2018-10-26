@@ -24,9 +24,10 @@
             [util.thread-util :as thread-util])
   (:import [java.io File FilenameFilter FileInputStream ByteArrayOutputStream]
            [java.util UUID]
+           [java.util.concurrent LinkedBlockingQueue]
+           [java.util.zip ZipEntry ZipOutputStream]
            [javax.imageio ImageIO]
-           [org.apache.commons.io FilenameUtils IOUtils]
-           [java.util.zip ZipOutputStream ZipEntry]))
+           [org.apache.commons.io FilenameUtils IOUtils]))
 
 (def project-path "test/resources/test_project")
 
@@ -123,6 +124,11 @@
      (g/reset-undo! proj-graph)
      project)))
 
+(defn project-node-resources [project]
+  (g/with-auto-evaluation-context evaluation-context
+    (sort-by resource/proj-path
+             (map (comp #(g/node-value % :resource evaluation-context) first)
+                  (g/sources-of project :node-id+resources)))))
 
 (defrecord FakeFileResource [workspace root ^File file children exists? source-type read-only? content]
   resource/Resource
@@ -193,7 +199,6 @@
   (let [node-id (project/get-resource-node project path)
         views-by-node-id (let [views (g/node-value app-view :open-views)]
                            (zipmap (map :resource-node (vals views)) (keys views)))
-        resource (g/node-value node-id :resource)
         view (get views-by-node-id node-id)]
     (if view
       (do
@@ -204,7 +209,7 @@
         (g/transact
           (concat
             (g/connect node-id :_node-id view :resource-node)
-            (g/connect node-id :node-id+resource view :node-id+resource)
+            (g/connect node-id :valid-node-id+resource view :node-id+resource)
             (g/connect view :view-data app-view :open-views)
             (g/set-property app-view :active-view view)))
         (app-view/select! app-view [node-id])
@@ -266,6 +271,30 @@
        (let [result# (do ~@forms)]
          (doseq [f# @laters#] (f#))
          result#))))
+
+(defn run-event-loop!
+  "Starts a simulated event loop and enqueues the supplied function on it.
+  The function is invoked with a single argument, which is a function that must
+  be called to exit the event loop. Blocks until the event loop is terminated,
+  or an exception is thrown from an enqueued action. While the event loop is
+  running, ui/run-now and ui/run-later are rebound to enqueue actions on the
+  simulated event loop, and ui/on-ui-thread? will return true only if called
+  from inside the event loop."
+  [f]
+  (let [ui-thread (Thread/currentThread)
+        action-queue (LinkedBlockingQueue.)
+        enqueue-action! (fn [action!]
+                          (.add action-queue action!)
+                          nil)
+        exit-event-loop! #(enqueue-action! ::exit-event-loop)]
+    (with-redefs [ui/on-ui-thread? #(= ui-thread (Thread/currentThread))
+                  ui/do-run-later enqueue-action!]
+      (enqueue-action! (fn [] (f exit-event-loop!)))
+      (loop []
+        (let [action! (.take action-queue)]
+          (when (not= ::exit-event-loop action!)
+            (action!)
+            (recur)))))))
 
 (defn set-active-tool! [app-view tool]
   (g/transact (g/set-property app-view :active-tool tool)))

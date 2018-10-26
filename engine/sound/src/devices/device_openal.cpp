@@ -92,7 +92,6 @@ namespace dmDeviceOpenAL
     {
         OpenALDevice* openal = (OpenALDevice*) device;
 
-        bool printed = false;
         int iter = 0;
         while (openal->m_Buffers.Size() != openal->m_Buffers.Capacity())
         {
@@ -190,7 +189,6 @@ namespace dmDeviceOpenAL
 
     void DeviceOpenALStop(dmSound::HDevice device)
     {
-        OpenALDevice* openal = (OpenALDevice*) device;
         if (!alcMakeContextCurrent(NULL)) {
             dmLogError("Failed to stop OpenAL device, could not disable context!");
         }

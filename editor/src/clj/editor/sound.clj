@@ -55,6 +55,7 @@
 (g/defnk produce-outline-data
   [_node-id]
   {:node-id _node-id
+   :node-outline-key "Sound"
    :label "Sound"
    :icon sound-icon})
 
@@ -134,8 +135,8 @@
 
   (property sound resource/Resource
             (value (gu/passthrough sound-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :sound-resource]
                                             [:build-targets :dep-build-targets])))
             (dynamic error (g/fnk [_node-id sound]

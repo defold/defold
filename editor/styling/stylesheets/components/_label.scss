@@ -1,0 +1,21 @@
+/*
+ * Javafx does not support naming several fallback font families, so we
+ * set the font from code depending on platform. For now, only on macos.
+ * 
+ *     (when (util/is-mac-os?)
+ *       (.setStyle acc "-fx-font-family: 'Lucida Grande';"))
+ *
+ * We can't use setFont() api, as that apparently gets overridden when
+ * we set the font size from css.
+ * 
+ */
+
+.slide-switch-label {
+  -fx-padding: 0px 0px 0px 7px;
+  -fx-max-width: 300px;
+}
+
+.accelerator-label {
+  -fx-font-size: 13px;
+  -fx-padding: 0px 0px 1px 0px;
+}

@@ -680,3 +680,32 @@
             content              (get content-by-source "/game.project")
             game-project-content (String. content)]
         (is (not (.contains game-project-content dependency-url)))))))
+
+(deftest collision-groups-data-doesnt-break-build
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/collision_project")
+          project (test-util/setup-project! workspace)
+          game-project (test-util/resource-node project "/game.project")]
+      (let [br (project-build project game-project (g/make-evaluation-context))]
+        (is (not (contains? br :error))))
+      (testing "Removing an unreferenced collisionobject should not break the build"
+        (let [f (File. (workspace/project-path workspace) "knight.collisionobject")]
+          (fs/delete-file! f)
+          (workspace/resource-sync! workspace))
+        (let [br (project-build project game-project (g/make-evaluation-context))]
+          (is (not (contains? br :error))))))))
+
+(deftest inexact-path-casing-produces-build-error
+  (with-loaded-project project-path
+    (let [game-project-node (test-util/resource-node project "/game.project")
+          atlas-node (test-util/resource-node project "/background/background.atlas")
+          atlas-image-node (ffirst (g/sources-of atlas-node :image-resources))
+          image-resource (g/node-value atlas-image-node :image)
+          workspace (resource/workspace image-resource)
+          uppercase-image-path (string/upper-case (resource/proj-path image-resource))
+          uppercase-image-resource (workspace/resolve-workspace-resource workspace uppercase-image-path)]
+      (g/set-property! atlas-image-node :image uppercase-image-resource)
+      (let [build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
+            error-message (some :message (tree-seq :causes :causes build-error))]
+        (is (g/error? build-error))
+        (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))

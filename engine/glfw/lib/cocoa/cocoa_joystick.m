@@ -896,7 +896,8 @@ XSDL_SYS_JoystickUpdate(int joy_index)
     }
 
     recElement *element;
-    SInt32 value, range;
+    SInt32 value;
+    //SInt32 range;
     int i;
 
     if (device->removed) {      /* device was unplugged; ignore it. */

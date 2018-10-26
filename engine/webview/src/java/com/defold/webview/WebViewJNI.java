@@ -78,7 +78,7 @@ public class WebViewJNI {
         @Override
         protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
             super.onLayout(changed, left, top, right, bottom);
-            
+
             if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB ) { // Api level 11
                 setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -200,11 +200,13 @@ public class WebViewJNI {
 
     private class WebViewInfo
     {
-        CustomWebView           webview;
-        CustomWebViewClient     webviewClient;
-        CustomWebChromeClient   webviewChromeClient;
-        LinearLayout            layout;
-        int                     first;
+        CustomWebView               webview;
+        CustomWebViewClient         webviewClient;
+        CustomWebChromeClient       webviewChromeClient;
+        LinearLayout                layout;
+        WindowManager.LayoutParams  windowParams;
+        int                         first;
+        int                         webviewID;
     };
 
     public WebViewJNI(Activity activity, int maxnumviews) {
@@ -215,9 +217,9 @@ public class WebViewJNI {
     private WebViewInfo createView(Activity activity, int webview_id)
     {
         WebViewInfo info = new WebViewInfo();
+        info.webviewID = webview_id;
         info.webview = new CustomWebView(activity, info);
         info.webview.setVisibility(View.GONE);
-
 
         if( Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB ) { // Api level 11
             info.webview.setSystemUiVisibility(
@@ -261,8 +263,15 @@ public class WebViewJNI {
         info.layout = layout;
         info.first = 1;
 
-        info.layout.setLayoutParams(new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT));
+        info.windowParams = new WindowManager.LayoutParams();
+        info.windowParams.gravity = Gravity.TOP | Gravity.LEFT;
+        info.windowParams.x = WindowManager.LayoutParams.MATCH_PARENT;
+        info.windowParams.y = WindowManager.LayoutParams.MATCH_PARENT;
+        info.windowParams.width = WindowManager.LayoutParams.MATCH_PARENT;
+        info.windowParams.height = WindowManager.LayoutParams.MATCH_PARENT;
+        info.windowParams.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL;
 
+        info.layout.setLayoutParams(info.windowParams);
         return info;
     }
 
@@ -272,16 +281,21 @@ public class WebViewJNI {
         if( visible != 0 && info.first == 1 )
         {
             info.first = 0;
-
             WindowManager wm = activity.getWindowManager();
-            WindowManager.LayoutParams windowparams = new WindowManager.LayoutParams();
-            windowparams.gravity = Gravity.TOP | Gravity.LEFT;
-            windowparams.x = WindowManager.LayoutParams.MATCH_PARENT;
-            windowparams.y = WindowManager.LayoutParams.MATCH_PARENT;
-            windowparams.width = WindowManager.LayoutParams.MATCH_PARENT;
-            windowparams.height = WindowManager.LayoutParams.MATCH_PARENT;
+            wm.addView(info.layout, info.windowParams);
+        }
+    }
 
-            wm.addView(info.layout, windowparams);
+    private void setPositionInternal(WebViewInfo info, int x, int y, int width, int height)
+    {
+        info.windowParams.x = x;
+        info.windowParams.y = y;
+        info.windowParams.width = width >= 0 ? width : WindowManager.LayoutParams.MATCH_PARENT;
+        info.windowParams.height = height >= 0 ? height : WindowManager.LayoutParams.MATCH_PARENT;
+
+        if (info.webview.getVisibility() == View.VISIBLE ) {
+            WindowManager wm = activity.getWindowManager();
+            wm.updateViewLayout(info.layout, info.windowParams);
         }
     }
 
@@ -298,7 +312,7 @@ public class WebViewJNI {
         this.activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if( WebViewJNI.this.infos[webview_id] != null )                    
+                if( WebViewJNI.this.infos[webview_id] != null )
                 {
                     if( WebViewJNI.this.infos[webview_id].layout != null )
                     {
@@ -355,11 +369,20 @@ public class WebViewJNI {
             public void run() {
                 setVisibleInternal(WebViewJNI.this.infos[webview_id], visible);
             }
-        });  
+        });
     }
 
     public int isVisible(final int webview_id) {
         int visible = this.infos[webview_id].webview.isShown() ? 1 : 0;
         return visible;
+    }
+
+    public void setPosition(final int webview_id, final int x, final int y, final int width, final int height) {
+        this.activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                setPositionInternal(WebViewJNI.this.infos[webview_id], x, y, width, height);
+            }
+        });
     }
 }

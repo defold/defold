@@ -88,7 +88,7 @@ namespace dmGameSystem
         LabelWorld* world = (LabelWorld*)params.m_World;
 
         LabelComponent* components = world->m_Components.m_Objects.Begin();
-        for (int i = 0; i < world->m_Components.m_Objects.Size(); ++i )
+        for (uint32_t i = 0; i < world->m_Components.m_Objects.Size(); ++i )
         {
             LabelComponent& component = components[i];
             if (component.m_UserAllocatedText)

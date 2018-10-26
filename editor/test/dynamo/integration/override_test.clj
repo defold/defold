@@ -1,12 +1,16 @@
 (ns dynamo.integration.override-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.set :as set]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [internal.graph.types :as gt]
-            [support.test-support :refer :all]
-            [internal.util :refer :all]
+            [dynamo.integration.override-test-support :as support]
+            [editor.defold-project :as project]
             [editor.resource :as resource]
+            [editor.util :as util]
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt]
+            [internal.util :refer :all]
             [schema.core :as s]
-            [dynamo.integration.override-test-support :as support])
+            [support.test-support :refer :all])
   (:import  [javax.vecmath Vector3d]))
 
 (g/defnode BaseNode
@@ -35,21 +39,20 @@
 
 (defn- override [node-id]
   (-> (g/override node-id {})
-    :tx-data
     tx-nodes))
 
 (defn- setup
   ([world]
-    (setup world 0))
+   (setup world 0))
   ([world count]
-    (let [nodes (tx-nodes (g/make-nodes world [main [MainNode :a-property "main" :b-property "main"]
-                                               sub SubNode]
-                                        (g/connect sub :_node-id main :sub-nodes)))]
-      (loop [result [nodes]
-             counter count]
-        (if (> counter 0)
-          (recur (conj result (override (first (last result)))) (dec counter))
-          result)))))
+   (let [nodes (tx-nodes (g/make-nodes world [main [MainNode :a-property "main" :b-property "main"]
+                                              sub SubNode]
+                                       (g/connect sub :_node-id main :sub-nodes)))]
+     (loop [result [nodes]
+            counter count]
+       (if (> counter 0)
+         (recur (conj result (override (first (last result)))) (dec counter))
+         result)))))
 
 (deftest test-sanity
   (with-clean-system
@@ -145,13 +148,13 @@
   (with-clean-system
     (let [prop :base-property
           [main or-main] (tx-nodes (g/make-nodes world [main [MainNode prop "inherited"]]
-                                                 (:tx-data (g/override main {}))))]
+                                                 (g/override main {})))]
       (is (= "inherited" (g/node-value or-main prop))))))
 
 (deftest new-node-created
   (with-clean-system
     (let [[main or-main sub] (tx-nodes (g/make-nodes world [main MainNode]
-                                                     (:tx-data (g/override main {}))
+                                                     (g/override main {})
                                                      (g/make-nodes world [sub SubNode]
                                                                    (g/connect sub :_node-id main :sub-nodes))))]
       (let [sub-nodes (g/node-value or-main :sub-nodes)]
@@ -163,7 +166,7 @@
 (deftest new-node-created-cache-invalidation
   (with-clean-system
     (let [[main or-main] (tx-nodes (g/make-nodes world [main MainNode]
-                                                 (:tx-data (g/override main {}))))
+                                                 (g/override main {})))
           _ (is (= [] (g/node-value or-main :cached-values)))
           [sub] (tx-nodes (g/make-nodes world [sub [SubNode :value "sub"]]
                                         (for [[from to] [[:_node-id :sub-nodes]
@@ -176,7 +179,7 @@
       (is (= [] (g/node-value or-main :cached-values))))))
 
 (g/defnode DetectCacheInvalidation
-  (property invalid-cache g/Any (default (atom 0)))
+  (property invalid-cache g/Any)
   (input value g/Str :cascade-delete)
   (output cached-value g/Str :cached (g/fnk [value invalid-cache]
                                             (swap! invalid-cache inc)
@@ -186,17 +189,17 @@
   (testing "missing override"
            (with-clean-system
              (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
-                                                                            cache DetectCacheInvalidation]
+                                                                            cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                                      (g/connect main :value cache :value)
-                                                                     (:tx-data (g/override main {}))))]
+                                                                     (g/override main {})))]
                (is (= cache-node (ffirst (g/targets-of main :value))))
                (is (empty? (g/targets-of or-main :value))))))
   (testing "existing override"
            (with-clean-system
              (let [[main cache-node] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
-                                                                    cache DetectCacheInvalidation]
+                                                                    cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                              (g/connect main :value cache :value)))
-                   [or-cache-node or-main] (tx-nodes (:tx-data (g/override cache-node {})))]
+                   [or-cache-node or-main] (tx-nodes (g/override cache-node {}))]
                (is (= cache-node (ffirst (g/targets-of main :value))))
                (is (= or-cache-node (ffirst (g/targets-of or-main :value))))))))
 
@@ -205,28 +208,31 @@
 
 (deftest inherit-sources []
   (testing "missing override"
-           (with-clean-system
-             (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main StringInput
-                                                                            cache DetectCacheInvalidation]
-                                                                     (g/connect cache :cached-value main :value)
-                                                                     (:tx-data (g/override main {}))))]
-               (is (= cache-node (ffirst (g/sources-of main :value))))
-               (is (= cache-node (ffirst (g/sources-of or-main :value)))))))
+    ;; After making g/override perform the bulk of its work in the
+    ;; transaction step (after the g/connect has happened/is
+    ;; observable) this test is less relevant.
+    (with-clean-system
+      (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main StringInput
+                                                                     cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
+                                                              (g/connect cache :cached-value main :value)
+                                                              (g/override main {:traverse? (constantly false)})))]
+        (is (= cache-node (ffirst (g/sources-of main :value))))
+        (is (= cache-node (ffirst (g/sources-of or-main :value)))))))
   (testing "existing override"
-           (with-clean-system
-             (let [[main cache-node] (tx-nodes (g/make-nodes world [main StringInput
-                                                                    cache DetectCacheInvalidation]
-                                                             (g/connect cache :cached-value main :value)))
-                   [or-main or-cache-node] (tx-nodes (:tx-data (g/override cache-node {})))]
-               (is (= cache-node (ffirst (g/sources-of main :value))))
-               (is (= or-cache-node (ffirst (g/sources-of or-main :value))))))))
+    (with-clean-system
+      (let [[main cache-node] (tx-nodes (g/make-nodes world [main StringInput
+                                                             cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
+                                                      (g/connect cache :cached-value main :value)))
+            [or-main or-cache-node] (tx-nodes (g/override cache-node {}))]
+        (is (= cache-node (ffirst (g/sources-of main :value))))
+        (is (= or-cache-node (ffirst (g/sources-of or-main :value))))))))
 
 (deftest lonely-override-leaves-cache []
   (with-clean-system
     (let [[main cache-node or-main] (tx-nodes (g/make-nodes world [main [SubNode :value "test"]
-                                                                   cache DetectCacheInvalidation]
+                                                                   cache [DetectCacheInvalidation :invalid-cache (atom 0)]]
                                                             (g/connect main :value cache :value)
-                                                            (:tx-data (g/override main {}))))]
+                                                            (g/override main {})))]
       (is (= 0 @(g/node-value cache-node :invalid-cache)))
       (is (= "test" (g/node-value cache-node :cached-value)))
       (is (= 1 @(g/node-value cache-node :invalid-cache)))
@@ -438,7 +444,7 @@
                           {:resource template-resource :overrides source-overrides}))
             (set (fn [evaluation-context self old-value new-value]
                    (let [basis (:basis evaluation-context)
-                         current-scene (g/node-feeding-into self :template-resource)]
+                         current-scene (g/node-feeding-into basis self :template-resource)]
                      (concat
                        (if current-scene
                          (g/delete-node current-scene)
@@ -449,16 +455,16 @@
                            (let [tmpl-path (g/node-value self :template-path evaluation-context)
                                  properties-by-node-id (comp (or (:overrides new-value) {})
                                                          (into {} (map (fn [[k v]] [v (str tmpl-path k)]))
-                                                           (g/node-value scene :node-ids evaluation-context)))
-                                 {:keys [id-mapping tx-data]} (g/override basis scene {:properties-by-node-id properties-by-node-id})
-                                 or-scene (id-mapping scene)]
-                             (concat
-                               tx-data
-                               (for [[from to] [[:node-ids :node-ids]
-                                                [:node-overrides :source-overrides]
-                                                [:resource :template-resource]]]
-                                (g/connect or-scene from self to))
-                               (g/connect self :template-path or-scene :id-prefix)))
+                                                               (g/node-value scene :node-ids evaluation-context)))]
+                             (g/override scene {:properties-by-node-id properties-by-node-id}
+                                         (fn [evaluation-context id-mapping]
+                                           (let [or-scene (id-mapping scene)]
+                                             (concat
+                                               (for [[from to] [[:node-ids :node-ids]
+                                                                [:node-overrides :source-overrides]
+                                                                [:resource :template-resource]]]
+                                                 (g/connect or-scene from self to))
+                                               (g/connect self :template-path or-scene :id-prefix))))))
                            [])))))))
   (input template-resource Resource :cascade-delete)
   (input node-ids IDMap)
@@ -474,18 +480,18 @@
   (property nodes g/Any
             (set (fn [evaluation-context self _ new-value]
                    (let [basis (:basis evaluation-context)
-                         current-tree (g/node-feeding-into self :node-tree)]
+                         current-tree (g/node-feeding-into basis self :node-tree)]
                      (concat
                        (if current-tree
                          (g/delete-node current-tree)
                          [])
                        (let [scene (ffirst (g/targets-of basis self :_node-id))
-                             node-tree (g/node-value scene :node-tree evaluation-context)
-                             {:keys [id-mapping tx-data]} (g/override node-tree {})
-                             node-tree-or (id-mapping node-tree)]
-                         (concat tx-data
-                           (for [[from to] [[:_node-id :node-tree]]]
-                             (g/connect node-tree-or from self to)))))))))
+                             node-tree (g/node-value scene :node-tree evaluation-context)]
+                         (g/override node-tree {}
+                                     (fn [evaluation-context id-mapping]
+                                       (let [node-tree-or (id-mapping node-tree)]
+                                         (for [[from to] [[:_node-id :node-tree]]]
+                                           (g/connect node-tree-or from self to)))))))))))
   (input node-tree g/NodeID :cascade-delete)
   (input id-prefix g/Str))
 
@@ -673,15 +679,16 @@
                        (let [gid (g/node-id->graph-id self)
                              path (:path new-value)]
                          (if-let [script (get (g/graph-value basis gid :resources) path)]
-                           (let [{:keys [id-mapping tx-data]} (g/override basis script {})
-                                 or-script (id-mapping script)
-                                 script-props (g/node-value script :_properties evaluation-context)
-                                 set-prop-data (for [[key value] (:overrides new-value)]
-                                                 (g/set-property or-script key value))
-                                 conn-data (for [[src tgt] [[:_node-id :instance]
-                                                            [:_properties :script-properties]]]
-                                             (g/connect or-script src self tgt))]
-                             (concat tx-data set-prop-data conn-data))
+                           (g/override script {}
+                                       (fn [evaluation-context id-mapping]
+                                         (let [or-script (id-mapping script)
+                                               script-props (g/node-value script :_properties evaluation-context)
+                                               set-prop-data (for [[key value] (:overrides new-value)]
+                                                               (g/set-property or-script key value))
+                                               conn-data (for [[src tgt] [[:_node-id :instance]
+                                                                          [:_properties :script-properties]]]
+                                                           (g/connect or-script src self tgt))]
+                                           (concat set-prop-data conn-data))))
                            [])))))))
   (input instance g/NodeID :cascade-delete)
   (input script-properties g/Properties)
@@ -721,7 +728,7 @@
 (deftest overloaded-outputs-and-types
   (with-clean-system
     (let [[a b] (tx-nodes (g/make-nodes world [n [TypedOutputNode :value [1 2 3]]]
-                                        (:tx-data (g/override n))))]
+                                        (g/override n)))]
       (g/transact (g/set-property b :value [2 3 4]))
       (is (not= (g/node-value b :complex) (g/node-value a :complex))))))
 
@@ -735,11 +742,10 @@
   (with-clean-system
     (let [[node parent sub] (tx-nodes (g/make-nodes world [node [IDNode :id "child-id"]
                                                            parent [IDNode :id "parent-id"]]
-                                                    (let [or-data (g/override node)
-                                                          or-node (get-in or-data [:id-mapping node])]
-                                                      (concat
-                                                        (:tx-data or-data)
-                                                        (g/connect parent :id or-node :super-id)))))]
+                                                    (g/override node {}
+                                                                (fn [evaluation-context id-mapping]
+                                                                  (let [or-node (id-mapping node)]
+                                                                    (g/connect parent :id or-node :super-id))))))]
       (is (= (g/node-value sub :id)
              (get-in (g/node-value sub :_declared-properties) [:properties :id :value]))))))
 
@@ -748,7 +754,7 @@
 (deftest reload-overrides
   (with-clean-system
      (let [[node or-node] (tx-nodes (g/make-nodes world [node [support/ReloadNode :my-value "reload-test"]]
-                                                  (:tx-data (g/override node))))]
+                                                  (g/override node)))]
        (g/transact (g/set-property or-node :my-value "new-value"))
        (is (= "new-value" (get-in (g/node-value or-node :_properties) [:properties :my-value :value])))
        (use 'dynamo.integration.override-test-support :reload)
@@ -804,7 +810,7 @@
     (let [[src tgt src-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]
                                                   (g/connect src :a-property tgt :in-value)
-                                                  (:tx-data (g/override src))))]
+                                                  (g/override src)))]
       (testing "regular dep"
                (is (every? (deps [[src :a-property]]) [[tgt :out-value]])))
       (testing "no override deps"
@@ -816,7 +822,7 @@
     (let [[src tgt tgt-1] (tx-nodes (g/make-nodes world [src [MainNode :a-property "reload-test"]
                                                          tgt TargetNode]
                                                   (g/connect src :a-property tgt :in-value)
-                                                  (:tx-data (g/override tgt))))]
+                                                  (g/override tgt)))]
       (testing "regular dep"
                (is (every? (deps [[src :a-property]]) [[tgt :out-value] [tgt-1 :out-value]])))
       (testing "connections"
@@ -849,26 +855,25 @@
     (let [[script] (tx-nodes (g/make-nodes world [script Script]))
           [go comp or-script] (tx-nodes (g/make-nodes world [go GameObject
                                                              comp Component]
-                                                      (let [o (g/override script {:traverse? (constantly true)})
-                                                            or-script ((:id-mapping o) script)]
-                                                        (concat
-                                                          (g/connect comp :_node-id go :components)
-                                                          (:tx-data o)
-                                                          (g/connect or-script :_node-id comp :instance)))))
+                                                      (g/override script {:traverse? (constantly true)}
+                                                                  (fn [evaluation-context id-mapping]
+                                                                    (let [or-script (id-mapping script)]
+                                                                      (concat
+                                                                        (g/connect comp :_node-id go :components)
+                                                                        (g/connect or-script :_node-id comp :instance)))))))
           [coll inst or-go] (tx-nodes (g/make-nodes world [coll Collection
                                                            inst GameObjectInstance]
-                                                    (let [o (g/override go {:traverse? (constantly true)})
-                                                          or-go ((:id-mapping o) go)]
-                                                      (concat
-                                                        (g/connect inst :_node-id coll :instances)
-                                                        (:tx-data o)
-                                                        (g/connect or-go :_node-id inst :source)))))
+                                                    (g/override go {:traverse? (constantly true)}
+                                                                (fn [evaluation-context id-mapping]
+                                                                  (let [or-go (id-mapping go)]
+                                                                    (concat
+                                                                      (g/connect inst :_node-id coll :instances)
+                                                                      (g/connect or-go :_node-id inst :source)))))))
           [comp-2 or-script-2] (tx-nodes (g/make-nodes world [comp Component]
-                                                       (let [o (g/override script {:traverse? (constantly true)})
-                                                             or-script ((:id-mapping o) script)]
-                                                         (concat
-                                                           (:tx-data o)
-                                                           (g/connect or-script :_node-id comp :instance)))))
+                                                       (g/override script {:traverse? (constantly true)}
+                                                                   (fn [evaluation-context id-mapping]
+                                                                     (let [or-script (id-mapping script)]
+                                                                       (g/connect or-script :_node-id comp :instance))))))
           nodes-on-connect (tx-nodes (g/connect comp-2 :_node-id go :components))]
       ;; 1 override for the component node and one for the script, w.r.t the collection
       (is (= 2 (count nodes-on-connect))))))
@@ -878,20 +883,20 @@
     (let [[script] (tx-nodes (g/make-nodes world [script Script]))
           [go comp or-script] (tx-nodes (g/make-nodes world [go GameObject
                                                              comp Component]
-                                                      (let [o (g/override script {:traverse? (constantly true)})
-                                                            or-script ((:id-mapping o) script)]
-                                                        (concat
-                                                          (g/connect comp :_node-id go :components)
-                                                          (:tx-data o)
-                                                          (g/connect or-script :_node-id comp :instance)))))
+                                                      (g/override script {:traverse? (constantly true)}
+                                                                  (fn [evaluation-context id-mapping]
+                                                                    (let [or-script (id-mapping script)]
+                                                                      (concat
+                                                                        (g/connect comp :_node-id go :components)
+                                                                        (g/connect or-script :_node-id comp :instance)))))))
           [coll inst or-go] (tx-nodes (g/make-nodes world [coll Collection
                                                            inst GameObjectInstance]
-                                                    (let [o (g/override go {:traverse? (constantly false)})
-                                                          or-go ((:id-mapping o) go)]
-                                                      (concat
-                                                        (g/connect inst :_node-id coll :instances)
-                                                        (:tx-data o)
-                                                        (g/connect or-go :_node-id inst :source)))))]
+                                                    (g/override go {:traverse? (constantly false)}
+                                                                (fn [evaluation-context id-mapping]
+                                                                  (let [or-go (id-mapping go)]
+                                                                    (concat
+                                                                      (g/connect inst :_node-id coll :instances)
+                                                                      (g/connect or-go :_node-id inst :source)))))))]
       (is (every? some? (map g/node-by-id [coll inst or-go go comp or-script script])))
       (g/transact (g/delete-node coll))
       (is (every? nil? (map g/node-by-id [coll inst or-go])))
@@ -911,20 +916,81 @@
                                       (tx-nodes (g/make-nodes world [coll Collection
                                                                      go-inst GameObjectInstance]
                                                               (g/connect go-inst :_node-id coll :instances)
-                                                              (let [o (g/override go {:traverse? (constantly true)})
-                                                                    or-go ((:id-mapping o) go)]
-                                                                (concat
-                                                                  (:tx-data o)
-                                                                  (g/connect or-go :_node-id go-inst :source))))))
+                                                              (g/override go {:traverse? (constantly true)}
+                                                                          (fn [evaluation-context id-mapping]
+                                                                            (let [or-go (id-mapping go)]
+                                                                              (g/connect or-go :_node-id go-inst :source)))))))
           [comp or-script] (tx-nodes (g/make-nodes world [comp Component]
-                                                   (let [o (g/override script {:traverse? (constantly true)})
-                                                         or-script ((:id-mapping o) script)]
-                                                     (concat
-                                                       (:tx-data o)
-                                                       (g/connect or-script :_node-id comp :instance)
-                                                       (g/connect comp :_node-id go :components)))))]
+                                                   (g/override script {:traverse? (constantly true)}
+                                                               (fn [evaluation-context id-mapping]
+                                                                 (let [or-script (id-mapping script)]
+                                                                   (concat
+                                                                     (g/connect or-script :_node-id comp :instance)
+                                                                     (g/connect comp :_node-id go :components)))))))]
       (let [all-script-nodes (doall (tree-seq (constantly true) g/overrides script))]
         (is (= 4 (count all-script-nodes)))
         (g/transact (g/delete-node comp))
         (is (= 1 (count (keep g/node-by-id all-script-nodes))))
         (is (empty? (mapcat g/overrides all-script-nodes)))))))
+
+(defn- remove-idx [v ix]
+  (into (subvec v 0 ix) (subvec v (inc ix))))
+
+(defn- all-system-nodes []
+  (into []
+        (mapcat #(keys (:nodes (deref (second %)))))
+        (:graphs @g/*the-system*)))
+
+(deftest symmetric-input-output-arcs
+  (test-util/with-loaded-project "test/resources/override_project"
+    (let [all-nodes (all-system-nodes)
+          node-outputs (reduce (fn [result n]
+                                 (reduce (fn [result label]
+                                           (assoc-in result [n label] (vec (g/labelled-outputs n label))))
+                                         result
+                                         (g/output-labels (g/node-type* n))))
+                               {}
+                               all-nodes)
+          node-inputs (reduce (fn [result n]
+                                (reduce (fn [result label]
+                                          (assoc-in result [n label] (vec (g/labelled-inputs n label))))
+                                        result
+                                        (g/input-labels (g/node-type* n))))
+                              {}
+                              all-nodes)]
+      (testing "outputs and labelled-outputs report the same arcs, and same cardinality of arcs"
+        (doseq [node all-nodes]
+          (let [outputs (g/outputs node)
+                outputs-freqs (frequencies outputs)
+                merged-outputs (into [] cat (vals (node-outputs node)))
+                merged-outputs-freqs (frequencies merged-outputs)
+                freq-diff [:all-merged (not-empty (set/difference (set outputs-freqs) (set merged-outputs-freqs)))
+                           :merged-all (not-empty (set/difference (set merged-outputs-freqs) (set outputs-freqs)))]]
+            (is (= freq-diff [:all-merged nil :merged-all nil])))))
+      (testing "inputs and labelled-inputs report the same arcs, and same cardinality of arcs"
+        (doseq [node all-nodes]
+          (let [inputs (g/inputs node)
+                inputs-freqs (frequencies inputs)
+                merged-inputs (into [] cat (vals (node-inputs node)))
+                merged-inputs-freqs (frequencies merged-inputs)
+                freq-diff [:all-merged (not-empty (set/difference (set inputs-freqs) (set merged-inputs-freqs)))
+                           :merged-all (not-empty (set/difference (set merged-inputs-freqs) (set inputs-freqs)))]]
+            (is (= freq-diff [:all-merged nil :merged-all nil])))))
+      (testing "For all outputs, there is a corresponding input and vice versa"
+        (let [inputs (atom node-inputs)] ; we tick off one input arc per output arc
+          (doseq [node all-nodes]
+            (loop [outputs (g/outputs node)]
+              (when (seq outputs)
+                (let [output (first outputs)
+                      target (nth output 2)
+                      target-label (nth output 3)
+                      input-index (first (util/positions #(= output %) (get-in @inputs [target target-label])))]
+                  (is (some? input-index) (str "missing input for " output " in:\n" (get-in @inputs [target target-label])))
+                  (swap! inputs update-in [target target-label] remove-idx input-index)
+                  (recur (rest outputs))))))
+          (is (empty? (into [] (comp (map vals) cat cat) (vals @inputs)))))) ; should end up with no input arcs left
+      (testing "Sanity: all inputs == all outputs"
+        (let [output-freqs (frequencies (mapcat g/outputs all-nodes))
+              input-freqs (frequencies (mapcat g/inputs all-nodes))]
+          (is (= output-freqs input-freqs)))))))
+

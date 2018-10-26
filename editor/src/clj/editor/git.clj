@@ -13,7 +13,7 @@
            [org.eclipse.jgit.api Git ResetCommand$ResetType PushCommand]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
-           [org.eclipse.jgit.errors RepositoryNotFoundException]
+           [org.eclipse.jgit.errors MissingObjectException RepositoryNotFoundException]
            [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId ProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
@@ -143,8 +143,22 @@
                                      (mapcat (fn [[k v]] [k (-> v str camel/->kebab-case keyword)])
                                              (.getConflictingStageState s)))}))
 
+(defn- make-add-diff-entry [file-path]
+  {:score 0 :change-type :add :old-path nil :new-path file-path})
+
+(defn- make-delete-diff-entry [file-path]
+  {:score 0 :change-type :delete :old-path file-path :new-path nil})
+
+(defn- make-modify-diff-entry [file-path]
+  {:score 0 :change-type :modify :old-path file-path :new-path file-path})
+
+(defn- diff-entry-path
+  ^String [{:keys [old-path new-path]}]
+  (or new-path old-path))
+
 (defn unified-status
-  "Get the actual status by comparing contents on disk and HEAD. The index, i.e. staged files, are ignored"
+  "Get the actual status by comparing contents on disk and HEAD. The state of
+  the index (i.e. whether or not a file is staged) does not matter."
   ([^Git git]
    (unified-status git (status git)))
   ([^Git git git-status]
@@ -154,15 +168,26 @@
      (if (empty? changed-paths)
        []
        (let [repository (.getRepository git)
-             tree-walk (doto (TreeWalk. repository)
-                         (.addTree (.getTree ^RevCommit (get-commit repository "HEAD")))
-                         (.addTree (FileTreeIterator. repository))
-                         (.setFilter (PathFilterGroup/createFromStrings ^Collection changed-paths))
-                         (.setRecursive true))
              rename-detector (doto (RenameDetector. repository)
-                               (.addAll (DiffEntry/scan tree-walk)))
-             diff-entries (.compute rename-detector nil)]
-         (mapv diff-entry->map diff-entries))))))
+                               (.addAll (with-open [tree-walk (doto (TreeWalk. repository)
+                                                                (.addTree (.getTree ^RevCommit (get-commit repository "HEAD")))
+                                                                (.addTree (FileTreeIterator. repository))
+                                                                (.setFilter (PathFilterGroup/createFromStrings ^Collection changed-paths))
+                                                                (.setRecursive true))]
+                                          (DiffEntry/scan tree-walk))))]
+         (try
+           (let [diff-entries (.compute rename-detector nil)]
+             (mapv diff-entry->map diff-entries))
+           (catch MissingObjectException _
+             ;; TODO: Workaround for what appears to be a bug inside JGit.
+             ;; The rename detector failed for some reason. Report the status
+             ;; without considering renames. This results in separate :added and
+             ;; :deleted entries for unstaged renames, but will resolve into a
+             ;; single :renamed entry once staged.
+             (sort-by diff-entry-path
+                      (concat (map make-add-diff-entry (concat (:added git-status) (:untracked git-status)))
+                              (map make-modify-diff-entry (concat (:changed git-status) (:modified git-status)))
+                              (map make-delete-diff-entry (concat (:missing git-status) (:removed git-status))))))))))))
 
 (defn file ^java.io.File [^Git git file-path]
   (io/file (str (worktree git) "/" file-path)))

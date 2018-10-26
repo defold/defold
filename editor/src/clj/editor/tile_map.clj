@@ -140,7 +140,8 @@
               #_(if selected
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 1.0))
                   (shader/set-uniform shader gl "tint" (Vector4d. 1.0 1.0 1.0 0.5)))
-              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))))))
+              (gl/gl-draw-arrays gl GL2/GL_QUADS 0 (count vbuf))
+              (.glBlendFunc gl GL/GL_SRC_ALPHA GL/GL_ONE_MINUS_SRC_ALPHA)))))
 
       pass/selection
       (let [{:keys [^Matrix4d world-transform user-data]} (first renderables)
@@ -199,12 +200,14 @@
                    (geom/aabb-incorporate max-x max-y 0))}))))
 
 (g/defnk produce-layer-scene
-  [_node-id cell-map texture-set-data z gpu-texture shader blend-mode visible]
+  [_node-id id cell-map texture-set-data z gpu-texture shader blend-mode visible]
   (when visible
     (let [{:keys [aabb vbuf]} (gen-layer-render-data cell-map texture-set-data)]
       {:node-id _node-id
+       :node-outline-key id
        :aabb aabb
        :renderable {:render-fn render-layer
+                    :tags #{:tilemap}
                     :user-data {:node-id _node-id
                                 :vbuf vbuf
                                 :gpu-texture gpu-texture
@@ -216,6 +219,7 @@
 (g/defnk produce-layer-outline
   [_node-id id]
   {:node-id _node-id
+   :node-outline-key id
    :label id
    :icon tile-map-layer-icon})
 
@@ -306,10 +310,11 @@
 
 (g/defnk produce-node-outline
   [_node-id child-outlines]
-  {:node-id  _node-id
-   :label    "Tile Map"
-   :icon     tile-map-icon
-   :children (vec (sort-by :label child-outlines))})
+  {:node-id          _node-id
+   :node-outline-key "Tile Map"
+   :label            "Tile Map"
+   :icon             tile-map-icon
+   :children         (vec (sort-by :label child-outlines))})
 
 (g/defnk produce-pb-msg
   [tile-source material blend-mode layer-msgs]
@@ -374,8 +379,8 @@
   ;; tile source
   (property tile-source resource/Resource
             (value (gu/passthrough tile-source-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :tile-source-resource]
                                             [:build-targets :dep-build-targets]
                                             [:tile-source-attributes :tile-source-attributes]
@@ -389,8 +394,8 @@
   ;; material
   (property material resource/Resource
             (value (gu/passthrough material-resource))
-            (set (fn [_evaluation-context self old-value new-value]
-                   (project/resource-setter self old-value new-value
+            (set (fn [evaluation-context self old-value new-value]
+                   (project/resource-setter evaluation-context self old-value new-value
                                             [:resource :material-resource]
                                             [:build-targets :dep-build-targets]
                                             [:shader :material-shader]
@@ -1064,7 +1069,7 @@
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext ["tilemap" "tilegrid"]
-    :build-ext "tilegridc"
+    :build-ext "tilemapc"
     :node-type TileMapNode
     :ddf-type Tile$TileGrid
     :load-fn load-tile-map

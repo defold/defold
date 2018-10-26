@@ -151,21 +151,33 @@ ordinary paths."
         :folder
         "icons/32/Icons_01-Folder-closed.png"))))
 
-(defn file-resource [workspace path-or-file]
-  (let [root (g/node-value workspace :root)
-        f (if (instance? File path-or-file)
-            path-or-file
-            (File. (str root path-or-file)))]
-    (resource/make-file-resource workspace root f [])))
+(defn file-resource
+  ([workspace path-or-file]
+   (g/with-auto-evaluation-context evaluation-context
+     (file-resource workspace path-or-file evaluation-context)))
+  ([workspace path-or-file evaluation-context]
+   (let [root (g/node-value workspace :root evaluation-context)
+         f (if (instance? File path-or-file)
+             path-or-file
+             (File. (str root path-or-file)))]
+     (resource/make-file-resource workspace root f []))))
 
-(defn find-resource [workspace proj-path]
-  (get (g/node-value workspace :resource-map) proj-path))
+(defn find-resource
+  ([workspace proj-path]
+   (g/with-auto-evaluation-context evaluation-context
+     (find-resource workspace proj-path evaluation-context)))
+  ([workspace proj-path evaluation-context]
+   (get (g/node-value workspace :resource-map evaluation-context) proj-path)))
 
-(defn resolve-workspace-resource [workspace path]
-  (when (and path (not-empty path))
-    (or
-      (find-resource workspace path)
-      (file-resource workspace path))))
+(defn resolve-workspace-resource
+  ([workspace path]
+   (g/with-auto-evaluation-context evaluation-context
+     (resolve-workspace-resource workspace path evaluation-context)))
+  ([workspace path evaluation-context]
+   (when (and path (not-empty path))
+     (or
+       (find-resource workspace path evaluation-context)
+       (file-resource workspace path evaluation-context)))))
 
 (defn- absolute-path [^String path]
   (.startsWith path "/"))
@@ -206,10 +218,6 @@ ordinary paths."
           (comp (remove :file)
                 (map :uri))
           (library/current-library-state project-directory dependencies))))
-
-(defn update-snapshot-status!
-  [workspace resources]
-  (g/update-property! workspace :resource-snapshot resource-watch/update-snapshot-status resources))
 
 (defn make-snapshot-info [workspace project-path dependencies snapshot-cache]
   (let [snapshot-info (resource-watch/make-snapshot-info workspace project-path dependencies snapshot-cache)]
@@ -289,11 +297,18 @@ ordinary paths."
                     (* 2 (count moved)))) ; no chained moves src->tgt->tgt2...
          (assert (empty? (set/intersection (set (map (comp resource/proj-path first) moved))
                                            (set (map resource/proj-path (:added changes)))))) ; no move-source is in :added
-         (let [listeners @(g/node-value workspace :resource-listeners)
-               parent-progress (atom (progress/make "" (count listeners)))]
-           (doseq [listener listeners]
-             (resource/handle-changes listener changes-with-moved
-                                      (progress/nest-render-progress render-progress! @parent-progress))))))
+         (try
+           (let [listeners @(g/node-value workspace :resource-listeners)
+                 total-progress-size (transduce (map first) + 0 listeners)]
+             (loop [listeners listeners
+                    parent-progress (progress/make "" total-progress-size)]
+               (when-some [[progress-span listener] (first listeners)]
+                 (resource/handle-changes listener changes-with-moved
+                                          (progress/nest-render-progress render-progress! parent-progress progress-span))
+                 (recur (next listeners)
+                        (progress/advance parent-progress progress-span)))))
+           (finally
+             (render-progress! progress/done)))))
      changes)))
 
 (defn fetch-and-validate-libraries [workspace library-uris render-fn]
@@ -305,8 +320,8 @@ ordinary paths."
   (set-project-dependencies! workspace library-uris)
   (library/install-validated-libraries! (project-path workspace) lib-states))
 
-(defn add-resource-listener! [workspace listener]
-  (swap! (g/node-value workspace :resource-listeners) conj listener))
+(defn add-resource-listener! [workspace progress-span listener]
+  (swap! (g/node-value workspace :resource-listeners) conj [progress-span listener]))
 
 
 (g/deftype UriVec [URI])
@@ -343,8 +358,8 @@ ordinary paths."
 (defn etags [workspace]
   (g/user-data workspace ::etags))
 
-(defn etag [workspace path]
-  (get (etags workspace) path))
+(defn etag [workspace proj-path]
+  (get (etags workspace) proj-path))
 
 (defn etags! [workspace etags]
   (g/user-data! workspace ::etags etags))

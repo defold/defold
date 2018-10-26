@@ -283,11 +283,17 @@
     (doseq [^ListChangeListener l listeners]
       (.removeListener observable l))))
 
+(defn on-ui-thread? []
+  (Platform/isFxApplicationThread))
+
+(defn do-run-later [f]
+  (Platform/runLater f))
+
 (defn do-run-now [f]
-  (if (Platform/isFxApplicationThread)
+  (if (on-ui-thread?)
     (f)
     (let [p (promise)]
-      (Platform/runLater
+      (do-run-later
         (fn []
           (try
             (deliver p (f))
@@ -302,9 +308,6 @@
   [& body]
   `(do-run-now
      (fn [] ~@body)))
-
-(defn do-run-later [f]
-  (Platform/runLater f))
 
 (defmacro run-later
   [& body]
@@ -445,6 +448,9 @@
 (defn on-double! [^Node node fn]
   (.setOnMouseClicked node (event-handler e (when (= 2 (.getClickCount ^MouseEvent e))
                                               (fn e)))))
+
+(defn on-click! [^Node node fn]
+  (.setOnMouseClicked node (event-handler e (fn e))))
 
 (defn on-mouse! [^Node node fn]
   (.setOnMouseEntered node (when fn (event-handler e (fn :enter e))))
@@ -1090,6 +1096,10 @@
       ;; a special event handler that suppresses actions invoked via
       ;; an accelerator, but still dispatches actions when invoked by
       ;; clicking the menu item.
+      ;; Note this doesn't seem to work for CheckMenuItems as the
+      ;; CheckMenuItemAdapter in GlobalMenuAdapter.java does
+      ;; getOnMenuValidation() on this instead of the target
+      ;; menuItem. In effect we never get a MENU_VALIDATION_EVENT.
       (let [handler (->MenuEventHandler scene command user-data false)]
         (.setOnMenuValidation menu-item handler)
         (.setOnAction menu-item handler))
@@ -1113,7 +1123,7 @@
               user-data (:user-data item)
               check (:check item)]
           (when-let [handler-ctx (handler/active command command-contexts user-data)]
-            (let [label (or (handler/label handler-ctx) item-label)
+            (let [label (or (handler/label handler-ctx) item-label) ; Note that this is *not* updated on every menu refresh. Can't do "Show X" <-> "Hide X".
                   enabled? (handler/enabled? handler-ctx)
                   acc (command->shortcut command)]
               (if-let [options (handler/options handler-ctx)]
@@ -1539,13 +1549,22 @@
                                                                                       (when-let [handler-ctx (handler/active (:command new) command-contexts (:user-data new))]
                                                                                         (when (handler/enabled? handler-ctx)
                                                                                           (handler/run handler-ctx)
-                                                                                          (refresh scene)))))))
+                                                                                          (user-data! scene ::refresh-requested? true)))))))
                                                    (.add (.getChildren hbox) (jfx/get-image-view (:icon menu-item) 16))
                                                    (.add (.getChildren hbox) cb)
                                                    hbox)
                                                  (let [button (ToggleButton. (or (handler/label handler-ctx) (:label menu-item)))
+                                                       graphic-fn (:graphic-fn menu-item)
                                                        icon (:icon menu-item)]
-                                                   (when icon
+                                                   (cond
+                                                     graphic-fn
+                                                     ;; TODO: Ideally, we'd create the graphic once and simply assign it here.
+                                                     ;; Trouble is, the toolbar takes ownership of the Node tree, so the graphic
+                                                     ;; disappears from the toolbars of subsequent tabs. For now, we generate
+                                                     ;; instances for each tab.
+                                                     (.setGraphic button (graphic-fn))
+
+                                                     icon
                                                      (.setGraphic button (jfx/get-image-view icon 16)))
                                                    (when command
                                                      (on-action! button (fn [event]
@@ -1553,7 +1572,7 @@
                                                                             (when-let [handler-ctx (handler/active command command-contexts user-data)]
                                                                               (when (handler/enabled? handler-ctx)
                                                                                 (handler/run handler-ctx)
-                                                                                (refresh scene)))))))
+                                                                                (user-data! scene ::refresh-requested? true)))))))
                                                    button)))]
                           (when command
                             (.setId child (name command)))
@@ -1654,7 +1673,9 @@
   (text! label (progress/message progress)))
 
 (defn render-progress-percentage! [progress ^Label label]
-  (text! label (str (progress/percentage progress) "%")))
+  (if-some [percentage (progress/percentage progress)]
+    (text! label (str percentage "%"))
+    (text! label "")))
 
 (defn render-progress-controls! [progress ^ProgressBar bar ^Label label]
   (when bar (render-progress-bar! progress bar))
@@ -1667,7 +1688,25 @@
        (finally
          ((second ~bindings) progress/done)))))
 
-(defn modal-progress [title total-work worker-fn]
+(defn make-run-later-render-progress [render-progress!]
+  (let [render-inflight (ref false)
+        last-progress (ref nil)]
+    (progress/throttle-render-progress
+      (fn [progress]
+        (let [schedule (ref false)]
+          (dosync
+            (ref-set schedule (not @render-inflight))
+            (ref-set render-inflight true)
+            (ref-set last-progress progress))
+          (when @schedule
+            (run-later
+              (let [progress-snapshot (ref nil)]
+                (dosync
+                  (ref-set progress-snapshot @last-progress)
+                  (ref-set render-inflight false))
+                (render-progress! @progress-snapshot)))))))))
+
+(defn modal-progress [title worker-fn]
   (run-now
    (let [root             ^Parent (load-fxml "progress.fxml")
          stage            (make-dialog-stage (main-stage))
@@ -1676,10 +1715,9 @@
          progress-control ^ProgressBar (.lookup root "#progress")
          message-control  ^Label (.lookup root "#message")
          return           (atom nil)
-         render-progress! (progress/throttle-render-progress
+         render-progress! (make-run-later-render-progress
                             (fn [progress]
-                              (run-later
-                                (render-progress-controls! progress progress-control message-control))))]
+                              (render-progress-controls! progress progress-control message-control)))]
       (.setText title-control title)
       (.setProgress progress-control 0)
       (.setScene stage scene)
@@ -1695,58 +1733,44 @@
           (throw @return)
           @return))))
 
-(defn ui-disabled?
-  []
-  (run-now (.. (main-stage) getScene getRoot isDisabled)))
+(defn- set-scene-disable! [^Scene scene disable?]
+  (when-some [root (.getRoot scene)]
+    (.setDisable root disable?)
+    ;; Menus are unaffected by the disabled root, so we must explicitly disable them.
+    (doseq [^Menu menu (mapcat #(.getMenus ^MenuBar %) (.lookupAll root "MenuBar"))]
+      (.setDisable menu disable?))))
 
-(def disabled-ui-event-filter
-  (event-handler e (.consume e)))
+(defn- push-disable-ui! [disable-ui-focus-owner-stack]
+  (assert (on-ui-thread?))
+  (let [scene (some-> (main-stage) .getScene)
+        focus-owner (some-> scene focus-owner)]
+    (when (and (some? scene)
+               (empty? disable-ui-focus-owner-stack))
+      (set-scene-disable! scene true))
+    (conj disable-ui-focus-owner-stack focus-owner)))
 
-(defn disable-ui
-  []
-  (let [scene       (.getScene (main-stage))
-        focus-owner (focus-owner scene)
-        root        (.getRoot scene)]
-    (.setDisable root true)
-    focus-owner))
+(defn- pop-disable-ui! [disable-ui-focus-owner-stack]
+  (assert (on-ui-thread?))
+  (when (= 1 (count disable-ui-focus-owner-stack))
+    (when-some [scene (some-> (main-stage) .getScene)]
+      (set-scene-disable! scene false)
+      (when-some [^Node focus-owner (peek disable-ui-focus-owner-stack)]
+        (.requestFocus focus-owner))))
+  (pop disable-ui-focus-owner-stack))
 
-(defn enable-ui
-  [^Node focus-owner]
-  (let [scene       (.getScene (main-stage))
-        root        (.getRoot scene)]
-    (.setDisable root false)
-    (when focus-owner
-      (.requestFocus focus-owner))))
+(def ^:private disable-ui-focus-owner-stack-volatile (volatile! []))
 
-(defmacro with-disabled-ui [& body]
-  `(let [focus-owner# (run-now (disable-ui))]
-     (try
-       ~@body
-       (finally
-         (run-now (enable-ui focus-owner#))))))
+(defn ui-disabled? []
+  (run-now
+    (not (empty? (deref disable-ui-focus-owner-stack-volatile)))))
 
-(defn- on-ui-thread?
-  []
-  (Platform/isFxApplicationThread))
+(defn disable-ui! []
+  (run-later
+    (vswap! disable-ui-focus-owner-stack-volatile push-disable-ui!)))
 
-(defmacro on-app-thread
-  [& body]
-  `(if (on-ui-thread?)
-     (do ~@body)
-     (Platform/runLater
-      (bound-fn [] (do ~@body)))))
-
-(defn run-wait
-  [f]
-  (let [result (promise)]
-    (on-app-thread
-     (deliver result (f)))
-    @result))
-
-(defmacro run-safe
-  [& body]
-  `(Platform/runLater
-    (fn [] ~@body)))
+(defn enable-ui! []
+  (run-later
+    (vswap! disable-ui-focus-owner-stack-volatile pop-disable-ui!)))
 
 (defn handle
   [f]

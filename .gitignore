@@ -13,3 +13,11 @@
 *.iml
 *.apidoc_
 engine/.clang_complete
+/.vscode
+
+# When opening the folder through certain IDE's (e.g. VSCode)
+scripts/android-v4/.classpath
+scripts/android-v4/.gradle/
+scripts/android-v4/.project
+scripts/android-v4/.settings/
+scripts/android-v4/build/

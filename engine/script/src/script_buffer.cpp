@@ -308,7 +308,7 @@ namespace dmScript
             if( lua_type(L, -2) != LUA_TSTRING )
             {
         		lua_pop(L, 3);
-                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));   
+                return DM_LUA_ERROR("buffer.create: Unknown index type: %s - %s", lua_typename(L, lua_type(L, -2)), lua_tostring(L, -2));
             }
 
             const char* key = lua_tostring(L, -2);
@@ -401,7 +401,7 @@ namespace dmScript
         dmBuffer::StreamDeclaration* decl = (dmBuffer::StreamDeclaration*)alloca(num_decl * sizeof(dmBuffer::StreamDeclaration));
         if( !decl )
         {
-            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);	
+            return luaL_error(L, "buffer.create: Failed to create memory for %d stream declarations", num_decl);
         }
 
         uint32_t count = 0;
@@ -506,42 +506,6 @@ namespace dmScript
     #undef DM_COPY_STREAM
     }
 
-    template<typename T>
-    static void CopyStreamToMemInternalT(T* dst, const T* src, uint32_t count, uint32_t components, uint32_t stride)
-    {
-        for(uint32_t i = 0; i < count; ++i)
-        {
-            for(uint32_t c = 0; c < components; ++c)
-            {
-                dst[c] = src[c];
-            }
-            src += stride;
-            dst += components;
-        }
-    }
-
-    static bool CopyStreamToMemInternal(uint32_t type, void* dst, const void* data, uint32_t count, uint32_t components, uint32_t stride)
-    {
-        #define DM_COPY_STREAMMEM(_T_) CopyStreamToMemInternalT<_T_>((_T_*) dst, (_T_*) data, count, components, stride)
-            switch(type)
-            {
-            case dmBuffer::VALUE_TYPE_UINT8:      DM_COPY_STREAMMEM(uint8_t); break;
-            case dmBuffer::VALUE_TYPE_UINT16:     DM_COPY_STREAMMEM(uint16_t); break;
-            case dmBuffer::VALUE_TYPE_UINT32:     DM_COPY_STREAMMEM(uint32_t); break;
-            case dmBuffer::VALUE_TYPE_UINT64:     DM_COPY_STREAMMEM(uint64_t); break;
-            case dmBuffer::VALUE_TYPE_INT8:       DM_COPY_STREAMMEM(int8_t); break;
-            case dmBuffer::VALUE_TYPE_INT16:      DM_COPY_STREAMMEM(int16_t); break;
-            case dmBuffer::VALUE_TYPE_INT32:      DM_COPY_STREAMMEM(int32_t); break;
-            case dmBuffer::VALUE_TYPE_INT64:      DM_COPY_STREAMMEM(int64_t); break;
-            case dmBuffer::VALUE_TYPE_FLOAT32:    DM_COPY_STREAMMEM(float); break;
-            default:
-                return false;
-            }
-            return true;
-    #undef DM_COPY_STREAMMEM
-    }
-
-
     /*# copies data from one stream to another
      *
      * Copy a specified amount of data from one stream to another.
@@ -598,11 +562,11 @@ namespace dmScript
                                         dststream->m_TypeCount, dmBuffer::GetValueTypeString(dststream->m_Type), srcstream->m_TypeCount, dmBuffer::GetValueTypeString(srcstream->m_Type) );
             }
 
-            if( (dstoffset + count) > dststream->m_Count * dststream->m_TypeCount )
+            if( (uint32_t)(dstoffset + count) > dststream->m_Count * dststream->m_TypeCount )
             {
                 return DM_LUA_ERROR("Trying to write too many values: Stream length: %d, Offset: %d, Values to copy: %d", dststream->m_Count, dstoffset, count);
             }
-            if( (srcoffset + count) > srcstream->m_Count * srcstream->m_TypeCount )
+            if( (uint32_t)(srcoffset + count) > srcstream->m_Count * srcstream->m_TypeCount )
             {
                 return DM_LUA_ERROR("Trying to read too many values: Stream length: %d, Offset: %d, Values to copy: %d", srcstream->m_Count, srcoffset, count);
             }
@@ -664,11 +628,11 @@ namespace dmScript
         uint32_t srccount;
         dmBuffer::GetCount(dstbuffer, &dstcount);
         dmBuffer::GetCount(srcbuffer, &srccount);
-        if( (dstoffset + count) > dstcount )
+        if( (dstoffset + count) > (int)dstcount )
         {
             return DM_LUA_ERROR("Trying to write too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
         }
-        if( (srcoffset + count) > srccount )
+        if( (srcoffset + count) > (int)srccount )
         {
             return DM_LUA_ERROR("Trying to read too many elements: Destination buffer length: %u, Offset: %u, Values to copy: %u", dstcount, dstoffset, count);
         }
@@ -829,7 +793,7 @@ namespace dmScript
         lua_pushnumber(L, count);
         return 1;
     }
-    
+
     static const luaL_reg Buffer_methods[] =
     {
         {0,0}
@@ -845,7 +809,7 @@ namespace dmScript
 
     //////////////////////////////////////////////////////////////////
     // STREAM
-    
+
     static int Stream_gc(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
@@ -885,7 +849,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 1);
         BufferStream* stream = CheckStream(L, 1);
         int index = luaL_checkinteger(L, 2) - 1;
-        if (index < 0 || index >= stream->m_Count * stream->m_TypeCount)
+        if (index < 0 || index >= (int)(stream->m_Count * stream->m_TypeCount))
         {
             if (stream->m_Count > 0)
             {
@@ -906,7 +870,7 @@ namespace dmScript
         DM_LUA_STACK_CHECK(L, 0);
         BufferStream* stream = CheckStream(L, 1);
         int index = luaL_checkinteger(L, 2) - 1;
-        if (index < 0 || index >= stream->m_Count * stream->m_TypeCount)
+        if (index < 0 || index >= (int)(stream->m_Count * stream->m_TypeCount))
         {
             if (stream->m_Count > 0)
             {

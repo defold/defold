@@ -66,7 +66,7 @@ namespace dmGameSystem
 
      /*# [type:number] spine playback_rate
      *
-     * The animation playback rate. A multiplier to the animation playback rate. The type of the property is number.
+     * The animation playback rate. A multiplier to the animation playback rate. The type of the property is [type:number].
      *
      * The playback_rate is a non-negative number, a negative value will be clamped to 0.
      *
@@ -89,7 +89,8 @@ namespace dmGameSystem
 
      /*# [type:hash] spine animation
      *
-     * The current animation set on the component. The type of the property is hash.
+     * [mark:READ ONLY] The current animation set on the component.
+     * The type of the property is [type:hash].
      *
      * @name animation
      * @property
