@@ -10,10 +10,19 @@ end
 
 function update(self, dt)
 
-	local metrics_valid = {
-		max_ascent = 13,
-		width = 771,
-		height = 17,
+	-- Values are taken from the output from label.get_text_metrics from defold version 1.2.138
+	-- The settings used are:
+	-- 	font: "/builtins/fonts/vera_mo_bd.ttf"
+	-- 	size: 14
+	-- 	antialias: 1
+	-- 	alpha: 1.0
+	-- 	shadow_alpha: 1.0
+	-- 	shadow_blur: 2
+
+	local metrics_valid ={
+		max_ascent  = 13,
+		width       = 771,
+		height      = 17,
 		max_descent = 4
 	}
 

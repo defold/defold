@@ -379,16 +379,14 @@ public class Fontc {
             if (glyph.width <= 0.0f) {
                 continue;
             }
+
             int ascent  = glyph.ascent;
             int descent = glyph.descent;
+            int width   = glyph.width + padding * 2 + cell_padding * 2;
 
-            int width = glyph.width + padding * 2 + cell_padding * 2;
-            // int height = ascent + descent + padding * 2 + cell_padding * 2;
-
-            cell_width = Math.max(cell_width, width);
-
-            cell_max_ascent = Math.max(cell_max_ascent,ascent);
-            cell_max_descent = Math.max(cell_max_descent,descent);
+            cell_width       = Math.max(cell_width, width);
+            cell_max_ascent  = Math.max(cell_max_ascent, ascent);
+            cell_max_descent = Math.max(cell_max_descent, descent);
         }
 
         cell_height       = cell_max_ascent + cell_max_descent + padding * 2 + cell_padding * 2;
