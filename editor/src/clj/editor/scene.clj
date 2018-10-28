@@ -585,19 +585,19 @@
   (or (and tool-picking-rect
         (not inactive?)
         (with-drawable-as-current drawable
-          (let [render-args (generic-render-args viewport camera)
-                tool-renderables (apply merge-with into tool-renderables)
-                passes [pass/manipulator-selection pass/overlay-selection]]
-            (flatten
-              (for [pass passes
-                    :let [render-args (assoc render-args :pass pass)]]
-                (do
-                  (begin-select gl select-buffer)
-                  (setup-pass gl-context gl pass camera viewport tool-picking-rect)
-                  (let [renderables (get tool-renderables pass)
-                        batches (batch-render gl render-args renderables true :select-batch-key)]
-                    (render-sort (end-select gl select-buffer renderables batches)))))))))
-    []))
+          (doall (let [render-args (generic-render-args viewport camera)
+                       tool-renderables (apply merge-with into tool-renderables)
+                       passes [pass/manipulator-selection pass/overlay-selection]]
+                   (flatten
+                     (for [pass passes
+                           :let [render-args (assoc render-args :pass pass)]]
+                       (do
+                         (begin-select gl select-buffer)
+                         (setup-pass gl-context gl pass camera viewport tool-picking-rect)
+                         (let [renderables (get tool-renderables pass)
+                               batches (batch-render gl render-args renderables true :select-batch-key)]
+                           (render-sort (end-select gl select-buffer renderables batches))))))))))
+      []))
 
 (g/defnk produce-selected-tool-renderables [tool-selection]
   (apply merge-with concat {} (map #(do {(:node-id %) [(:selection-data %)]}) tool-selection)))
