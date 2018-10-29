@@ -537,9 +537,9 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
     // At least when running in frame-rates < 60
     if (!_glfwWin.iconified && g_StartupPhase == COMPLETE)
     {
-        const GLenum discards[]  = {GL_DEPTH_ATTACHMENT};
+        const GLenum discards[]  = {GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT};
         glBindFramebuffer(GL_FRAMEBUFFER, viewFramebuffer);
-        glDiscardFramebufferEXT(GL_FRAMEBUFFER, 1, discards);
+        glDiscardFramebufferEXT(GL_FRAMEBUFFER, 2, discards);
 
         glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
         [context presentRenderbuffer:GL_RENDERBUFFER];
@@ -651,7 +651,7 @@ Note that setting the view non-opaque will only work if the EAGL surface has an 
 
     // If a touch both began and ended during one frame/update, set the phase as
     // tapped and we will send the released event during next update (see input.c).
-    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
+    } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
         glfwt->Phase = GLFW_PHASE_TAPPED;
         return;
     }

@@ -24,6 +24,7 @@ namespace dmGameSystem
         uint32_t                                m_RowCount;
         int32_t                                 m_MinCellX;
         int32_t                                 m_MinCellY;
+        uint32_t                                m_Dirty : 1;
     };
 
     dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams& params);

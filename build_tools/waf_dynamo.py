@@ -214,9 +214,6 @@ def default_flags(self):
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
 
-            if Options.options.with_asan and "osx" == build_util.get_target_os():
-                self.env.append_value(f, ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
-
             # Without using '-ffloat-store', on 32bit Linux, there are floating point precison errors in
             # some tests after we switched to -02 optimisations. We should refine these tests so that they
             # don't rely on equal-compare floating point values, and/or verify that underlaying engine
@@ -298,11 +295,11 @@ def default_flags(self):
     elif 'web' == build_util.get_target_os() and 'js' == build_util.get_target_architecture():
         for f in ['CCFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-fno-exceptions', '-fno-rtti', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS',
-                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
+                                      '-DGTEST_USE_OWN_TR1_TUPLE=1', '-Wall', '-s', 'LEGACY_VM_SUPPORT=1', '-s', 'WASM=0', '-s', 'BINARYEN_METHOD="asmjs"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8", "ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]',
                                       '-I%s/system/lib/libcxxabi/include' % EMSCRIPTEN_ROOT]) # gtest uses cxxabi.h and for some reason, emscripten doesn't find it (https://github.com/kripken/emscripten/issues/3484)
 
         # NOTE: Disabled lto for when upgrading to 1.35.23, see https://github.com/kripken/emscripten/issues/3616
-        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
+        self.env.append_value('LINKFLAGS', ['-O%s' % opt_level, '--emit-symbol-map', '--llvm-lto', '0', '-s', 'PRECISE_F32=2', '-s', 'AGGRESSIVE_VARIABLE_ELIMINATION=1', '-s', 'DISABLE_EXCEPTION_CATCHING=1', '-Wno-warn-absolute-paths', '-s', 'TOTAL_MEMORY=268435456', '--memory-init-file', '0', '-s', 'LEGACY_VM_SUPPORT=1', '-s', 'WASM=0', '-s', 'BINARYEN_METHOD="asmjs"', '-s', 'EXTRA_EXPORTED_RUNTIME_METHODS=["stringToUTF8", "ccall"]', '-s', 'EXPORTED_FUNCTIONS=["_JSWriteDump", "_main"]'])
 
     elif 'as3' == build_util.get_target_architecture() and 'web' == build_util.get_target_os():
         # NOTE: -g set on both C*FLAGS and LINKFLAGS
@@ -345,6 +342,23 @@ def android_link_flags(self):
             # NOTE: This is a hack We change cprogram -> cshlib
             # but it's probably to late. It works for the name though (libX.so and not X)
             self.link_task.env.append_value('LINKFLAGS', ['-shared'])
+
+@feature('skip_asan')
+@before('apply_core')
+def asan_skip(self):
+    self.skip_asan = True
+
+@feature('cprogram', 'cxxprogram', 'cstaticlib', 'cshlib')
+@before('apply_core')
+@after('skip_asan')
+def asan_cxxflags(self):
+    if getattr(self, 'skip_asan', False):
+        return
+    build_util = create_build_utility(self.env)
+    if Options.options.with_asan and "osx" == build_util.get_target_os():
+        self.env.append_value('CXXFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('CCFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer', '-DSANITIZE_ADDRESS'])
+        self.env.append_value('LINKFLAGS', ['-fsanitize=address', '-fno-omit-frame-pointer'])
 
 @taskgen
 @feature('cprogram', 'cxxprogram')
@@ -763,15 +777,6 @@ ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
             </intent-filter>
         </receiver>
 
-        <service android:name="com.defold.adtruth.InstallReceiver"/>
-        <receiver
-            android:name="com.defold.adtruth.InstallReceiver"
-            android:exported="true">
-          <intent-filter>
-            <action android:name="com.android.vending.INSTALL_REFERRER" />
-          </intent-filter>
-        </receiver>
-
         %(extra_activities)s
     </application>
     <uses-permission android:name="android.permission.INTERNET" />
@@ -1149,11 +1154,14 @@ def run_gtests(valgrind = False, configfile = None):
     if not Build.bld.env['VALGRIND']:
         valgrind = False
 
+    if not getattr(Options.options, 'with_valgrind', False):
+        valgrind = False
+
     if Build.bld.env.PLATFORM == 'js-web' and not Build.bld.env['NODEJS']:
         Logs.info('Not running tests. node.js not found')
         return
 
-    for t in  Build.bld.all_task_gen:
+    for t in Build.bld.all_task_gen:
         if hasattr(t, 'uselib') and str(t.uselib).find("GTEST") != -1:
             output = t.path
             cmd = "%s %s" % (os.path.join(output.abspath(t.env), Build.bld.env.program_PATTERN % t.target), configfile)
@@ -1576,3 +1584,4 @@ def set_options(opt):
     opt.add_option('--ndebug', action='store_true', default=False, help='Defines NDEBUG for the engine')
     opt.add_option('--with-asan', action='store_true', default=False, dest='with_asan', help='Enables address sanitizer')
     opt.add_option('--static-analyze', action='store_true', default=False, dest='static_analyze', help='Enables static code analyzer')
+    opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')

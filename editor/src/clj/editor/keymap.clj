@@ -102,6 +102,7 @@
    ["Shift+Shortcut+Down"   :select-end-of-file]
    ["Shift+Shortcut+End"    :select-end-of-file]
    ["Shift+Shortcut+E"      :replace-next]
+   ["Shift+Shortcut+E"      :show-last-hidden]
    ["Shift+Shortcut+F"      :search-in-files]
    ["Shift+Shortcut+G"      :find-prev]
    ["Shift+Shortcut+I"      :toggle-visibility-filters]
@@ -125,6 +126,7 @@
    ["Shortcut+Delete"       :delete-to-beginning-of-line]
    ["Shortcut+Down"         :end-of-file]
    ["Shortcut+E"            :replace-text]
+   ["Shortcut+E"            :hide-selected]
    ["Shortcut+End"          :end-of-file]
    ["Shortcut+F"            :find-text]
    ["Shortcut+G"            :find-next]
@@ -160,6 +162,8 @@
                                                      "Shift+Left"
                                                      "Shift+Right"
                                                      "Shift+Up"
+                                                     "Shortcut+E"
+                                                     "Shift+Shortcut+E"
                                                      "Space"
                                                      "F5"})
 

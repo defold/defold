@@ -36,6 +36,10 @@ import com.dynamo.bob.util.LibraryUtil;
 
 public class Bob {
 
+    public static final String VARIANT_DEBUG = "debug";
+    public static final String VARIANT_RELEASE = "release";
+    public static final String VARIANT_HEADLESS = "headless";
+
     private static boolean verbose = false;
     private static File rootFolder = null;
 
@@ -54,7 +58,18 @@ public class Bob {
                 try {
                     FileUtils.deleteDirectory(tmpDirFile);
                 } catch (IOException e) {
-                    throw new RuntimeException("Failed to delete temp directory: " + tmpDirFile, e);
+                    // DE 20181012
+                    // DEF-3533 Building with Bob causes exception when cleaning temp directory
+                    // Failing to delete the files is not fatal, but not 100% clean.
+                    // On Win32 we fail to delete dlls that are loaded since the OS locks them and this code runs before
+                    // the dlls are unloaded.
+                    // There is no explicit API to unload DLLs in Java/JNI, to accomplish this we need to do the
+                    // class loading for the native functions differently and use a more indirect calling convention for
+                    // com.defold.libs.TexcLibrary.
+                    // See https://web.archive.org/web/20140704120535/http://www.codethesis.com/blog/unload-java-jni-dll
+                    //
+                    // For now we just issue a warning that we don't fully clean up.
+                    System.out.println("Warning: Failed to clean up temp directory '" + tmpDirFile.getAbsolutePath() + "'");
                 }
             }
         }));
@@ -101,35 +116,39 @@ public class Bob {
 
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
-        ZipEntry entry = zipStream.getNextEntry();
-        while (entry != null)
-        {
-            if (!entry.isDirectory()) {
+        try{
+            ZipEntry entry = zipStream.getNextEntry();
+            while (entry != null)
+            {
+                if (!entry.isDirectory()) {
 
-                File dstFile = new File(toFolder, entry.getName());
-                dstFile.deleteOnExit();
-                dstFile.getParentFile().mkdirs();
+                    File dstFile = new File(toFolder, entry.getName());
+                    dstFile.deleteOnExit();
+                    dstFile.getParentFile().mkdirs();
 
-                OutputStream fileStream = null;
+                    OutputStream fileStream = null;
 
-                try {
-                    final byte[] buf;
-                    int i;
+                    try {
+                        final byte[] buf;
+                        int i;
 
-                    fileStream = new FileOutputStream(dstFile);
-                    buf = new byte[1024];
-                    i = 0;
+                        fileStream = new FileOutputStream(dstFile);
+                        buf = new byte[1024];
+                        i = 0;
 
-                    while((i = zipStream.read(buf)) != -1) {
-                        fileStream.write(buf, 0, i);
+                        while((i = zipStream.read(buf)) != -1) {
+                            fileStream.write(buf, 0, i);
+                        }
+                    } finally {
+                        IOUtils.closeQuietly(fileStream);
                     }
-                } finally {
-                    IOUtils.closeQuietly(fileStream);
+                    verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
                 }
-                verbose("Extracted '%s' from '%s' to '%s'", entry.getName(), url, dstFile.getAbsolutePath());
-            }
 
-            entry = zipStream.getNextEntry();
+                entry = zipStream.getNextEntry();
+            }
+        } finally {
+            IOUtils.closeQuietly(zipStream);
         }
     }
 
@@ -148,7 +167,7 @@ public class Bob {
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
         URL url = Bob.class.getResource("/libexec/" + exeName);
         if (url == null) {
-            throw new RuntimeException(String.format("/libexec/%s not found", exeName));
+            throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
         }
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
@@ -172,17 +191,31 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
-    public static String getDmengineExeName(Platform platform, boolean debug) {
-        if(debug) {
-            return "dmengine";
-        }
-        else {
-            return "dmengine_release";
+   public static String getDefaultDmengineExeName(String variant) {
+        switch (variant)
+        {
+            case VARIANT_DEBUG:
+                return "dmengine";
+            case VARIANT_RELEASE:
+                return "dmengine_release";
+            case VARIANT_HEADLESS:
+                return "dmengine_headless";
+            default:
+                throw new RuntimeException(String.format("Invalid variant %s", variant));
         }
     }
 
-    public static String getDmengineExe(Platform platform, boolean debug) throws IOException {
-        return getExe(platform, getDmengineExeName(platform, debug));
+    public static String getDefaultDmenginePath(Platform platform, String variant) throws IOException {
+        return getExe(platform, getDefaultDmengineExeName(variant));
+    }
+
+    public static File getNativeExtensionEngine(Platform platform, String extenderExeDir) throws IOException
+    {
+        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
+        if (extenderExe.exists()) {
+            return extenderExe;
+        }
+        return null;
     }
 
     public static String getLib(Platform platform, String name) throws IOException {
@@ -221,7 +254,9 @@ public class Bob {
         options.addOption("ce", "certificate", true, "Certificate (Android)");
         options.addOption("pk", "private-key", true, "Private key (Android)");
 
-        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling)");
+        options.addOption("d", "debug", false, "Use debug version of dmengine (when bundling). Deprecated, use --variant instead");
+        options.addOption(null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)");
+        options.addOption(null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)");
 
         options.addOption("tp", "texture-profiles", true, "Use texture profiles (deprecated)");
         options.addOption("tc", "texture-compression", true, "Use texture compression as specified in texture profiles");
@@ -292,6 +327,18 @@ public class Bob {
             return;
         }
 
+        if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
+            System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
+            System.exit(1);
+            return;
+        }
+
+        if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
+            System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
+            System.exit(1);
+            return;
+        }
+
         String[] commands = cmd.getArgs();
         if (commands.length == 0) {
             commands = new String[] { "build" };
@@ -326,9 +373,19 @@ public class Bob {
             }
         }
 
+        if (!cmd.hasOption("variant")) {
+            if (cmd.hasOption("debug")) {
+                System.out.println("WARNING option 'debug' is deprecated, use options 'variant' and 'strip-executable' instead.");
+                project.setOption("variant", VARIANT_DEBUG);
+            } else {
+                project.setOption("variant", VARIANT_RELEASE);
+                project.setOption("strip-executable", "true");
+            }
+        }
+
         if (cmd.hasOption("texture-profiles")) {
             // If user tries to set (deprecated) texture-profiles, warn user and set texture-compression instead
-            System.out.println("WARNING option 'texture-profiles' is deprecated, setting 'texture-compression' option instead.");
+            System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
             String texCompression = cmd.getOptionValue("texture-profiles");
             if (cmd.hasOption("texture-compression")) {
                 texCompression = cmd.getOptionValue("texture-compression");

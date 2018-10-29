@@ -3,8 +3,9 @@
             [clojure.string :as str]
             [clojure.set :as set]
             [dynamo.graph :as g]
-            [support.test-support :as test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]
+            [support.test-support :refer [undo-stack write-until-new-mtime spit-until-new-mtime touch-until-new-mtime with-clean-system]]
             [editor.defold-project :as project]
+            [editor.disk :as disk]
             [editor.fs :as fs]
             [editor.library :as library]
             [editor.dialogs :as dialogs]
@@ -27,37 +28,37 @@
 ;; reload_project tree
 ;; .
 ;; ├── atlas
-;; │   ├── ball.atlas
-;; │   ├── empty.atlas
-;; │   ├── pow.atlas
-;; │   ├── powball.atlas
-;; │   └── single.atlas
+;; │   ├── ball.atlas
+;; │   ├── empty.atlas
+;; │   ├── pow.atlas
+;; │   ├── powball.atlas
+;; │   └── single.atlas
 ;; ├── collection
-;; │   ├── props.collection
-;; │   └── sub_defaults.collection
+;; │   ├── props.collection
+;; │   └── sub_defaults.collection
 ;; ├── game.project
 ;; ├── game_object
-;; │   └── props.go
+;; │   └── props.go
 ;; ├── graphics
-;; │   ├── ball.png
-;; │   └── pow.png
+;; │   ├── ball.png
+;; │   └── pow.png
 ;; ├── gui
-;; │   ├── new_sub_scene.gui
-;; │   ├── scene.gui
-;; │   └── sub_scene.gui
+;; │   ├── new_sub_scene.gui
+;; │   ├── scene.gui
+;; │   └── sub_scene.gui
 ;; ├── input
-;; │   └── game.input_binding
+;; │   └── game.input_binding
 ;; ├── label
-;; │   ├── label.label
-;; │   └── new_label.label
+;; │   ├── label.label
+;; │   └── new_label.label
 ;; ├── main
-;; │   ├── main.collection
-;; │   ├── main.go
-;; │   └── main.script
+;; │   ├── main.collection
+;; │   ├── main.go
+;; │   └── main.script
 ;; ├── script
-;; │   └── props.script
+;; │   └── props.script
 ;; ├── sprite
-;; │   └── test.sprite
+;; │   └── test.sprite
 ;; └── test.particlefx
 
 (def ^:private lib-uris (library/parse-library-uris "file:/scriptlib file:/imagelib1 file:/imagelib2"))
@@ -232,15 +233,20 @@
 (deftest save-no-reload
   (with-clean-system
     (let [[workspace project] (setup-scratch world)]
-      (testing "Add internal file"
-        (add-file workspace "/test.collection")
-        (let [node (project/get-resource-node project "/test.collection")]
-          (g/transact
-            (g/set-property node :name "new_name"))
-          (is (has-undo? project))
-          (project/save-all! project progress/null-render-progress!)
-          (sync! workspace)
-          (is (has-undo? project)))))))
+      (test-util/run-event-loop!
+        (fn [exit-event-loop!]
+          (testing "Add internal file"
+            (add-file workspace "/test.collection")
+            (let [node (project/get-resource-node project "/test.collection")]
+              (g/transact
+                (g/set-property node :name "new_name"))
+              (is (has-undo? project))
+              (disk/async-save! progress/null-render-progress! progress/null-render-progress! project nil
+                                (fn [successful?]
+                                  (when (is successful?)
+                                    (sync! workspace)
+                                    (is (has-undo? project)))
+                                  (exit-event-loop!))))))))))
 
 (defn- find-error [type v]
   (if (= type (get-in v [:user-data :type]))

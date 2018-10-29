@@ -164,11 +164,23 @@ If eclipse doesn’t get the JDK setup automatically:
 
 * OSX: On OSX you must run the python version shipped with OSX, eg no homebrew installed python versions)
 
+Make sure you have python2 installed by running `which python2`.
+If that is not the case symlink python2 to python or python2.7(if installed already), which is enough to build Emscripten.
+`ln -s /usr/bin/python2.7 /usr/local/bin/python2`
+
 ### General Setup
 
 #### Linux
 
-    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake tofrodos
+    >$ sudo apt-get install libxi-dev freeglut3-dev libglu1-mesa-dev libgl1-mesa-dev libxext-dev x11proto-xext-dev mesa-common-dev libxt-dev libx11-dev libcurl4-openssl-dev uuid-dev python-setuptools build-essential libopenal-dev rpm git curl autoconf libtool automake cmake tofrodos valgrind tree silversearcher-ag
+
+###### Easy Install
+
+Since the executable doesn't install anymore, easiest to create a wrapper:
+
+    >$ sudo sh -c "echo \#\!/usr/bin/env bash > /usr/local/bin/easy_install"
+    >$ sudo sh -c "echo python /usr/lib/python2.7/dist-packages/easy_install.py $\* >> /usr/local/bin/easy_install"
+    >$ sudo chmod +x /usr/local/bin/easy_install
 
 #### Windows
 
@@ -187,6 +199,10 @@ If eclipse doesn’t get the JDK setup automatically:
     - [easy_install/ez_setup](https://pypi.python.org/pypi/setuptools#id3) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseaTdqQXpxbl96bTA)
 
         Download `ez_setup.py` and run it. Add `C:\Python27\Scripts` (where `easy_install` should now be located) to PATH.
+	
+    - Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
+	python -m pip install --upgrade pip
+        pip install setuptools --upgrade
 
     - [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
 
@@ -337,13 +353,17 @@ see [Running a Subset of the Tests](https://code.google.com/p/googletest/wiki/Ad
 
 Note: When running the editor and building a Defold project you must first go to Preferences->Defold->Custom Application and point it to a dmengine built for your OS.
 
+## Running JUnit test in Eclipse
+* Run the tests with JUnit Plug-in Test
+	- Some test may fail due in com.dynamo.bob.bundle.test.BundlerTest due to missing engine builds for some platforms
+
 **Notes for building the editor under Linux:**
 * Install JDK8 (from Oracle) and make sure Eclipse is using it (`Preferences > Java > Installed JREs`).
 * Install [libssl0.9.8](https://packages.debian.org/squeeze/i386/libssl0.9.8/download), the Git version bundled with the editor is currently linked against libcrypto.so.0.9.8.
 * Make sure that the [protobuf-compiler](http://www.rpmseek.com/rpm-dl/protobuf-compiler_2.3.0-2_i386.html) version used is 2.3, latest (2.4) does not work.
 * `.deb` files can be installed by running:
 
-        $ sudo dpkg -i <filename>.deb
+        $ sudo dpkg -i <filename>.deb
 
         # If dpkg complains about dependencies, run this directly afterwards:
         $ sudo apt-get install -f
@@ -711,8 +731,8 @@ To debug memory and alignment issues the following parameters should be added bo
 
 - `-g4` should be **added** to build with additional debug symbols.
 - `-s ASSERTIONS=1` should be **added** explicitly since they are otherwise turned off by optimizations.
-- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks. 
-- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks. 
+- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks.
+- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks.
 - `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
 - `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
 

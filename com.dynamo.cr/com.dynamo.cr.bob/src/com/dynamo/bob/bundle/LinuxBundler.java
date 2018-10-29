@@ -22,11 +22,10 @@ public class LinuxBundler implements IBundler {
     public void bundleApplicationForPlatform(Platform platform, Project project, File appDir, String title)
             throws IOException, CompileExceptionError {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
-        File defaultExe = new File(Bob.getDmengineExe(platform, project.hasOption("debug")));
-        File bundleExe = defaultExe;
-        if (extenderExe.exists()) {
-            bundleExe = extenderExe;
+        File bundleExe = Bob.getNativeExtensionEngine(platform, extenderExeDir);
+        if (bundleExe == null) {
+            final String variant = project.option("variant", Bob.VARIANT_RELEASE);
+            bundleExe = new File(Bob.getDefaultDmenginePath(platform, variant));
         }
 
         File exeOut;

@@ -45,7 +45,12 @@
 
 (g/defnode DummyComponent
   (inherits outline/OutlineNode)
-  (output node-outline outline/OutlineData (g/fnk [_node-id] {:node-id _node-id :label "dummy" :icon "" :children []})))
+  (output node-outline outline/OutlineData (g/fnk [_node-id]
+                                             {:node-id _node-id
+                                              :node-outline-key "dummy"
+                                              :label "dummy"
+                                              :icon ""
+                                              :children []})))
 
 (g/defnode OutlineViewSimulator
   (input outline g/Any)

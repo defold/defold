@@ -12,7 +12,7 @@
         {{#has-icons?}}
         android:icon="@drawable/icon"
         {{/has-icons?}}
-        android:label="{{project.title}}" android:hasCode="true" android:debuggable="false"
+        android:label="{{project.title}}" android:hasCode="true"
         android:name="android.support.multidex.MultiDexApplication">
 
         <!-- For Local Notifications -->
@@ -102,15 +102,6 @@
                <data android:scheme="{{android.package}}" />
             </intent-filter>
         </activity>
-
-        <service android:name="com.defold.adtruth.InstallReceiver"/>
-        <receiver
-            android:name="com.defold.adtruth.InstallReceiver"
-            android:exported="true">
-          <intent-filter>
-            <action android:name="com.android.vending.INSTALL_REFERRER" />
-          </intent-filter>
-        </receiver>
 
         <!-- For Amazon IAP -->
         <receiver android:name="com.amazon.device.iap.ResponseReceiver" >

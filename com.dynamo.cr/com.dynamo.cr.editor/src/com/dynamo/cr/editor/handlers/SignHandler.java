@@ -154,8 +154,10 @@ public class SignHandler extends AbstractHandler {
 
 
             try {
-                exeArmv7 = new File(Bob.getDmengineExe(Platform.Armv7Darwin, true));
-                exeArm64 = new File(Bob.getDmengineExe(Platform.Arm64Darwin, true));
+                final String variant = Bob.VARIANT_DEBUG;  // We always sign the debug non-stripped executable
+
+                exeArmv7 = new File(Bob.getDefaultDmenginePath(Platform.Armv7Darwin, variant));
+                exeArm64 = new File(Bob.getDefaultDmenginePath(Platform.Arm64Darwin, variant));
 
                 final IPreferenceStore store = Activator.getDefault().getPreferenceStore();
                 String nativeExtServerURI = store.getString(PreferenceConstants.P_NATIVE_EXT_SERVER_URI);
@@ -171,10 +173,11 @@ public class SignHandler extends AbstractHandler {
                 }
                 tmpProject.setOption("defoldsdk", sdkVersion);
 
-                List<String> extensionPaths = ExtenderUtil.getExtensionFolders(tmpProject);
-                boolean hasNativeExtensions = extensionPaths.size() > 0;
-                if (hasNativeExtensions) {
-                    tmpProject.buildEngine(new ProgressDelegate(monitor));
+                final String[] platforms = tmpProject.getPlatformStrings();
+                // Get or build engine binary
+                boolean buildRemoteEngine = ExtenderUtil.hasNativeExtensions(tmpProject);
+                if (buildRemoteEngine) {
+                    tmpProject.buildEngine(new ProgressDelegate(monitor), platforms, variant);
                 }
 
                 // Get engine executables
