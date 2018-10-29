@@ -1312,6 +1312,55 @@ dmResource::Result SharedResourceDuplicate(const dmResource::ResourceDuplicatePa
     return dmResource::RESULT_OK;
 }
 
+TEST_F(ResourceTest, ManifestBundledResourcesVerification)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::ArchiveIndexContainer* archive = 0;
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, archive);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::Delete(archive);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
+
+TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::ArchiveIndexContainer* archive = 0;
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    // Change a resource entry flag from liveupdate to bundled, causing the resource to not be found in the bundle.
+    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
+    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
+    for (uint32_t i = 0; i < entry_count; ++i)
+    {
+        if (entries[i].m_Flags == dmLiveUpdateDDF::EXCLUDED)
+        {
+            entries[i].m_Flags = dmLiveUpdateDDF::BUNDLED;
+            break;
+        }
+    }
+
+    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, archive);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, result);
+
+    dmResourceArchive::Delete(archive);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
 
 TEST_F(ResourceTest, IsShared)
 {

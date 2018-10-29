@@ -258,7 +258,7 @@ public class ManifestBuilder {
     }
 
     public static final int CONST_MAGIC_NUMBER = 0x43cb6d06;
-    public static final int CONST_VERSION = 0x02;
+    public static final int CONST_VERSION = 0x03;
 
     private HashAlgorithm resourceHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
     private HashAlgorithm signatureHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
@@ -372,7 +372,7 @@ public class ManifestBuilder {
         }
     }
 
-    public void addResourceEntry(String url, byte[] data, byte flags) throws IOException {
+    public void addResourceEntry(String url, byte[] data, int flags) throws IOException {
         try {
             ResourceEntry.Builder builder = ResourceEntry.newBuilder();
             builder.setUrl(url);
