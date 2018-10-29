@@ -154,7 +154,7 @@ public class ArchiveBuilder {
         return result;
     }
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources, boolean isTestData) throws IOException {
         // INDEX
         archiveIndex.writeInt(VERSION); // Version
         archiveIndex.writeInt(0); // Pad
@@ -171,7 +171,7 @@ public class ArchiveBuilder {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
             byte archiveEntryFlags = (byte) entry.flags;
-            byte resourceEntryFlags = (byte) 0;
+            int resourceEntryFlags = 0;
             if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
@@ -206,13 +206,15 @@ public class ArchiveBuilder {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
 
+            boolean testDataExclude = (isTestData && FilenameUtils.getName(entry.fileName).startsWith("liveupdate."));
+
             // Write resource to data archive
-            if (this.excludeResource(normalisedPath, excludedResources)) {
-                resourceEntryFlags = (byte) (resourceEntryFlags | ResourceEntryFlag.EXCLUDED.getNumber());
+            if (this.excludeResource(normalisedPath, excludedResources) || testDataExclude) {
+                resourceEntryFlags = ResourceEntryFlag.EXCLUDED.getNumber();
                 this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, archiveEntryFlags, entry.size);
                 entries.remove(i);
             } else {
-                resourceEntryFlags = (byte) (resourceEntryFlags | ResourceEntryFlag.BUNDLED.getNumber());
+                resourceEntryFlags = ResourceEntryFlag.BUNDLED.getNumber();
                 alignBuffer(archiveData, 4);
                 entry.resourceOffset = (int) archiveData.getFilePointer();
                 archiveData.write(buffer, 0, buffer.length);
@@ -260,6 +262,10 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
         archiveIndex.write(this.archiveIndexMD5);
+    }
+
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
+        write(archiveIndex, archiveData, resourcePackDirectory, excludedResources, false);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
@@ -369,7 +375,7 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
             List<String> excludedResources = new ArrayList<String>();
-            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources, doOutputManifestHashFile);
             manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());

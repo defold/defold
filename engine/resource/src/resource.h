@@ -12,7 +12,7 @@ namespace dmResource
 {
     const static uint32_t MANIFEST_MAGIC_NUMBER = 0x43cb6d06;
 
-    const static uint32_t MANIFEST_VERSION = 0x02;
+    const static uint32_t MANIFEST_VERSION = 0x03;
 
     const uint32_t MANIFEST_PROJ_ID_LEN = 41; // SHA1 + NULL terminator
 
