@@ -76,4 +76,6 @@ message FontMap
     optional float alpha = 21 [default = 1.0];
     optional float outline_alpha = 22 [default = 1.0];
     optional float shadow_alpha = 23 [default = 1.0];
+
+    optional uint32 cache_cell_max_ascent = 24;
 }
