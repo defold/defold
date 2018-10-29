@@ -326,6 +326,7 @@
 (defn construct
   [node-type-ref args]
   (assert (and node-type-ref (deref node-type-ref)))
+;;  (println :construct node-type-ref args)
   (assert-no-extra-args node-type-ref args)
   (-> (new internal.node.NodeImpl node-type-ref)
       (merge (defaults node-type-ref))

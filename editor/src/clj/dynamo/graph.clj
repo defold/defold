@@ -371,6 +371,7 @@
       ;; This try-block was an attempt to catch "Code too large" errors when method size exceeded 64kb in the JVM.
       ;; Surprisingly, the addition of the try-block stopped the error from happening, so leaving it here.
       ;; "Problem solved!" lol
+;;      (println node-type-def)
       `(try
          (do
            (declare ~symb)
@@ -444,6 +445,7 @@
 
 (defn- construct-node-with-id
   [graph-id node-type args]
+;;  (println :construct-node-with-id node-type args)
   (apply construct node-type :_node-id (is/next-node-id @*the-system* graph-id) (mapcat identity args)))
 
 (defn make-node
