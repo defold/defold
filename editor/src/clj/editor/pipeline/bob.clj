@@ -242,8 +242,7 @@
             extra-headers (when (clojure.string/ends-with?
                                   (clojure.string/lower-case url)
                                   ".wasm")
-                                {"Content-Type" "application/wasm"})
-            _ (prn extra-headers)]
+                                {"Content-Type" "application/wasm"})]
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.
           (or (nil? served-file) (.isDirectory served-file))

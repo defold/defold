@@ -641,6 +641,9 @@ class Configuration(object):
             jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
+            paths = _findjslibs(jsdir)
+            self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
 
             # For logging, print all paths in zip:

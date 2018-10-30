@@ -283,14 +283,11 @@ def default_flags(self):
                 '-L%s' % stl_lib])
     elif 'web' == build_util.get_target_os():
 
+        # Default to asmjs output
         wasm_enabled = 0
-        legacy_vm_support = 0
+        legacy_vm_support = 1
         binaryen_method = "asmjs"
-        if 'js' == build_util.get_target_architecture():
-            wasm_enabled = 0
-            legacy_vm_support = 1
-            binaryen_method = "asmjs"
-        elif 'wasm' == build_util.get_target_architecture():
+        if 'wasm' == build_util.get_target_architecture():
             wasm_enabled = 1
             legacy_vm_support = 0
             binaryen_method = "native-wasm"
