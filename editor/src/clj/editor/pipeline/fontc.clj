@@ -555,7 +555,8 @@
         line-height (+ (.getMaxAscent font-metrics) (.getMaxDescent font-metrics))
         cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
-        glyph-data-bank (make-glyph-data-bank glyph-extents)]
+        glyph-data-bank (make-glyph-data-bank glyph-extents)
+        layer-mask 1]
 
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
@@ -585,6 +586,7 @@
      :max-ascent (+ (float (.getMaxAscent font-metrics)) padding)
      :max-descent (+ (float (.getMaxDescent font-metrics)) padding)
      :image-format (:output-format font-desc)
+     :layer-mask layer-mask
      :render-mode (:render-mode font-desc)
      :sdf-spread sdf-spread
      :sdf-outline (let [outline-edge (- (/ ^double (:outline-width font-desc) sdf-spread))]
