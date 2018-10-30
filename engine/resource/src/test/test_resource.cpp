@@ -1341,20 +1341,36 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
     ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
 
-    // Change a resource entry flag from liveupdate to bundled, causing the resource to not be found in the bundle.
+    // Deep-copy current manifest resource entries and append bogus resource entry
     uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
-    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
-    for (uint32_t i = 0; i < entry_count; ++i)
+    dmLiveUpdateDDF::ResourceEntry* entries = (dmLiveUpdateDDF::ResourceEntry*) malloc((entry_count + 1) * sizeof(dmLiveUpdateDDF::ResourceEntry));
+    memcpy(entries, manifest->m_DDFData->m_Resources.m_Data, entry_count);
+    for (int i = 0; i < entry_count; ++i)
     {
-        if (entries[i].m_Flags == dmLiveUpdateDDF::EXCLUDED)
-        {
-            entries[i].m_Flags = dmLiveUpdateDDF::BUNDLED;
-            break;
-        }
+        dmLiveUpdateDDF::ResourceEntry* entry = &manifest->m_DDFData->m_Resources.m_Data[i];
+        dmLiveUpdateDDF::ResourceEntry* new_entry = &entries[i];
+
+        new_entry->m_Hash.m_Data.m_Data = (uint8_t*)malloc(entry->m_Hash.m_Data.m_Count);
+        memcpy(new_entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count);
+        memcpy(new_entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count);
+        new_entry->m_Flags = entry->m_Flags;
     }
 
-    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, archive);
+    // Fill in bogus resource entry, tagged as BUNDLED but will not be found in the archive
+    entries[entry_count].m_Flags = dmLiveUpdateDDF::BUNDLED;
+    entries[entry_count].m_Hash.m_Data.m_Data = (uint8_t*)malloc(entries[0].m_Hash.m_Data.m_Count);
+    entries[entry_count].m_Url = "not_in_bundle";
+
+    result = dmResource::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, archive);
     ASSERT_EQ(dmResource::RESULT_INVALID_DATA, result);
+
+    // Clean up deep-copied resource entries
+    for (int i = 0; i < entry_count + 1; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry* e = &entries[i];
+        free(e->m_Hash.m_Data.m_Data);
+    }
+    free(entries);
 
     dmResourceArchive::Delete(archive);
     dmDDF::FreeMessage(manifest->m_DDFData);

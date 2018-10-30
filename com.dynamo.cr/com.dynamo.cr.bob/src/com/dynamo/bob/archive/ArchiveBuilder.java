@@ -154,7 +154,7 @@ public class ArchiveBuilder {
         return result;
     }
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources, boolean isTestData) throws IOException {
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
         // INDEX
         archiveIndex.writeInt(VERSION); // Version
         archiveIndex.writeInt(0); // Pad
@@ -171,7 +171,7 @@ public class ArchiveBuilder {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
             byte archiveEntryFlags = (byte) entry.flags;
-            int resourceEntryFlags = 0;
+            int resourceEntryFlags = ResourceEntryFlag.BUNDLED.getNumber();
             if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
@@ -206,15 +206,12 @@ public class ArchiveBuilder {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
 
-            boolean testDataExclude = (isTestData && FilenameUtils.getName(entry.fileName).startsWith("liveupdate."));
-
             // Write resource to data archive
-            if (this.excludeResource(normalisedPath, excludedResources) || testDataExclude) {
+            if (this.excludeResource(normalisedPath, excludedResources)) {
                 resourceEntryFlags = ResourceEntryFlag.EXCLUDED.getNumber();
                 this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, archiveEntryFlags, entry.size);
                 entries.remove(i);
             } else {
-                resourceEntryFlags = ResourceEntryFlag.BUNDLED.getNumber();
                 alignBuffer(archiveData, 4);
                 entry.resourceOffset = (int) archiveData.getFilePointer();
                 archiveData.write(buffer, 0, buffer.length);
@@ -262,10 +259,6 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
         archiveIndex.write(this.archiveIndexMD5);
-    }
-
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
-        write(archiveIndex, archiveData, resourcePackDirectory, excludedResources, false);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
@@ -349,17 +342,21 @@ public class ArchiveBuilder {
 
         ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
-        System.out.println("Adding " + Integer.toString(inputs.size()) + " entries to archive ...");
+        int archivedEntries = 0;
+        int excludedEntries = 0;
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
         for (File currentInput : inputs) {
             if (currentInput.getName().startsWith("liveupdate.")){
+                excludedEntries++;
                 archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, true);
             } else {
+                archivedEntries++;
                 archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
             }
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
             rootNode.addChild(currentNode);
         }
+        System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
 
         manifestBuilder.setDependencies(rootNode);
 
