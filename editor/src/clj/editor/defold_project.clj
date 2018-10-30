@@ -508,7 +508,7 @@
             (g/mark-defective node flaw))))
 
       (let [all-outputs (mapcat (fn [node]
-                                  (map (fn [[output _]] [node output]) (gu/outputs node)))
+                                  (map (fn [[output _]] [node output]) (gu/explicit-outputs node)))
                                 (:invalidate-outputs plan))]
         (g/invalidate-outputs! all-outputs))
 

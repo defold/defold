@@ -929,6 +929,9 @@ namespace dmGraphics
     void SetTexture(HTexture texture, const TextureParams& params)
     {
         assert(texture);
+        assert(!params.m_SubUpdate || params.m_SubUpdate && (params.m_X + params.m_Width <= texture->m_Width));
+        assert(!params.m_SubUpdate || params.m_SubUpdate && (params.m_Y + params.m_Height <= texture->m_Height));
+
         if (texture->m_Data != 0x0)
             delete [] (char*)texture->m_Data;
         texture->m_Format = params.m_Format;

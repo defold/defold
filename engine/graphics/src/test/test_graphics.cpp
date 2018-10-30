@@ -344,8 +344,8 @@ TEST_F(dmGraphicsTest, TestProgram)
             "    lowp vec4 tint_pm = vec4(tint.xyz * tint.w, tint.w);\n"
             "    gl_FragColor = texture2D(DIFFUSE_TEXTURE, var_texcoord0.xy) * tint_pm;\n"
             "}\n";
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, vertex_data, 1024);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, fragment_data, 1024);
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, vertex_data, strlen(vertex_data));
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, fragment_data, strlen(fragment_data));
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
     ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
@@ -370,7 +370,11 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
     dmGraphics::SetConstantV4(m_Context, &constant, 0);
-    dmGraphics::SetConstantM4(m_Context, &constant, 1);
+    Vector4 matrix[4] = {   Vector4(1.0f, 2.0f, 3.0f, 4.0f),
+                            Vector4(5.0f, 6.0f, 7.0f, 8.0f),
+                            Vector4(9.0f, 10.0f, 11.0f, 12.0f),
+                            Vector4(13.0f, 14.0f, 15.0f, 16.0f) };
+    dmGraphics::SetConstantM4(m_Context, matrix, 4);
     char* program_data = new char[1024];
     *program_data = 0;
     dmGraphics::ReloadVertexProgram(vp, program_data, 1024);
@@ -415,6 +419,44 @@ TEST_F(dmGraphicsTest, TestTexture)
     ASSERT_EQ(HEIGHT, dmGraphics::GetOriginalTextureHeight(texture));
     dmGraphics::EnableTexture(m_Context, 0, texture);
     dmGraphics::DisableTexture(m_Context, 0, texture);
+    dmGraphics::DeleteTexture(texture);
+}
+
+TEST_F(dmGraphicsTest, TestSetTextureBounds)
+{
+    dmGraphics::TextureCreationParams creation_params;
+    dmGraphics::TextureParams params;
+
+    creation_params.m_Width = WIDTH;
+    creation_params.m_Height = HEIGHT;
+    creation_params.m_OriginalWidth = WIDTH;
+    creation_params.m_OriginalHeight = HEIGHT;
+
+    params.m_DataSize  = WIDTH * HEIGHT;
+    params.m_Data      = new char[params.m_DataSize];
+    params.m_Width     = WIDTH;
+    params.m_Height    = HEIGHT;
+    params.m_Format    = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
+    params.m_SubUpdate = true;
+    params.m_X         = WIDTH / 2;
+    params.m_Y         = HEIGHT / 2;
+
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+
+    delete [] (char*)params.m_Data;
+
+    params.m_X         = 0;
+    params.m_Y         = 0;
+    params.m_Width     = WIDTH + 1;
+    params.m_Height    = HEIGHT + 1;
+    params.m_DataSize  = params.m_Width * params.m_Height;
+    params.m_Data      = new char[params.m_DataSize];
+
+    ASSERT_DEATH_IF_SUPPORTED(dmGraphics::SetTexture(texture, params),"");
+
+    delete [] (char*)params.m_Data;
+
     dmGraphics::DeleteTexture(texture);
 }
 
