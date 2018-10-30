@@ -372,7 +372,7 @@ public class ArchiveBuilder {
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
             List<String> excludedResources = new ArrayList<String>();
-            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources, doOutputManifestHashFile);
+            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
             manifestBuilder.setArchiveIdentifier(archiveBuilder.getArchiveIndexHash());
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
