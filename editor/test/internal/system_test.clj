@@ -37,7 +37,7 @@
     (ts/with-clean-system
       (let [gid        (g/make-graph!)
             all-graphs (u/map-vals deref (graphs))
-            all-gids   (into #{} (map :_gid (vals all-graphs)))]
+            all-gids   (into #{} (map :_graph-id (vals all-graphs)))]
         (is (= 2 (count all-graphs)))
         (is (all-gids gid)))))
 
@@ -52,7 +52,7 @@
     (ts/with-clean-system
       (let [gid (g/make-graph!)
             g'  (graph gid)]
-        (is (= (:_gid g') gid))))))
+        (is (= (:_graph-id g') gid))))))
 
 (deftest tx-id
   (testing "graph time advances with transactions"

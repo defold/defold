@@ -112,17 +112,7 @@ namespace dmGameSystem
      *
      * @examples
      *
-     * How to overwrite a model's original texture
-     *
-     * ```lua
-     * function init(self)
-     *   -- get texture resource from one model and set it on another
-     *   local resource_path1 = go.get("#model1", "texture0")
-     *   local buffer = resource.load(resource_path1)
-     *   local resource_path2 = go.get("#model2", "texture0")
-     *   resource.set(resource_path2, buffer)
-     * end
-     * ```
+     * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
     int LuaModelComp_Play(lua_State* L)
