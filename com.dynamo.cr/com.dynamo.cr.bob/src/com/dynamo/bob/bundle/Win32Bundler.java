@@ -6,6 +6,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.List;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -34,11 +35,15 @@ public class Win32Bundler implements IBundler {
         BobProjectProperties projectProperties = project.getProjectProperties();
 
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File bundleExe = Bob.getNativeExtensionEngine(platform, extenderExeDir);
-        if (bundleExe == null) {
+        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        if (bundleExes == null) {
             final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-            bundleExe = new File(Bob.getDefaultDmenginePath(platform, variant));
+            bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
+        if (bundleExes.size() > 1) {
+            throw new IOException("Invalid number of binaries for Windows when bundling: " + bundleExes.size());
+        }
+        File bundleExe = bundleExes.get(0);
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
 

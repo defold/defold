@@ -283,7 +283,6 @@ namespace dmGui
         uint16_t                m_NextVersionNumber;
         uint16_t                m_RenderOrder; // For the render-key
         uint16_t                m_NextLayerIndex;
-        uint16_t                m_NextLayoutIndex;
         uint16_t                m_ResChanged : 1;
         uint32_t                m_Width;
         uint32_t                m_Height;

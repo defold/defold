@@ -10,3 +10,5 @@ local t = {
     "hello"
 }
 pprint(t)
+
+pprint(t, "more", {a = 1, b = 2, c = 3}, 77, 78, 79, 80)
