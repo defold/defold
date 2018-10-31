@@ -80,9 +80,9 @@ public class AndroidBundler implements IBundler {
         ArrayList<File> classesDex = new ArrayList<File>();
         classesDex.add(new File(Bob.getPath("lib/classes.dex")));
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File bundleExe = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-        if (bundleExe == null) {
-            bundleExe = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+        if (bundleExes == null) {
+            bundleExes = Bob.getDefaultDmengineFiles(targetPlatform, variant);
         }
         else {
             classesDex = new ArrayList<File>();
@@ -98,6 +98,10 @@ public class AndroidBundler implements IBundler {
                 classesDex.add(f);
             }
         }
+        if (bundleExes.size() > 1) {
+            throw new IOException("Invalid number of binaries for Android when bundling: " + bundleExes.size());
+        }
+        File bundleExe = bundleExes.get(0);
 
         File appDir = new File(bundleDir, title);
         File resDir = new File(appDir, "res");
