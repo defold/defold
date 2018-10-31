@@ -83,6 +83,13 @@ TEST_F(ScriptTest, TestCircularRefPPrint)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptTest, TestPPrintTruncate)
+{
+    int top = lua_gettop(L);
+    ASSERT_TRUE(RunFile(L, "test_pprint_truncate.luac"));
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
 TEST_F(ScriptTest, TestRandom)
 {
     int top = lua_gettop(L);

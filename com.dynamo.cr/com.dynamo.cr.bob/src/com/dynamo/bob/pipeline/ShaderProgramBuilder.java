@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
@@ -63,7 +64,8 @@ public abstract class ShaderProgramBuilder extends CopyBuilder {
             // see JIRA issue: DEF-1786.
             // We still want to have correct line reporting on most devices so
             // only output the "#line N" directive in debug builds.
-            if (project.hasOption("debug")) {
+            boolean isDebug = project.hasOption("debug") || !project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_RELEASE);
+            if (isDebug) {
                 writer.printf(Locale.ROOT, "#line %d", directiveLineCount);
                 writer.println();
             }
