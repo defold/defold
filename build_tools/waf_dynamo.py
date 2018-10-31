@@ -1241,7 +1241,7 @@ def js_web_web_link_flags(self):
         else:
             lib_dirs = {}
         libs = getattr(self, 'web_libs', ["library_glfw.js", "library_sys.js", "library_script.js", "library_facebook.js", "library_facebook_iap.js", "library_sound.js"])
-        jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', 'js-web', 'js')
+        jsLibHome = os.path.join(self.env['DYNAMO_HOME'], 'lib', platform, 'js')
         for lib in libs:
             js = ''
             if lib in lib_dirs:
