@@ -28,6 +28,8 @@ namespace dmInput
         uint32_t     m_HasText;
         uint32_t m_GamepadIndex;
         uint32_t m_IsGamepad : 1;
+        uint32_t m_HasConnectivity : 1;
+        uint32_t m_Connected : 1;
         uint32_t m_Pressed : 1;
         uint32_t m_Released : 1;
         uint32_t m_Repeated : 1;
@@ -80,6 +82,7 @@ namespace dmInput
     typedef void (*ActionCallback)(dmhash_t action_id, Action* action, void* user_data);
 
     void ForEachActive(HBinding binding, ActionCallback callback, void* user_data);
+    void GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, void* context);
 }
 
 #endif // DM_INPUT_H
