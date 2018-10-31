@@ -37,6 +37,28 @@
 // NOTE: We put this information here instead of in _glfwInput as
 // _glfwInput is cleared when opening a new window
 int g_ControllerPresent[GLFW_MAX_XINPUT_CONTROLLERS] = { 0 };
+int g_ControllerPresent_prev[GLFW_MAX_XINPUT_CONTROLLERS] = { 0 };
+
+void _update_joystick(int joy)
+{
+    DWORD dwResult;
+    XINPUT_STATE state;
+
+    if (joy < 0)
+        return;
+
+    dwResult = XInputGetState(joy, &state);
+    g_ControllerPresent[joy] = dwResult == ERROR_SUCCESS;
+
+	int state_now = g_ControllerPresent[joy];
+	int state_prev = g_ControllerPresent_prev[joy];
+
+	if (state_now != state_prev)
+	{
+		_glfwWin.gamepadCallback(joy, g_ControllerPresent[joy]);
+		g_ControllerPresent_prev[joy] = g_ControllerPresent[joy];
+	}
+}
 
 void _glfwPlatformDiscoverJoysticks()
 {
@@ -48,6 +70,7 @@ void _glfwPlatformDiscoverJoysticks()
     {
         dwResult = XInputGetState(i, &state);
         g_ControllerPresent[i] = dwResult == ERROR_SUCCESS;
+        g_ControllerPresent_prev[i] = g_ControllerPresent[i];
     }
 }
 
@@ -62,6 +85,11 @@ static int _glfwJoystickPresent( int joy )
 
 int _glfwPlatformGetJoystickParam( int joy, int param )
 {
+    if( param == GLFW_PRESENT )
+    {
+        _update_joystick(joy);
+    }
+
     // Is joystick present?
     if( !_glfwJoystickPresent( joy ) )
     {

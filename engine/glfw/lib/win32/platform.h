@@ -135,7 +135,8 @@ typedef struct tagKBDLLHOOKSTRUCT {
 #define XBUTTON2 2
 #endif
 
-#define GLFW_MAX_XINPUT_CONTROLLERS 4
+// JG-reminder: Change this back to 4 and fix the issue in the joystick code instead..
+#define GLFW_MAX_XINPUT_CONTROLLERS 16
 #ifndef WGL_EXT_swap_control
 
 /* Entry points */
