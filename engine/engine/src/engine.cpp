@@ -1382,7 +1382,7 @@ bail:
                     if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 100) // only bother with sleep if diff b/w target and actual time is big enough
                     {
                         DM_PROFILE(Engine, "SoftwareVsync");
-                        while (remainder > 100) // dont bother with less than 0.5ms
+                        while (remainder > 100) // dont bother with less than 0.1ms
                         {
                             uint64_t t1 = dmTime::GetTime();
                             dmTime::Sleep(100); // sleep in chunks of 0.1ms
@@ -1396,11 +1396,6 @@ bail:
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
 #if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
-                // -- BEGIN If frame time including flip is obviously too fast, fallback to measured actual time instead (variable_dt)
-                //uint64_t frame_time = dmTime::GetTime() - engine->m_FlipTime;
-                //dmLogInfo("frame_time: %llu, target_frametime: %llu", frame_time, target_frametime);
-                //engine->m_UseVariableDt = engine->m_Vsync == VSYNC_HARDWARE && frame_time < 0.3 * target_frametime; // arbitrary measure of "too fast", in this case less than 30% of target frame time.
-                // -- END
                 engine->m_FlipTime = dmTime::GetTime();
                 engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
 #endif
@@ -1617,14 +1612,8 @@ bail:
             }
             else if (descriptor == dmEngineDDF::SetUpdateFrequency::m_DDFDescriptor)
             {
-                dmLogOnceWarning("Message 'set_update_frequency' is deprecated. To limit framerate use 'set_frame_cap' instead.")
                 dmEngineDDF::SetUpdateFrequency* m = (dmEngineDDF::SetUpdateFrequency*) message->m_Data;
                 SetUpdateFrequency(self, (uint32_t) m->m_Frequency);
-            }
-            else if (descriptor == dmEngineDDF::SetFrameCap::m_DDFDescriptor)
-            {
-                dmEngineDDF::SetFrameCap* m = (dmEngineDDF::SetFrameCap*) message->m_Data;
-                SetUpdateFrequency(self, (uint32_t) m->m_FrameCap);
             }
             else if (descriptor == dmEngineDDF::HideApp::m_DDFDescriptor)
             {

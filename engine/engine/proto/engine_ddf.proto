@@ -215,7 +215,12 @@ message SetVsync
 
 /*# set update frequency
  * Set game update-frequency. This option is equivalent to `display.update_frequency` in
- * the "game.project" settings but set in run-time.
+ * the "game.project" settings but set in run-time. If vsync mode
+ * `Software` is set in "game.project" setting `display.vsync`, the engine will try
+ * to respect the rate in software using timers. If `Hardware` the rate will be clamped to
+ * a swap interval that matches any detected main monitor refresh rate. There is no
+ * guarantee that the frame cap will be achieved depending on platform specifics
+ * and hardware settings.
  *
  * This message can only be sent to the designated `@system` socket.
  *
@@ -230,28 +235,6 @@ message SetVsync
 message SetUpdateFrequency
 {
     required int32 frequency = 1;
-}
-
-/*# set frame cap
- * Set game frame cap. This option is equivalent to `display.frame_cap` in
- * the "game.project" settings but set in run-time. Only valid if vsync mode
- * `Software` is set in "game.project" setting `display.vsync`. There is no
- * guarantee that the frame cap will be achieved depending on platform specifics
- * and hardware settings.
- * 
- * This message can only be sent to the designated `@system` socket.
- *
- * @message
- * @name set_frame_cap
- * @param target frame cap. 60 for 60 fps
- * @examples
- * <pre>
- * msg.post("@system:", "set_frame_cap", { frame_cap = 60 } )
- * </pre>
- */
-message SetFrameCap
-{
-    required int32 frame_cap = 1;
 }
 
 // (Hidden) run a Lua script
