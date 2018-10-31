@@ -154,11 +154,11 @@ namespace dmGameSystem
 
         TextureSetResource* tile_set = (TextureSetResource*)params.m_Resource->m_Resource;
         TextureSetResource tmp_tile_set;
-
         dmResource::Result r = AcquireResources(((PhysicsContext*) params.m_Context)->m_Context2D, params.m_Factory, texture_set_ddf, &tmp_tile_set, params.m_Filename, true);
         if (r == dmResource::RESULT_OK)
         {
             ReleaseResources(params.m_Factory, tile_set);
+
             tile_set->m_TextureSet = tmp_tile_set.m_TextureSet;
             tile_set->m_Texture = tmp_tile_set.m_Texture;
             tile_set->m_HullCollisionGroups.Swap(tmp_tile_set.m_HullCollisionGroups);

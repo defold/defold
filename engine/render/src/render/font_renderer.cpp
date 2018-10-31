@@ -65,6 +65,7 @@ namespace dmRender
         , m_CacheRows(0)
         , m_CacheCellWidth(0)
         , m_CacheCellHeight(0)
+        , m_CacheCellMaxAscent(0)
         , m_CacheCellPadding(0)
         {
 
@@ -108,6 +109,7 @@ namespace dmRender
 
         uint32_t                m_CacheCellWidth;
         uint32_t                m_CacheCellHeight;
+        uint32_t                m_CacheCellMaxAscent;
         uint8_t                 m_CacheCellPadding;
     };
 
@@ -157,6 +159,7 @@ namespace dmRender
 
         font_map->m_CacheCellWidth = params.m_CacheCellWidth;
         font_map->m_CacheCellHeight = params.m_CacheCellHeight;
+        font_map->m_CacheCellMaxAscent = params.m_CacheCellMaxAscent;
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
 
         font_map->m_CacheColumns = params.m_CacheWidth / params.m_CacheCellWidth;
@@ -245,6 +248,7 @@ namespace dmRender
 
         font_map->m_CacheCellWidth = params.m_CacheCellWidth;
         font_map->m_CacheCellHeight = params.m_CacheCellHeight;
+        font_map->m_CacheCellMaxAscent = params.m_CacheCellMaxAscent;
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
 
         font_map->m_CacheColumns = params.m_CacheWidth / params.m_CacheCellWidth;
@@ -480,7 +484,7 @@ namespace dmRender
         return g;
     }
 
-    void AddGlyphToCache(HFontMap font_map, TextContext& text_context, Glyph* g) {
+    void AddGlyphToCache(HFontMap font_map, TextContext& text_context, Glyph* g, int16_t g_offset_y) {
         uint32_t prev_cache_cursor = font_map->m_CacheCursor;
         dmGraphics::TextureParams tex_params;
         tex_params.m_SubUpdate = true;
@@ -510,11 +514,13 @@ namespace dmRender
                 g->m_InCache = true;
 
                 // Upload glyph data to GPU
-                tex_params.m_X = g->m_X;
-                tex_params.m_Y = g->m_Y;
                 tex_params.m_Width = g->m_Width + font_map->m_CacheCellPadding*2;
                 tex_params.m_Height = g->m_Ascent + g->m_Descent + font_map->m_CacheCellPadding*2;
                 tex_params.m_Data = (uint8_t*)font_map->m_GlyphData + g->m_GlyphDataOffset;
+
+                tex_params.m_X = g->m_X;
+                tex_params.m_Y = g->m_Y + g_offset_y;
+
                 dmGraphics::SetTexture(font_map->m_Texture, tex_params);
                 break;
             }
@@ -584,9 +590,16 @@ namespace dmRender
                 }
                 if (g->m_Width > 0)
                 {
+                    int16_t width = (int16_t)g->m_Width;
+                    int16_t descent = (int16_t)g->m_Descent;
+                    int16_t ascent = (int16_t)g->m_Ascent;
+                    int16_t cache_cell_padding = (int16_t)font_map->m_CacheCellPadding;
+
+                    // Calculate y-offset in cache-cell space by moving glyphs down to baseline
+                    int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - ascent;
 
                     if (!g->m_InCache) {
-                        AddGlyphToCache(font_map, text_context, g);
+                        AddGlyphToCache(font_map, text_context, g, px_cell_offset_y);
                     }
 
                     if (g->m_InCache) {
@@ -600,26 +613,22 @@ namespace dmRender
                         GlyphVertex& v6 = *(&v1 + 5);
                         vertexindex += 6;
 
-                        int16_t width = (int16_t)g->m_Width;
-                        int16_t descent = (int16_t)g->m_Descent;
-                        int16_t ascent = (int16_t)g->m_Ascent;
-
                         (Vector4&) v1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
                         (Vector4&) v2.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
                         (Vector4&) v3.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y - descent, 0, 1);
                         (Vector4&) v6.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y + ascent, 0, 1);
 
                         v1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
-                        v1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent) * recip_h;
+                        v1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
 
                         v2.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
-                        v2.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding) * recip_h;
+                        v2.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
                         v3.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
-                        v3.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent) * recip_h;
+                        v3.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
 
                         v6.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
-                        v6.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding) * recip_h;
+                        v6.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
                         #define SET_VERTEX_PARAMS(v) \
                             v.m_FaceColor = face_color; \
@@ -658,9 +667,18 @@ namespace dmRender
         HFontMap font_map = first_te.m_FontMap;
         float im_recip = 1.0f;
         float ih_recip = 1.0f;
+        float cache_cell_width_ratio  = 0.0;
+        float cache_cell_height_ratio = 0.0;
+
         if (font_map->m_Texture) {
-            im_recip /= dmGraphics::GetOriginalTextureWidth(font_map->m_Texture);
-            ih_recip /= dmGraphics::GetOriginalTextureHeight(font_map->m_Texture);
+            float cache_width  = (float) dmGraphics::GetOriginalTextureWidth(font_map->m_Texture);
+            float cache_height = (float) dmGraphics::GetOriginalTextureHeight(font_map->m_Texture);
+
+            im_recip /= cache_width;
+            ih_recip /= cache_height;
+
+            cache_cell_width_ratio  = ((float) font_map->m_CacheCellWidth) / cache_width;
+            cache_cell_height_ratio = ((float) font_map->m_CacheCellHeight) / cache_height;
         }
 
         GlyphVertex* vertices = (GlyphVertex*)text_context.m_ClientBuffer;
@@ -681,7 +699,7 @@ namespace dmRender
         ro->m_StencilTestParams = first_te.m_StencilTestParams;
         ro->m_SetStencilTest = first_te.m_StencilTestParamsSet;
 
-        Vector4 texture_size_recip(im_recip, ih_recip, 0, 0);
+        Vector4 texture_size_recip(im_recip, ih_recip, cache_cell_width_ratio, cache_cell_height_ratio);
         EnableRenderObjectConstant(ro, g_TextureSizeRecipHash, texture_size_recip);
 
         const dmRender::Constant* constants = first_te.m_RenderConstants;
@@ -698,7 +716,7 @@ namespace dmRender
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
             int num_indices = CreateFontVertexDataInternal(text_context, font_map, text, te, im_recip, ih_recip, &vertices[text_context.m_VertexIndex], text_context.m_MaxVertexCount - text_context.m_VertexIndex);
-            text_context.m_VertexIndex += num_indices;            
+            text_context.m_VertexIndex += num_indices;
         }
 
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;

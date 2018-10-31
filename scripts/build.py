@@ -30,7 +30,7 @@ PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
 
-PACKAGES_EMSCRIPTEN_SDK="emsdk-1.35.23"
+PACKAGES_EMSCRIPTEN_SDK="emsdk-1.38.12"
 PACKAGES_IOS_SDK="iPhoneOS11.2.sdk"
 PACKAGES_MACOS_SDK="MacOSX10.13.sdk"
 PACKAGES_XCODE_TOOLCHAIN="XcodeToolchain9.2"
@@ -40,13 +40,9 @@ PACKAGES_WIN32_SDK_10="WindowsKits-10.0"
 DEFOLD_PACKAGES_URL = "https://s3-eu-west-1.amazonaws.com/defold-packages"
 NODE_MODULE_XHR2_URL = "%s/xhr2-0.1.0-common.tar.gz" % (DEFOLD_PACKAGES_URL)
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "1.35.0"
-# The linux tool does not yet support git tags, so we have to treat it as a special case for the moment.
-EMSCRIPTEN_VERSION_STR_LINUX = "master"
-EMSCRIPTEN_SDK_OSX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_SDK_LINUX = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR_LINUX)
+EMSCRIPTEN_VERSION_STR = "1.38.12"
+EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
 EMSCRIPTEN_DIR = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR)
-EMSCRIPTEN_DIR_LINUX = join('bin', 'emsdk_portable', 'emscripten', EMSCRIPTEN_VERSION_STR_LINUX)
 PACKAGES_FLASH=[]
 SHELL = os.environ.get('SHELL', 'bash')
 
@@ -453,12 +449,13 @@ class Configuration(object):
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
+        # Simple way to reduce number of warnings in the build
+        proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
+        if not os.path.exists(proto_path):
+            os.makedirs(proto_path)
+
     def _form_ems_path(self):
-        path = ''
-        if 'linux' in self.host:
-            path = join(self.ext, EMSCRIPTEN_DIR_LINUX)
-        else:
-            path = join(self.ext, EMSCRIPTEN_DIR)
+        path = join(self.ext, EMSCRIPTEN_DIR)
         return path
 
     def install_ems(self):
@@ -472,9 +469,7 @@ class Configuration(object):
         os.environ['EMSCRIPTEN'] = self._form_ems_path()
 
     def get_ems_sdk_name(self):
-        sdk = EMSCRIPTEN_SDK_OSX
-        if 'linux' in self.host:
-            sdk = EMSCRIPTEN_SDK_LINUX
+        sdk = EMSCRIPTEN_SDK
         return sdk;
 
     def get_ems_exe_path(self):
@@ -500,8 +495,6 @@ class Configuration(object):
             print 'No .emscripten file.'
             err = True
         emsDir = join(self.ext, EMSCRIPTEN_DIR)
-        if self.host == 'linux':
-            emsDir = join(self.ext, EMSCRIPTEN_DIR_LINUX)
         if not os.path.isdir(emsDir):
             print 'Emscripten tools not installed.'
             err = True
@@ -776,20 +769,22 @@ class Configuration(object):
     def build_engine(self):
         cmd = self._build_engine_cmd(**self._get_build_flags())
         args = cmd.split()
-        host = self.host
+        host = self.host2
+        if 'x86-' in host:
+            host = self.host
         if host == 'darwin':
             host = 'x86_64-darwin'
-        # There is a dependency between 32-bit python and the ctypes lib produced in dlib
+        # There is a dependency between 32-bit python and the ctypes lib produced in dlib (something goes wrong when compiling .proto files)
         if host == 'x86_64-darwin' and self.target_platform != 'darwin':
             self._build_engine_lib(args, 'dlib', 'darwin', skip_tests = True)
         if host == 'x86_64-win32' and self.target_platform != 'win32':
             self._build_engine_lib(args, 'dlib', 'win32', skip_tests = True)
+        # Make sure we build these for the host platform
+        for lib in ['dlib', 'texc']:
+            skip_tests = host != self.target_platform
+            self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
         if not self.skip_bob_light:
             # We must build bob-light, which builds content during the engine build
-            # There also seems to be a strange dep between having it built and building dlib for the target, even when target == host
-            for lib in ['dlib', 'texc']:
-                skip_tests = host != self.target_platform
-                self._build_engine_lib(args, lib, host, skip_tests = skip_tests)
             self.build_bob_light()
         # Target libs to build
         engine_libs = list(ENGINE_LIBS)
@@ -1842,6 +1837,10 @@ instructions.configure=\
     def _form_env(self):
         env = dict(os.environ)
 
+        host = self.host2
+        if 'x86-' in host:
+            host = self.host
+
         ld_library_path = 'DYLD_LIBRARY_PATH' if self.host == 'darwin' else 'LD_LIBRARY_PATH'
         env[ld_library_path] = os.path.pathsep.join(['%s/lib/%s' % (self.dynamo_home, self.target_platform),
                                                      '%s/ext/lib/%s' % (self.dynamo_home, self.host)])
@@ -1857,7 +1856,7 @@ instructions.configure=\
         paths = os.path.pathsep.join(['%s/bin/%s' % (self.dynamo_home, self.target_platform),
                                       '%s/bin' % (self.dynamo_home),
                                       '%s/ext/bin' % self.dynamo_home,
-                                      '%s/ext/bin/%s' % (self.dynamo_home, self.host),
+                                      '%s/ext/bin/%s' % (self.dynamo_home, host),
                                       '%s/bin' % go_root])
 
         env['PATH'] = paths + os.path.pathsep + env['PATH']
@@ -2008,7 +2007,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
     if len(args) == 0:
         parser.error('No command specified')
 
-    target_platform = options.target_platform if options.target_platform else get_host_platform()
+    target_platform = options.target_platform
+    if not options.target_platform:
+        target_platform = get_host_platform2()
+        if 'x86-' in target_platform:
+            target_platform = get_host_platform() # we need even more cleanup to use "x86-linux" format for everything
 
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
