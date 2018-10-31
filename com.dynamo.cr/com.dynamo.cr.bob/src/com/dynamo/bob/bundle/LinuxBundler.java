@@ -22,11 +22,15 @@ public class LinuxBundler implements IBundler {
     public void bundleApplicationForPlatform(Platform platform, Project project, File appDir, String title)
             throws IOException, CompileExceptionError {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File bundleExe = Bob.getNativeExtensionEngine(platform, extenderExeDir);
-        if (bundleExe == null) {
+        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        if (bundleExes == null) {
             final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-            bundleExe = new File(Bob.getDefaultDmenginePath(platform, variant));
+            bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
+        if (bundleExes.size() > 1) {
+            throw new IOException("Invalid number of binaries for Linux when bundling: " + bundleExes.size());
+        }
+        File bundleExe = bundleExes.get(0);
 
         File exeOut;
         if (platform == Platform.X86Linux)
@@ -52,7 +56,7 @@ public class LinuxBundler implements IBundler {
         // In order to make a transition period, while phasing out 32 bit Darwin/Linux support completely, we will only support 64 bit for extensions
         final List<String> extensionFolders = ExtenderUtil.getExtensionFolders(project);
         final boolean hasExtensions = !extensionFolders.isEmpty();
-        
+
         Platform primaryPlatform = Platform.X86_64Linux;
         bundleApplicationForPlatform(primaryPlatform, project, appDir, title);
 
@@ -62,7 +66,7 @@ public class LinuxBundler implements IBundler {
         for (String name : Arrays.asList("game.projectc", "game.arci", "game.arcd", "game.dmanifest", "game.public.der")) {
             FileUtils.copyFile(new File(buildDir, name), new File(appDir, name));
         }
-        
+
         // Collect bundle/package resources to be included in bundle directory
         Map<String, IResource> bundleResources = ExtenderUtil.collectResources(project, primaryPlatform);
 

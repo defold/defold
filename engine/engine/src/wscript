@@ -44,7 +44,7 @@ def build(bld):
     exported_symbols = ['DefaultSoundDevice', 'NullSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
-    if 'js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
+    if 'web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']:
         exported_symbols.append('AudioDecoderStbVorbis')
     else:
         exported_symbols.append('AudioDecoderStbVorbis')
@@ -70,7 +70,7 @@ def build(bld):
         sound_lib = 'SOUND OPENAL_SOFT OPENSLES'
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
-    elif 'js-web' in bld.env['PLATFORM']:
+    elif 'web' in bld.env['PLATFORM']:
         sound_lib = 'SOUND OPENAL'
         exported_symbols.append('FacebookExt')
         exported_symbols.append('IAPExt')
