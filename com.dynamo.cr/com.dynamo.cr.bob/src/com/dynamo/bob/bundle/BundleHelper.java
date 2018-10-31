@@ -255,6 +255,12 @@ public class BundleHelper {
     // This regexp catches errors, warnings and note entries that are not associated with a resource.
     private static Pattern nonResourceIssueRe = Pattern.compile("^(fatal|error|warning|note):\\s*(.+)");
 
+    // This regexp catches a malformed SDK where content folders are missing
+    private static Pattern missingSDKFolderLinkerCLANGRe = Pattern.compile("^ld: warning: directory not found for option '-L.*\\/([0-9a-f]{40})\\/defoldsdk\\/.*'\n[\\s\\S]*");
+
+    // This regexp catches linker errors where specified libraries are missing
+    private static Pattern missingLibraryLinkerCLANGRe = Pattern.compile("^ld: library not found for -l(.+)\n[\\s\\S]*");
+
     private static List<String> excludeMessages = new ArrayList<String>() {{
         add("[options] bootstrap class path not set in conjunction with -source 1.6"); // Mighty annoying message
     }};
@@ -310,6 +316,8 @@ public class BundleHelper {
 
     private static void parseLogClang(String[] lines, List<ResourceInfo> issues) {
         final Pattern linkerPattern = resourceIssueLinkerCLANGRe;
+        final Pattern linkerMissingSDKFolderPattern = missingSDKFolderLinkerCLANGRe;
+        final Pattern linkerMissingLibraryLinkerCLANGRe = missingLibraryLinkerCLANGRe;
 
         // Very similar, with lookBehind and lookAhead for errors
         parseLogGCC(lines, issues);
@@ -324,6 +332,14 @@ public class BundleHelper {
             if (m.matches()) {
                 // Groups: message
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", m.group(1)));
+            }
+            m = linkerMissingSDKFolderPattern.matcher(line);
+            if (m.matches()) {
+                issues.add(new BundleHelper.ResourceInfo("error", null, "", "Invalid Defold SDK: '" + m.group(1) + "'"));
+            }
+            m = linkerMissingLibraryLinkerCLANGRe.matcher(line);
+            if (m.matches()) {
+                issues.add(new BundleHelper.ResourceInfo("error", null, "", "Missing library '" + m.group(1) + "'"));
             }
         }
     }
