@@ -637,10 +637,11 @@ class Configuration(object):
             jsdir = os.path.join(self.dynamo_home, 'share')
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-            # libraries
+            # libraries for js-web
             jsdir = os.path.join(self.dynamo_home, 'lib/js-web/js/')
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+            # libraries for wasm-web
             jsdir = os.path.join(self.dynamo_home, 'lib/wasm-web/js/')
             paths = _findjslibs(jsdir)
             self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
