@@ -731,7 +731,7 @@
  :deprecated-paths
  {["display" "variable_dt"]
   {:type :boolean
-   :severity "error"
+   :severity :fatal
    :tooltip "This setting is deprecated. Uncheck \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."}}
 
  :categories
