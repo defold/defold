@@ -403,8 +403,9 @@ This must be submitted to the driver for compilation before you can use it. See
 
   (set-uniform [this gl name val]
     (when-let [[program uniform-locs] (scene-cache/request-object! ::shader request-id gl [verts frags uniforms])]
-      (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
-        (set-uniform-at-index gl program loc val)))))
+      (when (= program (gl/gl-current-program gl))
+        (let [loc (uniform-locs name (.glGetUniformLocation ^GL2 gl program name))]
+          (set-uniform-at-index gl program loc val))))))
 
 (defn make-shader
   "Ready a shader program for use by compiling and linking it. Takes a collection
