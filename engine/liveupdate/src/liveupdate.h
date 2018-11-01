@@ -12,14 +12,15 @@ namespace dmLiveUpdate
      */
     enum Result
     {
-        RESULT_OK                        =  0,   //!< RESULT_OK
-        RESULT_INVALID_HEADER            = -1,   //!< RESULT_INVALID_HEADER
-        RESULT_MEM_ERROR                 = -2,   //!< RESULT_MEM_ERROR
-        RESULT_INVALID_RESOURCE          = -3,   //!< RESULT_INVALID_RESOURCE
-        RESULT_VERSION_MISMATCH          = -4,   //!< RESULT_VERSION_MISMATCH
-        RESULT_ENGINE_VERSION_MISMATCH   = -5,   //!< RESULT_ENGINE_VERSION_MISMATCH
-        RESULT_SIGNATURE_MISMATCH        = -6,   //!< RESULT_SIGNATURE_MISMATCH
-        RESULT_SCHEME_MISMATCH           = -7,   //!< RESULT_NOT_SUPPORTED
+        RESULT_OK                        =  0,
+        RESULT_INVALID_HEADER            = -1,
+        RESULT_MEM_ERROR                 = -2,
+        RESULT_INVALID_RESOURCE          = -3,
+        RESULT_VERSION_MISMATCH          = -4,
+        RESULT_ENGINE_VERSION_MISMATCH   = -5,
+        RESULT_SIGNATURE_MISMATCH        = -6,
+        RESULT_SCHEME_MISMATCH           = -7,
+        RESULT_BUNDLED_RESOURCE_MISMATCH = -8,
     };
 
     /**
