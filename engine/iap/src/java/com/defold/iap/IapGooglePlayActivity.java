@@ -220,7 +220,7 @@ public class IapGooglePlayActivity extends Activity {
 
         Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
         serviceIntent.setPackage("com.android.vending");
-        List<ResolveInfo> intentServices = activity.getPackageManager().queryIntentServices(serviceIntent, 0);
+        List<ResolveInfo> intentServices = getPackageManager().queryIntentServices(serviceIntent, 0);
         if (intentServices != null && !intentServices.isEmpty()) {
             // service available to handle that Intent
             serviceConn = new ServiceConnection() {
