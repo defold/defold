@@ -135,6 +135,7 @@
                                 :resource-paths    ["test/resources"]
                                 :jvm-opts          ["-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.log.dir="
+                                                    "-Djogl.debug.TraceGL"
                                                     "-Djogl.debug.DebugGL"
                                                     "-Djogl.texture.notexrect=true"
                                                     "-XX:+UnlockCommercialFeatures"
