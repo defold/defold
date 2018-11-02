@@ -617,7 +617,6 @@
   (property select-buffer IntBuffer)
   (property cursor-pos types/Vec2)
   (property tool-picking-rect Rect)
-  (property tool-user-data g/Any (default (atom [])))
   (property input-action-queue g/Any (default []))
   (property updatable-states g/Any)
 
@@ -857,8 +856,9 @@
   (when-let [view-id (ui/user-data image-view ::view-id)]
     (let [evaluation-context (g/make-evaluation-context)
           play-mode (g/node-value view-id :play-mode evaluation-context)
-          tool-user-data (g/node-value view-id :tool-user-data evaluation-context)
           action-queue (g/node-value view-id :input-action-queue evaluation-context)
+          tool-user-data (when (some #(and (= :mouse-moved (:type %)) (= 0 (:click-count %))) action-queue)
+                           (g/node-value view-id :selected-tool-renderables))
           active-updatables (g/node-value view-id :active-updatables evaluation-context)
           {:keys [frame-version] :as render-args} (g/node-value view-id :render-args evaluation-context)]
       (g/update-cache-from-evaluation-context! evaluation-context)
@@ -869,7 +869,7 @@
       (profiler/profile "input-dispatch" -1
         (let [input-handlers (g/sources-of view-id :input-handlers)]
           (doseq [action action-queue]
-            (dispatch-input input-handlers action @tool-user-data))))
+            (dispatch-input input-handlers action tool-user-data))))
       (profiler/profile "updatables" -1
         (when (seq active-updatables)
           (g/update-property! view-id :updatable-states update-updatables play-mode active-updatables)))
@@ -951,11 +951,6 @@
                                     ;; Request focus and consume event to prevent someone else from stealing focus
                                     (.requestFocus parent)
                                     (.consume e))
-                                  ;; Only look for tool selection when the mouse is moving with no button pressed
-                                  (when (and (= :mouse-moved (:type action)) (= 0 (:click-count action)))
-                                    (let [s (g/node-value view-id :selected-tool-renderables)
-                                          tool-user-data (g/node-value view-id :tool-user-data)]
-                                      (reset! tool-user-data s)))
                                   (g/transact
                                     (concat
                                       (g/set-property view-id :cursor-pos [x y])
