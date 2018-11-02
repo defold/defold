@@ -41,7 +41,7 @@
   media-types
   (into-array MediaType [ProtobufProviders/APPLICATION_XPROTOBUF_TYPE]))
 
-(defn- server-url
+(defn server-url
   ^URI [prefs]
   (let [server-url (URI. (prefs/get-prefs prefs "server-url" "https://cr.defold.com"))]
     (when-not (= "https" (.getScheme server-url))
