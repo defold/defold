@@ -616,7 +616,7 @@ namespace dmRender
 
                     if (g->m_Width > 0)
                     {
-                        int16_t px_cell_offset_y = font_map->m_MaxAscent - (int16_t)g->m_Ascent;
+                        int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - (int16_t)g->m_Ascent;
 
                         // Prepare the cache here aswell since we only count glyphs we definately
                         // will render.
