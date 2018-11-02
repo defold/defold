@@ -459,12 +459,15 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
     (delete-shader gl fs)
     [program uniform-locs]))
 
+(defn- delete-program [^GL2 gl program]
+  (.glDeleteProgram gl program))
+
 (defn- update-shader-program [^GL2 gl [program uniform-locs] data]
-  (delete-shader gl program)
+  (delete-program gl program)
   (make-shader-program gl data))
 
 (defn- destroy-shader-programs [^GL2 gl programs _]
   (doseq [[program _] programs]
-    (delete-shader gl program)))
+    (delete-program gl program)))
 
 (scene-cache/register-object-cache! ::shader make-shader-program update-shader-program destroy-shader-programs)
