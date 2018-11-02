@@ -96,7 +96,7 @@
          (when (system/defold-dev?)
            (log/debug :msg "Suppressed unhandled" :exception exception))
          (do (log/error :exception exception)
-             (analytics/track-exception exception)
+             (analytics/track-exception! exception)
              (let [sentry-id-promise (sentry-reporter exception thread)]
                (exception-notifier ex-map sentry-id-promise)
                nil))))
