@@ -125,16 +125,16 @@
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
-        get-user-id-from-prefs #(prefs/get-prefs prefs "user-id" nil)
+        get-analytics-uid-from-prefs #(prefs/get-prefs prefs "analytics.uid" nil)
         dashboard-client (login/make-dashboard-client prefs)
         update-context (:update-context (updater/start!))]
     (when (analytics/enabled?)
-      (analytics/set-user-id! (get-user-id-from-prefs))
+      (analytics/set-uid! (get-analytics-uid-from-prefs))
       (prefs/add-listener! prefs
                            (fn [prefs-key]
-                             (when (= "user-id" prefs-key)
-                               (let [user-id (get-user-id-from-prefs)]
-                                 (analytics/set-user-id! user-id))))))
+                             (when (= "analytics.uid" prefs-key)
+                               (let [uid (get-analytics-uid-from-prefs)]
+                                 (analytics/set-uid! uid))))))
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
         (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client update-context false)
