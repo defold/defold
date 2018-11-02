@@ -63,21 +63,23 @@
               (NanoHTTPD$Response. (NanoHTTPD$Response$Status/NOT_FOUND) NanoHTTPD/MIME_PLAINTEXT "Not found"))))
     (.start)))
 
-(defn- set-prefs-from-successful-login! [prefs {:keys [auth-token email first-name last-name user-id]}]
+(defn- set-prefs-from-successful-login! [prefs {:keys [auth-token email first-name last-name tracking-id]}]
   (assert (string? auth-token))
   (assert (string? email))
   (assert (string? first-name))
   (assert (string? last-name))
-  (assert (integer? user-id))
+  (assert (string? (not-empty tracking-id)))
   (prefs/set-prefs prefs "email" email)
   (prefs/set-prefs prefs "first-name" first-name)
   (prefs/set-prefs prefs "last-name" last-name)
   (prefs/set-prefs prefs "token" auth-token)
-  (prefs/set-prefs prefs "user-id" user-id))
+  (prefs/set-prefs prefs "analytics.uid" tracking-id))
 
 (defn login-page-url
-  ^String [^NanoHTTPD server]
-  (format "https://cr.defold.com/login/oauth/google?redirect_to=%s" (URLEncoder/encode (make-redirect-to-url server))))
+  ^String [prefs ^NanoHTTPD server]
+  (str (.resolve (client/server-url prefs)
+                 (str "/login/oauth/google?redirect_to="
+                      (URLEncoder/encode (make-redirect-to-url server))))))
 
 (defn- stop-server-now! [^NanoHTTPD server]
   (.stop server))
@@ -240,10 +242,10 @@
 (defn- begin-sign-in-with-browser!
   "Open a sign-in page in the system-configured web browser. Start a server that
   awaits the oauth response redirect from the browser."
-  [{:keys [sign-in-response-server-atom sign-in-state-property] :as dashboard-client}]
+  [{:keys [prefs sign-in-response-server-atom sign-in-state-property] :as dashboard-client}]
   (assert (= :not-signed-in (sign-in-state sign-in-state-property)))
   (let [sign-in-response-server (start-sign-in-response-server! dashboard-client)
-        sign-in-page-url (login-page-url sign-in-response-server)]
+        sign-in-page-url (login-page-url prefs sign-in-response-server)]
     (set-sign-in-state! sign-in-state-property :browser-open)
     (ui/open-url sign-in-page-url)
 
@@ -263,10 +265,10 @@
 (defn- copy-sign-in-url!
   "Copy the sign-in url from the sign-in response server to the clipboard.
   If the sign-in response server is not running, does nothing."
-  [{:keys [sign-in-response-server-atom sign-in-state-property] :as _dashboard-client} ^Clipboard clipboard]
+  [{:keys [prefs sign-in-response-server-atom sign-in-state-property] :as _dashboard-client} ^Clipboard clipboard]
   (assert (= :browser-open (sign-in-state sign-in-state-property)))
   (when-some [sign-in-response-server @sign-in-response-server-atom]
-    (let [sign-in-page-url (login-page-url sign-in-response-server)]
+    (let [sign-in-page-url (login-page-url prefs sign-in-response-server)]
       (.setContent clipboard (doto (ClipboardContent.)
                                (.putString sign-in-page-url)
                                (.putUrl sign-in-page-url))))))
@@ -475,7 +477,7 @@
   (prefs/set-prefs prefs "first-name" nil)
   (prefs/set-prefs prefs "last-name" nil)
   (prefs/set-prefs prefs "token" nil)
-  (prefs/set-prefs prefs "user-id" nil)
+  (prefs/set-prefs prefs "analytics.uid" nil)
   (set-sign-in-state! sign-in-state-property :not-signed-in))
 
 (defn can-sign-out? [{:keys [prefs] :as _dashboard-client}]
