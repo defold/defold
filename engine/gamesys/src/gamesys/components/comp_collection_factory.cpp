@@ -22,7 +22,7 @@ namespace dmGameSystem
     const char* COLLECTION_FACTORY_MAX_COUNT_KEY = "collectionfactory.max_count";
 
     static void CleanupAsyncLoading(lua_State*, CollectionFactoryComponent*);
-    static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams*);
+    static bool PreloadCompleteCallback(dmResource::HFactory factory, void* user_data);
     static void LoadComplete(const dmGameObject::ComponentsUpdateParams&, CollectionFactoryComponent*, const dmResource::Result);
     static dmResource::Result LoadCollectionResources(dmResource::HFactory, CollectionFactoryComponent*);
     static void UnloadCollectionResources(dmResource::HFactory, CollectionFactoryComponent*);
@@ -117,10 +117,7 @@ namespace dmGameSystem
                 dmResource::Result r = dmResource::RESULT_OK;
                 if(component->m_Preloader)
                 {
-                    dmResource::PreloaderCompleteCallbackParams preloader_params;
-                    preloader_params.m_Factory = factory;
-                    preloader_params.m_UserData = component;
-                    r = dmResource::UpdatePreloader(component->m_Preloader, PreloadCompleteCallback, &preloader_params, 10*1000);
+                    r = dmResource::UpdatePreloader(component->m_Preloader, 10*1000);
                 }
                 if (r != dmResource::RESULT_PENDING)
                 {
@@ -162,7 +159,7 @@ namespace dmGameSystem
                 continue;
             names.Push(instance_desc.m_Prototype);
         }
-        component->m_Preloader = dmResource::NewPreloader(dmGameObject::GetFactory(collection), names);
+        component->m_Preloader = dmResource::NewPreloader(dmGameObject::GetFactory(collection), PreloadCompleteCallback, component, names);
         if(!component->m_Preloader)
         {
             return false;
@@ -253,12 +250,12 @@ namespace dmGameSystem
         }
     }
 
-    static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams* params)
+    static bool PreloadCompleteCallback(dmResource::HFactory factory, void* user_data)
     {
-        CollectionFactoryComponent* component = (CollectionFactoryComponent *) params->m_UserData;
+        CollectionFactoryComponent* component = (CollectionFactoryComponent *) user_data;
         if(component->m_Resource->m_LoadDynamically)
         {
-            if(LoadCollectionResources(params->m_Factory, component) != dmResource::RESULT_OK)
+            if(LoadCollectionResources(factory, component) != dmResource::RESULT_OK)
                 return false;
         }
         return true;

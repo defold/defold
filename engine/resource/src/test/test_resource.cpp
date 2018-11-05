@@ -195,11 +195,11 @@ protected:
     dmResource::Result PreloaderGet(dmResource::HFactory factory, const char *ref, void** resource)
     {
         // Unfortunately the assert macros won't work inside a function.
-        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, ref);
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, 0x0, 0x0, ref);
         dmResource::Result r;
         for (uint32_t i=0;i<33;i++)
         {
-            r = dmResource::UpdatePreloader(pr, 0, 0, 30*1000);
+            r = dmResource::UpdatePreloader(pr, 30*1000);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(30000);
@@ -533,28 +533,24 @@ TEST_P(GetResourceTest, ReferenceCountSimple)
 }
 
 
-static bool PreloaderCompleteCallback(const dmResource::PreloaderCompleteCallbackParams* params)
+static bool PreloaderCompleteCallback(dmResource::HFactory factory, void* user_data)
 {
-    uint32_t* user_data = (uint32_t*) params->m_UserData;
-    (*user_data)++;
+    uint32_t* result_ptr = (uint32_t*) user_data;
+    (*result_ptr)++;
     return true;
 }
 
 
 TEST_P(GetResourceTest, PreloadGet)
 {
-    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
-
-
     uint32_t pcc_result = 0;
-    dmResource::PreloaderCompleteCallbackParams pcc_params;
-    pcc_params.m_Factory = m_Factory;
-    pcc_params.m_UserData = &pcc_result;
+
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, PreloaderCompleteCallback, &pcc_result, m_ResourceName);
 
     dmResource::Result r;
     for (uint32_t i=0;i<33;i++)
     {
-        r = dmResource::UpdatePreloader(pr, PreloaderCompleteCallback, &pcc_params, 30*1000);
+        r = dmResource::UpdatePreloader(pr, 30*1000);
         if (r == dmResource::RESULT_PENDING)
             dmTime::Sleep(30000);
         else
@@ -590,20 +586,17 @@ TEST_P(GetResourceTest, PreloadGet)
 
 TEST_P(GetResourceTest, PreloadGetList)
 {
+    uint32_t pcc_result = 0;
+
     const char* resource_names_list[] = { m_ResourceName, "/test_ref.cont" };
     dmArray<const char*> resource_names(resource_names_list, 2, 3);
-    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_names);
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, PreloaderCompleteCallback, &pcc_result, resource_names);
     const char* subresource_name = "/test01.foo";
-
-    uint32_t pcc_result = 0;
-    dmResource::PreloaderCompleteCallbackParams pcc_params;
-    pcc_params.m_Factory = m_Factory;
-    pcc_params.m_UserData = &pcc_result;
 
     dmResource::Result r;
     for (uint32_t i=0;i<33;i++)
     {
-        r = dmResource::UpdatePreloader(pr, PreloaderCompleteCallback, &pcc_params, 30*1000);
+        r = dmResource::UpdatePreloader(pr, 30*1000);
         if (r == dmResource::RESULT_PENDING)
             dmTime::Sleep(30000);
         else
@@ -667,7 +660,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
         dmResource::HPreloader pr[n];
         for (uint32_t j=0;j<n;j++)
         {
-            pr[j] = dmResource::NewPreloader(m_Factory, m_ResourceName);
+            pr[j] = dmResource::NewPreloader(m_Factory, 0x0, 0x0, m_ResourceName);
         }
 
         for (uint32_t j=0;j<30;j++)
@@ -675,7 +668,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
             bool done = true;
             for (uint32_t k=0;k<n;k++)
             {
-                dmResource::Result r = dmResource::UpdatePreloader(pr[k], 0, 0, 1000);
+                dmResource::Result r = dmResource::UpdatePreloader(pr[k], 1000);
                 if (r == dmResource::RESULT_PENDING)
                 {
                     done = false;
@@ -715,12 +708,12 @@ TEST_P(GetResourceTest, PreloadGetParallell)
 TEST_P(GetResourceTest, PreloadGetManyRefs)
 {
     // this has more references than the preloader can fit into its tree
-    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, "/many_refs.cont");
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, 0x0, 0x0, "/many_refs.cont");
 
     dmResource::Result r;
     for (uint32_t i=0;i<1000;i++)
     {
-        r = dmResource::UpdatePreloader(pr, 0, 0, 30*1000);
+        r = dmResource::UpdatePreloader(pr, 30*1000);
         if (r == dmResource::RESULT_PENDING)
             dmTime::Sleep(30000);
         else
@@ -737,9 +730,9 @@ TEST_P(GetResourceTest, PreloadGetAbort)
     // Must not leak or crash
     for (uint32_t i=0;i<20;i++)
     {
-        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, 0x0, 0x0, m_ResourceName);
         for (uint32_t j=0;j<i;j++)
-            dmResource::UpdatePreloader(pr, 0, 0, 1);
+            dmResource::UpdatePreloader(pr, 1);
         dmResource::DeletePreloader(pr);
     }
 }

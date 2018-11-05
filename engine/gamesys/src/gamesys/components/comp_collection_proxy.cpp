@@ -82,9 +82,9 @@ namespace dmGameSystem
     }
 
 
-    static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams* params)
+    static bool PreloadCompleteCallback(dmResource::HFactory factory, void* user_data)
     {
-        return (DoLoad(params->m_Factory, (CollectionProxyComponent *) params->m_UserData) == dmGameObject::UPDATE_RESULT_OK);
+        return (DoLoad(factory, (CollectionProxyComponent *) user_data) == dmGameObject::UPDATE_RESULT_OK);
     }
 
 
@@ -214,11 +214,7 @@ namespace dmGameSystem
             }
             if (proxy->m_Preloader != 0)
             {
-                CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
-                dmResource::PreloaderCompleteCallbackParams params;
-                params.m_Factory = context->m_Factory;
-                params.m_UserData = proxy;
-                dmResource::Result r = dmResource::UpdatePreloader(proxy->m_Preloader, PreloadCompleteCallback, &params, 10*1000);
+                dmResource::Result r = dmResource::UpdatePreloader(proxy->m_Preloader, 10*1000);
                 if (r != dmResource::RESULT_PENDING)
                 {
                     dmResource::DeletePreloader(proxy->m_Preloader);
@@ -382,7 +378,7 @@ namespace dmGameSystem
 
                 if (params.m_Message->m_Id == dmHashString64("async_load"))
                 {
-                    proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, proxy->m_Resource->m_DDF->m_Collection);
+                    proxy->m_Preloader = dmResource::NewPreloader(context->m_Factory, PreloadCompleteCallback, proxy, proxy->m_Resource->m_DDF->m_Collection);
                 }
                 else
                 {

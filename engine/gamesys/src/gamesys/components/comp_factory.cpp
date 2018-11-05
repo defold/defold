@@ -20,7 +20,7 @@ namespace dmGameSystem
     const char* FACTORY_MAX_COUNT_KEY = "factory.max_count";
 
     static void CleanupAsyncLoading(lua_State*, FactoryComponent*);
-    static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams*);
+    static bool PreloadCompleteCallback(dmResource::HFactory factory, void* user_data);
     static void LoadComplete(const dmGameObject::ComponentsUpdateParams&, FactoryComponent*, const dmResource::Result);
 
     struct FactoryWorld
@@ -113,10 +113,7 @@ namespace dmGameSystem
                 dmResource::Result r = dmResource::RESULT_OK;
                 if(component->m_Preloader)
                 {
-                    dmResource::PreloaderCompleteCallbackParams preloader_params;
-                    preloader_params.m_Factory = factory;
-                    preloader_params.m_UserData = component;
-                    r = dmResource::UpdatePreloader(component->m_Preloader, PreloadCompleteCallback, &preloader_params, 10*1000);
+                    r = dmResource::UpdatePreloader(component->m_Preloader, 10*1000);
                 }
                 if (r != dmResource::RESULT_PENDING)
                 {
@@ -231,7 +228,7 @@ namespace dmGameSystem
             return true;
         }
 
-        component->m_Preloader = dmResource::NewPreloader(dmGameObject::GetFactory(collection), component->m_Resource->m_FactoryDesc->m_Prototype);
+        component->m_Preloader = dmResource::NewPreloader(dmGameObject::GetFactory(collection), PreloadCompleteCallback, component, component->m_Resource->m_FactoryDesc->m_Prototype);
         if(!component->m_Preloader)
         {
             return false;
@@ -291,10 +288,10 @@ namespace dmGameSystem
         }
     }
 
-    static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams* params)
+    static bool PreloadCompleteCallback(dmResource::HFactory factory, void* user_data)
     {
-        FactoryComponent* component = (FactoryComponent *) params->m_UserData;
-        return GetPrototype(params->m_Factory, component) != 0;
+        FactoryComponent* component = (FactoryComponent *) user_data;
+        return GetPrototype(factory, component) != 0;
     }
 
     static void LoadComplete(const dmGameObject::ComponentsUpdateParams& params, FactoryComponent* component, const dmResource::Result result)

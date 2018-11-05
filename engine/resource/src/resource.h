@@ -332,23 +332,12 @@ namespace dmResource
     typedef void (*ResourceReloadedCallback)(const ResourceReloadedParams& params);
 
     /**
-     * Parameters to PreloaderCompleteCallback.
-     */
-    struct PreloaderCompleteCallbackParams
-    {
-        /// Factory handle
-        HFactory m_Factory;
-        /// User data supplied when the callback was registered
-        void* m_UserData;
-    };
-
-    /**
      * Function called by UpdatePreloader when preoloading is complete and before postcreate callbacks are processed.
      * @param PreloaderCompleteCallbackParams parameters passed to callback function
      * @return true if succeeded
      * @see UpdatePreloader
      */
-    typedef bool (*FPreloaderCompleteCallback)(const PreloaderCompleteCallbackParams* params);
+    typedef bool (*FPreloaderCompleteCallback)(HFactory factory, void* userdata);
 
     /**
      * Set default NewFactoryParams params
@@ -559,7 +548,7 @@ namespace dmResource
      * @param name Resource to load
      * @return CREATE_RESULT_OK on success
      */
-    HPreloader NewPreloader(HFactory factory, const char* name);
+    HPreloader NewPreloader(HFactory factory, FPreloaderCompleteCallback complete_callback, void* callback_user_data, const char* name);
 
     /**
      * Create a new preloader
@@ -567,7 +556,7 @@ namespace dmResource
      * @param array of names of resources to load
      * @return CREATE_RESULT_OK on success
      */
-    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names);
+    HPreloader NewPreloader(HFactory factory, FPreloaderCompleteCallback complete_callback, void* callback_user_data, const dmArray<const char*>& names);
 
     /**
      * Perform one update tick of the preloader, with a soft time limit for
@@ -578,7 +567,7 @@ namespace dmResource
      * @param soft_time_limit Time limit in us
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
-    Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit);
+    Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit);
 
     /**
      * Destroy the preloader. Note that currently it will spin and block until

@@ -125,6 +125,9 @@ namespace dmResource
 
         // persisted resources
         dmArray<void*> m_PersistedResources;
+
+        FPreloaderCompleteCallback m_CompleteCallback;
+        void* m_CompleteCallbackUserData;
     };
 
     static bool PreloadHintInternal(HPreloader, int32_t, const char*, bool);
@@ -175,7 +178,7 @@ namespace dmResource
         preloader->m_Freelist[preloader->m_FreelistSize++] = index;
     }
 
-    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
+    HPreloader NewPreloader(HFactory factory, FPreloaderCompleteCallback complete_callback, void* callback_user_data, const dmArray<const char*>& names)
     {
         ResourcePreloader* preloader = new ResourcePreloader();
         // root is always allocated.
@@ -218,14 +221,17 @@ namespace dmResource
             PreloadHintInternal(preloader, 0, names[i], true);
         }
 
+        preloader->m_CompleteCallback = complete_callback;
+        preloader->m_CompleteCallbackUserData = callback_user_data;
+
         return preloader;
     }
 
-    HPreloader NewPreloader(HFactory factory, const char* name)
+    HPreloader NewPreloader(HFactory factory, FPreloaderCompleteCallback complete_callback, void* callback_user_data, const char* name)
     {
         const char* name_array[1] = {name};
         dmArray<const char*> names (name_array, 1, 1);
-        return NewPreloader(factory, names);
+        return NewPreloader(factory, complete_callback, callback_user_data, names);
     }
 
     // CreateResource operation ends either with
@@ -683,7 +689,7 @@ namespace dmResource
     }
 
 
-    Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit)
+    Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit)
     {
         DM_PROFILE(Resource, "UpdatePreloader");
 
@@ -740,18 +746,15 @@ namespace dmResource
                 assert(preloader->m_Request[0].m_FirstChild == -1);
                 ret = preloader->m_Request[0].m_LoadResult;
 
-                if (ret == RESULT_OK && complete_callback)
+                if (ret == RESULT_OK && preloader->m_CompleteCallback)
                 {
-                    if(complete_callback)
+                    if(preloader->m_CompleteCallback(preloader->m_Factory, preloader->m_CompleteCallbackUserData))
                     {
-                        if(complete_callback(complete_callback_params))
-                        {
-                            ret = RESULT_PENDING;
-                        }
-                        else
-                        {
-                            ret = RESULT_NOT_LOADED;
-                        }
+                        ret = RESULT_PENDING;
+                    }
+                    else
+                    {
+                        ret = RESULT_NOT_LOADED;
                     }
                 }
                 preloader->m_CreateComplete = true;
@@ -778,7 +781,10 @@ namespace dmResource
         // To fix this:
         // * Make Get calls insta-fail on RESULT_ABORTED or something
         // * Make Queue only return RESULT_ABORTED always.
-        while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING);
+        while (UpdatePreloader(preloader, 1000000) == RESULT_PENDING)
+        {
+            dmLogWarning("Waiting for preloader to finish before deleting it...");
+        }
 
         // Release root and persisted resources
         preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);

@@ -84,14 +84,14 @@ TEST_P(ResourceTest, TestPreload)
 {
     const char* resource_name = GetParam();
     void* resource;
-    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
+    dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, 0x0, 0x0, resource_name);
     dmResource::Result r;
 
     uint64_t stop_time = dmTime::GetTime() + 30*10e6;
     while (dmTime::GetTime() < stop_time)
     {
         // Simulate running at 30fps
-        r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
+        r = dmResource::UpdatePreloader(pr, 33*1000);
         if (r != dmResource::RESULT_PENDING)
             break;
         dmTime::Sleep(33*1000);
@@ -511,12 +511,12 @@ TEST_P(FactoryTest, Test)
     dmResource::HPreloader go_pr = 0;
     if(param.m_IsPreloaded)
     {
-        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        go_pr = dmResource::NewPreloader(m_Factory, 0x0, 0x0, param.m_GOPath);
         dmResource::Result r;
         uint64_t stop_time = dmTime::GetTime() + 30*10e6;
         while (dmTime::GetTime() < stop_time)
         {
-            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            r = dmResource::UpdatePreloader(go_pr, 16*1000);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(16*1000);
@@ -688,12 +688,12 @@ TEST_P(CollectionFactoryTest, Test)
     dmResource::HPreloader go_pr = 0;
     if(param.m_IsPreloaded)
     {
-        go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
+        go_pr = dmResource::NewPreloader(m_Factory, 0x0, 0x0, param.m_GOPath);
         dmResource::Result r;
         uint64_t stop_time = dmTime::GetTime() + 30*10e6;
         while (dmTime::GetTime() < stop_time)
         {
-            r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
+            r = dmResource::UpdatePreloader(go_pr, 16*1000);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(16*1000);
