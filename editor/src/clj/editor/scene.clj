@@ -857,8 +857,7 @@
     (let [evaluation-context (g/make-evaluation-context)
           play-mode (g/node-value view-id :play-mode evaluation-context)
           action-queue (g/node-value view-id :input-action-queue evaluation-context)
-          tool-user-data (when true #_(some #(and (= :mouse-moved (:type %)) (= 0 (:click-count %))) action-queue) ; TODO: for what actions do we need selected tool renderables?
-                           (g/node-value view-id :selected-tool-renderables))
+          tool-user-data (g/node-value view-id :selected-tool-renderables) ; TODO: for what actions do we need selected tool renderables?
           active-updatables (g/node-value view-id :active-updatables evaluation-context)
           {:keys [frame-version] :as render-args} (g/node-value view-id :render-args evaluation-context)]
       (g/update-cache-from-evaluation-context! evaluation-context)
