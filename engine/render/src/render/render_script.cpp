@@ -56,6 +56,8 @@ namespace dmRender
         "on_reload"
     };
 
+    static dmProfile::Scope* gProfilerRunScriptScope = 0;
+
     static HNamedConstantBuffer* RenderScriptConstantBuffer_Check(lua_State *L, int index)
     {
         return (HNamedConstantBuffer*)dmScript::CheckUserType(L, index, RENDER_SCRIPT_CONSTANTBUFFER, "Expected a constant buffer (acquired from a render.* function)");
@@ -2580,6 +2582,9 @@ namespace dmRender
                     }
                 }
                 result = true;
+                // m_SourceFileName will be null if profiling is not enabled, this is fine
+                // as m_SourceFileName will only be used if profiling is enabled
+                script->m_SourceFileName = dmProfile::Internalize(source->m_Filename);
             }
             lua_pushnil(L);
             dmScript::SetInstance(L);
@@ -2609,6 +2614,11 @@ bail:
 
     HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
     {
+        if (dmProfile::g_IsInitialized && gProfilerRunScriptScope == 0)
+        {
+            gProfilerRunScriptScope = dmProfile::AllocateScope("Script");
+        }
+
         lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
         (void)top;
@@ -2744,6 +2754,8 @@ bail:
 
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
+        DM_PROFILE_SCOPE(gProfilerRunScriptScope, "RenderScript");
+
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
@@ -2783,10 +2795,19 @@ bail:
                 }
                 dmScript::PushURL(L, message->m_Sender);
             }
-            int ret = dmScript::PCall(L, arg_count, 0);
-            if (ret != 0)
+
+            char scope_name[128];
+            if (dmProfile::g_IsInitialized)
             {
-                result = RENDER_SCRIPT_RESULT_FAILED;
+                DM_SNPRINTF(scope_name, sizeof(scope_name), "%s@%s", RENDER_SCRIPT_FUNCTION_NAMES[script_function], script->m_SourceFileName);
+            }
+            {
+                DM_PROFILE_SCOPE(gProfilerRunScriptScope, scope_name);
+                if (dmScript::PCall(L, arg_count, 0) != 0)
+                {
+                    assert(top == lua_gettop(L));
+                    result = RENDER_SCRIPT_RESULT_FAILED;
+                }
             }
 
             lua_pushnil(L);

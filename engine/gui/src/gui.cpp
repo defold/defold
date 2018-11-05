@@ -48,6 +48,8 @@ namespace dmGui
     const uint64_t INDEX_SHIFT = CLIPPER_SHIFT + CLIPPER_RANGE;
     const uint64_t LAYER_SHIFT = INDEX_SHIFT + INDEX_RANGE;
 
+    static dmProfile::Scope* gProfilerGuiScriptScope = 0;
+
     static inline void UpdateTextureSetAnimData(HScene scene, InternalNode* n);
 
     static const char* SCRIPT_FUNCTION_NAMES[] =
@@ -1541,6 +1543,8 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     Result RunScript(HScene scene, ScriptFunction script_function, int custom_ref, void* args)
     {
+        DM_PROFILE_SCOPE(gProfilerGuiScriptScope, "GuiScript");
+
         if (scene->m_Script == 0x0)
             return RESULT_OK;
 
@@ -1789,15 +1793,29 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
                 break;
             }
 
-            int ret = dmScript::PCall(L, arg_count, LUA_MULTRET);
-
             Result result = RESULT_OK;
-            if (ret != 0)
+            char scope_name[128];
+            if (dmProfile::g_IsInitialized)
             {
-                assert(top == lua_gettop(L));
-                result = RESULT_SCRIPT_ERROR;
+                if (custom_ref == LUA_NOREF)
+                {
+                    DM_SNPRINTF(scope_name, sizeof(scope_name), "%s@%s", SCRIPT_FUNCTION_NAMES[script_function], scene->m_Script->m_SourceFileName);
+                }
+                else
+                {
+                    DM_SNPRINTF(scope_name, sizeof(scope_name), "<unknown>@<unknown>");
+                }
             }
-            else
+            {
+                DM_PROFILE_SCOPE(gProfilerGuiScriptScope, scope_name);
+                if (dmScript::PCall(L, arg_count, LUA_MULTRET) != 0)
+                {
+                    assert(top == lua_gettop(L));
+                    result = RESULT_SCRIPT_ERROR;
+                }
+            }
+
+            if (result == RESULT_OK)
             {
                 switch (script_function)
                 {
@@ -4067,10 +4085,16 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
 
     HScript NewScript(HContext context)
     {
+        if (dmProfile::g_IsInitialized && gProfilerGuiScriptScope == 0)
+        {
+            gProfilerGuiScriptScope = dmProfile::AllocateScope("Script");
+        }
+
         lua_State* L = context->m_LuaState;
         Script* script = (Script*)lua_newuserdata(L, sizeof(Script));
         ResetScript(script);
         script->m_Context = context;
+        script->m_SourceFileName = 0;
 
         luaL_getmetatable(L, GUI_SCRIPT);
         lua_setmetatable(L, -2);
@@ -4147,7 +4171,9 @@ Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
             lua_pushnil(L);
             lua_setglobal(L, SCRIPT_FUNCTION_NAMES[i]);
         }
-
+        // m_SourceFileName will be null if profiling is not enabled, this is fine
+        // as m_SourceFileName will only be used if profiling is enabled
+        script->m_SourceFileName = dmProfile::Internalize(source->m_Filename);
 bail:
         assert(top == lua_gettop(L));
         return res;
