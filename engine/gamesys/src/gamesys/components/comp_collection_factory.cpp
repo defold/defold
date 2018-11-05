@@ -117,7 +117,7 @@ namespace dmGameSystem
                 dmResource::Result r = dmResource::RESULT_OK;
                 if(component->m_Preloader)
                 {
-                    r = dmResource::UpdatePreloader(component->m_Preloader, 10*1000);
+                    r = dmResource::UpdatePreloader(component->m_Preloader);
                 }
                 if (r != dmResource::RESULT_PENDING)
                 {

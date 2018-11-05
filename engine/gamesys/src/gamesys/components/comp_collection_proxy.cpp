@@ -214,7 +214,7 @@ namespace dmGameSystem
             }
             if (proxy->m_Preloader != 0)
             {
-                dmResource::Result r = dmResource::UpdatePreloader(proxy->m_Preloader, 10*1000);
+                dmResource::Result r = dmResource::UpdatePreloader(proxy->m_Preloader);
                 if (r != dmResource::RESULT_PENDING)
                 {
                     dmResource::DeletePreloader(proxy->m_Preloader);

@@ -567,7 +567,8 @@ namespace dmResource
      * @param soft_time_limit Time limit in us
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
-    Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit);
+    uint32_t UpdatePreloaders(uint32_t soft_time_limit);
+    Result UpdatePreloader(HPreloader preloader);
 
     /**
      * Destroy the preloader. Note that currently it will spin and block until

@@ -128,6 +128,7 @@ namespace dmResource
 
         FPreloaderCompleteCallback m_CompleteCallback;
         void* m_CompleteCallbackUserData;
+        Result m_ResultState;
     };
 
     static bool PreloadHintInternal(HPreloader, int32_t, const char*, bool);
@@ -178,6 +179,8 @@ namespace dmResource
         preloader->m_Freelist[preloader->m_FreelistSize++] = index;
     }
 
+    static dmArray<HPreloader> g_Preloaders;
+
     HPreloader NewPreloader(HFactory factory, FPreloaderCompleteCallback complete_callback, void* callback_user_data, const dmArray<const char*>& names)
     {
         ResourcePreloader* preloader = new ResourcePreloader();
@@ -223,7 +226,13 @@ namespace dmResource
 
         preloader->m_CompleteCallback = complete_callback;
         preloader->m_CompleteCallbackUserData = callback_user_data;
+        preloader->m_ResultState = RESULT_PENDING;
 
+        if (g_Preloaders.Capacity() == g_Preloaders.Size())
+        {
+            g_Preloaders.SetCapacity(g_Preloaders.Capacity() + 10);
+        }
+        g_Preloaders.Push(preloader);
         return preloader;
     }
 
@@ -688,12 +697,17 @@ namespace dmResource
         return ret;
     }
 
-
-    Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit)
+    static Result UpdatePreloader(HPreloader preloader, uint32_t soft_time_limit)
     {
         DM_PROFILE(Resource, "UpdatePreloader");
 
         dmMutex::Lock(preloader->m_Mutex);
+
+        if (preloader->m_ResultState != RESULT_PENDING)
+        {
+           dmMutex::Unlock(preloader->m_Mutex);
+           return preloader->m_ResultState;
+        }
 
         // depth first traversal
         Result ret = RESULT_PENDING;
@@ -726,7 +740,12 @@ namespace dmResource
                 // In case of threaded loading and loading small files, use up a little
                 // more of our time waiting for files.
                 dmMutex::Unlock(preloader->m_Mutex);
-                dmTime::Sleep(1000);
+                uint64_t time_elapsed = dmTime::GetTime() - start;
+                // Only go to sleep if there is more than one ms left of the soft time limit
+                if ((time_elapsed + 1000) < soft_time_limit)
+                {
+                    dmTime::Sleep(1000);
+                }
                 dmMutex::Lock(preloader->m_Mutex);
             }
             else
@@ -771,12 +790,46 @@ namespace dmResource
             }
         }
 
+        preloader->m_ResultState = ret;
         dmMutex::Unlock(preloader->m_Mutex);
         return ret;
     }
 
+    Result UpdatePreloader(HPreloader preloader)
+    {
+        Result ret;
+        dmMutex::Lock(preloader->m_Mutex);
+        ret = preloader->m_ResultState;
+        dmMutex::Unlock(preloader->m_Mutex);
+        return ret;
+    }
+
+    uint32_t UpdatePreloaders(uint32_t soft_time_limit)
+    {
+        uint64_t start = dmTime::GetTime();
+        uint64_t elapsed = 0;
+        uint32_t i = 0;
+        while ((i < g_Preloaders.Size()) && (elapsed <= soft_time_limit))
+        {
+            HPreloader preloader = g_Preloaders[i];
+            UpdatePreloader(preloader, soft_time_limit - elapsed);
+            elapsed = (dmTime::GetTime() - start);
+            ++i;
+        }
+        return elapsed;
+    }
+
     void DeletePreloader(HPreloader preloader)
     {
+        for (uint32_t i = 0; i < g_Preloaders.Size(); ++i)
+        {
+            if (g_Preloaders[i] == preloader)
+            {
+                g_Preloaders.EraseSwap(i);
+                break;
+            }
+        }
+
         // Since Preload calls need their Create calls done and PostCreate calls must follow Create calls.
         // To fix this:
         // * Make Get calls insta-fail on RESULT_ABORTED or something

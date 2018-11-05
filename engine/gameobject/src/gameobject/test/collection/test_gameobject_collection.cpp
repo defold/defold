@@ -68,9 +68,10 @@ protected:
         dmResource::Result r;
         for (uint32_t i=0;i<33;i++)
         {
-            r = dmResource::UpdatePreloader(pr, 30*1000);
+            r = dmResource::UpdatePreloader(pr);
             if (r != dmResource::RESULT_PENDING)
                 break;
+                dmResource::UpdatePreloaders(30*1000);
             dmTime::Sleep(30000);
         }
         if (r == dmResource::RESULT_OK)

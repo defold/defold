@@ -199,7 +199,8 @@ protected:
         dmResource::Result r;
         for (uint32_t i=0;i<33;i++)
         {
-            r = dmResource::UpdatePreloader(pr, 30*1000);
+            dmResource::UpdatePreloaders(30*1000);
+            r = dmResource::UpdatePreloader(pr);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(30000);
@@ -550,9 +551,12 @@ TEST_P(GetResourceTest, PreloadGet)
     dmResource::Result r;
     for (uint32_t i=0;i<33;i++)
     {
-        r = dmResource::UpdatePreloader(pr, 30*1000);
+        dmResource::UpdatePreloaders(30*1000);
+        r = dmResource::UpdatePreloader(pr);
         if (r == dmResource::RESULT_PENDING)
+        {
             dmTime::Sleep(30000);
+        }
         else
             break;
     }
@@ -596,9 +600,12 @@ TEST_P(GetResourceTest, PreloadGetList)
     dmResource::Result r;
     for (uint32_t i=0;i<33;i++)
     {
-        r = dmResource::UpdatePreloader(pr, 30*1000);
+        dmResource::UpdatePreloaders(30*1000);
+        r = dmResource::UpdatePreloader(pr);
         if (r == dmResource::RESULT_PENDING)
+        {
             dmTime::Sleep(30000);
+        }
         else
             break;
     }
@@ -665,10 +672,11 @@ TEST_P(GetResourceTest, PreloadGetParallell)
 
         for (uint32_t j=0;j<30;j++)
         {
+            dmResource::UpdatePreloaders(1000);
             bool done = true;
             for (uint32_t k=0;k<n;k++)
             {
-                dmResource::Result r = dmResource::UpdatePreloader(pr[k], 1000);
+                dmResource::Result r = dmResource::UpdatePreloader(pr[k]);
                 if (r == dmResource::RESULT_PENDING)
                 {
                     done = false;
@@ -713,9 +721,12 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     dmResource::Result r;
     for (uint32_t i=0;i<1000;i++)
     {
-        r = dmResource::UpdatePreloader(pr, 30*1000);
+        dmResource::UpdatePreloaders(30*1000);
+        r = dmResource::UpdatePreloader(pr);
         if (r == dmResource::RESULT_PENDING)
+        {
             dmTime::Sleep(30000);
+        }
         else
             break;
     }
@@ -731,8 +742,11 @@ TEST_P(GetResourceTest, PreloadGetAbort)
     for (uint32_t i=0;i<20;i++)
     {
         dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, 0x0, 0x0, m_ResourceName);
+        dmResource::UpdatePreloaders(1);
         for (uint32_t j=0;j<i;j++)
-            dmResource::UpdatePreloader(pr, 1);
+        {
+            dmResource::UpdatePreloader(pr);
+        }
         dmResource::DeletePreloader(pr);
     }
 }

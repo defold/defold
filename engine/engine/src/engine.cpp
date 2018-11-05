@@ -1124,9 +1124,9 @@ bail:
 
         // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
 
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t prev_flip_time = engine->m_FlipTime;
+#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
 #endif
 
         uint64_t time = dmTime::GetTime();
@@ -1322,11 +1322,11 @@ bail:
                 }
 #endif
 
+                uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
+                int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
 #if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
-                    uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
-                    int remainder = (int)((target_frametime - flip_dt) - engine->m_PreviousRenderTime);
                     if (!engine->m_UseVariableDt && flip_dt < target_frametime && remainder > 1000) // only bother with sleep if diff b/w target and actual time is big enough
                     {
                         DM_PROFILE(Engine, "SoftwareVsync");
@@ -1345,6 +1345,12 @@ bail:
                 dmGraphics::Flip(engine->m_GraphicsContext);
                 engine->m_FlipTime = dmTime::GetTime();
                 engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
+
+                uint32_t load_time = dmResource::UpdatePreloaders(remainder > 1000 ? remainder - 1000 : 0);
+                if (load_time > remainder)
+                {
+                    dmLogWarning("Spent %.3f ms loading resources, overstepped the %.3f ms limit", (load_time / 1000.f), (remainder / 1000.f));
+                }
 
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)

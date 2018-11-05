@@ -91,7 +91,8 @@ TEST_P(ResourceTest, TestPreload)
     while (dmTime::GetTime() < stop_time)
     {
         // Simulate running at 30fps
-        r = dmResource::UpdatePreloader(pr, 33*1000);
+        dmResource::UpdatePreloaders(33*1000);
+        r = dmResource::UpdatePreloader(pr);
         if (r != dmResource::RESULT_PENDING)
             break;
         dmTime::Sleep(33*1000);
@@ -516,7 +517,8 @@ TEST_P(FactoryTest, Test)
         uint64_t stop_time = dmTime::GetTime() + 30*10e6;
         while (dmTime::GetTime() < stop_time)
         {
-            r = dmResource::UpdatePreloader(go_pr, 16*1000);
+            dmResource::UpdatePreloaders(16*1000);
+            r = dmResource::UpdatePreloader(go_pr);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(16*1000);
@@ -559,6 +561,7 @@ TEST_P(FactoryTest, Test)
                 ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
                 ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
                 dmGameObject::PostUpdate(m_Register);
+                dmResource::UpdatePreloaders(16*1000);
             }
             ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
@@ -586,6 +589,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        dmResource::UpdatePreloaders(16*1000);
 
         // --- step 4 ---
         // delete resources created by factory.create calls. All resource should be released
@@ -596,6 +600,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        dmResource::UpdatePreloaders(16*1000);
 
         // --- step 5 ---
         // recreate resources without factoy.load having been called (sync load on demand)
@@ -606,6 +611,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        dmResource::UpdatePreloaders(16*1000);
 
         // delete the root go and update so deferred deletes will be executed.
         dmGameObject::Delete(m_Collection, go, true);
@@ -617,6 +623,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[3])));
+        dmResource::UpdatePreloaders(16*1000);
     }
     else
     {
@@ -632,6 +639,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
 
         // verify two instances created + one reference from factory prototype
         ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
@@ -644,6 +652,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
         ASSERT_EQ(3, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
@@ -654,6 +663,7 @@ TEST_P(FactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
@@ -693,7 +703,8 @@ TEST_P(CollectionFactoryTest, Test)
         uint64_t stop_time = dmTime::GetTime() + 30*10e6;
         while (dmTime::GetTime() < stop_time)
         {
-            r = dmResource::UpdatePreloader(go_pr, 16*1000);
+            dmResource::UpdatePreloaders(16*1000);
+            r = dmResource::UpdatePreloader(go_pr);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(16*1000);
@@ -737,6 +748,7 @@ TEST_P(CollectionFactoryTest, Test)
                 ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
                 ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
                 dmGameObject::PostUpdate(m_Register);
+                dmResource::UpdatePreloaders(16*1000);
             }
             ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(6, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
@@ -750,6 +762,7 @@ TEST_P(CollectionFactoryTest, Test)
             ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
             ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
             dmGameObject::PostUpdate(m_Register);
+            dmResource::UpdatePreloaders(16*1000);
             ASSERT_EQ(i*0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
             ASSERT_EQ(i*4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
             ASSERT_EQ(i*1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
@@ -762,6 +775,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
@@ -773,6 +787,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
@@ -784,6 +799,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(4, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
@@ -796,6 +812,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
@@ -817,6 +834,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
 
         // verify six instances created + two references from factory collection prototype
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
@@ -830,6 +848,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(8, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(1, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
@@ -841,6 +860,7 @@ TEST_P(CollectionFactoryTest, Test)
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
         dmGameObject::PostUpdate(m_Register);
+        dmResource::UpdatePreloaders(16*1000);
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[0])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[1])));
         ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, dmHashString64(resource_path[2])));
