@@ -117,8 +117,8 @@ public class IOSBundler implements IBundler {
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         final boolean strip_executable = project.hasOption("strip-executable");
 
-        File exeArmv7 = null;
-        File exeArm64 = null;
+        List<File> binsArmv7 = null;
+        List<File> binsArm64 = null;
 
         // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
@@ -126,26 +126,34 @@ public class IOSBundler implements IBundler {
         // armv7 exe
         {
             Platform targetPlatform = Platform.Armv7Darwin;
-            exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-            if (exeArmv7 == null) {
-                exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            binsArmv7 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            if (binsArmv7 == null) {
+                binsArmv7 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
                 logger.log(Level.INFO, "Using extender exe for Armv7");
             }
         }
+        if (binsArmv7.size() > 1) {
+            throw new IOException("Invalid number of binaries for (armv7) iOS when bundling: " + binsArmv7.size());
+        }
+        File exeArmv7 = binsArmv7.get(0);
 
         // arm64 exe
         {
             Platform targetPlatform = Platform.Arm64Darwin;
-            exeArm64 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-            if (exeArm64 == null) {
-                exeArm64 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+            binsArm64 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            if (binsArm64 == null) {
+                binsArm64 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
             }
             else {
                 logger.log(Level.INFO, "Using extender exe for Arm64");
             }
         }
+        if (binsArm64.size() > 1) {
+            throw new IOException("Invalid number of binaries for (arm64) iOS when bundling: " + binsArm64.size());
+        }
+        File exeArm64 = binsArm64.get(0);
 
         logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
         logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));

@@ -14,6 +14,7 @@ mkdir -p libexec/armv7-darwin
 mkdir -p libexec/arm64-darwin
 mkdir -p libexec/armv7-android
 mkdir -p libexec/js-web
+mkdir -p libexec/wasm-web
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -96,3 +97,7 @@ copy js-web/defold_sound.swf js-web/defold_sound.swf
 #copy js-web/dmengine.js.mem js-web/dmengine.js.mem
 copy js-web/dmengine_release.js js-web/dmengine_release.js
 #copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
+copy wasm-web/dmengine.js wasm-web/dmengine.js
+copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
+copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
+copy wasm-web/dmengine_release.wasm wasm-web/dmengine_release.wasm
