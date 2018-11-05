@@ -9,7 +9,7 @@ new_copy_task('save_file', '.sav', '.savc')
 
 def build(bld):
     flist = 'cxx cprogram test'
-    if bld.env['PLATFORM'] == 'js-web':
+    if 'web' in bld.env['PLATFORM']:
         flist = flist + ' web'
         lib_dirs = None
         if 'JS_LIB_PATHS' in bld.env:
