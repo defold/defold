@@ -658,7 +658,8 @@
       (with-drawable-as-current drawable
         (scene-cache/drop-context! gl)
         (when-let [^AsyncCopier copier (g/node-value node-id :async-copier)]
-          (.dispose copier gl)))
+          (.dispose copier gl))
+        (.glFinish gl))
       (.destroy drawable)
       (g/transact
         (concat
