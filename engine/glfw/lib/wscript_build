@@ -21,7 +21,7 @@ elif platform == 'linux' or platform == 'x86_64-linux':
 elif 'win32' in platform:
     dmglfw.find_sources_in_dirs('. win32')
     dmglfw.includes = '. win32'
-elif platform == 'js-web':
+elif 'web' in platform:
     dmglfw.find_sources_in_dirs('js-web')
     dmglfw.includes = 'js-web .'
 elif platform == 'as3-web':

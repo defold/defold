@@ -28,6 +28,7 @@ class BuildUtility:
                             {'platform': 'arm64-darwin', 'os': 'ios', 'arch': 'arm64'},
                             {'platform': 'armv7-android', 'os': 'android', 'arch': 'armv7'},
                             {'platform': 'js-web', 'os': 'web', 'arch': 'js'},
+                            {'platform': 'wasm-web', 'os': 'web', 'arch': 'wasm'},
                             {'platform': 'as3-web', 'os': 'web', 'arch': 'as3'}
                             ]
 

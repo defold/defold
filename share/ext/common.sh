@@ -67,7 +67,7 @@ function cmi_do() {
 }
 
 function cmi_cross() {
-    if [[ $2 == "js-web" ]]; then
+    if [[ $2 == "js-web" ]] || [[ $2 == "wasm-web" ]]; then
         # Cross compiling protobuf for js-web with --host doesn't work
         # Unknown host in reported by configure script
         # TODO: Use another target, e.g. i386-freebsd as for as3-web?
@@ -308,6 +308,16 @@ function cmi() {
             ;;
 
         js-web)
+            export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
+            export CC=${EMSCRIPTEN}/emcc
+            export CXX=${EMSCRIPTEN}/em++
+            export AR=${EMSCRIPTEN}/emar
+            export LD=${EMSCRIPTEN}/em++
+            export RANLIB=${EMSCRIPTEN}/emranlib
+            cmi_cross $1 $1
+            ;;
+
+        wasm-web)
             export CONFIGURE_WRAPPER=${EMSCRIPTEN}/emconfigure
             export CC=${EMSCRIPTEN}/emcc
             export CXX=${EMSCRIPTEN}/em++

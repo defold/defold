@@ -85,8 +85,8 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'dlib/memprofile.py')
     bld.install_files('${PREFIX}/bin', '../bin/memprofile.sh', chmod=0755)
 
-    if 'js-web' in bld.env['PLATFORM']:
-        bld.install_files('${PREFIX}/lib/js-web/js', 'dlib/js/library_sys.js')
+    if 'web' in bld.env['PLATFORM']:
+        bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'dlib/js/library_sys.js')
 
     source_dirs = 'dlib dlib/jsmn zlib lz4'.split(' ')
     axtls_dirs = 'axtls/crypto axtls/ssl'.split(' ')
@@ -99,7 +99,7 @@ def build(bld):
         source_dirs.append('dlib/win32')
     elif ('linux'  in bld.env.PLATFORM) or ('android' in bld.env.PLATFORM):
         source_dirs.append('dlib/linux')
-    elif 'js-web' == bld.env.PLATFORM:
+    elif 'web' in bld.env.PLATFORM:
         source_dirs.append('dlib/js')
 
     # NOTE: Add CONFIG_SSL_FULL_MODE when debugging axTLS
@@ -166,7 +166,7 @@ def build(bld):
                             defines= ['VALGRIND'] + extra_defines)
     axtls_noasan.find_sources_in_dirs(axtls_dirs)
 
-    if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
+    if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
         # NOTE: This is a hack required when cross compiling on darwin to linux platform(s)
         # Objective-c files are collected as we don't have a proper platform
         # We patch CC, CXX, etc
@@ -190,7 +190,7 @@ def build(bld):
                                 uselib = 'UUID PLATFORM_SOCKET')
         dlib.find_sources_in_dirs(source_dirs)
         dlib.source.extend(webp_source_no_neon)
-        if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or bld.env.PLATFORM == 'js-web' or bld.env.PLATFORM == 'as3-web'):
+        if 'darwin' in bld.env.BUILD_PLATFORM and (re.match('arm.*?android', bld.env.PLATFORM) or 'web' in bld.env.PLATFORM):
             # NOTE: See comment above
             dlib.source = [x for x in dlib.source if not x.endswith('.mm')]
 
@@ -234,6 +234,6 @@ def config_neon(conf):
     conf.env.append_unique('CCFLAGS', '-mfpu=neon')
 
 def configure(conf):
-    if 'js-web' in conf.env.PLATFORM or 'as3-web' in conf.env.PLATFORM:
+    if 'web' in conf.env.PLATFORM:
         conf.env.append_unique('CCDEFINES', 'WEBP_FORCE_ALIGNED')
         conf.env.append_unique('CXXDEFINES', 'WEBP_FORCE_ALIGNED')

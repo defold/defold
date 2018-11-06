@@ -128,6 +128,9 @@ public class IOSBundler implements IBundler {
         File exeArmv7 = null;
         File exeArm64 = null;
         File exeSim64 = null;
+        List<File> binsArmv7 = null;
+        List<File> binsArm64 = null;
+        List<File> binsSim64 = null;
 
         // If a custom engine was built we need to copy it
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
@@ -137,40 +140,48 @@ public class IOSBundler implements IBundler {
             // sim64 exe
             {
                 Platform targetPlatform = Platform.X86_64Ios;
-                exeSim64 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-                if (exeSim64 == null) {
-                    exeSim64 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
-                }
-                else {
+                binsSim64 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+                if (binsSim64 == null) {
+                    binsSim64 = new File(Bob.getDefaultDmengineFiles(targetPlatform, variant));
+                } else {
                     logger.log(Level.INFO, "Using extender exe for sim64");
                 }
             }
-            logger.log(Level.INFO, "Sim64 exe: " + getFileDescription(exeSim64));
+            if (binsSim64.size() > 1) {
+                throw new IOException("Invalid number of binaries for (x86_64) iOS when bundling: " + binsSim64.size());
+            }
+            logger.log(Level.INFO, "Sim64 exe: " + getFileDescription(binsSim64));
 
         } else {
             // armv7 exe
             {
                 Platform targetPlatform = Platform.Armv7Darwin;
-                exeArmv7 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-                if (exeArmv7 == null) {
-                    exeArmv7 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
-                }
-                else {
+                binsArmv7 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+                if (binsArmv7 == null) {
+                    binsArmv7 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+                } else {
                     logger.log(Level.INFO, "Using extender exe for Armv7");
                 }
             }
+            if (binsArmv7.size() > 1) {
+                throw new IOException("Invalid number of binaries for (armv7) iOS when bundling: " + binsArmv7.size());
+            }
+            File exeArmv7 = binsArmv7.get(0);
 
             // arm64 exe
             {
                 Platform targetPlatform = Platform.Arm64Darwin;
-                exeArm64 = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-                if (exeArm64 == null) {
-                    exeArm64 = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
-                }
-                else {
+                binsArm64 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+                if (binsArm64 == null) {
+                    binsArm64 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+                } else {
                     logger.log(Level.INFO, "Using extender exe for Arm64");
                 }
             }
+            if (binsArm64.size() > 1) {
+                throw new IOException("Invalid number of binaries for (arm64) iOS when bundling: " + binsArm64.size());
+            }
+            File exeArm64 = binsArm64.get(0);
 
             logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
             logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
@@ -326,7 +337,8 @@ public class IOSBundler implements IBundler {
         tmpFile.deleteOnExit();
         String exe = tmpFile.getPath();
 
-        // Run lipo to add exeArmv7 + exeArm64 together into universal bin
+        // Run lipo to add exeArmv7 + exeArm64 together into universal bin or
+        // copy simulator binary directly.
         if (simulatorBinary)
         {
             FileUtils.copyFile(exeSim64, new File(exe));

@@ -1,23 +1,26 @@
 package com.dynamo.bob;
 
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 
 public enum Platform {
-    X86Darwin("x86", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformArchitectures.OSX, "x86-osx"),
-    X86_64Darwin("x86_64", "darwin", "", "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
-    X86Win32("x86", "win32", ".exe", "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows, "x86-win32"),
-    X86_64Win32("x86_64", "win32", ".exe", "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows, "x86_64-win32"),
-    X86Linux("x86", "linux", "", "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
-    X86_64Linux("x86_64", "linux", "", "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
-    Armv7Darwin("armv7", "darwin", "", "", "lib", ".so", new String[] {"ios", "armv7-ios"}, PlatformArchitectures.iOS, "armv7-ios"),
-    Arm64Darwin("arm64", "darwin", "", "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
-    X86_64Ios("x86_64", "ios", "", "", "lib", ".so", new String[] {"ios", "x86_64-ios"}, PlatformArchitectures.iOS, "x86_64-ios"),
-    Armv7Android("armv7", "android", ".so", "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
-    JsWeb("js", "web", ".js", "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web");
+    X86Darwin("x86", "darwin", new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86-osx"}, PlatformArchitectures.OSX, "x86-osx"),
+    X86_64Darwin("x86_64", "darwin", new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.OSX, "x86_64-osx"),
+    X86Win32("x86", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows, "x86-win32"),
+    X86_64Win32("x86_64", "win32", new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows, "x86_64-win32"),
+    X86Linux("x86", "linux", new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
+    X86_64Linux("x86_64", "linux", new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
+    Armv7Darwin("armv7", "darwin", new String[] {""}, "", "lib", ".so", new String[] {"ios", "armv7-ios"}, PlatformArchitectures.iOS, "armv7-ios"),
+    Arm64Darwin("arm64", "darwin", new String[] {""}, "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
+    X86_64Ios("x86_64", "ios", new String[] {""}, "", "lib", ".so", new String[] {"ios", "x86_64-ios"}, PlatformArchitectures.iOS, "x86_64-ios"),
+    Armv7Android("armv7", "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
+    JsWeb("js", "web", new String[] {".js"}, "", "lib", "", new String[] {"web", "js-web"}, PlatformArchitectures.Web, "js-web"),
+    WasmWeb("wasm", "web", new String[] {".js", ".wasm"}, "", "lib", "", new String[] {"web", "wasm-web"}, PlatformArchitectures.Web, "wasm-web");
 
     private static HashMap<OS, String> platformPatterns = new HashMap<OS, String>();
     static {
@@ -27,7 +30,7 @@ public enum Platform {
         platformPatterns.put(PlatformProfile.OS.OS_ID_LINUX,   "^x86(_64)?-linux$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^(arm(v7)|(64)-darwin)|(x86_64-ios)$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^armv7-android$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^js-web$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_WEB,     "^((js)|(wasm))-web$");
     }
 
 
@@ -45,17 +48,17 @@ public enum Platform {
     }
 
     String arch, os;
-    String exeSuffix;
+    String[] exeSuffixes;
     String exePrefix;
     String libSuffix;
     String libPrefix;
     String[] extenderPaths = null;
     PlatformArchitectures architectures;
     String extenderPair;
-    Platform(String arch, String os, String exeSuffix, String exePrefix, String libPrefix, String libSuffix, String[] extenderPaths, PlatformArchitectures architectures, String extenderPair) {
+    Platform(String arch, String os, String[] exeSuffixes, String exePrefix, String libPrefix, String libSuffix, String[] extenderPaths, PlatformArchitectures architectures, String extenderPair) {
         this.arch = arch;
         this.os = os;
-        this.exeSuffix = exeSuffix;
+        this.exeSuffixes = exeSuffixes;
         this.exePrefix = exePrefix;
         this.libSuffix = libSuffix;
         this.libPrefix = libPrefix;
@@ -64,8 +67,8 @@ public enum Platform {
         this.extenderPair = extenderPair;
     }
 
-    public String getExeSuffix() {
-        return exeSuffix;
+    public String[] getExeSuffixes() {
+        return exeSuffixes;
     }
 
     public String getExePrefix() {
@@ -96,8 +99,12 @@ public enum Platform {
         return architectures;
     }
 
-    public String formatBinaryName(String basename) {
-        return exePrefix + basename + exeSuffix;
+    public List<String> formatBinaryName(String basename) {
+        List<String> names = new ArrayList<String>();
+        for (String exeSuffix : exeSuffixes) {
+            names.add(exePrefix + basename + exeSuffix);
+        }
+        return names;
     }
 
     public String formatLibraryName(String basename) {
