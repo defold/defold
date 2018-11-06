@@ -128,7 +128,7 @@
 		if (Module['isWASMSupported']) {
 		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_wasm.js';
 		} else {
-		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_asm.js';
+		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_asmjs.js';
 		}
 		document.head.appendChild(engineJS);
 	}
