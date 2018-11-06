@@ -9,6 +9,7 @@ mkdir -p engine/ios
 mkdir -p engine/arm64-ios
 mkdir -p engine/android
 mkdir -p engine/js-web
+mkdir -p engine/wasm-web
 
 SHA1=`git log --pretty=%H -n1`
 
@@ -46,3 +47,8 @@ copy armv7-android/libdmengine_release.so engine/android/libdmengine_release.so
 copy js-web/dmengine.js engine/js-web/dmengine.js
 copy js-web/dmengine_release.js engine/js-web/dmengine_release.js
 copy js-web/defold_sound.swf engine/js-web/defold_sound.swf
+
+copy wasm-web/dmengine.js engine/wasm-web/dmengine.js
+copy wasm-web/dmengine.wasm engine/wasm-web/dmengine.wasm
+copy wasm-web/dmengine_release.js engine/wasm-web/dmengine_release.js
+copy wasm-web/dmengine_release.wasm engine/wasm-web/dmengine_release.wasm

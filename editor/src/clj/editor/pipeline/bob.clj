@@ -238,7 +238,11 @@
       {:code 302
        :headers {"Location" (str html5-url-prefix "/index.html")}}
 
-      (let [served-file (try-resolve-html5-file project url)]
+      (let [served-file   (try-resolve-html5-file project url)
+            extra-headers (when (clojure.string/ends-with?
+                                  (clojure.string/lower-case url)
+                                  ".wasm")
+                                {"Content-Type" "application/wasm"})]
         (cond
           ;; The requested URL is a directory or located outside build-html5-output-path.
           (or (nil? served-file) (.isDirectory served-file))
@@ -247,7 +251,7 @@
 
           (.exists served-file)
           {:code 200
-           :response-headers {"Content-Length" (str (.length served-file))}
+           :headers (merge {"Content-Length" (str (.length served-file))} extra-headers)
            :body served-file}
 
           :else
