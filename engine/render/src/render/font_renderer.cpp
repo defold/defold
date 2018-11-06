@@ -586,12 +586,17 @@ namespace dmRender
 
         assert(HAS_LAYER(layer_mask,LAYER_FACE));
 
+        // Vertex buffer consume strategy:
+        // * For single-layered approach, we do as per usual and consume vertices based on offset 0.
+        // * For the layered approach, we need to place vertices in sorted order from
+        //     back to front layer in the order of shadow -> outline -> face, where the offset of each
+        //     layer depends on how many glyphs we actually can place in the buffer. To get a valid count, we
+        //     do a dry run first over the input string and place glyphs in the cache if they are renderable.
         if (HAS_LAYER(layer_mask,LAYER_OUTLINE) || HAS_LAYER(layer_mask,LAYER_SHADOW))
         {
             layer_count += HAS_LAYER(layer_mask,LAYER_OUTLINE) + HAS_LAYER(layer_mask,LAYER_SHADOW);
 
-            // When we are doing layered rendering, we need to count how many glyphs we are
-            // supposed to output so that we can calculate correct layer offsets into the vertex array later.
+            // Calculate number of valid glyphs
             for (int line = 0; line < line_count; ++line)
             {
                 TextLine& l = lines[line];
@@ -661,7 +666,7 @@ namespace dmRender
                 // Look ahead and see if we can produce vertices for the next glyph or not
                 if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
                 {
-                    dmLogWarning("Fontrenderer: character buffer exceeded (size: %d)", num_vertices / 6);
+                    dmLogWarning("Fontrenderer: character buffer exceeded (size: %d), increase the 'Max Characters' property in your game.project file.", num_vertices / 6);
                     return vertexindex * layer_count;
                 }
 
@@ -684,29 +689,29 @@ namespace dmRender
                         uint32_t face_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-1);
 
                         // Set face vertices first, this will always hold since we can't have less than 1 layer
-                        GlyphVertex& v1_layer1 = vertices[face_index];
-                        GlyphVertex& v2_layer1 = vertices[face_index + 1];
-                        GlyphVertex& v3_layer1 = vertices[face_index + 2];
-                        GlyphVertex& v4_layer1 = vertices[face_index + 3];
-                        GlyphVertex& v5_layer1 = vertices[face_index + 4];
-                        GlyphVertex& v6_layer1 = vertices[face_index + 5];
+                        GlyphVertex& v1_layer_face = vertices[face_index];
+                        GlyphVertex& v2_layer_face = vertices[face_index + 1];
+                        GlyphVertex& v3_layer_face = vertices[face_index + 2];
+                        GlyphVertex& v4_layer_face = vertices[face_index + 3];
+                        GlyphVertex& v5_layer_face = vertices[face_index + 4];
+                        GlyphVertex& v6_layer_face = vertices[face_index + 5];
 
-                        (Vector4&) v1_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
-                        (Vector4&) v2_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
-                        (Vector4&) v3_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y - descent, 0, 1);
-                        (Vector4&) v6_layer1.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y + ascent, 0, 1);
+                        (Vector4&) v1_layer_face.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y - descent, 0, 1);
+                        (Vector4&) v2_layer_face.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing, y + ascent, 0, 1);
+                        (Vector4&) v3_layer_face.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y - descent, 0, 1);
+                        (Vector4&) v6_layer_face.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + width, y + ascent, 0, 1);
 
-                        v1_layer1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
-                        v1_layer1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
+                        v1_layer_face.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
+                        v1_layer_face.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
 
-                        v2_layer1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
-                        v2_layer1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
+                        v2_layer_face.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding) * recip_w;
+                        v2_layer_face.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
-                        v3_layer1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
-                        v3_layer1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
+                        v3_layer_face.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
+                        v3_layer_face.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
 
-                        v6_layer1.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
-                        v6_layer1.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
+                        v6_layer_face.m_UV[0] = (g->m_X + font_map->m_CacheCellPadding + g->m_Width) * recip_w;
+                        v6_layer_face.m_UV[1] = (g->m_Y + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
 
                         #define SET_VERTEX_PARAMS(v) \
                             v.m_FaceColor = face_color; \
@@ -717,46 +722,46 @@ namespace dmRender
                             v.m_SdfParams[2] = sdf_smoothing; \
                             v.m_SdfParams[3] = sdf_scale;
 
-                        SET_VERTEX_PARAMS(v1_layer1)
-                        SET_VERTEX_PARAMS(v2_layer1)
-                        SET_VERTEX_PARAMS(v3_layer1)
-                        SET_VERTEX_PARAMS(v6_layer1)
+                        SET_VERTEX_PARAMS(v1_layer_face)
+                        SET_VERTEX_PARAMS(v2_layer_face)
+                        SET_VERTEX_PARAMS(v3_layer_face)
+                        SET_VERTEX_PARAMS(v6_layer_face)
 
                         #undef SET_VERTEX_PARAMS
+
+                        v4_layer_face = v3_layer_face;
+                        v5_layer_face = v2_layer_face;
 
                         #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
                             v.m_LayerMask[0] = f; \
                             v.m_LayerMask[1] = o; \
                             v.m_LayerMask[2] = s;
 
-                        v4_layer1 = v3_layer1;
-                        v5_layer1 = v2_layer1;
-
                         // Set outline vertices
                         if (HAS_LAYER(layer_mask,LAYER_OUTLINE))
                         {
                             uint32_t outline_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-2);
 
-                            GlyphVertex& v1_layer2 = vertices[outline_index];
-                            GlyphVertex& v2_layer2 = vertices[outline_index + 1];
-                            GlyphVertex& v3_layer2 = vertices[outline_index + 2];
-                            GlyphVertex& v4_layer2 = vertices[outline_index + 3];
-                            GlyphVertex& v5_layer2 = vertices[outline_index + 4];
-                            GlyphVertex& v6_layer2 = vertices[outline_index + 5];
+                            GlyphVertex& v1_layer_outline = vertices[outline_index];
+                            GlyphVertex& v2_layer_outline = vertices[outline_index + 1];
+                            GlyphVertex& v3_layer_outline = vertices[outline_index + 2];
+                            GlyphVertex& v4_layer_outline = vertices[outline_index + 3];
+                            GlyphVertex& v5_layer_outline = vertices[outline_index + 4];
+                            GlyphVertex& v6_layer_outline = vertices[outline_index + 5];
 
-                            v1_layer2 = v1_layer1;
-                            v2_layer2 = v2_layer1;
-                            v3_layer2 = v3_layer1;
-                            v4_layer2 = v4_layer1;
-                            v5_layer2 = v5_layer1;
-                            v6_layer2 = v6_layer1;
+                            v1_layer_outline = v1_layer_face;
+                            v2_layer_outline = v2_layer_face;
+                            v3_layer_outline = v3_layer_face;
+                            v4_layer_outline = v4_layer_face;
+                            v5_layer_outline = v5_layer_face;
+                            v6_layer_outline = v6_layer_face;
 
-                            SET_VERTEX_LAYER_MASK(v1_layer2,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v2_layer2,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v3_layer2,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v4_layer2,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v5_layer2,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v6_layer2,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v1_layer_outline,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v2_layer_outline,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v3_layer_outline,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v4_layer_outline,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v5_layer_outline,0,1,0)
+                            SET_VERTEX_LAYER_MASK(v6_layer_outline,0,1,0)
                         }
 
                         // Set shadow vertices
@@ -766,51 +771,46 @@ namespace dmRender
                             float shadow_x        = font_map->m_ShadowX;
                             float shadow_y        = font_map->m_ShadowY;
 
-                            GlyphVertex& v1_layer3 = vertices[shadow_index];
-                            GlyphVertex& v2_layer3 = vertices[shadow_index + 1];
-                            GlyphVertex& v3_layer3 = vertices[shadow_index + 2];
-                            GlyphVertex& v4_layer3 = vertices[shadow_index + 3];
-                            GlyphVertex& v5_layer3 = vertices[shadow_index + 4];
-                            GlyphVertex& v6_layer3 = vertices[shadow_index + 5];
+                            GlyphVertex& v1_layer_shadow = vertices[shadow_index];
+                            GlyphVertex& v2_layer_shadow = vertices[shadow_index + 1];
+                            GlyphVertex& v3_layer_shadow = vertices[shadow_index + 2];
+                            GlyphVertex& v4_layer_shadow = vertices[shadow_index + 3];
+                            GlyphVertex& v5_layer_shadow = vertices[shadow_index + 4];
+                            GlyphVertex& v6_layer_shadow = vertices[shadow_index + 5];
 
-                            v1_layer3 = v1_layer1;
-                            v2_layer3 = v2_layer1;
-                            v3_layer3 = v3_layer1;
-                            v6_layer3 = v6_layer1;
+                            v1_layer_shadow = v1_layer_face;
+                            v2_layer_shadow = v2_layer_face;
+                            v3_layer_shadow = v3_layer_face;
+                            v6_layer_shadow = v6_layer_face;
 
-                            v1_layer3.m_Position[0] += shadow_x;
-                            v1_layer3.m_Position[1] += shadow_y;
+                            // Shadow offsets must be calculated since we need to offset in local space (before vertex transformation)
+                            (Vector4&) v1_layer_shadow.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + shadow_x, y - descent + shadow_y, 0, 1);
+                            (Vector4&) v2_layer_shadow.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + shadow_x, y + ascent + shadow_y, 0, 1);
+                            (Vector4&) v3_layer_shadow.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + shadow_x + width, y - descent + shadow_y, 0, 1);
+                            (Vector4&) v6_layer_shadow.m_Position = te.m_Transform * Vector4(x + g->m_LeftBearing + shadow_x + width, y + ascent + shadow_y, 0, 1);
 
-                            v2_layer3.m_Position[0] += shadow_x;
-                            v2_layer3.m_Position[1] += shadow_y;
+                            v4_layer_shadow = v3_layer_shadow;
+                            v5_layer_shadow = v2_layer_shadow;
 
-                            v3_layer3.m_Position[0] += shadow_x;
-                            v3_layer3.m_Position[1] += shadow_y;
-
-                            v6_layer3.m_Position[0] += shadow_x;
-                            v6_layer3.m_Position[1] += shadow_y;
-
-                            v4_layer3 = v3_layer3;
-                            v5_layer3 = v2_layer3;
-
-                            SET_VERTEX_LAYER_MASK(v1_layer3,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v2_layer3,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v3_layer3,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v4_layer3,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v5_layer3,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v6_layer3,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v1_layer_shadow,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v2_layer_shadow,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v3_layer_shadow,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v4_layer_shadow,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v5_layer_shadow,0,0,1)
+                            SET_VERTEX_LAYER_MASK(v6_layer_shadow,0,0,1)
                         }
 
+                        // If we only have one layer, we need to set the mask to (1,1,1)
+                        // so that we can use the same calculations for both single and multi.
+                        // The mask is set last for layer 1 since we copy the vertices to
+                        // all other layers to avoid re-calculating their data.
                         uint8_t is_one_layer = layer_count > 1 ? 0 : 1;
-
-                        // These are set last since we copy the
-                        // Calculated vertices to the other layers
-                        SET_VERTEX_LAYER_MASK(v1_layer1,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v2_layer1,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v3_layer1,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v4_layer1,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v5_layer1,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v6_layer1,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v1_layer_face,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v2_layer_face,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v3_layer_face,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v4_layer_face,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v5_layer_face,1,is_one_layer,is_one_layer)
+                        SET_VERTEX_LAYER_MASK(v6_layer_face,1,is_one_layer,is_one_layer)
 
                         #undef SET_VERTEX_LAYER_MASK
 
