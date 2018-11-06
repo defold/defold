@@ -451,12 +451,6 @@ var Module = {
 
             Module.setupVisibilityChangeListener();
 
-            // Load Facebook API
-            var fb = document.createElement('script');
-            fb.type = 'text/javascript';
-            fb.src = '//connect.facebook.net/en_US/sdk.js';
-            document.head.appendChild(fb);
-
             // Add progress visuals
             Progress.addProgress(Module.canvas);
 

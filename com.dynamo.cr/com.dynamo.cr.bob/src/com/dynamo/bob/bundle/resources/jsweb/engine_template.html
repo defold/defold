@@ -122,19 +122,32 @@
 		return scriptDirectory + path;
 	};
 
-	var engineJS = document.createElement('script');
-	engineJS.type = 'text/javascript';
-	if (Module['isWASMSupported']) {
-	    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_wasm.js';
-	} else {
-	    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_asm.js';
+	function load_engine() {
+		var engineJS = document.createElement('script');
+		engineJS.type = 'text/javascript';
+		if (Module['isWASMSupported']) {
+		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_wasm.js';
+		} else {
+		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_asmjs.js';
+		}
+		document.head.appendChild(engineJS);
 	}
-	document.head.appendChild(engineJS);
 
 	/* Fullscreen button */
 	document.getElementById("fullscreen").onclick = function (e) {
 		Module.toggleFullscreen();
 	};
+
+	if ({{DEFOLD_HAS_FACEBOOK_APP_ID}}) {
+		// Load Facebook API
+		var fb = document.createElement('script');
+		fb.type = 'text/javascript';
+		fb.src = '//connect.facebook.net/en_US/sdk.js';
+		fb.onload = load_engine;
+		document.head.appendChild(fb);
+	} else {
+		load_engine();
+	}
 	</script>
 </body>
 </html>
