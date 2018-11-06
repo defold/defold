@@ -142,7 +142,7 @@ public class IOSBundler implements IBundler {
                 Platform targetPlatform = Platform.X86_64Ios;
                 binsSim64 = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
                 if (binsSim64 == null) {
-                    binsSim64 = new File(Bob.getDefaultDmengineFiles(targetPlatform, variant));
+                    binsSim64 = Bob.getDefaultDmengineFiles(targetPlatform, variant);
                 } else {
                     logger.log(Level.INFO, "Using extender exe for sim64");
                 }
@@ -150,7 +150,8 @@ public class IOSBundler implements IBundler {
             if (binsSim64.size() > 1) {
                 throw new IOException("Invalid number of binaries for (x86_64) iOS when bundling: " + binsSim64.size());
             }
-            logger.log(Level.INFO, "Sim64 exe: " + getFileDescription(binsSim64));
+            exeSim64 = binsSim64.get(0);
+            logger.log(Level.INFO, "Sim64 exe: " + getFileDescription(exeSim64));
 
         } else {
             // armv7 exe
@@ -166,7 +167,7 @@ public class IOSBundler implements IBundler {
             if (binsArmv7.size() > 1) {
                 throw new IOException("Invalid number of binaries for (armv7) iOS when bundling: " + binsArmv7.size());
             }
-            File exeArmv7 = binsArmv7.get(0);
+            exeArmv7 = binsArmv7.get(0);
 
             // arm64 exe
             {
@@ -181,7 +182,7 @@ public class IOSBundler implements IBundler {
             if (binsArm64.size() > 1) {
                 throw new IOException("Invalid number of binaries for (arm64) iOS when bundling: " + binsArm64.size());
             }
-            File exeArm64 = binsArm64.get(0);
+            exeArm64 = binsArm64.get(0);
 
             logger.log(Level.INFO, "Armv7 exe: " + getFileDescription(exeArmv7));
             logger.log(Level.INFO, "Arm64 exe: " + getFileDescription(exeArm64));
