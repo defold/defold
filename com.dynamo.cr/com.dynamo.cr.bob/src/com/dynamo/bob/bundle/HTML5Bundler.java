@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -35,6 +37,8 @@ import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.Template;
 
 public class HTML5Bundler implements IBundler {
+    private static Logger logger = Logger.getLogger(HTML5Bundler.class.getName());
+
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
@@ -156,20 +160,39 @@ public class HTML5Bundler implements IBundler {
         BobProjectProperties projectProperties = project.getProjectProperties();
         BobProjectProperties metaProperties = getPropertiesMeta();
 
-        Platform targetPlatform = Platform.JsWeb;
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String js = Bob.getDefaultDmenginePath(targetPlatform, variant);
-        String engine = title + '.' + FilenameUtils.getExtension(js);
-
+        String enginePrefix = title;
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File bundleExe = Bob.getNativeExtensionEngine(targetPlatform, extenderExeDir);
-        if (bundleExe == null) {
-            bundleExe = new File(Bob.getDefaultDmenginePath(targetPlatform, variant));
+
+        List<File> binsAsmjs = null;
+        List<File> binsWasm = null;
+
+        // asmjs binaries
+        {
+            Platform targetPlatform = Platform.JsWeb;
+            binsAsmjs = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            if (binsAsmjs == null) {
+                binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+            }
+            else {
+                logger.log(Level.INFO, "Using extender binary for Asm.js");
+            }
+            ;
         }
 
-        String jsMemInit = js + ".mem";
+        // wasm binaries
+        {
+            Platform targetPlatform = Platform.WasmWeb;
+            binsWasm = Bob.getNativeExtensionEngineBinaries(targetPlatform, extenderExeDir);
+            if (binsWasm == null) {
+                binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+            }
+            else {
+                logger.log(Level.INFO, "Using extender binary for WASM");
+            }
+        }
 
         File projectRoot = new File(project.getRootDirectory());
         URL html = getResource(projectProperties, projectRoot, "html5", "htmlfile", "engine_template.html");
@@ -190,7 +213,8 @@ public class HTML5Bundler implements IBundler {
         }
 
         Map<String, Object> infoData = new HashMap<String, Object>();
-        infoData.put("DEFOLD_ENGINE", engine);
+        infoData.put("DEFOLD_ENGINE", enginePrefix + ".js");
+        infoData.put("DEFOLD_BINARY_PREFIX", enginePrefix);
         infoData.put("DEFOLD_DISPLAY_WIDTH", projectProperties.getIntValue("display", "width", metaProperties.getIntValue("display", "width.default")));
         infoData.put("DEFOLD_DISPLAY_HEIGHT", projectProperties.getIntValue("display", "height", metaProperties.getIntValue("display", "height.default")));
         infoData.put("DEFOLD_SPLASH_IMAGE", getName(splashImage));
@@ -198,6 +222,10 @@ public class HTML5Bundler implements IBundler {
         infoData.put("DEFOLD_HEAP_SIZE", customHeapSize);
 
         infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
+
+        // Check if game has configured a Facebook App ID
+        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
+        infoData.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
 
         // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
         if (localLaunch) {
@@ -231,16 +259,29 @@ public class HTML5Bundler implements IBundler {
         // Copy bundle resources into bundle directory
         ExtenderUtil.writeResourcesToDirectory(bundleResources, appDir);
 
-        // Copy engine
-        FileUtils.copyFile(bundleExe, new File(appDir, engine));
+        // Copy engine binaries
+        for (File bin : binsAsmjs) {
+            String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+            if (binExtension.equals("js")) {
+                FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
+            } else {
+                throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+            }
+        }
+
+        for (File bin : binsWasm) {
+            String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+            if (binExtension.equals("js")) {
+                FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
+            } else if (binExtension.equals("wasm")) {
+                FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
+            } else {
+                throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+            }
+        }
+
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
-
-        // Memory initialisation file
-        File jsMemFile = new File(jsMemInit);
-        if (jsMemFile.exists()) {
-            FileUtils.copyFile(jsMemFile, new File(appDir, String.format("%s.js.mem", title)));
-        }
 
         format(html, infoData, new File(appDir, "index.html"));
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
