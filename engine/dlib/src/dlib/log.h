@@ -2,6 +2,7 @@
 #define DM_LOG_H
 
 #include <dmsdk/dlib/log.h>
+#include <dlib/message.h>
 
 /**
  * @file
@@ -19,6 +20,19 @@
  * No other messages with semantic meaning is sent.
  */
 
+struct dmLogMessage
+{
+    enum Type
+    {
+        MESSAGE = 0,
+        SHUTDOWN = 1,
+    };
+
+    uint8_t m_Type;
+    char    m_Message[0];
+};
+
+const uint32_t DM_LOG_MAX_STRING_SIZE = dmMessage::DM_MESSAGE_MAX_DATA_SIZE - sizeof(dmLogMessage);
 struct dmLogParams
 {
     dmLogParams()

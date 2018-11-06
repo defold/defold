@@ -255,6 +255,12 @@ public class BundleHelper {
     // This regexp catches errors, warnings and note entries that are not associated with a resource.
     private static Pattern nonResourceIssueRe = Pattern.compile("^(fatal|error|warning|note):\\s*(.+)");
 
+    // This regexp catches a malformed SDK where content folders are missing
+    private static Pattern missingSDKFolderLinkerCLANGRe = Pattern.compile("^ld: warning: directory not found for option '-L.*\\/([0-9a-f]{40})\\/defoldsdk\\/.*'\n[\\s\\S]*");
+
+    // This regexp catches linker errors where specified libraries are missing
+    private static Pattern missingLibraryLinkerCLANGRe = Pattern.compile("^ld: library not found for -l(.+)\n[\\s\\S]*");
+
     private static List<String> excludeMessages = new ArrayList<String>() {{
         add("[options] bootstrap class path not set in conjunction with -source 1.6"); // Mighty annoying message
     }};
@@ -310,6 +316,8 @@ public class BundleHelper {
 
     private static void parseLogClang(String[] lines, List<ResourceInfo> issues) {
         final Pattern linkerPattern = resourceIssueLinkerCLANGRe;
+        final Pattern linkerMissingSDKFolderPattern = missingSDKFolderLinkerCLANGRe;
+        final Pattern linkerMissingLibraryLinkerCLANGRe = missingLibraryLinkerCLANGRe;
 
         // Very similar, with lookBehind and lookAhead for errors
         parseLogGCC(lines, issues);
@@ -324,6 +332,14 @@ public class BundleHelper {
             if (m.matches()) {
                 // Groups: message
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", m.group(1)));
+            }
+            m = linkerMissingSDKFolderPattern.matcher(line);
+            if (m.matches()) {
+                issues.add(new BundleHelper.ResourceInfo("error", null, "", "Invalid Defold SDK: '" + m.group(1) + "'"));
+            }
+            m = linkerMissingLibraryLinkerCLANGRe.matcher(line);
+            if (m.matches()) {
+                issues.add(new BundleHelper.ResourceInfo("error", null, "", "Missing library '" + m.group(1) + "'"));
             }
         }
     }
@@ -408,7 +424,7 @@ public class BundleHelper {
         }
     }
 
-    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, String srcName, File outputEngine, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
+    public static void buildEngineRemote(ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, List<String> srcNames, List<File> outputEngines, File outputClassesDex) throws CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -503,14 +519,18 @@ public class BundleHelper {
             }
         }
 
-        try {
-            Path source = zip.getPath(srcName);
-            try (FileOutputStream out = new FileOutputStream(outputEngine)) {
-                Files.copy(source, out);
+        for (int i = 0; i < srcNames.size(); i++) {
+            String srcName = srcNames.get(i);
+            File outputEngine = outputEngines.get(i);
+            try {
+                Path source = zip.getPath(srcName);
+                try (FileOutputStream out = new FileOutputStream(outputEngine)) {
+                    Files.copy(source, out);
+                }
+                outputEngine.setExecutable(true);
+            } catch (IOException e) {
+                throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());
             }
-            outputEngine.setExecutable(true);
-        } catch (IOException e) {
-            throw new CompileExceptionError(String.format("Failed to copy %s to %s", srcName, outputEngine.getAbsolutePath()), e.getCause());
         }
     }
 
