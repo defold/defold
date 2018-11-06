@@ -5,7 +5,10 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,6 +54,47 @@ public class BundlerTest {
     private String outputDir;
     private String contentRootUnused;
     private Platform platform;
+
+    // Used to check if the built and bundled test projects all contain the correct engine binaries.
+    private void verifyEngineBinaries() throws IOException
+    {
+        String projectName = "Unnamed";
+        File outputDirFile = new File(outputDir, projectName);
+        assertTrue(outputDirFile.exists());
+        switch (platform)
+        {
+            case X86Win32:
+            case X86_64Win32:
+            {
+                File outputBinary = new File(outputDirFile, projectName + ".exe");
+                assertTrue(outputBinary.exists());
+            }
+            break;
+            case Armv7Android:
+            {
+                File outputApk = new File(outputDirFile, projectName + ".apk");
+                assertTrue(outputApk.exists());
+                FileSystem apkZip = FileSystems.newFileSystem(outputApk.toPath(), null);
+                Path enginePath = apkZip.getPath("lib/armeabi-v7a/lib" + projectName + ".so");
+                assertTrue(Files.isReadable(enginePath));
+                Path classesDexPath = apkZip.getPath("classes.dex");
+                assertTrue(Files.isReadable(classesDexPath));
+            }
+            break;
+            case JsWeb:
+            {
+                File asmjsFile = new File(outputDirFile, projectName + "_asmjs.js");
+                assertTrue(asmjsFile.exists());
+                File wasmjsFile = new File(outputDirFile, projectName + "_wasm.js");
+                assertTrue(wasmjsFile.exists());
+                File wasmFile = new File(outputDirFile, projectName + ".wasm");
+                assertTrue(wasmFile.exists());
+            }
+            break;
+            default:
+                throw new IOException("Verifying engine binaries not implemented for platform: " + platform.toString());
+        }
+    }
 
     @Parameters
     public static Collection<Platform[]> data() {
@@ -104,6 +148,8 @@ public class BundlerTest {
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
         }
+
+        verifyEngineBinaries();
     }
 
     @SuppressWarnings("unused")
