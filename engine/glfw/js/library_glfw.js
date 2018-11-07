@@ -787,6 +787,10 @@ var LibraryGLFW = {
       return 0;
   },
 
+  glfwGetWindowRefreshRate: function() {
+    return 0;
+  },
+
   glfwGetDefaultFramebuffer: function() {
 	  return 0;
   },
