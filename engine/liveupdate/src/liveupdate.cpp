@@ -6,6 +6,7 @@
 #include <ddf/ddf.h>
 
 #include <dlib/log.h>
+#include <dlib/time.h>
 #include <dlib/sys.h>
 
 #if defined(_WIN32)
@@ -37,6 +38,9 @@ namespace dmLiveUpdate
                 break;
             case dmResource::RESULT_NOT_SUPPORTED:
                 result = RESULT_SCHEME_MISMATCH;
+                break;
+            case dmResource::RESULT_INVALID_DATA:
+                result = RESULT_BUNDLED_RESOURCE_MISMATCH;
                 break;
             default:
                 result = RESULT_INVALID_RESOURCE;
@@ -126,7 +130,7 @@ namespace dmLiveUpdate
         return result;
     }
 
-    bool VerifyManifestSupportedEngineVersion(dmResource::Manifest* manifest)
+    static bool VerifyManifestSupportedEngineVersion(dmResource::Manifest* manifest)
     {
         // Calculate running dmengine version SHA1 hash
         dmSys::EngineInfo engine_info;
@@ -156,7 +160,7 @@ namespace dmLiveUpdate
         return engine_version_supported;
     }
 
-    Result VerifyManifestSignature(dmResource::Manifest* manifest)
+    static Result VerifyManifestSignature(dmResource::Manifest* manifest)
     {
         dmLiveUpdateDDF::HashAlgorithm algorithm = manifest->m_DDFData->m_Header.m_SignatureHashAlgorithm;
         uint32_t digest_len = dmResource::HashLength(algorithm);
@@ -169,12 +173,31 @@ namespace dmLiveUpdate
         return result;
     }
 
+    static Result VerifyManifestBundledResources(dmResource::Manifest* manifest)
+    {
+        dmResource::Result res;
+        dmMutex::Mutex mutex = dmResource::GetLoadMutex(m_ResourceFactory);
+        while(!dmMutex::TryLock(mutex))
+        {
+            dmTime::Sleep(100);
+        }
+        res = dmResource::VerifyResourcesBundled(m_ResourceFactory, manifest);
+        dmMutex::Unlock(mutex);
+
+        return ResourceResultToLiveupdateResult(res);
+    }
+
     Result VerifyManifest(dmResource::Manifest* manifest)
     {
         if (!VerifyManifestSupportedEngineVersion(manifest))
             return RESULT_ENGINE_VERSION_MISMATCH;
 
-        return VerifyManifestSignature(manifest);
+        Result res = VerifyManifestSignature(manifest);
+
+        if (res != RESULT_OK)
+            return res;
+
+        return VerifyManifestBundledResources(manifest);
     }
 
     Result ParseManifestBin(uint8_t* manifest_data, size_t manifest_len, dmResource::Manifest* manifest)

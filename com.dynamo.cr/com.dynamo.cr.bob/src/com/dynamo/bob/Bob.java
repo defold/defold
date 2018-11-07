@@ -15,6 +15,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -161,10 +162,27 @@ public class Bob {
         return f.getAbsolutePath();
     }
 
+    public static List<String> getExes(Platform platform, String name) throws IOException {
+        String[] exeSuffixes = platform.getExeSuffixes();
+        List<String> exes = new ArrayList<String>();
+        for (String exeSuffix : exeSuffixes) {
+            exes.add(getExeWithExtension(platform, name, exeSuffix));
+        }
+        return exes;
+    }
+
     public static String getExe(Platform platform, String name) throws IOException {
+        List<String> exes = getExes(platform, name);
+        if (exes.size() > 1) {
+            throw new IOException("More than one alternative when getting binary executable for platform: " + platform.toString());
+        }
+        return exes.get(0);
+    }
+
+    public static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
 
-        String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + platform.getExeSuffix();
+        String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         URL url = Bob.class.getResource("/libexec/" + exeName);
         if (url == null) {
             throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
@@ -205,17 +223,33 @@ public class Bob {
         }
     }
 
-    public static String getDefaultDmenginePath(Platform platform, String variant) throws IOException {
-        return getExe(platform, getDefaultDmengineExeName(variant));
+    public static List<String> getDefaultDmenginePaths(Platform platform, String variant) throws IOException {
+        return getExes(platform, getDefaultDmengineExeName(variant));
     }
 
-    public static File getNativeExtensionEngine(Platform platform, String extenderExeDir) throws IOException
-    {
-        File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), platform.formatBinaryName("dmengine"))));
-        if (extenderExe.exists()) {
-            return extenderExe;
+    public static List<File> getDefaultDmengineFiles(Platform platform, String variant) throws IOException {
+        List<String> binaryPaths = getDefaultDmenginePaths(platform, variant);
+        List<File> binaryFiles = new ArrayList<File>();
+        for (String path : binaryPaths) {
+            binaryFiles.add(new File(path));
         }
-        return null;
+        return binaryFiles;
+    }
+
+    public static List<File> getNativeExtensionEngineBinaries(Platform platform, String extenderExeDir) throws IOException
+    {
+        List<String> binaryNames = platform.formatBinaryName("dmengine");
+        List<File> binaryFiles = new ArrayList<File>();
+        for (String binaryName : binaryNames) {
+            File extenderExe = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(platform.getExtenderPair(), binaryName)));
+
+            // All binaries must exist, otherwise return null
+            if (!extenderExe.exists()) {
+                return null;
+            }
+            binaryFiles.add(extenderExe);
+        }
+        return binaryFiles;
     }
 
     public static String getLib(Platform platform, String name) throws IOException {
