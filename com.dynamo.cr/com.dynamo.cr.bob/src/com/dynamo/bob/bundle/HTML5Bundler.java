@@ -223,6 +223,10 @@ public class HTML5Bundler implements IBundler {
 
         infoData.put("DEFOLD_APP_TITLE", String.format("%s %s", title, version));
 
+        // Check if game has configured a Facebook App ID
+        String facebookAppId = projectProperties.getStringValue("facebook", "appid", null);
+        infoData.put("DEFOLD_HAS_FACEBOOK_APP_ID", facebookAppId != null ? "true" : "false");
+
         // When running "Build HTML and Launch" we need to ignore the archive location prefix/suffix.
         if (localLaunch) {
             infoData.put("DEFOLD_ARCHIVE_LOCATION_PREFIX", "archive");
