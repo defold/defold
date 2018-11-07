@@ -18,6 +18,12 @@ platforms:
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
             libs: ["record_null","sound_null","graphics_null","hid_null"]
 
+    wasm-web:
+        context:
+            excludeLibs: ["record","vpx","sound","tremolo","graphics","hid"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo"]
+            libs: ["record_null","sound_null","graphics_null","hid_null"]
+
     x86-win32:
         context:
             excludeLibs: ["librecord","libvpx","libsound","libtremolo","libgraphics","libhid"]
