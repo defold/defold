@@ -48,11 +48,15 @@ public class OSX32Bundler implements IBundler {
         File macosDir = new File(contentsDir, "MacOS");
 
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
-        File bundleExe = Bob.getNativeExtensionEngine(platform, extenderExeDir);
-        if (bundleExe == null) {
+        List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
+        if (bundleExes == null) {
             final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-            bundleExe = new File(Bob.getDefaultDmenginePath(platform, variant));
+            bundleExes = Bob.getDefaultDmengineFiles(platform, variant);
         }
+        if (bundleExes.size() > 1) {
+            throw new IOException("Invalid number of binaries for macOS when bundling: " + bundleExes.size());
+        }
+        File bundleExe = bundleExes.get(0);
 
         FileUtils.deleteDirectory(appDir);
         appDir.mkdirs();

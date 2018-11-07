@@ -1,6 +1,7 @@
 package com.defold.iap;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -12,6 +13,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentSender.SendIntentException;
 import android.content.ServiceConnection;
+import android.content.pm.ResolveInfo;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Message;
@@ -220,14 +222,15 @@ public class IapGooglePlayActivity extends Activity {
 
         Intent serviceIntent = new Intent("com.android.vending.billing.InAppBillingService.BIND");
         serviceIntent.setPackage("com.android.vending");
-        if (!getPackageManager().queryIntentServices(serviceIntent, 0).isEmpty()) {
+        List<ResolveInfo> intentServices = getPackageManager().queryIntentServices(serviceIntent, 0);
+        if (intentServices != null && !intentServices.isEmpty()) {
             // service available to handle that Intent
             serviceConn = new ServiceConnection() {
                 @Override
                 public void onServiceDisconnected(ComponentName name) {
                     service = null;
                 }
-    
+
                 @Override
                 public void onServiceConnected(ComponentName name, IBinder serviceBinder) {
                     service = IInAppBillingService.Stub.asInterface(serviceBinder);
@@ -244,7 +247,7 @@ public class IapGooglePlayActivity extends Activity {
                     }
                 }
             };
-    
+
             bindService(serviceIntent, serviceConn, Context.BIND_AUTO_CREATE);
         } else {
             // Service will never be connected; just send unavailability message
