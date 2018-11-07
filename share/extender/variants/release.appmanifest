@@ -15,6 +15,11 @@ platforms:
             excludeLibs: ["engine", "engine_service"]
             libs: ["engine_release", "engine_service_null"]
 
+    wasm-web:
+        context:
+            excludeLibs: ["engine", "engine_service"]
+            libs: ["engine_release", "engine_service_null"]
+
     x86-win32:
         context:
             excludeLibs: ["libengine", "libengine_service"]
