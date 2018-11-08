@@ -22,6 +22,7 @@ class ScriptTest : public ::testing::Test
 protected:
     virtual void SetUp()
     {
+        dmSetCustomLogCallback(LogCallback, this);
         m_Context = dmScript::NewContext(0x0, 0, true);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
@@ -31,10 +32,53 @@ protected:
     {
         dmScript::Finalize(m_Context);
         dmScript::DeleteContext(m_Context);
+        dmSetCustomLogCallback(0x0, 0x0);
+    }
+
+    const char* RemoveTableAddresses(char* str)
+    {
+        char* read_ptr = str;
+        char* write_ptr = str;
+        const char* address_prefix = " --[[0x";
+        size_t address_prefix_length = strlen(address_prefix);
+        char* addr_ptr = strstr(str, address_prefix);
+        while (addr_ptr != 0x0)
+        {
+            uintptr_t offset = addr_ptr - read_ptr;
+            size_t copy_length = offset + address_prefix_length;
+            while (copy_length --)
+            {
+                *write_ptr++ = *read_ptr++;
+            }
+            read_ptr = strstr(read_ptr, "]]");
+            addr_ptr = strstr(read_ptr, address_prefix);
+        }
+        strcpy(write_ptr, read_ptr);
+        return str;
+    }
+
+    char* GetLog()
+    {
+        m_Log.Push('\0');
+        return m_Log.Begin();
+    }
+
+    void AppendToLog(const char* log)
+    {
+        uint32_t len = strlen(log);
+        m_Log.SetCapacity(m_Log.Size() + len + 1);
+        m_Log.PushArray(log, len);
+    }
+
+    static void LogCallback(void* user_data, const char* log)
+    {
+        ScriptTest* i = (ScriptTest*)user_data;
+        i->AppendToLog(log);
     }
 
     dmScript::HContext m_Context;
     lua_State* L;
+    dmArray<char> m_Log;
 };
 
 bool RunFile(lua_State* L, const char* filename)
@@ -66,6 +110,7 @@ TEST_F(ScriptTest, TestPrint)
     ASSERT_TRUE(RunString(L, "print(\"test\", \"multiple\")"));
 
     ASSERT_EQ(top, lua_gettop(L));
+    ASSERT_STREQ("DEBUG:SCRIPT: test print\nDEBUG:SCRIPT: test\tmultiple\n", GetLog());
 }
 
 TEST_F(ScriptTest, TestPPrint)
@@ -73,6 +118,54 @@ TEST_F(ScriptTest, TestPPrint)
     int top = lua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_script.luac"));
     ASSERT_EQ(top, lua_gettop(L));
+
+    const char* ExpectedOutput = 
+        "DEBUG:SCRIPT: testing pprint\n"
+        "DEBUG:SCRIPT: 123\n"
+        "DEBUG:SCRIPT: smore\n"
+        "DEBUG:SCRIPT: \n"
+        "{ --[[0x]]\n"
+        "  1 = { --[[0x]]\n"
+        "    y = { --[[0x]]\n"
+        "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),\n"
+        "      q = vmath.quat(0, 0, 0, 1),\n"
+        "      n = vmath.vector3(0, 0, 0)\n"
+        "    },\n"
+        "    x = 1,\n"
+        "    z = 3\n"
+        "  },\n"
+        "  2 = \"hello\",\n"
+        "  3 = { } --[[0x]],\n"
+        "  foo = 123\n"
+        "}\n"
+        "DEBUG:SCRIPT: \n"
+        "{ --[[0x]]\n"
+        "  1 = { --[[0x]]\n"
+        "    y = { --[[0x]]\n"
+        "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),\n"
+        "      q = vmath.quat(0, 0, 0, 1),\n"
+        "      n = vmath.vector3(0, 0, 0)\n"
+        "    },\n"
+        "    x = 1,\n"
+        "    z = 3\n"
+        "  },\n"
+        "  2 = \"hello\",\n"
+        "  3 = { } --[[0x]],\n"
+        "  foo = 123\n"
+        "},\n"
+        "more,\n"
+        "{ --[[0x]]\n"
+        "  b = 2,\n"
+        "  a = 1,\n"
+        "  c = 3\n"
+        "},\n"
+        "77,\n"
+        "78,\n"
+        "79,\n"
+        "80\n"
+        "DEBUG:SCRIPT: 5\n";
+
+    ASSERT_STREQ(ExpectedOutput, RemoveTableAddresses(GetLog()));
 }
 
 
@@ -81,6 +174,19 @@ TEST_F(ScriptTest, TestCircularRefPPrint)
     int top = lua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_circular_ref_pprint.luac"));
     ASSERT_EQ(top, lua_gettop(L));
+
+    const char* ExpectedOutput = 
+        "DEBUG:SCRIPT: testing pprint with circular ref\n"
+        "DEBUG:SCRIPT: \n"
+        "{ --[[0x]]\n"
+        "  foo = \"an old man was telling stories of circular references.\",\n"
+        "  gnu = { --[[0x]]\n"
+        "    gnat = { ... } --[[0x]],\n"
+        "    bar = \"It was a dark and stormy night,\"\n"
+        "  }\n"
+        "}\n";
+
+    ASSERT_STREQ(ExpectedOutput, RemoveTableAddresses(GetLog()));
 }
 
 TEST_F(ScriptTest, TestPPrintTruncate)
@@ -88,6 +194,11 @@ TEST_F(ScriptTest, TestPPrintTruncate)
     int top = lua_gettop(L);
     ASSERT_TRUE(RunFile(L, "test_pprint_truncate.luac"));
     ASSERT_EQ(top, lua_gettop(L));
+    const char* log = GetLog();
+    const char* truncate_message_addr = strstr(log, "...\n[Output truncated]\n");
+    ASSERT_NE((const char*)0x0, truncate_message_addr);
+    truncate_message_addr += 23;
+    ASSERT_EQ(0, *truncate_message_addr);
 }
 
 TEST_F(ScriptTest, TestRandom)

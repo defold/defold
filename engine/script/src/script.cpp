@@ -363,7 +363,7 @@ namespace dmScript
 
         if (printed_tables.Get((uintptr_t)table_data) != 0x0)
         {
-            printer->Printf("{ ... } -- %p\n", table_data);
+            printer->Printf("{ ... } --[[%p]]", table_data);
             return 0;
         }
 
@@ -382,7 +382,7 @@ namespace dmScript
         if(lua_next(L, -2) == 0)
         {
             // [-1] table
-            printer->Printf("{ } -- %p\n", table_data);
+            printer->Printf("{ } --[[%p]]", table_data);
             lua_pop(L, 1);
             return 0;
         }
@@ -390,11 +390,13 @@ namespace dmScript
         // [-3] table
         // [-2] key
         // [-1] value
-        printer->Printf("{ -- %p\n", table_data);
+        printer->Printf("{ --[[%p]]", table_data);
         printer->Indent(2);
 
+        bool is_first = true;
         do
         {
+            printer->Printf("%s\n", is_first ? "" : ",");
             int value_type = lua_type(L, -1);
 
             const char* key_string = PushValueAsString(L, -2);
@@ -419,7 +421,7 @@ namespace dmScript
             }
             else if (value_type == LUA_TSTRING)
             {
-                printer->Printf("\"%s\",\n", lua_tostring(L, -1));
+                printer->Printf("\"%s\"", lua_tostring(L, -1));
             }
             else
             {
@@ -433,7 +435,7 @@ namespace dmScript
                 // [-2] value
                 // [-1] value name
 
-                printer->Printf("%s,\n", value_string);
+                printer->Printf("%s", value_string);
                 lua_pop(L, 1);
                 // [-3] table
                 // [-2] key
@@ -443,12 +445,14 @@ namespace dmScript
             lua_pop(L, 1);
             // [-2] table
             // [-1] key
+            is_first = false;
         } while (lua_next(L, -2) != 0);
 
         // [-1] table
 
         printer->Indent(-2);
-        printer->Printf("},\n");
+        printer->Printf("\n");
+        printer->Printf("}");
 
         printed_tables.Erase((uintptr_t)table_data);
 
@@ -508,16 +512,16 @@ namespace dmScript
                     printer.Printf("\n");
                 }
                 DoLuaPPrintTable(L, s, &printer, printed_tables);
+                printer.Printf("%s", (n > s) ? ",\n" : "");
             }
             else
             {
                 const char* value_str = PushValueAsString(L, s);
-                if (value_str = 0x0)
                 if (value_str == 0x0)
                 {
                     return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
                 }
-                printer.Printf("%s,\n", value_str);
+                printer.Printf("%s%s", value_str, (n > s) ? ",\n" : "");
                 lua_pop(L, 1);
             }
         }
