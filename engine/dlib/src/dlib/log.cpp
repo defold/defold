@@ -53,10 +53,12 @@ struct dmLogServer
     dmThread::Thread         m_Thread;
 };
 
-dmLogServer* g_dmLogServer = 0;
-dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
-int g_TotalBytesLogged = 0;
-FILE* g_LogFile = 0;
+static dmLogServer* g_dmLogServer = 0;
+static dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
+static int g_TotalBytesLogged = 0;
+static FILE* g_LogFile = 0;
+static dmCustomLogCallback g_CustomLogCallback = 0x0;
+static void* g_CustomLogCallbackUserData = 0x0;
 
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
@@ -450,6 +452,14 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 
     g_TotalBytesLogged += actual_n;
 
+    va_end(lst);
+
+    if (g_CustomLogCallback != 0x0)
+    {
+        g_CustomLogCallback(g_CustomLogCallbackUserData, str_buf);
+        return;
+    }
+
 #ifdef ANDROID
     __android_log_print(ToAndroidPriority(severity), "defold", str_buf);
 
@@ -461,7 +471,6 @@ void dmLogInternal(dmLogSeverity severity, const char* domain, const char* forma
 #if !defined(ANDROID)
     fwrite(str_buf, 1, actual_n, stderr);
 #endif
-    va_end(lst);
 
     if(!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
         return;
@@ -495,4 +504,10 @@ void dmSetLogFile(const char* path)
     } else {
         dmLogFatal("Failed to open log-file '%s'", path);
     }
+}
+
+void dmSetCustomLogCallback(dmCustomLogCallback callback, void* user_data)
+{
+    g_CustomLogCallback = callback;
+    g_CustomLogCallbackUserData = user_data;
 }
