@@ -59,6 +59,10 @@ b2Body::b2Body(const b2BodyDef* bd, b2World* world)
 	m_xf.p = bd->position;
 	m_xf.q.Set(bd->angle);
 
+	// Init to same as m_xf
+	m_prevXf.p = m_xf.p;
+	m_prevXf.q.Set(bd->angle);
+
 	m_sweep.localCenter.SetZero();
 	m_sweep.c0 = m_xf.p;
 	m_sweep.c = m_xf.p;

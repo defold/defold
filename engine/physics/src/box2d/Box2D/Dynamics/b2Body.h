@@ -383,6 +383,9 @@ public:
     /// Get the total force
     const b2Vec2& GetForce() const;
 
+    // previous body transform TODO out in getter?
+    b2Transform m_prevXf;
+
 private:
 
 	friend class b2World;

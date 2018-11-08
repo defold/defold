@@ -215,8 +215,14 @@ namespace dmPhysics
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context);
 
+    static float g_DtAcum = 0.0;
+    static float EPSILON = 0.0001; // 0.1ms
+
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
+        static float target_dt = 1.0/15.0;
+        g_DtAcum += step_context.m_DT;
+
         float dt = step_context.m_DT;
         HContext2D context = world->m_Context;
         float scale = context->m_Scale;
@@ -254,13 +260,17 @@ namespace dmPhysics
                     {
                         body->SetSleepingAllowed(true);
                     }
+
+                    // if (g_DtAcum >= target_dt - EPSILON)
+                        // body->m_prevXf.Set(body->GetPosition(), body->GetAngle());
                 }
             }
         }
         {
             DM_PROFILE(Physics, "StepSimulation");
+
             world->m_ContactListener.SetStepWorldContext(&step_context);
-            world->m_World.Step(dt, 10, 10);
+
             float inv_scale = world->m_Context->m_InvScale;
             // Update transforms of dynamic bodies
             if (world->m_SetWorldTransformCallback)
@@ -270,11 +280,33 @@ namespace dmPhysics
                     if (body->GetType() == b2_dynamicBody && body->IsActive())
                     {
                         Vectormath::Aos::Point3 position;
-                        FromB2(body->GetPosition(), position, inv_scale);
+
+                        float alpha = g_DtAcum / target_dt;
+                        dmLogWarning("alpha: %f", alpha);
+                        b2Vec2 interpolated_pos = alpha * body->GetPosition() + (1.0 - alpha) * body->m_prevXf.p;
+
+                        FromB2(interpolated_pos, position, inv_scale);
                         Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
                         (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
+
+                        if (g_DtAcum >= target_dt - EPSILON)
+                            body->m_prevXf.Set(body->GetPosition(), body->GetAngle());
                     }
                 }
+            }
+
+            // dmLogWarning("================")
+            // dmLogWarning("g_DtAcum: %f", g_DtAcum);
+            // dmLogWarning("target_dt: %f", target_dt);
+            while (g_DtAcum >= target_dt - EPSILON)
+            {
+                // dmLogWarning("* g_DtAcum: %f", g_DtAcum);
+                // dmLogWarning("* target_dt: %f", target_dt);
+                dt = target_dt;
+                world->m_World.Step(dt, 10, 10);
+                g_DtAcum -= target_dt;
+                // dmLogWarning("- g_DtAcum: %f", g_DtAcum);
+                // dmLogWarning("- target_dt: %f", target_dt);
             }
         }
         // Perform requested ray casts
