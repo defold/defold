@@ -18,6 +18,7 @@
    [editor.welcome :as welcome]
    [service.log :as log])
   (:import
+   [com.defold.editor Shutdown]
    [java.io IOException]
    [java.util Arrays]
    [javax.imageio ImageIO]))
@@ -68,7 +69,7 @@
 (defn- select-project-from-welcome
   [namespace-loader prefs dashboard-client update-context]
   (ui/run-later
-    (welcome/show-welcome-dialog! prefs update-context
+    (welcome/show-welcome-dialog! prefs dashboard-client update-context
                                   (fn [project newly-created?]
                                     (open-project-with-progress-dialog namespace-loader prefs project dashboard-client update-context newly-created?)))))
 
@@ -125,16 +126,10 @@
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
-        get-analytics-uid-from-prefs #(prefs/get-prefs prefs "analytics.uid" nil)
         dashboard-client (login/make-dashboard-client prefs)
         update-context (:update-context (updater/start!))]
-    (when (analytics/enabled?)
-      (analytics/set-uid! (get-analytics-uid-from-prefs))
-      (prefs/add-listener! prefs
-                           (fn [prefs-key]
-                             (when (= "analytics.uid" prefs-key)
-                               (let [uid (get-analytics-uid-from-prefs)]
-                                 (analytics/set-uid! uid))))))
+    (analytics/start! "http://localhost:8080" (login/signed-in? dashboard-client))
+    (Shutdown/addShutdownAction analytics/stop!)
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
         (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client update-context false)

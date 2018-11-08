@@ -7,7 +7,7 @@
   (:import (clojure.lang PersistentQueue)
            (com.defold.editor Editor)
            (java.io File IOException)
-           (java.net URL HttpURLConnection)
+           (java.net HttpURLConnection MalformedURLException URL)
            (java.nio.charset StandardCharsets)
            (java.util UUID)))
 
@@ -17,7 +17,7 @@
 (defonce ^:private cid-regex #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 (defonce ^:private config-atom (atom nil))
 (defonce ^:private event-queue-atom (atom PersistentQueue/EMPTY))
-(defonce ^:private analytics-url "http://localhost"  #_"http://www.google-analytics.com/batch")
+(defonce ^:private payload-content-type "application/x-www-form-urlencoded; charset=UTF-8")
 (defonce ^:private send-interval 300)
 (defonce ^:private uid-regex #"[0-9A-F]{16}")
 (defonce ^:private worker-atom (atom nil))
@@ -25,6 +25,18 @@
 ;; -----------------------------------------------------------------------------
 ;; Validation
 ;; -----------------------------------------------------------------------------
+
+(defn- valid-analytics-url? [value]
+  (and (string? value)
+       (try
+         (let [url (URL. value)]
+           (and (nil? (.getQuery url))
+                (nil? (.getRef url))
+                (let [protocol (.getProtocol url)]
+                  (or (= "http" protocol)
+                      (= "https" protocol)))))
+         (catch MalformedURLException _
+           false))))
 
 (defn- valid-cid? [value]
   (and (string? value)
@@ -44,7 +56,7 @@
 
 (def ^:private valid-event?
   (every-pred map?
-              not-empty
+              (comp (every-pred string? not-empty) :t)
               (partial every?
                        (every-pred (comp keyword? key)
                                    (comp string? val)
@@ -102,10 +114,11 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- batch->payload
-  ^bytes [batch {:keys [cid uid] :as config}]
+  ^bytes [batch {:keys [cid uid] :as _config}]
   {:pre [(vector? batch)
          (not-empty batch)
-         (valid-config? config)]}
+         (valid-cid? cid)
+         (or (nil? uid) (valid-uid? uid))]}
   (let [common-pairs (cond-> ["v=1" "tid=UA-83690-7" (str "cid=" cid)]
                              (some? uid) (conj (str "uid=" uid)))
         lines (map (fn [event]
@@ -131,12 +144,15 @@
       (.write output-stream payload))
     (.getResponseCode connection)))
 
-(defn- send-payload! [^bytes payload]
+(defn- ok-response-code? [^long response-code]
+  (<= 200 response-code 299))
+
+(defn- send-payload! [analytics-url ^bytes payload]
   (try
-    (= 200 (post! analytics-url "application/x-www-form-urlencoded; charset=UTF-8" payload))
+    (ok-response-code? (post! analytics-url payload-content-type payload))
     (catch IOException _
       ;; NOTE: We don't log on errors as we don't have backoff inplace.
-      ;; Same for code != 200 above.
+      ;; Same for non-ok response code.
       false)))
 
 (defn- pop-count [queue ^long count]
@@ -147,23 +163,23 @@
       (recur (dec remaining-count)
              (pop shortened-queue)))))
 
-(defn- send-one-batch! []
+(defn- send-one-batch! [analytics-url]
   (when-some [config @config-atom]
     (let [event-queue @event-queue-atom
           batch (into [] (take batch-size) event-queue)]
-      (when (and ()
-                 (seq batch)
-                 (send-payload! (batch->payload batch config)))
+      (when (and (seq batch)
+                 (send-payload! analytics-url (batch->payload batch config)))
         (swap! event-queue-atom pop-count (count batch))))))
 
-(defn- start-worker! []
+(defn- start-worker! [analytics-url]
   (let [stopped-atom (atom false)
         thread (future
                  (try
                    (loop []
                      (when-not @stopped-atom
                        (Thread/sleep send-interval)
-                       (send-one-batch!)))
+                       (send-one-batch! analytics-url)
+                       (recur)))
                    (catch Throwable error
                      (log/error :msg "Abnormal worker thread termination" :exception error))))]
     {:stopped-atom stopped-atom
@@ -186,22 +202,23 @@
 ;; Public interface
 ;; -----------------------------------------------------------------------------
 
-(defn start! [signed-in?]
+(defn start! [^String analytics-url signed-in?]
+  {:pre [(valid-analytics-url? analytics-url)]}
   (when (some? (sys/defold-version))
     (reset! config-atom (read-config! signed-in?))
     (swap! worker-atom
            (fn [started-worker]
              (when (some? started-worker)
                (shutdown-worker! started-worker))
-             (start-worker!)))))
+             (start-worker! analytics-url)))))
 
 (defn stop! []
   (swap! worker-atom shutdown-worker!))
 
 (defn enabled? []
-  (some? @config-atom))
+  (some? @worker-atom))
 
-(defn set-uid! [uid]
+(defn set-uid! [^String uid]
   {:pre [(or (nil? uid) (valid-uid? uid))]}
   (swap! config-atom
          (fn [config]
@@ -211,17 +228,22 @@
                  (write-config! updated-config))
                updated-config)))))
 
-(defn track-event! [category action label]
-  (append-event! {:t "event"
-                  :ec category
-                  :ea action
-                  :el label}))
+(defn track-event!
+  ([^String category ^String action]
+   (append-event! {:t "event"
+                   :ec category
+                   :ea action}))
+  ([^String category ^String action ^String label]
+   (append-event! {:t "event"
+                   :ec category
+                   :ea action
+                   :el label})))
 
-(defn track-exception! [exception]
+(defn track-exception! [^Throwable exception]
   (append-event! {:t "exception"
                   :exd (.getSimpleName (class exception))}))
 
-(defn track-screen! [screen-name]
+(defn track-screen! [^String screen-name]
   (append-event! {:t "screenview"
                   :an "defold"
                   :av (sys/defold-version)
