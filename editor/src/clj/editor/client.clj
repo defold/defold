@@ -49,6 +49,11 @@
                       {:server-url server-url})))
     server-url))
 
+(def ^:private stage-server-host-regex #"^[^.]*stage[^.]*") ; Is the word "stage" somewhere before the first dot in the host name?
+
+(defn using-stage-server? [prefs]
+  (.find (re-matcher stage-server-host-regex (.getHost (server-url prefs)))))
+
 (defn- web-resource
   ^WebResource [{:keys [^Client client prefs] :as _client} paths]
   (reduce (fn [^WebResource resource path]
@@ -126,7 +131,7 @@
           (do
             (log/error :exception error)
             {:type :bad-response
-             :message (.getReasonPhrase status-info)
+             :reason (.getReasonPhrase status-info)
              :code status-code}))))))
 
 (defn forgot-password [client ^String email]
@@ -156,10 +161,24 @@
              :code status-code}))))))
 
 (defn exchange-info [client token]
-  (let [exchange-info (cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
-    (if (= (:type exchange-info) :SIGNUP)
-      (throw (Exception. "This account is not associated with defold.com yet. Please go to defold.com to signup"))
-      exchange-info)))
+  (assert (string? (not-empty token)))
+  (try
+    (let [exchange-info (cr-get client ["login" "oauth" "exchange" token] Protocol$TokenExchangeInfo)]
+      (case (:type exchange-info)
+        :login {:type :success
+                :exchange-info exchange-info}
+        :signup {:type :signup-required}))
+    (catch ClientHandlerException error
+      ;; This can happen if we do not have network access.
+      (log/error :exception error)
+      {:type :connection-error
+       :reason (.getMessage error)})
+    (catch UniformInterfaceException error
+      (let [status-info (.getStatusInfo (.getResponse error))]
+        (log/error :exception error)
+        {:type :bad-response
+         :reason (.getReasonPhrase status-info)
+         :code (.getStatusCode status-info)}))))
 
 (defn user-info [client]
   (when-let [email (prefs/get-prefs (:prefs client) "email" nil)]
