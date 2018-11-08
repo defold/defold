@@ -1,6 +1,7 @@
 (ns editor.login
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
+            [editor.analytics :as analytics]
             [editor.client :as client]
             [editor.error-reporting :as error-reporting]
             [editor.prefs :as prefs]
@@ -10,6 +11,7 @@
             [service.log :as log]
             [util.thread-util :refer [preset!]])
   (:import (clojure.lang Atom)
+           (com.sun.jersey.api.client UniformInterfaceException)
            (fi.iki.elonen NanoHTTPD NanoHTTPD$IHTTPSession NanoHTTPD$Response NanoHTTPD$Response$Status)
            (java.net URLEncoder)
            (java.util.prefs Preferences)
@@ -22,7 +24,6 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^:private last-used-email-prefs-key "login-last-used-email")
-(defonce ^:private create-account-url "https://www.defold.com/account/signup/")
 
 (defn- logged-in? [prefs]
   (if (nil? (prefs/get-prefs prefs "email" nil))
@@ -31,36 +32,94 @@
       (try
         (client/user-info client)
         true
+        (catch UniformInterfaceException e
+          ;; A "403 Forbidden" response is normal if the user is not logged in.
+          ;; No need to log it.
+          (let [status-info (.getStatusInfo (.getResponse e))
+                status-code (.getStatusCode status-info)]
+            (when (not= 403 status-code)
+              (log/warn :exception e)))
+          false)
         (catch Exception e
           (log/warn :exception e)
           false)))))
 
+(defn- make-create-account-url
+  ^String [prefs]
+  (if (client/using-stage-server? prefs)
+    "https://stage.defold.com/account/signup"
+    "https://www.defold.com/account/signup"))
+
 (defn- make-redirect-to-url
-  [^NanoHTTPD server]
-  (format "http://localhost:%d/{token}/{action}" (.getListeningPort server)))
+  ^String [^NanoHTTPD server]
+  (format "http://localhost:%d/action/{action}/{token}" (.getListeningPort server)))
 
-(defn- parse-url [url]
-  (when-let [[_ token action] (re-find #"/(.+?)/(.+?)" url)]
-    [token action]))
+(defn- make-sign-in-page-url
+  ^String [prefs ^NanoHTTPD server]
+  (str (.resolve (client/server-url prefs)
+                 (str "/login/oauth/google?redirect_to="
+                      (URLEncoder/encode (make-redirect-to-url server))))))
 
-(def ^:private login-successful-html
-  (slurp (io/resource "login-successful.html")))
+(defonce ^:private login-token-regex #"^\/action\/([^\/]+)\/([0-9a-f]+)")
+
+(defn- parse-login-token
+  ^String [^String session-uri]
+  (when-some [[_ action token] (re-find login-token-regex session-uri)]
+    (when (and (= "login" action) (not-empty token))
+      token)))
+
+(defonce ^:private not-found-response (NanoHTTPD$Response. NanoHTTPD$Response$Status/NOT_FOUND NanoHTTPD/MIME_PLAINTEXT (.getDescription NanoHTTPD$Response$Status/NOT_FOUND)))
+
+(defn- html-string-response
+  ^NanoHTTPD$Response [^String html]
+  (NanoHTTPD$Response. html))
+
+(def ^:private signup-required-html-template
+  (slurp (io/resource "login/browser/signup-required.html")))
+
+(defn- make-signup-required-html
+  ^String [prefs]
+  (string/replace signup-required-html-template
+                  "{{create-account-url}}"
+                  (make-create-account-url prefs)))
+
+(def ^:private make-signup-required-response (comp html-string-response make-signup-required-html))
+
+(def ^:private error-html-template
+  (slurp (io/resource "login/browser/error.html")))
+
+(defn- make-error-html
+  ^String [^String error-message]
+  (string/replace error-html-template
+                  "{{error-message}}"
+                  error-message))
+
+(def ^:private make-error-response (comp html-string-response make-error-html))
+
+(def ^:private static-resources
+  {"/style.css" ["text/css"
+                 "login/browser/style.css"]
+   "/login-successful.html" ["text/html"
+                             "login/browser/login-successful.html"]})
+
+(defn- static-resource-response
+  ^NanoHTTPD$Response [session-uri]
+  (when-some [[^String mime-type path] (static-resources session-uri)]
+    (NanoHTTPD$Response. NanoHTTPD$Response$Status/OK mime-type (io/input-stream (io/resource path)))))
 
 (defn- make-server
-  ^NanoHTTPD [client {:keys [on-success on-error]}]
+  ^NanoHTTPD [client exchange-response-fn]
   (doto (proxy [NanoHTTPD] [0]
           (serve [^NanoHTTPD$IHTTPSession session]
-            (if-let [[token _action] (parse-url (.getUri session))]
-              (try
-                (let [exchange-info (client/exchange-info client token)]
-                  (on-success exchange-info)
-                  (NanoHTTPD$Response. login-successful-html))
-                (catch Exception e
-                  (log/error :exception e)
-                  (on-error e)
-                  (NanoHTTPD$Response. (format "<h1>Login failed: %s</h1>" (.getMessage e)))))
-              ;; Handle other requests, for example /favicon.ico with a 404.
-              (NanoHTTPD$Response. (NanoHTTPD$Response$Status/NOT_FOUND) NanoHTTPD/MIME_PLAINTEXT "Not found"))))
+            (try
+              (let [session-uri (.getUri session)]
+                (if-some [login-token (parse-login-token session-uri)]
+                  (exchange-response-fn (client/exchange-info client login-token))
+                  (or (static-resource-response session-uri)
+                      not-found-response)))
+              (catch Throwable error
+                (exchange-response-fn {:type :exception
+                                       :exception error})))))
     (.start)))
 
 (defn- set-prefs-from-successful-login! [prefs {:keys [auth-token email first-name last-name tracking-id]}]
@@ -73,13 +132,7 @@
   (prefs/set-prefs prefs "first-name" first-name)
   (prefs/set-prefs prefs "last-name" last-name)
   (prefs/set-prefs prefs "token" auth-token)
-  (prefs/set-prefs prefs "analytics.uid" tracking-id))
-
-(defn login-page-url
-  ^String [prefs ^NanoHTTPD server]
-  (str (.resolve (client/server-url prefs)
-                 (str "/login/oauth/google?redirect_to="
-                      (URLEncoder/encode (make-redirect-to-url server))))))
+  (analytics/set-uid! tracking-id))
 
 (defn- stop-server-now! [^NanoHTTPD server]
   (.stop server))
@@ -131,13 +184,19 @@
       (set-sign-in-state! sign-in-state-property :not-signed-in)
       false)))
 
-(defn- connection-error-value [{:keys [reason type]}]
+(defn- connection-error-message
+  ^String [{:keys [reason type]}]
   (assert (= :connection-error type))
-  (error-values/error-fatal (str reason "\nPlease ensure you are connected to the Internet")))
+  (str reason "\nPlease ensure you are connected to the Internet"))
 
-(defn- bad-response-error-value [{:keys [code reason type]}]
+(def ^:private connection-error-value (comp error-values/error-fatal connection-error-message))
+
+(defn- bad-response-error-message
+  ^String [{:keys [code reason type]}]
   (assert (= :bad-response type))
-  (error-values/error-fatal (str "Communication Error: " code " " reason "\nPlease ensure a firewall is not interfering with the connection")))
+  (str "Communication Error: " code " " reason "\nPlease ensure a firewall is not interfering with the connection"))
+
+(def ^:private bad-response-error-value (comp error-values/error-fatal bad-response-error-message))
 
 (defn- begin-sign-in-with-email!
   "Sign in with E-mail and password on a background thread. The request is
@@ -221,23 +280,47 @@
   depending on the response. Returns the started server instance."
   [{:keys [prefs sign-in-response-server-atom sign-in-state-property] :as _dashboard-client}]
   (let [client (client/make-client prefs)
-        server-opts {:on-success (fn [exchange-info]
-                                   (client/destroy-client! client)
-                                   (ui/run-later
-                                     (stop-server-soon! (preset! sign-in-response-server-atom nil))
-                                     (set-prefs-from-successful-login! prefs exchange-info)
-                                     (set-sign-in-state! sign-in-state-property :signed-in)))
-                     :on-error (fn [exception]
-                                 (client/destroy-client! client)
+        exchange-response-fn (fn [result]
+                               ;; Take ownership of the server. We will shut it
+                               ;; down after the browser has finished. We clear
+                               ;; the atom so that stop-server-now! does not
+                               ;; prematurely stop the server if the user leaves
+                               ;; the :browser-open state.
+                               (let [sign-in-response-server (preset! sign-in-response-server-atom nil)]
+                                 ;; React to the result on the main thread.
                                  (ui/run-later
-                                   (stop-server-soon! (preset! sign-in-response-server-atom nil))
-                                   (set-sign-in-state! sign-in-state-property :not-signed-in)
-                                   (error-reporting/report-exception! exception)))}]
+                                   (client/destroy-client! client)
+                                   (stop-server-soon! sign-in-response-server)
+                                   (if (= :success (:type result))
+                                     (let [exchange-info (:exchange-info result)]
+                                       (set-prefs-from-successful-login! prefs exchange-info)
+                                       (set-sign-in-state! sign-in-state-property :signed-in))
+                                     (do
+                                       (set-sign-in-state! sign-in-state-property :not-signed-in)
+                                       (when (= :exception (:type result))
+                                         (error-reporting/report-exception! (:exception result))))))
+
+                                 ;; Return a suitable HTML response to the browser.
+                                 (case (:type result)
+                                   :bad-response
+                                   (make-error-response (bad-response-error-message result))
+
+                                   :connection-error
+                                   (make-error-response (connection-error-message result))
+
+                                   :exception
+                                   (make-error-response (.getMessage ^Throwable (:exception result)))
+
+                                   :signup-required
+                                   (make-signup-required-response prefs)
+
+                                   :success
+                                   (static-resource-response "/login-successful.html"))))]
     (swap! sign-in-response-server-atom
            (fn [old-sign-in-response-server]
              (when (some? old-sign-in-response-server)
                (stop-server-now! old-sign-in-response-server))
-             (make-server client server-opts)))))
+             (make-server client exchange-response-fn)))))
 
 (defn- begin-sign-in-with-browser!
   "Open a sign-in page in the system-configured web browser. Start a server that
@@ -245,7 +328,7 @@
   [{:keys [prefs sign-in-response-server-atom sign-in-state-property] :as dashboard-client}]
   (assert (= :not-signed-in (sign-in-state sign-in-state-property)))
   (let [sign-in-response-server (start-sign-in-response-server! dashboard-client)
-        sign-in-page-url (login-page-url prefs sign-in-response-server)]
+        sign-in-page-url (make-sign-in-page-url prefs sign-in-response-server)]
     (set-sign-in-state! sign-in-state-property :browser-open)
     (ui/open-url sign-in-page-url)
 
@@ -268,7 +351,7 @@
   [{:keys [prefs sign-in-response-server-atom sign-in-state-property] :as _dashboard-client} ^Clipboard clipboard]
   (assert (= :browser-open (sign-in-state sign-in-state-property)))
   (when-some [sign-in-response-server @sign-in-response-server-atom]
-    (let [sign-in-page-url (login-page-url prefs sign-in-response-server)]
+    (let [sign-in-page-url (make-sign-in-page-url prefs sign-in-response-server)]
       (.setContent clipboard (doto (ClipboardContent.)
                                (.putString sign-in-page-url)
                                (.putUrl sign-in-page-url))))))
@@ -323,7 +406,7 @@
         (ui/on-action! submit-button on-submit!)
         (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
         (ui/on-action! forgot-password-button (fn [_] (set-sign-in-state! sign-in-state-property :forgot-password)))
-        (ui/on-action! create-account-button (fn [_] (ui/open-url create-account-url))))
+        (ui/on-action! create-account-button (fn [_] (ui/open-url (make-create-account-url prefs)))))
 
       ;; Display network errors as a banner.
       (ui/bind-presence! error-banner-label (b/some? network-error-property))
@@ -365,12 +448,12 @@
                      (b/some? email-validation-error-property)
                      (b/some? password-validation-error-property))))))
 
-(defn- configure-state-not-signed-in! [state-not-signed-in {:keys [sign-in-state-property] :as dashboard-client}]
+(defn- configure-state-not-signed-in! [state-not-signed-in {:keys [prefs sign-in-state-property] :as dashboard-client}]
   (ui/bind-presence! state-not-signed-in (b/= :not-signed-in sign-in-state-property))
   (ui/with-controls state-not-signed-in [create-account-button sign-in-with-browser-button sign-in-with-email-button]
     (ui/on-action! sign-in-with-browser-button (fn [_] (begin-sign-in-with-browser! dashboard-client)))
     (ui/on-action! sign-in-with-email-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))
-    (ui/on-action! create-account-button (fn [_] (ui/open-url create-account-url)))))
+    (ui/on-action! create-account-button (fn [_] (ui/open-url (make-create-account-url prefs))))))
 
 (defn- configure-state-browser-open! [state-browser-open {:keys [sign-in-state-property] :as dashboard-client}]
   (ui/bind-presence! state-browser-open (b/= :browser-open sign-in-state-property))
@@ -460,6 +543,16 @@
       (.removeListener sign-in-state-property sign-in-state-listener)
       signed-in?)))
 
+(defn signed-in?
+  "Returns true if the dashboard client believes the user is signed in to the
+  Defold dashboard. Does not actually verify that the sign in is still valid
+  with the server, but should be usable directly after construction or after a
+  call to sign-in!"
+  [{:keys [sign-in-state-property] :as _dashboard-client}]
+  (case (sign-in-state sign-in-state-property)
+    :signed-in true
+    false))
+
 (defn sign-in!
   "Ensures the user is signed in to the Defold dashboard. If the user is already
   signed in, return true. If not, opens a Sign In dialog in a nested event loop.
@@ -473,11 +566,11 @@
 (defn sign-out!
   "Sign out the active user from the Defold dashboard."
   [{:keys [prefs sign-in-state-property] :as _dashboard-client}]
+  (analytics/set-uid! nil)
   (prefs/set-prefs prefs "email" nil)
   (prefs/set-prefs prefs "first-name" nil)
   (prefs/set-prefs prefs "last-name" nil)
   (prefs/set-prefs prefs "token" nil)
-  (prefs/set-prefs prefs "analytics.uid" nil)
   (set-sign-in-state! sign-in-state-property :not-signed-in))
 
 (defn can-sign-out? [{:keys [prefs] :as _dashboard-client}]
