@@ -24,11 +24,13 @@ platforms:
         context:
             excludeLibs: ["libengine", "libengine_service"]
             libs: ["libengine_release.lib", "libengine_service_null.lib"]
+            linkFlags: ["-Wl,/subsystem:windows"]
 
     x86_64-win32:
         context:
             excludeLibs: ["libengine", "libengine_service"]
             libs: ["libengine_release.lib", "libengine_service_null.lib"]
+            linkFlags: ["-Wl,/subsystem:windows"]
 
     armv7-android:
         context:
