@@ -100,10 +100,7 @@ static void TestLogCaptureCallback(void* user_data, const char* log)
 {
     dmArray<char>* log_output = (dmArray<char>*)user_data;
     uint32_t len = (uint32_t)strlen(log);
-    if (log_output->Capacity() < log_output->Size() + len + 1)
-    {
-        log_output->SetCapacity(log_output->Size() + len + 1);
-    }
+    log_output->SetCapacity(log_output->Size() + len + 1);
     log_output->PushArray(log, len);
 }
 
