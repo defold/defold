@@ -640,9 +640,9 @@
     (.setVisible progress-overlay false)))
 
 (defn show-welcome-dialog!
-  ([prefs update-context open-project-fn]
-   (show-welcome-dialog! prefs update-context open-project-fn nil))
-  ([prefs update-context open-project-fn opts]
+  ([prefs dashboard-client update-context open-project-fn]
+   (show-welcome-dialog! prefs dashboard-client update-context open-project-fn nil))
+  ([prefs dashboard-client update-context open-project-fn opts]
    (let [[welcome-settings
           welcome-settings-load-error] (try
                                          [(load-welcome-settings "welcome/welcome.edn") nil]
@@ -658,7 +658,7 @@
                                           (when (fs/existing-file? project-file)
                                             (set-last-opened-project-directory! prefs (.getParentFile project-file))
                                             (ui/close! stage)
-                                            (analytics/track-event! "welcome" "open-project" "")
+                                            (analytics/track-event! "welcome" "open-project")
                                             ;; NOTE: Old comment copied from old open-welcome function in boot.clj
                                             ;; We load the project in the same class-loader as welcome is loaded from.
                                             ;; In other words, we can't reuse the welcome page and it has to be closed.
@@ -671,7 +671,7 @@
                                 progress-bar (show-progress! root (str "Downloading " project-title) "Cancel Download" #(reset! cancelled-atom true))
                                 progress-monitor (git/make-clone-monitor progress-bar cancelled-atom)
                                 credentials (git/credentials prefs)]
-                            (analytics/track-event! "welcome" "clone-project" "")
+                            (analytics/track-event! "welcome" "clone-project")
                             (future
                               (try
                                 (git/clone! credentials repository-url dest-directory progress-monitor)
@@ -739,7 +739,6 @@
 
                                           :else
                                           (error-reporting/report-exception! error))))))))
-         dashboard-client (login/make-dashboard-client prefs)
          left-pane (.lookup root "#left-pane")
          pane-buttons-container (.lookup left-pane "#pane-buttons-container")
          sign-out-button (.lookup left-pane "#sign-out-button")
@@ -797,7 +796,7 @@
                                   (when (and (.isShortcutDown key-event)
                                              (= "r" (.getText key-event)))
                                     (ui/close! stage)
-                                    (show-welcome-dialog! prefs update-context open-project-fn
+                                    (show-welcome-dialog! prefs dashboard-client update-context open-project-fn
                                                           {:x (.getX stage)
                                                            :y (.getY stage)
                                                            :pane-index (first (keep-indexed (fn [pane-index pane-button]
@@ -833,6 +832,6 @@
                                              (.positionCaret 0))]))))
 
      ;; Show the dialog.
-     (analytics/track-event! "welcome" "show-welcome" "")
+     (analytics/track-event! "welcome" "show-welcome")
      (.setScene stage scene)
      (ui/show! stage))))
