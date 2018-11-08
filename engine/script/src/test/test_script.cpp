@@ -39,7 +39,7 @@ protected:
     {
         char* read_ptr = str;
         char* write_ptr = str;
-        const char* address_prefix = " --[[0x";
+        const char* address_prefix = " --[[0";
         size_t address_prefix_length = strlen(address_prefix);
         char* addr_ptr = strstr(str, address_prefix);
         while (addr_ptr != 0x0)
@@ -50,7 +50,12 @@ protected:
             {
                 *write_ptr++ = *read_ptr++;
             }
-            read_ptr = strstr(read_ptr, "]]");
+            char* address_end = strstr(read_ptr, "]]");
+            if (address_end && (address_end - read_ptr) <= 16)
+            {
+                // Only skip if it was actually short enough to be an address
+                read_ptr = address_end;
+            }
             addr_ptr = strstr(read_ptr, address_prefix);
         }
         strcpy(write_ptr, read_ptr);
@@ -124,9 +129,9 @@ TEST_F(ScriptTest, TestPPrint)
         "DEBUG:SCRIPT: 123\n"
         "DEBUG:SCRIPT: smore\n"
         "DEBUG:SCRIPT: \n"
-        "{ --[[0x]]\n"
-        "  1 = { --[[0x]]\n"
-        "    y = { --[[0x]]\n"
+        "{ --[[0]]\n"
+        "  1 = { --[[0]]\n"
+        "    y = { --[[0]]\n"
         "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),\n"
         "      q = vmath.quat(0, 0, 0, 1),\n"
         "      n = vmath.vector3(0, 0, 0)\n"
@@ -135,13 +140,13 @@ TEST_F(ScriptTest, TestPPrint)
         "    z = 3\n"
         "  },\n"
         "  2 = \"hello\",\n"
-        "  3 = { } --[[0x]],\n"
+        "  3 = { } --[[0]],\n"
         "  foo = 123\n"
         "}\n"
         "DEBUG:SCRIPT: \n"
-        "{ --[[0x]]\n"
-        "  1 = { --[[0x]]\n"
-        "    y = { --[[0x]]\n"
+        "{ --[[0]]\n"
+        "  1 = { --[[0]]\n"
+        "    y = { --[[0]]\n"
         "      m = vmath.matrix4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),\n"
         "      q = vmath.quat(0, 0, 0, 1),\n"
         "      n = vmath.vector3(0, 0, 0)\n"
@@ -150,11 +155,11 @@ TEST_F(ScriptTest, TestPPrint)
         "    z = 3\n"
         "  },\n"
         "  2 = \"hello\",\n"
-        "  3 = { } --[[0x]],\n"
+        "  3 = { } --[[0]],\n"
         "  foo = 123\n"
         "},\n"
         "more,\n"
-        "{ --[[0x]]\n"
+        "{ --[[0]]\n"
         "  b = 2,\n"
         "  a = 1,\n"
         "  c = 3\n"
@@ -178,10 +183,10 @@ TEST_F(ScriptTest, TestCircularRefPPrint)
     const char* ExpectedOutput = 
         "DEBUG:SCRIPT: testing pprint with circular ref\n"
         "DEBUG:SCRIPT: \n"
-        "{ --[[0x]]\n"
+        "{ --[[0]]\n"
         "  foo = \"an old man was telling stories of circular references.\",\n"
-        "  gnu = { --[[0x]]\n"
-        "    gnat = { ... } --[[0x]],\n"
+        "  gnu = { --[[0]]\n"
+        "    gnat = { ... } --[[0]],\n"
         "    bar = \"It was a dark and stormy night,\"\n"
         "  }\n"
         "}\n";
