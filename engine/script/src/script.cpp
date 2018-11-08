@@ -513,6 +513,7 @@ namespace dmScript
             {
                 const char* value_str = PushValueAsString(L, s);
                 if (value_str = 0x0)
+                if (value_str == 0x0)
                 {
                     return luaL_error(L, LUA_QL("tostring") " must return a string to " LUA_QL("print"));
                 }
