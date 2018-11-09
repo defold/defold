@@ -10,7 +10,8 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [editor.view :as view]
-            [editor.util :as util])
+            [editor.util :as util]
+            [editor.settings-core :as settings-core])
   (:import [java.util Collection]
            [javafx.scene Parent Node]
            [javafx.scene.input KeyCode ContextMenuEvent]
@@ -20,7 +21,7 @@
            [javafx.beans.value ObservableNumberValue]
            [javafx.beans.binding Bindings]
            [javafx.scene.layout GridPane HBox VBox Priority ColumnConstraints]
-           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode]
+           [javafx.scene.control Control Cell ListView$EditEvent TableView TableColumn TableColumn$CellDataFeatures TableColumn$CellEditEvent ScrollPane Label TextField ComboBox CheckBox Button ContextMenu MenuItem SelectionMode ContentDisplay]
            [com.defold.control ListView ListCell ListCellSkinWithBehavior TableCell TableCellBehavior TableCellSkinWithBehavior]
            [com.sun.javafx.scene.control.behavior ListCellBehavior]))
 
@@ -52,6 +53,11 @@
 (def ^:private remove-icon "icons/32/Icons_M_11_minus.png")
 (def ^:private open-icon "icons/32/Icons_S_14_linkarrow.png")
 (def ^:private reset-icon "icons/32/Icons_S_02_Reset.png")
+
+(def ^:private severity-field-style-map
+  {:fatal "field-error"
+   :warning "field-warning"
+   :info "field-info"})
 
 (defmulti create-field-control (fn [field-info field-ops ctxt] (:type field-info)))
 
@@ -833,7 +839,6 @@
                                    (let [selected-field-values (@content selected-index)]
                                      (update-fields (ui/user-data grid ::ui-update-fns)
                                                     (build-form-values selected-field-values)
-                                                    #{}
                                                     #{})))
                                  (do
                                    (.setDisable grid true)
@@ -905,6 +910,11 @@
 (defn- field-label-valign [field-info]
   (get {:table VPos/TOP :list VPos/TOP :2panel VPos/TOP} (:type field-info) VPos/CENTER))
 
+(defn- set-visible-and-managed! [ui-elements value]
+  (doseq [ui-element ui-elements]
+    (ui/visible! ui-element value)
+    (ui/managed! ui-element value)))
+
 (defn- create-field-grid-row [field-info {:keys [set clear] :as field-ops} ctxt]
   (let [path (:path field-info)
         label (create-field-label (:label field-info))
@@ -928,22 +938,25 @@
                              (do
                                (ui/children! label-box [label])
                                (GridPane/setConstraints label 0 0))))
-                           
+
         update-ui-fn (fn [update-data]
-                       (when (:deprecated? update-data)
-                         (ui/add-style! control "field-error"))
-                       (if (contains? update-data :enabled?)
-                         (let [enabled? (:enabled? update-data)]
-                           (ui/enable! label-box enabled?)
-                           (ui/enable! control enabled?))
-                         (let [{:keys [value source]} update-data
-                               value (condp = source
-                                       :explicit value
-                                       :default (form/field-default field-info)
-                                       nil)
-                               overridden? (and (form/optional-field? field-info) (= source :explicit))]
-                           ((:update api) value)
-                           (update-label-box overridden?))))]
+                       (let [{:keys [value source]} update-data
+                             value (condp = source
+                                     :explicit value
+                                     :default (form/field-default field-info)
+                                     nil)
+                             overridden? (and (form/optional-field? field-info) (= source :explicit))]
+                         ((:update api) value)
+                         (update-label-box overridden?))
+                       (when (:deprecated (:meta-setting update-data))
+                         (let [error (editor.settings/get-setting-error (:setting-value update-data) (:meta-setting update-data))
+                               severity (:severity error)]
+                           (ui/remove-styles! control (map val severity-field-style-map))
+                           (if (= nil error)
+                             (set-visible-and-managed! [label-box control] false)
+                             (do
+                               (set-visible-and-managed! [label-box control] true)
+                               (ui/add-style! control (severity-field-style-map severity)))))))]
 
     (GridPane/setFillWidth label-box true)
     (GridPane/setValignment label-box (field-label-valign field-info))
@@ -972,9 +985,9 @@
             (remove :hidden?)
             (map (fn [field-info] (create-field-grid-row field-info field-ops ctxt))))))))
 
-(defn- update-fields [updaters field-values disabled-paths deprecated-paths]
+(defn- update-fields [updaters field-values meta-settings]
   (doseq [[path updater] updaters]
-    (updater {:enabled? (not (contains? disabled-paths path)) :deprecated? (contains? deprecated-paths path) :deprecated-path (get deprecated-paths path)}))
+    (updater {:meta-setting (settings-core/get-meta-setting meta-settings path) :setting-value (get field-values path)}))
   (doseq [[path val] field-values]
     (when-let [updater (updaters path)]
       (updater {:value val :source :explicit})))
@@ -984,7 +997,7 @@
 
 (defn update-form [form form-data]
   (let [updaters (ui/user-data form ::update-ui-fns)]
-    (update-fields updaters (:values form-data) (:disabled-paths form-data) (:deprecated-paths form-data))
+    (update-fields updaters (:values form-data) (:meta-settings form-data))
     form))
 
 (defn- add-grid-row [^GridPane grid row row-data]
