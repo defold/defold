@@ -442,6 +442,25 @@ namespace dmProfileRender
         scope->m_Count += count;
     }
 
+    static void RemoveSortIndex(TIndex* sort_order, uint32_t count, TIndex remove_index)
+    {
+        const TIndex const* end_ptr = &sort_order[count];
+        TIndex* read_ptr = sort_order;
+        TIndex* write_ptr = read_ptr;
+        while (read_ptr != end_ptr)
+        {
+            TIndex i = *read_ptr++;
+            if (i < remove_index)
+            {
+                *write_ptr++ = i;
+            }
+            else if (i > remove_index)
+            {
+                *write_ptr++ = (i - 1);
+            }
+        }
+    }
+
     static void FreeScope(RenderProfile* render_profile, TIndex index)
     {
         ProfileFrame* frame = render_profile->m_BuildFrame;
@@ -461,18 +480,7 @@ namespace dmProfileRender
 
             *source_index_ptr = index;
         }
-        for (uint32_t i = 0; i < new_count; ++i)
-        {
-            if (render_profile->m_ScopeSortOrder[i] == index)
-            {
-                render_profile->m_ScopeSortOrder[i] = render_profile->m_ScopeSortOrder[new_count];
-            }
-            if (render_profile->m_ScopeSortOrder[i] > index)
-            {
-                --render_profile->m_ScopeSortOrder[i];
-            }
-            assert(render_profile->m_ScopeSortOrder[i] < new_count);
-        }
+        RemoveSortIndex(render_profile->m_ScopeSortOrder, new_count, index);
     }
 
     static SampleSum* GetOrCreateSampleSum(RenderProfile* render_profile, TNameHash sample_name_hash, TNameHash scope_name_hash)
@@ -571,18 +579,7 @@ namespace dmProfileRender
 
             *source_index_ptr = index;
         }
-        for (uint32_t i = 0; i < new_count; ++i)
-        {
-            if (render_profile->m_SampleSumSortOrder[i] == index)
-            {
-                render_profile->m_SampleSumSortOrder[i] = render_profile->m_SampleSumSortOrder[new_count];
-            }
-            if (render_profile->m_SampleSumSortOrder[i] > index)
-            {
-                --render_profile->m_SampleSumSortOrder[i];
-            }
-            assert(render_profile->m_SampleSumSortOrder[i] < new_count);
-        }
+        RemoveSortIndex(render_profile->m_SampleSumSortOrder, new_count, index);
     }
 
     static Counter* GetOrCreateCounter(RenderProfile* render_profile, TNameHash name_hash)
