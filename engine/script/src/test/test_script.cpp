@@ -51,7 +51,7 @@ protected:
                 *write_ptr++ = *read_ptr++;
             }
             char* address_end = strstr(read_ptr, "]]");
-            if (address_end && (address_end - read_ptr) <= 16)
+            if (address_end && (address_end - read_ptr) <= 18)
             {
                 // Only skip if it was actually short enough to be an address
                 read_ptr = address_end;
