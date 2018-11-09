@@ -111,20 +111,13 @@
   (-> (add-type-defaults (edn/read reader))
       (add-to-from-string)))
 
-(defn- make-meta-settings-for-unknown [meta-settings settings deprecated-paths]
+(defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))
         unknown-settings (remove known-settings (map :path settings))]
-    (map
-      (fn [setting-path]
-        (if (contains? deprecated-paths setting-path)
-          (let [deprecated-path (get deprecated-paths setting-path)]
-            {:path setting-path :type (:type deprecated-path) :help (:tooltip deprecated-path)})
-          {:path setting-path :type :string :help "unknown setting"}))
-      unknown-settings)))
-
+    (map (fn [setting-path] {:path setting-path :type :string :help "unknown setting"}) unknown-settings)))
 
 (defn add-meta-info-for-unknown-settings [meta-info settings]
-  (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings (:deprecated-paths meta-info)))))
+  (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings))))
 
 (defn make-meta-settings-map [meta-settings]
   (zipmap (map :path meta-settings) meta-settings))

@@ -106,43 +106,29 @@
    ["input" "gamepads"] [[:build-targets :dep-build-targets]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
-(g/defnk produce-build-targets [_node-id resource raw-settings custom-build-targets resource-settings dep-build-targets]
-  (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
-        deps-by-source (into {} (map
-                                 (fn [build-target]
-                                   (let [build-resource (:resource build-target)
-                                         source-resource (:resource build-resource)]
-                                     [source-resource build-resource]))
-                                 dep-build-targets))
-        path->built-resource-settings (into {} (keep (fn [resource-setting]
-                                                       (when (resource-setting-connections-template (:path resource-setting))
-                                                         [(:path resource-setting) (deps-by-source (:value resource-setting))]))
-                                                     resource-settings))]
-    [{:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-game-project
-      :user-data {:raw-settings raw-settings
-                  :path->built-resource-settings path->built-resource-settings}
-      :deps dep-build-targets}]))
-
-(defn- frame-cap-enabled? [form-data]
-  (and
-    (= false (form-view/get-form-setting-value form-data ["display" "vsync"] true))
-    (= false (form-view/get-form-setting-value form-data ["display" "variable_dt"] false))))
-
-(defn- variable-dt-enabled? [form-data]
-  (= false (form-view/get-form-setting-value form-data ["display" "vsync"] true)))
-
-
-(defn- append-disabled-paths [form-data]
-  (cond-> (assoc form-data :disabled-paths #{})
-
-          (not (frame-cap-enabled? form-data))
-          (update :disabled-paths conj ["display" "frame_cap"])
-
-          ;;(not (variable-dt-enabled? form-data))
-          ;;(update :disabled-paths conj ["display" "variable_dt"])))
-          ))
+(g/defnk produce-build-targets [_node-id resource raw-settings custom-build-targets resource-settings dep-build-targets setting-errors]
+  (g/precluding-errors
+    (g/error-aggregate (keep (fn [[_setting-path setting-error]]
+                               (when (g/error-fatal? setting-error)
+                                 (assoc setting-error :_node-id _node-id)))
+                            setting-errors))
+    (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
+          deps-by-source (into {} (map
+                                    (fn [build-target]
+                                      (let [build-resource (:resource build-target)
+                                            source-resource (:resource build-resource)]
+                                        [source-resource build-resource]))
+                                    dep-build-targets))
+          path->built-resource-settings (into {} (keep (fn [resource-setting]
+                                                         (when (resource-setting-connections-template (:path resource-setting))
+                                                           [(:path resource-setting) (deps-by-source (:value resource-setting))]))
+                                                       resource-settings))]
+      [{:node-id   _node-id
+        :resource  (workspace/make-build-resource resource)
+        :build-fn  build-game-project
+        :user-data {:raw-settings                  raw-settings
+                    :path->built-resource-settings path->built-resource-settings}
+        :deps      dep-build-targets}])))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)
@@ -152,18 +138,17 @@
 
   (input texture-profiles-data g/Any)
   (output texture-profiles-data g/Any (gu/passthrough texture-profiles-data))
-  
+
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode
   (output settings-map g/Any (gu/passthrough settings-map))
 
   (input form-data g/Any)
-  (output form-data g/Any :cached
-          (g/fnk [form-data]
-                 (append-disabled-paths form-data)))
+  (output form-data g/Any :cached (gu/passthrough form-data))
 
   (input raw-settings g/Any)
   (input resource-settings g/Any)
+  (input setting-errors g/Any)
 
   (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
@@ -195,6 +180,7 @@
                     (g/connect settings-node :form-data self :form-data)
                     (g/connect settings-node :raw-settings self :raw-settings)
                     (g/connect settings-node :resource-settings self :resource-settings)
+                    (g/connect settings-node :setting-errors self :setting-errors)
                     (settings/load-settings-node settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
       (g/connect project :resource-map self :resource-map))))
 
