@@ -318,7 +318,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_coun
     for (i = 0; i < GLFW_MAX_TOUCH; ++i) {
         GLFWTouch* t = &_glfwInput.Touch[i];
         if (t->Reference) {
-            touch[touchCount++] = *t;
+            touch[touchCount] = *t;
 
             int phase = t->Phase;
             if (phase == GLFW_PHASE_ENDED || phase == GLFW_PHASE_CANCELLED) {
@@ -336,6 +336,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetTouch(GLFWTouch* touch, int count, int* out_coun
                 t->Phase = GLFW_PHASE_ENDED;
             }
 
+            touchCount++;
         }
     }
 
