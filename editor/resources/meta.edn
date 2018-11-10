@@ -109,6 +109,13 @@
    :default true,
    :path ["display" "vsync"]
    }
+  {:type :boolean
+   :default false
+   :deprecated true
+   :severity-override :fatal
+   :severity-default :warning
+   :help "This setting is deprecated. Uncheck \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."
+   :path ["display" "variable_dt"]}
   {:type :string,
    :help "which type of physics to use, 2D (default) or 3D",
    :default "2D",
@@ -727,12 +734,6 @@
    :help "liveupdate settings"
    :preserve-extension true,
    :path ["liveupdate" "settings"]}]
-
- :deprecated-paths
- {["display" "variable_dt"]
-  {:type :boolean
-   :severity :fatal
-   :tooltip "This setting is deprecated. Uncheck \"Vsync\" and set \"Frame cap\" to 0 for equivalent behaviour."}}
 
  :categories
  {"sound" {:help "Sound related settings"},
