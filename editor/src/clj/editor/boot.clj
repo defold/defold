@@ -134,8 +134,8 @@
                 (prefs/make-prefs "defold"))
         dashboard-client (login/make-dashboard-client prefs)
         update-context (:update-context (updater/start!))]
-    (analytics/start! "http://localhost:8080" (login/signed-in? dashboard-client))
-    (Shutdown/addShutdownAction analytics/stop!)
+    (analytics/start! "https://www.google-analytics.com/batch" (login/signed-in? dashboard-client))
+    (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
         (open-project-with-progress-dialog namespace-loader prefs game-project-path dashboard-client update-context false)
