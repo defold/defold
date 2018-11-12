@@ -312,12 +312,12 @@ public class Fontc {
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
             fontMapBuilder.setSdfSpread(sdf_spread);
-            
+
             // Transform outline edge from pixel unit to edge offset in distance field unit
             float outline_edge = -(fontDesc.getOutlineWidth() / (sdf_spread)); // Map to [-1, 1]
             outline_edge = outline_edge * (1.0f - edge) + edge; // Map to edge distribution
             fontMapBuilder.setSdfOutline(outline_edge);
-            
+
             fontMapBuilder.setAlpha(this.fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(this.fontDesc.getOutlineAlpha());
             fontMapBuilder.setShadowAlpha(this.fontDesc.getShadowAlpha());
@@ -366,16 +366,31 @@ public class Fontc {
         // this includes cell padding.
         int cell_width = 0;
         int cell_height = 0;
+
+        // Find max glyph ascent and descent for each glyph. This is needed
+        // since we cannot fully trust or use the values from the getMaxAscent / getMaxDescent
+        // These values are are used both for determining the cache cell size as well
+        // as y-offset in the cache subimage update routines.
+        int cell_max_ascent  = 0;
+        int cell_max_descent = 0;
+
         for (int i = 0; i < glyphs.size(); i++) {
             Glyph glyph = glyphs.get(i);
             if (glyph.width <= 0.0f) {
                 continue;
             }
-            int width = glyph.width + padding * 2 + cell_padding * 2;
-            int height = glyph.ascent + glyph.descent + padding * 2 + cell_padding * 2;
-            cell_width = Math.max(cell_width, width);
-            cell_height = Math.max(cell_height, height);
+
+            int ascent  = glyph.ascent;
+            int descent = glyph.descent;
+            int width   = glyph.width + padding * 2 + cell_padding * 2;
+
+            cell_width       = Math.max(cell_width, width);
+            cell_max_ascent  = Math.max(cell_max_ascent, ascent);
+            cell_max_descent = Math.max(cell_max_descent, descent);
         }
+
+        cell_height       = cell_max_ascent + cell_max_descent + padding * 2 + cell_padding * 2;
+        cell_max_ascent  += padding;
 
         // Some hardware don't like doing subimage updates on non-aligned cell positions.
         if (channelCount == 3) {
@@ -441,16 +456,12 @@ public class Fontc {
                 glyph.cache_entry_offset = dataOffset;
                 // Get raster data from rendered glyph and store in glyph data bank
                 int dataSizeOut = (glyphImage.getWidth() + cell_padding * 2) * (glyphImage.getHeight() + cell_padding * 2) * channelCount;
+
+                repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
                 for (int y = 0; y < glyphImage.getHeight(); y++) {
 
-                    if (y == 0) {
-                        repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
-                    }
+                    repeatedWrite(glyphDataBank, channelCount, clearData);
                     for (int x = 0; x < glyphImage.getWidth(); x++) {
-
-                        if (x == 0) {
-                            repeatedWrite(glyphDataBank, channelCount, clearData);
-                        }
 
                         int color = glyphImage.getRGB(x, y);
                         int blue  = (color) & 0xff;
@@ -473,16 +484,11 @@ public class Fontc {
                                 glyphDataBank.write((byte)alpha);
                             }
                         }
-
-                        if (x == glyphImage.getWidth()-1) {
-                            repeatedWrite(glyphDataBank, channelCount, clearData);
-                        }
-
                     }
-                    if (y == glyphImage.getHeight()-1) {
-                        repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
-                    }
+
+                    repeatedWrite(glyphDataBank, channelCount, clearData);
                 }
+                repeatedWrite(glyphDataBank, (glyphImage.getWidth() + cell_padding * 2) * channelCount, clearData);
                 dataOffset += dataSizeOut;
                 glyph.cache_entry_size = dataOffset - glyph.cache_entry_offset;
             }
@@ -504,7 +510,7 @@ public class Fontc {
         fontMapBuilder.setCacheCellWidth(cell_width);
         fontMapBuilder.setCacheCellHeight(cell_height);
         fontMapBuilder.setGlyphChannels(channelCount);
-
+        fontMapBuilder.setCacheCellMaxAscent(cell_max_ascent);
 
         BufferedImage previewImage = null;
         if (preview) {
@@ -787,6 +793,7 @@ public class Fontc {
             InputStreamReader reader = new InputStreamReader(stream);
             FontDesc.Builder builder = FontDesc.newBuilder();
             TextFormat.merge(reader, builder);
+            reader.close();
             FontDesc fontDesc = builder.build();
             if (fontDesc.getFont().length() == 0) {
                 System.err.println("No ttf font specified in " + args[0] + ".");

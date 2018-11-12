@@ -35,11 +35,11 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
     const char* format = 0;
     switch(result)
     {
-    case dmResource::RESULT_RESOURCE_NOT_FOUND: format = "The resource was not found: %llu, %s"; break;
-    case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation: %llu, %s"; break;
-    default:                                    format = "The resource was not updated: %llu, %s"; break;
+    case dmResource::RESULT_RESOURCE_NOT_FOUND: format = "The resource was not found (%d): %llu, %s"; break;
+    case dmResource::RESULT_NOT_SUPPORTED:      format = "The resource type does not support this operation (%d): %llu, %s"; break;
+    default:                                    format = "The resource was not updated (%d): %llu, %s"; break;
     }
-    DM_SNPRINTF(msg, sizeof(msg), format, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
+    DM_SNPRINTF(msg, sizeof(msg), format, result, (unsigned long long)path_hash, dmHashReverseSafe64(path_hash));
     return luaL_error(L, "%s", msg);
 }
 
@@ -68,7 +68,11 @@ static int Set(lua_State* L)
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
     dmScript::LuaHBuffer* buffer = dmScript::CheckBuffer(L, 2);
 
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, buffer->m_Buffer);
+    uint32_t datasize = 0;
+    void* data = 0;
+    dmBuffer::GetBytes(buffer->m_Buffer, &data, &datasize);
+
+    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, data, datasize);
     if( r != dmResource::RESULT_OK )
     {
         assert(top == lua_gettop(L));
@@ -83,7 +87,7 @@ static int Set(lua_State* L)
  *
  * @name resource.load
  *
- * @param path [type:string|hash] The path to the resource
+ * @param path [type:string] The path to the resource
  * @return buffer [type:buffer] Returns the buffer stored on disc
  *
  * @examples
@@ -221,7 +225,7 @@ static int GraphicsTextureTypeToImageType(int texturetype)
  *   self.width = 128
  *   self.buffer = buffer.create(self.width * self.height, { {name=hash("rgb"), type=buffer.VALUE_TYPE_UINT8, count=3} } )
  *   self.stream = buffer.get_stream(self.buffer, hash("rgb"))
- *   
+ *
  *   for y=1,self.height do
  *       for x=1,self.width do
  *           local index = (y-1) * self.width * 3 + (x-1) * 3 + 1
@@ -357,36 +361,43 @@ static const luaL_reg Module_methods[] =
 
  /*# LIVEUPDATE_INVALID_RESOURCE
  * The handled resource is invalid.
- * 
+ *
  * @name resource.LIVEUPDATE_INVALID_RESOURCE
  * @variable
  */
 
  /*# LIVEUPDATE_VERSION_MISMATCH
  * Mismatch between manifest expected version and actual version.
- * 
+ *
  * @name resource.LIVEUPDATE_VERSION_MISMATCH
  * @variable
  */
 
  /*# LIVEUPDATE_ENGINE_VERSION_MISMATCH
  * Mismatch between running engine version and engine versions supported by manifest.
- * 
+ *
  * @name resource.LIVEUPDATE_ENGINE_VERSION_MISMATCH
  * @variable
  */
 
  /*# LIVEUPDATE_SIGNATURE_MISMATCH
  * Mismatch between manifest expected signature and actual signature.
- * 
+ *
  * @name resource.LIVEUPDATE_SIGNATURE_MISMATCH
  * @variable
  */
 
  /*# LIVEUPDATE_SCHEME_MISMATCH
  * Mismatch between scheme used to load resources. Resources are loaded with a different scheme than from manifest, for example over HTTP or directly from file. This is typically the case when running the game directly from the editor instead of from a bundle.
- * 
+ *
  * @name resource.LIVEUPDATE_SCHEME_MISMATCH
+ * @variable
+ */
+
+ /*# LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
+ * Mismatch between between expected bundled resources and actual bundled resources. The manifest expects a resource to be in the bundle, but it was not found in the bundle. This is typically the case when a non-excluded resource was modified between publishing the bundle and publishing the manifest.
+ *
+ * @name resource.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
  * @variable
  */
 static void LuaInit(lua_State* L)
@@ -430,6 +441,7 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(LIVEUPDATE_ENGINE_VERSION_MISMATCH, dmLiveUpdate::RESULT_ENGINE_VERSION_MISMATCH);
     SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
     SETCONSTANT(LIVEUPDATE_SCHEME_MISMATCH, dmLiveUpdate::RESULT_SCHEME_MISMATCH);
+    SETCONSTANT(LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH, dmLiveUpdate::RESULT_BUNDLED_RESOURCE_MISMATCH);
 
 #undef SETCONSTANT
 

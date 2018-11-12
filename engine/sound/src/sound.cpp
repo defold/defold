@@ -343,17 +343,18 @@ namespace dmSound
 
     Result Finalize()
     {
+        if (g_SoundSystem && g_SoundSystem->m_IsSoundActive)
+        {
+            PlatformReleaseAudioFocus();
+            g_SoundSystem->m_IsSoundActive = false;
+        }
+
         PlatformFinalize();
 
         Result result = RESULT_OK;
 
         if (g_SoundSystem)
         {
-            if (g_SoundSystem->m_IsSoundActive)
-            {
-                PlatformReleaseAudioFocus();
-                g_SoundSystem->m_IsSoundActive = false;
-            }
             SoundSystem* sound = g_SoundSystem;
             dmSoundCodec::Delete(sound->m_CodecContext);
 

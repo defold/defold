@@ -807,14 +807,6 @@ static const luaL_reg Push_methods[] =
  * @variable
  */
 
-
-/*# remote push origin
- *
- * @name push.ORIGIN_REMOTE
- * @variable
- */
-
-
 /*# lowest notification priority [icon:android]
  *
  * This priority is for items might not be shown to the user except under special circumstances, such as detailed notification logs. Only available on Android. [icon:android]

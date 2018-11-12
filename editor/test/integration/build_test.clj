@@ -694,3 +694,18 @@
           (workspace/resource-sync! workspace))
         (let [br (project-build project game-project (g/make-evaluation-context))]
           (is (not (contains? br :error))))))))
+
+(deftest inexact-path-casing-produces-build-error
+  (with-loaded-project project-path
+    (let [game-project-node (test-util/resource-node project "/game.project")
+          atlas-node (test-util/resource-node project "/background/background.atlas")
+          atlas-image-node (ffirst (g/sources-of atlas-node :image-resources))
+          image-resource (g/node-value atlas-image-node :image)
+          workspace (resource/workspace image-resource)
+          uppercase-image-path (string/upper-case (resource/proj-path image-resource))
+          uppercase-image-resource (workspace/resolve-workspace-resource workspace uppercase-image-path)]
+      (g/set-property! atlas-image-node :image uppercase-image-resource)
+      (let [build-error (:error (project-build project game-project-node (g/make-evaluation-context)))
+            error-message (some :message (tree-seq :causes :causes build-error))]
+        (is (g/error? build-error))
+        (is (= (str "The file '" uppercase-image-path "' could not be found.") error-message))))))
