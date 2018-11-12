@@ -400,11 +400,9 @@ namespace dmEngine
         if (!engine->m_UseVariableDt)
         {
             swap_interval = dmMath::Max(0, swap_interval);
-#if !(defined(__EMSCRIPTEN__))
             // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
             engine->m_UseSwVsync = (engine->m_Vsync == VSYNC_SOFTWARE || (engine->m_Vsync == VSYNC_HARDWARE && swap_interval == 0));
             dmLogWarning("Using sw vsync?: %i", engine->m_UseSwVsync);
-#endif
             if (engine->m_Vsync == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
                 engine->m_UpdateFrequency /= swap_interval;
             dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
@@ -1167,11 +1165,8 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-#if !(defined(__EMSCRIPTEN__))
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t prev_flip_time = engine->m_FlipTime;
-#endif
-
         uint64_t time = dmTime::GetTime();
 
         float fps = engine->m_UpdateFrequency;
@@ -1365,7 +1360,6 @@ bail:
                 }
 #endif
 
-#if !(defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
@@ -1383,14 +1377,12 @@ bail:
                     }
                 }
                 uint64_t flip_time_start = dmTime::GetTime();
-#endif
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
 
-#if !(defined(__EMSCRIPTEN__))
                 engine->m_FlipTime = dmTime::GetTime();
                 engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
-#endif
+
                 RecordData* record_data = &engine->m_RecordData;
                 if (record_data->m_Recorder)
                 {
