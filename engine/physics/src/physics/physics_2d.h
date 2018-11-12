@@ -37,6 +37,7 @@ namespace dmPhysics
         ContactListener             m_ContactListener;
         GetWorldTransformCallback   m_GetWorldTransformCallback;
         SetWorldTransformCallback   m_SetWorldTransformCallback;
+        float                       m_FixedDt;
     };
 
     struct Context2D
@@ -53,6 +54,7 @@ namespace dmPhysics
         float                       m_TriggerEnterLimit;
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
+        float                       m_FixedDt;
     };
 
     class ProcessRayCastResultCallback2D : public b2RayCastCallback

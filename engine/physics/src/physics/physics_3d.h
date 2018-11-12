@@ -25,6 +25,7 @@ namespace dmPhysics
         btDiscreteDynamicsWorld*                m_DynamicsWorld;
         GetWorldTransformCallback               m_GetWorldTransform;
         SetWorldTransformCallback               m_SetWorldTransform;
+        float                                   m_FixedDt;
     };
 
     struct Context3D
@@ -41,6 +42,7 @@ namespace dmPhysics
         float                       m_TriggerEnterLimit;
         int                         m_RayCastLimit;
         int                         m_TriggerOverlapCapacity;
+        float                       m_FixedDt;
     };
 
     inline void ToBt(const Vectormath::Aos::Point3& p0, btVector3& p1, float scale)

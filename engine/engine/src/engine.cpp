@@ -783,6 +783,9 @@ namespace dmEngine
                 physics_params.m_Scale = dmPhysics::MAX_SCALE;
         }
         physics_params.m_ContactImpulseLimit = dmConfigFile::GetFloat(engine->m_Config, "physics.contact_impulse_limit", 0.0f);
+        physics_params.m_FixedDt = 1.f / (float) dmConfigFile::GetInt(engine->m_Config, "physics.fixed_update_frequency", 60);
+        dmLogInfo("physics_params.m_FixedDt: %f", physics_params.m_FixedDt);
+        engine->m_PhysicsContext.m_FixedDt = physics_params.m_FixedDt;
         if (dmStrCaseCmp(physics_type, "3D") == 0)
         {
             engine->m_PhysicsContext.m_3D = true;

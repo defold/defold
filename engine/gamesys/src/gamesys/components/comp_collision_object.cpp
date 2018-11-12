@@ -108,6 +108,7 @@ namespace dmGameSystem
         dmPhysics::NewWorldParams world_params;
         world_params.m_GetWorldTransformCallback = GetWorldTransform;
         world_params.m_SetWorldTransformCallback = SetWorldTransform;
+        world_params.m_FixedDt = physics_context->m_FixedDt;
         CollisionWorld* world = new CollisionWorld();
         memset(world, 0, sizeof(CollisionWorld));
         if (physics_context->m_3D)

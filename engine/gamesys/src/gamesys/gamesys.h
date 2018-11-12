@@ -51,6 +51,7 @@ namespace dmGameSystem
         uint32_t m_MaxContactPointCount;
         bool m_Debug;
         bool m_3D;
+        float m_FixedDt;
     };
 
     struct ParticleFXContext

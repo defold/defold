@@ -202,6 +202,7 @@ namespace dmPhysics
         uint32_t m_RayCastLimit3D;
         /// Maximum number of overlapping triggers
         uint32_t m_TriggerOverlapCapacity;
+        float m_FixedDt;
     };
 
     /**
@@ -261,6 +262,7 @@ namespace dmPhysics
         GetWorldTransformCallback m_GetWorldTransformCallback;
         /// param set_world_transform Callback for copying the transform from the collision object to the corresponding user data
         SetWorldTransformCallback m_SetWorldTransformCallback;
+        float                   m_FixedDt;
     };
 
     /**

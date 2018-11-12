@@ -136,6 +136,7 @@ namespace dmPhysics
         m_SetWorldTransform = params.m_SetWorldTransformCallback;
 
         m_RayCastRequests.SetCapacity(context->m_RayCastLimit);
+        m_FixedDt = params.m_FixedDt;
         OverlapCacheInit(&m_TriggerOverlaps);
     }
 
@@ -195,6 +196,7 @@ namespace dmPhysics
             DeleteContext3D(context);
             return 0x0;
         }
+        context->m_FixedDt = params.m_FixedDt;
         return context;
     }
 
@@ -259,6 +261,9 @@ namespace dmPhysics
 
     static void UpdateOverlapCache(OverlapCache* cache, HContext3D context, btDispatcher* dispatcher, const StepWorldContext& step_context);
 
+    static float g_DtAcum = 0.0;
+    static float EPSILON = 0.0001; // 0.1ms
+
     void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
@@ -299,11 +304,23 @@ namespace dmPhysics
             }
         }
 
+        // {
+        //     DM_PROFILE(Physics, "StepSimulation");
+        //     // Step simulation
+        //     // TODO: Max substeps = 1 for now...
+        //     world->m_DynamicsWorld->stepSimulation(dt, 1);
+        // }
+
+        // jbnn Untested!
         {
             DM_PROFILE(Physics, "StepSimulation");
-            // Step simulation
-            // TODO: Max substeps = 1 for now...
-            world->m_DynamicsWorld->stepSimulation(dt, 1);
+
+            while (g_DtAcum >= world->m_FixedDt - EPSILON)
+            {
+                dt = world->m_FixedDt;
+                world->m_DynamicsWorld->stepSimulation(dt, 1);
+                g_DtAcum -= world->m_FixedDt;
+            }
         }
 
         // Handle ray cast requests

@@ -169,6 +169,8 @@ namespace dmPhysics
             DeleteContext2D(context);
             return 0x0;
         }
+
+        context->m_FixedDt = params.m_FixedDt;
         return context;
     }
 
@@ -201,6 +203,7 @@ namespace dmPhysics
         world->m_World.SetDebugDraw(&world->m_DebugDraw);
         world->m_World.SetContactListener(&world->m_ContactListener);
         world->m_World.SetContinuousPhysics(false);
+        world->m_FixedDt = params.m_FixedDt;
         context->m_Worlds.Push(world);
         return world;
     }
@@ -220,7 +223,6 @@ namespace dmPhysics
 
     void StepWorld2D(HWorld2D world, const StepWorldContext& step_context)
     {
-        static float target_dt = 1.0/15.0;
         g_DtAcum += step_context.m_DT;
 
         float dt = step_context.m_DT;
@@ -260,9 +262,6 @@ namespace dmPhysics
                     {
                         body->SetSleepingAllowed(true);
                     }
-
-                    // if (g_DtAcum >= target_dt - EPSILON)
-                        // body->m_prevXf.Set(body->GetPosition(), body->GetAngle());
                 }
             }
         }
@@ -281,7 +280,7 @@ namespace dmPhysics
                     {
                         Vectormath::Aos::Point3 position;
 
-                        float alpha = g_DtAcum / target_dt;
+                        float alpha = dmMath::Min(1.0f, g_DtAcum / world->m_FixedDt);
                         dmLogWarning("alpha: %f", alpha);
                         b2Vec2 interpolated_pos = alpha * body->GetPosition() + (1.0 - alpha) * body->m_prevXf.p;
 
@@ -289,7 +288,7 @@ namespace dmPhysics
                         Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
                         (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
 
-                        if (g_DtAcum >= target_dt - EPSILON)
+                        if (g_DtAcum >= world->m_FixedDt - EPSILON)
                             body->m_prevXf.Set(body->GetPosition(), body->GetAngle());
                     }
                 }
@@ -297,16 +296,16 @@ namespace dmPhysics
 
             // dmLogWarning("================")
             // dmLogWarning("g_DtAcum: %f", g_DtAcum);
-            // dmLogWarning("target_dt: %f", target_dt);
-            while (g_DtAcum >= target_dt - EPSILON)
+            // dmLogWarning("world->m_FixedDt: %f", world->m_FixedDt);
+            while (g_DtAcum >= world->m_FixedDt - EPSILON)
             {
                 // dmLogWarning("* g_DtAcum: %f", g_DtAcum);
-                // dmLogWarning("* target_dt: %f", target_dt);
-                dt = target_dt;
+                // dmLogWarning("* world->m_FixedDt: %f", world->m_FixedDt);
+                dt = world->m_FixedDt;
                 world->m_World.Step(dt, 10, 10);
-                g_DtAcum -= target_dt;
+                g_DtAcum -= world->m_FixedDt;
                 // dmLogWarning("- g_DtAcum: %f", g_DtAcum);
-                // dmLogWarning("- target_dt: %f", target_dt);
+                // dmLogWarning("- world->m_FixedDt: %f", world->m_FixedDt);
             }
         }
         // Perform requested ray casts
