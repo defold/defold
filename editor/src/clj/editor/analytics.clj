@@ -9,7 +9,8 @@
            (java.io File IOException)
            (java.net HttpURLConnection MalformedURLException URL)
            (java.nio.charset StandardCharsets)
-           (java.util UUID)))
+           (java.util UUID)
+           (java.util.concurrent CancellationException)))
 
 (set! *warn-on-reflection* true)
 
@@ -19,6 +20,8 @@
 (defonce ^:private event-queue-atom (atom PersistentQueue/EMPTY))
 (defonce ^:private payload-content-type "application/x-www-form-urlencoded; charset=UTF-8")
 (defonce ^:private send-interval 300)
+(defonce ^:private send-remaining-interval 30)
+(defonce ^:private shutdown-timeout 1000)
 (defonce ^:private uid-regex #"[0-9A-F]{16}")
 (defonce ^:private worker-atom (atom nil))
 
@@ -131,7 +134,13 @@
         text (string/join "\n" lines)]
     (.getBytes text StandardCharsets/UTF_8)))
 
-(defn- post! [^String url-string ^String content-type ^bytes payload]
+(defn- get-response-code!
+  "Wrapper rebound to verify response from dev server in tests."
+  [^HttpURLConnection connection]
+  (.getResponseCode connection))
+
+(defn- post!
+  ^HttpURLConnection [^String url-string ^String content-type ^bytes payload]
   {:pre [(not-empty payload)]}
   (let [^HttpURLConnection connection (.openConnection (URL. url-string))]
     (doto connection
@@ -142,14 +151,14 @@
       (.connect))
     (with-open [output-stream (.getOutputStream connection)]
       (.write output-stream payload))
-    (.getResponseCode connection)))
+    connection))
 
 (defn- ok-response-code? [^long response-code]
   (<= 200 response-code 299))
 
 (defn- send-payload! [analytics-url ^bytes payload]
   (try
-    (ok-response-code? (post! analytics-url payload-content-type payload))
+    (ok-response-code? (get-response-code! (post! analytics-url payload-content-type payload)))
     (catch IOException _
       ;; NOTE: We don't log on errors as we don't have backoff inplace.
       ;; Same for non-ok response code.
@@ -171,23 +180,44 @@
                  (send-payload! analytics-url (batch->payload batch config)))
         (swap! event-queue-atom pop-count (count batch))))))
 
+(defn- send-remaining-batches! [analytics-url]
+  (when-some [config @config-atom]
+    (let [event-queue @event-queue-atom]
+      (loop [event-queue event-queue]
+        (when-some [batch (not-empty (into [] (take batch-size) event-queue))]
+          (Thread/sleep send-remaining-interval)
+          (send-payload! analytics-url (batch->payload batch config))
+          (recur (pop-count event-queue (count batch)))))
+      (swap! event-queue-atom pop-count (count event-queue)))))
+
 (defn- start-worker! [analytics-url]
   (let [stopped-atom (atom false)
         thread (future
                  (try
                    (loop []
-                     (when-not @stopped-atom
-                       (Thread/sleep send-interval)
-                       (send-one-batch! analytics-url)
-                       (recur)))
+                     (if @stopped-atom
+                       (send-remaining-batches! analytics-url)
+                       (do
+                         (Thread/sleep send-interval)
+                         (send-one-batch! analytics-url)
+                         (recur))))
+                   (catch CancellationException _
+                     nil)
+                   (catch InterruptedException _
+                     nil)
                    (catch Throwable error
                      (log/error :msg "Abnormal worker thread termination" :exception error))))]
     {:stopped-atom stopped-atom
      :thread thread}))
 
-(defn- shutdown-worker! [{:keys [stopped-atom thread]}]
-  (reset! stopped-atom true)
-  (deref thread) ; Block until graceful exit.
+(defn- shutdown-worker! [{:keys [stopped-atom thread]} timeout-ms]
+  (if-not (pos? timeout-ms)
+    (future-cancel thread)
+    (do
+      ;; Try to shut down the worker thread gracefully, otherwise cancel the thread.
+      (reset! stopped-atom true)
+      (when (= ::timeout (deref thread timeout-ms ::timeout))
+        (future-cancel thread))))
   nil)
 
 (declare enabled?)
@@ -209,11 +239,14 @@
     (swap! worker-atom
            (fn [started-worker]
              (when (some? started-worker)
-               (shutdown-worker! started-worker))
+               (shutdown-worker! started-worker 0))
              (start-worker! analytics-url)))))
 
-(defn stop! []
-  (swap! worker-atom shutdown-worker!))
+(defn shutdown!
+  ([]
+   (shutdown! shutdown-timeout))
+  ([timeout-ms]
+   (swap! worker-atom shutdown-worker! timeout-ms)))
 
 (defn enabled? []
   (some? @worker-atom))
