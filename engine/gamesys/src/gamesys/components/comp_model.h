@@ -13,41 +13,8 @@ namespace dmGameSystem
     using namespace Vectormath::Aos;
     using namespace dmGameSystemDDF;
 
-    struct ModelComponent
-    {
-        dmGameObject::HInstance     m_Instance;
-        dmTransform::Transform      m_Transform;
-        Matrix4                     m_World;
-        ModelResource*              m_Resource;
-        dmRig::HRigInstance         m_RigInstance;
-        uint32_t                    m_MixedHash;
-        dmMessage::URL              m_Listener;
-        dmArray<dmRender::Constant> m_RenderConstants;
-        dmArray<Vector4>            m_PrevRenderConstants;
-        /// Node instances corresponding to the bones
-        dmArray<dmGameObject::HInstance> m_NodeInstances;
-        uint16_t                    m_ComponentIndex;
-        /// Component enablement
-        uint8_t                     m_Enabled : 1;
-        uint8_t                     m_DoRender : 1;
-        /// Added to update or not
-        uint8_t                     m_AddedToUpdate : 1;
-    };
-
-    struct ModelWorld
-    {
-        dmObjectPool<ModelComponent*>   m_Components;
-        dmArray<dmRender::RenderObject> m_RenderObjects;
-        dmGraphics::HVertexDeclaration  m_VertexDeclaration;
-        dmGraphics::HVertexBuffer*      m_VertexBuffers;
-        dmArray<dmRig::RigModelVertex>* m_VertexBufferData;
-        // Temporary scratch array for instances, only used during the creation phase of components
-        dmArray<dmGameObject::HInstance> m_ScratchInstances;
-        dmRig::HRigContext              m_RigContext;
-        uint32_t                        m_MaxElementsVertices;
-        uint32_t                        m_VertexBufferSwapChainIndex;
-        uint32_t                        m_VertexBufferSwapChainSize;
-    };
+    struct ModelComponent;
+    struct ModelWorld;
 
     dmGameObject::CreateResult CompModelNewWorld(const dmGameObject::ComponentNewWorldParams& params);
 
@@ -73,6 +40,11 @@ namespace dmGameSystem
 
     bool CompModelSetIKTargetInstance(ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);
     bool CompModelSetIKTargetPosition(ModelComponent* component, dmhash_t constraint_id, float mix, Point3 position);
+
+    // Used in the script_model.cpp
+    ModelComponent* CompModelGetComponent(ModelWorld* world, uintptr_t user_data);
+    ModelResource* CompModelGetModelResource(ModelComponent* component);
+    dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
 }
 
 #endif // DM_GAMESYS_COMP_MODEL_H
