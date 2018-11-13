@@ -114,6 +114,10 @@ public class Fontc {
         FORMAT_TRUETYPE, FORMAT_BMFONT
     };
 
+    static final int LAYER_FACE = 0x1;
+    static final int LAYER_OUTLINE = 0x2;
+    static final int LAYER_SHADOW = 0x4;
+
     private InputFontFormat inputFormat = InputFontFormat.FORMAT_TRUETYPE;
     private Stroke outlineStroke = null;
     private int channelCount = 3;
@@ -358,15 +362,15 @@ public class Fontc {
                    inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
             channelCount = 1;
         }
-
-        int fontMapLayerMask = 0x1;
+    
+        int fontMapLayerMask = LAYER_FACE;
 
         if (this.fontDesc.getAntialias() != 0 &&
             this.fontDesc.getOutlineAlpha() > 0 &&
             this.fontDesc.getOutlineWidth() > 0 &&
             this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
         {
-            fontMapLayerMask |= 0x2;
+            fontMapLayerMask |= LAYER_OUTLINE;
         }
 
         if (this.fontDesc.getAntialias() != 0 &&
@@ -374,7 +378,7 @@ public class Fontc {
             this.fontDesc.getAlpha() > 0 &&
             this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
         {
-            fontMapLayerMask |= 0x4;
+            fontMapLayerMask |= LAYER_SHADOW;
         }
 
         // We keep track of offset into the glyph data bank,

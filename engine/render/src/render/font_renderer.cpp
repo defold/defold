@@ -666,7 +666,7 @@ namespace dmRender
                 // Look ahead and see if we can produce vertices for the next glyph or not
                 if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
                 {
-                    dmLogWarning("Fontrenderer: character buffer exceeded (size: %d), increase the 'Max Characters' property in your game.project file.", num_vertices / 6);
+                    dmLogWarning("Fontrenderer: character buffer exceeded (size: %d), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
                     return vertexindex * layer_count;
                 }
 
