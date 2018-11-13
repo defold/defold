@@ -76,7 +76,7 @@ GLFWAPI int GLFWAPIENTRY glfwGetMouseButton( int button )
         return GLFW_RELEASE;
     }
 
-    if( _glfwInput.MouseButton[ button ] == GLFW_STICK )
+    if( _glfwInput.MouseButton[ button ] == GLFW_STICK || _glfwInput.MouseButton[ button ] == GLFW_CLICKED )
     {
         // Sticky mode: release mouse button now
         _glfwInput.MouseButton[ button ] = GLFW_RELEASE;
