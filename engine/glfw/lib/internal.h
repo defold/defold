@@ -49,6 +49,7 @@
 
 // Internal key and button state/action definitions
 #define GLFW_STICK 2
+#define GLFW_CLICKED 3
 
 
 //========================================================================

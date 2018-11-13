@@ -100,7 +100,7 @@ namespace dmRender
         uint32_t                        m_RenderBatchVersion;
     };
 
-    const int MAX_TEXT_RENDER_CONSTANTS = 4;
+    const int MAX_TEXT_RENDER_CONSTANTS = 16;
 
     struct TextEntry
     {
