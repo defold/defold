@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.text.ParseException;
 import java.util.Collection;
 import java.util.Collections;
@@ -13,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.apache.commons.io.IOUtils;
+import com.dynamo.bob.Bob;
 
 /**
  * .ini-file-link parser abstraction
@@ -167,7 +169,35 @@ public class BobProjectProperties {
         putStringValue(category, key, value ? "1" : "0");
     }
 
-    private void doLoad(InputStream in) throws IOException, ParseException {
+    /**
+     * Remove a property
+     * @param category property category
+     * @param key category key
+     */
+    public void remove(String category, String key) {
+        putStringValue(category, key, null);
+    }
+
+    // Helper class to pass tuple of Key+Value
+    // via doLoad and a KeyValueFilter class.
+    private class StringKeyValue {
+        public String key;
+        public String value;
+        StringKeyValue(String key, String value) {
+            this.key = key;
+            this.value = value;
+        }
+    }
+
+    // Helper interface to create a filter for doLoad
+    // Used when loading default properties to filter
+    // out entries that has valid default values.
+    @FunctionalInterface
+    private interface KeyValueFilter {
+        boolean filter(StringKeyValue entry);
+    }
+
+    private void doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
         BufferedReader reader = new BufferedReader(new InputStreamReader(in));
         Map<String, String> propGroup = null;
         int cursor = 0;
@@ -194,7 +224,14 @@ public class BobProjectProperties {
                     try {
                         String key = line.substring(0, sep).trim();
                         String value = line.substring(sep + 1).trim();
-                        propGroup.put(key, value);
+                        if (passFunc != null) {
+                            StringKeyValue keyVal = new StringKeyValue(key, value);
+                            if (passFunc.filter(keyVal)) {
+                                propGroup.put(keyVal.key, value);
+                            }
+                        } else {
+                            propGroup.put(key, value);
+                        }
                     } catch (IndexOutOfBoundsException e) {
                         valid = false;
                     }
@@ -211,6 +248,34 @@ public class BobProjectProperties {
     }
 
     /**
+     * Load default properties from the internal meta.properties file
+     * @throws IOException
+     * @throws ParseException
+     */
+    public void loadDefaults() throws IOException, ParseException {
+        KeyValueFilter filterDefaults = entry -> {
+            // Only keep entries where key ends with ".default"
+            if (entry.key.endsWith(".default") && !entry.value.isEmpty()) {
+
+                // Modify key to remove ".default" part
+                entry.key = entry.key.substring(0, entry.key.length() - ".default".length());
+                return true;
+            }
+
+            return false;
+        };
+
+        InputStream is = Bob.class.getResourceAsStream("meta.properties");
+        try {
+            doLoad(is, filterDefaults);
+        } catch (ParseException e) {
+            throw new RuntimeException("Failed to parse meta.properties", e);
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
+    }
+
+    /**
      * Load properties in-place from {@link InputStream}
      * @param in {@link InputStream} to load from
      * @throws IOException
@@ -218,7 +283,7 @@ public class BobProjectProperties {
      */
     public void load(InputStream in) throws IOException, ParseException {
         try {
-            doLoad(in);
+            doLoad(in, null);
         } finally {
             IOUtils.closeQuietly(in);
         }
@@ -233,12 +298,10 @@ public class BobProjectProperties {
     }
 
     /**
-     * Save to OutputStream
-     * @param os {@link OutputStream} to save to
-     * @throws IOException
+     * Save to PrintWriter
+     * @param pw {@link PrintWriter} to save to
      */
-    public void save(OutputStream os) throws IOException {
-        PrintWriter pw = new PrintWriter(os);
+    public void save(PrintWriter pw) {
         for (String category : getCategoryNames()) {
             pw.format("[%s]%n", category);
 
@@ -249,7 +312,28 @@ public class BobProjectProperties {
             pw.println();
         }
         pw.close();
+    }
+
+    /**
+     * Save to OutputStream
+     * @param os {@link OutputStream} to save to
+     * @throws IOException
+     */
+    public void save(OutputStream os) throws IOException {
+        PrintWriter pw = new PrintWriter(os);
+        save(pw);
         os.close();
+    }
+
+    /**
+     * Serialize properties to String
+     * @return properties serialized as a String
+     */
+    public String serialize() {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        save(pw);
+        return sw.toString();
     }
 
     /**
