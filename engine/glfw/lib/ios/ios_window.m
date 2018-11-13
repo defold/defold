@@ -1388,7 +1388,7 @@ int _glfwPlatformGetWindowRefreshRate( void )
     EAGLView* view = (EAGLView*) _glfwWin.view;
     CADisplayLink* displayLink = view->displayLink;
 
-    @try { // displayLink.preferredFramesPerSecond only supported on iOS 10.0 and higher.
+    @try { // displayLink.preferredFramesPerSecond only supported on iOS 10.0 and higher, default to 0 for older versions.
         return displayLink.preferredFramesPerSecond;
     } @catch (NSException* exception) {
         return 0;

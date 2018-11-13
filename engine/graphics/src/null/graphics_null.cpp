@@ -117,7 +117,6 @@ namespace dmGraphics
 
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        dmLogInfo("NULL GetWindowRefreshRate!");
         assert(context);
         return 0;
     }

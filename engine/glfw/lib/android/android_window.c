@@ -94,8 +94,7 @@ JNIEXPORT void JNICALL Java_com_dynamo_android_DefoldActivity_glfwSetMarkedTextN
 
 int _glfwPlatformGetWindowRefreshRate( void )
 {
-    // http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
-    
+    // Source: http://irrlicht.sourceforge.net/forum/viewtopic.php?f=9&t=50206
     if (_glfwWin.display == EGL_NO_DISPLAY || _glfwWin.surface == EGL_NO_SURFACE || _glfwWin.iconified == 1)
     {
         return 0;

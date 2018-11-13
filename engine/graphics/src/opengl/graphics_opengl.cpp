@@ -760,19 +760,11 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     uint32_t GetWindowRefreshRate(HContext context)
     {
-        dmLogInfo("GetWindowRefreshRate! asserting context...");
         assert(context);
-        dmLogInfo("DONE");
         if (context->m_WindowOpened)
-        {
-            dmLogInfo("Windows opened, calling into glfw!");
             return glfwGetWindowRefreshRate();
-        }
         else
-        {
-            dmLogInfo("Window NOT opened, returning...");
             return 0;
-        }
     }
 
     uint32_t GetDisplayDpi(HContext context)
