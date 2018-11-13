@@ -20,7 +20,6 @@
 (defonce ^:private event-queue-atom (atom PersistentQueue/EMPTY))
 (defonce ^:private max-failed-send-attempts 5)
 (defonce ^:private payload-content-type "application/x-www-form-urlencoded; charset=UTF-8")
-(defonce ^:private send-interval 300)
 (defonce ^:private send-remaining-interval 30)
 (defonce ^:private shutdown-timeout 1000)
 (defonce ^:private uid-regex #"[0-9A-F]{16}")
@@ -172,7 +171,7 @@
           (log/warn :msg (str "Analytics server sent non-OK response code " response-code))
           false)))
     (catch Exception error
-      (log/warn :msg (str "An exception was thrown when sending analytics data" :exception error))
+      (log/warn :msg "An exception was thrown when sending analytics data" :exception error)
       false)))
 
 (defn- pop-count [queue ^long count]
@@ -214,7 +213,7 @@
 
 (declare shutdown!)
 
-(defn- start-worker! [analytics-url]
+(defn- start-worker! [analytics-url ^long send-interval]
   (let [stopped-atom (atom false)
         thread (future
                  (try
@@ -223,7 +222,9 @@
                        (>= failed-send-attempts max-failed-send-attempts)
                        (do
                          (log/warn :msg (str "Analytics shut down after " max-failed-send-attempts " failed send attempts"))
-                         (shutdown! 0))
+                         (shutdown! 0)
+                         (reset! event-queue-atom PersistentQueue/EMPTY)
+                         nil)
 
                        @stopped-atom
                        (send-remaining-batches! analytics-url)
@@ -265,7 +266,7 @@
 ;; Public interface
 ;; -----------------------------------------------------------------------------
 
-(defn start! [^String analytics-url invalidate-uid?]
+(defn start! [^String analytics-url send-interval invalidate-uid?]
   {:pre [(valid-analytics-url? analytics-url)]}
   (when (some? (sys/defold-version))
     (reset! config-atom (read-config! invalidate-uid?))
@@ -273,7 +274,7 @@
            (fn [started-worker]
              (when (some? started-worker)
                (shutdown-worker! started-worker 0))
-             (start-worker! analytics-url)))))
+             (start-worker! analytics-url send-interval)))))
 
 (defn shutdown!
   ([]
