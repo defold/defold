@@ -623,7 +623,7 @@ namespace dmRender
                     {
                         int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - (int16_t)g->m_Ascent;
 
-                        // Prepare the cache here aswell since we only count glyphs we definately
+                        // Prepare the cache here aswell since we only count glyphs we definitely
                         // will render.
                         if (!g->m_InCache)
                         {
@@ -666,7 +666,7 @@ namespace dmRender
                 // Look ahead and see if we can produce vertices for the next glyph or not
                 if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
                 {
-                    dmLogWarning("Fontrenderer: character buffer exceeded (size: %d), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
+                    dmLogWarning("Character buffer exceeded (size: %d), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
                     return vertexindex * layer_count;
                 }
 
