@@ -134,8 +134,10 @@
                 (prefs/make-prefs "defold"))
         dashboard-client (login/make-dashboard-client prefs)
         update-context (:update-context (updater/start!))
+        analytics-url "https://www.google-analytics.com/batch"
+        analytics-send-interval 300
         invalidate-analytics-uid? (not (login/signed-in? dashboard-client))]
-    (analytics/start! "https://www.google-analytics.com/batch" invalidate-analytics-uid?)
+    (analytics/start! analytics-url analytics-send-interval invalidate-analytics-uid?)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
