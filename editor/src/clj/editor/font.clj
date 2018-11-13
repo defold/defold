@@ -238,8 +238,8 @@
 (defn- get-layers-in-mask
   [layer-mask]
   (map (fn [bit]
-    (min (bit-and layer-mask bit) 1))
-    [0x1 0x2 0x4]))
+         (min (bit-and layer-mask bit) 1))
+       [0x1 0x2 0x4]))
 
 (defn- count-layers-in-mask
   [layer-mask]
@@ -257,63 +257,63 @@
 (defn- fill-vertex-buffer-quads
   [vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn unpacked-layer-mask text-cursor-offset]
   (reduce (fn [vbuf entry]
-    (let [put-pos-uv-fn (wrap-with-colors put-pos-uv-fn (:color entry) (:outline entry) (:shadow entry) unpacked-layer-mask)
-          text-layout (:text-layout entry)
-          text-tracking (* line-height ^long (:text-tracking text-layout 0))
-          text-cursor-offset (if (nil? text-cursor-offset)
-                                  {:x 0, :y 0}
-                                  text-cursor-offset)
-          ^double text-leading (:text-leading text-layout 1)
-          offset (:offset entry)
-          xform (doto (Matrix4d.)
-                  (.set (let [[x y] offset]
-                          (Vector3d. x y 0.0))))
-          _ (.mul xform ^Matrix4d (:world-transform entry) xform)
-          ^double max-width (:width text-layout)
-          align (:align entry :center)]
-      (loop [vbuf vbuf
-             [line & lines] (:lines text-layout)
-             [^double line-width & line-widths] (:line-widths text-layout)
-             line-no 0]
-        (if line
-          (let [y (* line-no (- (* line-height text-leading)))]
-            (loop [vbuf vbuf
-                   [glyph & glyphs] (map char->glyph line)
-                   x (case align
-                       :left 0.0
-                       :center (* 0.5 (- max-width line-width))
-                       :right (- max-width line-width))]
-              (if glyph
-                (let [glyph (place-glyph glyph-cache glyph)
-                      cursor (doto (Matrix4d.) (.set (Vector3d. (+ x (:x text-cursor-offset)) (+ y (:y text-cursor-offset)) 0.0)))
-                      cursor (doto cursor (.mul xform cursor))]
-                  (recur (put-glyph-quad-fn vbuf glyph cursor put-pos-uv-fn)
-                         glyphs
-                         (+ x ^double (:advance glyph) text-tracking)))
-                vbuf))
-            (recur vbuf lines line-widths (inc line-no)))
-          vbuf))))
-  vbuf
-  text-entries))
+            (let [put-pos-uv-fn (wrap-with-colors put-pos-uv-fn (:color entry) (:outline entry) (:shadow entry) unpacked-layer-mask)
+                  text-layout (:text-layout entry)
+                  text-tracking (* line-height ^long (:text-tracking text-layout 0))
+                  text-cursor-offset (if (nil? text-cursor-offset)
+                                       {:x 0, :y 0}
+                                       text-cursor-offset)
+                  ^double text-leading (:text-leading text-layout 1)
+                  offset (:offset entry)
+                  xform (doto (Matrix4d.)
+                          (.set (let [[x y] offset]
+                                  (Vector3d. x y 0.0))))
+                  _ (.mul xform ^Matrix4d (:world-transform entry) xform)
+                  ^double max-width (:width text-layout)
+                  align (:align entry :center)]
+              (loop [vbuf vbuf
+                     [line & lines] (:lines text-layout)
+                     [^double line-width & line-widths] (:line-widths text-layout)
+                     line-no 0]
+                (if line
+                  (let [y (* line-no (- (* line-height text-leading)))]
+                    (loop [vbuf vbuf
+                           [glyph & glyphs] (map char->glyph line)
+                           x (case align
+                               :left 0.0
+                               :center (* 0.5 (- max-width line-width))
+                               :right (- max-width line-width))]
+                      (if glyph
+                        (let [glyph (place-glyph glyph-cache glyph)
+                              cursor (doto (Matrix4d.) (.set (Vector3d. (+ x (:x text-cursor-offset)) (+ y (:y text-cursor-offset)) 0.0)))
+                              cursor (doto cursor (.mul xform cursor))]
+                          (recur (put-glyph-quad-fn vbuf glyph cursor put-pos-uv-fn)
+                                 glyphs
+                                 (+ x ^double (:advance glyph) text-tracking)))
+                        vbuf))
+                    (recur vbuf lines line-widths (inc line-no)))
+                  vbuf))))
+          vbuf
+          text-entries))
 
 (defn- fill-vertex-buffer
   [^GL2 gl vbuf {:keys [type font-map texture] :as font-data} text-entries glyph-cache]
   (let [put-glyph-quad-fn (make-put-glyph-quad-fn font-map)
         put-pos-uv-fn (cond-> put-pos-uv!
-                        (= type :distance-field)
-                        (wrap-with-sdf-params font-map))
+                              (= type :distance-field)
+                              (wrap-with-sdf-params font-map))
         unpacked-layer-mask (get-layers-in-mask (:layer-mask font-map))
         layer-mask-enabled (and (> (count-layers-in-mask (:layer-mask font-map)) 1) (not (= type :distance-field)))
         char->glyph (comp (font-map->glyphs font-map) int)
         line-height (+ ^long (:max-ascent font-map) ^long (:max-descent font-map))
         face-mask (if layer-mask-enabled
-                      [1 0 0]
-                      [1 1 1])
+                    [1 0 0]
+                    [1 1 1])
         shadow-offset {:x (:shadow-x font-map), :y (:shadow-y font-map)}]
-          ;; Output glyphs per layer in back to front, if enabled but always output face layer.
-          (when (and layer-mask-enabled (int->bool (nth unpacked-layer-mask 2))) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 0 1] shadow-offset))
-          (when (and layer-mask-enabled (int->bool (nth unpacked-layer-mask 1))) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] nil))
-          (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask nil)))
+    ;; Output glyphs per layer in back to front, if enabled but always output face layer.
+    (when (and layer-mask-enabled (int->bool (nth unpacked-layer-mask 2))) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 0 1] shadow-offset))
+    (when (and layer-mask-enabled (int->bool (nth unpacked-layer-mask 1))) (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn [0 1 0] nil))
+    (fill-vertex-buffer-quads vbuf text-entries put-pos-uv-fn line-height char->glyph glyph-cache put-glyph-quad-fn face-mask nil)))
 
 (defn gen-vertex-buffer
   [^GL2 gl {:keys [type font-map] :as font-data} text-entries]
