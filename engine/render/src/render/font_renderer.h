@@ -49,7 +49,7 @@ namespace dmRender
         uint32_t m_OutlineColor;
         uint32_t m_ShadowColor;
         float    m_SdfParams[4];
-        uint8_t  m_LayerMask[3];
+        uint8_t  m_LayerMasks[3];
     };
 
     /**

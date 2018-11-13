@@ -23,6 +23,11 @@
 
 using namespace Vectormath::Aos;
 
+#define LAYER_FACE    0x1
+#define LAYER_OUTLINE 0x2
+#define LAYER_SHADOW  0x4
+#define HAS_LAYER(mask,layer) ((mask & layer) == layer)
+
 namespace dmRender
 {
     FontMapParams::FontMapParams()
@@ -41,7 +46,7 @@ namespace dmRender
     , m_CacheCellWidth(0)
     , m_CacheCellHeight(0)
     , m_CacheCellPadding(0)
-    , m_LayerMask(1)
+    , m_LayerMask(LAYER_FACE)
     , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
     {
 
@@ -68,7 +73,7 @@ namespace dmRender
         , m_CacheCellHeight(0)
         , m_CacheCellMaxAscent(0)
         , m_CacheCellPadding(0)
-        , m_LayerMask(1)
+        , m_LayerMask(LAYER_FACE)
         {
 
         }
@@ -573,16 +578,11 @@ namespace dmRender
         // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
         float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
 
-        uint32_t vertexindex = 0;
-        uint32_t valid_glyph_count = 0;
-        uint8_t  vertices_per_quad = 6;
-        uint8_t  layer_count       = 1;
-        uint8_t  layer_mask        = font_map->m_LayerMask;
-
-        #define LAYER_FACE    0x1
-        #define LAYER_OUTLINE 0x2
-        #define LAYER_SHADOW  0x4
-        #define HAS_LAYER(mask,layer) ((mask & layer) == layer)
+        uint32_t vertexindex        = 0;
+        uint32_t valid_glyph_count  = 0;
+        uint8_t  vertices_per_quad  = 6;
+        uint8_t  layer_count        = 1;
+        uint8_t  layer_mask         = font_map->m_LayerMask;
 
         assert(HAS_LAYER(layer_mask,LAYER_FACE));
 
@@ -733,9 +733,9 @@ namespace dmRender
                         v5_layer_face = v2_layer_face;
 
                         #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
-                            v.m_LayerMask[0] = f; \
-                            v.m_LayerMask[1] = o; \
-                            v.m_LayerMask[2] = s;
+                            v.m_LayerMasks[0] = f; \
+                            v.m_LayerMasks[1] = o; \
+                            v.m_LayerMasks[2] = s;
 
                         // Set outline vertices
                         if (HAS_LAYER(layer_mask,LAYER_OUTLINE))
@@ -820,11 +820,6 @@ namespace dmRender
                 x += (int16_t)(g->m_Advance + tracking);
             }
         }
-
-        #undef LAYER_FACE
-        #undef LAYER_OUTLINE
-        #undef LAYER_SHADOW
-        #undef HAS_LAYER
 
         return vertexindex * layer_count;
     }

@@ -366,7 +366,7 @@ public class Fontc {
             this.fontDesc.getOutlineWidth() > 0 &&
             this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
         {
-            fontMapLayerMask += 0x2;
+            fontMapLayerMask |= 0x2;
         }
 
         if (this.fontDesc.getAntialias() != 0 &&
@@ -374,7 +374,7 @@ public class Fontc {
             this.fontDesc.getAlpha() > 0 &&
             this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
         {
-            fontMapLayerMask += 0x4;
+            fontMapLayerMask |= 0x4;
         }
 
         // We keep track of offset into the glyph data bank,
