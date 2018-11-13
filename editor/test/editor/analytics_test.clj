@@ -1,11 +1,13 @@
 (ns editor.analytics-test
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.analytics :as analytics]
             [editor.fs :as fs]
             [editor.system :as sys]
-            [clojure.string :as string])
+            [integration.test-util :as test-util]
+            [service.log :as log])
   (:import (java.net HttpURLConnection)
            (java.nio.charset StandardCharsets)
            (java.io FileNotFoundException)))
@@ -15,6 +17,7 @@
 (defonce ^:private validation-server-url "https://www.google-analytics.com/debug/collect")
 (defonce ^:private mock-cid "7f208496-5029-4d4b-b530-e3c089980548")
 (defonce ^:private mock-uid "63AD229B66CB4EFB")
+(defonce ^:private send-interval 300)
 (defonce ^:private shutdown-timeout 4000)
 (defonce ^:private temp-config-file (fs/create-temp-file! "defold-analytics"))
 
@@ -61,7 +64,7 @@
                               (with-redefs [analytics/get-response-code! (partial get-response-code-and-append-hit-parsing-results! hit-parsing-results-atom)
                                             sys/defold-version (constantly "0.1.234")]
                                 (with-config! {:cid mock-cid}
-                                  (analytics/start! validation-server-url false)
+                                  (analytics/start! validation-server-url send-interval false)
                                   (analytics/track-event! "test-category" "test-action")
                                   (analytics/track-event! "test-category" "test-action" "test-label")
                                   (analytics/track-exception! (NullPointerException.))
@@ -82,7 +85,7 @@
                               (with-redefs [analytics/get-response-code! (partial get-response-code-and-append-hit-parsing-results! hit-parsing-results-atom)
                                             sys/defold-version (constantly "0.1.234")]
                                 (with-config! {:cid mock-cid :uid mock-uid}
-                                  (analytics/start! validation-server-url false)
+                                  (analytics/start! validation-server-url send-interval false)
                                   (analytics/track-event! "test-category" "test-action")
                                   (analytics/track-event! "test-category" "test-action" "test-label")
                                   (analytics/track-exception! (NullPointerException.))
@@ -108,7 +111,7 @@
                       (with-redefs [analytics/get-response-code! (constantly 200)
                                     analytics/post! (fn [_ _ payload] (swap! hits-atom into (payload->lines payload)))
                                     sys/defold-version (constantly "0.1.234")]
-                        (analytics/start! "https://not-used" invalidate-uid?)
+                        (analytics/start! "https://not-used" send-interval invalidate-uid?)
                         (analytics/track-event! "test-category" "test-action")
                         (analytics/shutdown! shutdown-timeout)
                         @hits-atom)))]
@@ -125,7 +128,7 @@
     (testing "Corrupt config file."
       (with-redefs [analytics/config-file (constantly temp-config-file)]
         (spit temp-config-file "asdf")
-        (let [hits (get-hits! false)
+        (let [hits (log/without-logging (get-hits! false))
               config (get-config!)]
           (is (valid-cid? (:cid config)))
           (is (nil? (:uid config)))
@@ -166,3 +169,32 @@
                (get-hits! false)))
         (is (= {:cid mock-cid :uid nil}
                (get-config!)))))))
+
+(deftest send-error-test
+  (with-redefs [sys/defold-version (constantly "0.1.234")]
+
+    (testing "Bad response."
+      (let [post-call-logger (test-util/make-call-logger)]
+        (with-redefs [analytics/get-response-code! (constantly 404)
+                      analytics/post! post-call-logger]
+          (log/without-logging
+            (analytics/start! "https://not-used" 10 false)
+            (analytics/track-event! "test-category" "test-action")
+            (Thread/sleep 1000))
+
+          ;; Shuts down after 5 retries.
+          (is (= 5 (count (test-util/call-logger-calls post-call-logger))))
+          (is (not (analytics/enabled?))))))
+
+    (testing "Exception during post."
+      (let [post-call-logger (test-util/make-call-logger (fn [_ _ _] (throw (ex-info "Post failed" {}))))]
+        (with-redefs [analytics/get-response-code! (constantly 200)
+                      analytics/post! post-call-logger]
+          (log/without-logging
+            (analytics/start! "https://not-used" 10 false)
+            (analytics/track-event! "test-category" "test-action")
+            (Thread/sleep 1000))
+
+          ;; Shuts down after 5 retries.
+          (is (= 5 (count (test-util/call-logger-calls post-call-logger))))
+          (is (not (analytics/enabled?))))))))
