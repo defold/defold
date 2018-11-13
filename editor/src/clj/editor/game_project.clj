@@ -107,28 +107,23 @@
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
 (g/defnk produce-build-targets [_node-id resource raw-settings custom-build-targets resource-settings dep-build-targets setting-errors]
-  (g/precluding-errors
-    (g/error-aggregate (keep (fn [[_setting-path setting-error]]
-                               (when (g/error-fatal? setting-error)
-                                 (assoc setting-error :_node-id _node-id)))
-                            setting-errors))
-    (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
-          deps-by-source (into {} (map
-                                    (fn [build-target]
-                                      (let [build-resource (:resource build-target)
-                                            source-resource (:resource build-resource)]
-                                        [source-resource build-resource]))
-                                    dep-build-targets))
-          path->built-resource-settings (into {} (keep (fn [resource-setting]
-                                                         (when (resource-setting-connections-template (:path resource-setting))
-                                                           [(:path resource-setting) (deps-by-source (:value resource-setting))]))
-                                                       resource-settings))]
-      [{:node-id   _node-id
-        :resource  (workspace/make-build-resource resource)
-        :build-fn  build-game-project
-        :user-data {:raw-settings                  raw-settings
-                    :path->built-resource-settings path->built-resource-settings}
-        :deps      dep-build-targets}])))
+  (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
+        deps-by-source (into {} (map
+                                  (fn [build-target]
+                                    (let [build-resource (:resource build-target)
+                                          source-resource (:resource build-resource)]
+                                      [source-resource build-resource]))
+                                  dep-build-targets))
+        path->built-resource-settings (into {} (keep (fn [resource-setting]
+                                                       (when (resource-setting-connections-template (:path resource-setting))
+                                                         [(:path resource-setting) (deps-by-source (:value resource-setting))]))
+                                                     resource-settings))]
+    [{:node-id   _node-id
+      :resource  (workspace/make-build-resource resource)
+      :build-fn  build-game-project
+      :user-data {:raw-settings                  raw-settings
+                  :path->built-resource-settings path->built-resource-settings}
+      :deps      dep-build-targets}]))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)

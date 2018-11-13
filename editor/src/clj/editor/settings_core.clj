@@ -221,7 +221,8 @@
 
 (defn get-meta-setting
   [meta-settings path]
-  (nth meta-settings (setting-index meta-settings path)))
+  (when-some [index (setting-index meta-settings path)]
+    (nth meta-settings index)))
 
 
 (defn settings-with-value [settings]
