@@ -11,6 +11,7 @@
             [editor.resource :as resource]
             [editor.view :as view]
             [editor.util :as util]
+            [editor.settings :as settings]
             [editor.settings-core :as settings-core])
   (:import [java.util Collection]
            [javafx.scene Parent Node]
@@ -949,7 +950,7 @@
                          ((:update api) value)
                          (update-label-box overridden?))
                        (when (:deprecated (:meta-setting update-data))
-                         (let [error (editor.settings/get-setting-error (:setting-value update-data) (:meta-setting update-data))
+                         (let [error (settings/get-setting-error (:setting-value update-data) (:meta-setting update-data))
                                severity (:severity error)]
                            (ui/remove-styles! control (map val severity-field-style-map))
                            (if (= nil error)
