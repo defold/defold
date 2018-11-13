@@ -10,8 +10,7 @@
             [editor.game-project-core :as gpcore]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [editor.form-view :as form-view])
+            [editor.resource-node :as resource-node])
   (:import [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -133,7 +132,6 @@
 
   (input texture-profiles-data g/Any)
   (output texture-profiles-data g/Any (gu/passthrough texture-profiles-data))
-
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode
   (output settings-map g/Any (gu/passthrough settings-map))
