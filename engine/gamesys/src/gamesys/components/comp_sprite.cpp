@@ -678,14 +678,9 @@ namespace dmGameSystem
             if (!component.m_Enabled || !component.m_AddedToUpdate)
                 continue;
 
-            uint32_t const_count = component.m_RenderConstants.m_ConstantCount;
-            for (uint32_t const_i = 0; const_i < const_count; ++const_i)
+            if (dmGameSystem::AreRenderConstantsUpdated(&component.m_RenderConstants))
             {
-                if (lengthSqr(component.m_RenderConstants.m_RenderConstants[const_i].m_Value - component.m_RenderConstants.m_PrevRenderConstants[const_i]) > 0)
-                {
-                    ReHash(&component);
-                    break;
-                }
+                ReHash(&component);
             }
 
             const Vector4 trans = component.m_World.getCol(3);
@@ -768,18 +763,9 @@ namespace dmGameSystem
             else if (params.m_Message->m_Id == dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash)
             {
                 dmGameSystemDDF::ResetConstant* ddf = (dmGameSystemDDF::ResetConstant*)params.m_Message->m_Data;
-                dmRender::Constant* constants = component->m_RenderConstants.m_RenderConstants;
-                uint32_t size = component->m_RenderConstants.m_ConstantCount;
-                for (uint32_t i = 0; i < size; ++i)
+                if (dmGameSystem::ClearRenderConstant(&component->m_RenderConstants, ddf->m_NameHash))
                 {
-                    if (constants[i].m_NameHash == ddf->m_NameHash)
-                    {
-                        constants[i] = constants[size - 1];
-                        component->m_RenderConstants.m_PrevRenderConstants[i] = component->m_RenderConstants.m_PrevRenderConstants[size - 1];
-                        component->m_RenderConstants.m_ConstantCount--;
-                        ReHash(component);
-                        break;
-                    }
+                    ReHash(component);
                 }
             }
             else if (params.m_Message->m_Id == dmGameSystemDDF::SetScale::m_DDFDescriptor->m_NameHash)
