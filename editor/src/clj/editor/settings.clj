@@ -91,7 +91,6 @@
 
 (defn- make-form-data [form-ops meta-info settings]
   (let [meta-settings (:settings meta-info)
-        deprecated-paths (:deprecated-paths meta-info)
         categories (distinct (mapv settings-core/presentation-category meta-settings))
         category->settings (group-by settings-core/presentation-category meta-settings)
         sections (mapv #(make-form-section % (get-in meta-info [:categories %]) (category->settings %)) categories)
