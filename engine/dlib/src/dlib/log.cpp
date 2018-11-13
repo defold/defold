@@ -57,8 +57,8 @@ static dmLogServer* g_dmLogServer = 0;
 static dmLogSeverity g_LogLevel = DM_LOG_SEVERITY_USER_DEBUG;
 static int g_TotalBytesLogged = 0;
 static FILE* g_LogFile = 0;
-static dmCustomLogCallback g_CustomLogCallback = 0x0;
-static void* g_CustomLogCallbackUserData = 0x0;
+static dmCustomLogCallback g_CustomLogCallback = 0;
+static void* g_CustomLogCallbackUserData = 0;
 
 // create and bind the server socket, will reuse old port if supplied handle valid
 static void dmLogInitSocket( dmSocket::Socket& server_socket )
