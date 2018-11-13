@@ -6,7 +6,7 @@
             [service.log :as log])
   (:import (clojure.lang PersistentQueue)
            (com.defold.editor Editor)
-           (java.io File IOException)
+           (java.io File)
            (java.net HttpURLConnection MalformedURLException URL)
            (java.nio.charset StandardCharsets)
            (java.util UUID)
@@ -18,6 +18,7 @@
 (defonce ^:private cid-regex #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 (defonce ^:private config-atom (atom nil))
 (defonce ^:private event-queue-atom (atom PersistentQueue/EMPTY))
+(defonce ^:private max-failed-send-attempts 5)
 (defonce ^:private payload-content-type "application/x-www-form-urlencoded; charset=UTF-8")
 (defonce ^:private send-interval 300)
 (defonce ^:private send-remaining-interval 30)
@@ -78,34 +79,40 @@
   ^File []
   (.toFile (.resolve (Editor/getSupportPath) ".defold-analytics")))
 
-(defn- write-config! [{:keys [cid uid]}]
+(defn- write-config-to-file! [{:keys [cid uid]} ^File config-file]
   {:pre [(valid-cid? cid)
          (or (nil? uid) (valid-uid? uid))]}
-  (let [config-file (config-file)
-        json (if (some? uid)
+  (let [json (if (some? uid)
                {"cid" cid "uid" uid}
                {"cid" cid})]
-    (try
-      (with-open [writer (io/writer config-file)]
-        (json/write json writer))
-      (catch Throwable error
-        (log/error :msg (str "Failed to write analytics config: " config-file) :exception error)))))
+    (with-open [writer (io/writer config-file)]
+      (json/write json writer))))
 
-(defn- read-config! [signed-in?]
+(defn- write-config! [config]
+  (let [config-file (config-file)]
+    (try
+      (write-config-to-file! config config-file)
+      (catch Throwable error
+        (log/warn :msg (str "Failed to write analytics config: " config-file) :exception error)))))
+
+(defn- read-config-from-file! [^File config-file]
+  (with-open [reader (io/reader config-file)]
+    (let [{cid "cid" uid "uid"} (json/read reader)]
+      {:cid cid :uid uid})))
+
+(defn- read-config! [invalidate-uid?]
   {:post [(valid-config? %)]}
   (let [config-file (config-file)
-        config-from-file (when (.exists config-file)
-                           (try
-                             (with-open [reader (io/reader config-file)]
-                               (let [{cid "cid" uid "uid"} (json/read reader)]
-                                 {:cid cid :uid uid}))
-                             (catch Throwable error
-                               (log/error :msg (str "Failed to read analytics config: " config-file) :exception error)
-                               nil)))
+        config-from-file (try
+                           (when (.exists config-file)
+                             (read-config-from-file! config-file))
+                           (catch Throwable error
+                             (log/warn :msg (str "Failed to read analytics config: " config-file) :exception error)
+                             nil))
         config (if-not (valid-config? config-from-file)
                  (make-config)
                  (cond-> config-from-file
-                         (and (not signed-in?)
+                         (and invalidate-uid?
                               (contains? config-from-file :uid))
                          (assoc :uid nil)))]
     (when (not= config-from-file config)
@@ -158,10 +165,14 @@
 
 (defn- send-payload! [analytics-url ^bytes payload]
   (try
-    (ok-response-code? (get-response-code! (post! analytics-url payload-content-type payload)))
-    (catch IOException _
-      ;; NOTE: We don't log on errors as we don't have backoff inplace.
-      ;; Same for non-ok response code.
+    (let [response-code (get-response-code! (post! analytics-url payload-content-type payload))]
+      (if (ok-response-code? response-code)
+        true
+        (do
+          (log/warn :msg (str "Analytics server sent non-OK response code " response-code))
+          false)))
+    (catch Exception error
+      (log/warn :msg (str "An exception was thrown when sending analytics data" :exception error))
       false)))
 
 (defn- pop-count [queue ^long count]
@@ -172,13 +183,23 @@
       (recur (dec remaining-count)
              (pop shortened-queue)))))
 
-(defn- send-one-batch! [analytics-url]
-  (when-some [config @config-atom]
-    (let [event-queue @event-queue-atom
-          batch (into [] (take batch-size) event-queue)]
-      (when (and (seq batch)
-                 (send-payload! analytics-url (batch->payload batch config)))
-        (swap! event-queue-atom pop-count (count batch))))))
+(defn- send-one-batch!
+  "Sends one batch of events from the queue. Returns false if there were events
+  on the queue that could not be sent. Otherwise removes the successfully sent
+  events from the queue and returns true."
+  [analytics-url]
+  (let [config @config-atom]
+    (if (nil? config)
+      true
+      (let [event-queue @event-queue-atom
+            batch (into [] (take batch-size) event-queue)]
+        (if (empty? batch)
+          true
+          (if-not (send-payload! analytics-url (batch->payload batch config))
+            false
+            (do
+              (swap! event-queue-atom pop-count (count batch))
+              true)))))))
 
 (defn- send-remaining-batches! [analytics-url]
   (when-some [config @config-atom]
@@ -188,25 +209,37 @@
           (Thread/sleep send-remaining-interval)
           (send-payload! analytics-url (batch->payload batch config))
           (recur (pop-count event-queue (count batch)))))
-      (swap! event-queue-atom pop-count (count event-queue)))))
+      (swap! event-queue-atom pop-count (count event-queue))
+      nil)))
+
+(declare shutdown!)
 
 (defn- start-worker! [analytics-url]
   (let [stopped-atom (atom false)
         thread (future
                  (try
-                   (loop []
-                     (if @stopped-atom
+                   (loop [failed-send-attempts 0]
+                     (cond
+                       (>= failed-send-attempts max-failed-send-attempts)
+                       (do
+                         (log/warn :msg (str "Analytics shut down after " max-failed-send-attempts " failed send attempts"))
+                         (shutdown! 0))
+
+                       @stopped-atom
                        (send-remaining-batches! analytics-url)
+
+                       :else
                        (do
                          (Thread/sleep send-interval)
-                         (send-one-batch! analytics-url)
-                         (recur))))
+                         (if (send-one-batch! analytics-url)
+                           (recur 0)
+                           (recur (inc failed-send-attempts))))))
                    (catch CancellationException _
                      nil)
                    (catch InterruptedException _
                      nil)
                    (catch Throwable error
-                     (log/error :msg "Abnormal worker thread termination" :exception error))))]
+                     (log/warn :msg "Abnormal worker thread termination" :exception error))))]
     {:stopped-atom stopped-atom
      :thread thread}))
 
@@ -232,10 +265,10 @@
 ;; Public interface
 ;; -----------------------------------------------------------------------------
 
-(defn start! [^String analytics-url signed-in?]
+(defn start! [^String analytics-url invalidate-uid?]
   {:pre [(valid-analytics-url? analytics-url)]}
   (when (some? (sys/defold-version))
-    (reset! config-atom (read-config! signed-in?))
+    (reset! config-atom (read-config! invalidate-uid?))
     (swap! worker-atom
            (fn [started-worker]
              (when (some? started-worker)
@@ -255,11 +288,11 @@
   {:pre [(or (nil? uid) (valid-uid? uid))]}
   (swap! config-atom
          (fn [config]
-           (when (some? config)
-             (let [updated-config (assoc config :uid uid)]
-               (when (not= config updated-config)
-                 (write-config! updated-config))
-               updated-config)))))
+           (let [config (or config (read-config! false))
+                 updated-config (assoc config :uid uid)]
+             (when (not= config updated-config)
+               (write-config! updated-config))
+             updated-config))))
 
 (defn track-event!
   ([^String category ^String action]
