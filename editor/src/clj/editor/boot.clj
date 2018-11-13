@@ -133,8 +133,9 @@
                 (prefs/load-prefs prefs-path)
                 (prefs/make-prefs "defold"))
         dashboard-client (login/make-dashboard-client prefs)
-        update-context (:update-context (updater/start!))]
-    (analytics/start! "https://www.google-analytics.com/batch" (login/signed-in? dashboard-client))
+        update-context (:update-context (updater/start!))
+        invalidate-analytics-uid? (not (login/signed-in? dashboard-client))]
+    (analytics/start! "https://www.google-analytics.com/batch" invalidate-analytics-uid?)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
       (if-let [game-project-path (get-in opts [:arguments 0])]
