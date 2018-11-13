@@ -841,15 +841,9 @@ GLFWAPI void GLFWAPIENTRY glfwRestoreWindow( void )
 
 GLFWAPI int GLFWAPIENTRY glfwGetWindowRefreshRate( void )
 {
-    printf("window.c glfwGetWindowRefreshRate\n");
     if( !_glfwInitialized || !_glfwWin.opened )
     {
-        printf("window.c not initialized or not opened. _glfwInitialized: %i, _glfwWin.opened: %i\n", _glfwInitialized, _glfwWin.opened);
         return 0;
-    }
-    else
-    {
-        printf("window.c SUCESS Calling into platform glfw...\n");
     }
 
     return _glfwPlatformGetWindowRefreshRate();

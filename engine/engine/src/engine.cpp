@@ -402,17 +402,14 @@ namespace dmEngine
             swap_interval = dmMath::Max(0, swap_interval);
             // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
             engine->m_UseSwVsync = (engine->m_Vsync == VSYNC_SOFTWARE || (engine->m_Vsync == VSYNC_HARDWARE && swap_interval == 0));
-            dmLogWarning("Using sw vsync?: %i", engine->m_UseSwVsync);
             if (engine->m_Vsync == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
                 engine->m_UpdateFrequency /= swap_interval;
             dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
-            dmLogError("SetSwapInterval: %u", swap_interval);
         }
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
-        dmLogError("SetUpdateFrequency: %u", frequency);
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
     }
@@ -595,27 +592,23 @@ namespace dmEngine
         engine->m_UseSwVsync = false;
 
         bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
-        dmLogWarning("#### display.vsync: %u", setting_vsync);
         uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
         uint32_t update_frequency = setting_update_frequency;
         uint32_t swap_interval = 1;
 
         if (!setting_vsync)
         {
-            engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0 use variable_dt
+            engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0, use variable_dt
             engine->m_Vsync = VSYNC_SOFTWARE;
             swap_interval = 0;
-            dmLogInfo("Vsync software, engine->m_UseVariableDt: %i", engine->m_UseVariableDt)
         }
         else
         {
             engine->m_UseVariableDt = 0;
             uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
-            dmLogWarning("HW engine refresh rate read: %u", refresh_rate);
             if (refresh_rate == 0) // default to 60 if read failed
             {
                 refresh_rate = 60;
-                dmLogWarning("Unable to get display refresh rate, defaulting to 60.")
             }
             else // Only bother setting a custom swap interval if we succeeded in getting a window refresh rate
             {
@@ -623,7 +616,6 @@ namespace dmEngine
                 {
                     // Calculate closest integer swap-interval from refresh rate and setting_update_frequency
                     float fswap_interval = refresh_rate / setting_update_frequency;
-                    dmLogInfo("fswap_interval: %f", fswap_interval);
                     swap_interval = dmMath::Max(1U, (uint32_t) fswap_interval);
                 }
             }

@@ -419,6 +419,11 @@ namespace dmGraphics
      */
     void Finalize();
 
+    /**
+     * Get the window refresh rate
+     * @params context Graphics context handle
+     * @return The window refresh rate, 0 if refresh rate ciuld not be read.
+     */
     uint32_t GetWindowRefreshRate(HContext context);
 
     /**

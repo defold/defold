@@ -118,12 +118,12 @@
                                                        (when (resource-setting-connections-template (:path resource-setting))
                                                          [(:path resource-setting) (deps-by-source (:value resource-setting))]))
                                                      resource-settings))]
-    [{:node-id   _node-id
-      :resource  (workspace/make-build-resource resource)
-      :build-fn  build-game-project
-      :user-data {:raw-settings                  raw-settings
+    [{:node-id _node-id
+      :resource (workspace/make-build-resource resource)
+      :build-fn build-game-project
+      :user-data {:raw-settings raw-settings
                   :path->built-resource-settings path->built-resource-settings}
-      :deps      dep-build-targets}]))
+      :deps dep-build-targets}]))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)
