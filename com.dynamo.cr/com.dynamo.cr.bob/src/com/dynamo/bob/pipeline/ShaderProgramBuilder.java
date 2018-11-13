@@ -27,7 +27,6 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.util.Exec;
@@ -38,19 +37,9 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public abstract class ShaderProgramBuilder extends Builder<Void> {
 
+    abstract void writeExtraDirectives(PrintWriter writer);
 
-    @Override
-    public void build(Task<Void> task) throws IOException, CompileExceptionError {
-        IResource in = task.getInputs().get(0);
-        try (ByteArrayInputStream is = new ByteArrayInputStream(in.getContent())) {
-            boolean isDebug = (project.hasOption("debug") || (project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-            
-            ShaderDesc shaderDesc = compile(is, in, task.getOutputs().get(0).getPath(), project.getPlatformStrings()[0], isDebug);
-            task.output(0).setContent(shaderDesc.toByteArray());
-        }
-    }
-
-    private static ShaderDesc.Shader.Builder tranformGLSL(ByteArrayInputStream is, IResource resource, String resourceOutput, String platform, boolean isDebug)  throws IOException, CompileExceptionError {
+    private ShaderDesc.Shader.Builder tranformGLSL(ByteArrayInputStream is, IResource resource, String resourceOutput, String platform, boolean isDebug)  throws IOException, CompileExceptionError {
         InputStreamReader isr = new InputStreamReader(is);
         BufferedReader reader = new BufferedReader(isr);
         ByteArrayOutputStream os = new ByteArrayOutputStream(is.available() + 128 * 16);
@@ -76,27 +65,8 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         if (directiveLineCount != 0) {
             writer.println();
         }
-        // Write extra directives
-        switch(FilenameUtils.getExtension(resourceOutput)) {
-            case "vpc":
-                writer.println("#ifndef GL_ES");
-                writer.println("#define lowp");
-                writer.println("#define mediump");
-                writer.println("#define highp");
-                writer.println("#endif");
-                break;
-            case "fpc":
-                writer.println("#ifdef GL_ES");
-                writer.println("precision mediump float;");
-                writer.println("#endif");
-                writer.println("#ifndef GL_ES");
-                writer.println("#define lowp");
-                writer.println("#define mediump");
-                writer.println("#define highp");
-                writer.println("#endif");
-                break;
-        }
-        writer.println();
+
+        writeExtraDirectives(writer);
 
         // We want "correct" line numbers from the GLSL compiler.
         //
@@ -141,10 +111,10 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 throw new CompileExceptionError(resourceOutput + ":" + message, null);
             }
         }
-    	
+
     }
 
-    private static void compileMSL(ShaderDesc.Shader.Builder builder, File spirvFile, String spirvShaderStage, IResource resource, String resourceOutput, String platform, boolean isDebug)  throws IOException, CompileExceptionError {
+    private void compileMSL(ShaderDesc.Shader.Builder builder, File spirvFile, String spirvShaderStage, IResource resource, String resourceOutput, boolean isDebug)  throws IOException, CompileExceptionError {
 
         File file_out_msl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".msl");
         file_out_msl.deleteOnExit();
@@ -156,24 +126,22 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
                 "--stage", spirvShaderStage
                 );
         checkResult(result, resource, resourceOutput);
-        
+
         byte[] msl_data = FileUtils.readFileToByteArray(file_out_msl);
         builder.setSource(ByteString.copyFrom(msl_data));
     }
-    
-    private static ShaderDesc.Shader.Builder compileSPIRV(ByteArrayInputStream is, ShaderDesc.Language targetLanguage, IResource resource, String resourceOutput, String platform, boolean isDebug)  throws IOException, CompileExceptionError {
+
+    private ShaderDesc.Shader.Builder compileSPIRV(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language targetLanguage, IResource resource, String resourceOutput, String targetProfile, boolean isDebug)  throws IOException, CompileExceptionError {
         InputStreamReader isr = new InputStreamReader(is);
 
         // Convert to ES3 (or GL 140+)
         CharBuffer source = CharBuffer.allocate(is.available());
         isr.read(source);
         source.flip();
-        ES2ToES3Converter.ShaderType shaderType = FilenameUtils.getExtension(resourceOutput).equals("vpc") ? ES2ToES3Converter.ShaderType.VERTEX_SHADER : ES2ToES3Converter.ShaderType.FRAGMENT_SHADER;
-        String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
-        
+
         // TODO: Add optional glslangValidator step here to ensure shader is ES2 or Desktop X compliant?
-        
-        ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source.toString(), shaderType, platform.contains("x86") ? "" : "es");
+
+        ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source.toString(), shaderType, targetProfile);
 
         // TODO: Add optional glslangValidator step here to ensure shader is ES3 or Desktop X compliant?
 
@@ -184,7 +152,7 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         } else {
             es3Result.shaderVersion = Integer.parseInt(es3Result.shaderVersion) < 140 ? "140" : es3Result.shaderVersion;
         }
-        
+
         // compile GLSL (ES3 or Desktop 140) to SPIR-V
         File file_in_glsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".glsl");
         file_in_glsl.deleteOnExit();
@@ -192,7 +160,9 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
         File file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
         file_out_spv.deleteOnExit();
-        
+
+        String spirvShaderStage = (shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? "vert" : "frag");
+
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
                 "-w",
                 "-fauto-bind-uniforms",
@@ -204,12 +174,12 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         		);
         checkResult(result, resource, resourceOutput);
 
-        // Transpile to target language or output SPIRV 
+        // Transpile to target language or output SPIRV
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(targetLanguage);
         switch(targetLanguage) {
 			case LANGUAGE_MSL:
-			    compileMSL(builder, file_out_spv, spirvShaderStage, resource, resourceOutput, platform, isDebug);
+			    compileMSL(builder, file_out_spv, spirvShaderStage, resource, resourceOutput, isDebug);
 			break;
 
 			case LANGUAGE_SPIRV:
@@ -219,15 +189,15 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
 
 			case LANGUAGE_GLSL:
                 throw new CompileExceptionError("GLSL not implemented as SPIRV target language", null);
-			
+
 			default:
                 throw new CompileExceptionError("Unknown compiler target languge", null);
         }
-        
+
         return builder;
-    }        
-        
-    public static ShaderDesc compile(ByteArrayInputStream is, IResource resource, String resourceOutput, String platform, boolean isDebug) throws IOException, CompileExceptionError {
+    }
+
+    public ShaderDesc compile(ByteArrayInputStream is, ES2ToES3Converter.ShaderType shaderType, IResource resource, String resourceOutput, String platform, boolean isDebug) throws IOException, CompileExceptionError {
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
         // Always build GLSL (for now)
@@ -240,16 +210,20 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         // Build platform specific shader targets (e.g SPIRV, MSL, ..)
         Platform platformKey = Platform.get(platform);
         if(platformKey != null) {
-            ShaderDesc.Shader.Builder builder = null; 
+            ShaderDesc.Shader.Builder builder = null;
          	switch(platformKey) {
+         		case X86Darwin:
         		case X86_64Darwin:
+                    builder = compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "", isDebug);
+                break;
+        		case Armv7Darwin:
         		case Arm64Darwin:
-                    builder = compileSPIRV(is, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, platform, isDebug);
+                    builder = compileSPIRV(is, shaderType, ShaderDesc.Language.LANGUAGE_MSL, resource, resourceOutput, "es", isDebug);
      			break;
 
      			default:
      				// Disabled for now..
-                    // builder = ShaderDesc.Shader.Builder builder = compileSPIRV(is, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, platform, isDebug);
+                    // builder = ShaderDesc.Shader.Builder builder = compileSPIRV(is, ShaderDesc.Language.LANGUAGE_SPIRV, resource, resourceOutput, "", isDebug);
                 break;
          	}
          	if(builder != null) {
@@ -260,32 +234,30 @@ public abstract class ShaderProgramBuilder extends Builder<Void> {
         return shaderDescBuilder.build();
     }
 
-    public static void main(String[] args) throws IOException, CompileExceptionError {
-        System.setProperty("java.awt.headless", "true");
-
+    public void BuildShader(String[] args, ES2ToES3Converter.ShaderType shaderType) throws IOException, CompileExceptionError {
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
-             BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
+            BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
 
-            Options options = new Options();
-            options.addOption("p", "platform", true, "Platform");
-            options.addOption(null, "variant", true, "Specify debug or release");
-            CommandLineParser parser = new PosixParser();
-            CommandLine cmd = null;
-            try {
-                cmd = parser.parse(options, args);
-            } catch (ParseException e) {
-                System.err.println(e.getMessage());
-                System.exit(5);
-            }
+           Options options = new Options();
+           options.addOption("p", "platform", true, "Platform");
+           options.addOption(null, "variant", true, "Specify debug or release");
+           CommandLineParser parser = new PosixParser();
+           CommandLine cmd = null;
+           try {
+               cmd = parser.parse(options, args);
+           } catch (ParseException e) {
+               System.err.println(e.getMessage());
+               System.exit(5);
+           }
 
-            byte[] inBytes = new byte[is.available()];
-            is.read(inBytes);
-            ByteArrayInputStream bais = new ByteArrayInputStream(inBytes);
+           byte[] inBytes = new byte[is.available()];
+           is.read(inBytes);
+           ByteArrayInputStream bais = new ByteArrayInputStream(inBytes);
 
-            ShaderDesc shaderDesc = compile(bais, null, args[1], cmd.getOptionValue("platform", ""), cmd.getOptionValue("variant", "").equals("debug") ? true : false);
-            shaderDesc.writeTo(os);
-            os.close();
-        }
+           ShaderDesc shaderDesc = compile(bais, shaderType, null, args[1], cmd.getOptionValue("platform", ""), cmd.getOptionValue("variant", "").equals("debug") ? true : false);
+           shaderDesc.writeTo(os);
+           os.close();
+       }
     }
 
 }
