@@ -257,8 +257,8 @@
 (declare enabled?)
 
 (defn- append-event! [event]
+  (assert (valid-event? event))
   (when (enabled?)
-    (assert (valid-event? event))
     (swap! event-queue-atom conj event)
     nil))
 
@@ -280,7 +280,10 @@
   ([]
    (shutdown! shutdown-timeout))
   ([timeout-ms]
-   (swap! worker-atom shutdown-worker! timeout-ms)))
+   (swap! worker-atom
+          (fn [started-worker]
+            (when (some? started-worker)
+              (shutdown-worker! started-worker timeout-ms))))))
 
 (defn enabled? []
   (some? @worker-atom))
