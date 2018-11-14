@@ -163,7 +163,7 @@ public class HTML5Bundler implements IBundler {
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String enginePrefix = title;
+        String enginePrefix = BundleHelper.projectNameToBinaryName(title);
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         List<File> binsAsmjs = null;
