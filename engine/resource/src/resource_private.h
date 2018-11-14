@@ -72,11 +72,6 @@ namespace dmResource
      */
     Result BundleVersionValid(const Manifest* manifest, const char* bundle_ver_path);
 
-    /**
-     * Exposed for unit tests
-     */
-     Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, dmResourceArchive::HArchiveIndexContainer archive_index);
-
     struct PreloadRequest;
     struct PreloadHintInfo
     {
