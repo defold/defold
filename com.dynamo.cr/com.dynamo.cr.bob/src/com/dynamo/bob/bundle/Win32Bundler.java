@@ -63,7 +63,7 @@ public class Win32Bundler implements IBundler {
         String wrap_oal_dll = Bob.getLib(platform, "wrap_oal");
 
         // Copy Executable and DLL:s
-        String exeName = String.format("%s.exe", title);
+        String exeName = String.format("%s.exe", BundleHelper.projectNameToBinaryName(title));
         File exeOut = new File(appDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
         FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
