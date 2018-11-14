@@ -1312,6 +1312,14 @@ dmResource::Result SharedResourceDuplicate(const dmResource::ResourceDuplicatePa
     return dmResource::RESULT_OK;
 }
 
+TEST_F(ResourceTest, ManifestLoadDdfFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    const char* buf = "this is not a manifest buffer";
+    dmResource::Result result = dmResource::ManifestLoadMessage((uint8_t*)buf, strlen(buf), manifest);
+    ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
+}
+
 TEST_F(ResourceTest, ManifestBundledResourcesVerification)
 {
     dmResource::Manifest* manifest = new dmResource::Manifest();
