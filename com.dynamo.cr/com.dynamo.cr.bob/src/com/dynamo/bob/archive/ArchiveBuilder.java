@@ -21,7 +21,6 @@ import com.dynamo.bob.pipeline.ResourceNode;
 import com.dynamo.crypt.Crypt;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
-import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -170,13 +169,12 @@ public class ArchiveBuilder {
         for (int i = entries.size() - 1; i >= 0; --i) {
             ArchiveEntry entry = entries.get(i);
             byte[] buffer = this.loadResourceData(entry.fileName);
-            byte archiveEntryFlags = (byte) entry.flags;
-            int resourceEntryFlags = ResourceEntryFlag.BUNDLED.getNumber();
+            byte flags = (byte) entry.flags;
             if (entry.compressedSize != ArchiveEntry.FLAG_UNCOMPRESSED) {
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                    archiveEntryFlags = (byte)(archiveEntryFlags | ArchiveEntry.FLAG_COMPRESSED);
+                    flags = (byte)(flags | ArchiveEntry.FLAG_COMPRESSED);
                     buffer = compressed;
                     entry.compressedSize = compressed.length;
                 } else {
@@ -187,13 +185,14 @@ public class ArchiveBuilder {
             // Encrypt data
             String extension = FilenameUtils.getExtension(entry.fileName);
             if (ENCRYPTED_EXTS.indexOf(extension) != -1) {
-                archiveEntryFlags = (byte) (archiveEntryFlags | ArchiveEntry.FLAG_ENCRYPTED);
+                flags = (byte) (flags | ArchiveEntry.FLAG_ENCRYPTED);
                 entry.flags = (entry.flags | ArchiveEntry.FLAG_ENCRYPTED);
                 buffer = this.encryptResourceData(buffer);
             }
 
             // Add entry to manifest
             String normalisedPath = FilenameUtils.separatorsToUnix(entry.relName);
+            manifestBuilder.addResourceEntry(normalisedPath, buffer);
 
             // Calculate hash digest values for resource
             String hexDigest = null;
@@ -208,16 +207,13 @@ public class ArchiveBuilder {
 
             // Write resource to data archive
             if (this.excludeResource(normalisedPath, excludedResources)) {
-                resourceEntryFlags = ResourceEntryFlag.EXCLUDED.getNumber();
-                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, archiveEntryFlags, entry.size);
+                this.writeResourcePack(hexDigest, resourcePackDirectory.toString(), buffer, flags, entry.size);
                 entries.remove(i);
             } else {
                 alignBuffer(archiveData, 4);
                 entry.resourceOffset = (int) archiveData.getFilePointer();
                 archiveData.write(buffer, 0, buffer.length);
             }
-
-            manifestBuilder.addResourceEntry(normalisedPath, buffer, resourceEntryFlags);
         }
 
         // Write sorted hashes to index file
@@ -342,21 +338,17 @@ public class ArchiveBuilder {
 
         ResourceNode rootNode = new ResourceNode("<AnonymousRoot>", "<AnonymousRoot>");
 
-        int archivedEntries = 0;
-        int excludedEntries = 0;
+        System.out.println("Adding " + Integer.toString(inputs.size()) + " entries to archive ...");
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder);
         for (File currentInput : inputs) {
             if (currentInput.getName().startsWith("liveupdate.")){
-                excludedEntries++;
                 archiveBuilder.add(currentInput.getAbsolutePath(), doCompress, true);
             } else {
-                archivedEntries++;
                 archiveBuilder.add(currentInput.getAbsolutePath(), doCompress);
             }
             ResourceNode currentNode = new ResourceNode(currentInput.getPath(), currentInput.getAbsolutePath());
             rootNode.addChild(currentNode);
         }
-        System.out.println("Added " + Integer.toString(archivedEntries + excludedEntries) + " entries to archive (" + Integer.toString(excludedEntries) + " entries tagged as 'liveupdate' in archive).");
 
         manifestBuilder.setDependencies(rootNode);
 

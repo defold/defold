@@ -125,7 +125,6 @@ namespace dmLiveUpdate
             if (ret != 0)
             {
                 dmLogError("Error while running store_manifest callback");
-                lua_pop(L, 1);
             }
         }
         else
@@ -178,11 +177,10 @@ namespace dmLiveUpdate
 
         // Store
         if (result == RESULT_OK)
-        {
             result = dmLiveUpdate::StoreManifest(manifest);
-            dmDDF::FreeMessage(manifest->m_DDFData);
-            dmDDF::FreeMessage(manifest->m_DDF);
-        }
+
+        dmDDF::FreeMessage(manifest->m_DDFData);
+        dmDDF::FreeMessage(manifest->m_DDF);
         delete manifest;
 
         cb.m_Status = result;

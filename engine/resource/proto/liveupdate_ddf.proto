@@ -37,14 +37,6 @@ enum SignAlgorithm {
 }
 
 /*
- * Enum flag on manifest resource entry
- */
-enum ResourceEntryFlag {
-    BUNDLED    = 1;
-    EXCLUDED   = 2;
-}
-
-/*
  * Stores a hashdigest
  */
 message HashDigest {
@@ -91,16 +83,12 @@ message ManifestHeader {
  *                              considered a dependant since it is not required
  *                              to load the parent Collection of the
  *                              CollectionProxy.
- * - flags                    : How this resources is stored. Is used for manifest
- *                              verification to determine if a resource is expected
- *                              to be in the bundle or not.
  */
 message ResourceEntry {
     required string             url = 1;
     required uint64             url_hash = 2;
     required HashDigest         hash = 3;
     repeated HashDigest         dependants = 4;
-    required uint32             flags = 5 [default = 0]; // ResourceEntryFlag
 }
 
 /*

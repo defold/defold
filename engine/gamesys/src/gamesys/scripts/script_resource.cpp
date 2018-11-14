@@ -393,13 +393,6 @@ static const luaL_reg Module_methods[] =
  * @name resource.LIVEUPDATE_SCHEME_MISMATCH
  * @variable
  */
-
- /*# LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
- * Mismatch between between expected bundled resources and actual bundled resources. The manifest expects a resource to be in the bundle, but it was not found in the bundle. This is typically the case when a non-excluded resource was modified between publishing the bundle and publishing the manifest.
- *
- * @name resource.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
- * @variable
- */
 static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -441,7 +434,6 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(LIVEUPDATE_ENGINE_VERSION_MISMATCH, dmLiveUpdate::RESULT_ENGINE_VERSION_MISMATCH);
     SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
     SETCONSTANT(LIVEUPDATE_SCHEME_MISMATCH, dmLiveUpdate::RESULT_SCHEME_MISMATCH);
-    SETCONSTANT(LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH, dmLiveUpdate::RESULT_BUNDLED_RESOURCE_MISMATCH);
 
 #undef SETCONSTANT
 
