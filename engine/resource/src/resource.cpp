@@ -371,7 +371,7 @@ Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource:
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest (%i)", result);
-        return RESULT_IO_ERROR;
+        return RESULT_DDF_ERROR;
     }
 
     // Read data blob from ManifestFile into ManifestData message
@@ -381,7 +381,7 @@ Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource:
         dmLogError("Failed to parse Manifest data (%i)", result);
         dmDDF::FreeMessage(out_manifest->m_DDF);
         out_manifest->m_DDF = 0x0;
-        return RESULT_IO_ERROR;
+        return RESULT_DDF_ERROR;
     }
     if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
     {
