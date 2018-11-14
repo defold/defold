@@ -314,7 +314,11 @@
                   :exd (.getSimpleName (class exception))}))
 
 (defn track-screen! [^String screen-name]
-  (append-event! {:t "screenview"
-                  :an "defold"
-                  :av (sys/defold-version)
-                  :cd screen-name}))
+  (if-some [version (sys/defold-version)]
+    (append-event! {:t "screenview"
+                    :an "defold"
+                    :av version
+                    :cd screen-name})
+    (append-event! {:t "screenview"
+                    :an "defold"
+                    :cd screen-name})))
