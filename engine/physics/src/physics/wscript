@@ -21,14 +21,14 @@ def build(bld):
                                     use_lib = 'DLIB',
                                     includes = '. ../box2d',
                                     proto_gen_py = True,
-                                    source = ['physics_common.cpp', 'physics_2d.cpp', 'physics_3d_null.cpp', 'debug_draw_2d.cpp'],
+                                    source = ['physics.cpp', 'physics_common.cpp', 'physics_2d.cpp', 'physics_3d_null.cpp', 'debug_draw_2d.cpp'],
                                     target = 'physics_2d')
 
     physics_3d = bld.new_task_gen(features = 'cxx cstaticlib',
                                     use_lib = 'DLIB',
                                     includes = '. ../bullet',
                                     proto_gen_py = True,
-                                    source = ['physics_common.cpp', 'physics_3d.cpp', 'physics_2d_null.cpp', 'debug_draw_3d.cpp'],
+                                    source = ['physics.cpp', 'physics_common.cpp', 'physics_3d.cpp', 'physics_2d_null.cpp', 'debug_draw_3d.cpp'],
                                     target = 'physics_3d')
 
     bld.install_files('${PREFIX}/include/physics', 'physics.h')
