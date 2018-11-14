@@ -258,7 +258,7 @@ public class ManifestBuilder {
     }
 
     public static final int CONST_MAGIC_NUMBER = 0x43cb6d06;
-    public static final int CONST_VERSION = 0x03;
+    public static final int CONST_VERSION = 0x02;
 
     private HashAlgorithm resourceHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
     private HashAlgorithm signatureHashAlgorithm = HashAlgorithm.HASH_UNKNOWN;
@@ -372,14 +372,13 @@ public class ManifestBuilder {
         }
     }
 
-    public void addResourceEntry(String url, byte[] data, int flags) throws IOException {
+    public void addResourceEntry(String url, byte[] data) throws IOException {
         try {
             ResourceEntry.Builder builder = ResourceEntry.newBuilder();
             builder.setUrl(url);
             builder.setUrlHash(MurmurHash.hash64(url)); // sort on this
             HashDigest hash = CryptographicOperations.createHashDigest(data, this.resourceHashAlgorithm);
             builder.setHash(hash);
-            builder.setFlags(flags);
             this.resourceEntries.add(builder.buildPartial());
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create Manifest, hashing algorithm is not supported!");
