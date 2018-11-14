@@ -94,7 +94,6 @@
 	<!-- -->
 	{{{DEFOLD_DEV_INLINE}}}
 	<script type='text/javascript' src="dmloader.js"></script>
-	<script type='text/javascript' src="{{DEFOLD_ENGINE}}" async onload="{{DEFOLD_DEV_INIT}}"></script>
 	<!-- -->
 
 	<script type='text/javascript'>
@@ -113,10 +112,42 @@
 		Module.runApp("canvas", extra_params);
 	};
 
+	Module["locateFile"] = function(path, scriptDirectory)
+	{
+		// dmengine*.wasm is hardcoded in the built JS loader for WASM,
+		// we need to replace it here with the correct project name.
+		if (path == "dmengine.wasm" || path == "dmengine_release.wasm" || path == "dmengine_headless.wasm") {
+			path = "{{DEFOLD_BINARY_PREFIX}}.wasm";
+		}
+		return scriptDirectory + path;
+	};
+
+	function load_engine() {
+		var engineJS = document.createElement('script');
+		engineJS.type = 'text/javascript';
+		if (Module['isWASMSupported']) {
+		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_wasm.js';
+		} else {
+		    engineJS.src = '{{DEFOLD_BINARY_PREFIX}}_asmjs.js';
+		}
+		document.head.appendChild(engineJS);
+	}
+
 	/* Fullscreen button */
 	document.getElementById("fullscreen").onclick = function (e) {
 		Module.toggleFullscreen();
 	};
+
+	if ({{DEFOLD_HAS_FACEBOOK_APP_ID}}) {
+		// Load Facebook API
+		var fb = document.createElement('script');
+		fb.type = 'text/javascript';
+		fb.src = '//connect.facebook.net/en_US/sdk.js';
+		fb.onload = load_engine;
+		document.head.appendChild(fb);
+	} else {
+		load_engine();
+	}
 	</script>
 </body>
 </html>

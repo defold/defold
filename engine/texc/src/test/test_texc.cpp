@@ -246,7 +246,9 @@ TEST_F(TexcTest, Transcode)
 
 TEST_F(TexcTest, TranscodeWebPLossless)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA32(256, 256);
+    static const uint32_t width = 64;
+    static const uint32_t height = 64;
+    dmTexc::HTexture texture = CreateDefaultRGBA32(width, height);
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_DEFAULT));
@@ -296,7 +298,9 @@ TEST_F(TexcTest, TranscodeWebPLossless)
 
 TEST_F(TexcTest, TranscodeWebPLossy)
 {
-    dmTexc::HTexture texture = CreateDefaultRGBA32(256, 256);
+    static const uint32_t width = 64;
+    static const uint32_t height = 64;
+    dmTexc::HTexture texture = CreateDefaultRGBA32(width, height);
     dmTexc::Header header;
 
     ASSERT_TRUE(dmTexc::Transcode(texture, dmTexc::PF_L8, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP_LOSSY, dmTexc::DT_DEFAULT));
@@ -419,10 +423,12 @@ TEST_F(TexcTest, FlipAxis)
 
 static void TranscodeWebEncodedFormat(dmTexc::PixelFormat format, dmWebP::TextureEncodeFormat encode_format)
 {
-    dmTexc::HTexture texture_default = CreateDefaultRGBA32(256, 256);
+    static const uint32_t width = 64;
+    static const uint32_t height = 64;
+    dmTexc::HTexture texture_default = CreateDefaultRGBA32(width, height);
     ASSERT_TRUE(dmTexc::PreMultiplyAlpha(texture_default));
     ASSERT_TRUE(dmTexc::Transcode(texture_default, format, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_DEFAULT, dmTexc::DT_NONE));
-    dmTexc::HTexture texture = CreateDefaultRGBA32(256, 256);
+    dmTexc::HTexture texture = CreateDefaultRGBA32(width, height);
     ASSERT_TRUE(dmTexc::PreMultiplyAlpha(texture));
     ASSERT_TRUE(dmTexc::Transcode(texture, format, dmTexc::CS_LRGB, dmTexc::CL_FAST, dmTexc::CT_WEBP, dmTexc::DT_NONE));
 

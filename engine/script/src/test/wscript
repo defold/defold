@@ -9,7 +9,7 @@ new_copy_task('save_file', '.sav', '.savc')
 
 def build(bld):
     flist = 'cxx cprogram test'
-    if bld.env['PLATFORM'] == 'js-web':
+    if 'web' in bld.env['PLATFORM']:
         flist = flist + ' web'
         lib_dirs = None
         if 'JS_LIB_PATHS' in bld.env:
@@ -107,7 +107,7 @@ def build(bld):
                                         web_libs = web_libs,
                                         proto_gen_py = True,
                                         target = 'test_script',
-                                        source = 'test_script.cpp test_script.lua test_script_coroutine.lua test_circular_ref_pprint.lua')
+                                        source = 'test_script.cpp test_script.lua test_script_coroutine.lua test_circular_ref_pprint.lua test_pprint_truncate.lua')
 
     test_script.install_path = None
 
