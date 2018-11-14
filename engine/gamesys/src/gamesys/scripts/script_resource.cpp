@@ -400,6 +400,13 @@ static const luaL_reg Module_methods[] =
  * @name resource.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
  * @variable
  */
+
+ /*# LIVEUPDATE_FORMAT_ERROR
+ * Failed to parse manifest data buffer. The manifest was probably produced by a different engine version.
+ *
+ * @name resource.LIVEUPDATE_FORMAT_ERROR
+ * @variable
+ */
 static void LuaInit(lua_State* L)
 {
     int top = lua_gettop(L);
@@ -442,6 +449,7 @@ static void LuaInit(lua_State* L)
     SETCONSTANT(LIVEUPDATE_SIGNATURE_MISMATCH, dmLiveUpdate::RESULT_SIGNATURE_MISMATCH);
     SETCONSTANT(LIVEUPDATE_SCHEME_MISMATCH, dmLiveUpdate::RESULT_SCHEME_MISMATCH);
     SETCONSTANT(LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH, dmLiveUpdate::RESULT_BUNDLED_RESOURCE_MISMATCH);
+    SETCONSTANT(LIVEUPDATE_FORMAT_ERROR, dmLiveUpdate::RESULT_FORMAT_ERROR);
 
 #undef SETCONSTANT
 
