@@ -21,7 +21,6 @@ namespace dmLiveUpdate
         RESULT_SIGNATURE_MISMATCH        = -6,
         RESULT_SCHEME_MISMATCH           = -7,
         RESULT_BUNDLED_RESOURCE_MISMATCH = -8,
-        RESULT_FORMAT_ERROR              = -9,
     };
 
     /**
