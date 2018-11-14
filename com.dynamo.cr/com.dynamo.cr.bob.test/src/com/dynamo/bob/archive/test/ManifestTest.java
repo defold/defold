@@ -35,6 +35,7 @@ import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
+import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.google.protobuf.ByteString;
 import org.apache.commons.io.FileUtils;
@@ -75,7 +76,7 @@ public class ManifestTest {
             }
 
             for (String[] entry : this.resources) {
-                manifestBuilder.addResourceEntry(entry[0], entry[1].getBytes());
+                manifestBuilder.addResourceEntry(entry[0], entry[1].getBytes(), ResourceEntryFlag.BUNDLED.getNumber());
             }
 
             this.manifestHeader = manifestBuilder.buildManifestHeader();
