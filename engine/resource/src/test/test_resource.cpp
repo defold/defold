@@ -1318,6 +1318,7 @@ TEST_F(ResourceTest, ManifestLoadDdfFail)
     const char* buf = "this is not a manifest buffer";
     dmResource::Result result = dmResource::ManifestLoadMessage((uint8_t*)buf, strlen(buf), manifest);
     ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
+    delete manifest;
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerification)
