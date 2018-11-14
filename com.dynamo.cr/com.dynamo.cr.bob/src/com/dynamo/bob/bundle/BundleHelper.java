@@ -61,6 +61,14 @@ public class BundleHelper {
         this.propertiesMap = createPropertiesMap(project.getProjectProperties());
     }
 
+    public static String projectNameToBinaryName(String projectName) {
+        String output = projectName.replaceAll("[^a-zA-Z0-9_]", "");
+        if (output.equals("")) {
+            return "dmengine";
+        }
+        return output;
+    }
+
     static Object convert(String value, String type) {
         if (type != null && type.equals("bool")) {
             if (value != null) {

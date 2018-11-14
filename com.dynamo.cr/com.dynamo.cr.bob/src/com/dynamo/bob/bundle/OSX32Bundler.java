@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -40,6 +41,7 @@ public class OSX32Bundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
@@ -77,13 +79,15 @@ public class OSX32Bundler implements IBundler {
             FileUtils.copyFile(new File(buildDir, name), new File(resourcesDir, name));
         }
 
-        helper.format("osx", "infoplist", new File(contentsDir, "Info.plist"));
+        Map<String, Object> infoData = new HashMap<String, Object>();
+        infoData.put("exe-name", exeName);
+        helper.format(infoData, "osx", "infoplist", new File(contentsDir, "Info.plist"));
 
         // Copy icon
         copyIcon(projectProperties, new File(project.getRootDirectory()), resourcesDir);
 
         // Copy Executable
-        File exeOut = new File(macosDir, title);
+        File exeOut = new File(macosDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
     }

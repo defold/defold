@@ -9,7 +9,7 @@
         <key>CFBundleDisplayName</key>
         <string>{{project.title}}</string>
         <key>CFBundleExecutable</key>
-        <string>{{project.title}}</string>
+        <string>{{exe-name}}</string>
         <key>CFBundleIconFiles</key>
         <array>
                 <string>Icon-167.png</string>
