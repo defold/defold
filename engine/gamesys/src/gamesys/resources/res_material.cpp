@@ -229,4 +229,19 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    dmResource::Result ResMaterialPreload(const dmResource::ResourcePreloadParams& params)
+    {
+        dmRenderDDF::MaterialDesc* material;
+        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &dmRenderDDF_MaterialDesc_DESCRIPTOR, (void**) &material);
+        if (e != dmDDF::RESULT_OK)
+        {
+            return dmResource::RESULT_DDF_ERROR;
+        }
+
+        dmResource::PreloadHint(params.m_HintInfo, material->m_VertexProgram);
+        dmResource::PreloadHint(params.m_HintInfo, material->m_FragmentProgram);
+        *params.m_PreloadData = material;
+        return dmResource::RESULT_OK;
+    }
 }
