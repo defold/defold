@@ -201,7 +201,7 @@ platforms:
 
   js-web:
     env:
-        EM_CACHE:        "{{build_folder}}"
+        EM_CACHE:        "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
         EM_CONFIG:       "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
         PATH:            "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
         EMSCRIPTEN_HOME: "{{env.EMSCRIPTEN_HOME_1_38_12}}"
@@ -233,7 +233,7 @@ platforms:
 
   wasm-web:
     env:
-        EM_CACHE:        "{{build_folder}}"
+        EM_CACHE:        "{{env.EMSCRIPTEN_CACHE_1_38_12}}"
         EM_CONFIG:       "{{env.EMSCRIPTEN_CONFIG_1_38_12}}"
         PATH:            "{{env.EMSCRIPTEN_PATH_1_38_12}}:{{env.PATH}}"
         EMSCRIPTEN_HOME: "{{env.EMSCRIPTEN_HOME_1_38_12}}"
