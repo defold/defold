@@ -55,7 +55,7 @@ Important: *Make sure your branches are up to date!*
 
     Important: *Make sure the SHA1 and channel is correct!*
 
- 1. Build QRT test apps on [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/).
+ 1. Build QRT test apps on [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)).
 
     Log in and open "Build with Parameters"
 
@@ -78,7 +78,7 @@ When the beta has been released the following apps needs to be bundled and sent 
 * BBS - iOS, Android, desktops
 * Presto - iOS, Android
 
-Here is a [Jenkins link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
+Here is a [Jenkins](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt_pipeline/) ([old link](https://jenkins-stockholm.int.midasplayer.com/job/defold-qrt/)) to a build job that can do this for you. It uploads to [MBDL/DefoldQRT](https://mbdl3.midasplayer.com/#/builds/DefoldQRT)
 
 You can also download desktop and html5 versions from the artifacts on that page.
 
