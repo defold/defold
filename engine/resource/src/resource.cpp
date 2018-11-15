@@ -371,7 +371,7 @@ Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource:
     if (result != dmDDF::RESULT_OK)
     {
         dmLogError("Failed to parse Manifest (%i)", result);
-        return RESULT_IO_ERROR;
+        return RESULT_DDF_ERROR;
     }
 
     // Read data blob from ManifestFile into ManifestData message
@@ -381,7 +381,7 @@ Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource:
         dmLogError("Failed to parse Manifest data (%i)", result);
         dmDDF::FreeMessage(out_manifest->m_DDF);
         out_manifest->m_DDF = 0x0;
-        return RESULT_IO_ERROR;
+        return RESULT_DDF_ERROR;
     }
     if (out_manifest->m_DDFData->m_Header.m_MagicNumber != MANIFEST_MAGIC_NUMBER)
     {
@@ -408,7 +408,7 @@ Result ManifestLoadMessage(uint8_t* manifest_msg_buf, uint32_t size, dmResource:
     return RESULT_OK;
 }
 
-Result LoadManifest(const char* manifestPath, HFactory factory)
+static Result LoadManifest(const char* manifestPath, HFactory factory)
 {
     uint32_t manifestLength = 0;
     uint8_t* manifestBuffer = 0x0;
@@ -979,6 +979,33 @@ static int FindEntryIndex(const Manifest* manifest, dmhash_t path_hash)
         }
     }
     return -1;
+}
+
+Result VerifyResourcesBundled(dmLiveUpdateDDF::ResourceEntry* entries, uint32_t num_entries, dmResourceArchive::HArchiveIndexContainer archive_index)
+{
+    for(uint32_t i = 0; i < num_entries; ++i)
+    {
+        if (entries[i].m_Flags == dmLiveUpdateDDF::BUNDLED)
+        {
+            dmResourceArchive::Result res = dmResourceArchive::FindEntry(archive_index, entries[i].m_Hash.m_Data.m_Data, 0x0);
+            if (res == dmResourceArchive::RESULT_NOT_FOUND)
+            {
+                // Manifest expect the resource to be bundled, but it is not in the archive index.
+                dmLogError("Resource '%s' is expected to be in the bundle was not found. Resource was modified between publishing the bundle and publishing the manifest?", entries[i].m_Url);
+                return RESULT_INVALID_DATA;
+            }
+        }
+    }
+
+    return RESULT_OK;
+}
+
+Result VerifyResourcesBundled(HFactory factory, Manifest* manifest)
+{
+    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
+    dmLiveUpdateDDF::ResourceEntry* entries = manifest->m_DDFData->m_Resources.m_Data;
+
+    return VerifyResourcesBundled(entries, entry_count, factory->m_Manifest->m_ArchiveIndex);
 }
 
 static Result LoadFromManifest(const Manifest* manifest, const char* path, uint32_t* resource_size, LoadBufferType* buffer)
