@@ -318,7 +318,6 @@ namespace dmResourceArchive
 
         uint32_t entry_count = JAVA_TO_C(ai->m_EntryDataCount);
         uint32_t entry_offset = JAVA_TO_C(ai->m_EntryDataOffset);
-        uint32_t hash_len = JAVA_TO_C(ai->m_HashLength);
         uint32_t hash_offset = JAVA_TO_C(ai->m_HashOffset);
 
         fseek(f_index, hash_offset, SEEK_SET);
