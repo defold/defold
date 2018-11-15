@@ -393,9 +393,6 @@ public class Bob {
             project.setOption("defoldsdk", EngineVersion.sha1);
         }
 
-        boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
-        project.setOption("liveupdate", shouldPublish ? "true" : "false");
-
         Option[] options = cmd.getOptions();
         for (Option o : options) {
             if (cmd.hasOption(o.getLongOpt())) {
@@ -406,6 +403,9 @@ public class Bob {
                 }
             }
         }
+
+        boolean shouldPublish = getOptionsValue(cmd, 'l', "no").equals("yes");
+        project.setOption("liveupdate", shouldPublish ? "true" : "false");
 
         if (!cmd.hasOption("variant")) {
             if (cmd.hasOption("debug")) {
