@@ -1,10 +1,12 @@
 (ns editor.gl
   "Expose some GL functions and constants with Clojure-ish flavor"
   (:refer-clojure :exclude [repeat])
-  (:require [editor.gl.protocols :as p])
+  (:require [clojure.string :as string]
+            [editor.gl.protocols :as p]
+            [service.log :as log])
   (:import [java.awt Font]
            [java.nio IntBuffer]
-           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory GLProfile]
+           [com.jogamp.opengl GL GL2 GLContext GLDrawableFactory GLProfile GLException GLAutoDrawable GLOffscreenAutoDrawable GLCapabilities]
            [javax.vecmath Matrix4d]
            [com.jogamp.opengl.awt GLCanvas]
            [com.jogamp.opengl.util.awt TextRenderer]))
@@ -12,34 +14,91 @@
 (set! *warn-on-reflection* true)
 
 (defonce ^:private gl-info-atom (atom nil))
-
 (defonce ^:private required-functions ["glGenBuffers"])
 
-(defn gl-info! [^GLContext context]
-  (let [^GL gl (.getGL context)]
-    (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
-                          :renderer (.glGetString gl GL2/GL_RENDERER)
-                          :version (.glGetString gl GL2/GL_VERSION)
-                          :desc (.toString context)
-                          :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable context name))) required-functions)})))
+(defn- profile ^GLProfile []
+  (try
+    (GLProfile/getGL2ES1)
+    (catch GLException e
+      (log/warn :message "Failed to acquire GL profile for GL2/GLES1.")
+      (GLProfile/getDefault))))
 
-(defn gl-info []
-  @gl-info-atom)
+(defn drawable-factory
+  (^GLDrawableFactory [] (drawable-factory (profile)))
+  (^GLDrawableFactory [^GLProfile profile] (GLDrawableFactory/getFactory profile)))
 
-(defn gl-version-info [^GL2 gl]
-  {:vendor                   (.glGetString gl GL2/GL_VENDOR)
-   :renderer                 (.glGetString gl GL2/GL_RENDERER)
-   :version                  (.glGetString gl GL2/GL_VERSION)
-   :shading-language-version (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION)
-   :glcontext-class          (class gl)})
+(defn- unchecked-offscreen-drawable ^GLOffscreenAutoDrawable [w h]
+  (let [profile (profile)
+        factory (drawable-factory profile)
+        caps    (doto (GLCapabilities. profile)
+                  (.setOnscreen false)
+                  (.setFBO true)
+                  (.setPBuffer true)
+                  (.setDoubleBuffered false)
+                  (.setStencilBits 8))
+        drawable (.createOffscreenAutoDrawable factory nil caps nil w h)
+        context (.createContext drawable nil)]
+    (.setContext drawable context true)
+    drawable))
 
-(defn glcanvas ^GLCanvas
-  [parent]
-  (GLCanvas.))
+(def ^:private last-make-current-failure (atom 0))
 
-(defn glfactory ^GLDrawableFactory
-  []
-  (GLDrawableFactory/getFactory (GLProfile/getGL2ES2)))
+(defn- time-to-log? []
+  (let [now (System/currentTimeMillis)]
+    (when (> (- now @last-make-current-failure) (* 1000 60))
+      (reset! last-make-current-failure now)
+      true)))
+
+(defn make-current ^GLContext [^GLAutoDrawable drawable]
+  (when-let [^GLContext context (.getContext drawable)]
+    (try
+      (let [result (.makeCurrent context)]
+        (if (= result GLContext/CONTEXT_NOT_CURRENT)
+          (do
+            (when (time-to-log?)
+              (log/warn :message "Failed to set gl context as current."))
+            nil)
+          context))
+      (catch Exception e
+        (when (time-to-log?)
+          (log/error :exception e))
+        nil))))
+
+(defmacro with-drawable-as-current
+  [^GLAutoDrawable drawable & forms]
+  `(when-let [^GLContext ~'gl-context (make-current ~drawable)]
+     (try
+       (let [^GL2 ~'gl (.getGL ~'gl-context)]
+         ~@forms)
+       (finally (.release ~'gl-context)))))
+
+(defn- init-info! []
+  (let [drawable (unchecked-offscreen-drawable 100 100)]
+    (with-drawable-as-current drawable
+      (let [^GL gl (.getGL gl-context)]
+        (reset! gl-info-atom {:vendor (.glGetString gl GL2/GL_VENDOR)
+                              :renderer (.glGetString gl GL2/GL_RENDERER)
+                              :version (.glGetString gl GL2/GL_VERSION)
+                              :shading-language-version (.glGetString gl GL2/GL_SHADING_LANGUAGE_VERSION)
+                              :desc (.toString gl-context)
+                              :missing-functions (filterv (fn [^String name] (not (.isFunctionAvailable gl-context name))) required-functions)})))
+    (.destroy drawable)
+    @gl-info-atom))
+
+(defn info []
+  (or @gl-info-atom (init-info!)))
+
+(defn gl-support-error ^String []
+  (let [info (info)]
+    (when-let [missing (seq (:missing-functions info))]
+      (string/join "\n"
+                   [(format "The graphics device does not support: %s" (string/join ", " missing))
+                    (format "GPU: %s" (:renderer info))
+                    (format "Driver: %s" (:version info))]))))
+
+(defn offscreen-drawable ^GLOffscreenAutoDrawable [w h]
+  (when (empty? (:missing-functions (info)))
+    (unchecked-offscreen-drawable w h)))
 
 (defn gl-init-vba [^GL2 gl]
   (let [vba-name-buf (IntBuffer/allocate 1)]
