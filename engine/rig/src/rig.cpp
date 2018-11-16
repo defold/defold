@@ -1446,6 +1446,22 @@ namespace dmRig
             }
         }
 
+        // DEF-3610
+        // Using Wasm on Microsoft Edge this function returns NULL after a couple of runs.
+        // There is no code path that could result in NULL, leading us to suspect it has
+        // to do with some runtime optimization.
+        // If we add some logic that touches vertex_data_out the function keeps returning
+        // valid values, so we add an assert to verify vertex_data_out never is NULL.
+        // However this means we need assert on Emscripten, so for now we output a
+        // compile error if the engine is built with NDEBUG.
+#ifdef __EMSCRIPTEN__
+#ifdef NDEBUG
+        #error "DEF-3610 - Can't compile with NDEBUG since dmRig::GenerateVertexData currently depends on assert() to work on Emscripten builds."
+#else
+        assert(vertex_data_out != 0x0);
+#endif
+#endif
+
         return vertex_data_out;
     }
 

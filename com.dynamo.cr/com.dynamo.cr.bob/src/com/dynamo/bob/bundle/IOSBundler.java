@@ -160,6 +160,7 @@ public class IOSBundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         File appDir = new File(bundleDir, title + ".app");
@@ -268,6 +269,7 @@ public class IOSBundler implements IBundler {
         }
 
         Map<String, Object> properties = new HashMap<String, Object>();
+        properties.put("exe-name", exeName);
         properties.put("url-schemes", urlSchemes);
         properties.put("application-queries-schemes", applicationQueriesSchemes);
 
@@ -328,7 +330,7 @@ public class IOSBundler implements IBundler {
         }
 
         // Copy Executable
-        File destExecutable = new File(appDir, title);
+        File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));

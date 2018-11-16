@@ -84,6 +84,9 @@
   [^GL2 gl]
   (first (gl-get-integer-v gl GL2/GL_MAX_TEXTURE_UNITS 1)))
 
+(defn gl-current-program [^GL2 gl]
+  (first (gl-get-integer-v gl GL2/GL_CURRENT_PROGRAM 1)))
+
 (defn text-renderer [font-name font-style font-size]
   (doto (TextRenderer. (Font. font-name font-style font-size) false false)
     ;; NOTE: the TextRenderer implementation has two modes, one using
