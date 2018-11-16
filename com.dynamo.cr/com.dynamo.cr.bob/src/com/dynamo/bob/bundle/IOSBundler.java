@@ -330,7 +330,7 @@ public class IOSBundler implements IBundler {
         }
 
         // Copy Executable
-        File destExecutable = new File(appDir, title);
+        File destExecutable = new File(appDir, exeName);
         FileUtils.copyFile(new File(exe), destExecutable);
         destExecutable.setExecutable(true);
         logger.log(Level.INFO, "Bundle binary: " + getFileDescription(destExecutable));
