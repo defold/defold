@@ -68,7 +68,7 @@ public class AndroidBundler implements IBundler {
         final boolean strip_executable = project.hasOption("strip-executable");
 
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String exeName = title.replace(' ', '_');
+        String exeName = BundleHelper.projectNameToBinaryName(title);
 
         String certificate = project.option("certificate", "");
         String key = project.option("private-key", "");

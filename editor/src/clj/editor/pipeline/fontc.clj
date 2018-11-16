@@ -573,8 +573,8 @@
      :material (str (:material font-desc) "c")
      :shadow-x (:shadow-x font-desc)
      :shadow-y (:shadow-y font-desc)
-     :max-ascent (+ (float (.getMaxAscent font-metrics)) padding)
-     :max-descent (+ (float (.getMaxDescent font-metrics)) padding)
+     :max-ascent (.getMaxAscent font-metrics)
+     :max-descent (.getMaxDescent font-metrics)
      :image-format (:output-format font-desc)
      :sdf-spread sdf-spread
      :sdf-outline (let [outline-edge (- (/ ^double (:outline-width font-desc) sdf-spread))]

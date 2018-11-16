@@ -144,12 +144,6 @@ public class HTML5Bundler implements IBundler {
         return FilenameUtils.getName(url.getPath());
     }
 
-    void format(URL template, Map<String, Object> paramaters, File toFile) throws IOException {
-        Template t = Mustache.compiler().compile(IOUtils.toString(template));
-        String text = t.execute(paramaters);
-        FileUtils.write(toFile, text, "UTF-8");
-    }
-
     @Override
     public void bundleApplication(Project project, File bundleDirectory)
             throws IOException, CompileExceptionError {
@@ -163,7 +157,7 @@ public class HTML5Bundler implements IBundler {
         Boolean localLaunch = project.option("local-launch", "false").equals("true");
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
-        String enginePrefix = title;
+        String enginePrefix = BundleHelper.projectNameToBinaryName(title);
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
 
         List<File> binsAsmjs = null;
@@ -195,7 +189,6 @@ public class HTML5Bundler implements IBundler {
         }
 
         File projectRoot = new File(project.getRootDirectory());
-        URL html = getResource(projectProperties, projectRoot, "html5", "htmlfile", "engine_template.html");
         URL splashImage = getResource(projectProperties, projectRoot, "html5", "splash_image", "splash_image.png");
         String version = projectProperties.getStringValue("project", "version", "0.0");
         File appDir = new File(bundleDirectory, title);
@@ -283,7 +276,9 @@ public class HTML5Bundler implements IBundler {
         // Flash audio swf
         FileUtils.copyFile(new File(Bob.getLibExecPath("js-web/defold_sound.swf")), new File(appDir, "defold_sound.swf"));
 
-        format(html, infoData, new File(appDir, "index.html"));
+        BundleHelper helper = new BundleHelper(project, Platform.JsWeb, appDir, "");
+        helper.format(infoData, "html5", "htmlfile", new File(appDir, "index.html"));
+
         FileUtils.copyURLToFile(getResource("dmloader.js"), new File(appDir, "dmloader.js"));
         FileUtils.copyURLToFile(splashImage, new File(appDir, getName(splashImage)));
 
