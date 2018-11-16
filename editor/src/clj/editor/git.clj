@@ -1,6 +1,7 @@
 (ns editor.git
   (:require [camel-snake-kebab :as camel]
             [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as str]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
@@ -13,7 +14,7 @@
            [org.eclipse.jgit.api Git ResetCommand$ResetType PushCommand]
            [org.eclipse.jgit.api.errors StashApplyFailureException]
            [org.eclipse.jgit.diff DiffEntry RenameDetector]
-           [org.eclipse.jgit.errors MissingObjectException RepositoryNotFoundException]
+           [org.eclipse.jgit.errors MissingObjectException]
            [org.eclipse.jgit.lib BatchingProgressMonitor ObjectId ProgressMonitor Repository]
            [org.eclipse.jgit.revwalk RevCommit RevWalk]
            [org.eclipse.jgit.transport UsernamePasswordCredentialsProvider]
@@ -382,22 +383,37 @@
 (defn stage-change! [^Git git {:keys [change-type old-path new-path]}]
   (case change-type
     (:add :modify) (-> git .add (.addFilepattern new-path) .call)
-    :delete        (-> git .rm (.addFilepattern old-path) .call)
-    :rename        (do (-> git .add (.addFilepattern new-path) .call)
-                       (-> git .rm (.addFilepattern old-path) .call))))
+    :delete        (-> git .rm (.addFilepattern old-path) (.setCached true) .call)
+    :rename        (do (-> git .rm (.addFilepattern old-path) (.setCached true) .call)
+                       (-> git .add (.addFilepattern new-path) .call))))
 
 (defn unstage-change! [^Git git {:keys [change-type old-path new-path]}]
   (case change-type
     (:add :modify) (-> git .reset (.addPath new-path) .call)
     :delete        (-> git .reset (.addPath old-path) .call)
-    :rename        (do (-> git .reset (.addPath new-path) .call)
-                       (-> git .reset (.addPath old-path) .call))))
+    :rename        (-> git .reset (.addPath old-path) (.addPath new-path) .call)))
 
-(defn revert-to-revision! [^Git git ^RevCommit start-ref]
+(defn- find-case-changes [added-paths removed-paths]
+  (into {}
+        (keep (fn [^String added-path]
+                (some (fn [^String removed-path]
+                        (when (.equalsIgnoreCase added-path removed-path)
+                          [added-path removed-path]))
+                      removed-paths)))
+        added-paths))
+
+(defn revert-to-revision!
   "High-level revert. Resets the working directory to the state it would have
   after a clean checkout of the specified start-ref. Performs the equivalent of
   git reset --hard
   git clean --force -d"
+  [^Git git ^RevCommit start-ref]
+  ;; On case-insensitive file systems, we must manually revert case changes.
+  ;; Otherwise the new-cased files will be removed during the clean call.
+  (when-not fs/case-sensitive?
+    (let [{:keys [missing untracked]} (status git)]
+      (doseq [[new-path old-path] (find-case-changes untracked missing)]
+        (fs/move-file! (file git new-path) (file git old-path)))))
   (-> (.reset git)
       (.setMode ResetCommand$ResetType/HARD)
       (.setRef (.name start-ref))
@@ -406,10 +422,58 @@
       (.setCleanDirectories true)
       (.call)))
 
+(defn- revert-case-changes!
+  "Finds and reverts any case changes in the supplied git status. Returns
+  a map of the case changes that were reverted."
+  [^Git git {:keys [added changed missing removed untracked] :as _status}]
+  ;; If we're on a case-insensitive file system, we revert case-changes before
+  ;; stashing. The case-changes will be restored when we apply the stash.
+  (let [case-changes (find-case-changes (set/union added untracked)
+                                        (set/union removed missing))]
+    (when (seq case-changes)
+      ;; Unstage everything so that we can safely revert case changes.
+      ;; This is fine, because we will stage everything before stashing.
+      (when-some [staged-paths (not-empty (set/union added changed removed))]
+        (let [reset-command (.reset git)]
+          (doseq [path staged-paths]
+            (.addPath reset-command path))
+          (.call reset-command)))
+
+      ;; Revert case-changes.
+      (doseq [[new-path old-path] case-changes]
+        (fs/move-file! (file git new-path) (file git old-path))))
+
+    case-changes))
+
+(defn- stage-removals! [^Git git status pred]
+  (when-some [removed-paths (not-empty (into #{} (filter pred) (:missing status)))]
+    (let [rm-command (.rm git)]
+      (.setCached rm-command true)
+      (doseq [path removed-paths]
+        (.addFilepattern rm-command path))
+      (.call rm-command)
+      nil)))
+
+(defn- stage-additions! [^Git git status pred]
+  (when-some [changed-paths (not-empty (into #{} (filter pred) (concat (:modified status) (:untracked status))))]
+    (let [add-command (.add git)]
+      (doseq [path changed-paths]
+        (.addFilepattern add-command path))
+      (.call add-command)
+      nil)))
+
+(defn stage-all!
+  "Stage all unstaged changes in the specified Git repo."
+  [^Git git]
+  (let [status (status git)
+        include? (constantly true)]
+    (stage-removals! git status include?)
+    (stage-additions! git status include?)))
+
 (defn stash!
-  "High-level stash. Before stashing, stages all untracked files. We do this
-  because stashes internally treat untracked files differently from tracked
-  files. Normally untracked files are not stashed at all, but even when using
+  "High-level stash. Before stashing, stages all changes. We do this because
+  stashes internally treat untracked files differently from tracked files.
+  Normally untracked files are not stashed at all, but even when using
   the setIncludeUntracked flag, untracked files are dealt with separately from
   tracked files.
 
@@ -417,44 +481,63 @@
   apply command before the untracked files are restored. For our purposes, we
   want a unified set of conflicts among all the tracked and untracked files.
 
+  Before stashing, we also revert any case-changes if we're running on a
+  case-insensitive file system. We will reapply the case-changes when the stash
+  is applied. We must do this, because a stash
+
   Returns nil if there was nothing to stash, or a map with the stash ref and
-  the set of file paths that were untracked at the time the stash was made."
+  the set of file paths that were staged at the time the stash was made."
   [^Git git]
-  (let [untracked (:untracked (status git))]
-    ; Stage any untracked files.
-    (when (seq untracked)
-      (let [add-command (.add git)]
-        (doseq [path untracked]
-          (.addFilepattern add-command path))
-        (.call add-command)))
-
-    ; Stash local changes and return stash info.
-    (when-let [stash-ref (-> git .stashCreate .call)]
+  (let [pre-stash-status (status git)
+        reverted-case-changes (when-not fs/case-sensitive?
+                                (revert-case-changes! git pre-stash-status))]
+    (stage-all! git)
+    (when-some [stash-ref (-> git .stashCreate .call)]
       {:ref stash-ref
-       :untracked untracked})))
+       :case-changes reverted-case-changes
+       :staged (set/union (:added pre-stash-status)
+                          (:changed pre-stash-status)
+                          (:removed pre-stash-status))})))
 
-(defn stash-apply!
-  [^Git git stash-info]
-  (when stash-info
-    ; Apply the stash. The apply-result will be either an ObjectId returned from
-    ; (.call StashApplyCommand) or a StashApplyFailureException if thrown.
+(defn stash-apply! [^Git git stash-info]
+  (when (some? stash-info)
+    ;; Apply the stash. The apply-result will be either an ObjectId returned
+    ;; from (.call StashApplyCommand) or a StashApplyFailureException if thrown.
     (let [apply-result (try
                          (-> (.stashApply git)
                              (.setStashRef (.name ^RevCommit (:ref stash-info)))
                              (.call))
                          (catch StashApplyFailureException error
-                           error))]
-      ; Restore untracked state of all non-conflicting files
-      ; that were untracked at the time the stash was made.
-      (let [paths-with-conflicts (set (keys (:conflicting-stage-state (status git))))
-            paths-to-unstage (into #{}
-                                   (remove paths-with-conflicts)
-                                   (:untracked stash-info))]
-        (when (seq paths-to-unstage)
-          (let [reset-command (.reset git)]
-            (doseq [path paths-to-unstage]
-              (.addPath reset-command path))
-            (.call reset-command))))
+                           error))
+          status-after-apply (status git)
+          paths-with-conflicts (set (keys (:conflicting-stage-state status-after-apply)))
+          paths-to-unstage (set/difference (set/union (:added status-after-apply)
+                                                      (:changed status-after-apply)
+                                                      (:removed status-after-apply))
+                                           paths-with-conflicts)]
+
+      ;; Unstage everything that is without conflict. Later we will stage
+      ;; everything that was staged at the time the stash was made.
+      (when-some [staged-paths (not-empty paths-to-unstage)]
+        (let [reset-command (.reset git)]
+          (doseq [path staged-paths]
+            (.addPath reset-command path))
+          (.call reset-command)))
+
+      ;; Restore any reverted case changes.
+      (doseq [[new-path old-path] (:case-changes stash-info)]
+        (when (and (not (contains? paths-with-conflicts new-path))
+                   (not (contains? paths-with-conflicts old-path)))
+          (fs/move-file! (file git old-path)
+                         (file git new-path))))
+
+      ;; Restore staged files state from before the stash.
+      (when (empty? paths-with-conflicts)
+        (let [status (status git)
+              was-staged? (:staged stash-info)]
+          (stage-removals! git status was-staged?)
+          (stage-additions! git status was-staged?)))
+
       (if (instance? Throwable apply-result)
         (throw apply-result)
         apply-result))))
