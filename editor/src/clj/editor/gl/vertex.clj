@@ -495,12 +495,15 @@ the `do-gl` macro from `editor.gl`."
             position-offset (nth offsets position-index)
             [_ sz tp] position-attribute]
         (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-        (.glVertexPointer gl ^int sz ^int (gl-types tp) ^int stride ^long position-offset)
-        (.glEnableClientState gl GL2/GL_VERTEX_ARRAY)))))
+        (gl/gl-vertex-attrib-pointer gl 0 ^int sz ^int (gl-types tp) false ^int stride ^long position-offset)
+        (gl/gl-enable-vertex-attrib-array gl position-index)))))
 
-(defn- unbind-vertex-buffer! [^GL2 gl]
-  (.glDisableClientState gl GL2/GL_VERTEX_ARRAY)
-  (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
+(defn- unbind-vertex-buffer! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer]
+  (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)
+        attributes (:attributes (.layout vertex-buffer))
+        position-index (find-attribute-index "position" attributes)]
+    (gl/gl-disable-vertex-attrib-array gl position-index)
+    (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0)))
 
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer shader]
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)]
@@ -525,7 +528,7 @@ the `do-gl` macro from `editor.gl`."
 
   (unbind [_this gl render-args]
     (if (types/selection? (:pass render-args))
-      (unbind-vertex-buffer! gl)
+      (unbind-vertex-buffer! gl request-id vertex-buffer)
       (unbind-vertex-buffer-with-shader! gl vertex-buffer shader))))
 
 (defn use-with
