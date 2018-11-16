@@ -80,17 +80,6 @@
 (defn- all-files [status]
   (reduce (fn [acc [k v]] (clojure.set/union acc v)) #{} (dissoc status :untracked-folders)))
 
-(defn autostage [^Git git]
-  (let [s (git/status git)]
-    (doseq [f (:modified s)]
-      (-> git (.add) (.addFilepattern f) (.call)))
-
-    (doseq [f (:untracked s)]
-      (-> git (.add) (.addFilepattern f) (.call)))
-
-    (doseq [f (:missing s)]
-      (-> git (.rm) (.addFilepattern f) (.call)))))
-
 (def ^:private assert-args #'clojure.core/assert-args)
 
 (defmacro with-git
@@ -119,7 +108,7 @@
 
 ;; ============================================================================================
 
-(deftest autostage-test
+(deftest stage-all-test
   (with-git [git (new-git)]
     (testing "create files"
       (create-file git "/src/main.cpp" "void main() {}")
@@ -133,20 +122,20 @@
       (create-file git "/src/util.cpp" "// stuff")
       (is (= #{"src/util.cpp"} (:modified (git/status git))))
       (is (= #{"src/util.cpp"} (:uncommitted-changes (git/status git))))
-      (autostage git)
+      (git/stage-all! git)
       (is (= #{} (:modified (git/status git))))
       (is (= #{"src/util.cpp"} (:uncommitted-changes (git/status git)))))
 
     (testing "Create new.cpp"
       (create-file git "/src/new.cpp" "")
       (is (= #{"src/new.cpp"} (:untracked (git/status git))))
-      (autostage git)
+      (git/stage-all! git)
       (is (= #{} (:untracked (git/status git)))))
 
     (testing "Delete main.cpp"
       (delete-file git "src/main.cpp")
       (is (= #{"src/main.cpp"} (:missing (git/status git))))
-      (autostage git)
+      (git/stage-all! git)
       (is (= #{} (:missing (git/status git))))
       (is (= #{"src/main.cpp"} (:removed (git/status git)))))))
 
@@ -370,6 +359,32 @@
       (is (= #{} changed))
       (is (= #{"src/main.cpp"} modified)))))
 
+(deftest stage-unstage-case-changed-file-test
+  (with-git [git (new-git)]
+    (create-file git "src/main.cpp" "void main() {}")
+    (commit-src git)
+
+    (move-file git "src/main.cpp" "src/MAIN.cpp")
+    (let [{:keys [added removed missing untracked]} (git/status git)]
+      (is (= #{} added))
+      (is (= #{} removed))
+      (is (= #{"src/main.cpp"} missing))
+      (is (= #{"src/MAIN.cpp"} untracked)))
+
+    (git/stage-change! git (git/make-rename-change "src/main.cpp" "src/MAIN.cpp"))
+    (let [{:keys [added removed missing untracked]} (git/status git)]
+      (is (= #{"src/MAIN.cpp"} added))
+      (is (= #{"src/main.cpp"} removed))
+      (is (= #{} missing))
+      (is (= #{} untracked)))
+
+    (git/unstage-change! git (git/make-rename-change "src/main.cpp" "src/MAIN.cpp"))
+    (let [{:keys [added removed missing untracked]} (git/status git)]
+      (is (= #{} added))
+      (is (= #{} removed))
+      (is (= #{"src/main.cpp"} missing))
+      (is (= #{"src/MAIN.cpp"} untracked)))))
+
 (defn setup-modification-zoo [git]
   (create-file git "src/modified/file.txt" "A file that already existed in the repo. Will be modified, but not staged.")
   (create-file git "src/changed/file.txt" "A file that already existed in the repo. Will be modified, then staged.")
@@ -377,6 +392,8 @@
   (create-file git "src/removed/file.txt" "A file that already existed in the repo. Will be deleted, then staged.")
   (create-file git "src/old-location-unstaged/file.txt" "A file that already existed in the repo. Will be moved, but not staged.")
   (create-file git "src/old-location-staged/file.txt" "A file that already existed in the repo. Will be moved, then staged.")
+  (create-file git "src/casing-unstaged/file.txt" "A file that already existed in the repo. Will change casing, but not staged.")
+  (create-file git "src/casing-staged/file.txt" "A file that already existed in the repo. Will change casing, then staged.")
   (let [start-ref (commit-src git)]
     (create-dir git "src/empty-dir")
     (create-file git "src/modified/file.txt" "A file that already existed in the repo, with unstaged changes.")
@@ -387,17 +404,20 @@
     (create-file git "src/added/file.txt" "A file that was added, then staged.")
     (move-file git "src/old-location-unstaged/file.txt" "src/new-location-unstaged/file.txt")
     (move-file git "src/old-location-staged/file.txt" "src/new-location-staged/file.txt")
+    (move-file git "src/casing-unstaged/file.txt" "src/casing-unstaged/FILE.txt")
+    (move-file git "src/casing-staged/file.txt" "src/casing-staged/FILE.txt")
     (git/stage-change! git (git/make-modify-change "src/changed/file.txt"))
     (git/stage-change! git (git/make-delete-change "src/removed/file.txt"))
     (git/stage-change! git (git/make-add-change "src/added/file.txt"))
     (git/stage-change! git (git/make-rename-change "src/old-location-staged/file.txt" "src/new-location-staged/file.txt"))
+    (git/stage-change! git (git/make-rename-change "src/casing-staged/file.txt" "src/casing-staged/FILE.txt"))
     (let [status-before (git/status git)]
-      (is (= #{"src/added/file.txt" "src/new-location-staged/file.txt"} (:added status-before)))
+      (is (= #{"src/added/file.txt" "src/new-location-staged/file.txt" "src/casing-staged/FILE.txt"} (:added status-before)))
       (is (= #{"src/changed/file.txt"} (:changed status-before)))
-      (is (= #{"src/missing/file.txt" "src/old-location-unstaged/file.txt"} (:missing status-before)))
+      (is (= #{"src/missing/file.txt" "src/old-location-unstaged/file.txt" "src/casing-unstaged/file.txt"} (:missing status-before)))
       (is (= #{"src/modified/file.txt"} (:modified status-before)))
-      (is (= #{"src/removed/file.txt" "src/old-location-staged/file.txt"} (:removed status-before)))
-      (is (= #{"src/untracked/file.txt" "src/new-location-unstaged/file.txt"} (:untracked status-before)))
+      (is (= #{"src/removed/file.txt" "src/old-location-staged/file.txt" "src/casing-staged/file.txt"} (:removed status-before)))
+      (is (= #{"src/untracked/file.txt" "src/new-location-unstaged/file.txt" "src/casing-unstaged/FILE.txt"} (:untracked status-before)))
       (is (= #{"src/untracked" "src/new-location-unstaged" "src/empty-dir"} (:untracked-folders status-before))))
     start-ref))
 
@@ -421,54 +441,88 @@
 
 (deftest stash-test
   (with-git [git (new-git)]
-    (create-file git "src/main.cpp" "void main() {}")
-    (is (= {:untracked #{"src/main.cpp"}} (simple-status git)))
+    (create-file git "src/staged.txt" "staged")
+    (git/stage-all! git)
+    (create-file git "src/unstaged.txt" "unstaged")
+    (is (= {:added #{"src/staged.txt"}
+            :untracked #{"src/unstaged.txt"}}
+           (simple-status git)))
     (let [stash-info (git/stash! git)]
       (is (instance? RevCommit (:ref stash-info)))
-      (is (= #{"src/main.cpp"} (:untracked stash-info))))
+      (is (= #{"src/staged.txt"} (:staged stash-info))))
     (is (= {} (simple-status git)))))
 
 (deftest stash-apply-test
   (with-git [git (new-git)]
-    ; Create initial commit.
+    ;; Create initial commit.
+    (create-file git "src/staged/case-changed.txt" "case-changed")
     (create-file git "src/staged/deleted.txt" "deleted")
     (create-file git "src/staged/modified.txt" "modified")
     (create-file git "src/staged/moved.txt" "moved")
+    (create-file git "src/unstaged/case-changed.txt" "case-changed")
     (create-file git "src/unstaged/deleted.txt" "deleted")
     (create-file git "src/unstaged/modified.txt" "modified")
     (create-file git "src/unstaged/moved.txt" "moved")
+    (create-file git "src/partial/staged-add/case-changed.txt" "case-changed")
+    (create-file git "src/partial/staged-add/moved.txt" "moved")
+    (create-file git "src/partial/staged-remove/case-changed.txt" "case-changed")
+    (create-file git "src/partial/staged-remove/moved.txt" "moved")
     (commit-src git)
 
-    ; Stage some changes in the working directory.
+    ;; Stage some changes in the working directory.
+    (move-file git "src/staged/case-changed.txt" "src/staged/CASE-CHANGED.txt")
     (delete-file git "src/staged/deleted.txt")
     (create-file git "src/staged/modified.txt" "modified...")
     (move-file git "src/staged/moved.txt" "src/staged/moved/moved.txt")
     (create-file git "src/staged/added.txt" "added")
-    (autostage git)
+    (git/stage-all! git)
 
-    ; Make some unstaged changes in the working directory.
+    ;; Make some unstaged changes in the working directory.
+    (move-file git "src/unstaged/case-changed.txt" "src/unstaged/CASE-CHANGED.txt")
     (delete-file git "src/unstaged/deleted.txt")
     (create-file git "src/unstaged/modified.txt" "modified...")
     (move-file git "src/unstaged/moved.txt" "src/unstaged/moved/moved.txt")
     (create-file git "src/unstaged/added.txt" "added")
 
-    ; Verify that the status is retained after stashing and applying the stash.
+    ;; Partially staged renames.
+    (move-file git "src/partial/staged-add/case-changed.txt" "src/partial/staged-add/CASE-CHANGED.txt")
+    (move-file git "src/partial/staged-add/moved.txt" "src/partial/staged-add/moved/moved.txt")
+    (move-file git "src/partial/staged-remove/case-changed.txt" "src/partial/staged-remove/CASE-CHANGED.txt")
+    (move-file git "src/partial/staged-remove/moved.txt" "src/partial/staged-remove/moved/moved.txt")
+    (-> git .add (.addFilepattern "src/partial/staged-add/CASE-CHANGED.txt") .call)
+    (-> git .add (.addFilepattern "src/partial/staged-add/moved/moved.txt") .call)
+    (-> git .rm (.addFilepattern "src/partial/staged-remove/case-changed.txt") (.setCached true) .call)
+    (-> git .rm (.addFilepattern "src/partial/staged-remove/moved.txt") (.setCached true) .call)
+
+    ;; Verify that the status is retained after stashing and applying the stash.
     (let [status-before (simple-status git)
           stash-info (git/stash! git)]
       (is (= {} (simple-status git)))
       (is (instance? ObjectId (git/stash-apply! git stash-info)))
       (let [status-after (simple-status git)]
         (is (= status-before status-after))
-        (is (= {:added     #{"src/staged/added.txt"
-                             "src/staged/moved/moved.txt"}
-                :untracked #{"src/unstaged/added.txt"
-                             "src/unstaged/moved/moved.txt"}
-                :changed   #{"src/staged/modified.txt"}
-                :modified  #{"src/unstaged/modified.txt"}
-                :removed   #{"src/staged/deleted.txt"
-                             "src/staged/moved.txt"}
-                :missing   #{"src/unstaged/deleted.txt"
-                             "src/unstaged/moved.txt"}} status-after))))))
+        (is (= {:added #{"src/partial/staged-add/CASE-CHANGED.txt"
+                         "src/partial/staged-add/moved/moved.txt"
+                         "src/staged/CASE-CHANGED.txt"
+                         "src/staged/added.txt"
+                         "src/staged/moved/moved.txt"}
+                :changed #{"src/staged/modified.txt"}
+                :missing #{"src/partial/staged-add/case-changed.txt"
+                           "src/partial/staged-add/moved.txt"
+                           "src/unstaged/case-changed.txt"
+                           "src/unstaged/deleted.txt"
+                           "src/unstaged/moved.txt"}
+                :modified #{"src/unstaged/modified.txt"}
+                :removed #{"src/partial/staged-remove/case-changed.txt"
+                           "src/partial/staged-remove/moved.txt"
+                           "src/staged/case-changed.txt"
+                           "src/staged/deleted.txt"
+                           "src/staged/moved.txt"}
+                :untracked #{"src/partial/staged-remove/CASE-CHANGED.txt"
+                             "src/partial/staged-remove/moved/moved.txt"
+                             "src/unstaged/CASE-CHANGED.txt"
+                             "src/unstaged/added.txt"
+                             "src/unstaged/moved/moved.txt"}} status-after))))))
 
 (defn create-conflict-zoo!
   "Commit some files to the remote, then create a local clone.
@@ -482,6 +536,8 @@
   (create-file remote-git "src/both_modified_same.txt" "both_modified_same")
   (create-file remote-git "src/both_moved_conflicting.txt" "both_moved_conflicting")
   (create-file remote-git "src/both_moved_same.txt" "both_moved_same")
+  (create-file remote-git "src/both_changed_case_conflicting.txt" "both_changed_case_conflicting")
+  (create-file remote-git "src/both_changed_case_same.txt" "both_changed_case_same")
   (create-file remote-git "src/local_deleted.txt" "local_deleted")
   (create-file remote-git "src/local_deleted_remote_modified.txt" "local_deleted_remote_modified")
   (create-file remote-git "src/local_modified.txt" "local_modified")
@@ -489,6 +545,7 @@
   (create-file remote-git "src/local_modified_remote_moved.txt" "local_modified_remote_moved")
   (create-file remote-git "src/local_moved.txt" "local_moved")
   (create-file remote-git "src/local_moved_remote_modified.txt" "local_moved_remote_modified")
+  (create-file remote-git "src/local_changed_case_remote_modified.txt" "local_changed_case_remote_modified")
   (create-file remote-git "src/remote_deleted.txt" "remote_deleted")
   (create-file remote-git "src/remote_modified.txt" "remote_modified")
   (create-file remote-git "src/remote_moved.txt" "remote_moved")
@@ -502,6 +559,8 @@
     (is (true? (.exists (git/file local-git "src/both_modified_same.txt"))))
     (is (true? (.exists (git/file local-git "src/both_moved_conflicting.txt"))))
     (is (true? (.exists (git/file local-git "src/both_moved_same.txt"))))
+    (is (true? (.exists (git/file local-git "src/both_changed_case_conflicting.txt"))))
+    (is (true? (.exists (git/file local-git "src/both_changed_case_same.txt"))))
     (is (true? (.exists (git/file local-git "src/local_deleted.txt"))))
     (is (true? (.exists (git/file local-git "src/local_deleted_remote_modified.txt"))))
     (is (true? (.exists (git/file local-git "src/local_modified.txt"))))
@@ -509,6 +568,7 @@
     (is (true? (.exists (git/file local-git "src/local_modified_remote_moved.txt"))))
     (is (true? (.exists (git/file local-git "src/local_moved.txt"))))
     (is (true? (.exists (git/file local-git "src/local_moved_remote_modified.txt"))))
+    (is (true? (.exists (git/file local-git "src/local_changed_case_remote_modified.txt"))))
     (is (true? (.exists (git/file local-git "src/remote_deleted.txt"))))
     (is (true? (.exists (git/file local-git "src/remote_modified.txt"))))
     (is (true? (.exists (git/file local-git "src/remote_moved.txt"))))
@@ -539,6 +599,14 @@
     (move-file local-git "src/both_moved_same.txt" "src/moved/both_moved_same.txt")
     (move-file remote-git "src/both_moved_same.txt" "src/moved/both_moved_same.txt")
 
+    ; Both changed case, conflicting casing.
+    (move-file local-git "src/both_changed_case_conflicting.txt" "src/both_CHANGED_case_conflicting.txt")
+    (move-file remote-git "src/both_changed_case_conflicting.txt" "src/both_changed_CASE_conflicting.txt")
+
+    ; Both changed case, same casing.
+    (move-file local-git "src/both_changed_case_same.txt" "src/both_CHANGED_CASE_same.txt")
+    (move-file remote-git "src/both_changed_case_same.txt" "src/both_CHANGED_CASE_same.txt")
+
     ; Local deleted.
     (delete-file local-git "src/local_deleted.txt")
 
@@ -563,6 +631,10 @@
     ; Local moved, remote modified.
     (move-file local-git "src/local_moved_remote_modified.txt" "src/moved/local_moved_remote_modified.txt")
     (create-file remote-git "src/local_moved_remote_modified.txt" "local_moved_remote_modified modified by remote.")
+
+    ; Local changed case, remote modified.
+    (move-file local-git "src/local_changed_case_remote_modified.txt" "src/local_CHANGED_case_remote_modified.txt")
+    (create-file remote-git "src/local_changed_case_remote_modified.txt" "local_changed_case_remote_modified modified by remote.")
 
     ; Remote deleted.
     (delete-file remote-git "src/remote_deleted.txt")
@@ -589,7 +661,10 @@
     ; Remote added.
     (create-file remote-git "src/new/remote_added.txt" "remote_added, added only by remote.")
 
-    (is (= {:untracked #{"src/moved/both_moved_conflicting_a.txt"
+    (is (= {:untracked #{"src/both_CHANGED_case_conflicting.txt"
+                         "src/both_CHANGED_CASE_same.txt"
+                         "src/local_CHANGED_case_remote_modified.txt"
+                         "src/moved/both_moved_conflicting_a.txt"
                          "src/moved/both_moved_same.txt"
                          "src/moved/local_moved.txt"
                          "src/moved/local_moved_remote_modified.txt"
@@ -602,14 +677,19 @@
                         "src/local_modified_remote_deleted.txt"
                         "src/local_modified_remote_moved.txt"}
             :missing #{"src/both_deleted.txt"
+                       "src/both_changed_case_conflicting.txt"
+                       "src/both_changed_case_same.txt"
                        "src/both_moved_conflicting.txt"
                        "src/both_moved_same.txt"
+                       "src/local_changed_case_remote_modified.txt"
                        "src/local_deleted.txt"
                        "src/local_deleted_remote_modified.txt"
                        "src/local_moved.txt"
                        "src/local_moved_remote_modified.txt"}} (simple-status local-git)))
 
-    (is (= {:untracked #{"src/moved/both_moved_conflicting_b.txt"
+    (is (= {:untracked #{"src/both_changed_CASE_conflicting.txt"
+                         "src/both_CHANGED_CASE_same.txt"
+                         "src/moved/both_moved_conflicting_b.txt"
                          "src/moved/both_moved_same.txt"
                          "src/moved/local_modified_remote_moved.txt"
                          "src/moved/remote_moved.txt"
@@ -618,10 +698,13 @@
                          "src/new/remote_added.txt"}
             :modified #{"src/both_modified_conflicting.txt"
                         "src/both_modified_same.txt"
+                        "src/local_changed_case_remote_modified.txt"
                         "src/local_deleted_remote_modified.txt"
                         "src/local_moved_remote_modified.txt"
                         "src/remote_modified.txt"}
             :missing #{"src/both_deleted.txt"
+                       "src/both_changed_case_conflicting.txt"
+                       "src/both_changed_case_same.txt"
                        "src/both_moved_conflicting.txt"
                        "src/both_moved_same.txt"
                        "src/local_modified_remote_deleted.txt"
@@ -634,9 +717,11 @@
 (deftest stash-apply-conflicting-test
   (with-git [remote-git (new-git)
              local-git (create-conflict-zoo! remote-git [])]
-    ; Commit conflicting changes on remote.
-    (autostage remote-git)
-    (is (= {:added #{"src/moved/both_moved_conflicting_b.txt"
+    ;; Commit conflicting changes on remote.
+    (git/stage-all! remote-git)
+    (is (= {:added #{"src/both_changed_CASE_conflicting.txt"
+                     "src/both_CHANGED_CASE_same.txt"
+                     "src/moved/both_moved_conflicting_b.txt"
                      "src/moved/both_moved_same.txt"
                      "src/moved/local_modified_remote_moved.txt"
                      "src/moved/remote_moved.txt"
@@ -645,10 +730,13 @@
                      "src/new/remote_added.txt"}
             :changed #{"src/both_modified_conflicting.txt"
                        "src/both_modified_same.txt"
+                       "src/local_changed_case_remote_modified.txt"
                        "src/local_deleted_remote_modified.txt"
                        "src/local_moved_remote_modified.txt"
                        "src/remote_modified.txt"}
-            :removed #{"src/both_deleted.txt"
+            :removed #{"src/both_changed_case_conflicting.txt"
+                       "src/both_changed_case_same.txt"
+                       "src/both_deleted.txt"
                        "src/both_moved_conflicting.txt"
                        "src/both_moved_same.txt"
                        "src/local_modified_remote_deleted.txt"
@@ -657,8 +745,11 @@
                        "src/remote_moved.txt"}} (simple-status remote-git)))
     (-> remote-git .commit (.setMessage "Remote changes") .call)
 
-    ; Stash conflicting changes on local.
-    (is (= {:untracked #{"src/moved/both_moved_conflicting_a.txt"
+    ;; Stash conflicting changes on local.
+    (is (= {:untracked #{"src/both_CHANGED_case_conflicting.txt"
+                         "src/both_CHANGED_CASE_same.txt"
+                         "src/local_CHANGED_case_remote_modified.txt"
+                         "src/moved/both_moved_conflicting_a.txt"
                          "src/moved/both_moved_same.txt"
                          "src/moved/local_moved.txt"
                          "src/moved/local_moved_remote_modified.txt"
@@ -670,25 +761,32 @@
                         "src/local_modified.txt"
                         "src/local_modified_remote_deleted.txt"
                         "src/local_modified_remote_moved.txt"}
-            :missing #{"src/both_deleted.txt"
+            :missing #{"src/both_changed_case_conflicting.txt"
+                       "src/both_changed_case_same.txt"
+                       "src/both_deleted.txt"
                        "src/both_moved_conflicting.txt"
                        "src/both_moved_same.txt"
+                       "src/local_changed_case_remote_modified.txt"
                        "src/local_deleted.txt"
                        "src/local_deleted_remote_modified.txt"
                        "src/local_moved.txt"
                        "src/local_moved_remote_modified.txt"}} (simple-status local-git)))
     (let [stash-info (git/stash! local-git)]
-      ; Verify our working directory is clean.
+      ;; Verify our working directory is clean.
       (is (= {} (simple-status local-git)))
 
-      ; Pull from remote.
+      ;; Pull from remote.
       (-> local-git .pull .call)
 
-      ; Apply stashed changes.
+      ;; Apply stashed changes.
       (is (thrown? StashApplyFailureException (git/stash-apply! local-git stash-info))))
 
     (testing "Files exist at new locations."
       (are [path] (true? (.exists (git/file local-git path)))
+                  "src/both_CHANGED_case_conflicting.txt"
+                  "src/both_changed_CASE_conflicting.txt"
+                  "src/both_CHANGED_CASE_same.txt"
+                  "src/local_CHANGED_case_remote_modified.txt"
                   "src/moved/both_moved_conflicting_a.txt"
                   "src/moved/both_moved_conflicting_b.txt"
                   "src/moved/both_moved_same.txt"
@@ -699,7 +797,11 @@
                   "src/new/both_added_conflicting.txt"
                   "src/new/both_added_same.txt"
                   "src/new/local_added.txt"
-                  "src/new/remote_added.txt"))
+                  "src/new/remote_added.txt")
+
+      (when-not fs/case-sensitive?
+        (is (= "both_CHANGED_case_conflicting.txt"
+               (.getName (.getCanonicalFile (git/file local-git "src/both_changed_case_conflicting.txt")))))))
 
     (testing "Files do not exist at old locations."
       (are [path] (false? (.exists (git/file local-git path)))
@@ -709,41 +811,43 @@
                   "src/local_deleted.txt"
                   "src/local_moved.txt"
                   "src/remote_deleted.txt"
-                  "src/remote_moved.txt"))
+                  "src/remote_moved.txt")
+
+      (when fs/case-sensitive?
+        (are [path] (false? (.exists (git/file local-git path)))
+                    "src/both_changed_case_conflicting.txt"
+                    "src/both_changed_case_same.txt")))
 
     (testing "Modified files remain."
       (are [path] (true? (.exists (git/file local-git path)))
                   "src/both_modified_conflicting.txt"
                   "src/both_modified_same.txt"
+                  "src/local_changed_case_remote_modified.txt"
                   "src/local_deleted_remote_modified.txt"
                   "src/local_modified.txt"
                   "src/local_modified_remote_deleted.txt"
                   "src/local_modified_remote_moved.txt"
                   "src/local_moved_remote_modified.txt"
-                  "src/remote_modified.txt"))
+                  "src/remote_modified.txt")
 
-    ; After the stash is applied, changes that were not staged at the time the
-    ; stash was created will be staged in the working directory. I.e files that
-    ; previously reported as :modified will now be reported as :changed, and
-    ; :missing files will report as :removed. This is because we're in the
-    ; middle of a conflicting merge. If there were no conflicts the staged
-    ; state appears intact after a stash followed by a stash apply. This is
-    ; verified by stash-apply-test above.
-    ;
-    ; The stash is being merged onto the latest commit from the remote, so in
-    ; the :conflicting-stage-state map "us" is the remote and "them" is stash.
+      (when-not fs/case-sensitive?
+        (is (= "local_CHANGED_case_remote_modified.txt"
+               (.getName (.getCanonicalFile (git/file local-git "src/local_changed_case_remote_modified.txt")))))))
+
+    ;; The stash is being merged onto the latest commit from the remote, so in
+    ;; the :conflicting-stage-state map "us" is the remote and "them" is stash.
     (is (= {:untracked #{"src/moved/both_moved_conflicting_a.txt"
                          "src/moved/local_moved.txt"
                          "src/moved/local_moved_remote_modified.txt"
                          "src/new/local_added.txt"}
-            :changed #{"src/local_modified.txt"}
+            :modified #{"src/local_modified.txt"}
             :conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
                                       "src/local_deleted_remote_modified.txt" :deleted-by-them
                                       "src/local_modified_remote_deleted.txt" :deleted-by-us
                                       "src/local_modified_remote_moved.txt"   :deleted-by-us
                                       "src/local_moved_remote_modified.txt"   :deleted-by-them
                                       "src/new/both_added_conflicting.txt"    :both-added}
-            :removed #{"src/local_deleted.txt"
+            :missing #{"src/local_deleted.txt"
                        "src/local_moved.txt"}} (simple-status local-git)))))
 
 (deftest stash-drop-test
@@ -768,7 +872,7 @@
     (with-git [git (new-git)]
       (create-file git "/src/main.cpp" "void main() {}")
 
-      (autostage git)
+      (git/stage-all! git)
       (is (= #{"src/main.cpp"} (:added (git/status git))))
       (git/revert git ["src/main.cpp"])
       (is (= #{} (all-files (git/status git))))))
@@ -790,7 +894,7 @@
       (create-file git "/src/main.cpp" "void main2() {}")
 
       (is (= #{"src/main.cpp"} (:modified (git/status git))))
-      (autostage git)
+      (git/stage-all! git)
       (git/revert git ["src/main.cpp"])
       (is (= #{} (all-files (git/status git))))))
 
@@ -815,7 +919,7 @@
 
       (delete-file git "src/main.cpp")
       (delete-file git "src/other.cpp")
-      (autostage git)
+      (git/stage-all! git)
 
       (is (= #{"src/main.cpp" "src/other.cpp"} (:removed (git/status git))))
       (git/revert git ["src/other.cpp"])
@@ -846,7 +950,7 @@
       (create-file git "/src/foo.cpp" "void main() {}")
       (delete-file git "src/main.cpp")
       (delete-file git "src/other.cpp")
-      (autostage git)
+      (git/stage-all! git)
 
       (is (= #{"src/main.cpp" "src/other.cpp"} (:removed (git/status git))))
       (is (= #{"src/foo.cpp"} (:added (git/status git))))

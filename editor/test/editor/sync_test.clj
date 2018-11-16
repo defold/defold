@@ -505,7 +505,7 @@
 (defn- test-conflict-resolution [resolve! expected-status expected-contents-by-file-path]
   (with-git [remote-git (init-git)
              local-git (create-conflict-zoo! remote-git [".internal"])]
-    (autostage remote-git)
+    (git/stage-all! remote-git)
     (-> remote-git .commit (.setMessage "Remote commit with conflicting changes") .call)
     (let [prefs (make-prefs)
           creds (git/credentials prefs)
