@@ -27,7 +27,6 @@
 
 (defn- build-game-project [resource dep-resources user-data]
   (let [{:keys [settings-map meta-settings path->built-resource-settings]} user-data
-        _ (prn "settings-map" settings-map)
         settings (into []
                        (comp (keep (fn [[path value]]
                                      (when (and (some? value) (not= "" value))
@@ -36,9 +35,10 @@
                              (keep (fn [{:keys [path value] :as setting}]
                                      (let [meta-setting (settings-core/get-meta-setting meta-settings path)]
                                        (if (= :resource (:type meta-setting))
-                                         (when-some [resource-value (path->built-resource-settings path)]
+                                         (if-some [resource-value (path->built-resource-settings path)]
                                            (let [build-resource-path (resource/proj-path (dep-resources resource-value))]
-                                             (assoc setting :value build-resource-path)))
+                                             (assoc setting :value build-resource-path))
+                                           (assoc setting :value (resource/proj-path value)))
                                          (assoc setting :value (settings-core/render-raw-setting-value meta-setting value)))))))
                        (sort-by first settings-map))
         ^String user-data-content (settings-core/settings->str settings)]
