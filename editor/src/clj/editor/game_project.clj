@@ -109,8 +109,6 @@
    ["bootstrap" "debug_init_script"] [[:build-targets :dep-build-targets]]
    ["bootstrap" "main_collection"] [[:build-targets :dep-build-targets]]
    ["bootstrap" "render"] [[:build-targets :dep-build-targets]]
-   ["graphics" "texture_profiles"] [[:build-targets :dep-build-targets]
-                                    [:pb :texture-profiles-data]]
    ["input" "gamepads"] [[:build-targets :dep-build-targets]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 

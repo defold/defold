@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Bob;
 
@@ -194,7 +195,7 @@ public class BobProjectProperties {
     // out entries that has valid default values.
     @FunctionalInterface
     private interface KeyValueFilter {
-        boolean filter(StringKeyValue entry);
+        public boolean filter(StringKeyValue entry);
     }
 
     private void doLoad(InputStream in, KeyValueFilter passFunc) throws IOException, ParseException {
@@ -253,16 +254,19 @@ public class BobProjectProperties {
      * @throws ParseException
      */
     public void loadDefaults() throws IOException, ParseException {
-        KeyValueFilter filterDefaults = entry -> {
-            // Only keep entries where key ends with ".default"
-            if (entry.key.endsWith(".default") && !entry.value.isEmpty()) {
+        KeyValueFilter filterDefaults = new KeyValueFilter(){
+           @Override
+           public boolean filter(StringKeyValue entry) {
+                // Only keep entries where key ends with ".default"
+                if (entry.key.endsWith(".default") && !entry.value.isEmpty()) {
 
-                // Modify key to remove ".default" part
-                entry.key = entry.key.substring(0, entry.key.length() - ".default".length());
-                return true;
+                    // Modify key to remove ".default" part
+                    entry.key = entry.key.substring(0, entry.key.length() - ".default".length());
+                    return true;
+                }
+
+                return false;
             }
-
-            return false;
         };
 
         InputStream is = Bob.class.getResourceAsStream("meta.properties");
@@ -301,12 +305,15 @@ public class BobProjectProperties {
      * Save to PrintWriter
      * @param pw {@link PrintWriter} to save to
      */
-    public void save(PrintWriter pw) {
+    public void save(PrintWriter pw, boolean saveEmptyValues) {
         for (String category : getCategoryNames()) {
             pw.format("[%s]%n", category);
 
             for (String key : getKeys(category)) {
                 String value = getStringValue(category, key);
+                if (StringUtils.isEmpty(value) && !saveEmptyValues) {
+                    continue;
+                }
                 pw.format("%s = %s%n", key, value);
             }
             pw.println();
@@ -319,9 +326,9 @@ public class BobProjectProperties {
      * @param os {@link OutputStream} to save to
      * @throws IOException
      */
-    public void save(OutputStream os) throws IOException {
+    public void save(OutputStream os, boolean saveEmptyValues) throws IOException {
         PrintWriter pw = new PrintWriter(os);
-        save(pw);
+        save(pw, saveEmptyValues);
         os.close();
     }
 
@@ -329,10 +336,10 @@ public class BobProjectProperties {
      * Serialize properties to String
      * @return properties serialized as a String
      */
-    public String serialize() {
+    public String serialize(boolean saveEmptyValues) {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        save(pw);
+        save(pw, saveEmptyValues);
         return sw.toString();
     }
 
