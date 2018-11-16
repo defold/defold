@@ -70,6 +70,8 @@ b2Body::b2Body(const b2BodyDef* bd, b2World* world)
 	m_sweep.a = bd->angle;
 	m_sweep.alpha0 = 0.0f;
 
+	m_prevAngle = m_sweep.a;
+
 	m_jointList = NULL;
 	m_contactList = NULL;
 	m_prev = NULL;

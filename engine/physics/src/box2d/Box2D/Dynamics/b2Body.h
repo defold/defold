@@ -383,8 +383,9 @@ public:
     /// Get the total force
     const b2Vec2& GetForce() const;
 
-    // previous body transform TODO out in getter?
+    // previous body transform TODO out in getters?
     b2Transform m_prevXf;
+    float m_prevAngle;
 
 private:
 

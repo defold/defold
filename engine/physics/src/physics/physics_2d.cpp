@@ -281,31 +281,32 @@ namespace dmPhysics
                         Vectormath::Aos::Point3 position;
 
                         float alpha = dmMath::Min(1.0f, g_DtAcum / world->m_FixedDt);
-                        dmLogWarning("alpha: %f", alpha);
-                        b2Vec2 interpolated_pos = alpha * body->GetPosition() + (1.0 - alpha) * body->m_prevXf.p;
-
+                        // dmLogWarning("alpha: %f", alpha);
+                        b2Vec2 interpolated_pos = alpha * body->GetPosition() + (1.0f - alpha) * body->m_prevXf.p;
                         FromB2(interpolated_pos, position, inv_scale);
-                        Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(body->GetAngle());
+
+                        float interpolated_angle = alpha * body->GetAngle() + (1.0f - alpha) * body->m_prevAngle;
+                        Vectormath::Aos::Quat rotation = Vectormath::Aos::Quat::rotationZ(interpolated_angle);
+
                         (*world->m_SetWorldTransformCallback)(body->GetUserData(), position, rotation);
 
                         if (g_DtAcum >= world->m_FixedDt - EPSILON)
+                        {
+                            // dmLogInfo("prev angle: %f, current angle: %f")
+                            body->m_prevAngle = body->GetAngle();
                             body->m_prevXf.Set(body->GetPosition(), body->GetAngle());
+                        }
                     }
                 }
             }
 
-            // dmLogWarning("================")
-            // dmLogWarning("g_DtAcum: %f", g_DtAcum);
-            // dmLogWarning("world->m_FixedDt: %f", world->m_FixedDt);
+            // dmLogError("----------------- frame -----------------");
             while (g_DtAcum >= world->m_FixedDt - EPSILON)
             {
-                // dmLogWarning("* g_DtAcum: %f", g_DtAcum);
-                // dmLogWarning("* world->m_FixedDt: %f", world->m_FixedDt);
                 dt = world->m_FixedDt;
+                // dmLogWarning("step, dt: %f", dt);
                 world->m_World.Step(dt, 10, 10);
                 g_DtAcum -= world->m_FixedDt;
-                // dmLogWarning("- g_DtAcum: %f", g_DtAcum);
-                // dmLogWarning("- world->m_FixedDt: %f", world->m_FixedDt);
             }
         }
         // Perform requested ray casts
