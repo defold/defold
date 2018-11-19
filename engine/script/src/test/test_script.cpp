@@ -58,7 +58,11 @@ protected:
             }
             addr_ptr = strstr(read_ptr, address_prefix);
         }
-        strcpy(write_ptr, read_ptr);
+        while (*read_ptr)
+        {
+            *write_ptr++ = *read_ptr++;
+        }
+        *write_ptr = 0;
         return str;
     }
 

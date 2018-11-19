@@ -683,6 +683,7 @@
    :filter "html",
    :preserve-extension true,
    :help "html shell for canvas",
+   :default "/builtins/manifests/web/engine_template.html",
    :label ".html Shell"
    :path ["html5" "htmlfile"]}
   {:type :resource,
