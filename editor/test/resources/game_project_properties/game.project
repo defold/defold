@@ -1,0 +1,11 @@
+[project]
+title = Game Project Properties
+
+[bootstrap]
+main_collection = main.collectionc
+
+[input]
+game_binding = game.input_bindingc
+
+[custom]
+love = defold
