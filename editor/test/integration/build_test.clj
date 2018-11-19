@@ -426,12 +426,18 @@
         (is (instance? internal.graph.error_values.ErrorValue (:error build-results)))))))
 
 (deftest build-font
-  (testing "Building font"
+  (testing "Building TTF font"
     (with-build-results "/fonts/score.font"
       (let [content (get content-by-source "/fonts/score.font")
-            desc    (protobuf/bytes->map Font$FontMap content)]
+            desc (protobuf/bytes->map Font$FontMap content)]
         (is (= 1024 (:cache-width desc)))
-        (is (= 256 (:cache-height desc)))))))
+        (is (= 256 (:cache-height desc))))))
+  (testing "Building BMFont"
+    (with-build-results "/fonts/gradient.font"
+      (let [content (get content-by-source "/fonts/gradient.font")
+            desc (protobuf/bytes->map Font$FontMap content)]
+        (is (= 1024 (:cache-width desc)))
+        (is (= 512 (:cache-height desc)))))))
 
 (deftest build-script
   (testing "Buildling a valid script succeeds"
