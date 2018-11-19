@@ -1312,6 +1312,80 @@ dmResource::Result SharedResourceDuplicate(const dmResource::ResourceDuplicatePa
     return dmResource::RESULT_OK;
 }
 
+TEST_F(ResourceTest, ManifestLoadDdfFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    const char* buf = "this is not a manifest buffer";
+    dmResource::Result result = dmResource::ManifestLoadMessage((uint8_t*)buf, strlen(buf), manifest);
+    ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
+    delete manifest;
+}
+
+TEST_F(ResourceTest, ManifestBundledResourcesVerification)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::ArchiveIndexContainer* archive = 0;
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    result = dmResource::VerifyResourcesBundled(manifest->m_DDFData->m_Resources.m_Data, manifest->m_DDFData->m_Resources.m_Count, archive);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::Delete(archive);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
+
+TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
+{
+    dmResource::Manifest* manifest = new dmResource::Manifest();
+    dmResource::Result result = dmResource::ManifestLoadMessage(RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, manifest);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    dmResourceArchive::ArchiveIndexContainer* archive = 0;
+    dmResourceArchive::Result r = dmResourceArchive::WrapArchiveBuffer(RESOURCES_ARCI, RESOURCES_ARCD, 0x0, 0x0, 0x0, &archive);
+    ASSERT_EQ(dmResourceArchive::RESULT_OK, r);
+
+    // Deep-copy current manifest resource entries with space for an extra resource entry
+    uint32_t entry_count = manifest->m_DDFData->m_Resources.m_Count;
+    dmLiveUpdateDDF::ResourceEntry* entries = (dmLiveUpdateDDF::ResourceEntry*) malloc((entry_count + 1) * sizeof(dmLiveUpdateDDF::ResourceEntry));
+    memcpy(entries, manifest->m_DDFData->m_Resources.m_Data, entry_count);
+    for (uint32_t i = 0; i < entry_count; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry* entry = &manifest->m_DDFData->m_Resources.m_Data[i];
+        dmLiveUpdateDDF::ResourceEntry* new_entry = &entries[i];
+        new_entry->m_Hash = dmLiveUpdateDDF::HashDigest();
+        new_entry->m_Hash.m_Data.m_Data = (uint8_t*)malloc(entry->m_Hash.m_Data.m_Count);
+        memcpy(new_entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count);
+        new_entry->m_Flags = entry->m_Flags;
+    }
+
+    // Fill in bogus resource entry, tagged as BUNDLED but will not be found in the archive
+    entries[entry_count].m_Flags = dmLiveUpdateDDF::BUNDLED;
+    entries[entry_count].m_Hash.m_Data.m_Data = (uint8_t*)malloc(manifest->m_DDFData->m_Resources.m_Data[0].m_Hash.m_Data.m_Count);
+    memset(entries[entry_count].m_Hash.m_Data.m_Data, 0xFF, manifest->m_DDFData->m_Resources.m_Data[0].m_Hash.m_Data.m_Count);
+    entries[entry_count].m_Url = "not_in_bundle";
+
+    result = dmResource::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, archive);
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, result);
+
+    // Clean up deep-copied resource entries
+    for (uint32_t i = 0; i < entry_count + 1; ++i)
+    {
+        dmLiveUpdateDDF::ResourceEntry* e = &entries[i];
+        free(e->m_Hash.m_Data.m_Data);
+    }
+    free(entries);
+
+    dmResourceArchive::Delete(archive);
+    dmDDF::FreeMessage(manifest->m_DDFData);
+    dmDDF::FreeMessage(manifest->m_DDF);
+    delete manifest;
+}
 
 TEST_F(ResourceTest, IsShared)
 {

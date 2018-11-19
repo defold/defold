@@ -250,9 +250,16 @@ void _glfwInputMouseClick( int button, int action )
 {
     if( button >= 0 && button <= GLFW_MOUSE_BUTTON_LAST )
     {
-        // Register mouse button action
-        if( action == GLFW_RELEASE && _glfwInput.StickyMouseButtons )
+        if (_glfwInput.MouseButton[ button ] == GLFW_CLICKED) {
+            return;
+        }
+
+        if( action == GLFW_RELEASE && _glfwInput.MouseButton[ button ] == GLFW_PRESS )
         {
+            _glfwInput.MouseButton[ button ] = GLFW_CLICKED;
+        } else if( action == GLFW_RELEASE && _glfwInput.StickyMouseButtons )
+        {
+            // Register mouse button action
             _glfwInput.MouseButton[ button ] = GLFW_STICK;
         }
         else
