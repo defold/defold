@@ -483,7 +483,8 @@
 
   Before stashing, we also revert any case-changes if we're running on a
   case-insensitive file system. We will reapply the case-changes when the stash
-  is applied. We must do this, because a stash
+  is applied. If we do not do this, we will lose any remote changes to case-
+  changed files when applying the stash.
 
   Returns nil if there was nothing to stash, or a map with the stash ref and
   the set of file paths that were staged at the time the stash was made."
