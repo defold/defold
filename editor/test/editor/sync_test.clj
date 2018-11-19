@@ -504,7 +504,7 @@
 
 (defn- test-conflict-resolution [resolve! expected-status expected-contents-by-file-path]
   (with-git [remote-git (init-git)
-             local-git (create-conflict-zoo! remote-git [".internal"])]
+             local-git (create-conflict-zoo! remote-git [".internal"] false)]
     (git/stage-all! remote-git)
     (-> remote-git .commit (.setMessage "Remote commit with conflicting changes") .call)
     (let [prefs (make-prefs)
@@ -552,19 +552,19 @@
   (testing ":pull/conflicts"
     (testing "Use ours"
       (test-conflict-resolution sync/use-ours!
-                                {:changed                #{"src/local_modified.txt"}
-                                 :conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
+                                {:conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
                                                            "src/local_deleted_remote_modified.txt" :deleted-by-them
                                                            "src/local_modified_remote_deleted.txt" :deleted-by-us
                                                            "src/local_modified_remote_moved.txt"   :deleted-by-us
                                                            "src/local_moved_remote_modified.txt"   :deleted-by-them
                                                            "src/new/both_added_conflicting.txt"    :both-added}
-                                 :missing                #{"src/local_deleted_remote_modified.txt"
+                                 :missing                #{"src/local_deleted.txt"
+                                                           "src/local_deleted_remote_modified.txt"
+                                                           "src/local_moved.txt"
                                                            "src/local_moved_remote_modified.txt"}
                                  :modified               #{"src/both_modified_conflicting.txt"
+                                                           "src/local_modified.txt"
                                                            "src/new/both_added_conflicting.txt"}
-                                 :removed                #{"src/local_deleted.txt"
-                                                           "src/local_moved.txt"}
                                  :untracked              #{"src/local_modified_remote_deleted.txt"
                                                            "src/local_modified_remote_moved.txt"
                                                            "src/moved/both_moved_conflicting_a.txt"
@@ -590,15 +590,15 @@
                                  "src/remote_modified.txt"                   "remote_modified, modified by remote."}))
     (testing "Use theirs"
       (test-conflict-resolution sync/use-theirs!
-                                {:changed                #{"src/local_modified.txt"}
-                                 :conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
+                                {:conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
                                                            "src/local_deleted_remote_modified.txt" :deleted-by-them
                                                            "src/local_modified_remote_deleted.txt" :deleted-by-us
                                                            "src/local_modified_remote_moved.txt"   :deleted-by-us
                                                            "src/local_moved_remote_modified.txt"   :deleted-by-them
                                                            "src/new/both_added_conflicting.txt"    :both-added}
-                                 :removed                #{"src/local_deleted.txt"
+                                 :missing                #{"src/local_deleted.txt"
                                                            "src/local_moved.txt"}
+                                 :modified               #{"src/local_modified.txt"}
                                  :untracked              #{"src/moved/both_moved_conflicting_a.txt"
                                                            "src/moved/local_moved.txt"
                                                            "src/moved/local_moved_remote_modified.txt"
