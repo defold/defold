@@ -15,7 +15,8 @@
             [editor.workspace :as workspace]
             [editor.resource :as resource]
             [util.murmur :as murmur]
-            [integration.test-util :refer [with-loaded-project] :as test-util])
+            [integration.test-util :refer [with-loaded-project] :as test-util]
+            [editor.settings-core :as settings-core])
   (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesystem.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.textureset.proto TextureSetProto$TextureSet]
@@ -593,6 +594,33 @@
           _                   (g/set-property! atlas-resource-node :inner-padding -42)
           build-results       (project-build project resource-node (g/make-evaluation-context))]
       (is (instance? internal.graph.error_values.ErrorValue (:error build-results))))))
+
+(defn- check-project-setting [properties path expected-value]
+  (let [value (settings-core/get-setting properties path)]
+    (is (= expected-value value))))
+
+(deftest build-game-project-properties
+  (with-loaded-project "test/resources/game_project_properties"
+                       (let [game-project (test-util/resource-node project "/game.project")]
+                         (let [br (project-build project game-project (g/make-evaluation-context))]
+                           (is (not (contains? br :error)))
+                           (with-open [r (io/reader (build-path workspace "game.projectc"))]
+                             (let [built-properties (settings-core/parse-settings r)]
+
+                               ;; Overwrite defualt value
+                               (check-project-setting built-properties ["project" "title"] "Game Project Properties")
+
+                               ;; Non existent property
+                               (check-project-setting built-properties ["project" "doesn't_exist"] nil)
+
+                               ;; Default boolean value
+                               (check-project-setting built-properties ["script" "shared_state"] "0")
+
+                               ;; Default number value
+                               (check-project-setting built-properties ["display" "width"] "960")
+
+                               ;; Custom property
+                               (check-project-setting built-properties ["custom" "love"] "defold")))))))
 
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
