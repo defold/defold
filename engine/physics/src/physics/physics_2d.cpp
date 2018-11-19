@@ -299,15 +299,6 @@ namespace dmPhysics
                     }
                 }
             }
-
-            // dmLogError("----------------- frame -----------------");
-            while (g_DtAcum >= world->m_FixedDt - EPSILON)
-            {
-                dt = world->m_FixedDt;
-                // dmLogWarning("step, dt: %f", dt);
-                world->m_World.Step(dt, 10, 10);
-                g_DtAcum -= world->m_FixedDt;
-            }
         }
         // Perform requested ray casts
         uint32_t size = world->m_RayCastRequests.Size();
@@ -331,29 +322,37 @@ namespace dmPhysics
             }
             world->m_RayCastRequests.SetSize(0);
         }
-        // Report sensor collisions
-        if (step_context.m_CollisionCallback)
+        // TODO raycasts should be sent every step as well!! --jbnn
+        while (g_DtAcum >= world->m_FixedDt - EPSILON)
         {
-            DM_PROFILE(Physics, "CollisionCallbacks");
-            for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
+            dt = world->m_FixedDt;
+            // dmLogWarning("step, dt: %f", dt);
+            world->m_World.Step(dt, 10, 10);
+            g_DtAcum -= world->m_FixedDt;
+            // Report sensor collisions
+            if (step_context.m_CollisionCallback)
             {
-                b2Fixture* fixture_a = contact->GetFixtureA();
-                b2Fixture* fixture_b = contact->GetFixtureB();
-                if (contact->IsTouching() && (fixture_a->IsSensor() || fixture_b->IsSensor()))
+                DM_PROFILE(Physics, "CollisionCallbacks");
+                for (b2Contact* contact = world->m_World.GetContactList(); contact; contact = contact->GetNext())
                 {
-                    int32_t index_a = contact->GetChildIndexA();
-                    int32_t index_b = contact->GetChildIndexB();
-                    step_context.m_CollisionCallback(fixture_a->GetUserData(),
-                                                fixture_a->GetFilterData(index_a).categoryBits,
-                                                fixture_b->GetUserData(),
-                                                fixture_b->GetFilterData(index_b).categoryBits,
-                                                step_context.m_CollisionUserData);
+                    b2Fixture* fixture_a = contact->GetFixtureA();
+                    b2Fixture* fixture_b = contact->GetFixtureB();
+                    if (contact->IsTouching() && (fixture_a->IsSensor() || fixture_b->IsSensor()))
+                    {
+                        int32_t index_a = contact->GetChildIndexA();
+                        int32_t index_b = contact->GetChildIndexB();
+                        step_context.m_CollisionCallback(fixture_a->GetUserData(),
+                                                    fixture_a->GetFilterData(index_a).categoryBits,
+                                                    fixture_b->GetUserData(),
+                                                    fixture_b->GetFilterData(index_b).categoryBits,
+                                                    step_context.m_CollisionUserData);
+                    }
                 }
             }
-        }
-        UpdateOverlapCache(&world->m_TriggerOverlaps, context, world->m_World.GetContactList(), step_context);
+            UpdateOverlapCache(&world->m_TriggerOverlaps, context, world->m_World.GetContactList(), step_context);
 
-        world->m_World.DrawDebugData();
+            world->m_World.DrawDebugData();
+        }
     }
 
     void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context)
