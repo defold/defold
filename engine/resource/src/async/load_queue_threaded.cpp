@@ -7,7 +7,7 @@
 #include <dlib/array.h>
 #include <dlib/thread.h>
 #include <dlib/mutex.h>
-#include <dlib/time.h>
+#include <dlib/condition_variable.h>
 
 namespace dmLoadQueue
 {
@@ -35,6 +35,7 @@ namespace dmLoadQueue
     {
         dmResource::HFactory m_Factory;
         dmMutex::Mutex m_Mutex;
+        dmConditionVariable::ConditionVariable m_WakeupCond;
         dmThread::Thread m_Thread;
         Request m_Request[QUEUE_SLOTS];
         uint32_t m_Front, m_Back, m_Loaded;
@@ -47,6 +48,25 @@ namespace dmLoadQueue
         // [N/A]   [loaded] [loaded] [to-load]  [N/A]
         //
     };
+
+    static Request* GetNextRequest(Queue* queue)
+    {
+        // Since we can be loading many things at once, track the total Capacity() for buffers
+        // that are waiting to be picked up by the preloader. In the case of the queue being filled
+        // with only large requests (say only 4Mb textures), this throttles a bit so memory consumption
+        // does not run away.
+        if (queue->m_BytesWaiting >= MAX_PENDING_DATA)
+        {
+            return 0x0;
+        }
+
+        if (queue->m_Loaded == queue->m_Front)
+        {
+            return 0x0;
+        }
+
+        return &queue->m_Request[queue->m_Loaded % QUEUE_SLOTS];
+    }
 
     static void LoadThread(void *arg)
     {
@@ -70,16 +90,11 @@ namespace dmLoadQueue
                     return;
                 }
 
-                // Since we can be loading many things at once, track the total Capacity() for buffers
-                // that are waiting to be picked up by the preloader. In the case of the queue being filled
-                // with only large requests (say only 4Mb textures), this throttles a bit so memory consumption
-                // does not run away.
-                if (queue->m_BytesWaiting < MAX_PENDING_DATA)
+                current = GetNextRequest(queue);
+                if (current == 0x0)
                 {
-                    if (queue->m_Loaded != queue->m_Front)
-                    {
-                        current = &queue->m_Request[queue->m_Loaded % QUEUE_SLOTS];
-                    }
+                    dmConditionVariable::Wait(queue->m_WakeupCond, queue->m_Mutex);
+                    current = GetNextRequest(queue);
                 }
             }
 
@@ -116,11 +131,6 @@ namespace dmLoadQueue
                     }
                 }
             }
-            else
-            {
-                dmTime::Sleep(1000);
-                continue;
-            }
         }
     }
 
@@ -134,15 +144,19 @@ namespace dmLoadQueue
         q->m_Shutdown = false;
         q->m_BytesWaiting = 0;
         q->m_Mutex = dmMutex::New();
+        q->m_WakeupCond = dmConditionVariable::New();
         q->m_Thread = dmThread::New(&LoadThread, 65536, q, "AsyncLoad");
         return q;
     }
 
     void DeleteQueue(HQueue queue)
     {
-        dmMutex::Lock(queue->m_Mutex);
-        queue->m_Shutdown = true;
-        dmMutex::Unlock(queue->m_Mutex);
+        {
+            dmMutex::ScopedLock lk(queue->m_Mutex);
+            queue->m_Shutdown = true;
+            // Wake up the worker so it can exit and allow us to join
+            dmConditionVariable::Signal(queue->m_WakeupCond);
+        }
         dmThread::Join(queue->m_Thread);
         dmMutex::Delete(queue->m_Mutex);
         delete queue;
@@ -160,6 +174,12 @@ namespace dmLoadQueue
         {
             dmLogWarning("Passed too long path into dmQueue::BeginLoad");
             return 0;
+        }
+
+        if (queue->m_Loaded == queue->m_Front)
+        {
+            // The worker sleeping waiting for request, wake it up
+            dmConditionVariable::Signal(queue->m_WakeupCond);
         }
 
         assert(path[0] != 0);
@@ -195,7 +215,16 @@ namespace dmLoadQueue
     {
         dmMutex::ScopedLock lk(queue->m_Mutex);
 
+        uint32_t old_bytes_waiting = queue->m_BytesWaiting;
         queue->m_BytesWaiting -= request->m_Buffer.Capacity();
+        if (old_bytes_waiting >= MAX_PENDING_DATA && queue->m_BytesWaiting < MAX_PENDING_DATA)
+        {
+            // Wake up thread, we can now fit a new request
+            dmConditionVariable::Signal(queue->m_WakeupCond);
+        }
+
+        // Make sure we don't copy any data if we reallocate the buffer
+        request->m_Buffer.SetSize(0);
 
         if (request->m_Buffer.Capacity() > DEFAULT_CAPACITY)
         {
