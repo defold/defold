@@ -110,16 +110,16 @@ namespace dmGameSystem
         {
             const char* name = fragment_constant[i].m_Name;
             dmhash_t name_hash = dmHashString64(name);
-            dmRender::SetMaterialProgramConstantType(material, name_hash, ddf->m_FragmentConstants[i].m_Type);
-            dmRender::SetMaterialProgramConstant(material, name_hash, ddf->m_FragmentConstants[i].m_Value);
+            dmRender::SetMaterialProgramConstantType(material, name_hash, fragment_constant[i].m_Type);
+            dmRender::SetMaterialProgramConstant(material, name_hash, fragment_constant[i].m_Value);
         }
         // do the same for vertex constants
         for (uint32_t i = 0; i < vertex_count; i++)
         {
             const char* name = vertex_constant[i].m_Name;
             dmhash_t name_hash = dmHashString64(name);
-            dmRender::SetMaterialProgramConstantType(material, name_hash, ddf->m_VertexConstants[i].m_Type);
-            dmRender::SetMaterialProgramConstant(material, name_hash, ddf->m_VertexConstants[i].m_Value);
+            dmRender::SetMaterialProgramConstantType(material, name_hash, vertex_constant[i].m_Type);
+            dmRender::SetMaterialProgramConstant(material, name_hash, vertex_constant[i].m_Value);
         }
 
 
