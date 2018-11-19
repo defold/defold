@@ -24,6 +24,7 @@
            (com.dynamo.cr.protocol.proto Protocol$ProjectInfoList)
            (java.io File FileOutputStream PushbackReader)
            (java.net MalformedURLException SocketException SocketTimeoutException URL UnknownHostException)
+           (javax.net.ssl SSLException)
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
@@ -804,16 +805,30 @@
                                         (hide-progress! root)
                                         (cond
                                           (instance? UnknownHostException error)
-                                          (dialogs/make-message-box "No Internet Connection"
-                                                                    "You must be connected to the internet to download project content.")
+                                          (dialogs/make-error-dialog "No Internet Connection"
+                                                                     "You must be connected to the internet to download project content.")
 
                                           (instance? SocketException error)
-                                          (dialogs/make-message-box "Host Unreachable"
-                                                                    "A firewall might be blocking network connections.")
+                                          (dialogs/make-error-dialog "Host Unreachable"
+                                                                     "A firewall might be blocking network connections."
+                                                                     (.getMessage error))
 
                                           (instance? SocketTimeoutException error)
-                                          (dialogs/make-message-box "Host Not Responding"
-                                                                    "The connection timed out.")
+                                          (dialogs/make-error-dialog "Host Not Responding"
+                                                                     "The connection timed out."
+                                                                     (.getMessage error))
+
+                                          (instance? SSLException error)
+                                          (dialogs/make-error-dialog "SSL Connection Error"
+                                                                     (str "Could not establish an SSL connection. Common causes are:\n"
+                                                                          "\u00A0\u00A0\u2022\u00A0 Antivirus software configured to scan encrypted connections\n"
+                                                                          "\u00A0\u00A0\u2022\u00A0 Expired or misconfigured server certificate\n"
+                                                                          "\u00A0\u00A0\u2022\u00A0 Untrusted server certificate\n"
+                                                                          "\n"
+                                                                          "The following FAQ may apply:\n"
+                                                                          "[PKIX path building failed](https://github.com/defold/editor2-issues/blob/master/faq/pkixpathbuilding.md)")
+                                                                     (string/replace (.getMessage error) ": " ":\n\u00A0\u00A0"))
+
                                           :else
                                           (error-reporting/report-exception! error))))))))
          dashboard-client (make-dashboard-client prefs)
