@@ -543,11 +543,12 @@
       (catch Exception e
         (log/warn :exception e)
         (when-not (engine-build-errors/handle-build-error! render-error! project e)
-          (dialogs/make-alert-dialog (format "Launching %s failed: \n%s"
+          (dialogs/make-error-dialog (format "Launching %s Failed"
                                              (if (some? selected-target)
                                                (targets/target-message-label selected-target)
-                                               "New Local Engine")
-                                             (.getMessage e))))))))
+                                               "New Local Engine"))
+                                     "If the engine is already running, shut down the process manually and retry."
+                                     (.getMessage e)))))))
 
 (defn- async-build! [project {:keys [debug?] :or {debug? false} :as opts} old-artifact-map result-fn]
   (let [render-build-progress! (make-render-task-progress :build)
@@ -691,7 +692,11 @@ If you do not specifically require different script states, consider changing th
                              (build-errors-view/clear-build-errors build-errors-view)
                              (engine/reload-resource (targets/selected-target prefs) resource)
                              (catch Exception e
-                               (dialogs/make-alert-dialog (format "Failed to reload resource on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))))))
+                               (dialogs/make-error-dialog "Hot Reload Failed"
+                                                          (format "Failed to reload resource %s on '%s'"
+                                                                  (resource/resource->proj-path resource)
+                                                                  (targets/target-message-label (targets/selected-target prefs)))
+                                                          (.getMessage e))))))))))))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-active-tabs app-view)))
