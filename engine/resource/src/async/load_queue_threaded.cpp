@@ -21,7 +21,7 @@ namespace dmLoadQueue
     // This sets the bandwidth of the loader.
     const uint64_t MAX_PENDING_DATA = 4*1024*1024;
     const uint32_t RESOURCE_PATH_MAX = 1024;
-    const uint32_t QUEUE_SLOTS = 64;
+    const uint32_t QUEUE_SLOTS = 16;
 
     struct Request
     {
