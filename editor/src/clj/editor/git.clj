@@ -564,24 +564,36 @@
 ;; NOTE: Not to be confused with "git revert"
 (defn revert [^Git git files]
   (let [us (unified-status git)
-        extra (->> files
-                (map (fn [f] (find-original-for-renamed us f)))
-                (remove nil?))
-        co (-> git (.checkout))
-        reset (-> git (.reset) (.setRef "HEAD"))]
+        renames (into {}
+                      (keep (fn [new-path]
+                              (when-some [old-path (find-original-for-renamed us new-path)]
+                                [new-path old-path])))
+                      files)
+        others (into [] (remove renames) files)]
 
-    (doseq [f (concat files extra)]
-      (.addPath co f)
-      (.addPath reset f))
-    (.call reset)
-    (.call co))
+    ;; Revert renames first.
+    (doseq [[new-path old-path] renames]
+      (-> git .rm (.addFilepattern new-path) (.setCached true) .call)
+      (fs/delete-file! (file git new-path))
+      (-> git .reset (.addPath old-path) .call)
+      (-> git .checkout (.addPath old-path) .call))
 
-  ;; Delete all untracked files in "files" as a last step
-  ;; JGit doesn't support this operation with RmCommand
-  (let [s (status git)]
-    (doseq [f files]
-      (when (contains? (:untracked s) f)
-        (fs/delete-file! (file git f) {:missing :fail})))))
+    ;; Revert others.
+    (when (seq others)
+      (let [co (-> git (.checkout))
+            reset (-> git (.reset) (.setRef "HEAD"))]
+        (doseq [path others]
+          (.addPath co path)
+          (.addPath reset path))
+        (.call reset)
+        (.call co))
+
+      ;; Delete all untracked files in "others" as a last step
+      ;; JGit doesn't support this operation with RmCommand
+      (let [s (status git)]
+        (doseq [path others]
+          (when (contains? (:untracked s) path)
+            (fs/delete-file! (file git path) {:missing :fail})))))))
 
 (def ^:private ^:const clone-tasks
   {"remote: Finding sources" 1
