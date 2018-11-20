@@ -65,22 +65,12 @@ namespace dmEngineVersion
     sound_lib = 'sound'
     if operating_sys == 'osx':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-        if architecture == 'x86_64':
-            # For MoltenVK
-            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK'])
-            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface']) # Metal and dependencies
-            conf.env.append_value('LINKFLAGS', ['-l', 'c++']) # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std rather than deprecated stdc++ (gtest requires stdc++, needs upgrading)
     elif operating_sys == 'ios':
         conf.env.append_value('LINKFLAGS', ['-framework', 'UIKit', '-framework', 'OpenGLES', '-framework', 'QuartzCore', '-framework', 'CoreGraphics', '-framework', 'OpenAL', '-framework', 'AudioToolbox'])
         # For Facebook SDK...
         conf.env.append_value('LINKFLAGS', ['-framework', 'Security', '-weak_framework', 'Accounts', '-weak_framework', 'Social', '-weak_framework', 'AdSupport'])
         # For IAP
         conf.env.append_value('LINKFLAGS', ['-framework', 'StoreKit'])
-        if architecture == 'arm64':
-            # For MoltenVK
-            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK'])
-            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface']) # Metal and dependencies
-            conf.env.append_value('LINKFLAGS', ['-l', 'c++']) # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std rather than deprecated stdc++ (gtest requires stdc++, needs upgrading)
     elif operating_sys == 'android':
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
     elif operating_sys == "linux":
