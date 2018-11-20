@@ -1049,6 +1049,37 @@
       (is (= #{"src/foo.cpp"} (:added (git/status git))))
 
       (git/revert git ["src/foo.cpp"])
+      (is (= #{"src/other.cpp"} (all-files (git/status git))))))
+
+  (testing "case-changed"
+    (with-git [git (new-git)]
+      (create-file git "src/main.cpp" "void main() {}")
+      (create-file git "src/other.cpp" "void other() {}")
+      (commit-src git)
+
+      (move-file git "src/main.cpp" "src/MAIN.cpp")
+      (delete-file git "src/other.cpp")
+
+      (is (= #{"src/main.cpp" "src/other.cpp"} (:missing (git/status git))))
+      (is (= #{"src/MAIN.cpp"} (:untracked (git/status git))))
+
+      (git/revert git ["src/MAIN.cpp"])
+      (is (= #{"src/other.cpp"} (all-files (git/status git))))))
+
+  (testing "case-changed and staged"
+    (with-git [git (new-git)]
+      (create-file git "src/main.cpp" "void main() {}")
+      (create-file git "src/other.cpp" "void other() {}")
+      (commit-src git)
+
+      (move-file git "src/main.cpp" "src/MAIN.cpp")
+      (delete-file git "src/other.cpp")
+      (git/stage-all! git)
+
+      (is (= #{"src/main.cpp" "src/other.cpp"} (:removed (git/status git))))
+      (is (= #{"src/MAIN.cpp"} (:added (git/status git))))
+
+      (git/revert git ["src/MAIN.cpp"])
       (is (= #{"src/other.cpp"} (all-files (git/status git)))))))
 
 (deftest locked-files-test
