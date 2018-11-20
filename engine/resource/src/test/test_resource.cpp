@@ -389,6 +389,7 @@ TEST_P(GetResourceTest, IncRef)
 
     TestResourceContainer* test_resource_cont = 0;
     e = dmResource::Get(m_Factory, m_ResourceName, (void**) &test_resource_cont);
+    ASSERT_EQ(dmResource::RESULT_OK, e);
     dmResource::IncRef(m_Factory, test_resource_cont);
     dmResource::Release(m_Factory, test_resource_cont);
     dmResource::Release(m_Factory, test_resource_cont);
