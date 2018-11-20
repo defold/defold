@@ -45,11 +45,10 @@ namespace dmGameSystem
 
     struct MaterialResources
     {
-        MaterialResources() : m_DDF(0x0), m_FragmentProgramResource(0), m_VertexProgramResource(0) {}
+        MaterialResources() : m_FragmentProgram(0), m_VertexProgram(0) {}
 
-        dmRenderDDF::MaterialDesc* m_DDF;
-        FragmentProgramResource* m_FragmentProgramResource;
-        VertexProgramResource* m_VertexProgramResource;
+        dmGraphics::HFragmentProgram m_FragmentProgram;
+        dmGraphics::HVertexProgram m_VertexProgram;
     };
 
     bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
@@ -61,13 +60,15 @@ namespace dmGameSystem
 
     dmResource::Result AcquireResources(dmResource::HFactory factory, dmRenderDDF::MaterialDesc* ddf, MaterialResources* resources, const char* filename)
     {
+        if (!ValidateFormat(ddf))
+            return dmResource::RESULT_FORMAT_ERROR;
 
         dmResource::Result factory_e;
-        factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgramResource);
+        factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
         if ( factory_e != dmResource::RESULT_OK)
             return factory_e;
 
-        factory_e = dmResource::Get(factory, ddf->m_FragmentProgram, (void**) &resources->m_FragmentProgramResource);
+        factory_e = dmResource::Get(factory, ddf->m_FragmentProgram, (void**) &resources->m_FragmentProgram);
         if ( factory_e != dmResource::RESULT_OK)
             return factory_e;
 
@@ -154,12 +155,10 @@ namespace dmGameSystem
 
     void ReleaseResources(dmResource::HFactory factory, MaterialResources* resources)
     {
-        if (resources->m_DDF)
-            dmDDF::FreeMessage(resources->m_DDF);
-        if (resources->m_FragmentProgramResource)
-            dmResource::Release(factory, (void*)resources->m_FragmentProgramResource);
-        if (resources->m_VertexProgramResource)
-            dmResource::Release(factory, (void*)resources->m_VertexProgramResource);
+        if (resources->m_FragmentProgram)
+            dmResource::Release(factory, (void*)resources->m_FragmentProgram);
+        if (resources->m_VertexProgram)
+            dmResource::Release(factory, (void*)resources->m_VertexProgram);
     }
 
     dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams& params)
@@ -168,9 +167,10 @@ namespace dmGameSystem
         dmRenderDDF::MaterialDesc* ddf = (dmRenderDDF::MaterialDesc*)params.m_PreloadData;
         MaterialResources resources;
         dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources, params.m_Filename);
+        dmDDF::FreeMessage(ddf);
         if (r == dmResource::RESULT_OK)
         {
-            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgramResource->m_Program, resources.m_FragmentProgramResource->m_Program);
+            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
 
             dmResource::SResourceDescriptor desc;
             dmResource::Result factory_e;
@@ -192,7 +192,6 @@ namespace dmGameSystem
         {
             ReleaseResources(params.m_Factory, &resources);
         }
-        dmDDF::FreeMessage(ddf);
         return r;
     }
 
@@ -222,6 +221,7 @@ namespace dmGameSystem
 
         MaterialResources resources;
         dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources, params.m_Filename);
+        dmDDF::FreeMessage(ddf);
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HMaterial material = (dmRender::HMaterial) params.m_Resource->m_Resource;
@@ -232,7 +232,6 @@ namespace dmGameSystem
         {
             ReleaseResources(params.m_Factory, &resources);
         }
-        dmDDF::FreeMessage(ddf);
         return r;
     }
 
