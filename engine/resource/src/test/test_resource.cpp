@@ -672,9 +672,10 @@ TEST_P(GetResourceTest, PreloadGetParallell)
             pr[j] = dmResource::NewPreloader(m_Factory, m_ResourceName);
         }
 
+        bool done;
         for (uint32_t j=0;j<30;j++)
         {
-            bool done = true;
+            done = true;
             for (uint32_t k=0;k<n;k++)
             {
                 dmResource::Result r = dmResource::UpdatePreloader(pr[k], 0, 0, 1000);
@@ -690,6 +691,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
                 break;
             }
         }
+        ASSERT_TRUE(done);
 
         TestResourceContainer* resource = 0;
         dmResource::Result e = dmResource::Get(m_Factory, m_ResourceName, (void**) &resource);
