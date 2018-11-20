@@ -323,6 +323,8 @@ namespace dmPhysics
             world->m_RayCastRequests.SetSize(0);
         }
         // TODO raycasts should be sent every step as well!! --jbnn
+        // Or should they? Ray casts are always sent from script->comp_collisionobject->physics
+        // Will they actually benefit from being processed in "physics-time"?
         while (g_DtAcum >= world->m_FixedDt - EPSILON)
         {
             dt = world->m_FixedDt;
@@ -350,9 +352,9 @@ namespace dmPhysics
                 }
             }
             UpdateOverlapCache(&world->m_TriggerOverlaps, context, world->m_World.GetContactList(), step_context);
-
-            world->m_World.DrawDebugData();
         }
+
+        world->m_World.DrawDebugData();
     }
 
     void UpdateOverlapCache(OverlapCache* cache, HContext2D context, b2Contact* contact_list, const StepWorldContext& step_context)
