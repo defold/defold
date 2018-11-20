@@ -679,7 +679,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
             done = true;
             for (uint32_t k=0;k<n;k++)
             {
-                dmResource::Result r = dmResource::UpdatePreloader(pr[k], 0, 0, 1000);
+                dmResource::Result r = dmResource::UpdatePreloader(pr[k], 0, 0, 2000);
                 if (r == dmResource::RESULT_PENDING)
                 {
                     done = false;
