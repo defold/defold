@@ -58,7 +58,6 @@ namespace dmResource
     {
         // Always set.
         const char* m_Path;
-        uint64_t m_PathHash;
         uint64_t m_CanonicalPathHash;
 
         int32_t m_Parent;
@@ -98,13 +97,13 @@ namespace dmResource
     // are always present with all their children inserted (unless there was not room)
     // the required size is something the sum of all children on each level down along
     // the largest branch.
-    static const uint32_t MAX_PRELOADER_REQUESTS        = 768;
+    static const uint32_t MAX_PRELOADER_REQUESTS        = 1024;
     static const uint32_t SCRATCH_BUFFER_SIZE           = 65536;
     static const uint32_t SCRATCH_BUFFER_THRESHOLD      = 4096;
 
-    static const uint32_t PATH_AVERAGE_LENGTH           = 64;
+    static const uint32_t PATH_AVERAGE_LENGTH           = 40;
     static const uint32_t MAX_PRELOADER_PATHS           = MAX_PRELOADER_REQUESTS * 2;
-    static const uint32_t PATH_BUFFER_TABLE_SIZE        = (MAX_PRELOADER_PATHS * 3) / 2;
+    static const uint32_t PATH_BUFFER_TABLE_SIZE        = (MAX_PRELOADER_PATHS * 2) / 3;
     static const uint32_t PATH_BUFFER_TABLE_CAPACITY    = MAX_PRELOADER_PATHS;
     static const uint32_t PATH_BUFFER_HASHDATA_SIZE     = (PATH_BUFFER_TABLE_SIZE * sizeof(uint32_t)) + (PATH_BUFFER_TABLE_CAPACITY * sizeof(char*));
 
@@ -127,7 +126,6 @@ namespace dmResource
         uint32_t m_FreelistSize;
         dmLoadQueue::HQueue m_LoadQueue;
         HFactory m_Factory;
-        dmHashTable<uint64_t, PreloadRequest*> m_InProgress;
 
         // used instead of dynamic allocs as far as it lasts.
         char m_ScratchBuffer[SCRATCH_BUFFER_SIZE];
@@ -142,8 +140,13 @@ namespace dmResource
         dmArray<void*> m_PersistedResources;
     };
 
-    const char* AllocatePath(ResourcePreloader* preloader, uint64_t path_hash, const char* path, uint32_t path_len)
+    const char* InternalizePath(ResourcePreloader* preloader, uint64_t path_hash, const char* path, uint32_t path_len)
     {
+        uint32_t* path_lookup = preloader->m_PathLookup.Get(path_hash);
+        if (path_lookup != 0x0)
+        {
+            return &preloader->m_PathData[(*path_lookup) & 0x7fffffff];
+        }
         if (preloader->m_PathLookup.Capacity() == preloader->m_PathLookup.Size())
         {
             return 0x0;
@@ -159,18 +162,41 @@ namespace dmResource
         return result;
     }
 
+    static bool IsPathInProgress(ResourcePreloader* preloader, uint64_t path_hash)
+    {
+        uint32_t* path_lookup = preloader->m_PathLookup.Get(path_hash);
+        assert(path_lookup != 0x0);
+        return ((*path_lookup) & 0x80000000u) == 0x80000000u;
+    }
+
+    static void MarkPathInProgress(ResourcePreloader* preloader, uint64_t path_hash)
+    {
+        uint32_t* path_lookup = preloader->m_PathLookup.Get(path_hash);
+        assert(path_lookup != 0x0);
+        assert(((*path_lookup) & 0x80000000u) == 0u);
+        *path_lookup = (*path_lookup) | 0x80000000u;
+    }
+
+    static void UnmarkPathInProgress(ResourcePreloader* preloader, uint64_t path_hash)
+    {
+        uint32_t* path_lookup = preloader->m_PathLookup.Get(path_hash);
+        assert(path_lookup != 0x0);
+        assert(((*path_lookup) & 0x80000000u) == 0x80000000u);
+        *path_lookup = (*path_lookup) & 0x7fffffffu;
+    }
+
     static bool PreloadHintInternal(HPreloader, int32_t, const char*, bool);
 
-    static bool MakeNewRequest(ResourcePreloader* preloader, PreloadRequest* request, uint64_t path_hash, uint32_t path_len, const char *name, bool persist)
+    static bool MakeNewRequest(ResourcePreloader* preloader, PreloadRequest* request, uint64_t path_hash, uint32_t path_len, const char *path, bool persist)
     {
         memset(request, 0x00, sizeof(PreloadRequest));
 
-        request->m_Path = AllocatePath(preloader, path_hash, name, path_len);
+        request->m_Path = InternalizePath(preloader, path_hash, path, path_len);
         if (request->m_Path == 0x0)
         {
             return false;
         }
-        request->m_PathHash = path_hash;
+        request->m_CanonicalPathHash = path_hash;
         request->m_Parent = -1;
         request->m_FirstChild = -1;
         request->m_NextSibling = -1;
@@ -231,9 +257,11 @@ namespace dmResource
 
         // Insert root.
         PreloadRequest* root = &preloader->m_Request[0];
-        uint32_t name_len = strlen(names[0]);
-        uint64_t name_hash = dmHashBuffer64(names[0], name_len);
-        assert(MakeNewRequest(preloader, root, name_hash, name_len, names[0], true));
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(names[0], canonical_path);
+        uint32_t path_len = strlen(canonical_path);
+        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
+        assert(MakeNewRequest(preloader, root, path_hash, path_len, canonical_path, true));
 
         // Set up error condition
         Result r = CheckSuppliedResourcePath(names[0]);
@@ -243,8 +271,7 @@ namespace dmResource
         }
 
         // Post create setup
-        preloader->m_PostCreateCallbacks.SetSize(0);
-        preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS);
+        preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS / 8);
         preloader->m_CreateComplete = false;
         preloader->m_PostCreateCallbackIndex = 0;
 
@@ -292,6 +319,10 @@ namespace dmResource
             }
             child = sub->m_NextSibling;
         }
+
+        // Previous to this we could abort with RESULT_PENDING, but not any longer; at this point the request
+        // is going to be finished and cleaned up. We can then remove it from the in progress
+        UnmarkPathInProgress(preloader, req->m_CanonicalPathHash);
 
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
@@ -341,7 +372,7 @@ namespace dmResource
                 {
                     if(preloader->m_PostCreateCallbacks.Full())
                     {
-                        preloader->m_PostCreateCallbacks.OffsetCapacity(MAX_PRELOADER_REQUESTS);
+                        preloader->m_PostCreateCallbacks.OffsetCapacity(MAX_PRELOADER_REQUESTS / 8);
                     }
                     preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()+1);
                     ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
@@ -501,6 +532,11 @@ namespace dmResource
                     bool res = PreloaderTryCreateResource(preloader, index, buffer, buffer_size);
                     assert(res);
                 }
+                else
+                {
+                    // This is cleared in the TryCreate call above if we call it.
+                    UnmarkPathInProgress(preloader, req->m_CanonicalPathHash);
+                }
                 PreloaderTryPrune(preloader, req->m_Parent);
             }
             else
@@ -558,11 +594,25 @@ namespace dmResource
         // had started a load.
         if (!req->m_LoadRequest && !req->m_Buffer && !req->m_Resource)
         {
-            if (!req->m_CanonicalPathHash)
+            bool wait_on = IsPathInProgress(preloader, req->m_CanonicalPathHash);
+            if (wait_on)
             {
-                char canonical_path[RESOURCE_PATH_MAX];
-                GetCanonicalPath(req->m_Path, canonical_path);
-                req->m_CanonicalPathHash = dmHashBuffer64(canonical_path, strlen(canonical_path));
+                // Already being loaded elsewhere; we can wait on that to complete, unless the item
+                // exists above us in the tree; then the loop is infinite and we can abort
+                int32_t parent = req->m_Parent;
+                int32_t go_up = parent;
+                while (go_up != -1)
+                {
+                    if (preloader->m_Request[go_up].m_CanonicalPathHash == req->m_CanonicalPathHash)
+                    {
+                        req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
+                        PreloaderTryPrune(preloader, parent);
+                        return 1;
+                    }
+                    go_up = preloader->m_Request[go_up].m_Parent;
+                }
+                // OK to wait.
+                return 0;
             }
 
             // It might have been loaded by unhinted resource Gets, just grab & bump refcount
@@ -607,6 +657,7 @@ namespace dmResource
                 // Silently ignore if return null (means try later)"
                 if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_Path, &info)))
                 {
+                    MarkPathInProgress(preloader, req->m_CanonicalPathHash);
                     return 1;
                 }
             }
@@ -633,7 +684,6 @@ namespace dmResource
         empty_run = true;
         if (preloader->m_PostCreateCallbacks.Empty())
         {
-            empty_run = false;
             return RESULT_OK;
         }
         Result ret = RESULT_OK;
@@ -645,7 +695,6 @@ namespace dmResource
         }
         if(preloader->m_PostCreateCallbackIndex == preloader->m_PostCreateCallbacks.Size())
         {
-            empty_run = false;
             return RESULT_OK;
         }
 
@@ -720,6 +769,11 @@ namespace dmResource
                 if (++empty_runs > 10)
                     break;
 
+                if (dmTime::GetTime() + 1000 - start > soft_time_limit)
+                {
+                    break;
+                }
+
                 // In case of non-threaded loading, we never get any empty runs really.
                 // In case of threaded loading and loading small files, use up a little
                 // more of our time waiting for files.
@@ -763,7 +817,7 @@ namespace dmResource
                 if(ret != RESULT_PENDING)
                 {
                     // flush out any already created resources
-                    while(PostCreateUpdateOneItem(preloader, empty_run)==RESULT_PENDING)
+                    while(PostCreateUpdateOneItem(preloader, empty_run) == RESULT_PENDING)
                     {
                         if(empty_run)
                             dmTime::Sleep(250);
@@ -806,24 +860,32 @@ namespace dmResource
         if (CheckSuppliedResourcePath(name) != dmResource::RESULT_OK)
             return false;
 
-        uint32_t name_len = strlen(name);
-        uint64_t name_hash = dmHashBuffer64(name, name_len);
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(name, canonical_path);
+        uint32_t path_len = strlen(canonical_path);
+        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
 
         dmMutex::ScopedLock lk(preloader->m_Mutex);
-        uint32_t* path_lookup = preloader->m_PathLookup.Get(name_hash);
-        if (path_lookup != 0x0)
-        {
-            return true;
-        }
         if (!preloader->m_FreelistSize)
         {
             // Preload queue is exhausted; this is not fatal.
             return false;
         }
 
+        // Quick dedupe; we can do it safely on the same parent
+        int32_t child = preloader->m_Request[parent].m_FirstChild;
+        while (child != -1)
+        {
+            if (preloader->m_Request[child].m_CanonicalPathHash == path_hash)
+            {
+                return true;
+            }
+            child = preloader->m_Request[child].m_NextSibling;
+        }
+
         int32_t new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
         PreloadRequest *req = &preloader->m_Request[new_req];
-        if (!MakeNewRequest(preloader, req, name_hash, name_len, name, persisted))
+        if (!MakeNewRequest(preloader, req, path_hash, path_len, canonical_path, persisted))
         {
             preloader->m_FreelistSize++;
             return false;
