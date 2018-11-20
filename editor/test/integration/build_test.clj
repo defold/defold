@@ -626,7 +626,10 @@
                                (check-project-setting built-properties ["display" "width"] "960")
 
                                ;; Custom property
-                               (check-project-setting built-properties ["custom" "love"] "defold")))))))
+                               (check-project-setting built-properties ["custom" "love"] "defold")
+
+                               ;; project.dependencies entry should be removed
+                               (check-project-setting built-properties ["project" "dependencies"] nil)))))))
 
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
