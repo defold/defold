@@ -86,8 +86,9 @@ namespace dmEngine
 
     enum Vsync
     {
-        VSYNC_HARDWARE = 0,
-        VSYNC_SOFTWARE = 1,
+        VSYNC_SOFTWARE = 0,
+        VSYNC_HARDWARE = 1,
+
     };
 
     struct Engine
@@ -153,7 +154,7 @@ namespace dmEngine
         uint32_t                                    m_Height;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
-        Vsync                                       m_Vsync;
+        Vsync                                       m_VsyncMode;
 
         RecordData                                  m_RecordData;
     };
