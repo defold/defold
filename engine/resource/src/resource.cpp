@@ -1419,10 +1419,10 @@ static Result DoGet(HFactory factory, const char* name, void** resource)
         }
 
         // Restore to default buffer size
+        factory->m_Buffer.SetSize(0);
         if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
             factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
         }
-        factory->m_Buffer.SetSize(0);
 
         if (create_error == RESULT_OK)
         {
