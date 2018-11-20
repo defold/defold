@@ -21,11 +21,11 @@ namespace dmLoadQueue
     // This sets the bandwidth of the loader.
     const uint64_t MAX_PENDING_DATA = 4*1024*1024;
     const uint32_t RESOURCE_PATH_MAX = 1024;
-    const uint32_t QUEUE_SLOTS = 8;
+    const uint32_t QUEUE_SLOTS = 64;
 
     struct Request
     {
-         char m_Name[RESOURCE_PATH_MAX];
+         const char* m_Name;
          dmResource::LoadBufferType m_Buffer;
          PreloadInfo m_PreloadInfo;
          LoadResult m_Result;
@@ -185,7 +185,7 @@ namespace dmLoadQueue
         assert(path[0] != 0);
 
         Request *req = &queue->m_Request[(queue->m_Front++) % QUEUE_SLOTS];
-        dmStrlCpy(req->m_Name, path, RESOURCE_PATH_MAX);
+        req->m_Name = path;
 
         req->m_PreloadInfo = *info;
         req->m_Result.m_LoadResult = dmResource::RESULT_PENDING;
@@ -232,9 +232,9 @@ namespace dmLoadQueue
         }
 
         // Clean up picked up requests
-        request->m_Name[0] = 0;
+        request->m_Name = 0x0;
 
-        while (queue->m_Back != queue->m_Loaded && !queue->m_Request[queue->m_Back % QUEUE_SLOTS].m_Name[0])
+        while (queue->m_Back != queue->m_Loaded && queue->m_Request[queue->m_Back % QUEUE_SLOTS].m_Name == 0x0)
         {
             queue->m_Back++;
         }
