@@ -401,8 +401,8 @@ namespace dmEngine
         {
             swap_interval = dmMath::Max(0, swap_interval);
             // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
-            engine->m_UseSwVsync = (engine->m_Vsync == VSYNC_SOFTWARE || (engine->m_Vsync == VSYNC_HARDWARE && swap_interval == 0));
-            if (engine->m_Vsync == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
+            engine->m_UseSwVsync = (engine->m_VsyncMode == VSYNC_SOFTWARE || (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval == 0));
+            if (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
                 engine->m_UpdateFrequency /= swap_interval;
             dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
         }
@@ -599,7 +599,7 @@ namespace dmEngine
         if (!setting_vsync)
         {
             engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0, use variable_dt
-            engine->m_Vsync = VSYNC_SOFTWARE;
+            engine->m_VsyncMode = VSYNC_SOFTWARE;
             swap_interval = 0;
         }
         else
@@ -620,7 +620,7 @@ namespace dmEngine
                 }
             }
             update_frequency = refresh_rate;
-            engine->m_Vsync = VSYNC_HARDWARE;
+            engine->m_VsyncMode = VSYNC_HARDWARE;
         }
 
         SetUpdateFrequency(engine, update_frequency);
