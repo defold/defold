@@ -6,7 +6,7 @@ def build(bld):
                                  source = 'test_graphics.cpp',
                                  uselib = 'GTEST DLIB',
                                  uselib_local = "graphics_null",
-                                 includes = ['../../src'],
+                                 includes = ['../../src', '../../proto'],
                                  target = 'test_graphics')
 
     test_graphics.install_path = None
@@ -15,7 +15,7 @@ def build(bld):
                                  source = 'test_glsl_uniform_parser.cpp',
                                  uselib = 'GTEST DLIB',
                                  uselib_local = "graphics_null",
-                                 includes = ['../../src'],
+                                 includes = ['../../src', '../../proto'],
                                  target = 'test_glsl_uniform_parser')
 
     test_glsl_uniform_parser.install_path = None
