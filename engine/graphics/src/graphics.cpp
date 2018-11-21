@@ -78,4 +78,21 @@ namespace dmGraphics
     {
         return GetRenderTargetTexture(render_target, GetAttachmentBufferType(attachment));
     }
+
+    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* shader_desc, uint32_t& data_len)
+    {
+        ShaderDesc::Language language = GetShaderProgramLanguage(context);
+    	assert(shader_desc);
+    	for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
+    	{
+    		if(shader_desc->m_Shaders.m_Data->m_Language == language)
+    		{
+    			data_len = shader_desc->m_Shaders.m_Data->m_Source.m_Count;
+				return shader_desc->m_Shaders.m_Data->m_Source.m_Data;
+    		}
+    	}
+    	data_len = 0;
+    	return 0x0;
+    }
+
 }

@@ -699,25 +699,9 @@ namespace dmGraphics
         delete p;
     }
 
-    void* GetShaderProgramData(HContext context, void* shader_desc, uint32_t& data_len)
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context)
     {
-        assert(shader_desc);
-        ShaderDesc* desc = (ShaderDesc*) shader_desc;
-        for(uint32_t i = 0; i < desc->m_Shaders.m_Count; ++i)
-        {
-            if(desc->m_Shaders.m_Data->m_Language == dmGraphics::ShaderDesc::LANGUAGE_GLSL)
-            {
-                data_len = desc->m_Shaders.m_Data->m_Source.m_Count;
-                return desc->m_Shaders.m_Data->m_Source.m_Data;
-            }
-        }
-        data_len = 0;
-        return 0x0;
-    }
-
-    ShaderProgramLanguage GetShaderProgramLanguage(HContext context)
-    {
-        return SHADER_PROGRAM_LANGUAGE_GLSL;
+        return ShaderDesc::LANGUAGE_GLSL;
     }
 
     void EnableProgram(HContext context, HProgram program)
