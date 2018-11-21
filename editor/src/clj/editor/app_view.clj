@@ -1472,10 +1472,10 @@ If you do not specifically require different script states, consider changing th
       (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project app-view search-results-view]
+  (run [project app-view prefs search-results-view]
     (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
-      (search-results-view/set-search-term! term))
-    (search-results-view/show-search-in-files-dialog! search-results-view project)))
+      (search-results-view/set-search-term! prefs term))
+    (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
   (console/clear-console!)
