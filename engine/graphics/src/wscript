@@ -47,7 +47,6 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/proto', '../proto/graphics_ddf.proto')
 
-
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
     bld.install_files('${PREFIX}/bin', 'texc.py')
