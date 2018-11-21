@@ -12,12 +12,6 @@
 #include <dlib/time.h>
 #include <dlib/dstrings.h>
 #include <ddf/ddf.h>
-#include <vulkan/vulkan.h>
-
-
-#if (defined(__MACH__) && !defined(__arm__))
-#include <MoltenVK/mvk_vulkan.h>
-#endif
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -507,11 +501,6 @@ static uintptr_t GetExtProcAddress(const char* name, const char* extension_name,
 
     WindowResult OpenWindow(HContext context, WindowParams *params)
     {
-#if (defined(__MACH__) && !defined(__arm__))
-        VkInstance instance;
-        //VkResult result = vkCreateInstance(0x0, 0x0, &instance);
-#endif
-
         assert(context);
         assert(params);
 

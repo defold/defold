@@ -29,11 +29,6 @@ def configure(conf):
 
     if platform == "darwin" or platform == "x86_64-darwin":
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo'])
-        if platform == 'x86_64-darwin':
-            # For MoltenVK
-            conf.env.append_value('LINKFLAGS', ['-l', 'MoltenVK'])
-            conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'QuartzCore', '-framework', 'IOSurface']) # Metal and dependencies
-            conf.env.append_value('LINKFLAGS', ['-l', 'c++']) # Metal deps requires libc++ stdlib. Remove once we've updated to use libc++ std rather than deprecated stdc++ (gtest requires stdc++, needs upgrading)
     elif re.match('arm.*?darwin', platform):
         pass
     elif re.match('arm.*?android', platform):
