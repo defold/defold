@@ -82,7 +82,7 @@ namespace dmGameSystem
         }
 
         dmDDF::FreeMessage(ddf);
-        return dmResource::RESULT_OK;
+        return res;
     }
 
 }
