@@ -22,7 +22,7 @@ def build(bld):
 
     else:
         obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                               includes = ['. flash'],
+                               includes = ['. flash', '../build/default/proto', '../proto'],
                                proto_gen_py = True,
                                protoc_includes = '../proto',
                                target = 'graphics')
