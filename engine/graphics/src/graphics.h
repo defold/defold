@@ -5,6 +5,8 @@
 #include <vectormath/cpp/vectormath_aos.h>
 
 #include <dmsdk/graphics/graphics.h>
+#include <ddf/ddf.h>
+#include <graphics/graphics_ddf.h>
 
 #if defined(__AVM2__)
 #include "flash/graphics_flash_defines.h"
@@ -51,14 +53,6 @@ namespace dmGraphics
 
     static const HVertexProgram INVALID_VERTEX_PROGRAM_HANDLE = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
-
-    // Shader language type
-    enum ShaderProgramLanguage
-    {
-        SHADER_PROGRAM_LANGUAGE_GLSL    = 0,
-        SHADER_PROGRAM_LANGUAGE_SPIRV   = 1,
-        SHADER_PROGRAM_LANGUAGE_MSL     = 2,
-    };
 
     // primitive type
     enum PrimitiveType
@@ -584,8 +578,8 @@ namespace dmGraphics
     bool ReloadFragmentProgram(HFragmentProgram prog, const void* program, uint32_t program_size);
     void DeleteVertexProgram(HVertexProgram prog);
     void DeleteFragmentProgram(HFragmentProgram prog);
-    ShaderProgramLanguage GetShaderProgramLanguage(HContext context);
-    void* GetShaderProgramData(HContext context, void* shader_desc, uint32_t& data_len);
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context);
+    void* GetShaderProgramData(HContext context, dmGraphics::ShaderDesc* ddf, uint32_t& data_len);
 
     void EnableProgram(HContext context, HProgram program);
     void DisableProgram(HContext context);

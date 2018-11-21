@@ -167,7 +167,6 @@ namespace dmGameSystem
         dmRenderDDF::MaterialDesc* ddf = (dmRenderDDF::MaterialDesc*)params.m_PreloadData;
         MaterialResources resources;
         dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources, params.m_Filename);
-        dmDDF::FreeMessage(ddf);
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
@@ -192,6 +191,7 @@ namespace dmGameSystem
         {
             ReleaseResources(params.m_Factory, &resources);
         }
+        dmDDF::FreeMessage(ddf);
         return r;
     }
 
@@ -221,7 +221,6 @@ namespace dmGameSystem
 
         MaterialResources resources;
         dmResource::Result r = AcquireResources(params.m_Factory, ddf, &resources, params.m_Filename);
-        dmDDF::FreeMessage(ddf);
         if (r == dmResource::RESULT_OK)
         {
             dmRender::HMaterial material = (dmRender::HMaterial) params.m_Resource->m_Resource;
@@ -232,6 +231,7 @@ namespace dmGameSystem
         {
             ReleaseResources(params.m_Factory, &resources);
         }
+        dmDDF::FreeMessage(ddf);
         return r;
     }
 
