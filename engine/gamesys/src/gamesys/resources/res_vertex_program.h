@@ -12,7 +12,6 @@ namespace dmGameSystem
     dmResource::Result ResVertexProgramDestroy(const dmResource::ResourceDestroyParams& params);
 
     dmResource::Result ResVertexProgramRecreate(const dmResource::ResourceRecreateParams& params);
-
 }
 
 #endif // DM_GAMESYS_RES_VERTEX_PROGRAM_H

@@ -4,11 +4,14 @@
 
 namespace dmGameSystem
 {
-
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program, const char* filename)
     {
         uint32_t shader_data_len;
         void* shader_data =  dmGraphics::GetShaderProgramData(context, ddf, shader_data_len);
+        if (shader_data == 0x0)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
         dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, shader_data, shader_data_len);
         if (prog == 0)
         {
@@ -36,11 +39,11 @@ namespace dmGameSystem
         dmGraphics::ShaderDesc* ddf = (dmGraphics::ShaderDesc*)params.m_PreloadData;
         dmGraphics::HVertexProgram resource = 0x0;
         dmResource::Result r = AcquireResources((dmGraphics::HContext) params.m_Context, params.m_Factory, ddf, &resource, params.m_Filename);
-        dmDDF::FreeMessage(ddf);
         if (r == dmResource::RESULT_OK)
         {
             params.m_Resource->m_Resource = (void*) resource;
         }
+        dmDDF::FreeMessage(ddf);
         return r;
     }
 
@@ -66,14 +69,19 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
+        dmResource::Result res = dmResource::RESULT_OK;
         uint32_t shader_data_len;
-        void* shader_data =  dmGraphics::GetShaderProgramData((dmGraphics::HContext) params.m_Context, ddf, shader_data_len);
-        dmDDF::FreeMessage(ddf);
-        if(!dmGraphics::ReloadFragmentProgram(resource, shader_data, shader_data_len))
+        void* shader_data =  dmGraphics::GetShaderProgramData((dmGraphics::HContext)params.m_Context, ddf, shader_data_len);
+        if (shader_data == 0x0)
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            res = dmResource::RESULT_FORMAT_ERROR;
+        }
+        else if(!dmGraphics::ReloadFragmentProgram(resource, shader_data, shader_data_len))
+        {
+            res = dmResource::RESULT_FORMAT_ERROR;
         }
 
+        dmDDF::FreeMessage(ddf);
         return dmResource::RESULT_OK;
     }
 }

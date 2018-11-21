@@ -8,6 +8,10 @@ namespace dmGameSystem
     {
         uint32_t shader_data_len;
         void* shader_data =  dmGraphics::GetShaderProgramData(context, ddf, shader_data_len);
+        if (shader_data == 0x0)
+        {
+            return dmResource::RESULT_FORMAT_ERROR;
+        }
         dmGraphics::HVertexProgram prog = dmGraphics::NewVertexProgram(context, shader_data, shader_data_len);
         if (prog == 0)
         {
@@ -65,14 +69,19 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
+        dmResource::Result res = dmResource::RESULT_OK;
         uint32_t shader_data_len;
-        void* shader_data =  dmGraphics::GetShaderProgramData((dmGraphics::HContext) params.m_Context, ddf, shader_data_len);
-        dmDDF::FreeMessage(ddf);
-        if(!dmGraphics::ReloadVertexProgram(resource, shader_data, shader_data_len))
+        void* shader_data =  dmGraphics::GetShaderProgramData((dmGraphics::HContext)params.m_Context, ddf, shader_data_len);
+        if (shader_data == 0x0)
         {
-            return dmResource::RESULT_FORMAT_ERROR;
+            res = dmResource::RESULT_FORMAT_ERROR;
+        }
+        else if(!dmGraphics::ReloadVertexProgram(resource, shader_data, shader_data_len))
+        {
+            res = dmResource::RESULT_FORMAT_ERROR;
         }
 
+        dmDDF::FreeMessage(ddf);
         return dmResource::RESULT_OK;
     }
 
