@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
+            [editor.util :as util]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.handler :as handler]
             [editor.core :as core]
@@ -23,7 +24,7 @@
            [javafx.scene.control Button Label ListView ProgressBar TextArea TextField]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
-           [javafx.scene.layout HBox Region]
+           [javafx.scene.layout HBox VBox Region]
            [javafx.scene.text Text TextFlow]
            [javafx.stage Stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Window]))
 
@@ -176,6 +177,29 @@
     (ui/request-focus! (:report controls))
     (.setScene stage scene)
     (ui/show-and-wait! stage)))
+
+(defn make-gl-support-error-dialog [support-error]
+  (let [root ^VBox (ui/load-fxml "gl-error.fxml")
+        stage (ui/make-dialog-stage)
+        scene (Scene. root)
+        result (atom :quit)]
+    (ui/with-controls root [message quit continue glgenbuffers-link opengl-linux-link]
+      (when-not (util/is-linux?)
+        (.. root getChildren (remove opengl-linux-link)))
+      (ui/context! root :dialog {:stage stage} nil)
+      (ui/title! stage "Insufficient OpenGL Support")
+      (ui/text! message support-error)
+      (ui/on-action! continue (fn [_] (reset! result :continue) (ui/close! stage)))
+      (ui/bind-action! quit ::close)
+      (ui/bind-keys! root {KeyCode/ESCAPE ::close})
+      (ui/on-action! glgenbuffers-link (fn [_] (ui/open-url (github/glgenbuffers-link))))
+      (ui/on-action! opengl-linux-link (fn [_] (ui/open-url "https://www.defold.com/faq/#_linux_issues")))
+      (.setScene stage scene)
+      ;; We want to show this dialog before the main ui is up running
+      ;; so we can't use ui/show-and-wait! which does some extra menu
+      ;; update magic.
+      (.showAndWait stage)
+      @result)))
 
 (defn make-file-dialog
   ^File [title filter-descs ^File initial-file ^Window owner-window]
