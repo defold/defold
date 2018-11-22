@@ -191,6 +191,7 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params.m_Context;
         dmRender::HMaterial material = (dmRender::HMaterial) params.m_Resource->m_Resource;
         dmResource::UnregisterResourceReloadedCallback(params.m_Factory, ResourceReloadedCallback, material);
+
         dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialFragmentProgram(material));
         dmResource::Release(params.m_Factory, (void*)dmRender::GetMaterialVertexProgram(material));
         dmRender::DeleteMaterial(render_context, material);

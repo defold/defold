@@ -1,6 +1,5 @@
 #include "res_fragment_program.h"
 #include <graphics/graphics.h>
-#include <graphics/graphics_ddf.h>
 
 namespace dmGameSystem
 {
