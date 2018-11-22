@@ -495,8 +495,8 @@ the `do-gl` macro from `editor.gl`."
             position-offset (nth offsets position-index)
             [_ sz tp] position-attribute]
         (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-        (.glVertexPointer gl ^int sz ^int (gl-types tp) ^int stride ^long position-offset)
-        (.glEnableClientState gl GL2/GL_VERTEX_ARRAY)))))
+        (.glEnableClientState gl GL2/GL_VERTEX_ARRAY)
+        (.glVertexPointer gl ^int sz ^int (gl-types tp) ^int stride ^long position-offset)))))
 
 (defn- unbind-vertex-buffer! [^GL2 gl]
   (.glDisableClientState gl GL2/GL_VERTEX_ARRAY)
@@ -507,8 +507,8 @@ the `do-gl` macro from `editor.gl`."
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
     (let [attributes (:attributes (.layout vertex-buffer))
           attrib-locs (vertex-locate-attribs gl shader attributes)]
-      (vertex-attrib-pointers gl shader attributes)
-      (vertex-enable-attribs gl attrib-locs))))
+      (vertex-enable-attribs gl attrib-locs)
+      (vertex-attrib-pointers gl shader attributes))))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl ^PersistentVertexBuffer vertex-buffer shader]
   (let [attributes (:attributes (.layout vertex-buffer))
