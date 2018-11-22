@@ -498,29 +498,18 @@ public class GameProjectBuilder extends Builder<Void> {
         return manifestBuilder;
     }
 
-    // Filter content of the game.project file.
-    // Currently only strips away "project.dependencies" from the built file.
-    static public byte[] filterProjectFileContent(IResource projectFile) throws IOException {
-        BufferedReader bufReader = new BufferedReader(new StringReader(new String(projectFile.getContent())));
+    // Used to transform an input game.project properties map to a game.projectc representation.
+    // Can be used for doing build time properties conversion.
+    static public void transformGameProjectFile(BobProjectProperties properties) throws IOException {
+        // Remove project dependencies list for security.
+        properties.remove("project", "dependencies");
 
-        String outputContent = "";
-        String category = null;
-        String line;
-        while( (line = bufReader.readLine()) != null ) {
-
-            // Keep track of current category name
-            String lineTrimmed = line.trim();
-            if (lineTrimmed.startsWith("[") && lineTrimmed.endsWith("]"))  {
-                category = line.substring(1, line.length()-1);
-            }
-
-            // Filter out project.dependencies from build version of game.project
-            if (!(category.equalsIgnoreCase("project") && line.startsWith("dependencies"))) {
-                outputContent += line + "\n";
-            }
+        // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
+        Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
+        if (variableDt != null && variableDt == true) {
+            properties.putBooleanValue("display", "vsync", false);
+            properties.putIntValue("display", "update_frequency", 0);
         }
-
-        return outputContent.getBytes();
     }
 
     @Override
@@ -533,6 +522,7 @@ public class GameProjectBuilder extends Builder<Void> {
         BobProjectProperties properties = new BobProjectProperties();
         IResource input = task.input(0);
         try {
+            properties.loadDefaults();
             properties.load(new ByteArrayInputStream(input.getContent()));
         } catch (Exception e) {
             throw new CompileExceptionError(input, -1, "Failed to parse game.project", e);
@@ -580,7 +570,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
                 project.getPublisher().AddEntry(liveupdateManifestFilename, manifestTmpFileHandle);
                 project.getPublisher().Publish();
-                
+
                 manifestTmpFileHandle.delete();
                 File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
                 if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
@@ -594,7 +584,8 @@ public class GameProjectBuilder extends Builder<Void> {
                 }
             }
 
-            task.getOutputs().get(0).setContent(filterProjectFileContent(task.getInputs().get(0)));
+            transformGameProjectFile(properties);
+            task.getOutputs().get(0).setContent(properties.serialize(false).getBytes());
         } finally {
             IOUtils.closeQuietly(archiveIndexInputStream);
             IOUtils.closeQuietly(archiveDataInputStream);

@@ -253,6 +253,13 @@ static const unsigned int MAC_TO_GLFW_KEYCODE_MAPPING[128] =
     /* 7f */ -1,
 };
 
+int _glfwPlatformGetWindowRefreshRate( void )
+{
+    CVTime time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod((CVDisplayLinkRef)_glfwWin.displayLink);
+    float refresh_rate = (float)time.timeScale / (float)time.timeValue;
+    return (refresh_rate + 0.5f);
+}
+
 //========================================================================
 // Converts a Mac OS X keycode to a GLFW keycode
 //========================================================================
