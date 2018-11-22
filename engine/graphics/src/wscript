@@ -2,6 +2,7 @@
 
 import os, sys
 from waf_dynamo import dmsdk_add_files
+import Options
 
 def set_options(opt):
     pass
@@ -55,7 +56,8 @@ def build(bld):
     bld.install_files('${PREFIX}/lib/python', 'pvrtc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')
 
 def configure(conf):
     pass
