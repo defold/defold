@@ -585,7 +585,6 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
         engine->m_FlipTime = dmTime::GetTime();
         engine->m_PreviousRenderTime = 0;
