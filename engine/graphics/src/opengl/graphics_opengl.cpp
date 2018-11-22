@@ -21,7 +21,6 @@
 #include "async/job_queue.h"
 #include "graphics_opengl.h"
 
-
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
 // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
 #include <Carbon/Carbon.h>
