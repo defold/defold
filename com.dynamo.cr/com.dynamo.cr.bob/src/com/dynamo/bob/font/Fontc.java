@@ -360,26 +360,21 @@ public class Fontc {
             channelCount = 4;
         } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                    inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-            channelCount = 1;
-        }
-    
-        int fontMapLayerMask = LAYER_FACE;
-
-        if (this.fontDesc.getAntialias() != 0 &&
-            this.fontDesc.getOutlineAlpha() > 0 &&
-            this.fontDesc.getOutlineWidth() > 0 &&
-            this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
-        {
-            fontMapLayerMask |= LAYER_OUTLINE;
+            // If font has shadow, we'll need 3 channels. Not all platforms universally support
+            // texture formats with only 2 channels (such as LUMINANCE_ALPHA)
+            if (fontDesc.getShadowBlur() > 0.0f && fontDesc.getShadowAlpha() > 0.0f) {
+                channelCount = 3;
+            }
+            else {
+                channelCount = 1;
+            }
         }
 
-        if (this.fontDesc.getAntialias() != 0 &&
-            this.fontDesc.getShadowAlpha() > 0 &&
-            this.fontDesc.getAlpha() > 0 &&
-            this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
-        {
-            fontMapLayerMask |= LAYER_SHADOW;
-        }
+        // The fontMapLayerMask contains a bitmask of the layers that should be rendered
+        // by the font renderer. Note that this functionality requires that the render mode
+        // property of the font resource must be set to MULTI_LAYER. Default behaviour
+        // is to render the font as single layer (for compatability reasons).
+        int fontMapLayerMask = getFontMapLayerMask();
 
         // We keep track of offset into the glyph data bank,
         // this is saved for each glyph to know where their bitmap data is stored.
@@ -464,7 +459,7 @@ public class Fontc {
                 glyphImage = drawBMFontGlyph(glyph, imageBMFont);
             } else if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD &&
                        inputFormat == InputFontFormat.FORMAT_TRUETYPE) {
-                glyphImage = makeDistanceField(glyph, padding, sdf_spread, font, edge);
+                glyphImage = makeDistanceField(glyph, padding, sdf_spread, font, edge, shadowConvolve);
                 clearData = 0;
             } else {
                 throw new FontFormatException("Invalid font format combination!");
@@ -574,7 +569,7 @@ public class Fontc {
         return imageBMFontInput.getSubimage(glyph.x, glyph.y, glyph.width, glyph.ascent + glyph.descent);
     }
 
-    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, Font font, float edge) {
+    private BufferedImage makeDistanceField(Glyph glyph, int padding, float sdf_spread, Font font, float edge, ConvolveOp shadowConvolve) {
         int width = glyph.width + padding * 2;
         int height = glyph.ascent + glyph.descent + padding * 2;
 
@@ -645,7 +640,29 @@ public class Fontc {
                 } else if (oval > 255) {
                     oval = 255;
                 }
-                image.setRGB(u, v, 0x10101 * oval);
+                image.setRGB(u, v, 0x010101 * oval);
+            }
+        }
+
+        if (this.fontDesc.getShadowAlpha() > 0.0f) {
+
+            BufferedImage shadowImage = new BufferedImage(width,height, BufferedImage.TYPE_3BYTE_BGR); // image.getSubimage(0,0,width,height);
+            Graphics2D g = shadowImage.createGraphics();
+            setHighQuality(g);
+            g.drawImage(image, 0, 0, null);
+
+            for (int pass = 0; pass < this.fontDesc.getShadowBlur(); ++pass) {
+                BufferedImage tmp = shadowImage.getSubimage(0, 0, width, height);
+                shadowConvolve.filter(tmp, shadowImage);
+            }
+
+            for (int v=0;v<height;v++) {
+                for (int u=0;u<width;u++) {
+                    int pixel_image  = image.getRGB(u,v);
+                    int pixel_shadow = shadowImage.getRGB(u,v);
+
+                    image.setRGB(u,v,pixel_image & 0xFFFF00 | pixel_shadow & 0xFF);
+                }
             }
         }
 
@@ -737,6 +754,30 @@ public class Fontc {
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
                 RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
        }
+    }
+
+    private int getFontMapLayerMask()
+    {
+        int fontMapLayerMask = LAYER_FACE;
+
+        if (this.fontDesc.getRenderMode() == FontRenderMode.MODE_MULTI_LAYER)
+        {
+            if (this.fontDesc.getAntialias() != 0 &&
+                this.fontDesc.getOutlineAlpha() > 0 &&
+                this.fontDesc.getOutlineWidth() > 0)
+            {
+                fontMapLayerMask |= LAYER_OUTLINE;
+            }
+
+            if (this.fontDesc.getAntialias() != 0 &&
+                this.fontDesc.getShadowAlpha() > 0 &&
+                this.fontDesc.getAlpha() > 0)
+            {
+                fontMapLayerMask |= LAYER_SHADOW;
+            }
+        }
+
+        return fontMapLayerMask;
     }
 
     public BufferedImage compile(InputStream fontStream, FontDesc fontDesc, boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException, IOException {
