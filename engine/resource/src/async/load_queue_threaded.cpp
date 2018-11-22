@@ -21,7 +21,7 @@ namespace dmLoadQueue
     // This sets the bandwidth of the loader.
     const uint64_t MAX_PENDING_DATA = 4*1024*1024;
     const uint32_t RESOURCE_PATH_MAX = 1024;
-    const uint32_t QUEUE_SLOTS = 16;
+    const uint32_t QUEUE_SLOTS = 8;
 
     struct Request
     {
@@ -93,6 +93,18 @@ namespace dmLoadQueue
                 current = GetNextRequest(queue);
                 if (current == 0x0)
                 {
+                    // Nothing to do, reset any buffers of inactive requests that are not at default capacity
+                    for (uint32_t i = 0; i < QUEUE_SLOTS; ++i)
+                    {
+                        Request* r = &queue->m_Request[i];
+                        if (r->m_Buffer.Size() == 0)
+                        {
+                            if (r->m_Buffer.Capacity() > DEFAULT_CAPACITY)
+                            {
+                                r->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
+                            }
+                        }
+                    }
                     dmConditionVariable::Wait(queue->m_WakeupCond, queue->m_Mutex);
                     current = GetNextRequest(queue);
                 }
@@ -106,7 +118,11 @@ namespace dmLoadQueue
 
                 uint32_t size;
 
-                current->m_Buffer.SetSize(0);
+                assert(current->m_Buffer.Size() == 0);
+                if (current->m_Buffer.Capacity() != DEFAULT_CAPACITY)
+                {
+                    current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
+                }
                 result.m_LoadResult = DoLoadResource(queue->m_Factory, canonical_path, current->m_Name, &size, &current->m_Buffer);
                 result.m_PreloadResult = dmResource::RESULT_PENDING;
                 result.m_PreloadData = 0;
@@ -190,11 +206,6 @@ namespace dmLoadQueue
         req->m_PreloadInfo = *info;
         req->m_Result.m_LoadResult = dmResource::RESULT_PENDING;
 
-        if (req->m_Buffer.Capacity() != DEFAULT_CAPACITY)
-        {
-            req->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
-        }
-
         return req;
     }
 
@@ -216,19 +227,18 @@ namespace dmLoadQueue
         dmMutex::ScopedLock lk(queue->m_Mutex);
 
         uint32_t old_bytes_waiting = queue->m_BytesWaiting;
-        queue->m_BytesWaiting -= request->m_Buffer.Capacity();
-        if (old_bytes_waiting >= MAX_PENDING_DATA && queue->m_BytesWaiting < MAX_PENDING_DATA)
-        {
-            // Wake up thread, we can now fit a new request
-            dmConditionVariable::Signal(queue->m_WakeupCond);
-        }
 
         // Make sure we don't copy any data if we reallocate the buffer
         request->m_Buffer.SetSize(0);
 
-        if (request->m_Buffer.Capacity() > DEFAULT_CAPACITY)
+        uint32_t buffer_capacity = request->m_Buffer.Capacity();
+        queue->m_BytesWaiting -= buffer_capacity;
+        // If we either have blocked further processing by exceeding MAX_PENDING_DATA or
+        // the buffer has a non-default capacity, we want to wake up the worker
+        if (buffer_capacity != DEFAULT_CAPACITY || old_bytes_waiting >= MAX_PENDING_DATA && queue->m_BytesWaiting < MAX_PENDING_DATA)
         {
-            request->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
+            // Wake up thread, we can now fit a new request
+            dmConditionVariable::Signal(queue->m_WakeupCond);
         }
 
         // Clean up picked up requests
