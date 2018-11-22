@@ -7,7 +7,6 @@
 #include <dlib/log.h>
 
 #include <graphics/graphics.h>
-#include <graphics/graphics_ddf.h>
 
 #include "render.h"
 #include "render_private.h"
