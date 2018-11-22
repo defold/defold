@@ -104,6 +104,13 @@ namespace dmResource
     static const uint32_t PATH_BUFFER_TABLE_CAPACITY    = MAX_PRELOADER_PATHS;
     static const uint32_t PATH_BUFFER_HASHDATA_SIZE     = (PATH_BUFFER_TABLE_SIZE * sizeof(uint32_t)) + (PATH_BUFFER_TABLE_CAPACITY * sizeof(char*));
 
+    struct PendingHint
+    {
+        const char* m_Path;
+        uint64_t m_PathHash;
+        int32_t m_Parent;
+    };
+
     struct ResourcePreloader
     {
         ResourcePreloader()
@@ -111,12 +118,14 @@ namespace dmResource
             , m_PathDataUsed(0)
         { 
         }
-        dmMutex::Mutex m_Mutex;
-        PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
+        dmMutex::Mutex m_NewHintMutex;
+        dmArray<PendingHint> m_NewHints;
         dmHashTable<uint64_t, uint32_t> m_PathLookup;
         uint8_t m_LookupData[PATH_BUFFER_HASHDATA_SIZE];
         char m_PathData[MAX_PRELOADER_PATHS * PATH_AVERAGE_LENGTH];
         uint32_t m_PathDataUsed;
+
+        PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
 
         // list of free nodes
         uint32_t m_Freelist[MAX_PRELOADER_REQUESTS];
@@ -185,7 +194,136 @@ namespace dmResource
         *path_lookup = (*path_lookup) & 0x7fffffffu;
     }
 
-    static bool PreloadHintInternal(HPreloader, int32_t, const char*);
+    static bool PushHint(ResourcePreloader* preloader, int32_t parent, const char* name)
+    {
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(name, canonical_path);
+        uint32_t path_len = strlen(canonical_path);
+        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
+
+        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
+        const char* path = InternalizePath(preloader, path_hash, canonical_path, path_len);
+        if (path == 0)
+        {
+            return false;
+        }
+        PendingHint hint;
+        hint.m_Path = path;
+        hint.m_PathHash = path_hash;
+        hint.m_Parent = parent;
+        if (preloader->m_NewHints.Capacity() == preloader->m_NewHints.Size())
+        {
+            preloader->m_NewHints.OffsetCapacity(32);
+        }
+        preloader->m_NewHints.Push(hint);
+        return true;
+    }
+
+    static void PreloaderTreeInsert(ResourcePreloader* preloader, int32_t index, int32_t parent)
+    {
+        PreloadRequest* reqs = &preloader->m_Request[0];
+        reqs[index].m_NextSibling = reqs[parent].m_FirstChild;
+        reqs[index].m_Parent = parent;
+        reqs[parent].m_FirstChild = index;
+    }
+
+    static PreloadRequest* PreloadHashInternal(HPreloader preloader, int32_t parent, uint64_t path_hash, const char* name)
+    {
+        if (!preloader->m_FreelistSize)
+        {
+            // Preload queue is exhausted; this is not fatal.
+            return 0x0;
+        }
+
+        // Quick dedupe; we can do it safely on the same parent
+        int32_t child = preloader->m_Request[parent].m_FirstChild;
+        while (child != -1)
+        {
+            if (preloader->m_Request[child].m_CanonicalPathHash == path_hash)
+            {
+                return &preloader->m_Request[child];
+            }
+            child = preloader->m_Request[child].m_NextSibling;
+        }
+
+        int32_t new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
+        PreloadRequest* req = &preloader->m_Request[new_req];
+        memset(req, 0, sizeof(PreloadRequest));
+        req->m_Path = name;
+        req->m_CanonicalPathHash = path_hash;
+        req->m_Parent = -1;
+        req->m_FirstChild = -1;
+        req->m_NextSibling = -1;
+        req->m_LoadResult = RESULT_PENDING;
+
+        PreloaderTreeInsert(preloader, new_req, parent);
+        return req;
+    }
+
+    static bool PopHints(HPreloader preloader)
+    {
+        uint32_t new_hint_count = 0;
+        dmArray<PendingHint> new_hints;
+        {
+            dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
+            new_hints.Swap(preloader->m_NewHints);
+        }
+        for (uint32_t i = 0; i < new_hints.Size(); ++i)
+        {
+            PendingHint* hint = &new_hints[i];
+            assert(hint->m_Path >= preloader->m_PathData);
+            assert(hint->m_Path < &preloader->m_PathData[preloader->m_PathDataUsed]);
+            uint32_t j = i + 1;
+            while (j < new_hints.Size())
+            {
+                PendingHint* test = &new_hints[j];
+                if (test->m_PathHash == hint->m_PathHash &&
+                    test->m_Parent == hint->m_Parent)
+                {
+                    assert(test->m_Path == hint->m_Path);
+                    // Duplicate, ignore and go to next
+                    hint = 0x0;
+                    break;
+                }
+                ++j;
+            }
+            if (hint == 0x0)
+            {
+                continue;
+            }
+            // Ignore malformed paths that would fail anyway.
+            if (CheckSuppliedResourcePath(hint->m_Path) != dmResource::RESULT_OK)
+            {
+                continue;
+            }
+            if (PreloadHashInternal(preloader, hint->m_Parent, hint->m_PathHash, hint->m_Path) != 0)
+            {
+                ++new_hint_count;
+            }
+        }
+        return new_hint_count != 0;
+    }
+
+    static PreloadRequest* PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name)
+    {
+        // Ignore malformed paths that would fail anyway.
+        if (CheckSuppliedResourcePath(name) != dmResource::RESULT_OK)
+        {
+            return 0x0;
+        }
+
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(name, canonical_path);
+        uint32_t path_len = strlen(canonical_path);
+        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
+        const char* path = InternalizePath(preloader, path_hash, canonical_path, path_len);
+        if (path == 0x0)
+        {
+            return 0x0;
+        }
+
+        return PreloadHashInternal(preloader, parent, path_hash, path);
+    }
 
     static bool MakeNewRequest(ResourcePreloader* preloader, PreloadRequest* request, uint64_t path_hash, uint32_t path_len, const char *path)
     {
@@ -202,14 +340,6 @@ namespace dmResource
         request->m_NextSibling = -1;
         request->m_LoadResult = RESULT_PENDING;
         return true;
-    }
-
-    static void PreloaderTreeInsert(ResourcePreloader* preloader, int32_t index, int32_t parent)
-    {
-        PreloadRequest* reqs = &preloader->m_Request[0];
-        reqs[index].m_NextSibling = reqs[parent].m_FirstChild;
-        reqs[index].m_Parent = parent;
-        reqs[parent].m_FirstChild = index;
     }
 
     // Only supports removing the first child, which is all the preloader uses anyway.
@@ -250,7 +380,7 @@ namespace dmResource
 
         preloader->m_Factory = factory;
         preloader->m_LoadQueue = dmLoadQueue::CreateQueue(factory);
-        preloader->m_Mutex = dmMutex::New();
+        preloader->m_NewHintMutex = dmMutex::New();
 
         preloader->m_PersistResourceCount = names.Size();
         preloader->m_PersistedResources.SetCapacity(names.Size());
@@ -262,7 +392,6 @@ namespace dmResource
         uint32_t path_len = strlen(canonical_path);
         uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
         assert(MakeNewRequest(preloader, root, path_hash, path_len, canonical_path));
-        assert(preloader->m_Request[0].m_CanonicalPathHash == path_hash);
 
         // Set up error condition
         Result r = CheckSuppliedResourcePath(names[0]);
@@ -281,7 +410,6 @@ namespace dmResource
         for(uint32_t i = 1; i < names.Size(); ++i)
         {
             PreloadHintInternal(preloader, 0, names[i]);
-            assert(preloader->m_Request[i].m_CanonicalPathHash == path_hash);
         }
 
         return preloader;
@@ -503,6 +631,9 @@ namespace dmResource
         dmLoadQueue::Result e = dmLoadQueue::EndLoad(preloader->m_LoadQueue, req->m_LoadRequest, &buffer, &buffer_size, &res);
         if (e != dmLoadQueue::RESULT_PENDING)
         {
+            // Pop any hints the load/preload of the item that may have been generated
+            PopHints(preloader);
+
             // Propagate errors
             if (res.m_LoadResult != RESULT_OK)
             {
@@ -707,6 +838,7 @@ namespace dmResource
         if(resource_type->m_PostCreateFunction)
         {
             ret = resource_type->m_PostCreateFunction(params);
+            empty_run = false;
         }
 
         if (ret == RESULT_PENDING)
@@ -724,6 +856,7 @@ namespace dmResource
                 resource_type->m_DestroyFunction(params);
                 ip.m_Removed = true;
                 ip.m_Destroy = false;
+                empty_run = false;
             }
 
             if(preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
@@ -741,8 +874,6 @@ namespace dmResource
     Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit)
     {
         DM_PROFILE(Resource, "UpdatePreloader");
-
-        dmMutex::Lock(preloader->m_Mutex);
 
         // depth first traversal
         Result ret = RESULT_PENDING;
@@ -779,9 +910,7 @@ namespace dmResource
                 // In case of non-threaded loading, we never get any empty runs really.
                 // In case of threaded loading and loading small files, use up a little
                 // more of our time waiting for files.
-                dmMutex::Unlock(preloader->m_Mutex);
                 dmTime::Sleep(1000);
-                dmMutex::Lock(preloader->m_Mutex);
             }
             else
             {
@@ -797,8 +926,8 @@ namespace dmResource
             // Check if root object is loaded, then everything is done.
             if (preloader->m_Request[0].m_LoadResult != RESULT_PENDING)
             {
-                assert(preloader->m_Request[0].m_FirstChild == -1);
                 ret = preloader->m_Request[0].m_LoadResult;
+                assert((ret != RESULT_OK) || (preloader->m_Request[0].m_FirstChild == -1));
 
                 if (ret == RESULT_OK && complete_callback)
                 {
@@ -827,8 +956,6 @@ namespace dmResource
                 }
             }
         }
-
-        dmMutex::Unlock(preloader->m_Mutex);
         return ret;
     }
 
@@ -852,60 +979,18 @@ namespace dmResource
 
         assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS-1));
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
-        dmMutex::Delete(preloader->m_Mutex);
+        dmMutex::Delete(preloader->m_NewHintMutex);
         delete preloader;
     }
 
-    static bool PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name)
-    {
-        // Ignore malformed paths that would fail anyway.
-        if (CheckSuppliedResourcePath(name) != dmResource::RESULT_OK)
-            return false;
-
-        char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(name, canonical_path);
-        uint32_t path_len = strlen(canonical_path);
-        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
-
-        dmMutex::ScopedLock lk(preloader->m_Mutex);
-        if (!preloader->m_FreelistSize)
-        {
-            // Preload queue is exhausted; this is not fatal.
-            return false;
-        }
-
-        // Quick dedupe; we can do it safely on the same parent
-        int32_t child = preloader->m_Request[parent].m_FirstChild;
-        while (child != -1)
-        {
-            if (preloader->m_Request[child].m_CanonicalPathHash == path_hash)
-            {
-                return true;
-            }
-            child = preloader->m_Request[child].m_NextSibling;
-        }
-
-        int32_t new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
-        PreloadRequest *req = &preloader->m_Request[new_req];
-        if (!MakeNewRequest(preloader, req, path_hash, path_len, canonical_path))
-        {
-            preloader->m_FreelistSize++;
-            return false;
-        }
-
-        PreloaderTreeInsert(preloader, new_req, parent);
-        return true;
-    }
-
     // This function can be called from a different thread,
-    // so this is where we also want the m_Mutex lock. No lock must be held
+    // so this is where we also want the m_NewHintMutex lock. No lock must be held
     // during this call.
     bool PreloadHint(HPreloadHintInfo info, const char* name)
     {
         if (!info || !name)
             return false;
         HPreloader preloader = info->m_Preloader;
-        dmMutex::ScopedLock lk(preloader->m_Mutex);
-        return PreloadHintInternal(preloader, info->m_Parent, name);
+        return PushHint(preloader, info->m_Parent, name);
     }
 }
