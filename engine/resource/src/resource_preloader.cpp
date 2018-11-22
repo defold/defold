@@ -78,9 +78,6 @@ namespace dmResource
         // Set once load has completed
         Result m_LoadResult;
         void *m_Resource;
-
-        // If request should not be dereferenced until preloader is destroyed
-        uint32_t m_Persist : 1;
     };
 
     // Internal data structure for passing parameters to postcreate function callbacks
@@ -136,6 +133,9 @@ namespace dmResource
         uint32_t m_PostCreateCallbackIndex;
         dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
 
+        // How many of the initial resources where added - they should not be release until preloader destruction
+        uint32_t m_PersistResourceCount;
+    
         // persisted resources
         dmArray<void*> m_PersistedResources;
     };
@@ -185,9 +185,9 @@ namespace dmResource
         *path_lookup = (*path_lookup) & 0x7fffffffu;
     }
 
-    static bool PreloadHintInternal(HPreloader, int32_t, const char*, bool);
+    static bool PreloadHintInternal(HPreloader, int32_t, const char*);
 
-    static bool MakeNewRequest(ResourcePreloader* preloader, PreloadRequest* request, uint64_t path_hash, uint32_t path_len, const char *path, bool persist)
+    static bool MakeNewRequest(ResourcePreloader* preloader, PreloadRequest* request, uint64_t path_hash, uint32_t path_len, const char *path)
     {
         memset(request, 0x00, sizeof(PreloadRequest));
 
@@ -201,7 +201,6 @@ namespace dmResource
         request->m_FirstChild = -1;
         request->m_NextSibling = -1;
         request->m_LoadResult = RESULT_PENDING;
-        request->m_Persist = persist;
         return true;
     }
 
@@ -223,7 +222,7 @@ namespace dmResource
 
         if (me->m_Resource)
         {
-            if(me->m_Persist)
+            if(index < preloader->m_PersistResourceCount)
             {
                 preloader->m_PersistedResources.Push(me->m_Resource);
             }
@@ -253,6 +252,7 @@ namespace dmResource
         preloader->m_LoadQueue = dmLoadQueue::CreateQueue(factory);
         preloader->m_Mutex = dmMutex::New();
 
+        preloader->m_PersistResourceCount = names.Size();
         preloader->m_PersistedResources.SetCapacity(names.Size());
 
         // Insert root.
@@ -261,7 +261,8 @@ namespace dmResource
         GetCanonicalPath(names[0], canonical_path);
         uint32_t path_len = strlen(canonical_path);
         uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
-        assert(MakeNewRequest(preloader, root, path_hash, path_len, canonical_path, true));
+        assert(MakeNewRequest(preloader, root, path_hash, path_len, canonical_path));
+        assert(preloader->m_Request[0].m_CanonicalPathHash == path_hash);
 
         // Set up error condition
         Result r = CheckSuppliedResourcePath(names[0]);
@@ -279,7 +280,8 @@ namespace dmResource
         // This enables optimised loading in so that resources are not loaded multiple times and are released when they can be (internally pruning and sharing the request tree).
         for(uint32_t i = 1; i < names.Size(); ++i)
         {
-            PreloadHintInternal(preloader, 0, names[i], true);
+            PreloadHintInternal(preloader, 0, names[i]);
+            assert(preloader->m_Request[i].m_CanonicalPathHash == path_hash);
         }
 
         return preloader;
@@ -854,7 +856,7 @@ namespace dmResource
         delete preloader;
     }
 
-    static bool PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name, bool persisted)
+    static bool PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name)
     {
         // Ignore malformed paths that would fail anyway.
         if (CheckSuppliedResourcePath(name) != dmResource::RESULT_OK)
@@ -885,7 +887,7 @@ namespace dmResource
 
         int32_t new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
         PreloadRequest *req = &preloader->m_Request[new_req];
-        if (!MakeNewRequest(preloader, req, path_hash, path_len, canonical_path, persisted))
+        if (!MakeNewRequest(preloader, req, path_hash, path_len, canonical_path))
         {
             preloader->m_FreelistSize++;
             return false;
@@ -904,6 +906,6 @@ namespace dmResource
             return false;
         HPreloader preloader = info->m_Preloader;
         dmMutex::ScopedLock lk(preloader->m_Mutex);
-        return PreloadHintInternal(preloader, info->m_Parent, name, false);
+        return PreloadHintInternal(preloader, info->m_Parent, name);
     }
 }
