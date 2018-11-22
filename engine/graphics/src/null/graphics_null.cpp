@@ -6,13 +6,11 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
-#include <ddf/ddf.h>
 
 #include "../graphics.h"
 #include "../graphics_native.h"
 #include "graphics_null.h"
 #include "glsl_uniform_parser.h"
-#include "graphics_ddf.h"
 
 using namespace Vectormath::Aos;
 
