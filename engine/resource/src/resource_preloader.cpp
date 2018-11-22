@@ -194,31 +194,6 @@ namespace dmResource
         *path_lookup = (*path_lookup) & 0x7fffffffu;
     }
 
-    static bool PushHint(ResourcePreloader* preloader, int32_t parent, const char* name)
-    {
-        char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(name, canonical_path);
-        uint32_t path_len = strlen(canonical_path);
-        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
-
-        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
-        const char* path = InternalizePath(preloader, path_hash, canonical_path, path_len);
-        if (path == 0)
-        {
-            return false;
-        }
-        PendingHint hint;
-        hint.m_Path = path;
-        hint.m_PathHash = path_hash;
-        hint.m_Parent = parent;
-        if (preloader->m_NewHints.Capacity() == preloader->m_NewHints.Size())
-        {
-            preloader->m_NewHints.OffsetCapacity(32);
-        }
-        preloader->m_NewHints.Push(hint);
-        return true;
-    }
-
     static void PreloaderTreeInsert(ResourcePreloader* preloader, int32_t index, int32_t parent)
     {
         PreloadRequest* reqs = &preloader->m_Request[0];
@@ -894,17 +869,24 @@ namespace dmResource
             }
             else
             {
+                if (result != RESULT_PENDING && preloader->m_Request[0].m_LoadResult != RESULT_PENDING)
+                {
+                    // We are just waiting to run the complete function
+                    break;
+                }
                 empty_run = !PreloaderUpdateOneItem(preloader, 0);
             }
 
             if (empty_run)
             {
                 if (++empty_runs > 10)
+                {
                     break;
+                }
 
                 if (dmTime::GetTime() + 1000 - start > soft_time_limit)
                 {
-                    break;
+                    return RESULT_PENDING;
                 }
 
                 // In case of non-threaded loading, we never get any empty runs really.
@@ -918,7 +900,9 @@ namespace dmResource
             }
 
             if (dmTime::GetTime() - start > soft_time_limit)
-                break;
+            {
+                return RESULT_PENDING;
+            }
         }
 
         if(!preloader->m_CreateComplete)
@@ -965,7 +949,10 @@ namespace dmResource
         // To fix this:
         // * Make Get calls insta-fail on RESULT_ABORTED or something
         // * Make Queue only return RESULT_ABORTED always.
-        while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING);
+        while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING)
+        {
+            dmLogWarning("Waiting for preloader to complete.");
+        }
 
         // Release root and persisted resources
         preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
@@ -991,6 +978,26 @@ namespace dmResource
         if (!info || !name)
             return false;
         HPreloader preloader = info->m_Preloader;
-        return PushHint(preloader, info->m_Parent, name);
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(name, canonical_path);
+        uint32_t path_len = strlen(canonical_path);
+        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
+
+        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
+        const char* path = InternalizePath(preloader, path_hash, canonical_path, path_len);
+        if (path == 0)
+        {
+            return false;
+        }
+        PendingHint hint;
+        hint.m_Path = path;
+        hint.m_PathHash = path_hash;
+        hint.m_Parent = info->m_Parent;
+        if (preloader->m_NewHints.Capacity() == preloader->m_NewHints.Size())
+        {
+            preloader->m_NewHints.OffsetCapacity(32);
+        }
+        preloader->m_NewHints.Push(hint);
+        return true;
     }
 }
