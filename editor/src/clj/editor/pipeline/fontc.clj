@@ -481,6 +481,25 @@
      :glyph-channels channel-count
      :glyph-data (ByteString/copyFrom glyph-data-bank)}))
 
+
+;; TODO: combine this with calculate-ttf-layer-mask! Only thing that differs is that antialiasing is implied with df-fonts
+(defn- calculate-ttf-distance-field-mask [font-desc]
+  (let [^double alpha (:alpha font-desc)
+        ^double shadow-alpha (:shadow-alpha font-desc)
+        ^double outline-alpha (:outline-alpha font-desc)
+        ^double outline-width (:outline-width font-desc)
+        render-mode (:render-mode font-desc)
+        face-layer 0x1
+        outline-layer (if (and (> outline-width 0.0)
+                               (> outline-alpha 0.0)
+                               (= render-mode :mode-multi-layer))
+                        0x2 0x0)
+        shadow-layer (if (and (> shadow-alpha 0.0)
+                              (> alpha 0.0)
+                              (= render-mode :mode-multi-layer))
+                        0x4 0x0)]
+    (bit-or face-layer outline-layer shadow-layer)))
+
 (defn- draw-ttf-distance-field [{^int glyph-ascent :ascent
                                  ^double glyph-left-bearing :left-bearing
                                  ^GlyphVector glyph-vector :vector
@@ -568,7 +587,7 @@
         cache-cell-wh (max-glyph-cell-wh glyph-extents line-height padding glyph-cell-padding)
         cache-wh (cache-wh font-desc cache-cell-wh (count semi-glyphs))
         glyph-data-bank (make-glyph-data-bank glyph-extents)
-        layer-mask 1]
+        layer-mask (calculate-ttf-distance-field-mask font-desc)]
 
     (doall
       (pmap (fn [[semi-glyph glyph-extents]]
