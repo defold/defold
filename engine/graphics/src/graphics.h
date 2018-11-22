@@ -6,7 +6,7 @@
 
 #include <dmsdk/graphics/graphics.h>
 #include <ddf/ddf.h>
-#include "graphics/graphics_ddf.h"
+#include <graphics/graphics_ddf.h>
 
 #if defined(__AVM2__)
 #include "flash/graphics_flash_defines.h"

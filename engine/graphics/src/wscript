@@ -9,7 +9,7 @@ def set_options(opt):
 def build(bld):
     if bld.env.PLATFORM != 'as3-web':
         obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
-                               includes = ['. opengl', '../build/default/proto', '../proto'],
+                               includes = ['. opengl', '../build/default/proto'],
                                proto_gen_py = True,
                                protoc_includes = '../proto',
                                target = 'graphics')
@@ -21,16 +21,16 @@ def build(bld):
              obj.source.append('opengl/async/job_queue_threaded.cpp');
 
     else:
-        obj = bld.new_task_gen(features = 'cxx cstaticlib ddf',
-                               includes = ['. flash', '../build/default/proto', '../proto'],
+        obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
+                               includes = ['. flash', '../build/default/proto'],
                                proto_gen_py = True,
                                protoc_includes = '../proto',
                                target = 'graphics')
 
         obj.find_sources_in_dirs('. flash ../proto')
 
-    obj = bld.new_task_gen(features = 'cxx cstaticlib',
-                           includes = ['. null', '../build/default/proto', '../proto'],
+    obj = bld.new_task_gen(features = 'ddf cxx cstaticlib',
+                           includes = ['. null', '../build/default/proto'],
                            proto_gen_py = True,
                            protoc_includes = '../proto',
                            target = 'graphics_null')

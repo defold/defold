@@ -11,7 +11,6 @@
 #include <dlib/index_pool.h>
 #include <dlib/time.h>
 #include <dlib/dstrings.h>
-#include <ddf/ddf.h>
 
 #ifdef __EMSCRIPTEN__
     #include <emscripten/emscripten.h>
@@ -21,7 +20,6 @@
 #include "../graphics_native.h"
 #include "async/job_queue.h"
 #include "graphics_opengl.h"
-#include "graphics_ddf.h"
 
 
 #if defined(__MACH__) && !( defined(__arm__) || defined(__arm64__) )
