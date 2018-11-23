@@ -108,9 +108,15 @@
   (fn [node evaluation-context]
     (internal.graph.types/get-property node (:basis evaluation-context) k)))
 
-(defn make-output-behavior-fn [k lua-fn args]
-  (println "making from args:" args)
+(defn make-output-behavior-fn [transform lua-fn args outputs properties inputs]
+  (println "making output behavior for" keyword-name "from args:" args "outputs:" outputs "properties:" properties "inputs:" inputs)
   (fn [node evaluation-context]
+    (if (= transform :this)
+      (:_node-id node)
+      (if ... i princip hela node ns :)
+
+    
+    (println :node node)
     (let [arg-vals [] ;(map #(gt/produce-value node % evaluation-context) args)
           state (luart/make-state)
           env (luart/make-env state)]
@@ -167,7 +173,7 @@
                                         (map (fn [[k _]] [k {:fn (make-property-output-behavior-fn k)}]))
                                         properties)
         output-behaviors (into {}
-                               (map (fn [[k {:keys [lua-fn args]}]] [k {:fn (make-output-behavior-fn k lua-fn args)}]))
+                               (map (fn [[k {:keys [lua-fn args]}]] [k {:fn (make-output-behavior-fn k lua-fn args (set (keys outputs)) (set (keys properties)) #{})}]))
                                outputs)
         behavior-def (merge intrinsic-output-behaviors
                             property-output-behaviors
