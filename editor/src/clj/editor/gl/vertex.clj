@@ -495,8 +495,8 @@ the `do-gl` macro from `editor.gl`."
             position-offset (nth offsets position-index)
             [_ sz tp] position-attribute]
         (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-        (gl/gl-vertex-attrib-pointer gl 0 ^int sz ^int (gl-types tp) false ^int stride ^long position-offset)
-        (gl/gl-enable-vertex-attrib-array gl position-index)))))
+        (gl/gl-enable-vertex-attrib-array gl position-index)
+        (gl/gl-vertex-attrib-pointer gl 0 ^int sz ^int (gl-types tp) false ^int stride ^long position-offset)))))
 
 (defn- unbind-vertex-buffer! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer]
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)
@@ -510,8 +510,8 @@ the `do-gl` macro from `editor.gl`."
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
     (let [attributes (:attributes (.layout vertex-buffer))
           attrib-locs (vertex-locate-attribs gl shader attributes)]
-      (vertex-attrib-pointers gl shader attributes)
-      (vertex-enable-attribs gl attrib-locs))))
+      (vertex-enable-attribs gl attrib-locs)
+      (vertex-attrib-pointers gl shader attributes))))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl ^PersistentVertexBuffer vertex-buffer shader]
   (let [attributes (:attributes (.layout vertex-buffer))

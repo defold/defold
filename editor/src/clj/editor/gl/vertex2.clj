@@ -212,8 +212,8 @@
             position-offset (nth offsets position-index)
             {:keys [components type]} position-attribute]
         (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-        (gl/gl-vertex-attrib-pointer gl 0 ^int components ^int (gl-types type) false ^int stride ^long position-offset)
-        (gl/gl-enable-vertex-attrib-array gl position-index)))))
+        (gl/gl-enable-vertex-attrib-array gl position-index)
+        (gl/gl-vertex-attrib-pointer gl 0 ^int components ^int (gl-types type) false ^int stride ^long position-offset)))))
 
 (defn- unbind-vertex-buffer! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[vbo _] (request-vbo gl request-id vertex-buffer shader)
@@ -225,8 +225,8 @@
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[vbo attrib-locs] (request-vbo gl request-id vertex-buffer shader)]
     (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
-    (vertex-attrib-pointers gl shader (:attributes (.vertex-description vertex-buffer)) attrib-locs)
-    (vertex-enable-attribs gl attrib-locs)))
+    (vertex-enable-attribs gl attrib-locs)
+    (vertex-attrib-pointers gl shader (:attributes (.vertex-description vertex-buffer)) attrib-locs)))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[_ attrib-locs] (request-vbo gl request-id vertex-buffer shader)]
