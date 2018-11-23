@@ -850,97 +850,75 @@ namespace dmResource
     {
         DM_PROFILE(Resource, "UpdatePreloader");
 
-        // depth first traversal
-        Result ret = RESULT_PENDING;
         uint64_t start = dmTime::GetTime();
         uint32_t empty_runs = 0;
-        bool empty_run;
 
-        while (true)
+        do
         {
-            Result result = PostCreateUpdateOneItem(preloader, empty_run);
-            if(preloader->m_CreateComplete)
+            Result root_result = preloader->m_Request[0].m_LoadResult;
+            if (root_result == RESULT_PENDING)
             {
-                if(result != RESULT_PENDING)
+                if (PreloaderUpdateOneItem(preloader, 0))
                 {
-                    ret = result;
-                    break;
+                    empty_runs = 0;
+                    continue;
                 }
             }
             else
             {
-                if (result != RESULT_PENDING && preloader->m_Request[0].m_LoadResult != RESULT_PENDING)
+                if (!preloader->m_CreateComplete)
                 {
-                    // We are just waiting to run the complete function
-                    break;
+                    // Root is resolved - all items has been created, we should now
+                    // call the post-create function (if given) and then post-create
+                    // of all created items
+                    preloader->m_CreateComplete = true;
+                    if (root_result == RESULT_OK && complete_callback)
+                    {
+                        if(!complete_callback(complete_callback_params))
+                        {
+                            preloader->m_Request[0].m_LoadResult = RESULT_NOT_LOADED;
+                        }
+                        empty_runs = 0;
+                        // We need to continue to do all post create functions
+                        continue;
+                    }
                 }
-                empty_run = !PreloaderUpdateOneItem(preloader, 0);
+
+                bool empty_run;
+                Result post_create_result = PostCreateUpdateOneItem(preloader, empty_run);
+                if (!empty_run)
+                {
+                    empty_runs = 0;
+                    if (post_create_result != RESULT_PENDING && root_result == RESULT_OK)
+                    {
+                        preloader->m_Request[0].m_LoadResult = post_create_result;
+                    }
+                    continue;
+                }
+                if (post_create_result == RESULT_OK)
+                {
+                    // All done!
+                    return root_result;
+                }
             }
 
-            if (empty_run)
+            ++empty_runs;
+            if (++empty_runs > 10)
             {
-                if (++empty_runs > 10)
-                {
-                    break;
-                }
+                break;
+            }
 
-                if (dmTime::GetTime() + 1000 - start > soft_time_limit)
-                {
-                    return RESULT_PENDING;
-                }
-
+            if (dmTime::GetTime() + 1000 - start < soft_time_limit)
+            {
                 // In case of non-threaded loading, we never get any empty runs really.
                 // In case of threaded loading and loading small files, use up a little
                 // more of our time waiting for files.
                 dmTime::Sleep(1000);
             }
-            else
-            {
-                empty_runs = 0;
-            }
 
-            if (dmTime::GetTime() - start > soft_time_limit)
-            {
-                return RESULT_PENDING;
-            }
-        }
+        } while(dmTime::GetTime() - start <= soft_time_limit);
 
-        if(!preloader->m_CreateComplete)
-        {
-            // Check if root object is loaded, then everything is done.
-            if (preloader->m_Request[0].m_LoadResult != RESULT_PENDING)
-            {
-                ret = preloader->m_Request[0].m_LoadResult;
-                assert((ret != RESULT_OK) || (preloader->m_Request[0].m_FirstChild == -1));
-
-                if (ret == RESULT_OK && complete_callback)
-                {
-                    if(complete_callback)
-                    {
-                        if(complete_callback(complete_callback_params))
-                        {
-                            ret = RESULT_PENDING;
-                        }
-                        else
-                        {
-                            ret = RESULT_NOT_LOADED;
-                        }
-                    }
-                }
-                preloader->m_CreateComplete = true;
-
-                if(ret != RESULT_PENDING)
-                {
-                    // flush out any already created resources
-                    while(PostCreateUpdateOneItem(preloader, empty_run) == RESULT_PENDING)
-                    {
-                        if(empty_run)
-                            dmTime::Sleep(250);
-                    }
-                }
-            }
-        }
-        return ret;
+        return RESULT_PENDING;
     }
 
     void DeletePreloader(HPreloader preloader)
