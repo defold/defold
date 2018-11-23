@@ -269,17 +269,6 @@
       (pred (first elems)) index
       :else (recur (inc index) (next elems)))))
 
-(defn last-index-where
-  "Returns the index of the last element in coll where pred returns true,
-  or nil if there was no matching element. The coll must support addressing
-  using nth."
-  [pred coll]
-  (loop [index (dec (count coll))]
-    (when-not (neg? index)
-      (if (pred (nth coll index))
-        index
-        (recur (dec index))))))
-
 (defn only
   "Returns the only element in coll, or nil if there are more than one element."
   [coll]
