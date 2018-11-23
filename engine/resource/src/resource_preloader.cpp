@@ -862,10 +862,22 @@ namespace dmResource
 
         uint64_t start = dmTime::GetTime();
         uint32_t empty_runs = 0;
+        bool close_to_time_limit = (dmTime::GetTime() + 1000 - start) < soft_time_limit;
 
         do
         {
             Result root_result = preloader->m_Request[0].m_LoadResult;
+            bool empty_run;
+            Result post_create_result = PostCreateUpdateOneItem(preloader, empty_run);
+            if (!empty_run)
+            {
+                empty_runs = 0;
+                if (post_create_result != RESULT_PENDING && root_result == RESULT_OK)
+                {
+                    preloader->m_Request[0].m_LoadResult = post_create_result;
+                }
+                continue;
+            }
             if (root_result == RESULT_PENDING)
             {
                 if (PreloaderUpdateOneItem(preloader, 0))
@@ -894,17 +906,6 @@ namespace dmResource
                     }
                 }
 
-                bool empty_run;
-                Result post_create_result = PostCreateUpdateOneItem(preloader, empty_run);
-                if (!empty_run)
-                {
-                    empty_runs = 0;
-                    if (post_create_result != RESULT_PENDING && root_result == RESULT_OK)
-                    {
-                        preloader->m_Request[0].m_LoadResult = post_create_result;
-                    }
-                    continue;
-                }
                 if (post_create_result == RESULT_OK)
                 {
                     // All done!
@@ -914,18 +915,24 @@ namespace dmResource
                 }
             }
 
-            ++empty_runs;
-            if (++empty_runs > 10)
+            if (close_to_time_limit)
             {
-                break;
+                ++empty_runs;
+                if (empty_runs > 10)
+                {
+                    break;
+                }
             }
-
-            if (dmTime::GetTime() + 1000 - start < soft_time_limit)
+            else
             {
-                // In case of non-threaded loading, we never get any empty runs really.
-                // In case of threaded loading and loading small files, use up a little
-                // more of our time waiting for files.
-                dmTime::Sleep(1000);
+                close_to_time_limit = (dmTime::GetTime() + 1000 - start) < soft_time_limit;
+                if (!close_to_time_limit)
+                {
+                    // In case of non-threaded loading, we never get any empty runs really.
+                    // In case of threaded loading and loading small files, use up a little
+                    // more of our time waiting for files.
+                    dmTime::Sleep(1000);
+                }
             }
 
         } while(dmTime::GetTime() - start <= soft_time_limit);
