@@ -101,7 +101,8 @@ namespace dmLoadQueue
                         {
                             if (r->m_Buffer.Capacity() > DEFAULT_CAPACITY)
                             {
-                                r->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
+                                // Just free the memory here, no need to allocate while holding the mutex
+                                r->m_Buffer.SetCapacity(0);
                             }
                         }
                     }
@@ -235,7 +236,7 @@ namespace dmLoadQueue
         queue->m_BytesWaiting -= buffer_capacity;
         // If we either have blocked further processing by exceeding MAX_PENDING_DATA or
         // the buffer has a non-default capacity, we want to wake up the worker
-        if (buffer_capacity != DEFAULT_CAPACITY || old_bytes_waiting >= MAX_PENDING_DATA && queue->m_BytesWaiting < MAX_PENDING_DATA)
+        if (buffer_capacity != DEFAULT_CAPACITY || (old_bytes_waiting >= MAX_PENDING_DATA && queue->m_BytesWaiting < MAX_PENDING_DATA))
         {
             // Wake up thread, we can now fit a new request
             dmConditionVariable::Signal(queue->m_WakeupCond);
