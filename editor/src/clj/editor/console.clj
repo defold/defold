@@ -7,7 +7,9 @@
             [editor.code.view :as view]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.workspace :as workspace]
             [util.thread-util :refer [preset!]])
   (:import (editor.code.data Cursor CursorRange LayoutInfo Rect)
            (java.util.regex MatchResult)
@@ -301,9 +303,9 @@
       (g/connect console-node :regions view-node :regions)))
   view-node)
 
-(def ^:private line-sub-regions-pattern #"(?<=^|\"|\s)(\/[^\s:\"]+)(?::?)(\d+)?")
+(def ^:private line-sub-regions-pattern #"(?<=^|\s|[<\"'`])(\/[^\s:\"]+)(?::?)(\d+)?")
 
-(defn- make-line-sub-regions [resource-map row line]
+(defn- make-line-sub-regions [resource-map on-region-click! row line]
   (keep (fn [^MatchResult result]
           (let [resource-proj-path (.group result 1)]
             (when (contains? resource-map resource-proj-path)
@@ -315,36 +317,37 @@
                 (cond-> (assoc (data/->CursorRange (data/->Cursor row start-col)
                                                    (data/->Cursor row end-col))
                           :type :resource-reference
-                          :proj-path resource-proj-path)
+                          :proj-path resource-proj-path
+                          :on-click! on-region-click!)
 
                         (some? resource-row)
-                        (assoc :row resource-row))))))
+                        (assoc :row (dec (long resource-row))))))))
         (re-match-result-seq line-sub-regions-pattern line)))
 
 (defn- make-line-regions
-  ^CursorRange [resource-map ^long row [type line]]
+  ^CursorRange [resource-map on-region-click! ^long row [type line]]
   (assert (keyword? type))
   (assert (string? line))
   (cons (assoc (data/->CursorRange (data/->Cursor row 0)
                                    (data/->Cursor row (count line)))
           :type type)
-        (make-line-sub-regions resource-map row line)))
+        (make-line-sub-regions resource-map on-region-click! row line)))
 
-(defn- append-distinct-lines [{:keys [lines regions] :as props} entries resource-map]
+(defn- append-distinct-lines [{:keys [lines regions] :as props} entries resource-map on-region-click!]
   (merge props
          (data/append-distinct-lines lines regions
                                      (mapv second entries)
-                                     (partial make-line-sub-regions resource-map))))
+                                     (partial make-line-sub-regions resource-map on-region-click!))))
 
-(defn- append-regioned-lines [{:keys [lines regions] :as props} entries resource-map]
+(defn- append-regioned-lines [{:keys [lines regions] :as props} entries resource-map on-region-click!]
   (assoc props
     :lines (into lines (map second) entries)
     :regions (into regions
-                   (mapcat (partial make-line-regions resource-map)
+                   (mapcat (partial make-line-regions resource-map on-region-click!)
                            (iterate inc (count lines))
                            entries))))
 
-(defn- repaint-console-view! [view-node workspace elapsed-time]
+(defn- repaint-console-view! [view-node workspace on-region-click! elapsed-time]
   (let [{:keys [clear? entries]} (flip-pending!)]
     (when (or clear? (seq entries))
       (let [resource-map (g/node-value workspace :resource-map)
@@ -357,8 +360,8 @@
             was-scrolled-to-bottom? (data/scrolled-to-bottom? prev-layout (count prev-lines))
             props (reduce (fn [props entries]
                             (if (nil? (ffirst entries))
-                              (append-distinct-lines props entries resource-map)
-                              (append-regioned-lines props entries resource-map)))
+                              (append-distinct-lines props entries resource-map on-region-click!)
+                              (append-regioned-lines props entries resource-map on-region-click!)))
                           {:lines (if clear? [""] prev-lines)
                            :regions (if clear? [] prev-regions)}
                           (partition-by #(nil? (first %)) entries))]
@@ -401,7 +404,7 @@
        ["editor.selection.background.inactive" (.interpolate selection-background-color background-color 0.25)]
        ["editor.selection.occurrence.outline" (Color/valueOf "#A2B0BE")]])))
 
-(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane]
+(defn make-console! [graph workspace ^Tab console-tab ^GridPane console-grid-pane open-resource-fn]
   (let [^Pane canvas-pane (.lookup console-grid-pane "#console-canvas-pane")
         canvas (Canvas. (.getWidth canvas-pane) (.getHeight canvas-pane))
         view-node (setup-view! (g/make-node! graph ConsoleNode)
@@ -416,9 +419,17 @@
                                              :line-height-factor 1.2
                                              :resize-reference :bottom))
         tool-bar (setup-tool-bar! (.lookup console-grid-pane "#console-tool-bar") view-node)
+        on-region-click! (fn on-region-click! [region]
+                           (when (= :resource-reference (:type region))
+                             (let [resource (workspace/find-resource workspace (:proj-path region))]
+                               (when (and (resource/openable-resource? resource)
+                                          (resource/exists? resource))
+                                 (let [opts (when-some [row (:row region)]
+                                              {:line (inc (long row))})]
+                                   (open-resource-fn resource opts))))))
         repainter (ui/->timer "repaint-console-view" (fn [_ elapsed-time]
                                                        (when (and (.isSelected console-tab) (not (ui/ui-disabled?)))
-                                                         (repaint-console-view! view-node workspace elapsed-time))))
+                                                         (repaint-console-view! view-node workspace on-region-click! elapsed-time))))
         context-env {:clipboard (Clipboard/getSystemClipboard)
                      :term-field (.lookup tool-bar "#search-console")
                      :view-node view-node}]
