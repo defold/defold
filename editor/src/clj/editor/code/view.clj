@@ -1395,7 +1395,7 @@
                      (= :scroll-bar-y-hold-down gesture-type))
                  javafx.scene.Cursor/DEFAULT
 
-                 (= :resource-reference (:type (:region hovered-element)))
+                 (some? (:on-click! (:region hovered-element)))
                  javafx.scene.Cursor/HAND
 
                  (data/rect-contains? (.canvas layout) x y)
@@ -1447,21 +1447,17 @@
 
 (defn handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
-  (let [hovered-element (get-property view-node :hovered-element)
-        ^GestureInfo gesture-start (get-property view-node :gesture-start)]
-    (when (= :region (:type hovered-element))
-      (let [region (:region hovered-element)
-            on-click! (:on-click! region)]
-        (on-click! region)))
-    (refresh-mouse-cursor! view-node event)
-    (set-properties! view-node :selection
-                     (data/mouse-released (get-property view-node :lines)
-                                          (get-property view-node :visible-regions)
-                                          (get-property view-node :layout)
-                                          gesture-start
-                                          (mouse-button event)
-                                          (.getX event)
-                                          (.getY event)))))
+  (when-some [{:keys [on-click!] :as hovered-region} (:region (get-property view-node :hovered-element))]
+    (on-click! hovered-region))
+  (refresh-mouse-cursor! view-node event)
+  (set-properties! view-node :selection
+                   (data/mouse-released (get-property view-node :lines)
+                                        (get-property view-node :visible-regions)
+                                        (get-property view-node :layout)
+                                        (get-property view-node :gesture-start)
+                                        (mouse-button event)
+                                        (.getX event)
+                                        (.getY event))))
 
 (defn handle-mouse-exited! [view-node ^MouseEvent event]
   (.consume event)
