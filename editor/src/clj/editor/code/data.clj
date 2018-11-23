@@ -2178,7 +2178,8 @@
                                           (some? scroll-x) (assoc :scroll-x scroll-x)
                                           (some? scroll-y) (assoc :scroll-y scroll-y))))]
         (cond-> scroll-properties
-                (not= cursor-ranges new-cursor-ranges) (merge {:cursor-ranges new-cursor-ranges})))
+                (not= cursor-ranges new-cursor-ranges) (merge {:cursor-ranges new-cursor-ranges
+                                                               :hovered-element nil})))
 
       ;; Drag selection.
       :cursor-range-selection
@@ -2206,11 +2207,12 @@
                                  :to (adjust-cursor lines (->Cursor (inc (.row mouse-cursor)) 0)))))
             new-cursor-ranges [cursor-range]]
         (when (not= cursor-ranges new-cursor-ranges)
-          (merge {:cursor-ranges new-cursor-ranges}
+          (merge {:cursor-ranges new-cursor-ranges
+                  :hovered-element nil}
                  (scroll-to-any-cursor layout lines new-cursor-ranges))))
       nil)))
 
-(defn- element-at-position [^LayoutInfo layout x y]
+(defn- element-at-position [lines visible-regions ^LayoutInfo layout x y]
   (cond
     ;; Horizontal scroll tab.
     (some-> (.scroll-tab-x layout) (rect-contains? x y))
@@ -2230,21 +2232,30 @@
     (when-some [^Rect r (.scroll-tab-y layout)]
       (and (<= (.x r) x (+ (.x r) (.w r)))
            (> ^double y (+ (.y r) (* 0.5 (.h r))))))
-    {:type :ui-element :ui-element :scroll-bar-y-down}))
+    {:type :ui-element :ui-element :scroll-bar-y-down}
 
-(defn- mouse-hover [^LayoutInfo layout hovered-element x y]
-  (let [new-hovered-element (element-at-position layout x y)]
+    :else
+    (when-some [clickable-region (some (fn [region]
+                                         (when (and (some? (:on-click! region))
+                                                    (some #(rect-contains? % x y)
+                                                          (cursor-range-rects layout lines region)))
+                                           region))
+                                       visible-regions)]
+      {:type :region :region clickable-region})))
+
+(defn- mouse-hover [lines visible-regions ^LayoutInfo layout hovered-element x y]
+  (let [new-hovered-element (element-at-position lines visible-regions layout x y)]
     (when (not= hovered-element new-hovered-element)
       {:hovered-element new-hovered-element})))
 
-(defn mouse-moved [lines cursor-ranges ^LayoutInfo layout ^GestureInfo gesture-start hovered-element x y]
+(defn mouse-moved [lines cursor-ranges visible-regions ^LayoutInfo layout ^GestureInfo gesture-start hovered-element x y]
   (if (some? gesture-start)
     (mouse-gesture lines cursor-ranges layout gesture-start x y)
-    (mouse-hover layout hovered-element x y)))
+    (mouse-hover lines visible-regions layout hovered-element x y)))
 
-(defn mouse-released [^LayoutInfo layout ^GestureInfo gesture-start button x y]
+(defn mouse-released [lines visible-regions ^LayoutInfo layout ^GestureInfo gesture-start button x y]
   (when (= button (some-> gesture-start :button))
-    (assoc (mouse-hover layout ::force-evaluation x y)
+    (assoc (mouse-hover lines visible-regions layout ::force-evaluation x y)
       :gesture-start nil)))
 
 (defn mouse-exited [^GestureInfo gesture-start hovered-element]
