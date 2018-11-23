@@ -213,7 +213,7 @@
             {:keys [components type]} position-attribute]
         (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
         (gl/gl-enable-vertex-attrib-array gl position-index)
-        (gl/gl-vertex-attrib-pointer gl 0 ^int components ^int (gl-types type) false ^int stride ^long position-offset)))))
+        (gl/gl-vertex-attrib-pointer gl ^int position-index ^int components ^int (gl-types type) false ^int stride ^long position-offset)))))
 
 (defn- unbind-vertex-buffer! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[vbo _] (request-vbo gl request-id vertex-buffer shader)

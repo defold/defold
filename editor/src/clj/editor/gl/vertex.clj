@@ -496,7 +496,7 @@ the `do-gl` macro from `editor.gl`."
             [_ sz tp] position-attribute]
         (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER vbo)
         (gl/gl-enable-vertex-attrib-array gl position-index)
-        (gl/gl-vertex-attrib-pointer gl 0 ^int sz ^int (gl-types tp) false ^int stride ^long position-offset)))))
+        (gl/gl-vertex-attrib-pointer gl ^int position-index ^int sz ^int (gl-types tp) false ^int stride ^long position-offset)))))
 
 (defn- unbind-vertex-buffer! [^GL2 gl request-id ^PersistentVertexBuffer vertex-buffer]
   (let [vbo (scene-cache/request-object! ::vbo request-id gl vertex-buffer)

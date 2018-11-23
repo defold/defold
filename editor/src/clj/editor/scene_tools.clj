@@ -73,9 +73,9 @@
   (vec3 position))
 
 (shader/defshader vertex-shader
-  (attribute vec4 position)
+  (attribute vec3 position)
   (defn void main []
-    (setq gl_Position (* gl_ModelViewProjectionMatrix position))))
+    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 1.0)))))
 
 (shader/defshader fragment-shader
   (uniform vec4 color)
