@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [editor.luart :as luart]
             [dynamo.graph :as g]
+            [internal.defnode-test :as defnode-test]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [support.test-support :refer [tx-nodes with-clean-system]]
@@ -143,19 +144,19 @@
 
 
 (defn- lua-node-def->node-def [lua-node-def]
+  (def lua-node-def lua-node-def)
 ;;  (println lua-node-def)
-  (let [type-keyword (keyword "lua-node" (lua-node-def "type_name"))
-        type-name (str "lua-node/" (lua-node-def "type_name"))
+  (let [def-type-name (get lua-node-def "type_name")
+        type-keyword (keyword "lua-node" def-type-name)
+        type-name (str "lua-node/" def-type-name)
         properties (into {}
-                         (map (fn [[k v]]
-                                [(keyword k) nil]))
+                         (map (fn [[k params]]
+                                [(keyword k) params]))
                          (lua-node-def "properties"))
         outputs (into {}
-                      (map (fn [[k v]]
-;;                             (println k v)
-                             (let [lua-fn (v "fun")
-                                   args (map keyword (v "args"))]
-                               [(keyword k) {:lua-fn lua-fn :argvec args}])))
+                      (map (fn [[k {:strs [fun args]}]]
+                             [(keyword k) {:lua-fn fun
+                                           :args (into {} (map (fn [[name params]] [(keyword name) params])) args)}]))
                       (lua-node-def "outputs"))
         intrinsic-output-behaviors {:_overridden-properties {:fn overridden-properties-behavior-fn}
                                     :_output-jammers {:fn output-jammers-behavior-fn}
@@ -163,14 +164,11 @@
                                     :_properties {:fn properties-behavior-fn}
                                     :_declared-properties {:fn declared-properties-behavior-fn}}
         property-output-behaviors (into {}
-                                        (map (fn [[k _]]
-                                               [k {:fn (make-property-output-behavior-fn k)}]))
+                                        (map (fn [[k _]] [k {:fn (make-property-output-behavior-fn k)}]))
                                         properties)
-;;        _ (println outputs)
         output-behaviors (into {}
-                               (map (fn [[k {:keys [lua-fn argvec]}]]
-                                      [k {:fn (make-output-behavior-fn k lua-fn argvec)}])
-                                    outputs))
+                               (map (fn [[k {:keys [lua-fn args]}]] [k {:fn (make-output-behavior-fn k lua-fn args)}]))
+                               outputs)
         behavior-def (merge intrinsic-output-behaviors
                             property-output-behaviors
                             output-behaviors)
@@ -230,6 +228,14 @@
 
     (-> {:property-display-order (internal.node/merge-display-order nil (mapv (fn [[k v]] (keyword k)) (lua-node-def "properties")))
          :key type-keyword
+         :input-dependencies (merge {:_node-id #{:_node-id}
+                                     :_declared-properties #{:_properties}
+                                     :_output-jammers #{:_output-jammers}
+                                     :_basis #{:_overridden-properties}}
+                                    (into {}
+                                          (map (fn [[name {:strs [args]}]]
+                                                 [(keyword name) (into #{} (map (comp keyword first)) args)]))
+                                          (get lua-node-def "outputs")))
          :property {:_node-id {:value-type #internal.node.ValueTypeRef{:k :dynamo.graph/NodeID}, :flags #{:unjammable :internal}, :dependencies #{}},
                     :_output-jammers {:value-type #internal.node.ValueTypeRef{:k :dynamo.graph/KeywordMap}, :flags #{:unjammable :internal}, :dependencies #{}}}
          :name type-name
@@ -267,7 +273,10 @@
         node-def (lua-node-def->node-def lua-node-def)
 ;;        _ (clojure.pprint/pprint node-def)
         node-type (internal.node/register-node-type (:key node-def) (internal.node/map->NodeTypeImpl node-def))
+
         ]
+
+    (def node-def node-def)
 
 
     (with-clean-system
