@@ -862,7 +862,7 @@ namespace dmResource
 
         uint64_t start = dmTime::GetTime();
         uint32_t empty_runs = 0;
-        bool close_to_time_limit = (dmTime::GetTime() + 1000 - start) < soft_time_limit;
+        bool close_to_time_limit = soft_time_limit < 1000;
 
         do
         {
@@ -925,7 +925,7 @@ namespace dmResource
             }
             else
             {
-                close_to_time_limit = (dmTime::GetTime() + 1000 - start) < soft_time_limit;
+                close_to_time_limit = (dmTime::GetTime() + 1000 - start) > soft_time_limit;
                 if (!close_to_time_limit)
                 {
                     // In case of non-threaded loading, we never get any empty runs really.
@@ -944,8 +944,6 @@ namespace dmResource
 
     void DeletePreloader(HPreloader preloader)
     {
-        uint64_t start_ns = dmTime::GetTime();
-
         // Since Preload calls need their Create calls done and PostCreate calls must follow Create calls.
         // To fix this:
         // * Make Get calls insta-fail on RESULT_ABORTED or something
