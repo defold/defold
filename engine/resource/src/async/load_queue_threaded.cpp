@@ -181,6 +181,7 @@ namespace dmLoadQueue
 
     HRequest BeginLoad(HQueue queue, const char* path, PreloadInfo* info)
     {
+        assert(path != 0);
         assert(path[0] != 0);
 
         if (strlen(path) >= RESOURCE_PATH_MAX)
