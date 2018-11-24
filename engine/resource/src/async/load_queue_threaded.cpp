@@ -20,12 +20,12 @@ namespace dmLoadQueue
     // Once the loader has this amount not picked up, it will stop loading more.
     // This sets the bandwidth of the loader.
     const uint64_t MAX_PENDING_DATA = 4*1024*1024;
-    const uint32_t RESOURCE_PATH_MAX = 1024;
     const uint32_t QUEUE_SLOTS = 8;
 
     struct Request
     {
          const char* m_Name;
+         const char* m_CanonicalPath;
          dmResource::LoadBufferType m_Buffer;
          PreloadInfo m_PreloadInfo;
          LoadResult m_Result;
@@ -114,9 +114,6 @@ namespace dmLoadQueue
             if (current)
             {
                 // We use the temporary result object here to fill in the data so it can be written with the mutex held.
-                char canonical_path[RESOURCE_PATH_MAX];
-                dmResource::GetCanonicalPath(current->m_Name, canonical_path);
-
                 uint32_t size;
 
                 assert(current->m_Buffer.Size() == 0);
@@ -124,7 +121,7 @@ namespace dmLoadQueue
                 {
                     current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
                 }
-                result.m_LoadResult = DoLoadResource(queue->m_Factory, canonical_path, current->m_Name, &size, &current->m_Buffer);
+                result.m_LoadResult = DoLoadResource(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
                 result.m_PreloadResult = dmResource::RESULT_PENDING;
                 result.m_PreloadData = 0;
 
@@ -179,16 +176,12 @@ namespace dmLoadQueue
         delete queue;
     }
 
-    HRequest BeginLoad(HQueue queue, const char* path, PreloadInfo* info)
+    HRequest BeginLoad(HQueue queue, const char* name, const char* canonical_path, PreloadInfo* info)
     {
-        assert(path != 0);
-        assert(path[0] != 0);
-
-        if (strlen(path) >= RESOURCE_PATH_MAX)
-        {
-            dmLogWarning("Passed too long path into dmQueue::BeginLoad");
-            return 0;
-        }
+        assert(name != 0);
+        assert(name[0] != 0);
+        assert(canonical_path != 0);
+        assert(canonical_path[0] != 0);
 
         dmMutex::ScopedLock lk(queue->m_Mutex);
 
@@ -203,7 +196,8 @@ namespace dmLoadQueue
         }
 
         Request *req = &queue->m_Request[(queue->m_Front++) % QUEUE_SLOTS];
-        req->m_Name = path;
+        req->m_Name = name;
+        req->m_CanonicalPath = canonical_path;
 
         req->m_PreloadInfo = *info;
         req->m_Result.m_LoadResult = dmResource::RESULT_PENDING;
@@ -245,6 +239,7 @@ namespace dmLoadQueue
 
         // Clean up picked up requests
         request->m_Name = 0x0;
+        request->m_CanonicalPath = 0x0;
 
         while (queue->m_Back != queue->m_Loaded && queue->m_Request[queue->m_Back % QUEUE_SLOTS].m_Name == 0x0)
         {
