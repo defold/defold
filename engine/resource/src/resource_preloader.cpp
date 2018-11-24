@@ -85,7 +85,6 @@ namespace dmResource
     {
         ResourcePostCreateParams m_Params;
         SResourceDescriptor m_ResourceDesc;
-        bool m_Removed;
         bool m_Destroy;
     };
 
@@ -491,7 +490,6 @@ namespace dmResource
                     }
                     preloader->m_PostCreateCallbacks.SetSize(preloader->m_PostCreateCallbacks.Size()+1);
                     ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
-                    ip.m_Removed = false;
                     ip.m_Destroy = false;
                     ip.m_Params.m_Factory = preloader->m_Factory;
                     ip.m_Params.m_Context = resource_type->m_Context;
@@ -800,22 +798,17 @@ namespace dmResource
     static Result PostCreateUpdateOneItem(HPreloader preloader, bool& empty_run)
     {
         empty_run = true;
-        if (preloader->m_PostCreateCallbacks.Empty())
+        uint32_t post_create_size = preloader->m_PostCreateCallbacks.Size();
+        if(preloader->m_PostCreateCallbackIndex == post_create_size)
         {
             return RESULT_OK;
         }
-        Result ret = RESULT_OK;
-        while(preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
-        {
-            if(!preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex].m_Removed)
-                break;
-            ++preloader->m_PostCreateCallbackIndex;
-        }
-        if(preloader->m_PostCreateCallbackIndex == preloader->m_PostCreateCallbacks.Size())
+        if (post_create_size == 0)
         {
             return RESULT_OK;
         }
 
+        Result ret = RESULT_OK;
         ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
         ResourcePostCreateParams& params = ip.m_Params;
         params.m_Resource = &ip.m_ResourceDesc;
@@ -839,12 +832,11 @@ namespace dmResource
                 params.m_Context = resource_type->m_Context;
                 params.m_Resource = &ip.m_ResourceDesc;
                 resource_type->m_DestroyFunction(params);
-                ip.m_Removed = true;
                 ip.m_Destroy = false;
                 empty_run = false;
             }
 
-            if(preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
+            if(preloader->m_PostCreateCallbackIndex < post_create_size)
             {
                 return RESULT_PENDING;
             }
@@ -982,9 +974,8 @@ namespace dmResource
         delete preloader;
     }
 
-    // This function can be called from a different thread,
-    // so this is where we also want the m_NewHintMutex lock. No lock must be held
-    // during this call.
+    // This function can be called from a different thread.
+    // No lock should be held during this call.
     bool PreloadHint(HPreloadHintInfo info, const char* name)
     {
         if (!info || !name)
