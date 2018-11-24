@@ -9,11 +9,11 @@ namespace dmLoadQueue
 {
     // Implementation of the LoadQueue API where all loads happen during the EndLoad call.
     // EndLoad thus never returns _PENDING
-    const uint32_t RESOURCE_PATH_MAX = 1024;
 
     struct Request
     {
-         char m_Name[RESOURCE_PATH_MAX];
+         const char* m_Name;
+         const char* m_CanonicalPath;
          PreloadInfo m_PreloadInfo;
     };
 
@@ -37,21 +37,16 @@ namespace dmLoadQueue
         delete queue;
     }
 
-    HRequest BeginLoad(HQueue queue, const char* path, PreloadInfo* info)
+    HRequest BeginLoad(HQueue queue, const char* name, const char* canonical_path, PreloadInfo* info)
     {
         if (queue->m_ActiveRequest != 0)
         {
             return 0;
         }
 
-        if (strlen(path) >= RESOURCE_PATH_MAX)
-        {
-            dmLogWarning("Passed too long path into dmQueue::BeginLoad");
-            return 0;
-        }
-
         queue->m_ActiveRequest = &queue->m_SingleBuffer;
-        dmStrlCpy(queue->m_ActiveRequest->m_Name, path, RESOURCE_PATH_MAX);
+        queue->m_ActiveRequest->m_Name = name;
+        queue->m_ActiveRequest->m_CanonicalPath = canonical_path;
         queue->m_ActiveRequest->m_PreloadInfo = *info;
         return queue->m_ActiveRequest;
     }
@@ -63,11 +58,7 @@ namespace dmLoadQueue
             return RESULT_INVALID_PARAM;
         }
 
-        char canonical_path[RESOURCE_PATH_MAX];
-        dmResource::GetCanonicalPath(request->m_Name, canonical_path);
-
-        //
-        load_result->m_LoadResult = dmResource::LoadResource(queue->m_Factory, canonical_path, request->m_Name, buf, size);
+        load_result->m_LoadResult = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
         load_result->m_PreloadResult = dmResource::RESULT_PENDING;
         load_result->m_PreloadData = 0;
 
@@ -88,5 +79,7 @@ namespace dmLoadQueue
     void FreeLoad(HQueue queue, HRequest request)
     {
         queue->m_ActiveRequest = 0;
+        request->m_Name = 0x0;
+        request->m_CanonicalPath = 0x0;
     }
 }

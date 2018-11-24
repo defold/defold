@@ -54,11 +54,18 @@ namespace dmResource
     // With the threaded load queue, PreloadHint will be called from an external thread, so the whole tree data
     // is guarded by a mutex. It is the only function that will be called in this manner. If the tree is exhausted
     // for free nodes, they are just thrown away, and the final Create function will Get synchronously.
+
+    struct PathDescriptor
+    {
+        const char* m_InternalizedName;
+        uint64_t m_NameHash;
+        const char* m_InternalizedCanonicalPath;
+        uint64_t m_CanonicalPathHash;
+    };
+
     struct PreloadRequest
     {
-        // Always set.
-        const char* m_Path;
-        uint64_t m_CanonicalPathHash;
+        PathDescriptor m_PathDescriptor;
 
         int32_t m_Parent;
         int32_t m_FirstChild;
@@ -107,8 +114,7 @@ namespace dmResource
 
     struct PendingHint
     {
-        const char* m_Path;
-        uint64_t m_PathHash;
+        PathDescriptor m_PathDescriptor;
         int32_t m_Parent;
     };
 
@@ -175,6 +181,45 @@ namespace dmResource
         return result;
     }
 
+    Result MakePathDescriptor(ResourcePreloader* preloader, const char* name, PathDescriptor& path_descriptor)
+    {
+        if (name == 0x0)
+        {
+            return RESULT_INVALID_DATA;
+        }
+        Result res = CheckSuppliedResourcePath(name);
+        if (res != dmResource::RESULT_OK)
+        {
+            return res;
+        }
+        uint32_t name_len = strlen(name);
+        if (name_len >= RESOURCE_PATH_MAX)
+        {
+            return RESULT_INVALID_DATA;
+        }
+        path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
+
+        char canonical_path[RESOURCE_PATH_MAX];
+        GetCanonicalPath(name, canonical_path);
+        uint32_t canonical_path_len = strlen(canonical_path);
+        path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
+
+        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
+        {
+            path_descriptor.m_InternalizedName = InternalizePath(preloader, path_descriptor.m_NameHash, name, name_len);
+            if (path_descriptor.m_InternalizedName == 0x0)
+            {
+                return RESULT_OUT_OF_MEMORY;
+            }
+            path_descriptor.m_InternalizedCanonicalPath = InternalizePath(preloader, path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
+            if (path_descriptor.m_InternalizedCanonicalPath == 0x0)
+            {
+                return RESULT_OUT_OF_MEMORY;
+            }
+        }
+        return RESULT_OK;
+    }
+
     static bool IsPathInProgress(ResourcePreloader* preloader, uint64_t path_hash)
     {
         dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
@@ -209,7 +254,7 @@ namespace dmResource
         reqs[parent].m_FirstChild = index;
     }
 
-    static PreloadRequest* PreloadHashInternal(HPreloader preloader, int32_t parent, uint64_t path_hash, const char* name)
+    static PreloadRequest* PreloadHashInternal(HPreloader preloader, int32_t parent, const PathDescriptor& path_descriptor)
     {
         if (!preloader->m_FreelistSize)
         {
@@ -221,7 +266,7 @@ namespace dmResource
         int32_t child = preloader->m_Request[parent].m_FirstChild;
         while (child != -1)
         {
-            if (preloader->m_Request[child].m_CanonicalPathHash == path_hash)
+            if (preloader->m_Request[child].m_PathDescriptor.m_NameHash == path_descriptor.m_NameHash)
             {
                 return &preloader->m_Request[child];
             }
@@ -231,8 +276,7 @@ namespace dmResource
         int32_t new_req = preloader->m_Freelist[--preloader->m_FreelistSize];
         PreloadRequest* req = &preloader->m_Request[new_req];
         memset(req, 0, sizeof(PreloadRequest));
-        req->m_Path = name;
-        req->m_CanonicalPathHash = path_hash;
+        req->m_PathDescriptor = path_descriptor;
         req->m_Parent = -1;
         req->m_FirstChild = -1;
         req->m_NextSibling = -1;
@@ -253,16 +297,13 @@ namespace dmResource
         for (uint32_t i = 0; i < new_hints.Size(); ++i)
         {
             PendingHint* hint = &new_hints[i];
-            assert(hint->m_Path >= preloader->m_PathData);
-            assert(hint->m_Path < &preloader->m_PathData[preloader->m_PathDataUsed]);
             uint32_t j = i + 1;
             while (j < new_hints.Size())
             {
                 PendingHint* test = &new_hints[j];
-                if (test->m_PathHash == hint->m_PathHash &&
+                if (test->m_PathDescriptor.m_NameHash == hint->m_PathDescriptor.m_NameHash &&
                     test->m_Parent == hint->m_Parent)
                 {
-                    assert(test->m_Path == hint->m_Path);
                     // Duplicate, ignore and go to next
                     hint = 0x0;
                     break;
@@ -274,11 +315,7 @@ namespace dmResource
                 continue;
             }
             // Ignore malformed paths that would fail anyway.
-            if (CheckSuppliedResourcePath(hint->m_Path) != dmResource::RESULT_OK)
-            {
-                continue;
-            }
-            if (PreloadHashInternal(preloader, hint->m_Parent, hint->m_PathHash, hint->m_Path) != 0)
+            if (PreloadHashInternal(preloader, hint->m_Parent, hint->m_PathDescriptor) != 0)
             {
                 ++new_hint_count;
             }
@@ -288,23 +325,12 @@ namespace dmResource
 
     static PreloadRequest* PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name)
     {
-        // Ignore malformed paths that would fail anyway.
-        if (CheckSuppliedResourcePath(name) != dmResource::RESULT_OK)
+        PathDescriptor path_descriptor;
+        if (MakePathDescriptor(preloader, name, path_descriptor) != RESULT_OK)
         {
             return 0x0;
         }
-
-        char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(name, canonical_path);
-        uint32_t path_len = strlen(canonical_path);
-        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
-        const char* path = InternalizePath(preloader, path_hash, canonical_path, path_len);
-        if (path == 0x0)
-        {
-            return 0x0;
-        }
-
-        return PreloadHashInternal(preloader, parent, path_hash, path);
+        return PreloadHashInternal(preloader, parent, path_descriptor);
     }
 
     // Only supports removing the first child, which is all the preloader uses anyway.
@@ -356,35 +382,31 @@ namespace dmResource
         PreloadRequest* root = &preloader->m_Request[0];
         memset(root, 0x00, sizeof(PreloadRequest));
 
-        char canonical_path[RESOURCE_PATH_MAX];
-        GetCanonicalPath(names[0], canonical_path);
-        uint32_t path_len = strlen(canonical_path);
-        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
-        root->m_Path = InternalizePath(preloader, path_hash, canonical_path, path_len);
-        assert(root->m_Path != 0x0);
-        root->m_CanonicalPathHash = path_hash;
+        root->m_LoadResult = MakePathDescriptor(preloader, names[0], root->m_PathDescriptor);
         root->m_Parent = -1;
         root->m_FirstChild = -1;
         root->m_NextSibling = -1;
-        root->m_LoadResult = RESULT_PENDING;
         preloader->m_PersistResourceCount++;
-
-        // Set up error condition
-        Result r = CheckSuppliedResourcePath(names[0]);
-        if (r != RESULT_OK)
-        {
-            root->m_LoadResult = r;
-        }
 
         // Post create setup
         preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS / 8);
         preloader->m_CreateComplete = false;
         preloader->m_PostCreateCallbackIndex = 0;
 
+        if (root->m_LoadResult == RESULT_OK)
+        {
+            root->m_LoadResult = RESULT_PENDING;
+        }
+
         // Add remaining items as children of root (first item).
         // This enables optimised loading in so that resources are not loaded multiple times and are released when they can be (internally pruning and sharing the request tree).
         for(uint32_t i = 1; i < names.Size(); ++i)
         {
+            if (strlen(names[i]) >= RESOURCE_PATH_MAX)
+            {
+                dmLogWarning("Passed too long path into NewPreloader: \"%s\"", names[i]);
+                continue;
+            }
             PreloadRequest* r = PreloadHintInternal(preloader, 0, names[i]);
             if (r != 0x0)
             {
@@ -438,7 +460,7 @@ namespace dmResource
 
         // Previous to this we could abort with RESULT_PENDING, but not any longer; at this point the request
         // is going to be finished and cleaned up. We can then remove it from the in progress
-        UnmarkPathInProgress(preloader, req->m_CanonicalPathHash);
+        UnmarkPathInProgress(preloader, req->m_PathDescriptor.m_CanonicalPathHash);
 
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
@@ -447,7 +469,7 @@ namespace dmResource
         if (resource_type)
         {
             // obliged to call CreateFunction if Preload has ben called, so always do this even when an error has occured
-            tmp_resource.m_NameHash = req->m_CanonicalPathHash;
+            tmp_resource.m_NameHash = req->m_PathDescriptor.m_CanonicalPathHash;
             tmp_resource.m_ReferenceCount = 1;
             tmp_resource.m_ResourceType = (void*) resource_type;
 
@@ -456,7 +478,7 @@ namespace dmResource
             params.m_Context = resource_type->m_Context;
             params.m_PreloadData = req->m_PreloadData;
             params.m_Resource = &tmp_resource;
-            params.m_Filename = req->m_Path;
+            params.m_Filename = req->m_PathDescriptor.m_InternalizedName;
 
             if (!buffer)
             {
@@ -528,7 +550,7 @@ namespace dmResource
         bool destroy = false;
 
         // second need to destroy if already exists
-        SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_CanonicalPathHash);
+        SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
         if (rd)
         {
             // use already loaded then.
@@ -539,7 +561,7 @@ namespace dmResource
         else
         {
             // insert the already loaded, can fail here
-            req->m_LoadResult = InsertResource(preloader->m_Factory, req->m_Path, req->m_CanonicalPathHash, &tmp_resource);
+            req->m_LoadResult = InsertResource(preloader->m_Factory, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_CanonicalPathHash, &tmp_resource);
             if (req->m_LoadResult == RESULT_OK)
             {
                 req->m_Resource = tmp_resource.m_Resource;
@@ -653,7 +675,7 @@ namespace dmResource
                 else
                 {
                     // This is cleared in the TryCreate call above if we call it.
-                    UnmarkPathInProgress(preloader, req->m_CanonicalPathHash);
+                    UnmarkPathInProgress(preloader, req->m_PathDescriptor.m_CanonicalPathHash);
                 }
                 PreloaderTryPrune(preloader, req->m_Parent);
             }
@@ -712,7 +734,7 @@ namespace dmResource
         // had started a load.
         if (!req->m_LoadRequest && !req->m_Buffer && !req->m_Resource)
         {
-            bool wait_on = IsPathInProgress(preloader, req->m_CanonicalPathHash);
+            bool wait_on = IsPathInProgress(preloader, req->m_PathDescriptor.m_CanonicalPathHash);
             if (wait_on)
             {
                 // Already being loaded elsewhere; we can wait on that to complete, unless the item
@@ -721,7 +743,7 @@ namespace dmResource
                 int32_t go_up = parent;
                 while (go_up != -1)
                 {
-                    if (preloader->m_Request[go_up].m_CanonicalPathHash == req->m_CanonicalPathHash)
+                    if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == req->m_PathDescriptor.m_CanonicalPathHash)
                     {
                         req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
                         PreloaderTryPrune(preloader, parent);
@@ -734,7 +756,7 @@ namespace dmResource
             }
 
             // It might have been loaded by unhinted resource Gets, just grab & bump refcount
-            SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_CanonicalPathHash);
+            SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
             if (rd)
             {
                 rd->m_ReferenceCount++;
@@ -747,10 +769,10 @@ namespace dmResource
             {
                 if (!req->m_ResourceType)
                 {
-                    const char* ext = strrchr(req->m_Path, '.');
+                    const char* ext = strrchr(req->m_PathDescriptor.m_InternalizedName, '.');
                     if (!ext)
                     {
-                        dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_Path);
+                        dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_PathDescriptor.m_InternalizedName);
                         req->m_LoadResult = RESULT_MISSING_FILE_EXTENSION;
                         PreloaderTryPrune(preloader, req->m_Parent);
                         return 1;
@@ -773,9 +795,9 @@ namespace dmResource
                 info.m_Context = req->m_ResourceType->m_Context;
 
                 // Silently ignore if return null (means try later)"
-                if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_Path, &info)))
+                if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
                 {
-                    MarkPathInProgress(preloader, req->m_CanonicalPathHash);
+                    MarkPathInProgress(preloader, req->m_PathDescriptor.m_CanonicalPathHash);
                     return 1;
                 }
             }
@@ -969,7 +991,7 @@ namespace dmResource
         preloader->m_MainThreadTimeSpentNS += main_thread_time_ns;
 
         dmLogWarning("Preloading root \"%s\" took %u ms, spending %u ms in main thread",
-            preloader->m_Request[0].m_Path,
+            preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
             (uint32_t)(preloader_load_time_ns / 1000),
             (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
 
@@ -982,28 +1004,53 @@ namespace dmResource
     {
         if (!info || !name)
             return false;
-        assert(name[0] != 0);
-        HPreloader preloader = info->m_Preloader;
+
+        Result res = CheckSuppliedResourcePath(name);
+        if (res != dmResource::RESULT_OK)
+        {
+            dmLogWarning("Invalid path into dmResource::PreloadHint: \"%s\"", name);
+            return res;
+        }
+        uint32_t name_len = strlen(name);
+        if (name_len >= RESOURCE_PATH_MAX)
+        {
+            dmLogWarning("Passed too long path into dmResource::PreloadHint: \"%s\"", name);
+            return RESULT_INVALID_DATA;
+        }
+
+        PathDescriptor path_descriptor;
+
+        path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
+
         char canonical_path[RESOURCE_PATH_MAX];
         GetCanonicalPath(name, canonical_path);
-        uint32_t path_len = strlen(canonical_path);
-        uint64_t path_hash = dmHashBuffer64(canonical_path, path_len);
+        uint32_t canonical_path_len = strlen(canonical_path);
+        path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
+
+        HPreloader preloader = info->m_Preloader;
 
         dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
-        const char* path = InternalizePath(preloader, path_hash, canonical_path, path_len);
-        if (path == 0)
+        path_descriptor.m_InternalizedName = InternalizePath(preloader, path_descriptor.m_NameHash, name, name_len);
+        if (path_descriptor.m_InternalizedName == 0x0)
         {
             return false;
         }
-        PendingHint hint;
-        hint.m_Path = path;
-        hint.m_PathHash = path_hash;
-        hint.m_Parent = info->m_Parent;
-        if (preloader->m_NewHints.Capacity() == preloader->m_NewHints.Size())
+        path_descriptor.m_InternalizedCanonicalPath = InternalizePath(preloader, path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
+        if (path_descriptor.m_InternalizedCanonicalPath == 0x0)
+        {
+            return false;
+        }
+
+        uint32_t new_hints_size = preloader->m_NewHints.Size();
+        if (preloader->m_NewHints.Capacity() == new_hints_size)
         {
             preloader->m_NewHints.OffsetCapacity(32);
         }
-        preloader->m_NewHints.Push(hint);
+        preloader->m_NewHints.SetSize(new_hints_size + 1);
+        PendingHint& hint = preloader->m_NewHints.Back();
+        hint.m_PathDescriptor = path_descriptor;
+        hint.m_Parent = info->m_Parent;
+
         return true;
     }
 }
