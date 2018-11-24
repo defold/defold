@@ -181,11 +181,7 @@ namespace dmLoadQueue
 
     HRequest BeginLoad(HQueue queue, const char* path, PreloadInfo* info)
     {
-        dmMutex::ScopedLock lk(queue->m_Mutex);
-
-        // Refuse more if full.
-        if ((queue->m_Front - queue->m_Back) == QUEUE_SLOTS)
-            return 0;
+        assert(path[0] != 0);
 
         if (strlen(path) >= RESOURCE_PATH_MAX)
         {
@@ -193,13 +189,17 @@ namespace dmLoadQueue
             return 0;
         }
 
+        dmMutex::ScopedLock lk(queue->m_Mutex);
+
+        // Refuse more if full.
+        if ((queue->m_Front - queue->m_Back) == QUEUE_SLOTS)
+            return 0;
+
         if (queue->m_Loaded == queue->m_Front)
         {
             // The worker sleeping waiting for request, wake it up
             dmConditionVariable::Signal(queue->m_WakeupCond);
         }
-
-        assert(path[0] != 0);
 
         Request *req = &queue->m_Request[(queue->m_Front++) % QUEUE_SLOTS];
         req->m_Name = path;
