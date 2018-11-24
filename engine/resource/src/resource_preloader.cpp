@@ -155,8 +155,8 @@ namespace dmResource
         // persisted resources
         dmArray<void*> m_PersistedResources;
 
-        uint64_t m_PreloaderCreationTimeNS;
-        uint64_t m_MainThreadTimeSpentNS;
+//        uint64_t m_PreloaderCreationTimeNS;
+//        uint64_t m_MainThreadTimeSpentNS;
     };
 
     const char* InternalizePath(ResourcePreloader* preloader, uint64_t path_hash, const char* path, uint32_t path_len)
@@ -361,7 +361,7 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
     {
-        uint64_t start_ns = dmTime::GetTime();
+//        uint64_t start_ns = dmTime::GetTime();
 
         ResourcePreloader* preloader = new ResourcePreloader();
         // root is always allocated.
@@ -415,10 +415,10 @@ namespace dmResource
             }
         }
 
-        uint64_t now_ns = dmTime::GetTime();
-        uint64_t main_thread_time_ns = now_ns - start_ns;
-        preloader->m_PreloaderCreationTimeNS = start_ns;
-        preloader->m_MainThreadTimeSpentNS = main_thread_time_ns;
+//        uint64_t now_ns = dmTime::GetTime();
+//        uint64_t main_thread_time_ns = now_ns - start_ns;
+//        preloader->m_PreloaderCreationTimeNS = start_ns;
+//        preloader->m_MainThreadTimeSpentNS = main_thread_time_ns;
 
         return preloader;
     }
@@ -953,8 +953,8 @@ namespace dmResource
 
         } while(dmTime::GetTime() - start <= soft_time_limit);
 
-        uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
-        preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
+//        uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
+//        preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
         return RESULT_PENDING;
     }
 
@@ -969,7 +969,7 @@ namespace dmResource
             dmLogWarning("Waiting for preloader to complete.");
         }
 
-        uint64_t start_excluding_update_ns = dmTime::GetTime();
+//        uint64_t start_excluding_update_ns = dmTime::GetTime();
 
         // Release root and persisted resources
         preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
@@ -985,15 +985,15 @@ namespace dmResource
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
         dmMutex::Delete(preloader->m_NewHintMutex);
 
-        uint64_t now_ns = dmTime::GetTime();
-        uint64_t preloader_load_time_ns = now_ns - preloader->m_PreloaderCreationTimeNS;
-        uint64_t main_thread_time_ns = now_ns - start_excluding_update_ns;
-        preloader->m_MainThreadTimeSpentNS += main_thread_time_ns;
-
-        dmLogWarning("Preloading root \"%s\" took %u ms, spending %u ms in main thread",
-            preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
-            (uint32_t)(preloader_load_time_ns / 1000),
-            (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
+//        uint64_t now_ns = dmTime::GetTime();
+//        uint64_t preloader_load_time_ns = now_ns - preloader->m_PreloaderCreationTimeNS;
+//        uint64_t main_thread_time_ns = now_ns - start_excluding_update_ns;
+//        preloader->m_MainThreadTimeSpentNS += main_thread_time_ns;
+//
+//        dmLogWarning("Preloading root \"%s\" took %u ms, spending %u ms in main thread",
+//            preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
+//            (uint32_t)(preloader_load_time_ns / 1000),
+//            (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
 
         delete preloader;
     }
