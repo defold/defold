@@ -627,7 +627,7 @@
                            (with-open [r (io/reader (build-path workspace "game.projectc"))]
                              (let [built-properties (settings-core/parse-settings r)]
 
-                               ;; Overwrite defualt value
+                               ;; Overwrite default value
                                (check-project-setting built-properties ["project" "title"] "Game Project Properties")
 
                                ;; Non existent property
@@ -643,7 +643,13 @@
                                (check-project-setting built-properties ["custom" "love"] "defold")
 
                                ;; project.dependencies entry should be removed
-                               (check-project-setting built-properties ["project" "dependencies"] nil)))))))
+                               (check-project-setting built-properties ["project" "dependencies"] nil)
+
+                               ;; Compiled resource
+                               (check-project-setting built-properties ["display" "display_profiles"] "/builtins/render/default.display_profilesc")
+
+                               ;; Copy-only resource
+                               (check-project-setting built-properties ["osx" "infoplist"] "/builtins/manifests/osx/Info.plist")))))))
 
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope
