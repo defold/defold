@@ -15,7 +15,7 @@ namespace dmLoadQueue
 
     // Default to small buffers since a lot of what is loaded are just small objects anyway.
     // That way we can have more in flight, but throttle when max pending data grows too large anyway
-    const uint64_t DEFAULT_CAPACITY = 8*1024;
+    const uint64_t DEFAULT_CAPACITY = 5*1024;
 
     // Once the loader has this amount not picked up, it will stop loading more.
     // This sets the bandwidth of the loader.
@@ -161,7 +161,7 @@ namespace dmLoadQueue
         q->m_WakeupCond = dmConditionVariable::New();
         q->m_Thread = dmThread::New(&LoadThread, 65536, q, "AsyncLoad");
 
-        dmLogWarning("sizeof(Queue): %u", (uint32_t)(sizeof(Queue) + QUEUE_SLOTS * DEFAULT_CAPACITY));
+//        dmLogWarning("sizeof(Queue): %u", (uint32_t)(sizeof(Queue) + QUEUE_SLOTS * DEFAULT_CAPACITY));
 
         return q;
     }

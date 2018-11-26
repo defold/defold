@@ -82,16 +82,16 @@ namespace dmResource
         dmLoadQueue::HRequest m_LoadRequest;
 
         // Set for items that are pending and waiting for child loads
-        void *m_Buffer;
+        void* m_Buffer;
         uint32_t m_BufferSize;
 
         // Set once preload function has run
         SResourceType* m_ResourceType;
-        void *m_PreloadData;
+        void* m_PreloadData;
 
         // Set once load has completed
         Result m_LoadResult;
-        void *m_Resource;
+        void* m_Resource;
     };
 
     // Internal data structure for passing parameters to postcreate function callbacks
@@ -109,7 +109,7 @@ namespace dmResource
     // the largest branch.
     static const uint32_t MAX_PRELOADER_REQUESTS        = 1024;
     static const uint32_t SCRATCH_BUFFER_SIZE           = 65536;
-    static const uint32_t SCRATCH_BUFFER_THRESHOLD      = 8*1024;
+    static const uint32_t SCRATCH_BUFFER_THRESHOLD      = 5*1024;
 
     typedef dmHashTable<uint64_t, uint32_t> TPathHashTable;
     typedef dmHashTable<uint64_t, bool> TPathInProgressTable;
@@ -134,7 +134,6 @@ namespace dmResource
         ResourcePreloader()
             : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
         {
-            dmLogWarning("sizeof(ResourcePreloader): %u", (uint32_t)(sizeof(ResourcePreloader) + sizeof(ResourcePostCreateParamsInternal) * (MAX_PRELOADER_REQUESTS / 8)));
         }
         struct SyncedData {
             SyncedData ()
@@ -159,10 +158,10 @@ namespace dmResource
         dmLoadQueue::HQueue m_LoadQueue;
         HFactory m_Factory;
         TPathInProgressTable m_InProgress;
-        char m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
+        uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
 
         // used instead of dynamic allocs as far as it lasts.
-        char m_ScratchBuffer[SCRATCH_BUFFER_SIZE];
+        uint8_t m_ScratchBuffer[SCRATCH_BUFFER_SIZE];
         uint32_t m_ScratchBufferBeginPos;
         uint32_t m_ScratchBufferEndPos;
 
@@ -177,8 +176,8 @@ namespace dmResource
         // persisted resources
         dmArray<void*> m_PersistedResources;
 
-        uint64_t m_PreloaderCreationTimeNS;
-        uint64_t m_MainThreadTimeSpentNS;
+//        uint64_t m_PreloaderCreationTimeNS;
+//        uint64_t m_MainThreadTimeSpentNS;
     };
 
     const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, uint64_t path_hash, const char* path, uint32_t path_len)
@@ -192,7 +191,7 @@ namespace dmResource
         {
             return 0x0;
         }
-        if (preloader_synced_data->m_PathDataUsed + path_len + 1 >= sizeof(preloader_synced_data->m_PathData))
+        if (preloader_synced_data->m_PathDataUsed + path_len + 1 > sizeof(preloader_synced_data->m_PathData))
         {
             return 0x0;
         }
@@ -209,6 +208,7 @@ namespace dmResource
         {
             return RESULT_INVALID_DATA;
         }
+        // Ignore malformed paths that would fail anyway.
         Result res = CheckSuppliedResourcePath(name);
         if (res != dmResource::RESULT_OK)
         {
@@ -246,12 +246,7 @@ namespace dmResource
     {
         uint64_t path_hash = path_descriptor->m_CanonicalPathHash;
         bool* path_lookup = preloader->m_InProgress.Get(path_hash);
-        if (path_lookup == 0x0)
-        {
-            return false;
-        }
-        assert((*path_lookup) == true);
-        return true;
+        return  path_lookup != 0x0;
     }
 
     static void MarkPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
@@ -276,12 +271,12 @@ namespace dmResource
         reqs[parent].m_FirstChild = index;
     }
 
-    static PreloadRequest* PreloadHashInternal(HPreloader preloader, int32_t parent, const PathDescriptor& path_descriptor)
+    static Result PreloadHashInternal(HPreloader preloader, int32_t parent, const PathDescriptor& path_descriptor)
     {
         if (!preloader->m_FreelistSize)
         {
             // Preload queue is exhausted; this is not fatal.
-            return 0x0;
+            return RESULT_OUT_OF_MEMORY;
         }
 
         // Quick dedupe; we can do it safely on the same parent
@@ -290,7 +285,7 @@ namespace dmResource
         {
             if (preloader->m_Request[child].m_PathDescriptor.m_NameHash == path_descriptor.m_NameHash)
             {
-                return &preloader->m_Request[child];
+                return RESULT_ALREADY_REGISTERED;
             }
             child = preloader->m_Request[child].m_NextSibling;
         }
@@ -305,7 +300,7 @@ namespace dmResource
         req->m_LoadResult = RESULT_PENDING;
 
         PreloaderTreeInsert(preloader, new_req, parent);
-        return req;
+        return RESULT_OK;
     }
 
     static bool PopHints(HPreloader preloader)
@@ -336,8 +331,7 @@ namespace dmResource
             {
                 continue;
             }
-            // Ignore malformed paths that would fail anyway.
-            if (PreloadHashInternal(preloader, hint->m_Parent, hint->m_PathDescriptor) != 0)
+            if (PreloadHashInternal(preloader, hint->m_Parent, hint->m_PathDescriptor) == RESULT_OK)
             {
                 ++new_hint_count;
             }
@@ -345,14 +339,16 @@ namespace dmResource
         return new_hint_count != 0;
     }
 
-    static PreloadRequest* PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name)
+    static Result PreloadHintInternal(HPreloader preloader, int32_t parent, const char* name)
     {
         PathDescriptor path_descriptor;
-        if (MakePathDescriptor(preloader, name, path_descriptor) != RESULT_OK)
+        Result res = MakePathDescriptor(preloader, name, path_descriptor);
+        if (res  != RESULT_OK)
         {
-            return 0x0;
+            return res;
         }
-        return PreloadHashInternal(preloader, parent, path_descriptor);
+        res = PreloadHashInternal(preloader, parent, path_descriptor);
+        return res;
     }
 
     // Only supports removing the first child, which is all the preloader uses anyway.
@@ -383,7 +379,7 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
     {
-        uint64_t start_ns = dmTime::GetTime();
+//        uint64_t start_ns = dmTime::GetTime();
 
         ResourcePreloader* preloader = new ResourcePreloader();
         // root is always allocated.
@@ -430,18 +426,17 @@ namespace dmResource
                 dmLogWarning("Passed too long path into NewPreloader: \"%s\"", names[i]);
                 continue;
             }
-            PreloadRequest* r = PreloadHintInternal(preloader, 0, names[i]);
-            if (r != 0x0)
+            Result res = PreloadHintInternal(preloader, 0, names[i]);
+            if (res == RESULT_OK)
             {
-                assert(r == &preloader->m_Request[i]);
                 preloader->m_PersistResourceCount++;
             }
         }
 
-        uint64_t now_ns = dmTime::GetTime();
-        uint64_t main_thread_time_ns = now_ns - start_ns;
-        preloader->m_PreloaderCreationTimeNS = start_ns;
-        preloader->m_MainThreadTimeSpentNS = main_thread_time_ns;
+//        uint64_t now_ns = dmTime::GetTime();
+//        uint64_t main_thread_time_ns = now_ns - start_ns;
+//        preloader->m_PreloaderCreationTimeNS = start_ns;
+//        preloader->m_MainThreadTimeSpentNS = main_thread_time_ns;
 
         return preloader;
     }
@@ -519,7 +514,7 @@ namespace dmResource
                 else
                 {
                     uint32_t aligned_buffer_size = DM_ALIGN(req->m_BufferSize, 16);
-                    if (req->m_Buffer, &preloader->m_ScratchBuffer[preloader->m_ScratchBufferBeginPos])
+                    if (req->m_Buffer == &preloader->m_ScratchBuffer[preloader->m_ScratchBufferBeginPos])
                     {
                         preloader->m_ScratchBufferBeginPos += aligned_buffer_size;
                     }
@@ -984,8 +979,8 @@ namespace dmResource
                 if (post_create_result == RESULT_OK)
                 {
                     // All done!
-                    uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
-                    preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
+//                    uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
+//                    preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
                     return root_result;
                 }
             }
@@ -1019,8 +1014,8 @@ namespace dmResource
             }
         } while(dmTime::GetTime() - start <= soft_time_limit);
 
-        uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
-        preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
+//        uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
+//        preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
         return RESULT_PENDING;
     }
 
@@ -1035,7 +1030,7 @@ namespace dmResource
             dmLogWarning("Waiting for preloader to complete.");
         }
 
-        uint64_t start_excluding_update_ns = dmTime::GetTime();
+//        uint64_t start_excluding_update_ns = dmTime::GetTime();
 
         // Release root and persisted resources
         preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
@@ -1051,15 +1046,15 @@ namespace dmResource
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
         dmMutex::Delete(preloader->m_SyncedDataMutex);
 
-        uint64_t now_ns = dmTime::GetTime();
-        uint64_t preloader_load_time_ns = now_ns - preloader->m_PreloaderCreationTimeNS;
-        uint64_t main_thread_time_ns = now_ns - start_excluding_update_ns;
-        preloader->m_MainThreadTimeSpentNS += main_thread_time_ns;
-
-        dmLogWarning("Preloading root \"%s\" took %u ms, spending %u ms in main thread",
-            preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
-            (uint32_t)(preloader_load_time_ns / 1000),
-            (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
+//        uint64_t now_ns = dmTime::GetTime();
+//        uint64_t preloader_load_time_ns = now_ns - preloader->m_PreloaderCreationTimeNS;
+//        uint64_t main_thread_time_ns = now_ns - start_excluding_update_ns;
+//        preloader->m_MainThreadTimeSpentNS += main_thread_time_ns;
+//
+//        dmLogWarning("Preloading root \"%s\" took %u ms, spending %u ms in main thread",
+//            preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
+//            (uint32_t)(preloader_load_time_ns / 1000),
+//            (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
 //        dmLogWarning("Used %u bytes of preloader path data", preloader->m_SyncedData.m_PathDataUsed);
 
         delete preloader;
