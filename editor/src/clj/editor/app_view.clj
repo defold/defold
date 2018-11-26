@@ -1453,16 +1453,25 @@ If you do not specifically require different script states, consider changing th
                                    (dispose-preview-fn preview))
                                  (g/delete-graph! view-graph)))))))))))
 
+(def ^:private open-assets-term-prefs-key "open-assets-term")
+
 (defn- query-and-open! [workspace project app-view prefs term]
-  (doseq [resource (dialogs/make-resource-dialog workspace project
-                                                 (cond-> {:title "Open Assets"
-                                                          :accept-fn resource/editable-resource?
-                                                          :selection :multiple
-                                                          :ok-label "Open"
-                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
-                                                   (some? term)
-                                                   (assoc :filter term)))]
-    (open-resource app-view prefs workspace project resource)))
+  (let [prev-filter-term (prefs/get-prefs prefs open-assets-term-prefs-key nil)
+        filter-term-atom (atom prev-filter-term)
+        selected-resources (dialogs/make-resource-dialog workspace project
+                                                         (cond-> {:title "Open Assets"
+                                                                  :accept-fn resource/editable-resource?
+                                                                  :selection :multiple
+                                                                  :ok-label "Open"
+                                                                  :filter-atom filter-term-atom
+                                                                  :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                                 (some? term)
+                                                                 (assoc :filter term)))
+        filter-term @filter-term-atom]
+    (when (not= prev-filter-term filter-term)
+      (prefs/set-prefs prefs open-assets-term-prefs-key filter-term))
+    (doseq [resource selected-resources]
+      (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))

@@ -281,7 +281,9 @@
         controls (ui/collect-controls root ["filter" "item-list" "ok"])
         ok-label (:ok-label options "OK")
         ^TextField filter-field (:filter controls)
-        filter-value (:filter options "")
+        filter-value (or (:filter options)
+                         (some-> (:filter-atom options) deref)
+                         "")
         cell-fn (:cell-fn options identity)
         ^ListView item-list (doto ^ListView (:item-list controls)
                               (.setFixedCellSize 27.0) ; Fixes missing cells in VirtualFlow
@@ -317,7 +319,11 @@
 
     (ui/show-and-wait! stage)
 
-    (ui/user-data stage ::selected-items)))
+    (let [selected-items (ui/user-data stage ::selected-items)
+          filter-atom (:filter-atom options)]
+      (when (and (some? selected-items) (some? filter-atom))
+        (reset! filter-atom (.getText filter-field)))
+      selected-items)))
 
 (def ^:private fuzzy-resource-filter-fn (partial fuzzy-choices/filter-options resource/proj-path resource/proj-path))
 
@@ -416,7 +422,6 @@
                            (g/node-value workspace :resource-list))
         options (-> {:title "Select Resource"
                      :prompt "Type to filter"
-                     :filter ""
                      :cell-fn (fn [r]
                                 (let [text (resource/proj-path r)
                                       icon (workspace/resource-icon r)
