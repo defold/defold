@@ -126,10 +126,8 @@
            (doto details
              (ui/visible! false)
              (ui/managed! false))))
-       (let [runs (->> text
-                    message->mark-runs
-                    (map mark-run->node))]
-         (.. message getChildren (addAll ^Collection runs)))
+       (let [runs (map mark-run->node (message->mark-runs text))]
+         (ui/children! message runs))
        (ui/bind-action! ok ::close)
        (ui/bind-keys! root {KeyCode/ESCAPE ::close})
        (ui/request-focus! ok))
