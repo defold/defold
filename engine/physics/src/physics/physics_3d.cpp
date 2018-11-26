@@ -77,6 +77,7 @@ namespace dmPhysics
         {
             if (m_SetWorldTransform != 0x0)
             {
+                // dmLogError("Setting world transform!")
                 btVector3 bt_pos = worldTrans.getOrigin();
                 btQuaternion bt_rot = worldTrans.getRotation();
 
@@ -267,6 +268,8 @@ namespace dmPhysics
     void StepWorld3D(HWorld3D world, const StepWorldContext& step_context)
     {
         float dt = step_context.m_DT;
+        // dmLogWarning("dt: %f", dt);
+        g_DtAcum += dt;
         HContext3D context = world->m_Context;
         float scale = context->m_Scale;
         // Epsilon defining what transforms are considered noise and not
@@ -311,18 +314,6 @@ namespace dmPhysics
         //     world->m_DynamicsWorld->stepSimulation(dt, 1);
         // }
 
-        // jbnn Untested!
-        {
-            DM_PROFILE(Physics, "StepSimulation");
-
-            while (g_DtAcum >= world->m_FixedDt - EPSILON)
-            {
-                dt = world->m_FixedDt;
-                world->m_DynamicsWorld->stepSimulation(dt, 1);
-                g_DtAcum -= world->m_FixedDt;
-            }
-        }
-
         // Handle ray cast requests
         uint32_t size = world->m_RayCastRequests.Size();
         if (size > 0)
@@ -359,88 +350,104 @@ namespace dmPhysics
             world->m_RayCastRequests.SetSize(0);
         }
 
-        // Report collisions
-        bool requests_collision_callbacks = true;
-        bool requests_contact_callbacks = true;
-
-        CollisionCallback collision_callback = step_context.m_CollisionCallback;
-        ContactPointCallback contact_point_callback = step_context.m_ContactPointCallback;
-        btDispatcher* dispatcher = world->m_DynamicsWorld->getDispatcher();
-        float contact_impulse_limit = world->m_Context->m_ContactImpulseLimit;
-        if (collision_callback != 0x0 || contact_point_callback != 0x0)
+        // dmLogInfo("-------------- FRAME --------------");
         {
-            DM_PROFILE(Physics, "CollisionCallbacks");
-            int num_manifolds = dispatcher->getNumManifolds();
-            for (int i = 0; i < num_manifolds && (requests_collision_callbacks || requests_contact_callbacks); ++i)
+            DM_PROFILE(Physics, "StepSimulation");
+
+            // dmLogInfo("----- FRAME -----");
+            while (g_DtAcum >= world->m_FixedDt - EPSILON)
             {
-                btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
-                btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
-                btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
+                // dmLogWarning("step, world->m_FixedDt: %f", world->m_FixedDt);
+                // dt = world->m_FixedDt;
+                // 0 here means means we promise that dt is fixed; https://pybullet.org/Bullet/BulletFull/classbtDynamicsWorld.html#a5ab26a0d6e8b2b21fbde2ed8f8dd6294
+                world->m_DynamicsWorld->stepSimulation(world->m_FixedDt, 0);
+                // world->m_DynamicsWorld->stepSimulation(dt, max_substeps, world->m_FixedDt);
+                g_DtAcum -= world->m_FixedDt;
 
-                if (!object_a->isActive() && !object_b->isActive())
-                    continue;
+                // Report collisions
+                bool requests_collision_callbacks = true;
+                bool requests_contact_callbacks = true;
 
-                // verify that the impulse is large enough to be reported
-                float max_impulse = 0.0f;
-                int num_contacts = contact_manifold->getNumContacts();
-                for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
+                CollisionCallback collision_callback = step_context.m_CollisionCallback;
+                ContactPointCallback contact_point_callback = step_context.m_ContactPointCallback;
+                btDispatcher* dispatcher = world->m_DynamicsWorld->getDispatcher();
+                float contact_impulse_limit = world->m_Context->m_ContactImpulseLimit;
+                if (collision_callback != 0x0 || contact_point_callback != 0x0)
                 {
-                    btManifoldPoint& pt = contact_manifold->getContactPoint(j);
-                    max_impulse = dmMath::Max(max_impulse, pt.getAppliedImpulse());
-                }
-                // early out if the impulse is too small to be reported
-                if (max_impulse < contact_impulse_limit)
-                    continue;
-
-                if (collision_callback != 0x0 && requests_collision_callbacks)
-                {
-                    requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, step_context.m_CollisionUserData);
-                }
-
-                if (contact_point_callback != 0x0)
-                {
-                    for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
+                    DM_PROFILE(Physics, "CollisionCallbacks");
+                    int num_manifolds = dispatcher->getNumManifolds();
+                    for (int i = 0; i < num_manifolds && (requests_collision_callbacks || requests_contact_callbacks); ++i)
                     {
-                        btManifoldPoint& pt = contact_manifold->getContactPoint(j);
-                        btRigidBody* body_a = btRigidBody::upcast(object_a);
-                        btRigidBody* body_b = btRigidBody::upcast(object_b);
-                        ContactPoint point;
-                        float inv_scale = world->m_Context->m_InvScale;
-                        const btVector3& pt_a = pt.getPositionWorldOnA();
-                        FromBt(pt_a, point.m_PositionA, inv_scale);
-                        point.m_UserDataA = object_a->getUserPointer();
-                        point.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
-                        if (body_a)
-                            point.m_MassA = 1.0f / body_a->getInvMass();
-                        const btVector3& pt_b = pt.getPositionWorldOnB();
-                        FromBt(pt_b, point.m_PositionB, inv_scale);
-                        point.m_UserDataB = object_b->getUserPointer();
-                        point.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
-                        if (body_b)
-                            point.m_MassB = 1.0f / body_b->getInvMass();
-                        const btVector3& normal = pt.m_normalWorldOnB;
-                        FromBt(-normal, point.m_Normal, 1.0f); // Don't scale normals
-                        point.m_Distance = -pt.getDistance() * inv_scale;
-                        point.m_AppliedImpulse = pt.getAppliedImpulse() * inv_scale;
-                        Vectormath::Aos::Vector3 vel_a(0.0f, 0.0f, 0.0f);
-                        if (body_a)
+                        btPersistentManifold* contact_manifold = dispatcher->getManifoldByIndexInternal(i);
+                        btCollisionObject* object_a = static_cast<btCollisionObject*>(contact_manifold->getBody0());
+                        btCollisionObject* object_b = static_cast<btCollisionObject*>(contact_manifold->getBody1());
+
+                        if (!object_a->isActive() && !object_b->isActive())
+                            continue;
+
+                        // verify that the impulse is large enough to be reported
+                        float max_impulse = 0.0f;
+                        int num_contacts = contact_manifold->getNumContacts();
+                        for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
                         {
-                            const btVector3& v = body_a->getLinearVelocity();
-                            FromBt(v, vel_a, inv_scale);
+                            btManifoldPoint& pt = contact_manifold->getContactPoint(j);
+                            max_impulse = dmMath::Max(max_impulse, pt.getAppliedImpulse());
                         }
-                        Vectormath::Aos::Vector3 vel_b(0.0f, 0.0f, 0.0f);
-                        if (body_b)
+                        // early out if the impulse is too small to be reported
+                        if (max_impulse < contact_impulse_limit)
+                            continue;
+
+                        if (collision_callback != 0x0 && requests_collision_callbacks)
                         {
-                            const btVector3& v = body_b->getLinearVelocity();
-                            FromBt(v, vel_b, inv_scale);
+                            requests_collision_callbacks = collision_callback(object_a->getUserPointer(), object_a->getBroadphaseHandle()->m_collisionFilterGroup, object_b->getUserPointer(), object_b->getBroadphaseHandle()->m_collisionFilterGroup, step_context.m_CollisionUserData);
                         }
-                        point.m_RelativeVelocity = vel_a - vel_b;
-                        requests_contact_callbacks = contact_point_callback(point, step_context.m_ContactPointUserData);
+
+                        if (contact_point_callback != 0x0)
+                        {
+                            for (int j = 0; j < num_contacts && requests_contact_callbacks; ++j)
+                            {
+                                btManifoldPoint& pt = contact_manifold->getContactPoint(j);
+                                btRigidBody* body_a = btRigidBody::upcast(object_a);
+                                btRigidBody* body_b = btRigidBody::upcast(object_b);
+                                ContactPoint point;
+                                float inv_scale = world->m_Context->m_InvScale;
+                                const btVector3& pt_a = pt.getPositionWorldOnA();
+                                FromBt(pt_a, point.m_PositionA, inv_scale);
+                                point.m_UserDataA = object_a->getUserPointer();
+                                point.m_GroupA = object_a->getBroadphaseHandle()->m_collisionFilterGroup;
+                                if (body_a)
+                                    point.m_MassA = 1.0f / body_a->getInvMass();
+                                const btVector3& pt_b = pt.getPositionWorldOnB();
+                                FromBt(pt_b, point.m_PositionB, inv_scale);
+                                point.m_UserDataB = object_b->getUserPointer();
+                                point.m_GroupB = object_b->getBroadphaseHandle()->m_collisionFilterGroup;
+                                if (body_b)
+                                    point.m_MassB = 1.0f / body_b->getInvMass();
+                                const btVector3& normal = pt.m_normalWorldOnB;
+                                FromBt(-normal, point.m_Normal, 1.0f); // Don't scale normals
+                                point.m_Distance = -pt.getDistance() * inv_scale;
+                                point.m_AppliedImpulse = pt.getAppliedImpulse() * inv_scale;
+                                Vectormath::Aos::Vector3 vel_a(0.0f, 0.0f, 0.0f);
+                                if (body_a)
+                                {
+                                    const btVector3& v = body_a->getLinearVelocity();
+                                    FromBt(v, vel_a, inv_scale);
+                                }
+                                Vectormath::Aos::Vector3 vel_b(0.0f, 0.0f, 0.0f);
+                                if (body_b)
+                                {
+                                    const btVector3& v = body_b->getLinearVelocity();
+                                    FromBt(v, vel_b, inv_scale);
+                                }
+                                point.m_RelativeVelocity = vel_a - vel_b;
+                                requests_contact_callbacks = contact_point_callback(point, step_context.m_ContactPointUserData);
+                            }
+                        }
                     }
                 }
+                UpdateOverlapCache(&world->m_TriggerOverlaps, context, dispatcher, step_context);
             }
         }
-        UpdateOverlapCache(&world->m_TriggerOverlaps, context, dispatcher, step_context);
         world->m_DynamicsWorld->debugDrawWorld();
     }
 
