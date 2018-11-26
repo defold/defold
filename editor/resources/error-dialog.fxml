@@ -11,11 +11,12 @@
     <VBox VBox.vgrow="ALWAYS">
       <children>
 	<TextFlow id="message"/>
-	<Region id="details-padding" prefHeight="10"/>
+	<Region id="details-padding" prefHeight="20"/>
 	<CheckBox id="toggle-details" text="Details"/>
-	<TextArea id="details" editable="false" styleClass="copyable-text-area" wrapText="true" VBox.vgrow="ALWAYS" />
+	<TextArea id="details" prefHeight="60" editable="false" styleClass="copyable-text-area" wrapText="true" VBox.vgrow="ALWAYS" />
       </children>
     </VBox>
+    <Region id="button-padding" prefHeight="20"/>
     <HBox>
       <children>
 	<Region HBox.hgrow="ALWAYS" />
