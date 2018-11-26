@@ -43,12 +43,12 @@ def build(bld):
                                 protoc_includes = '../proto',
                                 target = 'crashext')
 
-    crash.source = 'crash.cpp extension.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
+    crash.source = 'crash.cpp script_crash.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
 
     bld.add_subdirs('test')
     bld.add_subdirs('tool')
     bld.install_files('${PREFIX}/include/crash', 'crash.h')
 
-    apidoc_extract_task(bld, ['extension.cpp'])
+    apidoc_extract_task(bld, ['script_crash.cpp'])
 
 
