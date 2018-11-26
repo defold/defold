@@ -632,7 +632,7 @@ void _glfwPreMain(struct android_app* state)
         int events;
         struct android_poll_source* source;
 
-        while ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
+        if ((ident=ALooper_pollAll(300, NULL, &events, (void**)&source)) >= 0)
         {
             // Process this event.
             if (source != NULL) {
