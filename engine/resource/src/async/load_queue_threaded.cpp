@@ -20,7 +20,7 @@ namespace dmLoadQueue
     // Once the loader has this amount not picked up, it will stop loading more.
     // This sets the bandwidth of the loader.
     const uint64_t MAX_PENDING_DATA = 4*1024*1024;
-    const uint32_t QUEUE_SLOTS = 8;
+    const uint32_t QUEUE_SLOTS = 16;
 
     struct Request
     {
@@ -160,6 +160,9 @@ namespace dmLoadQueue
         q->m_Mutex = dmMutex::New();
         q->m_WakeupCond = dmConditionVariable::New();
         q->m_Thread = dmThread::New(&LoadThread, 65536, q, "AsyncLoad");
+
+        dmLogWarning("sizeof(Queue): %u", (uint32_t)(sizeof(Queue) + QUEUE_SLOTS * DEFAULT_CAPACITY));
+
         return q;
     }
 
