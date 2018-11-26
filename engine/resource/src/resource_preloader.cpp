@@ -51,9 +51,16 @@ namespace dmResource
     // child nodes (which are done) are then erased and the tree is traversed upwards to see if the parent can be
     // completed in the same manner. (PreloaderTryPrune)
     //
-    // With the threaded load queue, PreloadHint will be called from an external thread, so the whole tree data
-    // is guarded by a mutex. It is the only function that will be called in this manner. If the tree is exhausted
-    // for free nodes, they are just thrown away, and the final Create function will Get synchronously.
+    // New items added in PreloadHint are added to a guarded dmArray and the preloader pops this array after it
+    // has detected a completion of an item in the preloader queue. This keeps the syncronized state small and
+    // reduces the contention on the syncronized lock.
+    //
+    // A path cache is also used to allow the path strings to be internalized without adding the full path length
+    // to each request item. The path cache is also syncronized with the same mutex as the new preloader hints array.
+    // The path cache is not touched by the UpdatePreloader code, we keep the internalized pointers in the item.
+
+    // If max number of preload items is reached or the path cache is full new items added to the preloader will
+    // be thrown away and can potentially cause synced loading of those resources. 
 
     struct PathDescriptor
     {
@@ -102,13 +109,17 @@ namespace dmResource
     // the largest branch.
     static const uint32_t MAX_PRELOADER_REQUESTS        = 1024;
     static const uint32_t SCRATCH_BUFFER_SIZE           = 65536;
-    static const uint32_t SCRATCH_BUFFER_THRESHOLD      = 4096;
+    static const uint32_t SCRATCH_BUFFER_THRESHOLD      = 8*1024;
 
     typedef dmHashTable<uint64_t, uint32_t> TPathHashTable;
+    typedef dmHashTable<uint64_t, bool> TPathInProgressTable;
 
+    static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE   = 313;
+    static const uint32_t PATH_IN_PROGRESS_CAPACITY     = MAX_PRELOADER_REQUESTS;
+    static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
     static const uint32_t PATH_AVERAGE_LENGTH           = 40;
-    static const uint32_t MAX_PRELOADER_PATHS           = MAX_PRELOADER_REQUESTS * 2;
-    static const uint32_t PATH_BUFFER_TABLE_SIZE        = (MAX_PRELOADER_PATHS * 2) / 3;
+    static const uint32_t MAX_PRELOADER_PATHS           = 1536;
+    static const uint32_t PATH_BUFFER_TABLE_SIZE        = 509;
     static const uint32_t PATH_BUFFER_TABLE_CAPACITY    = MAX_PRELOADER_PATHS;
     static const uint32_t PATH_BUFFER_HASHDATA_SIZE     = (PATH_BUFFER_TABLE_SIZE * sizeof(uint32_t)) + (PATH_BUFFER_TABLE_CAPACITY * sizeof(TPathHashTable::Entry));
 
@@ -121,16 +132,23 @@ namespace dmResource
     struct ResourcePreloader
     {
         ResourcePreloader()
-            : m_PathLookup(&m_LookupData[0], PATH_BUFFER_TABLE_SIZE, PATH_BUFFER_TABLE_CAPACITY)
-            , m_PathDataUsed(0)
-        { 
+            : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
+        {
         }
-        dmMutex::Mutex m_NewHintMutex;
-        dmArray<PendingHint> m_NewHints;
-        TPathHashTable m_PathLookup;
-        uint8_t m_LookupData[PATH_BUFFER_HASHDATA_SIZE];
-        char m_PathData[MAX_PRELOADER_PATHS * PATH_AVERAGE_LENGTH];
-        uint32_t m_PathDataUsed;
+        struct SyncedData {
+            SyncedData ()
+                : m_PathLookup(&m_LookupData[0], PATH_BUFFER_TABLE_SIZE, PATH_BUFFER_TABLE_CAPACITY)
+                , m_PathDataUsed(0)
+            {
+            }
+            dmArray<PendingHint> m_NewHints;
+            TPathHashTable m_PathLookup;
+            uint8_t m_LookupData[PATH_BUFFER_HASHDATA_SIZE];
+            char m_PathData[MAX_PRELOADER_PATHS * PATH_AVERAGE_LENGTH];
+            uint32_t m_PathDataUsed;
+        } m_SyncedData;
+
+        dmMutex::Mutex m_SyncedDataMutex;
 
         PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
 
@@ -139,10 +157,13 @@ namespace dmResource
         uint32_t m_FreelistSize;
         dmLoadQueue::HQueue m_LoadQueue;
         HFactory m_Factory;
+        TPathInProgressTable m_InProgress;
+        char m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
 
         // used instead of dynamic allocs as far as it lasts.
         char m_ScratchBuffer[SCRATCH_BUFFER_SIZE];
-        uint32_t m_ScratchBufferPos;
+        uint32_t m_ScratchBufferBeginPos;
+        uint32_t m_ScratchBufferEndPos;
 
         // post create state
         bool m_CreateComplete;
@@ -159,29 +180,29 @@ namespace dmResource
 //        uint64_t m_MainThreadTimeSpentNS;
     };
 
-    const char* InternalizePath(ResourcePreloader* preloader, uint64_t path_hash, const char* path, uint32_t path_len)
+    const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, uint64_t path_hash, const char* path, uint32_t path_len)
     {
-        uint32_t* path_lookup = preloader->m_PathLookup.Get(path_hash);
+        uint32_t* path_lookup = preloader_synced_data->m_PathLookup.Get(path_hash);
         if (path_lookup != 0x0)
         {
-            return &preloader->m_PathData[(*path_lookup) & 0x7fffffff];
+            return &preloader_synced_data->m_PathData[(*path_lookup) & 0x7fffffff];
         }
-        if (preloader->m_PathLookup.Capacity() == preloader->m_PathLookup.Size())
+        if (preloader_synced_data->m_PathLookup.Capacity() == preloader_synced_data->m_PathLookup.Size())
         {
             return 0x0;
         }
-        if (preloader->m_PathDataUsed + path_len + 1 >= sizeof(preloader->m_PathData))
+        if (preloader_synced_data->m_PathDataUsed + path_len + 1 >= sizeof(preloader_synced_data->m_PathData))
         {
             return 0x0;
         }
-        char* result = &preloader->m_PathData[preloader->m_PathDataUsed];
+        char* result = &preloader_synced_data->m_PathData[preloader_synced_data->m_PathDataUsed];
         dmStrlCpy(result, path, path_len + 1);
-        preloader->m_PathLookup.Put(path_hash, preloader->m_PathDataUsed);
-        preloader->m_PathDataUsed += path_len + 1;
+        preloader_synced_data->m_PathLookup.Put(path_hash, preloader_synced_data->m_PathDataUsed);
+        preloader_synced_data->m_PathDataUsed += path_len + 1;
         return result;
     }
 
-    Result MakePathDescriptor(ResourcePreloader* preloader, const char* name, PathDescriptor& path_descriptor)
+    Result MakePathDescriptor(ResourcePreloader* preloader, const char* name, PathDescriptor& out_path_descriptor)
     {
         if (name == 0x0)
         {
@@ -197,22 +218,22 @@ namespace dmResource
         {
             return RESULT_INVALID_DATA;
         }
-        path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
+        out_path_descriptor.m_NameHash = dmHashBuffer64(name, name_len);
 
         char canonical_path[RESOURCE_PATH_MAX];
         GetCanonicalPath(name, canonical_path);
         uint32_t canonical_path_len = strlen(canonical_path);
-        path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
+        out_path_descriptor.m_CanonicalPathHash = dmHashBuffer64(canonical_path, canonical_path_len);
 
-        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
+        dmMutex::ScopedLock lk(preloader->m_SyncedDataMutex);
         {
-            path_descriptor.m_InternalizedName = InternalizePath(preloader, path_descriptor.m_NameHash, name, name_len);
-            if (path_descriptor.m_InternalizedName == 0x0)
+            out_path_descriptor.m_InternalizedName = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_NameHash, name, name_len);
+            if (out_path_descriptor.m_InternalizedName == 0x0)
             {
                 return RESULT_OUT_OF_MEMORY;
             }
-            path_descriptor.m_InternalizedCanonicalPath = InternalizePath(preloader, path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
-            if (path_descriptor.m_InternalizedCanonicalPath == 0x0)
+            out_path_descriptor.m_InternalizedCanonicalPath = InternalizePath(&preloader->m_SyncedData, out_path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
+            if (out_path_descriptor.m_InternalizedCanonicalPath == 0x0)
             {
                 return RESULT_OUT_OF_MEMORY;
             }
@@ -220,30 +241,30 @@ namespace dmResource
         return RESULT_OK;
     }
 
-    static bool IsPathInProgress(ResourcePreloader* preloader, uint64_t path_hash)
+    static bool IsPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
     {
-        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
-        uint32_t* path_lookup = preloader->m_PathLookup.Get(path_hash);
-        assert(path_lookup != 0x0);
-        return ((*path_lookup) & 0x80000000u) == 0x80000000u;
+        uint64_t path_hash = path_descriptor->m_CanonicalPathHash;
+        bool* path_lookup = preloader->m_InProgress.Get(path_hash);
+        if (path_lookup == 0x0)
+        {
+            return false;
+        }
+        assert((*path_lookup) == true);
+        return true;
     }
 
-    static void MarkPathInProgress(ResourcePreloader* preloader, uint64_t path_hash)
+    static void MarkPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
     {
-        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
-        uint32_t* path_lookup = preloader->m_PathLookup.Get(path_hash);
-        assert(path_lookup != 0x0);
-        assert(((*path_lookup) & 0x80000000u) == 0u);
-        *path_lookup = (*path_lookup) | 0x80000000u;
+        uint64_t path_hash = path_descriptor->m_CanonicalPathHash;
+        assert(preloader->m_InProgress.Get(path_hash) == 0x0);
+        preloader->m_InProgress.Put(path_hash, true);
     }
 
-    static void UnmarkPathInProgress(ResourcePreloader* preloader, uint64_t path_hash)
+    static void UnmarkPathInProgress(ResourcePreloader* preloader, const PathDescriptor* path_descriptor)
     {
-        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
-        uint32_t* path_lookup = preloader->m_PathLookup.Get(path_hash);
-        assert(path_lookup != 0x0);
-        assert(((*path_lookup) & 0x80000000u) == 0x80000000u);
-        *path_lookup = (*path_lookup) & 0x7fffffffu;
+        uint64_t path_hash = path_descriptor->m_CanonicalPathHash;
+        assert(preloader->m_InProgress.Get(path_hash) != 0x0);
+        preloader->m_InProgress.Erase(path_hash);
     }
 
     static void PreloaderTreeInsert(ResourcePreloader* preloader, int32_t index, int32_t parent)
@@ -291,8 +312,8 @@ namespace dmResource
         uint32_t new_hint_count = 0;
         dmArray<PendingHint> new_hints;
         {
-            dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
-            new_hints.Swap(preloader->m_NewHints);
+            dmMutex::ScopedLock lk(preloader->m_SyncedDataMutex);
+            new_hints.Swap(preloader->m_SyncedData.m_NewHints);
         }
         for (uint32_t i = 0; i < new_hints.Size(); ++i)
         {
@@ -369,11 +390,12 @@ namespace dmResource
             preloader->m_Freelist[i] = MAX_PRELOADER_REQUESTS-i-1;
 
         preloader->m_FreelistSize = MAX_PRELOADER_REQUESTS - 1;
-        preloader->m_ScratchBufferPos = 0;
+        preloader->m_ScratchBufferBeginPos = 0;
+        preloader->m_ScratchBufferEndPos = 0;
 
         preloader->m_Factory = factory;
         preloader->m_LoadQueue = dmLoadQueue::CreateQueue(factory);
-        preloader->m_NewHintMutex = dmMutex::New();
+        preloader->m_SyncedDataMutex = dmMutex::New();
 
         preloader->m_PersistResourceCount = 0;
         preloader->m_PersistedResources.SetCapacity(names.Size());
@@ -460,7 +482,7 @@ namespace dmResource
 
         // Previous to this we could abort with RESULT_PENDING, but not any longer; at this point the request
         // is going to be finished and cleaned up. We can then remove it from the in progress
-        UnmarkPathInProgress(preloader, req->m_PathDescriptor.m_CanonicalPathHash);
+        UnmarkPathInProgress(preloader, &req->m_PathDescriptor);
 
         SResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
@@ -492,6 +514,24 @@ namespace dmResource
                 if (req->m_Buffer < preloader->m_ScratchBuffer || req->m_Buffer >= (preloader->m_ScratchBuffer + SCRATCH_BUFFER_SIZE))
                 {
                     free(req->m_Buffer);
+                }
+                else
+                {
+                    uint32_t aligned_buffer_size = DM_ALIGN(req->m_BufferSize, 16);
+                    if (req->m_Buffer, &preloader->m_ScratchBuffer[preloader->m_ScratchBufferBeginPos])
+                    {
+                        preloader->m_ScratchBufferBeginPos += aligned_buffer_size;
+                    }
+                    else if (req->m_Buffer == &preloader->m_ScratchBuffer[preloader->m_ScratchBufferEndPos - aligned_buffer_size])
+                    {
+                        preloader->m_ScratchBufferEndPos -= aligned_buffer_size;
+                    }
+
+                    if (preloader->m_ScratchBufferBeginPos == preloader->m_ScratchBufferEndPos)
+                    {
+                        preloader->m_ScratchBufferBeginPos = 0;
+                        preloader->m_ScratchBufferEndPos = 0;
+                    }
                 }
 
                 req->m_Buffer = 0;
@@ -675,21 +715,35 @@ namespace dmResource
                 else
                 {
                     // This is cleared in the TryCreate call above if we call it.
-                    UnmarkPathInProgress(preloader, req->m_PathDescriptor.m_CanonicalPathHash);
+                    UnmarkPathInProgress(preloader, &req->m_PathDescriptor);
                 }
                 PreloaderTryPrune(preloader, req->m_Parent);
             }
             else
             {
-                // We need to hold on to the data for a bit longer now.
-                if (buffer_size < SCRATCH_BUFFER_THRESHOLD && buffer_size <= (SCRATCH_BUFFER_SIZE - preloader->m_ScratchBufferPos))
+                if (buffer_size > SCRATCH_BUFFER_THRESHOLD)
                 {
-                    req->m_Buffer = &preloader->m_ScratchBuffer[preloader->m_ScratchBufferPos];
-                    preloader->m_ScratchBufferPos += DM_ALIGN(buffer_size, 16);
+                    req->m_Buffer = malloc(buffer_size);
                 }
                 else
                 {
-                    req->m_Buffer = malloc(buffer_size);
+                    // We need to hold on to the data for a bit longer now.
+                    uint32_t aligned_size = DM_ALIGN(buffer_size, 16);
+                    if (preloader->m_ScratchBufferBeginPos >= aligned_size)
+                    {
+                        preloader->m_ScratchBufferBeginPos -= aligned_size;
+                        req->m_Buffer = &preloader->m_ScratchBuffer[preloader->m_ScratchBufferBeginPos];
+                    }
+                    else if (aligned_size <= (SCRATCH_BUFFER_SIZE - preloader->m_ScratchBufferEndPos))
+                    {
+                        req->m_Buffer = &preloader->m_ScratchBuffer[preloader->m_ScratchBufferEndPos];
+                        preloader->m_ScratchBufferEndPos += aligned_size;
+                    }
+                    else
+                    {
+                        dmLogWarning("Scratch buffer is full size: %u, low: %u, high: %u", SCRATCH_BUFFER_SIZE, preloader->m_ScratchBufferBeginPos, preloader->m_ScratchBufferEndPos);
+                        req->m_Buffer = malloc(buffer_size);
+                    }
                 }
                 memcpy(req->m_Buffer, buffer, buffer_size);
                 req->m_BufferSize = buffer_size;
@@ -734,7 +788,7 @@ namespace dmResource
         // had started a load.
         if (!req->m_LoadRequest && !req->m_Buffer && !req->m_Resource)
         {
-            bool wait_on = IsPathInProgress(preloader, req->m_PathDescriptor.m_CanonicalPathHash);
+            bool wait_on = IsPathInProgress(preloader, &req->m_PathDescriptor);
             if (wait_on)
             {
                 // Already being loaded elsewhere; we can wait on that to complete, unless the item
@@ -797,8 +851,12 @@ namespace dmResource
                 // Silently ignore if return null (means try later)"
                 if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
                 {
-                    MarkPathInProgress(preloader, req->m_PathDescriptor.m_CanonicalPathHash);
+                    MarkPathInProgress(preloader, &req->m_PathDescriptor);
                     return 1;
+                }
+                else
+                {
+                    return 0;
                 }
             }
         }
@@ -931,10 +989,16 @@ namespace dmResource
                 }
             }
 
+            if (PopHints(preloader))
+            {
+                empty_runs = 0;
+                continue;
+            }
+
             if (close_to_time_limit)
             {
                 ++empty_runs;
-                if (empty_runs > 10)
+                if (empty_runs > 3)
                 {
                     break;
                 }
@@ -942,15 +1006,16 @@ namespace dmResource
             else
             {
                 close_to_time_limit = (dmTime::GetTime() + 1000 - start) > soft_time_limit;
-                if (!close_to_time_limit)
+                if (close_to_time_limit)
                 {
-                    // In case of non-threaded loading, we never get any empty runs really.
-                    // In case of threaded loading and loading small files, use up a little
-                    // more of our time waiting for files.
-                    dmTime::Sleep(1000);
+                    continue;
                 }
-            }
 
+                // In case of non-threaded loading, we never get any empty runs really.
+                // In case of threaded loading and loading small files, use up a little
+                // more of our time waiting for files.
+                dmTime::Sleep(1000);
+            }
         } while(dmTime::GetTime() - start <= soft_time_limit);
 
 //        uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
@@ -983,7 +1048,6 @@ namespace dmResource
 
         assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS-1));
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
-        dmMutex::Delete(preloader->m_NewHintMutex);
 
 //        uint64_t now_ns = dmTime::GetTime();
 //        uint64_t preloader_load_time_ns = now_ns - preloader->m_PreloaderCreationTimeNS;
@@ -994,6 +1058,7 @@ namespace dmResource
 //            preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
 //            (uint32_t)(preloader_load_time_ns / 1000),
 //            (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
+        dmMutex::Delete(preloader->m_SyncedDataMutex);
 
         delete preloader;
     }
@@ -1029,25 +1094,25 @@ namespace dmResource
 
         HPreloader preloader = info->m_Preloader;
 
-        dmMutex::ScopedLock lk(preloader->m_NewHintMutex);
-        path_descriptor.m_InternalizedName = InternalizePath(preloader, path_descriptor.m_NameHash, name, name_len);
+        dmMutex::ScopedLock lk(preloader->m_SyncedDataMutex);
+        path_descriptor.m_InternalizedName = InternalizePath(&preloader->m_SyncedData, path_descriptor.m_NameHash, name, name_len);
         if (path_descriptor.m_InternalizedName == 0x0)
         {
             return false;
         }
-        path_descriptor.m_InternalizedCanonicalPath = InternalizePath(preloader, path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
+        path_descriptor.m_InternalizedCanonicalPath = InternalizePath(&preloader->m_SyncedData, path_descriptor.m_CanonicalPathHash, canonical_path, canonical_path_len);
         if (path_descriptor.m_InternalizedCanonicalPath == 0x0)
         {
             return false;
         }
 
-        uint32_t new_hints_size = preloader->m_NewHints.Size();
-        if (preloader->m_NewHints.Capacity() == new_hints_size)
+        uint32_t new_hints_size = preloader->m_SyncedData.m_NewHints.Size();
+        if (preloader->m_SyncedData.m_NewHints.Capacity() == new_hints_size)
         {
-            preloader->m_NewHints.OffsetCapacity(32);
+            preloader->m_SyncedData.m_NewHints.OffsetCapacity(32);
         }
-        preloader->m_NewHints.SetSize(new_hints_size + 1);
-        PendingHint& hint = preloader->m_NewHints.Back();
+        preloader->m_SyncedData.m_NewHints.SetSize(new_hints_size + 1);
+        PendingHint& hint = preloader->m_SyncedData.m_NewHints.Back();
         hint.m_PathDescriptor = path_descriptor;
         hint.m_Parent = info->m_Parent;
 
