@@ -605,6 +605,20 @@
   (let [value (settings-core/get-setting properties path)]
     (is (= expected-value value))))
 
+(deftest build-game-project-with-buildtime-conversion
+  (with-loaded-project "test/resources/buildtime_conversion"
+    (let [game-project (test-util/resource-node project "/game.project")]
+     (let [br (project-build project game-project (g/make-evaluation-context))]
+       (is (not (contains? br :error)))
+       (with-open [r (io/reader (build-path workspace "game.projectc"))]
+         (let [built-properties (settings-core/parse-settings r)]
+
+           ;; Check build-time conversion has taken place
+           ;; Having 'variable_dt' checked should map to 'vsync' 0 and 'update_frequency' 0
+           (check-project-setting built-properties ["display" "variable_dt"] "1")
+           (check-project-setting built-properties ["display" "vsync"] "0")
+           (check-project-setting built-properties ["display" "update_frequency"] "0")))))))
+
 (deftest build-game-project-properties
   (with-loaded-project "test/resources/game_project_properties"
                        (let [game-project (test-util/resource-node project "/game.project")]
