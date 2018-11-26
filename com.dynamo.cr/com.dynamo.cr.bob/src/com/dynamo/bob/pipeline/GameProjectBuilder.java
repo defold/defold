@@ -499,11 +499,18 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     // Used to transform an input game.project properties map to a game.projectc representation.
-    // Currently only filters out project.dependencies, but in the future can have more logic,
-    // for example doing build time properties conversion.
+    // Can be used for doing build time properties conversion.
     static public void transformGameProjectFile(BobProjectProperties properties) throws IOException {
         // Remove project dependencies list for security.
         properties.remove("project", "dependencies");
+
+        // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
+        Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
+        if (variableDt != null && variableDt == true) {
+            System.err.println("Warning! Setting 'variable_dt' in 'game.project' is deprecated. Disabling 'Vsync' and setting 'Frame cap' to 0 for equivalent behavior.");
+            properties.putBooleanValue("display", "vsync", false);
+            properties.putIntValue("display", "update_frequency", 0);
+        }
     }
 
     @Override

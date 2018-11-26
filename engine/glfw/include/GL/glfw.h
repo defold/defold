@@ -479,6 +479,7 @@ GLFWAPI int  GLFWAPIENTRY glfwGetWindowParam( int param );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowSizeCallback( GLFWwindowsizefun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowCloseCallback( GLFWwindowclosefun cbfun );
 GLFWAPI void GLFWAPIENTRY glfwSetWindowRefreshCallback( GLFWwindowrefreshfun cbfun );
+GLFWAPI int  GLFWAPIENTRY glfwGetWindowRefreshRate( void );
 
 /* Video mode functions */
 GLFWAPI int  GLFWAPIENTRY glfwGetVideoModes( GLFWvidmode *list, int maxcount );

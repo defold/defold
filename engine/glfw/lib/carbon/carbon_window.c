@@ -1008,6 +1008,11 @@ void _glfwPlatformCloseWindow( void )
     }
 }
 
+int _glfwPlatformGetWindowRefreshRate()
+{
+    return _glfwWin.refreshRate;
+}
+
 int _glfwPlatformGetDefaultFramebuffer( )
 {
     return 0;
