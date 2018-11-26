@@ -507,6 +507,7 @@ public class GameProjectBuilder extends Builder<Void> {
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
         Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
         if (variableDt != null && variableDt == true) {
+            System.err.println("Warning! Setting 'variable_dt' in 'game-project' is deprecated. Disabling 'Vsync' and setting 'Frame cap' to 0 for equivalent behavior.");
             properties.putBooleanValue("display", "vsync", false);
             properties.putIntValue("display", "update_frequency", 0);
         }
