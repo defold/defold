@@ -97,11 +97,11 @@
         values (make-form-values-map settings)]
     {:form-ops form-ops :sections sections :values values :meta-settings meta-settings}))
 
-(defn get-setting-error [setting-value meta-setting]
+(defn get-setting-error [setting-value meta-setting label]
   (when (and (not= nil setting-value) (:deprecated meta-setting))
     (if (not= setting-value (:default meta-setting))
-      (g/->error nil :build-targets (:severity-override meta-setting) nil (:help meta-setting))
-      (g/->error nil :build-targets (:severity-default meta-setting) nil (:help meta-setting)))))
+      (g/->error nil label (:severity-override meta-setting) nil (:help meta-setting))
+      (g/->error nil label (:severity-default meta-setting) nil (:help meta-setting)))))
 
 (defn get-settings-errors [form-data]
   (let [meta-settings (:meta-settings form-data)
@@ -109,9 +109,9 @@
     (into {}
           (keep (fn [[setting-path setting-value]]
                   (let [meta-setting (settings-core/get-meta-setting meta-settings setting-path)]
-                    (when-some [error (get-setting-error setting-value meta-setting)]
-                      [setting-path error])))
-                setting-values))))
+                    (when-some [error (get-setting-error setting-value meta-setting :build-targets)]
+                      [setting-path error]))))
+          setting-values)))
 
 (g/defnk produce-form-data [_node-id meta-info raw-settings resource-setting-nodes resource-settings]
   (let [meta-settings (:settings meta-info)

@@ -23,14 +23,12 @@
 
 ;; Transform a settings map with build-time settings conversions.
 (defn- transform-settings! [settings]
-  (let [transformed-settings
-        ;; Map deprecated 'variable_dt' to new values for same runtime behavior
-        (if (= true (get settings ["display", "variable_dt"] false))
-          (-> settings
-              (assoc  ["display", "vsync"] false)
-              (assoc  ["display", "update_frequency"] 0))
-          settings)]
-    transformed-settings))
+  ;; Map deprecated 'variable_dt' to new values for same runtime behavior
+  (if (= true (get settings ["display", "variable_dt"] false))
+    (-> settings
+        (assoc  ["display", "vsync"] false)
+        (assoc  ["display", "update_frequency"] 0))
+    settings))
 
 (defn- build-game-project [resource dep-resources user-data]
   (let [{:keys [settings-map meta-settings path->built-resource-settings]} user-data
@@ -47,9 +45,8 @@
                                              (assoc setting :value build-resource-path))
                                            (assoc setting :value (resource/proj-path value)))
                                          (assoc setting :value (settings-core/render-raw-setting-value meta-setting value)))))))
-                       (do
-                         (let [transformed-settings-map (transform-settings! settings-map)]
-                           (sort-by first transformed-settings-map))))
+                       (let [transformed-settings-map (transform-settings! settings-map)]
+                         (sort-by first transformed-settings-map)))
         ^String user-data-content (settings-core/settings->str settings)]
     {:resource resource :content (.getBytes user-data-content)}))
 

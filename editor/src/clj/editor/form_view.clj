@@ -101,7 +101,6 @@
 (defn update-form-setting [form-data path f]
   (update form-data :sections (fn [section] (mapv #(update-section-setting % path f) section))))
 
-
 (defn- create-text-field-control [parse serialize {:keys [path help] :as field-info} {:keys [set cancel]}]
   (let [tf (TextField.)
         commit-fn (fn [_]
@@ -950,14 +949,14 @@
                          ((:update api) value)
                          (update-label-box overridden?))
                        (when (:deprecated (:meta-setting update-data))
-                         (let [error (settings/get-setting-error (:setting-value update-data) (:meta-setting update-data))
+                         (let [error (settings/get-setting-error (:setting-value update-data) (:meta-setting update-data) :build-targets)
                                severity (:severity error)]
                            (ui/remove-styles! control (map val severity-field-style-map))
-                           (if (= nil error)
-                             (set-visible-and-managed! [label-box control] false)
+                           (if (some? error)
                              (do
                                (set-visible-and-managed! [label-box control] true)
-                               (ui/add-style! control (severity-field-style-map severity)))))))]
+                               (ui/add-style! control (severity-field-style-map severity)))
+                             (set-visible-and-managed! [label-box control] false)))))]
 
     (GridPane/setFillWidth label-box true)
     (GridPane/setValignment label-box (field-label-valign field-info))
