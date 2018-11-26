@@ -133,6 +133,12 @@ public class ProjectBuildTest {
 
         // project.dependencies entry should be removed
         checkProjectSetting(outputProps, "project", "dependencies", null);
+
+        // Compiled resource
+        checkProjectSetting(outputProps, "display", "display_profiles", "/builtins/render/default.display_profilesc");
+
+        // Copy-only resource
+        checkProjectSetting(outputProps, "osx", "infoplist", "/builtins/manifests/osx/Info.plist");
     }
 
     private String createFile(String root, String name, String content) throws IOException {
