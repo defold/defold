@@ -397,20 +397,21 @@ namespace dmEngine
 
     static void SetSwapInterval(HEngine engine, int swap_interval)
     {
-        swap_interval = dmMath::Max(0, swap_interval);
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
-        engine->m_UseSwVsync = (!engine->m_UseVariableDt && swap_interval == 0);
-#endif
-        dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        if (!engine->m_UseVariableDt)
+        {
+            swap_interval = dmMath::Max(0, swap_interval);
+            // For backward-compatability, hardware vsync with swap_interval 0 on desktop should result in sw vsync
+            engine->m_UseSwVsync = (engine->m_VsyncMode == VSYNC_SOFTWARE || (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval == 0));
+            if (engine->m_VsyncMode == VSYNC_HARDWARE && swap_interval > 0) // need to update engine update freq to get correct dt when swap interval changes
+                engine->m_UpdateFrequency /= swap_interval;
+            dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+        }
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
     {
         engine->m_UpdateFrequency = frequency;
         engine->m_UpdateFrequency = dmMath::Max(1U, engine->m_UpdateFrequency);
-        engine->m_UpdateFrequency = dmMath::Min(60U, engine->m_UpdateFrequency);
-        int swap_interval = 60 / engine->m_UpdateFrequency;
-        SetSwapInterval(engine, swap_interval);
     }
 
     /*
@@ -584,12 +585,45 @@ namespace dmEngine
         engine->m_InvPhysicalWidth = 1.0f / physical_width;
         engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
-        engine->m_UseVariableDt = dmConfigFile::GetInt(engine->m_Config, "display.variable_dt", 0) != 0;
         engine->m_PreviousFrameTime = dmTime::GetTime();
         engine->m_FlipTime = dmTime::GetTime();
         engine->m_PreviousRenderTime = 0;
         engine->m_UseSwVsync = false;
-        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 60));
+
+        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true);
+        uint32_t setting_update_frequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
+        uint32_t update_frequency = setting_update_frequency;
+        uint32_t swap_interval = 1;
+
+        if (!setting_vsync)
+        {
+            engine->m_UseVariableDt = setting_update_frequency == 0; // if no setting_vsync and update_frequency 0, use variable_dt
+            engine->m_VsyncMode = VSYNC_SOFTWARE;
+            swap_interval = 0;
+        }
+        else
+        {
+            engine->m_UseVariableDt = 0;
+            uint32_t refresh_rate = dmGraphics::GetWindowRefreshRate(engine->m_GraphicsContext);
+            if (refresh_rate == 0) // default to 60 if read failed
+            {
+                refresh_rate = 60;
+            }
+            else // Only bother setting a custom swap interval if we succeeded in getting a window refresh rate
+            {
+                if (setting_update_frequency > 0)
+                {
+                    // Calculate closest integer swap-interval from refresh rate and setting_update_frequency
+                    float fswap_interval = refresh_rate / setting_update_frequency;
+                    swap_interval = dmMath::Max(1U, (uint32_t) fswap_interval);
+                }
+            }
+            update_frequency = refresh_rate;
+            engine->m_VsyncMode = VSYNC_HARDWARE;
+        }
+
+        SetUpdateFrequency(engine, update_frequency);
+        SetSwapInterval(engine, swap_interval);
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1122,13 +1156,8 @@ bail:
         engine->m_Alive = true;
         engine->m_RunResult.m_ExitCode = 0;
 
-        // uint64_t target_frametime = (uint64_t)((1.f / engine->m_UpdateFrequency) * 1000000.0);
-
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
         uint64_t target_frametime = 1000000 / engine->m_UpdateFrequency;
         uint64_t prev_flip_time = engine->m_FlipTime;
-#endif
-
         uint64_t time = dmTime::GetTime();
 
         float fps = engine->m_UpdateFrequency;
@@ -1322,7 +1351,6 @@ bail:
                 }
 #endif
 
-#if !(defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__))
                 if (engine->m_UseSwVsync)
                 {
                     uint64_t flip_dt = dmTime::GetTime() - prev_flip_time;
@@ -1339,10 +1367,10 @@ bail:
                         }
                     }
                 }
-#endif
-
                 uint64_t flip_time_start = dmTime::GetTime();
+
                 dmGraphics::Flip(engine->m_GraphicsContext);
+
                 engine->m_FlipTime = dmTime::GetTime();
                 engine->m_PreviousRenderTime = engine->m_FlipTime - flip_time_start;
 

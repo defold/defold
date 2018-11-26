@@ -8,14 +8,10 @@
             [editor.fs :as fs]
             [editor.graph-util :as gu]
             [editor.game-project-core :as gpcore]
-            [editor.defold-project :as project]
-            [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [service.log :as log])
-  (:import [java.io File]
-           [org.apache.commons.io IOUtils]))
+            [editor.resource-node :as resource-node])
+  (:import [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -24,6 +20,15 @@
 (defn- ignored-setting?
   [{:keys [path]}]
   (= path ["project" "dependencies"]))
+
+;; Transform a settings map with build-time settings conversions.
+(defn- transform-settings! [settings]
+  ;; Map deprecated 'variable_dt' to new values for same runtime behavior
+  (if (= true (get settings ["display", "variable_dt"] false))
+    (-> settings
+        (assoc  ["display", "vsync"] false)
+        (assoc  ["display", "update_frequency"] 0))
+    settings))
 
 (defn- build-game-project [resource dep-resources user-data]
   (let [{:keys [settings-map meta-settings path->built-resource-settings]} user-data
@@ -40,7 +45,8 @@
                                              (assoc setting :value build-resource-path))
                                            (assoc setting :value (resource/proj-path value)))
                                          (assoc setting :value (settings-core/render-raw-setting-value meta-setting value)))))))
-                       (sort-by first settings-map))
+                       (let [transformed-settings-map (transform-settings! settings-map)]
+                         (sort-by first transformed-settings-map)))
         ^String user-data-content (settings-core/settings->str settings)]
     {:resource resource :content (.getBytes user-data-content)}))
 
@@ -117,11 +123,11 @@
 (g/defnk produce-build-targets [_node-id resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
   (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
         deps-by-source (into {} (map
-                                 (fn [build-target]
-                                   (let [build-resource (:resource build-target)
-                                         source-resource (:resource build-resource)]
-                                     [source-resource build-resource]))
-                                 dep-build-targets))
+                                  (fn [build-target]
+                                    (let [build-resource (:resource build-target)
+                                          source-resource (:resource build-resource)]
+                                      [source-resource build-resource]))
+                                  dep-build-targets))
         path->built-resource-settings (into {} (keep (fn [resource-setting]
                                                        (when (resource-setting-connections-template (:path resource-setting))
                                                          [(:path resource-setting) (deps-by-source (:value resource-setting))]))
@@ -152,6 +158,7 @@
 
   (input raw-settings g/Any)
   (input resource-settings g/Any)
+  (input setting-errors g/Any)
 
   (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
@@ -185,6 +192,7 @@
                     (g/connect settings-node :raw-settings self :raw-settings)
                     (g/connect settings-node :meta-info self :meta-info)
                     (g/connect settings-node :resource-settings self :resource-settings)
+                    (g/connect settings-node :setting-errors self :setting-errors)
                     (settings/load-settings-node settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
       (g/connect project :resource-map self :resource-map))))
 
