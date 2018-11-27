@@ -8,6 +8,7 @@
    [editor.code.view :as code-view]
    [editor.dialogs :as dialogs]
    [editor.error-reporting :as error-reporting]
+   [editor.gl :as gl]
    [editor.prefs :as prefs]
    [editor.progress :as progress]
    [editor.system :as system]
@@ -74,7 +75,7 @@
   [ex-map sentry-id-promise]
   (when (.isShowing (ui/main-stage))
     (ui/run-now
-      (dialogs/make-error-dialog ex-map sentry-id-promise))))
+      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise))))
 
 (defn- try-shell-command! [command & args]
   (try
@@ -117,6 +118,11 @@
                                                       :key        "9e25fea9bc334227b588829dd60265c1"
                                                       :secret     "f694ef98d47d42cf8bb67ef18a4e9cdb"}})
   (disable-imageio-cache!)
+
+  (when-let [support-error (gl/gl-support-error)]
+    (when (= (dialogs/make-gl-support-error-dialog support-error) :quit)
+      (System/exit -1)))
+
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         namespace-loader (load-namespaces-in-background)

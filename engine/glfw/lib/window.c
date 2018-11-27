@@ -250,9 +250,16 @@ void _glfwInputMouseClick( int button, int action )
 {
     if( button >= 0 && button <= GLFW_MOUSE_BUTTON_LAST )
     {
-        // Register mouse button action
-        if( action == GLFW_RELEASE && _glfwInput.StickyMouseButtons )
+        if (_glfwInput.MouseButton[ button ] == GLFW_CLICKED) {
+            return;
+        }
+
+        if( action == GLFW_RELEASE && _glfwInput.MouseButton[ button ] == GLFW_PRESS )
         {
+            _glfwInput.MouseButton[ button ] = GLFW_CLICKED;
+        } else if( action == GLFW_RELEASE && _glfwInput.StickyMouseButtons )
+        {
+            // Register mouse button action
             _glfwInput.MouseButton[ button ] = GLFW_STICK;
         }
         else
@@ -839,6 +846,15 @@ GLFWAPI void GLFWAPIENTRY glfwRestoreWindow( void )
     _glfwPlatformRefreshWindowParams();
 }
 
+GLFWAPI int GLFWAPIENTRY glfwGetWindowRefreshRate( void )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return 0;
+    }
+
+    return _glfwPlatformGetWindowRefreshRate();
+}
 
 //========================================================================
 // Swap buffers (double-buffering) and poll any new events

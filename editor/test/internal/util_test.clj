@@ -97,6 +97,7 @@
 (deftest first-index-where-test
   (is (= 1 (first-index-where even? (range 1 4))))
   (is (= 2 (first-index-where nil? [:a :b nil :d])))
+  (is (= 3 (first-index-where #(Character/isDigit %) "abc123def")))
   (is (= 3 (first-index-where (fn [[k _]] (= :d k)) (sorted-map :a 1 :b 2 :c 3 :d 4))))
   (is (= 4 (first-index-where #(= :e %) (list :a nil :c nil :e))))
   (is (= 5 (first-index-where #(= "f" %) (sorted-set "f" "e" "d" "c" "b" "a"))))

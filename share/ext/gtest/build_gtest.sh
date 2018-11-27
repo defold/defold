@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 
-if [[ $2 -eq "js-web" ]]; then
+if [[ $2 -eq "js-web" ]] || [[ $2 -eq "wasm-web" ]]; then
 	export CXXFLAGS='-DGTEST_USE_OWN_TR1_TUPLE=1'
 fi
 
@@ -56,7 +56,7 @@ case $CONF_TARGET in
 	*)
 		function cmi_make() {
 
-			if [ "$CONF_TARGET" == "js-web" ]; then
+			if [ "$CONF_TARGET" == "js-web" ] || [ "$CONF_TARGET" == "wasm-web" ]; then
 				# cxxabi issue: https://github.com/kripken/emscripten/issues/3484
 				CXXFLAGS="-I${EMSCRIPTEN}/system/lib/libcxxabi/include/ ${CXXFLAGS}"
 			fi

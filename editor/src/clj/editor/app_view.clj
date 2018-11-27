@@ -544,11 +544,12 @@
       (catch Exception e
         (log/warn :exception e)
         (when-not (engine-build-errors/handle-build-error! render-error! project e)
-          (dialogs/make-alert-dialog (format "Launching %s failed: \n%s"
+          (dialogs/make-error-dialog (format "Launching %s Failed"
                                              (if (some? selected-target)
                                                (targets/target-message-label selected-target)
-                                               "New Local Engine")
-                                             (.getMessage e))))))))
+                                               "New Local Engine"))
+                                     "If the engine is already running, shut down the process manually and retry."
+                                     (.getMessage e)))))))
 
 (defn- async-build! [project {:keys [debug?] :or {debug? false} :as opts} old-artifact-map result-fn]
   (let [render-build-progress! (make-render-task-progress :build)
@@ -715,7 +716,10 @@ If you do not specifically require different script states, consider changing th
               (doseq [build-resource updated-build-resources]
                 (engine/reload-build-resource! target build-resource))))
           (catch Exception e
-            (dialogs/make-alert-dialog (format "Failed to reload resources on '%s':\n%s" (targets/target-message-label (targets/selected-target prefs)) (.getMessage e)))))))))
+            (dialogs/make-error-dialog "Hot Reload Failed"
+                                       (format "Failed to reload resources on '%s'"
+                                               (targets/target-message-label (targets/selected-target prefs)))
+                                       (.getMessage e))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [debug-view prefs]
@@ -1487,16 +1491,25 @@ If you do not specifically require different script states, consider changing th
                                    (dispose-preview-fn preview))
                                  (g/delete-graph! view-graph)))))))))))
 
+(def ^:private open-assets-term-prefs-key "open-assets-term")
+
 (defn- query-and-open! [workspace project app-view prefs term]
-  (doseq [resource (dialogs/make-resource-dialog workspace project
-                                                 (cond-> {:title "Open Assets"
-                                                          :accept-fn resource/editable-resource?
-                                                          :selection :multiple
-                                                          :ok-label "Open"
-                                                          :tooltip-gen (partial gen-tooltip workspace project app-view)}
-                                                   (some? term)
-                                                   (assoc :filter term)))]
-    (open-resource app-view prefs workspace project resource)))
+  (let [prev-filter-term (prefs/get-prefs prefs open-assets-term-prefs-key nil)
+        filter-term-atom (atom prev-filter-term)
+        selected-resources (dialogs/make-resource-dialog workspace project
+                                                         (cond-> {:title "Open Assets"
+                                                                  :accept-fn resource/editable-resource?
+                                                                  :selection :multiple
+                                                                  :ok-label "Open"
+                                                                  :filter-atom filter-term-atom
+                                                                  :tooltip-gen (partial gen-tooltip workspace project app-view)}
+                                                                 (some? term)
+                                                                 (assoc :filter term)))
+        filter-term @filter-term-atom]
+    (when (not= prev-filter-term filter-term)
+      (prefs/set-prefs prefs open-assets-term-prefs-key filter-term))
+    (doseq [resource selected-resources]
+      (open-resource app-view prefs workspace project resource))))
 
 (handler/defhandler :select-items :global
   (run [user-data] (dialogs/make-select-list-dialog (:items user-data) (:options user-data))))
@@ -1511,10 +1524,10 @@ If you do not specifically require different script states, consider changing th
       (query-and-open! workspace project app-view prefs term))))
 
 (handler/defhandler :search-in-files :global
-  (run [project app-view search-results-view]
+  (run [project app-view prefs search-results-view]
     (when-let [term (get-view-text-selection (g/node-value app-view :active-view-info))]
-      (search-results-view/set-search-term! term))
-    (search-results-view/show-search-in-files-dialog! search-results-view project)))
+      (search-results-view/set-search-term! prefs term))
+    (search-results-view/show-search-in-files-dialog! search-results-view project prefs)))
 
 (defn- bundle! [changes-view build-errors-view project prefs platform bundle-options]
   (console/clear-console!)

@@ -1319,7 +1319,10 @@ static void destroyWindow( void )
     }
 }
 
-
+ int _glfwPlatformGetWindowRefreshRate()
+ {
+    return _glfwWin.refreshRate;
+ }
 
 //************************************************************************
 //****               Platform implementation functions                ****
