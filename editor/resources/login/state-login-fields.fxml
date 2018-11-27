@@ -31,14 +31,14 @@
             <!-- E-mail -->
             <Label text="E-mail" styleClass="field-label" GridPane.rowIndex="0" GridPane.columnIndex="0" />
             <TextField id="email-field" GridPane.rowIndex="0" GridPane.columnIndex="1" />
-            <Label id="email-error-label" text="Invalid E-mail address" styleClass="df-tiny-text" GridPane.rowIndex="1" GridPane.columnIndex="1" />
+            <Label id="email-error-label" text="Invalid e-mail address" styleClass="df-tiny-text, df-below-field" GridPane.rowIndex="1" GridPane.columnIndex="1" />
 
             <!-- Password -->
             <Label text="Password" styleClass="field-label" GridPane.rowIndex="2" GridPane.columnIndex="0" />
             <PasswordField id="password-field" GridPane.rowIndex="2" GridPane.columnIndex="1" />
             <HBox GridPane.rowIndex="3" GridPane.columnIndex="1">
-                <Label id="password-error-label" text="Wrong password" styleClass="df-tiny-text" HBox.hgrow="ALWAYS" />
-                <Hyperlink id="forgot-password-button" styleClass="df-tiny-text" text="Forgot password?" focusTraversable="false" />
+                <Label id="password-error-label" text="Wrong password" styleClass="df-tiny-text, df-below-field" HBox.hgrow="ALWAYS" />
+                <Hyperlink id="forgot-password-button" styleClass="df-tiny-text, df-below-field" text="Forgot password?" focusTraversable="false" />
             </HBox>
         </GridPane>
 

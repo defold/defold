@@ -81,6 +81,10 @@ $df-bright-blue: #5BC0FF;
 
   .df-tiny-text {
     -fx-font-size: 11px;
+
+    &.df-below-field {
+      -fx-padding: 2px 0px 0px 0px;
+    }
   }
 
   .df-error-banner {

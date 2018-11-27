@@ -18,7 +18,7 @@
       -fx-opacity: 1.0;
     }
 
-    &.error { -fx-text-fill: $error-severity-fatal; }
+    &.error { -fx-text-fill: $error-severity-warning; } // Use yellow for readability.
     &.warning { -fx-text-fill: $error-severity-warning; }
   }
 

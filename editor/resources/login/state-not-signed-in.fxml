@@ -24,7 +24,7 @@
                 </Insets>
             </VBox.margin>
         </Button>
-        <Hyperlink id="sign-in-with-email-button" text="Sign in with E-mail" />
+        <Hyperlink id="sign-in-with-email-button" text="Sign in with e-mail" />
     </VBox>
     <HBox GridPane.rowIndex="2" styleClass="footer" maxWidth="-Infinity">
         <Label text="Don't have an account? " />
