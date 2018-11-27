@@ -418,9 +418,9 @@
                                true
                                (catch Exception exception
                                  (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
-                                                "Check that the game is running and is reachable over the network.")]
+                                                "Check that the game is running and is reachable over the network.\n")]
                                    (log/error :msg msg :exception exception)
-                                   (dialogs/make-alert-dialog msg)
+                                   (dialogs/make-error-dialog "Attach Debugger Failed" msg (.getMessage exception))
                                    false)))]
       (when attach-successful?
         (start-debugger! debug-view project target-address)))))

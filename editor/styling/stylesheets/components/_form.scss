@@ -16,6 +16,10 @@
         -fx-background-radius: 0px;
         -fx-border-radius: 0px;
     }
+    .check-box {
+        -fx-graphic-text-gap: 0;
+        -fx-label-padding: 0;
+    }
 }
 
 .field-error {

@@ -127,6 +127,7 @@
      ["editor.gutter.execution-marker.current" execution-marker-color]
      ["editor.gutter.execution-marker.frame" execution-marker-frame-color]
      ["editor.gutter.shadow" (LinearGradient/valueOf "to right, rgba(0, 0, 0, 0.3) 0%, transparent 100%")]
+     ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
      ["editor.matching.brace" (Color/valueOf "#A2B0BE")]
      ["editor.minimap.shadow" (LinearGradient/valueOf "to left, rgba(0, 0, 0, 0.2) 0%, transparent 100%")]
      ["editor.minimap.viewed.range" (Color/valueOf "#393C41")]
@@ -134,8 +135,7 @@
      ["editor.scroll.tab.hovered" (.deriveColor foreground-color 0.0 1.0 1.0 0.5)]
      ["editor.whitespace.space" (.deriveColor foreground-color 0.0 1.0 1.0 0.2)]
      ["editor.whitespace.tab" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]
-     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]
-     ["editor.indentation.guide" (.deriveColor foreground-color 0.0 1.0 1.0 0.1)]]))
+     ["editor.whitespace.rogue" (Color/valueOf "#FBCE2F")]]))
 
 (defn make-color-scheme [ordered-paints-by-pattern]
   (into []
@@ -648,8 +648,8 @@
 (g/defnk produce-visible-cursor-ranges [lines cursor-ranges layout]
   (data/visible-cursor-ranges lines layout cursor-ranges))
 
-(g/defnk produce-visible-regions-by-type [lines regions layout]
-  (group-by :type (data/visible-cursor-ranges lines layout regions)))
+(g/defnk produce-visible-regions [lines regions layout]
+  (data/visible-cursor-ranges lines layout regions))
 
 (g/defnk produce-visible-matching-braces [lines matching-braces layout]
   (data/visible-cursor-ranges lines layout (into [] (mapcat identity) matching-braces)))
@@ -663,7 +663,7 @@
     :current-frame
     (cursor-range-draw-info :word nil frame-color execution-marker)))
 
-(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focus-state layout visible-cursors visible-cursor-ranges visible-regions-by-type visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
+(g/defnk produce-cursor-range-draw-infos [color-scheme lines cursor-ranges focus-state layout visible-cursors visible-cursor-ranges visible-regions visible-matching-braces highlighted-find-term find-case-sensitive? find-whole-word? execution-markers]
   (let [background-color (color-lookup color-scheme "editor.background")
         ^Color selection-background-color (color-lookup color-scheme "editor.selection.background")
         selection-background-color (if (not= :not-focused focus-state) selection-background-color (color-lookup color-scheme "editor.selection.background.inactive"))
@@ -673,6 +673,8 @@
         execution-marker-current-row-color (color-lookup color-scheme "editor.execution-marker.current")
         execution-marker-frame-row-color (color-lookup color-scheme "editor.execution-marker.frame")
         matching-brace-color (color-lookup color-scheme "editor.matching.brace")
+        foreground-color (color-lookup color-scheme "editor.foreground")
+        visible-regions-by-type (group-by :type visible-regions)
         active-tab-trigger-scope-ids (into #{}
                                            (keep (fn [tab-trigger-scope-region]
                                                    (when (some #(data/cursor-range-contains? tab-trigger-scope-region (data/CursorRange->Cursor %))
@@ -685,6 +687,8 @@
              visible-cursor-ranges)
         (map (partial cursor-range-draw-info :underline nil matching-brace-color)
              visible-matching-braces)
+        (map (partial cursor-range-draw-info :underline nil foreground-color)
+             (visible-regions-by-type :resource-reference))
         (map (partial make-execution-marker-draw-info execution-marker-current-row-color execution-marker-frame-row-color)
              execution-markers)
         (cond
@@ -849,7 +853,7 @@
   (output tab-trigger-word-regions-by-scope-id r/RegionGrouping :cached produce-tab-trigger-word-regions-by-scope-id)
   (output visible-cursors r/Cursors :cached produce-visible-cursors)
   (output visible-cursor-ranges r/CursorRanges :cached produce-visible-cursor-ranges)
-  (output visible-regions-by-type r/RegionGrouping :cached produce-visible-regions-by-type)
+  (output visible-regions r/Regions :cached produce-visible-regions)
   (output visible-matching-braces r/CursorRanges :cached produce-visible-matching-braces)
   (output cursor-range-draw-infos CursorRangeDrawInfos :cached produce-cursor-range-draw-infos)
   (output minimap-glyph-metrics data/GlyphMetrics :cached produce-minimap-glyph-metrics)
@@ -1391,6 +1395,9 @@
                      (= :scroll-bar-y-hold-down gesture-type))
                  javafx.scene.Cursor/DEFAULT
 
+                 (some? (:on-click! (:region hovered-element)))
+                 javafx.scene.Cursor/HAND
+
                  (data/rect-contains? (.canvas layout) x y)
                  ;; TODO:
                  ;; Currently using an image cursor results in a corrupted mouse pointer under macOS High Sierra.
@@ -1427,21 +1434,26 @@
 
 (defn handle-mouse-moved! [view-node ^MouseDragEvent event]
   (.consume event)
-  (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
                    (data/mouse-moved (get-property view-node :lines)
                                      (get-property view-node :cursor-ranges)
+                                     (get-property view-node :visible-regions)
                                      (get-property view-node :layout)
                                      (get-property view-node :gesture-start)
                                      (get-property view-node :hovered-element)
                                      (.getX event)
-                                     (.getY event))))
+                                     (.getY event)))
+  (refresh-mouse-cursor! view-node event))
 
 (defn handle-mouse-released! [view-node ^MouseEvent event]
   (.consume event)
+  (when-some [{:keys [on-click!] :as hovered-region} (:region (get-property view-node :hovered-element))]
+    (on-click! hovered-region))
   (refresh-mouse-cursor! view-node event)
   (set-properties! view-node :selection
-                   (data/mouse-released (get-property view-node :layout)
+                   (data/mouse-released (get-property view-node :lines)
+                                        (get-property view-node :visible-regions)
+                                        (get-property view-node :layout)
                                         (get-property view-node :gesture-start)
                                         (mouse-button event)
                                         (.getX event)

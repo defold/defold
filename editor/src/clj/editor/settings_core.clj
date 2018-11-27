@@ -35,7 +35,7 @@
 (defn- parse-setting-line [{:keys [current-category settings] :as parse-state} line]
   (when-let [[_ key val] (seq (map s/trim (re-find #"([^=]+)=(.*)" line)))]
     (when-let [setting-path (seq (non-blank (s/split key #"\.")))]
-      (update parse-state :settings conj {:path (cons current-category setting-path) :value val}))))
+      (update parse-state :settings conj {:path (into [current-category] setting-path) :value val}))))
 
 (defn- parse-error [line]
   (throw (Exception. (format "Invalid setting line: %s" line))))
@@ -221,7 +221,8 @@
 
 (defn get-meta-setting
   [meta-settings path]
-  (nth meta-settings (setting-index meta-settings path)))
+  (when-some [index (setting-index meta-settings path)]
+    (nth meta-settings index)))
 
 
 (defn settings-with-value [settings]

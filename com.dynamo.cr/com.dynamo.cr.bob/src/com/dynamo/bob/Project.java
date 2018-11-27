@@ -561,7 +561,7 @@ public class Project {
         }
         PlatformArchitectures platformArchs = p.getArchitectures();
         String[] platformStrings;
-        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin )
+        if (p == Platform.Armv7Darwin || p == Platform.Arm64Darwin || p == Platform.JsWeb || p == Platform.WasmWeb)
         {
             // iOS is currently the only OS we use that supports fat binaries
             // Here we'll get a list of all associated architectures (armv7, arm64) and build them at the same time
@@ -601,8 +601,12 @@ public class Project {
             File buildDir = new File(FilenameUtils.concat(outputDir, buildPlatform));
             buildDir.mkdirs();
 
-            String defaultName = platform.formatBinaryName("dmengine");
-            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
+            List<String> defaultNames = platform.formatBinaryName("dmengine");
+            List<File> exes = new ArrayList<File>();
+            for (String name : defaultNames) {
+                File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), name));
+                exes.add(exe);
+            }
             List<ExtenderResource> allSource = ExtenderUtil.getExtensionSources(this, platform, variant);
 
 
@@ -664,7 +668,7 @@ public class Project {
             }
 
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
-            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultName, exe, classesDexFile);
+            BundleHelper.buildEngineRemote(extender, buildPlatform, sdkVersion, allSource, logFile, defaultNames, exes, classesDexFile);
 
             m.worked(1);
         }
@@ -686,10 +690,12 @@ public class Project {
                 continue;
             }
 
-            String defaultName = platform.formatBinaryName("dmengine");
-            File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
-            if (exe.exists()) {
-                exe.delete();
+            List<String> defaultNames = platform.formatBinaryName("dmengine");
+            for (String defaultName : defaultNames) {
+                File exe = new File(FilenameUtils.concat(buildDir.getAbsolutePath(), defaultName));
+                if (exe.exists()) {
+                    exe.delete();
+                }
             }
 
             // If we are building for Android, we expect a classes.dex file to be returned as well.
