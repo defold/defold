@@ -19,32 +19,6 @@ namespace dmCrash
     // This array contains the default behavior for each signal.
     static struct sigaction sigdfl[SIGNAL_MAX];
 
-    void unw_backtrace() {
-      unw_cursor_t cursor;
-      unw_context_t context;
-
-      // Initialize cursor to current frame for local unwinding.
-      unw_getcontext(&context);
-      unw_init_local(&cursor, &context);
-
-      // Unwind frames one by one, going up the frame stack.
-      while (unw_step(&cursor) > 0) {
-        unw_word_t offset, pc;
-        unw_get_reg(&cursor, UNW_REG_IP, &pc);
-        if (pc == 0) {
-          break;
-        }
-        printf("0x%llx:", pc);
-
-        char sym[256];
-        if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
-          printf(" (%s+0x%llx)\n", sym, offset);
-        } else {
-          printf(" -- error: unable to obtain symbol name for this frame\n");
-        }
-      }
-    }
-
     void OnCrash(int signo)
     {
         fflush(stdout);
@@ -53,36 +27,48 @@ namespace dmCrash
         g_AppState.m_Signum = signo;
         g_AppState.m_PtrCount = 0;
 
-//         g_AppState.m_PtrCount = backtrace(g_AppState.m_Ptr, AppState::PTRS_MAX);
-//         g_AppState.m_Signum = signo;
+        unw_context_t context;
+        unw_getcontext(&context);
+        unw_cursor_t cursor;
+        unw_init_local(&cursor, &context);
 
-//         char** stacktrace = backtrace_symbols(g_AppState.m_Ptr, g_AppState.m_PtrCount);
-//         uint32_t offset = 0;
+        uint32_t offset_extra = 0; // How much we've written to the extra field
+        while (unw_step(&cursor) > 0 && g_AppState.m_PtrCount < AppState::PTRS_MAX)
+        {
+            unw_word_t offset, pc;
+            unw_get_reg(&cursor, UNW_REG_IP, &pc);
+            if (pc == 0)
+            {
+                break;
+            }
+            g_AppState.m_Ptr[g_AppState.m_PtrCount] = (void*)(uintptr_t)pc;
+            g_AppState.m_PtrCount++;
 
-// dmLogWarning("MAWE: BACKTRACE %d", g_AppState.m_PtrCount);
+            printf("0x%llx:", pc);
 
-//         for (int i = 0; i < g_AppState.m_PtrCount; ++i)
-//         {
-//             // Write each symbol on a separate line, just like
-//             // backgrace_symbols_fd would do.
-//             uint32_t stacktrace_length = strnlen(stacktrace[i], dmCrash::AppState::EXTRA_MAX - 1);
-//             if ((offset + stacktrace_length) < (dmCrash::AppState::EXTRA_MAX - 1))
-//             {
-// dmLogWarning("MAWE: %d  %s", i, stacktrace[i]);
-//                 memcpy(g_AppState.m_Extra + offset, stacktrace[i], stacktrace_length);
-//                 g_AppState.m_Extra[offset + stacktrace_length] = '\n';
-//                 offset += stacktrace_length + 1;
-//             }
-//             else
-//             {
-//                 dmLogError("Not enough space to write entire stacktrace!");
-//                 break;
-//             }
-//         }
+            char sym[256];
+            if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
+                printf(" (%s+0x%llx)\n", sym, offset);
+            }
+            else
+            {
+                strcpy(sym, "<unknown>");
+            }
 
-        unw_backtrace();
+            int sym_len = strlen(sym);
+            if ((offset_extra + sym_len) < (dmCrash::AppState::EXTRA_MAX - 1))
+            {
+                memcpy(g_AppState.m_Extra + offset_extra, sym, sym_len);
+                g_AppState.m_Extra[offset_extra + sym_len] = '\n';
+                offset_extra += sym_len + 1;
+            }
+            else
+            {
+                dmLogWarning("Not enough space to write entire stacktrace!");
+                break;
+            }
+        }
 
-        //free(stacktrace);
         WriteCrash(g_FilePath, &g_AppState);
     }
 
