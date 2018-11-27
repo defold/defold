@@ -75,7 +75,7 @@
   [ex-map sentry-id-promise]
   (when (.isShowing (ui/main-stage))
     (ui/run-now
-      (dialogs/make-error-dialog ex-map sentry-id-promise))))
+      (dialogs/make-unexpected-error-dialog ex-map sentry-id-promise))))
 
 (defn- try-shell-command! [command & args]
   (try
