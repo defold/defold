@@ -101,6 +101,7 @@
   {:type :integer,
    :help "if Vsync checked, snaps to the closest matching swap interval for the set frame cap. Otherwise uses timers to respect the set value, 0 means no cap. For deprecated 'variable_dt' behavior, set to 0 and uncheck 'Vsync'",
    :label "Frame cap"
+   :default 0,
    :path ["display" "update_frequency"]}
   {:type :boolean,
    :help "Vertical sync, rely on hardware vsync for frame timing. Can be overridden depending on graphics driver and platform specifics. For deprecated 'variable_dt' behavior, uncheck this setting and set frame cap 0",
