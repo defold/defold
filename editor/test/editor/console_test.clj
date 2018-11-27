@@ -9,9 +9,18 @@
     (= matches (next (re-find line-sub-regions-pattern line)))
 
     "/main.lua"            ["/main.lua" nil]
+    "/main.lua:"           ["/main.lua" nil]
     "/main.lua:12"         ["/main.lua" "12"]
     "/dir/main.lua"        ["/dir/main.lua" nil]
+    "/dir/main.lua:"       ["/dir/main.lua" nil]
     "/dir/main.lua:12"     ["/dir/main.lua" "12"]
+
+    " /main.lua "          ["/main.lua" nil]
+    " /main.lua: "         ["/main.lua" nil]
+    " /main.lua:12 "       ["/main.lua" "12"]
+    " /dir/main.lua "      ["/dir/main.lua" nil]
+    " /dir/main.lua: "     ["/dir/main.lua" nil]
+    " /dir/main.lua:12 "   ["/dir/main.lua" "12"]
 
     "</main.lua>"          ["/main.lua" nil]
     "</main.lua:12>"       ["/main.lua" "12"]
@@ -56,6 +65,11 @@
          (append-lines {:lines [""]
                         :regions []}
                        ["/main.lua"])))
+  (is (= {:lines ["/non-existing-resource.lua"]
+          :regions []}
+         (append-lines {:lines [""]
+                        :regions []}
+                       ["/non-existing-resource.lua"])))
   (is (= {:lines ["Syntax error"
                   "  from </dir/main.lua:33>"]
           :regions [(resource-reference-region 1 (count "  from <") "/dir/main.lua:33" "/dir/main.lua" 32)]}
