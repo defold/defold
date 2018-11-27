@@ -8,7 +8,9 @@
            (javafx.beans.binding Bindings BooleanBinding ObjectBinding)
            (javafx.beans.property Property SimpleObjectProperty)
            (javafx.collections ObservableList ObservableMap ObservableSet)
-           (javafx.css Styleable)))
+           (javafx.css Styleable)
+           (javafx.scene Node)
+           (javafx.scene.control SelectionModel)))
 
 (set! *warn-on-reflection* true)
 
@@ -51,6 +53,32 @@
 
 (defn unbind-bidirectional! [^Property property ^Property other]
   (.unbindBidirectional property other))
+
+(defn bind-enabled! [^Node node ^ObservableBooleanValue condition]
+  (.bind (.disableProperty node)
+         (Bindings/not condition)))
+
+(defn unbind-enabled! [^Node node]
+  (.unbind (.disableProperty node)))
+
+(defn bind-enabled-to-selection!
+  "Disables the node unless an item is selected in selection-owner."
+  [^Node node selection-owner]
+  (let [^SelectionModel selection-model (ui/selection-model selection-owner)]
+    (.bind (.disableProperty node)
+           (Bindings/isNull (.selectedItemProperty selection-model)))))
+
+(defn bind-presence!
+  "Make the nodes presence in the scene dependent on an ObservableValue.
+  If the ObservableValue evaluates to false, the node is both hidden and
+  collapsed so it won't take up any space in the layout pass."
+  [^Node node ^ObservableValue condition]
+  (.bind (.visibleProperty node) condition)
+  (.bind (.managedProperty node) (.visibleProperty node)))
+
+(defn unbind-presence! [^Node node]
+  (.unbind (.visibleProperty node))
+  (.unbind (.managedProperty node)))
 
 (defn bind-style!
   "Create a binding that applies a style class to a node. Since style classes
@@ -122,16 +150,20 @@
 ;; Since we want to use `if`-expressions in this file, we must use a different
 ;; name for this function internally. It is exported as `if` at the bottom.
 (defn- -if
-  ^ObjectBinding [^ObservableBooleanValue condition ^ObservableObjectValue then-value ^ObservableObjectValue otherwise-value]
-  (-> (Bindings/when condition)
-      (.then then-value)
-      (.otherwise otherwise-value)))
+  ^ObjectBinding [^ObservableBooleanValue condition then-value otherwise-value]
+  (let [when (Bindings/when condition)
+        then (if (instance? ObservableObjectValue then-value)
+               (.then when ^ObservableObjectValue then-value)
+               (.then when ^Object then-value))]
+    (if (instance? ObservableObjectValue otherwise-value)
+      (.otherwise then ^ObservableObjectValue otherwise-value)
+      (.otherwise then ^Object otherwise-value))))
 
 (defn if-not
-  ^ObjectBinding [^ObservableBooleanValue condition ^ObservableObjectValue then-value ^ObservableObjectValue otherwise-value]
-  (-> (Bindings/when condition)
-      (.then otherwise-value)
-      (.otherwise then-value)))
+  ^ObjectBinding [^ObservableBooleanValue condition then-value otherwise-value]
+  (-if condition
+    otherwise-value
+    then-value))
 
 (defn map
   ^ObjectBinding [value-fn ^ObservableValue observable]
