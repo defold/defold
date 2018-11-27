@@ -405,9 +405,9 @@
         password-validation-error-property (SimpleObjectProperty.)
         network-error-property (SimpleObjectProperty.)
         account-error-property (SimpleObjectProperty.)]
-    (ui/bind-presence! state-login-fields
-                       (b/or (b/= :login-fields sign-in-state-property)
-                             (b/= :login-fields-submitted sign-in-state-property)))
+    (b/bind-presence! state-login-fields
+                      (b/or (b/= :login-fields sign-in-state-property)
+                            (b/= :login-fields-submitted sign-in-state-property)))
     (ui/with-controls state-login-fields [cancel-button create-account-button email-error-label ^TextField email-field ^Label error-banner-label forgot-password-button password-error-label ^TextField password-field ^ButtonBase submit-button]
       (let [on-submit! (fn [_]
                          (when (ui/enabled? submit-button)
@@ -419,7 +419,7 @@
         (ui/on-action! create-account-button (fn [_] (ui/open-url (make-create-account-url prefs)))))
 
       ;; Display network errors as a banner.
-      (ui/bind-presence! error-banner-label (b/some? network-error-property))
+      (b/bind-presence! error-banner-label (b/some? network-error-property))
       (b/bind! (.textProperty error-banner-label) (b/map :message network-error-property))
 
       ;; Populate email field from prefs.
@@ -459,14 +459,14 @@
                      (b/some? password-validation-error-property))))))
 
 (defn- configure-state-not-signed-in! [state-not-signed-in {:keys [prefs sign-in-state-property] :as dashboard-client}]
-  (ui/bind-presence! state-not-signed-in (b/= :not-signed-in sign-in-state-property))
+  (b/bind-presence! state-not-signed-in (b/= :not-signed-in sign-in-state-property))
   (ui/with-controls state-not-signed-in [create-account-button sign-in-with-browser-button sign-in-with-email-button]
     (ui/on-action! sign-in-with-browser-button (fn [_] (begin-sign-in-with-browser! dashboard-client)))
     (ui/on-action! sign-in-with-email-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))
     (ui/on-action! create-account-button (fn [_] (ui/open-url (make-create-account-url prefs))))))
 
 (defn- configure-state-browser-open! [state-browser-open {:keys [sign-in-state-property] :as dashboard-client}]
-  (ui/bind-presence! state-browser-open (b/= :browser-open sign-in-state-property))
+  (b/bind-presence! state-browser-open (b/= :browser-open sign-in-state-property))
   (ui/with-controls state-browser-open [cancel-button copy-sign-in-url-button]
     (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
     (ui/on-action! copy-sign-in-url-button (fn [_] (copy-sign-in-url! dashboard-client (Clipboard/getSystemClipboard))))))
@@ -475,8 +475,8 @@
   (let [email-validation-error-property (SimpleObjectProperty.)
         network-error-property (SimpleObjectProperty.)
         account-error-property (SimpleObjectProperty.)]
-    (ui/bind-presence! state-forgot-password (b/or (b/= :forgot-password sign-in-state-property)
-                                                   (b/= :forgot-password-submitted sign-in-state-property)))
+    (b/bind-presence! state-forgot-password (b/or (b/= :forgot-password sign-in-state-property)
+                                                  (b/= :forgot-password-submitted sign-in-state-property)))
     (ui/with-controls state-forgot-password [cancel-button ^TextField email-field email-error-label ^Label error-banner-label ^ButtonBase submit-button]
       (let [on-submit! (fn [_]
                          (when (ui/enabled? submit-button)
@@ -486,7 +486,7 @@
         (ui/on-action! cancel-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields))))
 
       ;; Display network errors as a banner.
-      (ui/bind-presence! error-banner-label (b/some? network-error-property))
+      (b/bind-presence! error-banner-label (b/some? network-error-property))
       (b/bind! (.textProperty error-banner-label) (b/map :message network-error-property))
 
       ;; Move focus to the email field when entering the forgot password state.
@@ -512,7 +512,7 @@
                      (b/some? email-validation-error-property))))))
 
 (defn- configure-state-email-sent! [state-email-sent {:keys [sign-in-state-property] :as _dashboard-client}]
-  (ui/bind-presence! state-email-sent (b/= :email-sent sign-in-state-property))
+  (b/bind-presence! state-email-sent (b/= :email-sent sign-in-state-property))
   (ui/with-controls state-email-sent [cancel-button]
     (ui/on-action! cancel-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))))
 
@@ -533,7 +533,7 @@
 
 (defn configure-sign-out-button! [sign-out-button {:keys [sign-in-state-property] :as dashboard-client}]
   (assert (dashboard-client? dashboard-client))
-  (ui/bind-presence! sign-out-button (b/= :signed-in sign-in-state-property))
+  (b/bind-presence! sign-out-button (b/= :signed-in sign-in-state-property))
   (ui/on-action! sign-out-button (fn [_] (sign-out! dashboard-client))))
 
 (defn- show-sign-in-dialog! [{:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]

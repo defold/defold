@@ -4,8 +4,9 @@
             [editor.form :as form]
             [editor.field-expression :as field-expression]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.url :as url]
-            [editor.jfx :as jfx]            
+            [editor.jfx :as jfx]
             [editor.dialogs :as dialogs]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
@@ -542,8 +543,7 @@
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel table))))
+    (b/bind-enabled-to-selection! remove-button table)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setFixedCellSize table cell-height)
@@ -733,8 +733,7 @@
     (ui/enable! add-button (or default-row? query-fn?))
     (ui/on-action! add-button (fn [_] (on-add-rows)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (b/bind-enabled-to-selection! remove-button list-view)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (.setCellFactory list-view (create-list-cell-factory (:element field-info) ctxt edited-cell))
@@ -847,8 +846,7 @@
     (ui/disable! add-button (nil? default-row))
     (ui/on-action! add-button (fn [_] (on-add-row)))
 
-    (.bind (.disableProperty remove-button)
-           (Bindings/equal -1 ^ObservableNumberValue (.selectedIndexProperty (.getSelectionModel list-view))))
+    (b/bind-enabled-to-selection! remove-button list-view)
     (ui/on-action! remove-button (fn [_] (on-remove-rows)))
 
     (ui/user-data! grid ::ui-update-fns updaters)

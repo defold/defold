@@ -10,6 +10,7 @@
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices-popup :as popup]
             [editor.util :as eutil]
             [editor.view :as view]
@@ -26,8 +27,8 @@
            (editor.code.data Cursor CursorRange GestureInfo LayoutInfo Rect)
            (java.util Collection)
            (java.util.regex Pattern)
-           (javafx.beans.binding Bindings StringBinding)
-           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleStringProperty)
+           (javafx.beans.binding ObjectBinding)
+           (javafx.beans.property Property SimpleBooleanProperty SimpleDoubleProperty SimpleObjectProperty SimpleStringProperty)
            (javafx.beans.value ChangeListener)
            (javafx.geometry HPos Point2D VPos)
            (javafx.scene Node Parent Scene)
@@ -1665,22 +1666,22 @@
 ;; cause a memory leak. You must manually unhook them or use weak listeners.
 ;; Source: https://community.oracle.com/message/10360893#10360893
 
-(defonce ^SimpleStringProperty bar-ui-type-property (doto (SimpleStringProperty.) (.setValue (name :hidden))))
-(defonce ^SimpleStringProperty find-term-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleStringProperty find-replacement-property (doto (SimpleStringProperty.) (.setValue "")))
-(defonce ^SimpleBooleanProperty find-whole-word-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-case-sensitive-property (doto (SimpleBooleanProperty.) (.setValue false)))
-(defonce ^SimpleBooleanProperty find-wrap-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleDoubleProperty font-size-property (doto (SimpleDoubleProperty.) (.setValue default-font-size)))
-(defonce ^SimpleBooleanProperty visible-indentation-guides-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleBooleanProperty visible-minimap-property (doto (SimpleBooleanProperty.) (.setValue true)))
-(defonce ^SimpleBooleanProperty visible-whitespace-property (doto (SimpleBooleanProperty.) (.setValue true)))
+(defonce ^:private ^SimpleObjectProperty bar-ui-type-property (SimpleObjectProperty. :hidden))
+(defonce ^:private ^SimpleStringProperty find-term-property (SimpleStringProperty. ""))
+(defonce ^:private ^SimpleStringProperty find-replacement-property (SimpleStringProperty. ""))
+(defonce ^:private ^SimpleBooleanProperty find-whole-word-property (SimpleBooleanProperty. false))
+(defonce ^:private ^SimpleBooleanProperty find-case-sensitive-property (SimpleBooleanProperty. false))
+(defonce ^:private ^SimpleBooleanProperty find-wrap-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleDoubleProperty font-size-property (SimpleDoubleProperty. default-font-size))
+(defonce ^:private ^SimpleBooleanProperty visible-indentation-guides-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleBooleanProperty visible-minimap-property (SimpleBooleanProperty. true))
+(defonce ^:private ^SimpleBooleanProperty visible-whitespace-property (SimpleBooleanProperty. true))
 
-(defonce ^StringBinding highlighted-find-term-property
-  (-> (Bindings/when (Bindings/or (Bindings/equal (name :find) bar-ui-type-property)
-                                  (Bindings/equal (name :replace) bar-ui-type-property)))
-      (.then find-term-property)
-      (.otherwise "")))
+(defonce ^:private ^ObjectBinding highlighted-find-term-property
+  (b/if (b/or (b/= :find bar-ui-type-property)
+              (b/= :replace bar-ui-type-property))
+    find-term-property
+    ""))
 
 (defn- init-property-and-bind-preference! [^Property property prefs preference default]
   (.setValue property (prefs/get-prefs prefs preference default))
@@ -1731,10 +1732,10 @@
 ;; -----------------------------------------------------------------------------
 
 (defn- bar-ui-visible? []
-  (not= (name :hidden) (.getValue bar-ui-type-property)))
+  (not= :hidden (.getValue bar-ui-type-property)))
 
 (defn- set-bar-ui-type! [ui-type]
-  (case ui-type (:hidden :goto-line :find :replace) (.setValue bar-ui-type-property (name ui-type))))
+  (case ui-type (:hidden :goto-line :find :replace) (.setValue bar-ui-type-property ui-type)))
 
 (defn- focus-code-editor! [view-node]
   (let [^Canvas canvas (g/node-value view-node :canvas)]
@@ -1762,7 +1763,7 @@
         maybe-row))))
 
 (defn- setup-goto-line-bar! [^GridPane goto-line-bar view-node]
-  (ui/bind-presence! goto-line-bar (Bindings/equal (name :goto-line) bar-ui-type-property))
+  (b/bind-presence! goto-line-bar (b/= :goto-line bar-ui-type-property))
   (ui/with-controls goto-line-bar [^TextField line-field ^Button go-button]
     (ui/bind-keys! goto-line-bar {KeyCode/ENTER :goto-entered-line})
     (ui/bind-action! go-button :goto-entered-line)
@@ -1782,7 +1783,7 @@
     (GridPane/setConstraints 0 1)))
 
 (defn- dispose-goto-line-bar! [^GridPane goto-line-bar]
-  (.unbind (.visibleProperty goto-line-bar)))
+  (b/unbind! (.visibleProperty goto-line-bar)))
 
 (handler/defhandler :goto-line :code-view-tools
   (run [goto-line-bar]
@@ -1812,15 +1813,15 @@
 
 (defn- setup-find-bar! [^GridPane find-bar view-node]
   (doto find-bar
-    (ui/bind-presence! (Bindings/equal (name :find) bar-ui-type-property))
+    (b/bind-presence! (b/= :find bar-ui-type-property))
     (ui/context! :code-view-find-bar {:find-bar find-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^Button next ^Button prev]
-    (.bindBidirectional (.textProperty term) find-term-property)
-    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
+    (b/bind-bidirectional! (.textProperty term) find-term-property)
+    (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/bind-bidirectional! (.selectedProperty wrap) find-wrap-property)
     (ui/bind-key-commands! find-bar {"Enter" :find-next
                                      "Shift+Enter" :find-prev})
     (ui/bind-action! next :find-next)
@@ -1828,25 +1829,25 @@
   find-bar)
 
 (defn- dispose-find-bar! [^GridPane find-bar]
-  (.unbind (.visibleProperty find-bar))
+  (b/unbind! (.visibleProperty find-bar))
   (ui/with-controls find-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term]
-    (.unbindBidirectional (.textProperty term) find-term-property)
-    (.unbindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.unbindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
+    (b/unbind-bidirectional! (.textProperty term) find-term-property)
+    (b/unbind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/unbind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/unbind-bidirectional! (.selectedProperty wrap) find-wrap-property)))
 
 (defn- setup-replace-bar! [^GridPane replace-bar view-node]
   (doto replace-bar
-    (ui/bind-presence! (Bindings/equal (name :replace) bar-ui-type-property))
+    (b/bind-presence! (b/= :replace bar-ui-type-property))
     (ui/context! :code-view-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
-    (.bindBidirectional (.textProperty term) find-term-property)
-    (.bindBidirectional (.textProperty replacement) find-replacement-property)
-    (.bindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.bindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.bindBidirectional (.selectedProperty wrap) find-wrap-property)
+    (b/bind-bidirectional! (.textProperty term) find-term-property)
+    (b/bind-bidirectional! (.textProperty replacement) find-replacement-property)
+    (b/bind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/bind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/bind-bidirectional! (.selectedProperty wrap) find-wrap-property)
     (ui/bind-action! next :find-next)
     (ui/bind-action! replace :replace-next)
     (ui/bind-keys! replace-bar {KeyCode/ENTER :replace-next})
@@ -1854,13 +1855,13 @@
   replace-bar)
 
 (defn- dispose-replace-bar! [^GridPane replace-bar]
-  (.unbind (.visibleProperty replace-bar))
+  (b/unbind! (.visibleProperty replace-bar))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement]
-    (.unbindBidirectional (.textProperty term) find-term-property)
-    (.unbindBidirectional (.textProperty replacement) find-replacement-property)
-    (.unbindBidirectional (.selectedProperty whole-word) find-whole-word-property)
-    (.unbindBidirectional (.selectedProperty case-sensitive) find-case-sensitive-property)
-    (.unbindBidirectional (.selectedProperty wrap) find-wrap-property)))
+    (b/unbind-bidirectional! (.textProperty term) find-term-property)
+    (b/unbind-bidirectional! (.textProperty replacement) find-replacement-property)
+    (b/unbind-bidirectional! (.selectedProperty whole-word) find-whole-word-property)
+    (b/unbind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
+    (b/unbind-bidirectional! (.selectedProperty wrap) find-wrap-property)))
 
 (defn- focus-term-field! [^Parent bar]
   (ui/with-controls bar [^TextField term]
@@ -2286,8 +2287,8 @@
                      :view-node view-node}]
 
     ;; Canvas stretches to fit view, and updates properties in view node.
-    (.bind (.widthProperty canvas) (.widthProperty canvas-pane))
-    (.bind (.heightProperty canvas) (.heightProperty canvas-pane))
+    (b/bind! (.widthProperty canvas) (.widthProperty canvas-pane))
+    (b/bind! (.heightProperty canvas) (.heightProperty canvas-pane))
     (ui/observe (.widthProperty canvas) (fn [_ _ width] (g/set-property! view-node :canvas-width width)))
     (ui/observe (.heightProperty canvas) (fn [_ _ height] (g/set-property! view-node :canvas-height height)))
 

@@ -14,6 +14,7 @@
             [editor.settings-core :as settings-core]
             [editor.system :as system]
             [editor.ui :as ui]
+            [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.updater :as updater]
             [schema.core :as s]
@@ -26,7 +27,6 @@
            (java.time Instant)
            (java.util.zip ZipInputStream)
            (javafx.animation AnimationTimer)
-           (javafx.beans.binding Bindings)
            (javafx.beans.property SimpleObjectProperty StringProperty)
            (javafx.event Event)
            (javafx.scene Node Parent Scene)
@@ -342,9 +342,9 @@
           (ui/on-action! open-from-disk-button show-open-from-disk-dialog!))
         (ui/on-action! show-new-project-pane-button (fn [_] (show-new-project-pane!)))
         (ui/on-action! open-selected-project-button (fn [_] (open-selected-project!)))
-        (ui/bind-presence! state-empty-recent-projects-list (Bindings/isEmpty (.getItems recent-projects-list)))
-        (ui/bind-presence! state-non-empty-recent-projects-list (Bindings/isNotEmpty (.getItems recent-projects-list)))
-        (ui/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
+        (b/bind-presence! state-empty-recent-projects-list (b/empty? (.getItems recent-projects-list)))
+        (b/bind-presence! state-non-empty-recent-projects-list (b/not (b/empty? (.getItems recent-projects-list))))
+        (b/bind-enabled-to-selection! open-selected-project-button recent-projects-list)
         (doto recent-projects-list
           (.setFixedCellSize 56.0)
           (ui/items! recent-projects)
@@ -409,7 +409,7 @@
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
     (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
       (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
-      (.bind (location-field-title-property new-project-location-field) (.textProperty new-project-title-field))
+      (b/bind! (location-field-title-property new-project-location-field) (.textProperty new-project-title-field))
       (doto template-list
         (ui/cell-factory! (fn [project-template]
                             {:graphic (make-template-entry project-template)})))
@@ -440,7 +440,7 @@
                                 (ui/text! new-project-title-field selected-project-title))))
 
       ;; Configure create-new-project-button.
-      (ui/bind-enabled-to-selection! create-new-project-button template-list)
+      (b/bind-enabled-to-selection! create-new-project-button template-list)
       (ui/on-action! create-new-project-button
                      (fn [_]
                        (let [project-template (first (ui/selection template-list))
@@ -507,17 +507,17 @@
         (login/configure-sign-in-ui-elements! import-project-pane dashboard-client)
 
         ;; Show / hide various elements based on sign-in state.
-        (ui/bind-presence! state-signed-in (Bindings/equal :signed-in sign-in-state-property))
-        (ui/bind-presence! filter-field-pane (Bindings/equal :signed-in sign-in-state-property))
-        (ui/bind-presence! empty-dashboard-projects-list-overlay (Bindings/isEmpty (.getItems dashboard-projects-list)))
+        (b/bind-presence! state-signed-in (b/= :signed-in sign-in-state-property))
+        (b/bind-presence! filter-field-pane (b/= :signed-in sign-in-state-property))
+        (b/bind-presence! empty-dashboard-projects-list-overlay (b/empty? (.getItems dashboard-projects-list)))
 
         ;; Configure location field.
         (setup-location-field! import-project-location-field "Select Import Location" new-project-location-directory)
-        (.bind (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
+        (b/bind! (location-field-title-property import-project-location-field) (.textProperty import-project-folder-field))
 
         ;; Configure Import Project button.
         (doto import-project-button
-          (ui/bind-enabled-to-selection! dashboard-projects-list)
+          (b/bind-enabled-to-selection! dashboard-projects-list)
           (ui/on-action! (fn [_]
                            (let [dashboard-project (first (ui/selection dashboard-projects-list))
                                  project-title (:name dashboard-project)
