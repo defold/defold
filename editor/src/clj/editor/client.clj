@@ -123,7 +123,7 @@
        :reason (.getMessage error)})
     (catch UniformInterfaceException error
       ;; A "401 Unauthorized" response means there is no Defold account for the
-      ;; specified E-mail address or the password did not match.
+      ;; specified e-mail address or the password did not match.
       (let [status-info (.getStatusInfo (.getResponse error))
             status-code (.getStatusCode status-info)]
         (if (= 401 status-code)
@@ -140,7 +140,7 @@
     (-> (web-resource client ["users" "password" "forgot"])
         (.queryParam "email" email)
         (.post))
-    ;; An E-mail with a password reset link was sent to the provided E-mail address.
+    ;; An e-mail with a password reset link was sent to the provided e-mail address.
     {:type :success}
     (catch ClientHandlerException error
       ;; This can happen if we do not have network access.
@@ -149,7 +149,7 @@
        :reason (.getMessage error)})
     (catch UniformInterfaceException error
       ;; A "404 Not Found" response means there is no Defold account for the
-      ;; specified E-mail address.
+      ;; specified e-mail address.
       (let [status-info (.getStatusInfo (.getResponse error))
             status-code (.getStatusCode status-info)]
         (if (= 404 status-code)

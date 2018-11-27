@@ -15,7 +15,7 @@
     </rowConstraints>
     <VBox GridPane.rowIndex="1" styleClass="explanation-overlay">
         <fx:include source="globe-icon.fxml" />
-        <Label styleClass="hero-text" text="We've sent you an E-mail with&#10;a password reset link." />
+        <Label styleClass="hero-text" text="We've sent you an e-mail with&#10;a password reset link." />
         <Button id="cancel-button" styleClass="df-button" text="Go Back">
             <VBox.margin>
                 <Insets>

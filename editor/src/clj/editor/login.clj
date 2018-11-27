@@ -199,7 +199,7 @@
 (def ^:private bad-response-error-value (comp error-values/error-fatal bad-response-error-message))
 
 (defn- begin-sign-in-with-email!
-  "Sign in with E-mail and password on a background thread. The request is
+  "Sign in with e-mail and password on a background thread. The request is
   cancelled if the user navigates away from the login fields. If successful,
   stores the login token in prefs and sets the sign-in-state-property to signal
   a successful login. If bad credentials are provided, returns to the login
@@ -236,7 +236,7 @@
                       (.set network-error-property (bad-response-error-value result))
 
                       :unauthorized
-                      (.set account-error-property (error-values/error-fatal "Wrong E-mail address or Password")))))))))
+                      (.set account-error-property (error-values/error-fatal "Wrong e-mail address or Password")))))))))
         (catch Throwable error
           (error-reporting/report-exception! error)
           (ui/run-later
@@ -268,7 +268,7 @@
                     :bad-response
                     (.set network-error-property (bad-response-error-value result))
 
-                    :not-found ; There is no Defold account for the specified E-mail address.
+                    :not-found ; There is no Defold account for the specified e-mail address.
                     (.set account-error-property (error-values/error-fatal "This address does not have a Defold account"))))))))
         (catch Throwable error
           (error-reporting/report-exception! error)
@@ -368,7 +368,7 @@
     (error-values/error-info "Required")
 
     (not (.find (re-matcher email-regex email)))
-    (error-values/error-fatal "Must be a valid E-mail address")))
+    (error-values/error-fatal "Must be a valid e-mail address")))
 
 (defn- password-error-value [^String password]
   (when (string/blank? password)
