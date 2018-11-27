@@ -2,6 +2,7 @@
   (:require [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
             [editor.changes-view :as changes-view]
+            [editor.console :as console]
             [editor.outline-view :as outline-view]
             [editor.prefs :as prefs]
             [editor.properties-view :as properties-view])
@@ -62,3 +63,6 @@
 (def changed-files-view (partial view-of-type changes-view/ChangesView))
 (def outline-view (partial view-of-type outline-view/OutlineView))
 (def properties-view (partial view-of-type properties-view/PropertiesView))
+
+(defn console-view []
+  (-> (view-of-type console/ConsoleNode) (g/targets-of :lines) ffirst))
