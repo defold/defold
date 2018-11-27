@@ -46,9 +46,9 @@
   (let [nodes (set nodes)]
     (seq (into #{} (mapcat (fn [[_ graph]]
                           (->>
-                            (concat (filter (fn [a] (or (nodes (:source a)) (nodes (:target a)))) (flatten-arcs (:sarcs graph)))
-                                    (filter #(or (nodes (:source %)) (nodes (:target %))) (flatten-arcs (:tarcs graph))))
-                            (map (fn [a] [(:source a) (:sourceLabel a) (:target a) (:targetLabel a)]))))
+                            (concat (filter (fn [a] (or (nodes (:source-id a)) (nodes (:target-id a)))) (flatten-arcs (:sarcs graph)))
+                                    (filter #(or (nodes (:source-id %)) (nodes (:target-id %))) (flatten-arcs (:tarcs graph))))
+                            (map (fn [a] [(:source-id a) (:source-label a) (:target-id a) (:target-label a)]))))
                            (:graphs basis))))))
 
 (defn escape-field-label [label]

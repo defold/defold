@@ -8,14 +8,10 @@
             [editor.fs :as fs]
             [editor.graph-util :as gu]
             [editor.game-project-core :as gpcore]
-            [editor.defold-project :as project]
-            [camel-snake-kebab :as camel]
             [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [editor.resource-node :as resource-node]
-            [service.log :as log])
-  (:import [java.io File]
-           [org.apache.commons.io IOUtils]))
+            [editor.resource-node :as resource-node])
+  (:import [org.apache.commons.io IOUtils]))
 
 (set! *warn-on-reflection* true)
 
@@ -25,17 +21,32 @@
   [{:keys [path]}]
   (= path ["project" "dependencies"]))
 
+;; Transform a settings map with build-time settings conversions.
+(defn- transform-settings! [settings]
+  ;; Map deprecated 'variable_dt' to new values for same runtime behavior
+  (if (= true (get settings ["display", "variable_dt"] false))
+    (-> settings
+        (assoc  ["display", "vsync"] false)
+        (assoc  ["display", "update_frequency"] 0))
+    settings))
+
 (defn- build-game-project [resource dep-resources user-data]
-  (let [{:keys [raw-settings path->built-resource-settings]} user-data
+  (let [{:keys [settings-map meta-settings path->built-resource-settings]} user-data
         settings (into []
-                       (comp
-                         (remove ignored-setting?)
-                         (map (fn [{:keys [path value] :as setting}]
-                                    (if-let [resource-value (path->built-resource-settings path)]
-                                      (let [new-val (resource/proj-path (dep-resources resource-value))]
-                                        (assoc setting :value new-val))
-                                      setting))))
-                       (settings-core/settings-with-value raw-settings))
+                       (comp (keep (fn [[path value]]
+                                     (when (and (some? value) (not= "" value))
+                                       {:path path :value value})))
+                             (remove ignored-setting?)
+                             (keep (fn [{:keys [path value] :as setting}]
+                                     (let [meta-setting (settings-core/get-meta-setting meta-settings path)]
+                                       (if (= :resource (:type meta-setting))
+                                         (if-some [resource-value (path->built-resource-settings path)]
+                                           (let [build-resource-path (resource/proj-path (dep-resources resource-value))]
+                                             (assoc setting :value build-resource-path))
+                                           (assoc setting :value (resource/proj-path value)))
+                                         (assoc setting :value (settings-core/render-raw-setting-value meta-setting value)))))))
+                       (let [transformed-settings-map (transform-settings! settings-map)]
+                         (sort-by first transformed-settings-map)))
         ^String user-data-content (settings-core/settings->str settings)]
     {:resource resource :content (.getBytes user-data-content)}))
 
@@ -109,14 +120,14 @@
    ["input" "gamepads"] [[:build-targets :dep-build-targets]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
-(g/defnk produce-build-targets [_node-id resource raw-settings custom-build-targets resource-settings dep-build-targets]
+(g/defnk produce-build-targets [_node-id resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
   (let [dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
         deps-by-source (into {} (map
-                                 (fn [build-target]
-                                   (let [build-resource (:resource build-target)
-                                         source-resource (:resource build-resource)]
-                                     [source-resource build-resource]))
-                                 dep-build-targets))
+                                  (fn [build-target]
+                                    (let [build-resource (:resource build-target)
+                                          source-resource (:resource build-resource)]
+                                      [source-resource build-resource]))
+                                  dep-build-targets))
         path->built-resource-settings (into {} (keep (fn [resource-setting]
                                                        (when (resource-setting-connections-template (:path resource-setting))
                                                          [(:path resource-setting) (deps-by-source (:value resource-setting))]))
@@ -124,9 +135,10 @@
     [{:node-id _node-id
       :resource (workspace/make-build-resource resource)
       :build-fn build-game-project
-      :user-data {:raw-settings raw-settings
+      :user-data {:settings-map settings-map
+                  :meta-settings (:settings meta-info)
                   :path->built-resource-settings path->built-resource-settings}
-      :deps dep-build-targets}]))  
+      :deps dep-build-targets}]))
 
 (g/defnode GameProjectNode
   (inherits resource-node/ResourceNode)
@@ -136,7 +148,7 @@
 
   (input texture-profiles-data g/Any)
   (output texture-profiles-data g/Any (gu/passthrough texture-profiles-data))
-  
+
   (input settings-map g/Any)
   ;; settings-map already cached in SettingsNode
   (output settings-map g/Any (gu/passthrough settings-map))
@@ -146,9 +158,11 @@
 
   (input raw-settings g/Any)
   (input resource-settings g/Any)
+  (input setting-errors g/Any)
 
   (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
+  (input meta-info g/Any)
 
   (output custom-build-targets g/Any :cached
           (g/fnk [_node-id resource-map settings-map]
@@ -176,7 +190,9 @@
                     (g/connect settings-node :save-value self :save-value)
                     (g/connect settings-node :form-data self :form-data)
                     (g/connect settings-node :raw-settings self :raw-settings)
+                    (g/connect settings-node :meta-info self :meta-info)
                     (g/connect settings-node :resource-settings self :resource-settings)
+                    (g/connect settings-node :setting-errors self :setting-errors)
                     (settings/load-settings-node settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
       (g/connect project :resource-map self :resource-map))))
 

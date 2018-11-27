@@ -162,7 +162,7 @@
                                                             bob/html5-url-prefix (partial bob/html5-handler project)})
                                    http-server/start!)
           open-resource        (partial app-view/open-resource app-view prefs workspace project)
-          console-view         (console/make-console! *view-graph* console-tab console-grid-pane)
+          console-view         (console/make-console! *view-graph* workspace console-tab console-grid-pane open-resource)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          (fn [resource selected-node-ids opts]
                                                                            (when (open-resource resource opts)

@@ -60,6 +60,7 @@ namespace dmGameSystem
 
         params.m_CacheCellWidth = ddf->m_CacheCellWidth;
         params.m_CacheCellHeight = ddf->m_CacheCellHeight;
+        params.m_CacheCellMaxAscent = ddf->m_CacheCellMaxAscent;
         params.m_CacheCellPadding = ddf->m_GlyphPadding;
 
         params.m_ImageFormat = ddf->m_ImageFormat;

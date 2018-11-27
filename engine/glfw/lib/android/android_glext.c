@@ -50,6 +50,6 @@ int _glfwPlatformExtensionSupported( const char *extension )
 
 void * _glfwPlatformGetProcAddress( const char *procname )
 {
-    return 0;
+    return (void *) eglGetProcAddress( procname );
 }
 
