@@ -152,11 +152,21 @@
 ;; Dashboard client
 ;; -----------------------------------------------------------------------------
 
+(def ^:private valid-sign-in-states
+  #{:browser-open
+    :email-sent
+    :forgot-password
+    :forgot-password-submitted
+    :login-fields
+    :login-fields-submitted
+    :not-signed-in
+    :signed-in})
+
 (defn- sign-in-state [^SimpleObjectProperty sign-in-state-property]
   (.get sign-in-state-property))
 
 (defn- set-sign-in-state! [^SimpleObjectProperty sign-in-state-property sign-in-state]
-  (assert (case sign-in-state (:not-signed-in :browser-open :login-fields :login-fields-submitted :signed-in :forgot-password :forgot-password-submitted :email-sent) true false))
+  (assert (contains? valid-sign-in-states sign-in-state))
   (.set sign-in-state-property sign-in-state))
 
 (defn dashboard-client? [value]
@@ -187,14 +197,14 @@
 (defn- connection-error-message
   ^String [{:keys [reason type]}]
   (assert (= :connection-error type))
-  (str reason "\nPlease ensure you are connected to the Internet"))
+  (str reason "\nPlease ensure you are connected to the Internet and that the connection is not blocked by a firewall"))
 
 (def ^:private connection-error-value (comp error-values/error-fatal connection-error-message))
 
 (defn- bad-response-error-message
   ^String [{:keys [code reason type]}]
   (assert (= :bad-response type))
-  (str "Communication Error: " code " " reason "\nPlease ensure a firewall is not interfering with the connection"))
+  (str "Communication Error: " code " " reason "\nPlease ensure a proxy is not interfering with the connection"))
 
 (def ^:private bad-response-error-value (comp error-values/error-fatal bad-response-error-message))
 
