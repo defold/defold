@@ -321,6 +321,16 @@
      (handle [~'this ~event]
        ~@body)))
 
+(defmacro event-dispatcher [event tail & body]
+  `(reify EventDispatcher
+     (dispatchEvent [~'this ~event ~tail]
+       ~@body)))
+
+(def null-event-dispatcher (event-dispatcher event tail))
+
+(defn kill-event-dispatch! [^Node target]
+  (.setEventDispatcher target null-event-dispatcher))
+
 (defmacro change-listener [observable old-val new-val & body]
   `(reify ChangeListener
      (changed [~'this ~observable ~old-val ~new-val]
