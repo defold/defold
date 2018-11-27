@@ -20,7 +20,6 @@
 (defonce ^:private event-queue-atom (atom PersistentQueue/EMPTY))
 (defonce ^:private max-failed-send-attempts 5)
 (defonce ^:private payload-content-type "application/x-www-form-urlencoded; charset=UTF-8")
-(defonce ^:private send-remaining-interval 30)
 (defonce ^:private shutdown-timeout 1000)
 (defonce ^:private uid-regex #"[0-9A-F]{16}")
 (defonce ^:private worker-atom (atom nil))
@@ -175,12 +174,7 @@
       false)))
 
 (defn- pop-count [queue ^long count]
-  (loop [remaining-count count
-         shortened-queue queue]
-    (if (zero? remaining-count)
-      shortened-queue
-      (recur (dec remaining-count)
-             (pop shortened-queue)))))
+  (nth (iterate pop queue) count))
 
 (defn- send-one-batch!
   "Sends one batch of events from the queue. Returns false if there were events
@@ -205,7 +199,6 @@
     (let [event-queue @event-queue-atom]
       (loop [event-queue event-queue]
         (when-some [batch (not-empty (into [] (take batch-size) event-queue))]
-          (Thread/sleep send-remaining-interval)
           (send-payload! analytics-url (batch->payload batch config))
           (recur (pop-count event-queue (count batch)))))
       (swap! event-queue-atom pop-count (count event-queue))
