@@ -2372,6 +2372,7 @@
 
         ;; Remove callbacks when our tab is closed.
         (ui/on-closed! tab (fn [_]
+                             (ui/kill-event-dispatch! canvas)
                              (ui/timer-stop! repainter)
                              (dispose-goto-line-bar! goto-line-bar)
                              (dispose-find-bar! find-bar)
