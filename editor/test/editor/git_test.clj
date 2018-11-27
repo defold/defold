@@ -791,6 +791,7 @@
                        "src/local_modified_remote_moved.txt"
                        "src/remote_deleted.txt"
                        "src/remote_moved.txt"}} (simple-status remote-git)))
+
     (-> remote-git .commit (.setMessage "Remote changes") .call)
 
     ;; Stash conflicting changes on local.
@@ -819,6 +820,7 @@
                        "src/local_deleted_remote_modified.txt"
                        "src/local_moved.txt"
                        "src/local_moved_remote_modified.txt"}} (simple-status local-git)))
+
     (let [stash-info (git/stash! local-git)]
       ;; Verify our working directory is clean.
       (is (= {} (simple-status local-git)))
@@ -925,23 +927,40 @@
 
     ;; The stash is being merged onto the latest commit from the remote, so in
     ;; the :conflicting-stage-state map "us" is the remote and "them" is stash.
-    (is (= {:untracked #{"src/both_CHANGED_case_conflicting.txt"
-                         "src/local_CHANGED_case_remote_modified.txt"
-                         "src/moved/both_moved_conflicting_a.txt"
-                         "src/moved/local_moved.txt"
-                         "src/moved/local_moved_remote_modified.txt"
-                         "src/new/local_added.txt"}
-            :modified #{"src/local_modified.txt"}
-            :conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
-                                      "src/local_deleted_remote_modified.txt" :deleted-by-them
-                                      "src/local_modified_remote_deleted.txt" :deleted-by-us
-                                      "src/local_modified_remote_moved.txt"   :deleted-by-us
-                                      "src/local_moved_remote_modified.txt"   :deleted-by-them
-                                      "src/new/both_added_conflicting.txt"    :both-added}
-            :missing #{"src/both_changed_CASE_conflicting.txt"
-                       "src/local_changed_case_remote_modified.txt"
-                       "src/local_deleted.txt"
-                       "src/local_moved.txt"}} (simple-status local-git)))))
+    (if fs/case-sensitive?
+      (is (= {:untracked #{"src/both_CHANGED_case_conflicting.txt"
+                           "src/local_CHANGED_case_remote_modified.txt"
+                           "src/moved/both_moved_conflicting_a.txt"
+                           "src/moved/local_moved.txt"
+                           "src/moved/local_moved_remote_modified.txt"
+                           "src/new/local_added.txt"}
+              :modified #{"src/local_modified.txt"}
+              :conflicting-stage-state {"src/both_modified_conflicting.txt"          :both-modified
+                                        "src/local_changed_case_remote_modified.txt" :deleted-by-them
+                                        "src/local_deleted_remote_modified.txt"      :deleted-by-them
+                                        "src/local_modified_remote_deleted.txt"      :deleted-by-us
+                                        "src/local_modified_remote_moved.txt"        :deleted-by-us
+                                        "src/local_moved_remote_modified.txt"        :deleted-by-them
+                                        "src/new/both_added_conflicting.txt"         :both-added}
+              :missing #{"src/local_deleted.txt"
+                         "src/local_moved.txt"}} (simple-status local-git)))
+      (is (= {:untracked #{"src/both_CHANGED_case_conflicting.txt"
+                           "src/local_CHANGED_case_remote_modified.txt"
+                           "src/moved/both_moved_conflicting_a.txt"
+                           "src/moved/local_moved.txt"
+                           "src/moved/local_moved_remote_modified.txt"
+                           "src/new/local_added.txt"}
+              :modified #{"src/local_modified.txt"}
+              :conflicting-stage-state {"src/both_modified_conflicting.txt"     :both-modified
+                                        "src/local_deleted_remote_modified.txt" :deleted-by-them
+                                        "src/local_modified_remote_deleted.txt" :deleted-by-us
+                                        "src/local_modified_remote_moved.txt"   :deleted-by-us
+                                        "src/local_moved_remote_modified.txt"   :deleted-by-them
+                                        "src/new/both_added_conflicting.txt"    :both-added}
+              :missing #{"src/both_changed_CASE_conflicting.txt"
+                         "src/local_changed_case_remote_modified.txt"
+                         "src/local_deleted.txt"
+                         "src/local_moved.txt"}} (simple-status local-git))))))
 
 (deftest stash-drop-test
   (with-git [git (new-git)]
