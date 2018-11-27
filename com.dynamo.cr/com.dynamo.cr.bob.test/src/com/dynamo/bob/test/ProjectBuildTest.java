@@ -107,6 +107,19 @@ public class ProjectBuildTest {
     {
         assertEquals(expectedValue, properties.getStringValue(category, key));
     }
+    
+    @Test
+    public void testGamePropertiesBuildtimeTransform() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+    	projectName = "Game Project Properties Transform";
+    	createDefaultFiles();
+    	createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[display]" + "\nvariable_dt = 1\n" + "vsync = 1\n" + "update_frequency = 30\n");
+    	build();
+    	BobProjectProperties outputProps = new BobProjectProperties();
+    	outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
+    	
+    	checkProjectSetting(outputProps, "display", "vsync", "0");
+    	checkProjectSetting(outputProps, "display", "update_frequency", "0");
+    }
 
     @Test
     public void testGameProperties() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
@@ -124,6 +137,8 @@ public class ProjectBuildTest {
 
         // Default boolean value
         checkProjectSetting(outputProps, "script", "shared_state", "0");
+        checkProjectSetting(outputProps, "display", "vsync", "1");
+        checkProjectSetting(outputProps, "display", "update_frequency", "0");
 
         // Default number value
         checkProjectSetting(outputProps, "display", "width", "960");
