@@ -94,10 +94,10 @@
                                   @hit-parsing-results-atom)))]
     (is (= 4 (count hit-parsing-results)))
     (is (every? #(true? (get % "valid")) hit-parsing-results))
-    (is (= ["/debug/collect?v=1&tid=UA-83690-7&cid=7f208496-5029-4d4b-b530-e3c089980548&uid=63AD229B66CB4EFB&t=event&ec=test-category&ea=test-action"
-            "/debug/collect?v=1&tid=UA-83690-7&cid=7f208496-5029-4d4b-b530-e3c089980548&uid=63AD229B66CB4EFB&t=event&ec=test-category&ea=test-action&el=test-label"
-            "/debug/collect?v=1&tid=UA-83690-7&cid=7f208496-5029-4d4b-b530-e3c089980548&uid=63AD229B66CB4EFB&t=exception&exd=NullPointerException"
-            "/debug/collect?v=1&tid=UA-83690-7&cid=7f208496-5029-4d4b-b530-e3c089980548&uid=63AD229B66CB4EFB&t=screenview&an=defold&av=0.1.234&cd=test-screen-name"]
+    (is (= ["/debug/collect?v=1&tid=UA-83690-7&cid=7f208496-5029-4d4b-b530-e3c089980548&uid=63AD229B66CB4EFB&cd1=63AD229B66CB4EFB&t=event&ec=test-category&ea=test-action"
+            "/debug/collect?v=1&tid=UA-83690-7&cid=7f208496-5029-4d4b-b530-e3c089980548&uid=63AD229B66CB4EFB&cd1=63AD229B66CB4EFB&t=event&ec=test-category&ea=test-action&el=test-label"
+            "/debug/collect?v=1&tid=UA-83690-7&cid=7f208496-5029-4d4b-b530-e3c089980548&uid=63AD229B66CB4EFB&cd1=63AD229B66CB4EFB&t=exception&exd=NullPointerException"
+            "/debug/collect?v=1&tid=UA-83690-7&cid=7f208496-5029-4d4b-b530-e3c089980548&uid=63AD229B66CB4EFB&cd1=63AD229B66CB4EFB&t=screenview&an=defold&av=0.1.234&cd=test-screen-name"]
            (mapv #(get % "hit") hit-parsing-results)))))
 
 (defn- payload->lines [^bytes payload]
@@ -142,7 +142,7 @@
 
     (testing "Config file with cid and uid."
       (with-config! {:cid mock-cid :uid mock-uid}
-        (is (= [(str "v=1&tid=UA-83690-7&cid=" mock-cid "&uid=" mock-uid "&t=event&ec=test-category&ea=test-action")]
+        (is (= [(str "v=1&tid=UA-83690-7&cid=" mock-cid "&uid=" mock-uid "&cd1=" mock-uid "&t=event&ec=test-category&ea=test-action")]
                (get-hits! false)))
         (is (= {:cid mock-cid :uid mock-uid}
                (get-config!)))))
@@ -157,7 +157,7 @@
     (testing "Sign in"
       (with-config! {:cid mock-cid}
         (analytics/set-uid! mock-uid)
-        (is (= [(str "v=1&tid=UA-83690-7&cid=" mock-cid "&uid=" mock-uid "&t=event&ec=test-category&ea=test-action")]
+        (is (= [(str "v=1&tid=UA-83690-7&cid=" mock-cid "&uid=" mock-uid "&cd1=" mock-uid "&t=event&ec=test-category&ea=test-action")]
                (get-hits! false)))
         (is (= {:cid mock-cid :uid mock-uid}
                (get-config!)))))
