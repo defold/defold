@@ -2,7 +2,6 @@
 #include <dlib/log.h>
 #include <dlib/sys.h>
 #include <dlib/dstrings.h>
-#include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,13 +43,8 @@ namespace dmCrash
             g_AppState.m_Ptr[g_AppState.m_PtrCount] = (void*)(uintptr_t)pc;
             g_AppState.m_PtrCount++;
 
-            printf("0x%llx:", pc);
-
             char sym[256];
-            if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
-                printf(" (%s+0x%llx)\n", sym, offset);
-            }
-            else
+            if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) != 0)
             {
                 strcpy(sym, "<unknown>");
             }
