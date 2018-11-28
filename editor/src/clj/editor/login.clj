@@ -197,7 +197,7 @@
 (defn- connection-error-message
   ^String [{:keys [reason type]}]
   (assert (= :connection-error type))
-  (str reason "\nPlease ensure you are connected to the Internet and that the connection is not blocked by a firewall"))
+  (str reason "\nPlease ensure you are connected to the Internet and that we're not blocked by a firewall"))
 
 (def ^:private connection-error-value (comp error-values/error-fatal connection-error-message))
 
@@ -426,11 +426,13 @@
       (ui/text! email-field (prefs/get-prefs prefs last-used-email-prefs-key ""))
 
       ;; Clear password field when entering the login fields state, then move
-      ;; focus to the relevant input field.
+      ;; focus to the relevant input field. We also clear errors.
       (ui/observe sign-in-state-property
                   (fn [_ old-sign-in-state new-sign-in-state]
                     (when (and (= :login-fields new-sign-in-state)
                                (not= :login-fields-submitted old-sign-in-state))
+                      (.set network-error-property nil)
+                      (.set account-error-property nil)
                       (ui/text! password-field "")
                       (let [focused-field (if (some? (.getValue email-validation-error-property))
                                             email-field
@@ -489,11 +491,14 @@
       (b/bind-presence! error-banner-label (b/some? network-error-property))
       (b/bind! (.textProperty error-banner-label) (b/map :message network-error-property))
 
-      ;; Move focus to the email field when entering the forgot password state.
+      ;; Clear errors and move focus to the email field when entering the forgot
+      ;; password state.
       (ui/observe sign-in-state-property
                   (fn [_ old-sign-in-state new-sign-in-state]
                     (when (and (= :forgot-password new-sign-in-state)
                                (not= :forgot-password-submitted old-sign-in-state))
+                      (.set network-error-property nil)
+                      (.set account-error-property nil)
                       (ui/request-focus! email-field))))
 
       ;; Clear account error when any of the fields are edited.
