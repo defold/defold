@@ -269,7 +269,7 @@
 (defn- upload-project! [project-path project-title prefs dashboard-client on-new-git! settings render-progress!]
   (let [msgs (:msgs settings)]
     (try
-      (when (login/sign-in! dashboard-client)
+      (when (login/sign-in! dashboard-client :upload-project)
         (with-open [client (client/make-client prefs)]
           (when-let [user-id (some-> client
                                (client/user-info)
