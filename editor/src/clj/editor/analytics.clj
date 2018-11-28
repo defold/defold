@@ -58,6 +58,7 @@
 
 (def ^:private valid-event?
   (every-pred map?
+              (comp nil? :cd1) ; Custom Dimension 1 is reserved for the uid.
               (comp (every-pred string? not-empty) :t)
               (partial every?
                        (every-pred (comp keyword? key)
@@ -127,8 +128,9 @@
          (not-empty batch)
          (valid-cid? cid)
          (or (nil? uid) (valid-uid? uid))]}
-  (let [common-pairs (cond-> ["v=1" "tid=UA-83690-7" (str "cid=" cid)]
-                             (some? uid) (conj (str "uid=" uid)))
+  (let [common-pairs (if (some? uid) ; NOTE: The uid is also supplied as Custom Dimension 1.
+                       ["v=1" "tid=UA-83690-7" (str "cid=" cid) (str "uid=" uid) (str "cd1=" uid)]
+                       ["v=1" "tid=UA-83690-7" (str "cid=" cid)])
         lines (map (fn [event]
                      (let [pairs (into common-pairs
                                        (map (fn [[k v]]
