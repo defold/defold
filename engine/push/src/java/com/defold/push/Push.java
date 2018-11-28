@@ -211,6 +211,10 @@ public class Push {
 
             // These notifications are already registered with the AlarmManager, we just need to store them internally again
             JSONObject jo = readJson(activity, path);
+            if (jo == null) {
+                Log.e(TAG, String.format("Failed to load local pending notification: %d", uid));
+                return null;
+            }
             this.listener.addPendingNotifications(jo.optInt("uid"), jo.optString("title"), jo.optString("message"), jo.optString("payload"),
                                                 jo.optLong("timestamp"), jo.optInt("priority"));
         }
