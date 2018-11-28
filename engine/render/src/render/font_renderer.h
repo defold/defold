@@ -76,6 +76,8 @@ namespace dmRender
         float m_SdfOffset;
         /// Distance value where outline should end
         float m_SdfOutline;
+        /// Distance value where shadow should end
+        float m_SdfShadow;
         /// Font alpha
         float m_Alpha;
         /// Font outline alpha

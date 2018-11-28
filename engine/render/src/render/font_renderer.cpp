@@ -39,6 +39,7 @@ namespace dmRender
     , m_SdfSpread(1.0f)
     , m_SdfOffset(0)
     , m_SdfOutline(0)
+    , m_SdfShadow(0)
     , m_CacheWidth(0)
     , m_CacheHeight(0)
     , m_GlyphChannels(1)
@@ -99,6 +100,7 @@ namespace dmRender
         float                   m_SdfSpread;
         float                   m_SdfOffset;
         float                   m_SdfOutline;
+        float                   m_SdfShadow;
         float                   m_Alpha;
         float                   m_OutlineAlpha;
         float                   m_ShadowAlpha;
@@ -157,6 +159,7 @@ namespace dmRender
         font_map->m_SdfSpread = params.m_SdfSpread;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
+        font_map->m_SdfShadow = params.m_SdfShadow;
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
@@ -247,6 +250,7 @@ namespace dmRender
         font_map->m_SdfSpread = params.m_SdfSpread;
         font_map->m_SdfOffset = params.m_SdfOffset;
         font_map->m_SdfOutline = params.m_SdfOutline;
+        font_map->m_SdfShadow = params.m_SdfShadow;
         font_map->m_Alpha = params.m_Alpha;
         font_map->m_OutlineAlpha = params.m_OutlineAlpha;
         font_map->m_ShadowAlpha = params.m_ShadowAlpha;
@@ -575,6 +579,7 @@ namespace dmRender
         float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
         float sdf_scale   = font_map->m_SdfSpread;
         float sdf_outline = font_map->m_SdfOutline;
+        float sdf_shadow  = font_map->m_SdfShadow;
         // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
         float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
 
@@ -720,7 +725,7 @@ namespace dmRender
                             v.m_SdfParams[0] = sdf_edge_value; \
                             v.m_SdfParams[1] = sdf_outline; \
                             v.m_SdfParams[2] = sdf_smoothing; \
-                            v.m_SdfParams[3] = sdf_scale;
+                            v.m_SdfParams[3] = sdf_shadow;
 
                         SET_VERTEX_PARAMS(v1_layer_face)
                         SET_VERTEX_PARAMS(v2_layer_face)
