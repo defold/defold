@@ -249,7 +249,7 @@
       (prefs/set-prefs prefs "last-ios-build-dir" ipa-dir)
       ;; if project hosted by us, make sure we're logged in first
       (when (or (nil? cr-project-id)
-                (login/sign-in! dashboard-client))
+                (login/sign-in! dashboard-client :sign-ios-app))
         (ui/disable! root true)
         (let [initial-env {:ipa-file (io/file ipa)
                            :cr-project-id cr-project-id

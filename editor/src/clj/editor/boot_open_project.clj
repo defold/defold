@@ -282,7 +282,7 @@
                     (async-reload! workspace changes-view))
 
                 ;; User chose to resume sync.
-                (if-not (login/sign-in! dashboard-client)
+                (if-not (login/sign-in! dashboard-client :synchronize)
                   (recur) ;; Ask again. If the user refuses to log in, they must choose "Cancel Sync".
                   (let [creds (git/credentials prefs)
                         flow (sync/resume-flow git creds)]
@@ -328,7 +328,7 @@
         build-settings (workspace/make-build-settings prefs)
         workspace    (setup-workspace project-path build-settings)
         game-project-res (workspace/resolve-workspace-resource workspace "/game.project")
-        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/sign-in! dashboard-client))]
+        project      (project/open-project! *project-graph* workspace game-project-res render-progress! (partial login/sign-in! dashboard-client :fetch-libraries))]
     (ui/run-now
       (load-stage workspace project prefs dashboard-client update-context newly-created?)
       (when-let [missing-dependencies (not-empty (workspace/missing-dependencies workspace))]
