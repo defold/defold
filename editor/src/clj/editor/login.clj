@@ -381,8 +381,12 @@
     (error-values/error-fatal "Must be a valid e-mail address")))
 
 (defn- password-error-value [^String password]
-  (when (string/blank? password)
-    (error-values/error-info "Required")))
+  (cond
+    (string/blank? password)
+    (error-values/error-info "Required")
+
+    (> 8 (count password))
+    (error-values/error-fatal "Minimum eight characters")))
 
 (defn- severity-style-class [severity]
   (case severity
