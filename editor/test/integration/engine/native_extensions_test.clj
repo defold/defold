@@ -1,26 +1,52 @@
 (ns integration.engine.native-extensions-test
   (:require
+   [clojure.java.shell :as shell]
+   [clojure.string :as string]
    [clojure.test :refer :all]
    [integration.test-util :as test-util]
    [support.test-support :refer [with-clean-system]]
    [dynamo.graph :as g]
+   [editor.app-view :as app-view]
+   [editor.defold-project :as project]
    [editor.engine.native-extensions :as native-extensions]
    [editor.fs :as fs]
-   [editor.resource :as resource]))
+   [editor.system :as system]
+   [editor.resource :as resource])
+  (:import
+   [java.io File IOException]))
+
+(defn- try-shell-command! [command & args]
+  (try
+    (let [{:keys [out err]} (apply shell/sh command args)]
+      (when (empty? err)
+        (string/trim-newline out)))
+    (catch IOException _
+      ;; The specified command does not exist.
+      nil)))
+
+(defn fix-engine-sha1 [f]
+  (let [old-sha1 (system/defold-engine-sha1)
+        version (string/trim-newline (slurp "../VERSION"))
+        engine-sha1 (try-shell-command! "git" "rev-list" "-n" "1" version)]
+    (when (not-empty engine-sha1)
+      (system/set-defold-engine-sha1! engine-sha1))
+    (f)
+    (system/set-defold-engine-sha1! old-sha1)))
+
+(use-fixtures :once fix-engine-sha1)
 
 (deftest extension-roots-test
   (with-clean-system
     (let [workspace (test-util/setup-workspace! world "test/resources/extension_project")
           project (test-util/setup-project! workspace)]
-      (is (= #{"/extension1" "/subdir/extension2"}
-             (set (map resource/proj-path (native-extensions/extension-roots project))))))))
+      (g/with-auto-evaluation-context evaluation-context
+        (is (= #{"/extension1" "/subdir/extension2"}
+               (set (map resource/proj-path (native-extensions/extension-roots project evaluation-context)))))))))
 
 (deftest extension-resource-nodes-test
   (letfn [(platform-resources [project platform]
-            (let [resource-nodes (native-extensions/extension-resource-nodes
-                                   project
-                                   (native-extensions/extension-roots project)
-                                   platform)]
+            (let [resource-nodes (g/with-auto-evaluation-context evaluation-context
+                                   (native-extensions/extension-resource-nodes project evaluation-context platform))]
               (->> resource-nodes
                    (map (comp resource/proj-path
                               #(g/node-value % :resource)))
@@ -81,3 +107,45 @@
       ;; cache anew with key b
       (is (#'native-extensions/cache-engine-archive! cache-dir "x86_64-osx" "b" (dummy-file)))
       (is (#'native-extensions/cached-engine-archive cache-dir "x86_64-osx" "b")))))
+
+(defn- blocking-async-build! [project evaluation-context prefs]
+  (let [result (promise)]
+    ;; An alternative would be to use the final result of the async-build!-future like so:
+    ;; (app-view/async-build! project evaluation-context prefs {} {}
+    ;;                        (constantly nil)
+    ;;                        (constantly nil))
+    ;; ... But in the actual app we use the result delivered to the callback function.
+    (app-view/async-build! project evaluation-context prefs {} {}
+                           (constantly nil)
+                           (fn [build-results engine build-engine-exception]
+                             (deliver result [build-results engine build-engine-exception])))
+    (deref result)))
+
+(deftest async-build-on-build-server
+  (with-clean-system
+    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/trivial_extension")
+          project (test-util/setup-project! workspace)
+          test-prefs (test-util/make-test-prefs)]
+      (assert (= (native-extensions/get-build-server-url test-prefs) "https://build-stage.defold.com"))
+      (testing "clean project builds on server"
+        (g/with-auto-evaluation-context evaluation-context
+          (let [[{:keys [error artifacts artifact-map etags] :as build-results} ^File engine build-engine-exception] (blocking-async-build! project evaluation-context test-prefs)]
+            (is (nil? error))
+            (is (not-empty artifacts))
+            (is (not-empty artifact-map))
+            (is (not-empty etags))
+            (is (nil? build-engine-exception))
+            (is (some? engine))
+            (is (and engine (.exists engine))))))
+      (testing "bad code breaks build on server"
+        (let [script (project/get-resource-node project "/printer/src/main.cpp")]
+          (g/update-property! script :modified-lines conj "ought to break")
+          (g/with-auto-evaluation-context evaluation-context
+            (let [[{:keys [error artifacts artifact-map etags] :as build-results} ^File engine ^Exception build-engine-exception] (blocking-async-build! project evaluation-context test-prefs)]
+              (is (nil? error))
+              (is (not-empty artifacts))
+              (is (not-empty artifact-map))
+              (is (not-empty etags))
+              (is (some? build-engine-exception))
+              (is (and build-engine-exception (string/includes? (.getMessage build-engine-exception) "ought to break")))
+              (is (nil? engine)))))))))
