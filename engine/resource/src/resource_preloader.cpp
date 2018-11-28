@@ -175,6 +175,9 @@ namespace dmResource
     
         // persisted resources
         dmArray<void*> m_PersistedResources;
+
+        uint64_t m_PreloaderCreationTimeNS;
+        uint64_t m_MainThreadTimeSpentNS;
     };
 
     const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, uint64_t path_hash, const char* path, uint32_t path_len)
@@ -376,6 +379,8 @@ namespace dmResource
 
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
     {
+        uint64_t start_ns = dmTime::GetTime();
+
         ResourcePreloader* preloader = new ResourcePreloader();
         // root is always allocated.
         for (uint32_t i=0;i<MAX_PRELOADER_REQUESTS-1;i++)
@@ -427,6 +432,11 @@ namespace dmResource
                 preloader->m_PersistResourceCount++;
             }
         }
+
+        uint64_t now_ns = dmTime::GetTime();
+        uint64_t main_thread_time_ns = now_ns - start_ns;
+        preloader->m_PreloaderCreationTimeNS = start_ns;
+        preloader->m_MainThreadTimeSpentNS = main_thread_time_ns;
 
         return preloader;
     }
@@ -727,6 +737,7 @@ namespace dmResource
                     }
                     else
                     {
+//                        dmLogWarning("Scratch buffer is full size: %u, low: %u, high: %u", SCRATCH_BUFFER_SIZE, preloader->m_ScratchBufferBeginPos, preloader->m_ScratchBufferEndPos);
                         req->m_Buffer = malloc(buffer_size);
                     }
                 }
@@ -769,7 +780,8 @@ namespace dmResource
         DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
 
         PreloadRequest *req = &preloader->m_Request[index];
-        // If it does not have a load request, it would have a buffer if it had started a load.
+        // If it does not have a load request, it would have a buffer if it
+        // had started a load.
         if (!req->m_LoadRequest && !req->m_Buffer && !req->m_Resource)
         {
             bool wait_on = IsPathInProgress(preloader, &req->m_PathDescriptor);
@@ -840,7 +852,6 @@ namespace dmResource
                 }
                 else
                 {
-                    // Load buffer is full, we need to bail on this tree and not process children until load is finished
                     return 0;
                 }
             }
@@ -951,7 +962,7 @@ namespace dmResource
                 {
                     // Root is resolved - all items has been created, we should now
                     // call the post-create function (if given) and then post-create
-                    // of all created items that has not yet been post created
+                    // of all created items
                     preloader->m_CreateComplete = true;
                     if (root_result == RESULT_OK && complete_callback)
                     {
@@ -968,6 +979,8 @@ namespace dmResource
                 if (post_create_result == RESULT_OK)
                 {
                     // All done!
+                    uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
+                    preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
                     return root_result;
                 }
             }
@@ -1001,6 +1014,8 @@ namespace dmResource
             }
         } while(dmTime::GetTime() - start <= soft_time_limit);
 
+        uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
+        preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
         return RESULT_PENDING;
     }
 
@@ -1015,6 +1030,8 @@ namespace dmResource
             dmLogWarning("Waiting for preloader to complete.");
         }
 
+        uint64_t start_excluding_update_ns = dmTime::GetTime();
+
         // Release root and persisted resources
         preloader->m_PersistedResources.Push(preloader->m_Request[0].m_Resource);
         for(uint32_t i = 0; i < preloader->m_PersistedResources.Size(); ++i)
@@ -1028,6 +1045,17 @@ namespace dmResource
         assert(preloader->m_FreelistSize == (MAX_PRELOADER_REQUESTS-1));
         dmLoadQueue::DeleteQueue(preloader->m_LoadQueue);
         dmMutex::Delete(preloader->m_SyncedDataMutex);
+
+        uint64_t now_ns = dmTime::GetTime();
+        uint64_t preloader_load_time_ns = now_ns - preloader->m_PreloaderCreationTimeNS;
+        uint64_t main_thread_time_ns = now_ns - start_excluding_update_ns;
+        preloader->m_MainThreadTimeSpentNS += main_thread_time_ns;
+
+        dmLogWarning("Preloading root \"%s\" took %u ms, spending %u ms in main thread",
+            preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
+            (uint32_t)(preloader_load_time_ns / 1000),
+            (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
+//        dmLogWarning("Used %u bytes of preloader path data", preloader->m_SyncedData.m_PathDataUsed);
 
         delete preloader;
     }
