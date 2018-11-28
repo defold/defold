@@ -460,9 +460,19 @@
                      (b/some? email-validation-error-property)
                      (b/some? password-validation-error-property))))))
 
-(defn- configure-state-not-signed-in! [state-not-signed-in {:keys [prefs sign-in-state-property] :as dashboard-client}]
+(defn- sign-in-motivation-text
+  ^String [sign-in-intent]
+  (case sign-in-intent
+    :access-projects "You need to sign in to access your\nprojects in the Defold cloud."
+    :fetch-libraries "You need to sign in to fetch libraries\nthat are hosted in the Defold cloud."
+    :sign-ios-app    "You need to sign in to upload the\nsigned app to the Defold cloud."
+    :synchronize     "You need to sign in to synchronize\nyour project with the Defold cloud."
+    :upload-project  "You need to sign in to upload your\nproject to the Defold cloud."))
+
+(defn- configure-state-not-signed-in! [state-not-signed-in {:keys [prefs sign-in-state-property] :as dashboard-client} sign-in-intent]
   (b/bind-presence! state-not-signed-in (b/= :not-signed-in sign-in-state-property))
-  (ui/with-controls state-not-signed-in [create-account-button sign-in-with-browser-button sign-in-with-email-button]
+  (ui/with-controls state-not-signed-in [create-account-button sign-in-motivation-label sign-in-with-browser-button sign-in-with-email-button]
+    (ui/text! sign-in-motivation-label (sign-in-motivation-text sign-in-intent))
     (ui/on-action! sign-in-with-browser-button (fn [_] (begin-sign-in-with-browser! dashboard-client)))
     (ui/on-action! sign-in-with-email-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))
     (ui/on-action! create-account-button (fn [_] (ui/open-url (make-create-account-url prefs))))))
@@ -521,11 +531,11 @@
   (ui/with-controls state-email-sent [cancel-button]
     (ui/on-action! cancel-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))))
 
-(defn configure-sign-in-ui-elements! [root dashboard-client]
+(defn configure-sign-in-ui-elements! [root dashboard-client sign-in-intent]
   (assert (dashboard-client? dashboard-client))
   (ui/with-controls root [^Parent state-login-fields state-not-signed-in state-browser-open ^Parent state-forgot-password state-email-sent]
     (configure-state-login-fields! state-login-fields dashboard-client)
-    (configure-state-not-signed-in! state-not-signed-in dashboard-client)
+    (configure-state-not-signed-in! state-not-signed-in dashboard-client sign-in-intent)
     (configure-state-browser-open! state-browser-open dashboard-client)
     (configure-state-forgot-password! state-forgot-password dashboard-client)
     (configure-state-email-sent! state-email-sent dashboard-client)
@@ -541,9 +551,9 @@
   (b/bind-presence! sign-out-button (b/= :signed-in sign-in-state-property))
   (ui/on-action! sign-out-button (fn [_] (sign-out! dashboard-client))))
 
-(defn- show-sign-in-dialog! [{:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client}]
+(defn- show-sign-in-dialog! [{:keys [^SimpleObjectProperty sign-in-state-property] :as dashboard-client} sign-in-intent]
   (let [root (doto (ui/load-fxml "login/login-dialog.fxml")
-               (configure-sign-in-ui-elements! dashboard-client))
+               (configure-sign-in-ui-elements! dashboard-client sign-in-intent))
         scene (Scene. root)
         stage (doto (ui/make-dialog-stage)
                 (ui/title! "Sign In")
@@ -573,10 +583,10 @@
   signed in, return true. If not, opens a Sign In dialog in a nested event loop.
   Blocks until the user has dismissed the dialog. Returns true if the user
   successfully signed in."
-  [{:keys [prefs] :as dashboard-client}]
+  [{:keys [prefs] :as dashboard-client} sign-in-intent]
   (or (logged-in? prefs)
       (ui/run-now
-        (show-sign-in-dialog! dashboard-client))))
+        (show-sign-in-dialog! dashboard-client sign-in-intent))))
 
 (defn sign-out!
   "Sign out the active user from the Defold dashboard."
