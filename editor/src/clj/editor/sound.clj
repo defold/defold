@@ -80,7 +80,7 @@
                          :type :boolean}
                         {:path [:group]
                          :label "Group"
-                         :type :number}
+                         :type :string}
                         {:path [:gain]
                          :label "Gain"
                          :type :number}]}]

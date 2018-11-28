@@ -19,7 +19,7 @@ import com.dynamo.bob.util.BobProjectProperties;
 
 public class LinuxBundler implements IBundler {
 
-    public void bundleApplicationForPlatform(Platform platform, Project project, File appDir, String title)
+    public void bundleApplicationForPlatform(Platform platform, Project project, File appDir, String exeName)
             throws IOException, CompileExceptionError {
         String extenderExeDir = FilenameUtils.concat(project.getRootDirectory(), "build");
         List<File> bundleExes = Bob.getNativeExtensionEngineBinaries(platform, extenderExeDir);
@@ -34,9 +34,9 @@ public class LinuxBundler implements IBundler {
 
         File exeOut;
         if (platform == Platform.X86Linux)
-            exeOut = new File(appDir, title + ".x86");
+            exeOut = new File(appDir, exeName + ".x86");
         else
-            exeOut = new File(appDir, title + ".x86_64");
+            exeOut = new File(appDir, exeName + ".x86_64");
 
         FileUtils.copyFile(bundleExe, exeOut);
         exeOut.setExecutable(true);
@@ -48,6 +48,7 @@ public class LinuxBundler implements IBundler {
 
         BobProjectProperties projectProperties = project.getProjectProperties();
         String title = projectProperties.getStringValue("project", "title", "Unnamed");
+        String exeName = BundleHelper.projectNameToBinaryName(title);
         File appDir = new File(bundleDir, title);
 
         FileUtils.deleteDirectory(appDir);
@@ -58,7 +59,7 @@ public class LinuxBundler implements IBundler {
         final boolean hasExtensions = !extensionFolders.isEmpty();
 
         Platform primaryPlatform = Platform.X86_64Linux;
-        bundleApplicationForPlatform(primaryPlatform, project, appDir, title);
+        bundleApplicationForPlatform(primaryPlatform, project, appDir, exeName);
 
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 

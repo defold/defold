@@ -1318,6 +1318,7 @@ TEST_F(ResourceTest, ManifestLoadDdfFail)
     const char* buf = "this is not a manifest buffer";
     dmResource::Result result = dmResource::ManifestLoadMessage((uint8_t*)buf, strlen(buf), manifest);
     ASSERT_EQ(dmResource::RESULT_DDF_ERROR, result);
+    delete manifest;
 }
 
 TEST_F(ResourceTest, ManifestBundledResourcesVerification)
@@ -1357,17 +1358,16 @@ TEST_F(ResourceTest, ManifestBundledResourcesVerificationFail)
     {
         dmLiveUpdateDDF::ResourceEntry* entry = &manifest->m_DDFData->m_Resources.m_Data[i];
         dmLiveUpdateDDF::ResourceEntry* new_entry = &entries[i];
-
         new_entry->m_Hash = dmLiveUpdateDDF::HashDigest();
         new_entry->m_Hash.m_Data.m_Data = (uint8_t*)malloc(entry->m_Hash.m_Data.m_Count);
-        memcpy(new_entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count);
         memcpy(new_entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Data, entry->m_Hash.m_Data.m_Count);
         new_entry->m_Flags = entry->m_Flags;
     }
 
     // Fill in bogus resource entry, tagged as BUNDLED but will not be found in the archive
     entries[entry_count].m_Flags = dmLiveUpdateDDF::BUNDLED;
-    entries[entry_count].m_Hash.m_Data.m_Data = (uint8_t*)malloc(entries[0].m_Hash.m_Data.m_Count);
+    entries[entry_count].m_Hash.m_Data.m_Data = (uint8_t*)malloc(manifest->m_DDFData->m_Resources.m_Data[0].m_Hash.m_Data.m_Count);
+    memset(entries[entry_count].m_Hash.m_Data.m_Data, 0xFF, manifest->m_DDFData->m_Resources.m_Data[0].m_Hash.m_Data.m_Count);
     entries[entry_count].m_Url = "not_in_bundle";
 
     result = dmResource::VerifyResourcesBundled(entries, manifest->m_DDFData->m_Resources.m_Count+1, archive);

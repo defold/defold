@@ -62,6 +62,7 @@ public class OSXBundlerTest {
         createFile(contentRoot, "builtins/manifests/osx/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/ios/Info.plist", "");
         createFile(contentRoot, "builtins/manifests/android/AndroidManifest.xml", "");
+        createFile(contentRoot, "builtins/manifests/web/engine_template.html", "");
         createFile(contentRoot, "input/game.input_binding", "");
     }
 
