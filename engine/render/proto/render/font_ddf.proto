@@ -68,22 +68,24 @@ message FontMap
     optional float sdf_spread = 11 [default = 1];
     optional float sdf_offset = 12 [default = 0];
     optional float sdf_outline = 13 [default = 0];
+    optional float sdf_shadow = 14 [default = 0];
 
-    optional uint32 cache_width = 14 [default = 0];
-    optional uint32 cache_height = 15 [default = 0];
-    optional uint64 glyph_padding = 16;
+    optional uint32 cache_width = 15 [default = 0];
+    optional uint32 cache_height = 16 [default = 0];
+    optional uint64 glyph_padding = 17;
 
-    optional uint32 cache_cell_width = 17;
-    optional uint32 cache_cell_height = 18;
+    optional uint32 cache_cell_width = 18;
+    optional uint32 cache_cell_height = 19;
 
-    optional uint32 glyph_channels = 19;
+    optional uint32 glyph_channels = 20;
 
-    optional bytes glyph_data = 20; // glyph data may be compressed
+    optional bytes glyph_data = 21; // glyph data may be compressed
 
-    optional float alpha = 21 [default = 1.0];
-    optional float outline_alpha = 22 [default = 1.0];
-    optional float shadow_alpha = 23 [default = 1.0];
+    optional float alpha = 22 [default = 1.0];
+    optional float outline_alpha = 23 [default = 1.0];
+    optional float shadow_alpha = 24 [default = 1.0];
 
-    optional uint32 cache_cell_max_ascent = 24;
-    optional uint32 layer_mask = 25 [default = 1];
+    optional uint32 cache_cell_max_ascent = 25;
+    optional uint32 layer_mask = 26 [default = 1];
 }
+
