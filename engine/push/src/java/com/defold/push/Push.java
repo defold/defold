@@ -213,7 +213,7 @@ public class Push {
             JSONObject jo = readJson(activity, path);
             if (jo == null) {
                 Log.e(TAG, String.format("Failed to load local pending notification: %d", uid));
-                return null;
+                return;
             }
             this.listener.addPendingNotifications(jo.optInt("uid"), jo.optString("title"), jo.optString("message"), jo.optString("payload"),
                                                 jo.optLong("timestamp"), jo.optInt("priority"));
