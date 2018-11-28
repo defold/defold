@@ -119,7 +119,7 @@
         (sync/open-sync-dialog))))
 
 (defn regular-sync! [changes-view dashboard-client]
-  (if-not (login/sign-in! dashboard-client)
+  (if-not (login/sign-in! dashboard-client :synchronize)
     false
     (let [git (g/node-value changes-view :git)
           prefs (g/node-value changes-view :prefs)

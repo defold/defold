@@ -505,7 +505,7 @@
                                                (ui/items! dashboard-projects-list
                                                           (filter-dashboard-projects filter-text dashboard-projects)))]
         ;; Configure sign-in UI elements.
-        (login/configure-sign-in-ui-elements! import-project-pane dashboard-client)
+        (login/configure-sign-in-ui-elements! import-project-pane dashboard-client :access-projects)
 
         ;; Show / hide various elements based on sign-in state.
         (b/bind-presence! state-signed-in (b/= :signed-in sign-in-state-property))
