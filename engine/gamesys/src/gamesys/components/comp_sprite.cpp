@@ -41,7 +41,6 @@ namespace dmGameSystem
         uint32_t                    m_MixedHash;
         dmMessage::URL              m_Listener;
         uint32_t                    m_AnimationID;
-        dmhash_t                    m_ListenerComponent;
         SpriteResource*             m_Resource;
         CompRenderConstants         m_RenderConstants;
         /// Currently playing animation
@@ -239,7 +238,6 @@ namespace dmGameSystem
         component->m_Rotation = params.m_Rotation;
         component->m_Resource = (SpriteResource*)params.m_Resource;
         dmMessage::ResetURL(component->m_Listener);
-        component->m_ListenerComponent = 0xff;
         component->m_ComponentIndex = params.m_ComponentIndex;
         component->m_Enabled = 1;
         component->m_Scale = Vector3(1.0f);
@@ -490,13 +488,12 @@ namespace dmGameSystem
             if (once && component->m_AnimTimer >= 1.0f)
             {
                 component->m_Playing = 0;
-                if (component->m_ListenerComponent != 0xff)
+                if (component->m_Listener.m_Fragment != 0x0)
                 {
                     dmMessage::URL sender;
-                    dmMessage::URL receiver = component->m_Listener;
                     if (!GetSender(component, &sender))
                     {
-                        dmLogError("Could not send animation_done to sender: %s#%s", dmHashReverseSafe64(component->m_Listener.m_Path), dmHashReverseSafe64(component->m_Listener.m_Fragment));
+                        dmLogError("Could not send animation_done to listener.");
                         return;
                     }
 
@@ -513,22 +510,17 @@ namespace dmGameSystem
                         return;
                     }
 
-                    receiver.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(listener_instance));
+                    dmMessage::URL receiver = component->m_Listener;
                     sender.m_Socket = dmGameObject::GetMessageSocket(dmGameObject::GetCollection(component->m_Instance));
                     if (dmMessage::IsSocketValid(receiver.m_Socket) && dmMessage::IsSocketValid(sender.m_Socket))
                     {
                         dmGameObject::Result go_result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &sender.m_Fragment);
                         if (go_result == dmGameObject::RESULT_OK)
                         {
-                            receiver.m_Path = dmGameObject::GetIdentifier(listener_instance);
-                            assert(receiver.m_Path == component->m_Listener.m_Path); // Really, shouldn't they be the same??!?!
-
-                            receiver.m_Fragment = component->m_ListenerComponent;
                             sender.m_Path = dmGameObject::GetIdentifier(component->m_Instance);
                             uintptr_t descriptor = (uintptr_t)dmGameSystemDDF::AnimationDone::m_DDFDescriptor;
                             uint32_t data_size = sizeof(dmGameSystemDDF::AnimationDone);
                             dmMessage::Result result = dmMessage::Post(&sender, &receiver, message_id, 0, descriptor, &message, data_size, 0);
-                            component->m_ListenerComponent = 0xff;
                             dmMessage::ResetURL(component->m_Listener);
                             if (result != dmMessage::RESULT_OK)
                             {
@@ -542,7 +534,7 @@ namespace dmGameSystem
                     }
                     else
                     {
-                        component->m_ListenerComponent = 0xff;
+                        dmMessage::ResetURL(component->m_Listener);
                     }
                 }
             }
@@ -736,7 +728,6 @@ namespace dmGameSystem
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
                 if (PlayAnimation(component, ddf->m_Id))
                 {
-                    component->m_ListenerComponent = params.m_Message->m_Sender.m_Fragment;
                     component->m_Listener = params.m_Message->m_Sender;
                 }
             }
