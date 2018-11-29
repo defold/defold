@@ -182,7 +182,7 @@ namespace dmJson
         jsmn_parser parser;
         // NOTE: count may be increased in do-while, at a higher cost because of extra malloc/free and parsing
         // Tested wth a +1mb json to achieve a single iteration in the while loop below
-        unsigned int token_count = buffer_length_guess/8;
+        unsigned int token_count = dmMath::Max(64U,buffer_length_guess/8);
 
         if(!buffer)
         {
@@ -237,7 +237,7 @@ namespace dmJson
 
     Result Parse(const char* buffer, Document* doc)
     {
-        return Parse(buffer, strlen(buffer), doc);
+        return Parse(buffer, buffer ? strlen(buffer) : 0, doc);
     }
 
     void Free(Document* doc)
