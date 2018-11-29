@@ -75,6 +75,17 @@ namespace dmJson
      * Parse json data
      * @note The returned nodes index into document json-data.
      * @param buffer json buffer
+     * @param buffer_length the size of the json buffer
+     * @param doc document
+     * @return RESULT_OK on success
+     */
+    Result Parse(const char* buffer, uint32_t buffer_length, Document* doc);
+
+    /**
+     * Parse json data
+     * @note Uses strlen() to figure out the length of the buffer
+     * @note The returned nodes index into document json-data.
+     * @param buffer json buffer
      * @param doc document
      * @return RESULT_OK on success
      */

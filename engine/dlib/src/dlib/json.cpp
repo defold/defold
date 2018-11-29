@@ -176,12 +176,13 @@ namespace dmJson
         }
     }
 
-    Result Parse(const char* buffer, Document* doc)
+    Result Parse(const char* buffer, uint32_t buffer_length_guess, Document* doc)
     {
         memset(doc, 0, sizeof(Document));
         jsmn_parser parser;
-        // NOTE: initial count is increased in do-while
-        unsigned int token_count = 64;
+        // NOTE: count may be increased in do-while, at a higher cost because of extra malloc/free and parsing
+        // Tested wth a +1mb json to achieve a single iteration in the while loop below
+        unsigned int token_count = buffer_length_guess/8;
 
         if(!buffer)
         {
@@ -197,8 +198,7 @@ namespace dmJson
             token_count += dmMath::Min(256U, token_count);
             free(tokens);
             tokens = (jsmntok_t*) malloc(sizeof(jsmntok_t) * token_count);
-            err = jsmn_parse(&parser, buffer, strlen(buffer), tokens, token_count);
-
+            err = jsmn_parse(&parser, buffer, buffer_length_guess, tokens, token_count);
         } while (err == JSMN_ERROR_NOMEM);
 
         if (err >= 0)
@@ -233,6 +233,11 @@ namespace dmJson
         }
         assert(0 && "not reachable");
         return RESULT_UNKNOWN;
+    }
+
+    Result Parse(const char* buffer, Document* doc)
+    {
+        return Parse(buffer, strlen(buffer), doc);
     }
 
     void Free(Document* doc)
