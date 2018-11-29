@@ -1,6 +1,8 @@
 #ifndef DM_JSON
 #define DM_JSON
 
+#include <stdint.h>
+
 /**
  * Json parsing
  */
