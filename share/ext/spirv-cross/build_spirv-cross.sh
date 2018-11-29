@@ -41,5 +41,57 @@ function cmi_buildplatform() {
 
 export PREFIX=`pwd`/build
 
+function cmi() {
+    export PREFIX=`pwd`/build
+    export PLATFORM=$1
+
+    case $1 in
+        darwin)
+            export CPPFLAGS="-m32"
+            export CXXFLAGS="${CXXFLAGS} -m32"
+            export CFLAGS="${CFLAGS} -m32"
+            export LDFLAGS="-m32"
+            cmi_buildplatform $1
+            ;;
+
+        x86_64-darwin)
+            cmi_buildplatform $1
+            ;;
+
+        linux)
+            export CPPFLAGS="-m32"
+            export CXXFLAGS="${CXXFLAGS} -m32"
+            export CFLAGS="${CFLAGS} -m32"
+            export LDFLAGS="-m32"
+            cmi_buildplatform $1
+            ;;
+
+        x86_64-linux)
+            cmi_buildplatform $1
+            ;;
+
+        win32)
+            cmi_buildplatform $1
+            ;;
+
+        x86_64-win32)
+            cmi_buildplatform $1
+            ;;
+
+        i586-mingw32msvc)
+            export CPP=i586-mingw32msvc-cpp
+            export CC=i586-mingw32msvc-gcc
+            export CXX=i586-mingw32msvc-g++
+            export AR=i586-mingw32msvc-ar
+            export RANLIB=i586-mingw32msvc-ranlib
+            cmi_cross $1 $1
+            ;;
+
+        *)
+            echo "Unknown target $1" && exit 1
+            ;;
+    esac
+}
+
 download
 cmi $1
