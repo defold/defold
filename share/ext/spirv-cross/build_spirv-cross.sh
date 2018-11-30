@@ -20,9 +20,9 @@ function cmi_make() {
 }
 
 function cmi_buildplatform() {
-    cmi_do $1 ""
+    cmi_do $PLATFORM ""
 
-    local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
+    local TGZ="$PRODUCT-$VERSION-$PLATFORM.tar.gz"
 
     pushd $PREFIX  >/dev/null
     tar cfvz $TGZ bin
@@ -39,19 +39,17 @@ function cmi_buildplatform() {
     rm -rf $PREFIX
 }
 
-export PREFIX=`pwd`/build
-
 function cmi() {
     export PREFIX=`pwd`/build
     export PLATFORM=$1
 
-    case $1 in
+    case $PLATFORM in
         darwin)
             export CPPFLAGS="-m32"
             export CXXFLAGS="${CXXFLAGS} -m32"
             export CFLAGS="${CFLAGS} -m32"
             export LDFLAGS="-m32"
-            cmi_buildplatform $1
+            cmi_buildplatform $PLATFORM
             ;;
 
         x86_64-darwin)
@@ -63,25 +61,35 @@ function cmi() {
             export CXXFLAGS="${CXXFLAGS} -m32"
             export CFLAGS="${CFLAGS} -m32"
             export LDFLAGS="-m32"
-            cmi_buildplatform $1
+            cmi_buildplatform $PLATFORM
             ;;
 
         x86_64-linux)
-            cmi_buildplatform $1
+            cmi_buildplatform $PLATFORM
             ;;
 
     	win32|x86_64-win32)
-            if [ "$1" == "win32" ]; then
-                CMAKE_ARCH=""
-            else
-                CMAKE_ARCH=" Win64"
-            fi
+            function cmi_configure() {
+                case $PLATFORM in
+                    win32)
+                        CMAKE_GENERATOR="Visual Studio 14 2015"
+                        ;;
+                    x86_64-win32)
+                        CMAKE_GENERATOR="Visual Studio 14 2015 Win64"
+                        ;;
+                esac
+
+                set -e
+                mkdir -p build >/dev/null
+                pushd build >/dev/null
+                cmake -G"${CMAKE_GENERATOR}" ..
+                popd >/dev/null
+            }
+
             function cmi_make() {
                 set -e
 
-                mkdir -p build >/dev/null
                 pushd build >/dev/null
-                cmake -G"Visual Studio 14 2015${CMAKE_ARCH}" ..
                 cmake --build . --config Release
                 mkdir -p $PREFIX/bin
                 cp Release/$PRODUCT.exe $PREFIX/bin
@@ -89,11 +97,11 @@ function cmi() {
 
                 set +e
             }
-            cmi_setup_vs2015_env $1
-            cmi_buildplatform $1
+            cmi_setup_vs2015_env $PLATFORM
+            cmi_buildplatform $PLATFORM
             ;;
         *)
-            echo "Unknown target $1" && exit 1
+            echo "Unknown target $PLATFORM" && exit 1
             ;;
     esac
 }
