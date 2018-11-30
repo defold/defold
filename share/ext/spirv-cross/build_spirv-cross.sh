@@ -91,8 +91,8 @@ function cmi() {
 
                 pushd build >/dev/null
                 cmake --build . --config Release
-                mkdir -p $PREFIX/bin/$CONF_TARGET
-                cp Release/$PRODUCT.exe $PREFIX/bin/$CONF_TARGET
+                mkdir -p $PREFIX/bin/$PLATFORM
+                cp Release/$PRODUCT.exe $PREFIX/bin/$PLATFORM
                 popd >/dev/null
 
                 set +e
