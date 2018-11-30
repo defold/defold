@@ -939,18 +939,23 @@ TEST(RecreateTest, RecreateTest)
 volatile bool SendReloadDone = false;
 void SendReloadThread(void*)
 {
-    char buf[256];
-    dmResourceDDF::Reload* reload_resource = (dmResourceDDF::Reload*) buf;
-    reload_resource->m_Resource = (const char*) sizeof(dmResourceDDF::Reload);
-    memcpy(buf + sizeof(reload_resource), "__testrecreate__.foo", strlen("__testrecreate__.foo") + 1);
+    uint32_t msg_size = sizeof(dmResourceDDF::Reload) + sizeof(uintptr_t) + (strlen("__testrecreate__.foo") + 1);
+    dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) malloc(msg_size);
+    reload_resources->m_Resources.m_Count = 1;
+    uintptr_t str_ofs_offset = 16; // 0x10
+    uintptr_t str_offset = 24;//0x18;
+    memcpy((uint8_t*)reload_resources, &str_ofs_offset, sizeof(uintptr_t)); // offset to path string offsets
+    memcpy((uint8_t*)reload_resources + str_ofs_offset, &str_offset, sizeof(uintptr_t)); // offset to start of resource path string
+    memcpy((uint8_t*)(reload_resources) + str_offset, "__testrecreate__.foo", strlen("__testrecreate__.foo") + 1); // the actual resource path
 
     dmMessage::URL url;
     url.m_Fragment = 0;
     url.m_Path = 0;
     dmMessage::GetSocket("@resource", &url.m_Socket);
-    dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, buf, sizeof(buf), 0);
+    dmMessage::Post(0, &url, dmResourceDDF::Reload::m_DDFHash, 0, (uintptr_t) dmResourceDDF::Reload::m_DDFDescriptor, reload_resources, msg_size, 0);
 
     SendReloadDone = true;
+    free(reload_resources);
 }
 
 TEST(RecreateTest, RecreateTestHttp)
