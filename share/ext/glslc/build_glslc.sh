@@ -18,26 +18,28 @@ function cmi_configure() {
     popd >/dev/null
 
     case $PLATFORM in
-        darwin)
-            CMAKE_GENERATOR=""
-            ;;
-
         x86_64-darwin)
-            CMAKE_GENERATOR=""
-            ;;
-
-        linux)
-            CMAKE_GENERATOR=""
+            CMAKE_GENERATOR="Unix Makefiles"
+            MAKE_OPTIONS="-- -j8"
+            OUTPUT_EXECUTABLE_FILE=$PRODUCT/$PRODUCT
             ;;
 
         x86_64-linux)
-            CMAKE_GENERATOR=""
+            CMAKE_GENERATOR="Unix Makefiles"
+            MAKE_OPTIONS="-- -j8"
+            OUTPUT_EXECUTABLE_FILE=$PRODUCT/$PRODUCT
             ;;
+
     	win32)
             CMAKE_GENERATOR="Visual Studio 14 2015"
+            MAKE_OPTIONS=""
+            OUTPUT_EXECUTABLE_FILE=$PRODUCT/Release/$PRODUCT.exe
             ;;
+
         x86_64-win32)
             CMAKE_GENERATOR="Visual Studio 14 2015 Win64"
+            MAKE_OPTIONS=""
+            OUTPUT_EXECUTABLE_FILE=$PRODUCT/Release/$PRODUCT.exe
             ;;
     esac
 
@@ -52,9 +54,9 @@ function cmi_make() {
     set -e
 
     pushd build >/dev/null
-    cmake --build . --config Release --target glslc_exe
+    cmake --build . --config Release --target glslc_exe $MAKE_OPTIONS
     mkdir -p $PREFIX/bin
-    cp $PRODUCT/Release/$PRODUCT.exe $PREFIX/bin
+    cp $OUTPUT_EXECUTABLE_FILE $PREFIX/bin
     popd >/dev/null
 
     set +e
@@ -85,15 +87,7 @@ function cmi() {
     export PLATFORM=$1
 
     case $PLATFORM in
-        darwin)
-            cmi_buildplatform $PLATFORM
-            ;;
-
         x86_64-darwin)
-            cmi_buildplatform $PLATFORM
-            ;;
-
-        linux)
             cmi_buildplatform $PLATFORM
             ;;
 
