@@ -70,23 +70,28 @@ function cmi() {
             cmi_buildplatform $1
             ;;
 
-        win32)
+    	win32|x86_64-win32)
+            if [ "$1" == "win32" ]; then
+                CMAKE_ARCH=""
+            else
+                CMAKE_ARCH=" Win64"
+            fi
+            function cmi_make() {
+                set -e
+
+                mkdir -p build >/dev/null
+                pushd build >/dev/null
+                cmake -G"Visual Studio 14 2015${CMAKE_ARCH}" ..
+                cmake --build . --config Release
+                mkdir -p $PREFIX/bin
+                cp Release/$PRODUCT.exe $PREFIX/bin
+                popd >/dev/null
+
+                set +e
+            }
+            cmi_setup_vs2015_env $1
             cmi_buildplatform $1
             ;;
-
-        x86_64-win32)
-            cmi_buildplatform $1
-            ;;
-
-        i586-mingw32msvc)
-            export CPP=i586-mingw32msvc-cpp
-            export CC=i586-mingw32msvc-gcc
-            export CXX=i586-mingw32msvc-g++
-            export AR=i586-mingw32msvc-ar
-            export RANLIB=i586-mingw32msvc-ranlib
-            cmi_cross $1 $1
-            ;;
-
         *)
             echo "Unknown target $1" && exit 1
             ;;
