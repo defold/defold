@@ -154,6 +154,12 @@ public class ProjectBuildTest {
 
         // Copy-only resource
         checkProjectSetting(outputProps, "osx", "infoplist", "/builtins/manifests/osx/Info.plist");
+
+        // Check so that empty defaults are not included
+        checkProjectSetting(outputProps, "tracking", "app_id", null);
+
+        // Check so empty custom properties are included as empty strings
+        checkProjectSetting(outputProps, "custom", "should_be_empty", "");
     }
 
     private String createFile(String root, String name, String content) throws IOException {
