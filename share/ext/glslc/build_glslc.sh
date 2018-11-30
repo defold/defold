@@ -55,8 +55,8 @@ function cmi_make() {
 
     pushd build >/dev/null
     cmake --build . --config Release --target glslc_exe $MAKE_OPTIONS
-    mkdir -p $PREFIX/bin
-    cp $OUTPUT_EXECUTABLE_FILE $PREFIX/bin
+    mkdir -p $PREFIX/bin/$CONF_TARGET
+    cp $OUTPUT_EXECUTABLE_FILE $PREFIX/bin/$CONF_TARGET
     popd >/dev/null
 
     set +e
