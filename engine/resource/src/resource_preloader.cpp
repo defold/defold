@@ -297,10 +297,15 @@ namespace dmResource
         dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
 
         // How many of the initial resources where added - they should not be release until preloader destruction
-        uint32_t m_PersistResourceCount;
+        int32_t m_PersistResourceCount;
     
         // persisted resources
         dmArray<void*> m_PersistedResources;
+
+        FPreloaderCompleteCallback m_CompleteCallback;
+        PreloaderCompleteCallbackParams m_CompleteCallbackParams;
+
+        Result m_Result;
 
         uint64_t m_PreloaderCreationTimeNS;
         uint64_t m_MainThreadTimeSpentNS;
@@ -426,6 +431,18 @@ namespace dmResource
         req->m_LoadResult = RESULT_PENDING;
 
         PreloaderTreeInsert(preloader, new_req, parent);
+
+        // Check for recursive resources, if they are, mark with loop error
+        int32_t go_up = parent;
+        while (go_up != -1)
+        {
+            if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == path_descriptor.m_CanonicalPathHash)
+            {
+                req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
+                break;
+            }
+            go_up = preloader->m_Request[go_up].m_Parent;
+        }
         return RESULT_OK;
     }
 
@@ -503,7 +520,10 @@ namespace dmResource
         preloader->m_Freelist[preloader->m_FreelistSize++] = index;
     }
 
-    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names)
+    static dmArray<HPreloader> gPreloaders;
+    static uint32_t gPreloaderUpdateIndex = 0;
+
+    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params)
     {
         uint64_t start_ns = dmTime::GetTime();
 
@@ -558,19 +578,34 @@ namespace dmResource
             }
         }
 
+        preloader->m_CompleteCallback = complete_callback;
+        if (complete_callback_params != 0)
+        {
+            preloader->m_CompleteCallbackParams.m_Factory = complete_callback_params->m_Factory;
+            preloader->m_CompleteCallbackParams.m_UserData = complete_callback_params->m_UserData;
+        }
+
+        preloader->m_Result = RESULT_PENDING;
+
         uint64_t now_ns = dmTime::GetTime();
         uint64_t main_thread_time_ns = now_ns - start_ns;
         preloader->m_PreloaderCreationTimeNS = start_ns;
         preloader->m_MainThreadTimeSpentNS = main_thread_time_ns;
 
+        if (gPreloaders.Size() == gPreloaders.Capacity())
+        {
+            gPreloaders.OffsetCapacity(4);
+        }
+        gPreloaders.Push(preloader);
+
         return preloader;
     }
 
-    HPreloader NewPreloader(HFactory factory, const char* name)
+    HPreloader NewPreloader(HFactory factory, const char* name, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params)
     {
         const char* name_array[1] = {name};
         dmArray<const char*> names (name_array, 1, 1);
-        return NewPreloader(factory, names);
+        return NewPreloader(factory, names, complete_callback, complete_callback_params);
     }
 
     // CreateResource operation ends either with
@@ -754,14 +789,21 @@ namespace dmResource
 
     // Try to prune the branch from specified leaf and up as far as possible
     // by actually creating the resources.
-    static void PreloaderTryPrune(HPreloader preloader, int32_t index)
+    static bool PreloaderTryPrune(HPreloader preloader, int32_t index)
     {
+        bool resource_created = false;
         // Finalises up the chain as far as possible. TryCreate resource will
         // return true if tree was ready.
-        while (index >= 0 && PreloaderTryCreateResource(preloader, index, 0, 0))
+        while (index >= 0)
         {
+            if (!PreloaderTryCreateResource(preloader, index, 0, 0))
+            {
+                break;
+            }
+            resource_created = true;
             index = preloader->m_Request[index].m_Parent;
         }
+        return resource_created;
     }
 
     static uint32_t PreloaderTryEndLoad(HPreloader preloader, int32_t index)
@@ -849,6 +891,12 @@ namespace dmResource
                     return 1;
                 }
             }
+            else if (req->m_LoadResult == RESULT_RESOURCE_LOOP_ERROR)
+            {
+                if (PreloaderTryPrune(preloader, req->m_Parent)){
+                    return 1;
+                }
+            }
             index = req->m_NextSibling;
         }
         return 0;
@@ -860,31 +908,21 @@ namespace dmResource
         DM_PROFILE(Resource, "DoPreloaderUpdateOneReq");
 
         PreloadRequest *req = &preloader->m_Request[index];
+        // If loading it must finish first before trying to go down to children
+        if (req->m_LoadRequest)
+        {
+            if (PreloaderTryEndLoad(preloader, index))
+            {
+                preloader->m_LoadQueueFull = false;
+                return 1;
+            }
+            return 0;
+        }
         // If it does not have a load request, it would have a buffer if it
         // had started a load.
-        if (!req->m_LoadRequest && !req->m_Buffer && !req->m_Resource)
+        if (!req->m_Buffer)
         {
-            bool wait_on = IsPathInProgress(preloader, &req->m_PathDescriptor);
-            if (wait_on)
-            {
-                // Already being loaded elsewhere; we can wait on that to complete, unless the item
-                // exists above us in the tree; then the loop is infinite and we can abort
-                int32_t parent = req->m_Parent;
-                int32_t go_up = parent;
-                while (go_up != -1)
-                {
-                    if (preloader->m_Request[go_up].m_PathDescriptor.m_CanonicalPathHash == req->m_PathDescriptor.m_CanonicalPathHash)
-                    {
-                        req->m_LoadResult = RESULT_RESOURCE_LOOP_ERROR;
-                        PreloaderTryPrune(preloader, parent);
-                        return 1;
-                    }
-                    go_up = preloader->m_Request[go_up].m_Parent;
-                }
-                // OK to wait.
-                return 0;
-            }
-
+            assert(!req->m_Resource);
             // It might have been loaded by unhinted resource Gets, just grab & bump refcount
             SResourceDescriptor* rd = GetByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
             if (rd)
@@ -892,14 +930,24 @@ namespace dmResource
                 rd->m_ReferenceCount++;
                 req->m_Resource = rd->m_Resource;
                 req->m_LoadResult = RESULT_OK;
-                PreloaderTryPrune(preloader, req->m_Parent);
-                return 1;
+                if (PreloaderTryPrune(preloader, req->m_Parent))
+                {
+                    return 1;
+                }
+                return 0;
             }
 
             if (preloader->m_LoadQueueFull)
             {
                 // We must break here so we don't traverse children before
                 // we loaded parent
+                return 0;
+            }
+
+            bool wait_on = IsPathInProgress(preloader, &req->m_PathDescriptor);
+            if (wait_on)
+            {
+                // A different item in the resource tree is already loading the same resource, just wait
                 return 0;
             }
 
@@ -910,8 +958,11 @@ namespace dmResource
                 {
                     dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_PathDescriptor.m_InternalizedName);
                     req->m_LoadResult = RESULT_MISSING_FILE_EXTENSION;
-                    PreloaderTryPrune(preloader, req->m_Parent);
-                    return 1;
+                    if (PreloaderTryPrune(preloader, req->m_Parent))
+                    {
+                        return 1;
+                    }
+                    return 0;
                 }
 
                 req->m_ResourceType = FindResourceType(preloader->m_Factory, ext + 1);
@@ -919,8 +970,11 @@ namespace dmResource
                 {
                     dmLogError("Unknown resource type: %s", ext);
                     req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
-                    PreloaderTryPrune(preloader, req->m_Parent);
-                    return 1;
+                    if (PreloaderTryPrune(preloader, req->m_Parent))
+                    {
+                        return 1;
+                    }
+                    return 0;
                 }
             }
 
@@ -938,23 +992,13 @@ namespace dmResource
             }
 
             preloader->m_LoadQueueFull = true;
-            return 1;
+            return 0;
         }
 
-        // If loading it must finish first before trying to go down to children
-        if (req->m_LoadRequest)
+        // traverse depth first
+        if (PreloaderUpdateOneItem(preloader, req->m_FirstChild))
         {
-            if (PreloaderTryEndLoad(preloader, index))
-            {
-                preloader->m_LoadQueueFull = false;
-                return 1;
-            }
-        }
-        else
-        {
-            // traverse depth first
-            if (PreloaderUpdateOneItem(preloader, req->m_FirstChild))
-                return 1;
+            return 1;
         }
 
         return 0;
@@ -994,77 +1038,149 @@ namespace dmResource
         return ret;
     }
 
-
-    Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit)
+    static Result StepPreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, bool& out_empty_run)
     {
-        DM_PROFILE(Resource, "UpdatePreloader");
+        Result root_result = preloader->m_Request[0].m_LoadResult;
+
+        Result post_create_result = RESULT_OK;
+        if (preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
+        {
+            post_create_result = PostCreateUpdateOneItem(preloader);
+            if (post_create_result != RESULT_PENDING)
+            {
+                out_empty_run = false;
+                if (root_result == RESULT_OK)
+                {
+                    // Just waiting for the post-create functions to complete
+                    // if main result is RESULT_OK pick up any errors from
+                    // post create function
+                    preloader->m_Request[0].m_LoadResult = post_create_result;
+                    return post_create_result;
+                }
+            }
+        }
+        if (root_result == RESULT_PENDING)
+        {
+            if (PreloaderUpdateOneItem(preloader, 0))
+            {
+                out_empty_run = false;
+                return RESULT_PENDING;
+            }
+        }
+        else
+        {
+            if (!preloader->m_CreateComplete)
+            {
+                // Root is resolved - all items has been created, we should now
+                // call the post-create function (if given) and then post-create
+                // of all created items
+                preloader->m_CreateComplete = true;
+                if (root_result == RESULT_OK && complete_callback)
+                {
+                    if(!complete_callback(complete_callback_params))
+                    {
+                        preloader->m_Request[0].m_LoadResult = RESULT_NOT_LOADED;
+                    }
+                    // We need to continue to do all post create functions
+                    out_empty_run = false;
+                    return RESULT_PENDING;
+                }
+            }
+
+            if (post_create_result == RESULT_OK)
+            {
+                // All done!
+                return root_result;
+            }
+        }
+
+        if (PopHints(preloader))
+        {
+            out_empty_run = false;
+        }
+        return RESULT_PENDING;
+    }
+
+    bool RunPreloader(HPreloader preloader, uint64_t start, uint32_t soft_time_limit, bool& out_is_blocked, bool& did_process)
+    {
+        do
+        {
+            bool empty_run = true;
+            preloader->m_Result = StepPreloader(preloader, preloader->m_CompleteCallback, &preloader->m_CompleteCallbackParams, empty_run);
+            if (empty_run)
+            {
+                out_is_blocked = true;
+                return dmTime::GetTime() - start <= soft_time_limit;
+            }
+            else
+            {
+                did_process = true;
+            }
+        } while (dmTime::GetTime() - start <= soft_time_limit);
+        return false;
+    }
+
+    Result UpdatePreloaders(uint32_t soft_time_limit)
+    {
+        if (gPreloaders.Empty())
+        {
+            return RESULT_OK;
+        }
+        DM_PROFILE(Resource, "UpdatePreloaders");
 
         uint64_t start = dmTime::GetTime();
         uint32_t empty_runs = 0;
         bool close_to_time_limit = soft_time_limit < 1000;
 
+        uint32_t pending_count = 0;
+        uint32_t preloader_count = gPreloaders.Size();
         do
         {
-            Result root_result = preloader->m_Request[0].m_LoadResult;
-            Result post_create_result = RESULT_OK;
-            if (preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
+            uint32_t blocked_count = 0;
+            bool has_more_time = true;
+            do
             {
-                post_create_result = PostCreateUpdateOneItem(preloader);
-                if (post_create_result != RESULT_PENDING)
-                {
-                    empty_runs = 0;
-                    if (root_result == RESULT_OK)
-                    {
-                        // Just waiting for the post-create functions to complete
-                        // if main result is RESULT_OK pick up any errors from
-                        // post create function
-                        preloader->m_Request[0].m_LoadResult = post_create_result;
-                    }
-                    continue;
-                }
-            }
+                pending_count = 0;
 
-            if (root_result == RESULT_PENDING)
-            {
-                if (PreloaderUpdateOneItem(preloader, 0))
+                for (uint32_t i = 0; i < preloader_count; ++i)
                 {
-                    empty_runs = 0;
-                    continue;
-                }
-            }
-            else
-            {
-                if (!preloader->m_CreateComplete)
-                {
-                    // Root is resolved - all items has been created, we should now
-                    // call the post-create function (if given) and then post-create
-                    // of all created items
-                    preloader->m_CreateComplete = true;
-                    if (root_result == RESULT_OK && complete_callback)
+                    if (gPreloaderUpdateIndex >= preloader_count)
                     {
-                        if(!complete_callback(complete_callback_params))
+                        gPreloaderUpdateIndex = 0;
+                    }
+
+                    HPreloader preloader = gPreloaders[gPreloaderUpdateIndex];
+                    ++gPreloaderUpdateIndex;
+
+                    if (has_more_time)
+                    {
+                        bool is_blocked = false;
+                        bool did_process = false;
+                        has_more_time = RunPreloader(preloader, start, soft_time_limit, is_blocked, did_process);
+                        if (did_process)
                         {
-                            preloader->m_Request[0].m_LoadResult = RESULT_NOT_LOADED;
+                            blocked_count = 0;
                         }
-                        empty_runs = 0;
-                        // We need to continue to do all post create functions
-                        continue;
+                        if (is_blocked)
+                        {
+                            ++blocked_count;
+                        }
+                    }
+                    if (preloader->m_Result == RESULT_PENDING)
+                    {
+                        ++pending_count;
                     }
                 }
-
-                if (post_create_result != RESULT_PENDING)
+                if (!has_more_time)
                 {
-                    // All done!
-                    uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
-                    preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
-                    return root_result;
+                    goto out_of_time;
                 }
-            }
 
-            if (PopHints(preloader))
+            } while (blocked_count < preloader_count);
+
+            if (pending_count == 0)
             {
-                empty_runs = 0;
-                continue;
+                break;
             }
 
             if (close_to_time_limit)
@@ -1080,7 +1196,7 @@ namespace dmResource
                 close_to_time_limit = (dmTime::GetTime() + 1000 - start) > soft_time_limit;
                 if (close_to_time_limit)
                 {
-                    dmTime::Sleep(1);
+//                    dmTime::Sleep(1);
                     continue;
                 }
 
@@ -1090,11 +1206,25 @@ namespace dmResource
                 dmTime::Sleep(1000);
             }
         } while(dmTime::GetTime() - start <= soft_time_limit);
-
+out_of_time:
+        // All done!
         uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
-        preloader->m_MainThreadTimeSpentNS += main_thread_elapsed_ns;
-        return RESULT_PENDING;
+        for (uint32_t i = 0; i < preloader_count; ++i)
+        {
+            // Distribute main time evenly over all active preloaders
+            HPreloader preloader = gPreloaders[i];
+            uint64_t slice_ns = ((main_thread_elapsed_ns * (i + 1)) / preloader_count) - ((main_thread_elapsed_ns * i) / preloader_count);
+            preloader->m_MainThreadTimeSpentNS += slice_ns;
+        }
+
+        return pending_count > 0 ? RESULT_PENDING : RESULT_OK;
     }
+
+    Result UpdatePreloader(HPreloader preloader)
+    {
+        return preloader->m_Result;
+    }
+
 
     void DeletePreloader(HPreloader preloader)
     {
@@ -1102,9 +1232,10 @@ namespace dmResource
         // To fix this:
         // * Make Get calls insta-fail on RESULT_ABORTED or something
         // * Make Queue only return RESULT_ABORTED always.
-        while (UpdatePreloader(preloader, 0, 0, 1000000) == RESULT_PENDING)
+        while (UpdatePreloader(preloader) == RESULT_PENDING)
         {
             dmLogWarning("Waiting for preloader to complete.");
+            UpdatePreloaders(10000);
         }
 
         uint64_t start_excluding_update_ns = dmTime::GetTime();
@@ -1133,6 +1264,15 @@ namespace dmResource
             (uint32_t)(preloader_load_time_ns / 1000),
             (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
 //        dmLogWarning("Used %u bytes of preloader path data", preloader->m_SyncedData.m_PathDataUsed);
+
+        for (uint32_t i = 0; i < gPreloaders.Size(); ++i)
+        {
+            if (gPreloaders[i] == preloader)
+            {
+                gPreloaders.EraseSwap(i);
+                break;
+            }
+        }
 
         delete preloader;
     }
