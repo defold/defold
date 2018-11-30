@@ -559,7 +559,7 @@ namespace dmResource
      * @param name Resource to load
      * @return CREATE_RESULT_OK on success
      */
-    HPreloader NewPreloader(HFactory factory, const char* name);
+    HPreloader NewPreloader(HFactory factory, const char* name, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params);
 
     /**
      * Create a new preloader
@@ -567,7 +567,7 @@ namespace dmResource
      * @param array of names of resources to load
      * @return CREATE_RESULT_OK on success
      */
-    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names);
+    HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params);
 
     /**
      * Perform one update tick of the preloader, with a soft time limit for
@@ -578,7 +578,9 @@ namespace dmResource
      * @param soft_time_limit Time limit in us
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
-    Result UpdatePreloader(HPreloader preloader, FPreloaderCompleteCallback complete_callback, PreloaderCompleteCallbackParams* complete_callback_params, uint32_t soft_time_limit);
+    Result UpdatePreloaders(uint32_t soft_time_limit);
+
+    Result UpdatePreloader(HPreloader preloader);
 
     /**
      * Destroy the preloader. Note that currently it will spin and block until

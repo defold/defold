@@ -117,10 +117,7 @@ namespace dmGameSystem
                 dmResource::Result r = dmResource::RESULT_OK;
                 if(component->m_Preloader)
                 {
-                    dmResource::PreloaderCompleteCallbackParams preloader_params;
-                    preloader_params.m_Factory = factory;
-                    preloader_params.m_UserData = component;
-                    r = dmResource::UpdatePreloader(component->m_Preloader, PreloadCompleteCallback, &preloader_params, 10*1000);
+                    r = dmResource::UpdatePreloader(component->m_Preloader);
                 }
                 if (r != dmResource::RESULT_PENDING)
                 {
@@ -162,7 +159,12 @@ namespace dmGameSystem
                 continue;
             names.Push(instance_desc.m_Prototype);
         }
-        component->m_Preloader = dmResource::NewPreloader(dmGameObject::GetFactory(collection), names);
+
+        dmResource::PreloaderCompleteCallbackParams preloader_params;
+        preloader_params.m_Factory = dmGameObject::GetFactory(collection);
+        preloader_params.m_UserData = component;
+
+        component->m_Preloader = dmResource::NewPreloader(dmGameObject::GetFactory(collection), names, PreloadCompleteCallback, &preloader_params);
         if(!component->m_Preloader)
         {
             return false;

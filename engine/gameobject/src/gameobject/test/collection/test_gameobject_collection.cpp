@@ -64,15 +64,16 @@ protected:
     // dmResource::Get API but with preloader instead
     dmResource::Result PreloaderGet(dmResource::HFactory factory, const char *ref, void** resource)
     {
-        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, ref);
+        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, ref, 0, 0);
         dmResource::Result r;
         for (uint32_t i=0;i<33;i++)
         {
-            r = dmResource::UpdatePreloader(pr, 0, 0, 30*1000);
+            r = dmResource::UpdatePreloaders(30*1000);
             if (r != dmResource::RESULT_PENDING)
                 break;
             dmTime::Sleep(30000);
         }
+        r = dmResource::UpdatePreloader(pr);
         if (r == dmResource::RESULT_OK)
         {
             r = dmResource::Get(factory, ref, resource);
