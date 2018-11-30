@@ -126,6 +126,7 @@ public class ProjectBuildTest {
         projectName = "Game Project Properties";
         createDefaultFiles();
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\n");
+        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\nshould_be_empty =\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
         outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
