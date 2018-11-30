@@ -38,29 +38,31 @@
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn- reload-build-resource-proj-path! [target ^String build-resource-proj-path]
+(defn- reload-resources-proj-path! [target proj-paths]
   (let [uri (URI. (str (:url target) "/post/@resource/reload"))
         conn ^HttpURLConnection (get-connection uri)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
                             Resource$Reload
-                            {:resource build-resource-proj-path})))
+                            {:resources proj-paths})))
       (with-open [is (.getInputStream conn)]
         (ignore-all-output is))
       (finally
         (.disconnect conn)))))
 
-(defn reload-build-resource! [target build-resource]
-  (assert (instance? BuildResource build-resource))
-  (reload-build-resource-proj-path! target (resource/proj-path build-resource)))
+(defn reload-build-resources! [target build-resources]
+  (let [build-resources-proj-path (into [] (keep (fn [resource]
+                                                   (resource/proj-path resource))
+                                                 build-resources))]
+    (reload-resources-proj-path! target build-resources-proj-path)))
 
 (defn reload-source-resource! [target resource]
   (assert (not (instance? BuildResource resource)))
   (let [build-ext (:build-ext (resource/resource-type resource))
         proj-path (resource/proj-path resource)
         build-resource-proj-path (str (FilenameUtils/removeExtension proj-path) "." build-ext)]
-    (reload-build-resource-proj-path! target build-resource-proj-path)))
+    (reload-resources-proj-path! target [build-resource-proj-path])))
 
 (defn reboot! [target local-url debug?]
   (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))

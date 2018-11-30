@@ -713,8 +713,7 @@ If you do not specifically require different script states, consider changing th
           (if (some? specific-resource)
             (engine/reload-source-resource! target specific-resource)
             (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags))]
-              (doseq [build-resource updated-build-resources]
-                (engine/reload-build-resource! target build-resource))))
+              (engine/reload-build-resources! target updated-build-resources)))
           (catch Exception e
             (dialogs/make-error-dialog "Hot Reload Failed"
                                        (format "Failed to reload resources on '%s'"
