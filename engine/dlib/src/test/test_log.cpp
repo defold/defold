@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/array.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"

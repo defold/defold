@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import os
 import waf_dynamo
+import Options
 
 def configure(conf):
     pass
@@ -26,4 +27,5 @@ def build(bld):
             exe.install_path = None
             bld.install_as("${PREFIX}/bin/${PLATFORM}/launcher.exe", "launcher_signed.exe")
 
-    bld.add_subdirs('test')
+    if not Options.options.skip_build_tests:
+        bld.add_subdirs('test')

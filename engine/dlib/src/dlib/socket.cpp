@@ -22,6 +22,7 @@
 
 #if defined(_WIN32)
 #include <Winsock2.h>
+#include <dlib/windefines.h>
 #endif
 
 #include "log.h"

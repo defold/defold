@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/http_cache.h"
 #include "../dlib/sys.h"
 #include "../dlib/time.h"

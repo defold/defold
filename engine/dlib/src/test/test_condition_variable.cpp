@@ -1,9 +1,9 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include "../dlib/array.h"
 #include "../dlib/thread.h"
 #include "../dlib/mutex.h"
 #include "../dlib/condition_variable.h"
+#include "testutil.h"
 
 struct ThreadArg
 {

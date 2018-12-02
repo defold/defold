@@ -98,7 +98,7 @@ namespace dmThread
 #elif defined(_WIN32)
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
-        (void*) name;
+        (void) name;
         DWORD thread_id;
         HANDLE thread = CreateThread(NULL, stack_size,
                                      (LPTHREAD_START_ROUTINE) thread_start,

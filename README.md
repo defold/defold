@@ -246,6 +246,14 @@ Since the executable doesn't install anymore, easiest to create a wrapper:
 
     >$ brew install dos2unix
 
+##### Clang 6+
+
+In order to build for windows on OSX, you need a newer clang.
+
+    > brew install --with-toolchain llvm
+    > brew install llvm
+    > /usr/local/opt/llvm/bin/clang --version
+
 ### Optional Software
 
 Quick and easy install:

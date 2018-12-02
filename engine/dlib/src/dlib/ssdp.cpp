@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <string.h>
 
+#include "windefines.h"
 #include "ssdp.h"
 #include <dlib/ssdp_private.h>
 

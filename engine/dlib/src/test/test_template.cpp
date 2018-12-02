@@ -3,7 +3,7 @@
 #include <map>
 #include <vector>
 #include <string>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/template.h"
 
 const char* MapReplace(void* user_data, const char* key)

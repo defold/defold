@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/utf8.h"
 
 /*
