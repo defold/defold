@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
-#include <gtest/gtest.h>
 #include "../dlib/easing.h"
 #include "../dlib/math.h"
+#include "testutil.h"
 
 TEST(dmEasing, Linear)
 {

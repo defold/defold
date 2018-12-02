@@ -10,6 +10,7 @@
 #include "condition_variable.h"
 #include "dstrings.h"
 #include <dlib/static_assert.h>
+#include <dlib/windefines.h>
 
 namespace dmMessage
 {

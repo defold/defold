@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "dlib/trig_lookup.h"
 #include "dlib/math.h"
 

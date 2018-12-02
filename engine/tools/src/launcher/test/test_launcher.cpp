@@ -7,8 +7,9 @@
 
 #ifdef _WIN32
 
-#include <windows.h>
+#include <Windows.h>
 #include <assert.h>
+#include <shellapi.h>
 
 #define MAX_ARG_LEN 20
 #define MAX_ARGC 20
@@ -79,13 +80,13 @@ void CheckRoundtrip(int argc, char const* argv[])
     char buffer[10000];
 
     QuoteArgv(argv, buffer);
-        
+
     wchar_t wide_buffer[10000];
 
     char* b = buffer;
     wchar_t* wp = wide_buffer;
 
-    while (*wp++ = *b++) {}
+    while ((*wp++ = *b++)) {}
 
     int parsed_argc = 0;
     LPWSTR* parsed_argv = CommandLineToArgvW(wide_buffer, &parsed_argc);
@@ -121,7 +122,7 @@ TEST(Launcher, CreateProcessArgQuoting)
     fflush(stdout);
 
     srand(seed);
-    
+
     for (int i = 0; i < (ITERATIONS); ++i)
     {
         int argc = rand() % (MAX_ARGC) + 1;

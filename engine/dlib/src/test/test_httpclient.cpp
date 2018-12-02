@@ -2,8 +2,6 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
-#include "dlib/configfile.h"
 #include "dlib/dstrings.h"
 #include "dlib/time.h"
 #include "dlib/log.h"

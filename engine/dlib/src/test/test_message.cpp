@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <vector>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../../src/dlib/hash.h"
 #include "../../src/dlib/message.h"
 #include "../../src/dlib/dstrings.h"

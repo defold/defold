@@ -1,8 +1,6 @@
 #include <stdint.h>
-#include <gtest/gtest.h>
 #include <vector>
 #include <set>
-#include <dlib/configfile.h>
 #include <dlib/connection_pool.h>
 #include <dlib/log.h>
 #include <dlib/time.h>

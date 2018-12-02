@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
 #include "../dlib/align.h"
+#include "testutil.h"
 
 struct AlignStruct
 {

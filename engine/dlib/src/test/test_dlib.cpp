@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <string>
 #include <map>
-#include <gtest/gtest.h>
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
+#include "testutil.h"
 
 class dlib : public ::testing::Test
 {

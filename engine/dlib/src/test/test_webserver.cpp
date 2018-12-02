@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <map>
 #include <string>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/time.h"
 #include "../dlib/socket.h"
 #include "../dlib/math.h"

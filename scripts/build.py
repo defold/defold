@@ -23,10 +23,10 @@ PACKAGES_IOS="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 luajit-2.0.5 tremolo-0.0
 PACKAGES_IOS_64="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 bullet-2.77".split()
 PACKAGES_DARWIN_64="protobuf-2.3.0 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 vpx-v0.9.7-p1 tremolo-0.0.8 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_WIN32="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_LINUX="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0 bullet-2.77".split()
-PACKAGES_LINUX_64="PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_WIN32="facebook-gameroom-2017-08-14 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_WIN32_64="facebook-gameroom-2017-08-14 gtest-1.8.0 PVRTexLib-4.18.0 webp-0.5.0 luajit-2.0.5 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_LINUX="PVRTexLib-4.18.0 gtest-1.8.0 webp-0.5.0 luajit-2.0.5 openal-1.1 apkc-0.1.0 bullet-2.77".split()
+PACKAGES_LINUX_64="PVRTexLib-4.18.0 gtest-1.8.0 webp-0.5.0 luajit-2.0.5 sassc-5472db213ec223a67482df2226622be372921847 apkc-0.1.0 bullet-2.77".split()
 PACKAGES_ANDROID="protobuf-2.3.0 gtest-1.8.0 facebook-4.7.0 android-support-v4 android-support-multidex android-27 google-play-services-4.0.30 luajit-2.0.5 tremolo-0.0.8 amazon-iap-2.0.16 bullet-2.77".split()
 PACKAGES_EMSCRIPTEN="gtest-1.8.0 protobuf-2.3.0 bullet-2.77".split()
 
@@ -412,15 +412,21 @@ class Configuration(object):
         xhr2_tarball = self._download(NODE_MODULE_XHR2_URL)
         self._extract_tgz(xhr2_tarball, node_modules_dir)
 
+        # Simple way to reduce number of warnings in the build
+        proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
+        if not os.path.exists(proto_path):
+            os.makedirs(proto_path)
+
+        self.install_sdk()
+
+    def install_sdk(self):
+        print("Installing SDK for %s" % target_platform)
+
         def download_sdk(url, targetfolder, tmpname=None): # tmpname is the top folder name inside the archive, which you wish to rename
             if not os.path.exists(targetfolder):
                 dlpath = self._download(url)
                 parent_folder = os.path.split(targetfolder)[0]
-                if tmpname is None:
-                    self._extract_tgz(dlpath, parent_folder)
-                else:
-                    tmpfolder = os.path.join(parent_folder, tmpname)
-                    os.rename(tmpfolder, targetfolder)
+                self._extract_tgz(dlpath, parent_folder)
 
         if target_platform in ('darwin', 'x86_64-darwin', 'armv7-darwin', 'arm64-darwin'):
             # macOS SDK
@@ -454,14 +460,12 @@ class Configuration(object):
             download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_8), join(win32_sdk_folder, 'WindowsKits', '8.1') )
             download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             targetfolder = join(win32_sdk_folder, 'MicrosoftVisualStudio14.0') # let's avoid spaces in the paths
-            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), targetfolder, 'Microsoft Visual Studio 14.0' )
+            srcfolder = join(win32_sdk_folder, 'Microsoft Visual Studio 14.0')
+            download_sdk( '%s/%s.tar.gz' % (DEFOLD_PACKAGES_URL, PACKAGES_WIN32_TOOLCHAIN), srcfolder)
+            os.rename(srcfolder, targetfolder)
 
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
-        # Simple way to reduce number of warnings in the build
-        proto_path = os.path.join(self.dynamo_home, 'share', 'proto')
-        if not os.path.exists(proto_path):
-            os.makedirs(proto_path)
 
     def _form_ems_path(self):
         path = join(self.ext, EMSCRIPTEN_DIR)

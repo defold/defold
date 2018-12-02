@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
 

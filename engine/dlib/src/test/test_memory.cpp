@@ -1,7 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <gtest/gtest.h>
 #include "../dlib/memory.h"
+#include "testutil.h"
+
 
 TEST(dmMemory, AlignedMalloc)
 {

@@ -75,7 +75,8 @@ namespace dmEngineVersion
     elif operating_sys == "linux":
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib'])
+        for l in ["OpenGL32", "User32", "Xinput9_1_0", "GlU32", "Shell32", "OpenAL32", "DbgHelp"]:
+            conf.env.append_value('LINKFLAGS', ['-l%s' %l])
     elif 'web' in operating_sys:
         pass
 

@@ -1,4 +1,4 @@
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "dlib/vmath.h"
 
 const float epsilon = 0.0001f;

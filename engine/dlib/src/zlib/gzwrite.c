@@ -4,6 +4,7 @@
  */
 
 #include "gzguts.h"
+#include <dlib/windefines.h>
 
 /* Local functions */
 local int gz_init OF((gz_statep));

@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string>
-#include <gtest/gtest.h>
+#include "testutil.h"
 #include "../dlib/zlib.h"
 
 extern unsigned char FOO_GZ[];

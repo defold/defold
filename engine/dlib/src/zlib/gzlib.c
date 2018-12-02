@@ -4,6 +4,7 @@
  */
 
 #include "gzguts.h"
+#include <dlib/windefines.h>
 
 #if defined(_WIN32) && !defined(__BORLANDC__)
 #  define LSEEK _lseeki64
