@@ -617,7 +617,7 @@ namespace dmResource
 
             bool found = false;
             // Remove from the post create callbacks if necessary
-            for( uint32_t i = 0; i < preloader->m_PostCreateCallbacks.Size(); ++i )
+            for( uint32_t i = preloader->m_PostCreateCallbackIndex; i < preloader->m_PostCreateCallbacks.Size(); ++i )
             {
                 ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[i];
                 if (ip.m_ResourceDesc.m_Resource == tmp_resource.m_Resource)
