@@ -860,7 +860,7 @@ namespace dmResource
             }
 
             preloader->m_LoadQueueFull = true;
-            return 0;
+            return 1;
         }
 
         // If loading it must finish first before trying to go down to children
