@@ -166,6 +166,7 @@ namespace dmResource
         uint32_t m_ScratchBufferEndPos;
 
         // post create state
+        bool m_LoadQueueFull;
         bool m_CreateComplete;
         uint32_t m_PostCreateCallbackIndex;
         dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
@@ -409,6 +410,7 @@ namespace dmResource
 
         // Post create setup
         preloader->m_PostCreateCallbacks.SetCapacity(MAX_PRELOADER_REQUESTS / 8);
+        preloader->m_LoadQueueFull = false;
         preloader->m_CreateComplete = false;
         preloader->m_PostCreateCallbackIndex = 0;
 
@@ -815,53 +817,60 @@ namespace dmResource
                 PreloaderTryPrune(preloader, req->m_Parent);
                 return 1;
             }
-            else
+
+            if (preloader->m_LoadQueueFull)
             {
-                if (!req->m_ResourceType)
+                // We must break here so we don't traverse children before
+                // we loaded parent
+                return 0;
+            }
+
+            if (!req->m_ResourceType)
+            {
+                const char* ext = strrchr(req->m_PathDescriptor.m_InternalizedName, '.');
+                if (!ext)
                 {
-                    const char* ext = strrchr(req->m_PathDescriptor.m_InternalizedName, '.');
-                    if (!ext)
-                    {
-                        dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_PathDescriptor.m_InternalizedName);
-                        req->m_LoadResult = RESULT_MISSING_FILE_EXTENSION;
-                        PreloaderTryPrune(preloader, req->m_Parent);
-                        return 1;
-                    }
-
-                    req->m_ResourceType = FindResourceType(preloader->m_Factory, ext + 1);
-                    if (!req->m_ResourceType)
-                    {
-                        dmLogError("Unknown resource type: %s", ext);
-                        req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
-                        PreloaderTryPrune(preloader, req->m_Parent);
-                        return 1;
-                    }
-                }
-
-                dmLoadQueue::PreloadInfo info;
-                info.m_HintInfo.m_Preloader = preloader;
-                info.m_HintInfo.m_Parent = index;
-                info.m_Function = req->m_ResourceType->m_PreloadFunction;
-                info.m_Context = req->m_ResourceType->m_Context;
-
-                // Silently ignore if return null (means try later)"
-                if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
-                {
-                    MarkPathInProgress(preloader, &req->m_PathDescriptor);
+                    dmLogWarning("Unable to load resource: '%s'. Missing file extension.", req->m_PathDescriptor.m_InternalizedName);
+                    req->m_LoadResult = RESULT_MISSING_FILE_EXTENSION;
+                    PreloaderTryPrune(preloader, req->m_Parent);
                     return 1;
                 }
-                else
+
+                req->m_ResourceType = FindResourceType(preloader->m_Factory, ext + 1);
+                if (!req->m_ResourceType)
                 {
-                    return 0;
+                    dmLogError("Unknown resource type: %s", ext);
+                    req->m_LoadResult = RESULT_UNKNOWN_RESOURCE_TYPE;
+                    PreloaderTryPrune(preloader, req->m_Parent);
+                    return 1;
                 }
             }
+
+            dmLoadQueue::PreloadInfo info;
+            info.m_HintInfo.m_Preloader = preloader;
+            info.m_HintInfo.m_Parent = index;
+            info.m_Function = req->m_ResourceType->m_PreloadFunction;
+            info.m_Context = req->m_ResourceType->m_Context;
+
+            // Silently ignore if return null (means try later)"
+            if ((req->m_LoadRequest = dmLoadQueue::BeginLoad(preloader->m_LoadQueue, req->m_PathDescriptor.m_InternalizedName, req->m_PathDescriptor.m_InternalizedCanonicalPath, &info)))
+            {
+                MarkPathInProgress(preloader, &req->m_PathDescriptor);
+                return 1;
+            }
+
+            preloader->m_LoadQueueFull = true;
+            return 0;
         }
 
         // If loading it must finish first before trying to go down to children
         if (req->m_LoadRequest)
         {
             if (PreloaderTryEndLoad(preloader, index))
+            {
+                preloader->m_LoadQueueFull = false;
                 return 1;
+            }
         }
         else
         {
@@ -1004,6 +1013,7 @@ namespace dmResource
                 close_to_time_limit = (dmTime::GetTime() + 1000 - start) > soft_time_limit;
                 if (close_to_time_limit)
                 {
+                    dmTime::Sleep(1);
                     continue;
                 }
 
