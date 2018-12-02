@@ -515,7 +515,7 @@ namespace dmResource
                 }
                 else
                 {
-                    uint32_t aligned_buffer_size = DM_ALIGN(req->m_BufferSize, 16);
+                    uint32_t aligned_buffer_size = DM_ALIGN(req->m_BufferSize, 4);
                     if (req->m_Buffer == &preloader->m_ScratchBuffer[preloader->m_ScratchBufferBeginPos])
                     {
                         preloader->m_ScratchBufferBeginPos += aligned_buffer_size;
@@ -726,7 +726,7 @@ namespace dmResource
                 else
                 {
                     // We need to hold on to the data for a bit longer now.
-                    uint32_t aligned_size = DM_ALIGN(buffer_size, 16);
+                    uint32_t aligned_size = DM_ALIGN(buffer_size, 4);
                     if (preloader->m_ScratchBufferBeginPos >= aligned_size)
                     {
                         preloader->m_ScratchBufferBeginPos -= aligned_size;
