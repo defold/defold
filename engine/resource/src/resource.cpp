@@ -897,7 +897,7 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
             uint8_t* str_offset_cursor = (uint8_t*)((uintptr_t)reload_resources + *(uint32_t*)reload_resources);
             for (uint32_t i = 0; i < count; ++i)
             {
-                const char* resource = (const char *) (uintptr_t)reload_resources + *(str_offset_cursor + i * sizeof(uintptr_t));
+                const char* resource = (const char *) (uintptr_t)reload_resources + *(str_offset_cursor + i * sizeof(uint64_t));
                 SResourceDescriptor* resource_descriptor;
                 ReloadResource(factory, resource, &resource_descriptor);
             }
