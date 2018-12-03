@@ -27,7 +27,7 @@ namespace dmCrash
      * @name Crash
      * @namespace crash
      */
-    
+
     static HDump CheckHandle(lua_State* L, int index)
     {
         HDump h = (HDump) luaL_checkint(L, index);
@@ -39,7 +39,7 @@ namespace dmCrash
     }
 
     /*# writes crash dump
-     * Performs the same steps as if a crash had just occured but 
+     * Performs the same steps as if a crash had just occured but
      * allows the program to continue.
      * The generated dump can be read by crash.load_previous
      *
@@ -207,8 +207,8 @@ namespace dmCrash
      *
      * @name crash.get_sys_field
      * @param handle [type:number] crash dump handle
-     * @param index [type:number] system field enum
-     * @return value [type:string] value recorded in the crash dump
+     * @param index [type:number] system field enum. Must be less than [ref: crash.SYSFIELD_MAX]
+     * @return value [type:string] value recorded in the crash dump, or nil if it didn't exist
      */
     static int Crash_GetSysField(lua_State* L)
     {
@@ -387,7 +387,35 @@ namespace dmCrash
          */
         SETCONSTANT(SYSFIELD_ANDROID_BUILD_FINGERPRINT);
 
+        /*# The max number of sysfields.
+         *
+         * @name crash.SYSFIELD_MAX
+         * @variable
+         */
+        SETCONSTANT(SYSFIELD_MAX);
+
+
         #undef SETCONSTANT
+
+        #define SETCUSTOMCONSTANT(name, value) \
+            lua_pushnumber(L, (lua_Number) (value)); \
+            lua_setfield(L, -2, #name);\
+
+        /*# The max number of user fields.
+         *
+         * @name crash.USERFIELD_MAX
+         * @variable
+         */
+        SETCUSTOMCONSTANT(USERFIELD_MAX, AppState::USERDATA_SLOTS);
+
+        /*# The max size of a single user field.
+         *
+         * @name crash.USERFIELD_SIZE
+         * @variable
+         */
+        SETCUSTOMCONSTANT(USERFIELD_SIZE, AppState::USERDATA_SIZE-1);
+
+        #undef SETCUSTOMCONSTANT
 
         lua_pop(L, 1);
         assert(top == lua_gettop(L));

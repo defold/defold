@@ -1,0 +1,13 @@
+[project]
+title = Game Project Properties
+dependencies = http://test.com/test.zip
+
+[bootstrap]
+main_collection = main.collectionc
+
+[input]
+game_binding = game.input_bindingc
+
+[custom]
+love = defold
+should_be_empty =
