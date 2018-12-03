@@ -846,6 +846,15 @@ GLFWAPI void GLFWAPIENTRY glfwRestoreWindow( void )
     _glfwPlatformRefreshWindowParams();
 }
 
+GLFWAPI int GLFWAPIENTRY glfwGetWindowRefreshRate( void )
+{
+    if( !_glfwInitialized || !_glfwWin.opened )
+    {
+        return 0;
+    }
+
+    return _glfwPlatformGetWindowRefreshRate();
+}
 
 //========================================================================
 // Swap buffers (double-buffering) and poll any new events
