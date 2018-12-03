@@ -881,62 +881,6 @@ void DeleteFactory(HFactory factory)
     delete factory;
 }
 
-
-void hexDump(char *desc, void *addr, int len) 
-{
-    int i;
-    unsigned char buff[17];
-    unsigned char *pc = (unsigned char*)addr;
-    char b[1024];
-    char* cursor = &b[0];
-
-    // Output description if given.
-    if (desc != NULL)
-        dmLogInfo("%s:", desc);
-
-    // Process every byte in the data.
-    for (i = 0; i < len; i++) {
-        // Multiple of 16 means new line (with line offset).
-
-        if ((i % 16) == 0) {
-            // Just don't print ASCII for the zeroth line.
-            if (i != 0) {
-                DM_SNPRINTF(cursor, 17+3, "  %s", buff);
-                dmLogInfo("b: %s", b);
-                cursor = &b[0];
-            }
-
-            // Output the offset.
-            DM_SNPRINTF(cursor, 6, " %04x ", i); // hex bytes
-            cursor += 5;
-        }
-
-        // Now the hex code for the specific character.
-        DM_SNPRINTF(cursor, 4, " %02x ", pc[i]);
-        cursor += 3;
-
-        // And store a printable ASCII character for later.
-        if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
-            buff[i % 16] = '.';
-        } else {
-            buff[i % 16] = pc[i];
-        }
-
-        buff[(i % 16) + 1] = '\0';
-    }
-
-    // Pad out last line if not exactly 16 characters.
-    while ((i % 16) != 0) {
-        printf("   ");
-        DM_SNPRINTF(cursor, 4, "    ");
-        cursor += 3;
-        i++;
-    }
-
-    // And print the final ASCII bit.
-    dmLogInfo("b: %s  %s", b, buff);
-}
-
 static void Dispatch(dmMessage::Message* message, void* user_ptr)
 {
     HFactory factory = (HFactory) user_ptr;
@@ -951,14 +895,9 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
             dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) message->m_Data;
             uint32_t count = reload_resources->m_Resources.m_Count;
             uint8_t* str_offset_cursor = (uint8_t*)((uintptr_t)reload_resources + *(uint32_t*)reload_resources);
-            dmLogInfo("reload count: %u", count);
-            dmLogInfo("Message size: %u", message->m_DataSize);
-            hexDump("LIVE msg", reload_resources, message->m_DataSize);
             for (uint32_t i = 0; i < count; ++i)
             {
-                dmLogInfo("str offset: %u", *(str_offset_cursor + i * sizeof(uint64_t)));
                 const char* resource = (const char *) (uintptr_t)reload_resources + *(str_offset_cursor + i * sizeof(uint64_t));
-                hexDump("CURSOR LOOP", (void*)resource, message->m_DataSize);
                 SResourceDescriptor* resource_descriptor;
                 ReloadResource(factory, resource, &resource_descriptor);
             }
