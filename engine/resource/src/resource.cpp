@@ -881,6 +881,53 @@ void DeleteFactory(HFactory factory)
     delete factory;
 }
 
+
+void hexDump(char *desc, void *addr, int len) 
+{
+    int i;
+    unsigned char buff[17];
+    unsigned char *pc = (unsigned char*)addr;
+
+    // Output description if given.
+    if (desc != NULL)
+        printf ("%s:\n", desc);
+
+    // Process every byte in the data.
+    for (i = 0; i < len; i++) {
+        // Multiple of 16 means new line (with line offset).
+
+        if ((i % 16) == 0) {
+            // Just don't print ASCII for the zeroth line.
+            if (i != 0)
+                printf("  %s\n", buff);
+
+            // Output the offset.
+            printf("  %04x ", i);
+        }
+
+        // Now the hex code for the specific character.
+        printf(" %02x", pc[i]);
+
+        // And store a printable ASCII character for later.
+        if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
+            buff[i % 16] = '.';
+        } else {
+            buff[i % 16] = pc[i];
+        }
+
+        buff[(i % 16) + 1] = '\0';
+    }
+
+    // Pad out last line if not exactly 16 characters.
+    while ((i % 16) != 0) {
+        printf("   ");
+        i++;
+    }
+
+    // And print the final ASCII bit.
+    printf("  %s\n", buff);
+}
+
 static void Dispatch(dmMessage::Message* message, void* user_ptr)
 {
     HFactory factory = (HFactory) user_ptr;
@@ -895,9 +942,13 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
             dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) message->m_Data;
             uint32_t count = reload_resources->m_Resources.m_Count;
             uint8_t* str_offset_cursor = (uint8_t*)((uintptr_t)reload_resources + *(uint32_t*)reload_resources);
+            dmLogDebug("reload count: %u", count);
+            hexDump("LIVE msg", reload_resources, message->m_DataSize);
             for (uint32_t i = 0; i < count; ++i)
             {
+                dmLogDebug("str offset: %u", *(str_offset_cursor + i * sizeof(uint64_t)));
                 const char* resource = (const char *) (uintptr_t)reload_resources + *(str_offset_cursor + i * sizeof(uint64_t));
+                hexDump("CURSOR LOOP", (void*)resource, 256);
                 SResourceDescriptor* resource_descriptor;
                 ReloadResource(factory, resource, &resource_descriptor);
             }
