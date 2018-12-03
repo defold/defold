@@ -649,7 +649,13 @@
                                (check-project-setting built-properties ["display" "display_profiles"] "/builtins/render/default.display_profilesc")
 
                                ;; Copy-only resource
-                               (check-project-setting built-properties ["osx" "infoplist"] "/builtins/manifests/osx/Info.plist")))))))
+                               (check-project-setting built-properties ["osx" "infoplist"] "/builtins/manifests/osx/Info.plist")
+
+                               ;; Check so that empty defaults are not included
+                               (check-project-setting built-properties ["tracking" "app_id"] nil)
+
+                               ;; Check so empty custom properties are included as empty strings
+                               (check-project-setting built-properties ["custom" "should_be_empty"] "")))))))
 
 (defmacro with-setting [path value & body]
   ;; assumes game-project in scope

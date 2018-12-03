@@ -126,6 +126,7 @@ public class ProjectBuildTest {
         projectName = "Game Project Properties";
         createDefaultFiles();
         createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\n");
+        createFile(contentRoot, "game.project", "[project]\ntitle = " + projectName +"\ndependencies = http://test.com/test.zip\n\n[custom]\nlove = defold\nshould_be_empty =\n");
         build();
         BobProjectProperties outputProps = new BobProjectProperties();
         outputProps.load(new FileInputStream(new File(contentRoot + "/build/game.projectc")));
@@ -154,6 +155,12 @@ public class ProjectBuildTest {
 
         // Copy-only resource
         checkProjectSetting(outputProps, "osx", "infoplist", "/builtins/manifests/osx/Info.plist");
+
+        // Check so that empty defaults are not included
+        checkProjectSetting(outputProps, "tracking", "app_id", null);
+
+        // Check so empty custom properties are included as empty strings
+        checkProjectSetting(outputProps, "custom", "should_be_empty", "");
     }
 
     private String createFile(String root, String name, String content) throws IOException {
