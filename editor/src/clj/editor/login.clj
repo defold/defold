@@ -218,6 +218,7 @@
   (assert (= :login-fields (sign-in-state sign-in-state-property)))
   (.set network-error-property nil)
   (.set account-error-property nil)
+  (analytics/track-event! "Login and Signup" "Login Submit" "Onsite")
   (set-sign-in-state! sign-in-state-property :login-fields-submitted)
 
   ;; Disregard delayed response if the user navigated away from the login fields.
@@ -235,8 +236,10 @@
                   (let [login-info (:login-info result)]
                     (prefs/set-prefs prefs last-used-email-prefs-key email)
                     (set-prefs-from-successful-login! prefs login-info)
+                    (analytics/track-event! "Login and Signup" "Login Success" "Onsite")
                     (set-sign-in-state! sign-in-state-property :signed-in))
                   (do
+                    (analytics/track-event! "Login and Signup" "Login Fail" "Onsite")
                     (set-sign-in-state! sign-in-state-property :login-fields)
                     (case (:type result)
                       :connection-error
@@ -304,8 +307,10 @@
                                    (if (= :success (:type result))
                                      (let [exchange-info (:exchange-info result)]
                                        (set-prefs-from-successful-login! prefs exchange-info)
+                                       (analytics/track-event! "Login and Signup" "Login Success" "Google")
                                        (set-sign-in-state! sign-in-state-property :signed-in))
                                      (do
+                                       (analytics/track-event! "Login and Signup" "Login Fail" "Google")
                                        (set-sign-in-state! sign-in-state-property :not-signed-in)
                                        (when (= :exception (:type result))
                                          (error-reporting/report-exception! (:exception result))))))
@@ -339,6 +344,7 @@
   (assert (= :not-signed-in (sign-in-state sign-in-state-property)))
   (let [sign-in-response-server (start-sign-in-response-server! dashboard-client)
         sign-in-page-url (make-sign-in-page-url prefs sign-in-response-server)]
+    (analytics/track-event! "Login and Signup" "Login Start" "Google")
     (set-sign-in-state! sign-in-state-property :browser-open)
     (ui/open-url sign-in-page-url)
 
@@ -352,8 +358,10 @@
 (defn- cancel-sign-in!
   "Cancel the sign-in process and return to the :not-signed-in screen."
   [{:keys [sign-in-state-property] :as _dashboard-client}]
-  (assert (case (sign-in-state sign-in-state-property) (:browser-open :login-fields :login-fields-submitted) true false))
-  (set-sign-in-state! sign-in-state-property :not-signed-in))
+  (let [sign-in-state (sign-in-state sign-in-state-property)]
+    (assert (case sign-in-state (:browser-open :login-fields :login-fields-submitted) true false))
+    (analytics/track-event! "Login and Signup" "Login Cancelled" (if (= :browser-open sign-in-state) "Google" "Onsite"))
+    (set-sign-in-state! sign-in-state-property :not-signed-in)))
 
 (defn- copy-sign-in-url!
   "Copy the sign-in url from the sign-in response server to the clipboard.
@@ -404,6 +412,10 @@
     (b/bind-style! field :error-severity (b/when-not (.focusedProperty field)
                                            error-style))))
 
+(defn- show-create-account-page! [prefs]
+  (analytics/track-event! "Login and Signup" "Signup Intent")
+  (ui/open-url (make-create-account-url prefs)))
+
 (defn- configure-state-login-fields! [state-login-fields {:keys [prefs sign-in-state-property] :as dashboard-client}]
   (let [email-validation-error-property (SimpleObjectProperty.)
         password-validation-error-property (SimpleObjectProperty.)
@@ -420,7 +432,7 @@
         (ui/on-action! submit-button on-submit!)
         (ui/on-action! cancel-button (fn [_] (cancel-sign-in! dashboard-client)))
         (ui/on-action! forgot-password-button (fn [_] (set-sign-in-state! sign-in-state-property :forgot-password)))
-        (ui/on-action! create-account-button (fn [_] (ui/open-url (make-create-account-url prefs)))))
+        (ui/on-action! create-account-button (fn [_] (show-create-account-page! prefs))))
 
       ;; Display network errors as a banner.
       (b/bind-presence! error-banner-label (b/some? network-error-property))
@@ -473,13 +485,17 @@
     :synchronize     "You need to sign in to synchronize\nyour project with the Defold cloud."
     :upload-project  "You need to sign in to upload your\nproject to the Defold cloud."))
 
+(defn- show-login-fields! [sign-in-state-property]
+  (analytics/track-event! "Login and Signup" "Login Start" "Onsite")
+  (set-sign-in-state! sign-in-state-property :login-fields))
+
 (defn- configure-state-not-signed-in! [state-not-signed-in {:keys [prefs sign-in-state-property] :as dashboard-client} sign-in-intent]
   (b/bind-presence! state-not-signed-in (b/= :not-signed-in sign-in-state-property))
   (ui/with-controls state-not-signed-in [create-account-button sign-in-motivation-label sign-in-with-browser-button sign-in-with-email-button]
     (ui/text! sign-in-motivation-label (sign-in-motivation-text sign-in-intent))
     (ui/on-action! sign-in-with-browser-button (fn [_] (begin-sign-in-with-browser! dashboard-client)))
-    (ui/on-action! sign-in-with-email-button (fn [_] (set-sign-in-state! sign-in-state-property :login-fields)))
-    (ui/on-action! create-account-button (fn [_] (ui/open-url (make-create-account-url prefs))))))
+    (ui/on-action! sign-in-with-email-button (fn [_] (show-login-fields! sign-in-state-property)))
+    (ui/on-action! create-account-button (fn [_] (show-create-account-page! prefs)))))
 
 (defn- configure-state-browser-open! [state-browser-open {:keys [sign-in-state-property] :as dashboard-client}]
   (b/bind-presence! state-browser-open (b/= :browser-open sign-in-state-property))
@@ -595,6 +611,7 @@
 (defn sign-out!
   "Sign out the active user from the Defold dashboard."
   [{:keys [prefs sign-in-state-property] :as _dashboard-client}]
+  (analytics/track-event! "Login and Signup" "Log out")
   (analytics/set-uid! nil)
   (prefs/set-prefs prefs "email" nil)
   (prefs/set-prefs prefs "first-name" nil)

@@ -104,17 +104,29 @@
   (let [text (String. payload StandardCharsets/UTF_8)]
     (string/split-lines text)))
 
+(defn- get-event-hits!
+  ([hits-atom event-action]
+   (get-event-hits! hits-atom event-action false))
+  ([hits-atom event-action invalidate-uid?]
+   (reset! hits-atom [])
+   (with-redefs [analytics/get-response-code! (constantly 200)
+                 analytics/post! (fn [_ _ payload] (swap! hits-atom into (payload->lines payload)))
+                 sys/defold-version (constantly "0.1.234")]
+     (analytics/start! "https://not-used" send-interval invalidate-uid?)
+     (analytics/track-event! "test-category" event-action)
+     (analytics/shutdown! shutdown-timeout)
+     @hits-atom)))
+
+(deftest encoding-test
+  (let [get-hits! (partial get-event-hits! (atom nil))]
+    (with-config! {:cid mock-cid}
+      ;; This is from the "URL Encoding Values" section in the Measurement Protocol reference:
+      ;; https://developers.google.com/analytics/devguides/collection/protocol/v1/reference
+      (is (= [(str "v=1&tid=UA-83690-7&cid=" mock-cid "&t=event&ec=test-category&ea=%2Fmy%20page%20%E2%82%AC")]
+             (get-hits! "/my page €"))))))
+
 (deftest config-effects-test
-  (let [get-hits! (let [hits-atom (atom nil)]
-                    (fn [invalidate-uid?]
-                      (reset! hits-atom [])
-                      (with-redefs [analytics/get-response-code! (constantly 200)
-                                    analytics/post! (fn [_ _ payload] (swap! hits-atom into (payload->lines payload)))
-                                    sys/defold-version (constantly "0.1.234")]
-                        (analytics/start! "https://not-used" send-interval invalidate-uid?)
-                        (analytics/track-event! "test-category" "test-action")
-                        (analytics/shutdown! shutdown-timeout)
-                        @hits-atom)))]
+  (let [get-hits! (partial get-event-hits! (atom nil) "test-action")]
 
     (testing "No config file."
       (with-config! nil

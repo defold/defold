@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [editor.system :as sys]
+            [editor.url :as url]
             [service.log :as log])
   (:import (clojure.lang PersistentQueue)
            (com.defold.editor Editor)
@@ -122,23 +123,33 @@
 ;; Internals
 ;; -----------------------------------------------------------------------------
 
-(defn- batch->payload
-  ^bytes [batch {:keys [cid uid] :as _config}]
-  {:pre [(vector? batch)
-         (not-empty batch)
+;; Entries sent to Google Analytics must be both UTF-8 and URL Encoded.
+;; See the "URL Encoding Values" section here for details:
+;; https://developers.google.com/analytics/devguides/collection/protocol/v1/reference
+(def encode-string (partial url/encode url/x-www-form-urlencoded-safe-character? false StandardCharsets/UTF_8))
+
+(defn- encode-key-value-pair
+  ^String [[k v]]
+  (str (encode-string (name k)) "=" (encode-string v)))
+
+(defn- event->line
+  ^String [event {:keys [cid uid] :as _config}]
+  {:pre [(valid-event? event)
          (valid-cid? cid)
          (or (nil? uid) (valid-uid? uid))]}
   (let [common-pairs (if (some? uid) ; NOTE: The uid is also supplied as Custom Dimension 1.
                        ["v=1" "tid=UA-83690-7" (str "cid=" cid) (str "uid=" uid) (str "cd1=" uid)]
                        ["v=1" "tid=UA-83690-7" (str "cid=" cid)])
-        lines (map (fn [event]
-                     (let [pairs (into common-pairs
-                                       (map (fn [[k v]]
-                                              (str (name k) "=" v)))
-                                       event)]
-                       (string/join "&" pairs)))
-                   batch)
-        text (string/join "\n" lines)]
+        pairs (into common-pairs
+                    (map encode-key-value-pair)
+                    event)]
+    (string/join "&" pairs)))
+
+(defn- batch->payload
+  ^bytes [batch]
+  {:pre [(vector? batch)
+         (not-empty batch)]}
+  (let [text (string/join "\n" batch)]
     (.getBytes text StandardCharsets/UTF_8)))
 
 (defn- get-response-code!
@@ -183,28 +194,24 @@
   on the queue that could not be sent. Otherwise removes the successfully sent
   events from the queue and returns true."
   [analytics-url]
-  (let [config @config-atom]
-    (if (nil? config)
+  (let [event-queue @event-queue-atom
+        batch (into [] (take batch-size) event-queue)]
+    (if (empty? batch)
       true
-      (let [event-queue @event-queue-atom
-            batch (into [] (take batch-size) event-queue)]
-        (if (empty? batch)
-          true
-          (if-not (send-payload! analytics-url (batch->payload batch config))
-            false
-            (do
-              (swap! event-queue-atom pop-count (count batch))
-              true)))))))
+      (if-not (send-payload! analytics-url (batch->payload batch))
+        false
+        (do
+          (swap! event-queue-atom pop-count (count batch))
+          true)))))
 
 (defn- send-remaining-batches! [analytics-url]
-  (when-some [config @config-atom]
-    (let [event-queue @event-queue-atom]
-      (loop [event-queue event-queue]
-        (when-some [batch (not-empty (into [] (take batch-size) event-queue))]
-          (send-payload! analytics-url (batch->payload batch config))
-          (recur (pop-count event-queue (count batch)))))
-      (swap! event-queue-atom pop-count (count event-queue))
-      nil)))
+  (let [event-queue @event-queue-atom]
+    (loop [event-queue event-queue]
+      (when-some [batch (not-empty (into [] (take batch-size) event-queue))]
+        (send-payload! analytics-url (batch->payload batch))
+        (recur (pop-count event-queue (count batch)))))
+    (swap! event-queue-atom pop-count (count event-queue))
+    nil))
 
 (declare shutdown!)
 
@@ -252,10 +259,12 @@
 (declare enabled?)
 
 (defn- append-event! [event]
-  (assert (valid-event? event))
-  (when (enabled?)
-    (swap! event-queue-atom conj event)
-    nil))
+  (when-some [config @config-atom]
+    (let [line (event->line event config)]
+      (when (enabled?)
+        (swap! event-queue-atom conj line))
+      (when (sys/defold-dev?)
+        (log/info :msg line)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Public interface
@@ -263,8 +272,8 @@
 
 (defn start! [^String analytics-url send-interval invalidate-uid?]
   {:pre [(valid-analytics-url? analytics-url)]}
+  (reset! config-atom (read-config! invalidate-uid?))
   (when (some? (sys/defold-version))
-    (reset! config-atom (read-config! invalidate-uid?))
     (swap! worker-atom
            (fn [started-worker]
              (when (some? started-worker)
