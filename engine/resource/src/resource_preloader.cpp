@@ -107,6 +107,7 @@ namespace dmResource
     // are always present with all their children inserted (unless there was not room)
     // the required size is something the sum of all children on each level down along
     // the largest branch.
+
     static const uint32_t MAX_PRELOADER_REQUESTS        = 1024;
     static const uint32_t SCRATCH_BUFFER_SIZE           = 65536;
     static const uint32_t SCRATCH_BUFFER_THRESHOLD      = 5*1024;
@@ -1061,7 +1062,7 @@ namespace dmResource
         uint64_t main_thread_time_ns = now_ns - start_excluding_update_ns;
         preloader->m_MainThreadTimeSpentNS += main_thread_time_ns;
 
-        dmLogWarning("Preloading root \"%s\" took %u ms, spending %u ms in main thread",
+        dmLogWarning("\"%s\", %u, %u",
             preloader->m_Request[0].m_PathDescriptor.m_InternalizedName,
             (uint32_t)(preloader_load_time_ns / 1000),
             (uint32_t)(preloader->m_MainThreadTimeSpentNS / 1000));
