@@ -14,8 +14,8 @@ function cmi_configure() {
 function cmi_make() {
     set -e
     make -f $MAKEFILE -j8
-    mkdir -p $PREFIX/bin
-    cp $PRODUCT $PREFIX/bin
+    mkdir -p $PREFIX/bin/$PLATFORM
+    cp $PRODUCT $PREFIX/bin/$PLATFORM
     set +e
 }
 
