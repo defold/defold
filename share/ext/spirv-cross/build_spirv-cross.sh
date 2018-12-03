@@ -16,6 +16,7 @@ function cmi_make() {
     make -f $MAKEFILE -j8
     mkdir -p $PREFIX/bin/$PLATFORM
     cp $PRODUCT $PREFIX/bin/$PLATFORM
+    cmi_strip
     set +e
 }
 
@@ -44,27 +45,17 @@ function cmi() {
     export PLATFORM=$1
 
     case $PLATFORM in
-        darwin)
-            export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -m32"
-            export CFLAGS="${CFLAGS} -m32"
-            export LDFLAGS="-m32"
-            cmi_buildplatform $PLATFORM
-            ;;
-
         x86_64-darwin)
+            function cmi_strip() {
+                strip -S -x $PREFIX/bin/$PLATFORM/$PRODUCT
+            }
             cmi_buildplatform $1
             ;;
 
-        linux)
-            export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -m32"
-            export CFLAGS="${CFLAGS} -m32"
-            export LDFLAGS="-m32"
-            cmi_buildplatform $PLATFORM
-            ;;
-
         x86_64-linux)
+            function cmi_strip() {
+                strip -s $PREFIX/bin/$PLATFORM/$PRODUCT
+            }
             cmi_buildplatform $PLATFORM
             ;;
 
