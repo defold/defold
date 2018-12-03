@@ -20,16 +20,19 @@ def build(bld):
         sig_handler = 'backtrace_execinfo.cpp'
         load_addrs = 'load_addrs_proc_smap.cpp'
         file_handler = 'file_posix.cpp'
-    elif not ('js-web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']):
+    elif not ('web' in bld.env['PLATFORM'] or 'win32' in bld.env['PLATFORM']):
         file_handler = 'file_posix.cpp'
         sig_handler = 'backtrace_execinfo.cpp'
 
-    if 'js-web' in bld.env['PLATFORM']:
+    if 'web' in bld.env['PLATFORM']:
         sig_handler = 'backtrace_jsweb.cpp';
         file_handler = 'file_posix.cpp';
 
     if 'darwin' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_mach.cpp'
+
+    if bld.env['PLATFORM'] in ['x86_64-darwin']:
+        sig_handler = 'backtrace_libunwind.cpp'
 
     if 'win32' in bld.env['PLATFORM']:
         load_addrs = 'load_addrs_win32.cpp'
@@ -43,12 +46,12 @@ def build(bld):
                                 protoc_includes = '../proto',
                                 target = 'crashext')
 
-    crash.source = 'crash.cpp extension.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
+    crash.source = 'crash.cpp script_crash.cpp ' + load_addrs + ' ' + sig_handler + ' ' + file_handler
 
     bld.add_subdirs('test')
     bld.add_subdirs('tool')
     bld.install_files('${PREFIX}/include/crash', 'crash.h')
 
-    apidoc_extract_task(bld, ['extension.cpp'])
+    apidoc_extract_task(bld, ['script_crash.cpp'])
 
 

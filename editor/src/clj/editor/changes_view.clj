@@ -93,9 +93,10 @@
             (and (disk-availability/available?)
                  (pos? (count selection))))
   (run [async-reload! selection git changes-view workspace]
-    (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
-      (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
-      (async-reload! workspace changes-view moved-files))))
+    (when (dialogs/make-confirm-dialog (format "Are you sure you want to revert changes on selected files?"))
+      (let [moved-files (mapv #(vector (path->file workspace (:new-path %)) (path->file workspace (:old-path %))) (filter #(= (:change-type %) :rename) selection))]
+        (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) selection))
+        (async-reload! workspace changes-view moved-files)))))
 
 (handler/defhandler :diff :changes-view
   (enabled? [selection]
