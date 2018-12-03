@@ -996,17 +996,22 @@ void hexDump(char *desc, void *addr, int len)
 volatile bool SendReloadDone = false;
 void SendReloadThread(void*)
 {
-    uint32_t msg_size = sizeof(dmResourceDDF::Reload) + sizeof(uint64_t) + (strlen("__testrecreate__.foo") + 1);
+    // 64-bit:                      16                           8                           21 -> 45
+    // 32-bit:                      ?                           4                           21 -> 
+    uint32_t msg_size = sizeof(dmResourceDDF::Reload) + sizeof(uintptr_t) + (strlen("__testrecreate__.foo") + 1);
+    dmLogInfo("TEST sizeof(dmResourceDDF::Reload): %lu", sizeof(dmResourceDDF::Reload));
+    dmLogInfo("TEST sizeof(uintptr_t): %lu", sizeof(uintptr_t));
+    dmLogInfo("TEST strlen(\"__testrecreate__.foo\") + 1: %lu", strlen("__testrecreate__.foo") + 1);
     dmLogInfo("TEST msg_size: %u", msg_size);
     dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) malloc(msg_size);
     memset(reload_resources, 0x0, msg_size);
     reload_resources->m_Resources.m_Count = 1;
-    uint64_t str_ofs_offset = 16; // 0x10
-    uint64_t str_offset = 24;//0x18;
-    dmLogInfo("TEST str_ofs_offset: %llu", str_ofs_offset);
-    dmLogInfo("TEST str_offset: %llu", str_offset);
-    memcpy((uint8_t*)reload_resources, &str_ofs_offset, sizeof(uint64_t)); // offset to path string offsets
-    memcpy((uint8_t*)reload_resources + str_ofs_offset, &str_offset, sizeof(uint64_t)); // offset to start of resource path string
+    uintptr_t str_ofs_offset = 2 * sizeof(uintptr_t); // 
+    uintptr_t str_offset = str_ofs_offset + reload_resources->m_Resources.m_Count * sizeof(uintptr_t);//0x18;
+    dmLogInfo("TEST str_ofs_offset: %lu", str_ofs_offset);
+    dmLogInfo("TEST str_offset: %lu", str_offset);
+    memcpy((uint8_t*)reload_resources, &str_ofs_offset, sizeof(uintptr_t)); // offset to path string offsets
+    memcpy((uint8_t*)reload_resources + str_ofs_offset, &str_offset, sizeof(uintptr_t)); // offset to start of resource path string
     memcpy((uint8_t*)(reload_resources) + str_offset, "__testrecreate__.foo", strlen("__testrecreate__.foo") + 1); // the actual resource path
 
     hexDump("TEST msg", reload_resources, msg_size);
