@@ -58,6 +58,7 @@ function cmi_make() {
     mkdir -p $PREFIX/bin/$PLATFORM
     cp $OUTPUT_EXECUTABLE_FILE $PREFIX/bin/$PLATFORM
     popd >/dev/null
+    cmi_strip
 
     set +e
 }
@@ -88,14 +89,23 @@ function cmi() {
 
     case $PLATFORM in
         x86_64-darwin)
+            function cmi_strip() {
+                strip -S -x $PREFIX/bin/$PLATFORM/$PRODUCT
+            }
             cmi_buildplatform $PLATFORM
             ;;
 
         x86_64-linux)
+            function cmi_strip() {
+                strip -s $PREFIX/bin/$PLATFORM/$PRODUCT
+            }
             cmi_buildplatform $PLATFORM
             ;;
 
     	win32|x86_64-win32)
+            function cmi_strip() {
+                echo "No stripping supported"
+            }
             cmi_setup_vs2015_env $PLATFORM
             cmi_buildplatform $PLATFORM
             ;;
