@@ -705,12 +705,12 @@ namespace dmEngineService
 
     static void ProfileSendScopes(void* context, const dmProfile::Scope* scope)
     {
-        SendProfileString((dmWebServer::Request*)context, (uint64_t)scope, scope->m_Name);
+        SendProfileString((dmWebServer::Request*)context, (uint64_t)((uintptr_t)scope), scope->m_Name);
     }
 
     static void ProfileSendCounters(void* context, const dmProfile::Counter* counter)
     {
-        SendProfileString((dmWebServer::Request*)context, (uint64_t)counter, counter->m_Name);
+        SendProfileString((dmWebServer::Request*)context, (uint64_t)((uintptr_t)counter), counter->m_Name);
     }
 
     static void ProfileSendStringCallback(void* context, const uintptr_t* key, const char** value)
@@ -725,9 +725,9 @@ namespace dmEngineService
         dmWebServer::Request* request = (dmWebServer::Request*)context;
         dmWebServer::Result r;
 
-        uint64_t name = (uint64_t)sample->m_Name;
+        uint64_t name = (uint64_t)((uintptr_t)sample->m_Name);
         r = dmWebServer::Send(request, &name, 8); CHECK_RESULT(r);
-        uint64_t scope = (uint64_t)sample->m_Scope;
+        uint64_t scope = (uint64_t)((uintptr_t)sample->m_Scope);
         r = dmWebServer::Send(request, &scope, 8); CHECK_RESULT(r);
 
         r = dmWebServer::Send(request, &sample->m_Start, 4); CHECK_RESULT(r);
@@ -740,7 +740,7 @@ namespace dmEngineService
         dmWebServer::Request* request = (dmWebServer::Request*)context;
         dmWebServer::Result r;
 
-        uint64_t ptr = (uint64_t)scope_data->m_Scope;
+        uint64_t ptr = (uint64_t)((uintptr_t)scope_data->m_Scope);
         r = dmWebServer::Send(request, &ptr, 8); CHECK_RESULT(r);
         r = dmWebServer::Send(request, &scope_data->m_Elapsed, 4); CHECK_RESULT(r);
         r = dmWebServer::Send(request, &scope_data->m_Count, 4); CHECK_RESULT(r);
@@ -751,7 +751,7 @@ namespace dmEngineService
         dmWebServer::Request* request = (dmWebServer::Request*)context;
         dmWebServer::Result r;
 
-        uint64_t ptr = (uint64_t)counter_data->m_Counter;
+        uint64_t ptr = (uint64_t)((uintptr_t)counter_data->m_Counter);
         r = dmWebServer::Send(request, &ptr, 8); CHECK_RESULT(r);
         r = dmWebServer::Send(request, (void*)&counter_data->m_Value, 4); CHECK_RESULT(r);
     }
