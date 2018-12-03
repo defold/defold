@@ -305,15 +305,12 @@ public class BobProjectProperties {
      * Save to PrintWriter
      * @param pw {@link PrintWriter} to save to
      */
-    public void save(PrintWriter pw, boolean saveEmptyValues) {
+    public void save(PrintWriter pw) {
         for (String category : getCategoryNames()) {
             pw.format("[%s]%n", category);
 
             for (String key : getKeys(category)) {
                 String value = getStringValue(category, key);
-                if (StringUtils.isEmpty(value) && !saveEmptyValues) {
-                    continue;
-                }
                 pw.format("%s = %s%n", key, value);
             }
             pw.println();
@@ -326,9 +323,9 @@ public class BobProjectProperties {
      * @param os {@link OutputStream} to save to
      * @throws IOException
      */
-    public void save(OutputStream os, boolean saveEmptyValues) throws IOException {
+    public void save(OutputStream os) throws IOException {
         PrintWriter pw = new PrintWriter(os);
-        save(pw, saveEmptyValues);
+        save(pw);
         os.close();
     }
 
@@ -336,10 +333,10 @@ public class BobProjectProperties {
      * Serialize properties to String
      * @return properties serialized as a String
      */
-    public String serialize(boolean saveEmptyValues) {
+    public String serialize() {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        save(pw, saveEmptyValues);
+        save(pw);
         return sw.toString();
     }
 

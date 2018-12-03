@@ -586,7 +586,7 @@ public class GameProjectBuilder extends Builder<Void> {
             }
 
             transformGameProjectFile(properties);
-            task.getOutputs().get(0).setContent(properties.serialize(false).getBytes());
+            task.getOutputs().get(0).setContent(properties.serialize().getBytes());
         } finally {
             IOUtils.closeQuietly(archiveIndexInputStream);
             IOUtils.closeQuietly(archiveDataInputStream);

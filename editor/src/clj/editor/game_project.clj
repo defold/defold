@@ -34,8 +34,10 @@
   (let [{:keys [settings-map meta-settings path->built-resource-settings]} user-data
         settings (into []
                        (comp (keep (fn [[path value]]
-                                     (when (and (some? value) (not= "" value))
-                                       {:path path :value value})))
+                                     (if (:unknown-setting? (settings-core/get-meta-setting meta-settings path))
+                                       {:path path :value value}
+                                       (when (and (some? value) (not= "" value))
+                                         {:path path :value value}))))
                              (remove ignored-setting?)
                              (keep (fn [{:keys [path value] :as setting}]
                                      (let [meta-setting (settings-core/get-meta-setting meta-settings path)]
