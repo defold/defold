@@ -188,20 +188,25 @@ static void android_app_destroy(struct android_app* android_app) {
 
 static void process_input(struct android_app* app, struct android_poll_source* source) {
     AInputEvent* event = NULL;
-    while (AInputQueue_getEvent(app->inputQueue, &event) >= 0) {
-        int32_t type = AInputEvent_getType(event);
-        LOGV("New input event: type=%d\n", type);
-        // NOTE defold mod, the if statement below is not in the original NDK version
-        // It counters a freeze bug in 4.1 and 4.2, where the app freezes when back is pressed while virtual keyboard is up
-        if (!g_KeyboardActive || (type != AINPUT_EVENT_TYPE_KEY)
-            || (AKeyEvent_getKeyCode(event) != AKEYCODE_BACK)) {
-            if (AInputQueue_preDispatchEvent(app->inputQueue, event)) {
-                continue;
+
+    while ( AInputQueue_hasEvents( app->inputQueue ) )
+    {
+        if ( AInputQueue_getEvent( app->inputQueue, &event ) >= 0 )
+        {
+            int32_t type = AInputEvent_getType(event);
+            LOGV("New input event: type=%d\n", type);
+            // NOTE defold mod, the if statement below is not in the original NDK version
+            // It counters a freeze bug in 4.1 and 4.2, where the app freezes when back is pressed while virtual keyboard is up
+            if (!g_KeyboardActive || (type != AINPUT_EVENT_TYPE_KEY)
+                || (AKeyEvent_getKeyCode(event) != AKEYCODE_BACK)) {
+                if (AInputQueue_preDispatchEvent(app->inputQueue, event)) {
+                    continue;
+                }
             }
+            int32_t handled = 0;
+            if (app->onInputEvent != NULL) handled = app->onInputEvent(app, event);
+            AInputQueue_finishEvent(app->inputQueue, event, handled);
         }
-        int32_t handled = 0;
-        if (app->onInputEvent != NULL) handled = app->onInputEvent(app, event);
-        AInputQueue_finishEvent(app->inputQueue, event, handled);
     }
 }
 
