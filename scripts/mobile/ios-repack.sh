@@ -54,6 +54,10 @@ ZIP="zip"
 UNZIP="unzip"
 ENGINE="${DYNAMO_HOME:-}/bin/${PLATFORM:-}/dmengine"
 
+# Detect asan: otool -L armv7-darwin/Presto.repack.app/Presto | grep libclang_rt.asan
+ASAN=libclang_rt.asan_ios_dynamic.dylib
+ASAN_PATH=${DYNAMO_HOME}/ext/SDKs/XcodeDefault.xctoolchain/usr/lib/clang/9.0.0/lib/darwin
+
 [ $(which "${CODESIGN}") ] || terminate "'${CODESIGN}' is not installed"
 [ $(which "${SECURITY}") ] || terminate "'${SECURITY}' is not installed"
 [ $(which "${PLISTBUDDY}") ] || terminate "'${PLISTBUDDY}' is not installed"
@@ -89,6 +93,9 @@ mkdir -p "${BUILD}"
 
     cp -v "${ENGINE}" "Payload/${APPLICATION}.app/${APPLICATION}"
     chmod +x "Payload/${APPLICATION}.app/${APPLICATION}"
+
+    cp -v "${ASAN_PATH}/${ASAN}" "Payload/${APPLICATION}.app/${ASAN}"
+    chmod +xr "Payload/${APPLICATION}.app/${ASAN}"
 
     rm -rf "Payload/${APPLICATION}.app/_CodeSignature"
     cp "${PROVISION}" "Payload/${APPLICATION}.app/embedded.mobileprovision"
