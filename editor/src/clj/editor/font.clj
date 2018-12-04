@@ -591,16 +591,16 @@
             (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? outline-width)))
   (property shadow-alpha g/Num
-            (dynamic visible output-format-defold?)
+            (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-alpha))
             (dynamic edit-type (g/constantly alpha-slider-edit-type)))
   (property shadow-blur g/Num
-            (dynamic visible output-format-defold?)
+            (dynamic visible output-format-defold-or-distance-field?)
             (dynamic error (validation/prop-error-fnk :fatal validation/prop-negative? shadow-blur)))
   (property shadow-x g/Num
-            (dynamic visible output-format-defold?))
+            (dynamic visible output-format-defold-or-distance-field?))
   (property shadow-y g/Num
-            (dynamic visible output-format-defold?))
+            (dynamic visible output-format-defold-or-distance-field?))
   (property extra-characters g/Str
             (dynamic visible output-format-defold-or-distance-field?))
   (property all-chars g/Bool
