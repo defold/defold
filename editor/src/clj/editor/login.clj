@@ -218,7 +218,7 @@
   (assert (= :login-fields (sign-in-state sign-in-state-property)))
   (.set network-error-property nil)
   (.set account-error-property nil)
-  (analytics/track-event! "Login and Signup" "Login Submit" "Onsite")
+  (analytics/track-event! "login-and-signup" "login-submit" "email")
   (set-sign-in-state! sign-in-state-property :login-fields-submitted)
 
   ;; Disregard delayed response if the user navigated away from the login fields.
@@ -236,10 +236,10 @@
                   (let [login-info (:login-info result)]
                     (prefs/set-prefs prefs last-used-email-prefs-key email)
                     (set-prefs-from-successful-login! prefs login-info)
-                    (analytics/track-event! "Login and Signup" "Login Success" "Onsite")
+                    (analytics/track-event! "login-and-signup" "login-success" "email")
                     (set-sign-in-state! sign-in-state-property :signed-in))
                   (do
-                    (analytics/track-event! "Login and Signup" "Login Fail" "Onsite")
+                    (analytics/track-event! "login-and-signup" "login-fail" "email")
                     (set-sign-in-state! sign-in-state-property :login-fields)
                     (case (:type result)
                       :connection-error
@@ -307,10 +307,10 @@
                                    (if (= :success (:type result))
                                      (let [exchange-info (:exchange-info result)]
                                        (set-prefs-from-successful-login! prefs exchange-info)
-                                       (analytics/track-event! "Login and Signup" "Login Success" "Google")
+                                       (analytics/track-event! "login-and-signup" "login-success" "google")
                                        (set-sign-in-state! sign-in-state-property :signed-in))
                                      (do
-                                       (analytics/track-event! "Login and Signup" "Login Fail" "Google")
+                                       (analytics/track-event! "login-and-signup" "login-fail" "google")
                                        (set-sign-in-state! sign-in-state-property :not-signed-in)
                                        (when (= :exception (:type result))
                                          (error-reporting/report-exception! (:exception result))))))
@@ -344,7 +344,7 @@
   (assert (= :not-signed-in (sign-in-state sign-in-state-property)))
   (let [sign-in-response-server (start-sign-in-response-server! dashboard-client)
         sign-in-page-url (make-sign-in-page-url prefs sign-in-response-server)]
-    (analytics/track-event! "Login and Signup" "Login Start" "Google")
+    (analytics/track-event! "login-and-signup" "login-start" "google")
     (set-sign-in-state! sign-in-state-property :browser-open)
     (ui/open-url sign-in-page-url)
 
@@ -360,7 +360,7 @@
   [{:keys [sign-in-state-property] :as _dashboard-client}]
   (let [sign-in-state (sign-in-state sign-in-state-property)]
     (assert (case sign-in-state (:browser-open :login-fields :login-fields-submitted) true false))
-    (analytics/track-event! "Login and Signup" "Login Cancelled" (if (= :browser-open sign-in-state) "Google" "Onsite"))
+    (analytics/track-event! "login-and-signup" "login-cancel" (if (= :browser-open sign-in-state) "google" "email"))
     (set-sign-in-state! sign-in-state-property :not-signed-in)))
 
 (defn- copy-sign-in-url!
@@ -413,7 +413,7 @@
                                            error-style))))
 
 (defn- show-create-account-page! [prefs]
-  (analytics/track-event! "Login and Signup" "Signup Intent")
+  (analytics/track-event! "login-and-signup" "signup-intent")
   (ui/open-url (make-create-account-url prefs)))
 
 (defn- configure-state-login-fields! [state-login-fields {:keys [prefs sign-in-state-property] :as dashboard-client}]
@@ -486,7 +486,7 @@
     :upload-project  "You need to sign in to upload your\nproject to the Defold cloud."))
 
 (defn- show-login-fields! [sign-in-state-property]
-  (analytics/track-event! "Login and Signup" "Login Start" "Onsite")
+  (analytics/track-event! "login-and-signup" "login-start" "email")
   (set-sign-in-state! sign-in-state-property :login-fields))
 
 (defn- configure-state-not-signed-in! [state-not-signed-in {:keys [prefs sign-in-state-property] :as dashboard-client} sign-in-intent]
@@ -611,7 +611,7 @@
 (defn sign-out!
   "Sign out the active user from the Defold dashboard."
   [{:keys [prefs sign-in-state-property] :as _dashboard-client}]
-  (analytics/track-event! "Login and Signup" "Log out")
+  (analytics/track-event! "login-and-signup" "logout")
   (analytics/set-uid! nil)
   (prefs/set-prefs prefs "email" nil)
   (prefs/set-prefs prefs "first-name" nil)
