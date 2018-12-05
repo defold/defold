@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
@@ -346,16 +347,44 @@ public class IOSBundler implements IBundler {
             }
 
             File entitlementOut = File.createTempFile("entitlement", ".xcent");
+            String customEntitlementsResource = projectProperties.getStringValue("ios", "entitlements");
 
             try {
+                XMLPropertyListConfiguration customEntitlements = new XMLPropertyListConfiguration();
                 XMLPropertyListConfiguration decodedProvision = new XMLPropertyListConfiguration();
+
                 decodedProvision.load(textProvisionFile);
                 XMLPropertyListConfiguration entitlements = new XMLPropertyListConfiguration();
                 entitlements.append(decodedProvision.configurationAt("Entitlements"));
+
+                if (customEntitlementsResource != null && customEntitlementsResource.length() > 0) {
+                    File customEntitlementsFile = new File(projectRoot, customEntitlementsResource);
+
+                    if (customEntitlementsFile != null) {
+	                    customEntitlements.load(customEntitlementsFile.getAbsolutePath());
+
+	                    Iterator<String> keys = customEntitlements.getKeys();
+	                    while (keys.hasNext()) {
+	                        String key = keys.next();
+
+	                        if (entitlements.getProperty(key) == null) {
+	                            logger.log(Level.SEVERE, "No such key found in provisions profile entitlements '" + key + "'.");
+	                            throw new IOException("Invalid custom iOS entitlements key.");
+	                        }
+                            entitlements.clearProperty(key);
+	                    }
+	                    entitlements.append(customEntitlements);
+                    }
+                }
+
                 entitlementOut.deleteOnExit();
                 entitlements.save(entitlementOut);
+
             } catch (ConfigurationException e) {
                 logger.log(Level.SEVERE, "Error reading provisioning profile '" + provisioningProfile + "'. Make sure this is a valid provisioning profile file." );
+                throw new RuntimeException(e);
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, "Error merging custom entitlements '" + customEntitlementsResource +"' with entitlements in provisioning profile. Make sure that custom entitlements has corresponding wildcard entries in the provisioning profile.");
                 throw new RuntimeException(e);
             }
 
