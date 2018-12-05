@@ -23,6 +23,9 @@
 
 (set! *warn-on-reflection* true)
 
+;; Set this to true to enable the e-mail login page when prompted to sign-in.
+(defonce ^:private email-login-enabled? false)
+
 (defonce ^:private last-used-email-prefs-key "login-last-used-email")
 
 (defn- logged-in? [prefs]
@@ -494,8 +497,12 @@
   (ui/with-controls state-not-signed-in [create-account-button sign-in-motivation-label sign-in-with-browser-button sign-in-with-email-button]
     (ui/text! sign-in-motivation-label (sign-in-motivation-text sign-in-intent))
     (ui/on-action! sign-in-with-browser-button (fn [_] (begin-sign-in-with-browser! dashboard-client)))
-    (ui/on-action! sign-in-with-email-button (fn [_] (show-login-fields! sign-in-state-property)))
-    (ui/on-action! create-account-button (fn [_] (show-create-account-page! prefs)))))
+    (ui/on-action! create-account-button (fn [_] (show-create-account-page! prefs)))
+    (if email-login-enabled?
+      (ui/on-action! sign-in-with-email-button (fn [_] (show-login-fields! sign-in-state-property)))
+      (doto sign-in-with-email-button
+        (ui/managed! false)
+        (ui/visible! false)))))
 
 (defn- configure-state-browser-open! [state-browser-open {:keys [sign-in-state-property] :as dashboard-client}]
   (b/bind-presence! state-browser-open (b/= :browser-open sign-in-state-property))
