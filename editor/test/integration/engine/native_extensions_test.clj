@@ -28,7 +28,7 @@
   (let [old-sha1 (system/defold-engine-sha1)
         version (string/trim-newline (slurp "../VERSION"))
         engine-sha1 (try-shell-command! "git" "rev-list" "-n" "1" version)]
-    (binding [editor.system/defold-engine-sha1 (constantly engine-sha1)]
+    (with-redefs [editor.system/defold-engine-sha1 (constantly engine-sha1)]
       (f))))
 
 (use-fixtures :once fix-engine-sha1)
