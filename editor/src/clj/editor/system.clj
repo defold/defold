@@ -53,7 +53,7 @@
   (assert (not-empty sha1))
   (System/setProperty "defold.editor.sha1" sha1))
 
-(defn ^:dynamic defold-engine-sha1
+(defn defold-engine-sha1
   ^String []
   (System/getProperty "defold.engine.sha1"))
 
