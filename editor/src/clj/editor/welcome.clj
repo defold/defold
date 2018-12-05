@@ -1,5 +1,6 @@
 (ns editor.welcome
-  (:require [clojure.edn :as edn]
+  (:require [camel-snake-kebab :as camel]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [clojure.string :as string]
@@ -405,8 +406,15 @@
 (defn- category-button->templates [category-button]
   (ui/user-data category-button :templates))
 
+(defn- new-project-screen-name
+  ^String [^ButtonBase selected-template-category-button]
+  (str "new-project-"
+       (-> (.getText selected-template-category-button)
+           (string/replace " " "-")
+           (string/lower-case))))
+
 (defn- make-new-project-pane
-  ^Parent [new-project-location-directory download-template! welcome-settings]
+  ^Parent [new-project-location-directory download-template! welcome-settings ^ToggleGroup category-buttons-toggle-group]
   (doto (ui/load-fxml "welcome/new-project-pane.fxml")
     (ui/with-controls [^ButtonBase create-new-project-button new-project-location-field ^TextField new-project-title-field template-categories ^ListVew template-list]
       (setup-location-field! new-project-location-field "Select New Project Location" new-project-location-directory)
@@ -416,8 +424,7 @@
                             {:graphic (make-template-entry project-template)})))
 
       ;; Configure template category toggle buttons.
-      (let [category-buttons-toggle-group (ToggleGroup.)
-            category-buttons (mapv make-category-button (get-in welcome-settings [:new-project :categories]))]
+      (let [category-buttons (mapv make-category-button (get-in welcome-settings [:new-project :categories]))]
 
         ;; Add the category buttons to top bar and configure them to toggle between the templates.
         (doseq [^RadioButton category-button category-buttons]
@@ -425,8 +432,10 @@
           (ui/add-child! template-categories category-button))
 
         (ui/observe (.selectedToggleProperty category-buttons-toggle-group)
-                    (fn [_ _ selected-category-button]
-                      (let [templates (category-button->templates selected-category-button)]
+                    (fn [_ old-selected-category-button new-selected-category-button]
+                      (when (some? old-selected-category-button)
+                        (analytics/track-screen! (new-project-screen-name new-selected-category-button)))
+                      (let [templates (category-button->templates new-selected-category-button)]
                         (ui/items! template-list templates)
                         (when (seq templates)
                           (ui/select-index! template-list 0)))))
@@ -744,11 +753,17 @@
          sign-out-button (.lookup left-pane "#sign-out-button")
          update-link (.lookup left-pane "#update-link")
          pane-buttons-toggle-group (ToggleGroup.)
-         new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings))
+         template-category-buttons-toggle-group (ToggleGroup.)
+         new-project-pane-button (make-pane-button "NEW PROJECT" (make-new-project-pane new-project-location-directory download-template! welcome-settings template-category-buttons-toggle-group))
          show-new-project-pane! (fn [] (.selectToggle pane-buttons-toggle-group new-project-pane-button))
          home-pane-button (make-pane-button "HOME" (make-home-pane last-opened-project-directory show-new-project-pane! close-dialog-and-open-project! recent-projects))
          import-project-button (make-pane-button "IMPORT PROJECT" (make-import-project-pane new-project-location-directory clone-project! dashboard-client))
-         pane-buttons [home-pane-button new-project-pane-button import-project-button]]
+         pane-buttons [home-pane-button new-project-pane-button import-project-button]
+         screen-name (fn [selected-pane-button selected-template-category-button]
+                       (condp = selected-pane-button
+                         home-pane-button "home"
+                         import-project-button "import-project"
+                         new-project-pane-button (new-project-screen-name selected-template-category-button)))]
 
      ;; Add Defold logo SVG paths.
      (doseq [pane (map pane-button->pane pane-buttons)]
@@ -771,8 +786,10 @@
        (ui/add-child! pane-buttons-container pane-button))
 
      (ui/observe (.selectedToggleProperty pane-buttons-toggle-group)
-                 (fn [_ _ selected-pane-button]
-                   (let [pane (pane-button->pane selected-pane-button)]
+                 (fn [_ old-selected-pane-button new-selected-pane-button]
+                   (when (some? old-selected-pane-button)
+                     (analytics/track-screen! (screen-name new-selected-pane-button (.getSelectedToggle template-category-buttons-toggle-group))))
+                   (let [pane (pane-button->pane new-selected-pane-button)]
                      (ui/with-controls root [dialog-contents]
                        (ui/children! dialog-contents [left-pane pane])))))
 
@@ -833,5 +850,6 @@
 
      ;; Show the dialog.
      (analytics/track-event! "welcome" "show-welcome")
+     (analytics/track-screen! (screen-name (.getSelectedToggle pane-buttons-toggle-group) (.getSelectedToggle template-category-buttons-toggle-group)))
      (.setScene stage scene)
      (ui/show! stage))))
