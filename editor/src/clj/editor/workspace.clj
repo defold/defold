@@ -23,11 +23,11 @@ ordinary paths."
 
 (def build-dir "/build/default/")
 
-(defn project-path ^File
-  ([workspace]
+(defn project-path
+  (^File [workspace]
    (g/with-auto-evaluation-context evaluation-context
      (project-path workspace evaluation-context)))
-  ([workspace evaluation-context]
+  (^File [workspace evaluation-context]
    (io/as-file (g/node-value workspace :root evaluation-context))))
 
 (defn build-path [workspace]
