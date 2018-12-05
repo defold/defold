@@ -713,8 +713,8 @@ If you do not specifically require different script states, consider changing th
         ;; Plain doseq over .getTabs will use the iterable interface
         ;; and we get a ConcurrentModificationException since we
         ;; remove from the list while iterating. Instead put the tabs
-        ;; in a proper (non-lazy) seq before iterating.
-        (doseq [tab (doall (seq (.getTabs tab-pane)))]
+        ;; in a (non-lazy) vec before iterating.
+        (doseq [tab (vec (.getTabs tab-pane))]
           (when (not= tab selected-tab)
             (remove-tab! tab-pane tab)))))))
 
@@ -722,7 +722,7 @@ If you do not specifically require different script states, consider changing th
   (enabled? [app-view] (not-empty (get-active-tabs app-view)))
   (run [app-view]
     (let [tab-pane ^TabPane (g/node-value app-view :active-tab-pane)]
-      (doseq [tab (doall (seq (.getTabs tab-pane)))]
+      (doseq [tab (vec (.getTabs tab-pane))]
         (remove-tab! tab-pane tab)))))
 
 (defn- editor-tab-pane
