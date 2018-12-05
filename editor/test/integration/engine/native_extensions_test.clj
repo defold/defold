@@ -28,10 +28,8 @@
   (let [old-sha1 (system/defold-engine-sha1)
         version (string/trim-newline (slurp "../VERSION"))
         engine-sha1 (try-shell-command! "git" "rev-list" "-n" "1" version)]
-    (when (not-empty engine-sha1)
-      (system/set-defold-engine-sha1! engine-sha1))
-    (f)
-    (system/set-defold-engine-sha1! old-sha1)))
+    (binding [editor.system/defold-engine-sha1 (constantly engine-sha1)]
+      (f))))
 
 (use-fixtures :once fix-engine-sha1)
 
@@ -110,15 +108,13 @@
 
 (defn- blocking-async-build! [project evaluation-context prefs]
   (let [result (promise)]
-    ;; An alternative would be to use the final result of the async-build!-future like so:
-    ;; (app-view/async-build! project evaluation-context prefs {} {}
-    ;;                        (constantly nil)
-    ;;                        (constantly nil))
-    ;; ... But in the actual app we use the result delivered to the callback function.
-    (app-view/async-build! project evaluation-context prefs {} {}
-                           (constantly nil)
-                           (fn [build-results engine build-engine-exception]
-                             (deliver result [build-results engine build-engine-exception])))
+    (test-util/run-event-loop!
+      (fn [exit-event-loop!]
+        (app-view/async-build! project evaluation-context prefs {} {}
+                               (constantly nil)
+                               (fn [build-results engine build-engine-exception]
+                                 (deliver result [build-results engine build-engine-exception])
+                                 (exit-event-loop!)))))
     (deref result)))
 
 (deftest async-build-on-build-server

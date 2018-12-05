@@ -569,8 +569,7 @@
           (try
             (when result-fn (result-fn build-results engine build-engine-exception))
             (finally
-              (reset! build-in-progress? false))))
-        [build-results engine build-engine-exception])
+              (reset! build-in-progress? false)))))
       (catch Throwable t
         (reset! build-in-progress? false)
         (error-reporting/report-exception! t)))))
@@ -587,24 +586,26 @@
         (build-errors-view/clear-build-errors build-errors-view)
         build-results))))
 
+(defn- build-handler [project workspace prefs web-server build-errors-view console-view]
+  (let [project-directory (io/file (workspace/project-path workspace))
+        evaluation-context (g/make-evaluation-context)]
+    (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
+                  (make-render-task-progress :build)
+                  (fn [build-results engine build-engine-exception]
+                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (when (handle-build-results! workspace build-errors-view build-results)
+                      (when engine
+                        (console/show! console-view)
+                        (launch-built-project! engine project-directory prefs web-server false))
+                      (when build-engine-exception
+                        (log/warn :exception build-engine-exception)
+                        (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception)))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not @build-in-progress?))
   (run [project workspace prefs web-server build-errors-view console-view debug-view]
     (debug-view/detach! debug-view)
-    (let [project-directory (io/file (workspace/project-path workspace))
-          evaluation-context (g/make-evaluation-context)]
-      (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
-                    (make-render-task-progress :build)
-                    (fn [build-results engine build-engine-exception]
-                      (g/update-cache-from-evaluation-context! evaluation-context)
-                      (when (handle-build-results! workspace build-errors-view build-results)
-                        (when engine
-                          (console/show! console-view)
-                          (launch-built-project! engine project-directory prefs web-server false))
-                        (when build-engine-exception
-                          (log/warn :exception build-engine-exception)
-                          (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception))))))))
+    (build-handler project workspace prefs web-server build-errors-view console-view)))
 
 (defn- debugging-supported?
   [project]
@@ -657,22 +658,10 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :rebuild :global
   (enabled? [] (not @build-in-progress?))
-  (run [workspace project prefs web-server build-errors-view console-view debug-view]
+  (run [project workspace prefs web-server build-errors-view console-view debug-view]
     (debug-view/detach! debug-view)
     (workspace/reset-cache! workspace)
-    (let [project-directory (io/file (workspace/project-path workspace))
-          evaluation-context (g/make-evaluation-context)]
-      (async-build! project evaluation-context prefs {:debug? false} (workspace/artifact-map workspace)
-                    (make-render-task-progress :build)
-                    (fn [build-results engine build-engine-exception]
-                      (g/update-cache-from-evaluation-context! evaluation-context)
-                      (when (handle-build-results! workspace build-errors-view build-results)
-                        (when engine
-                          (console/show! console-view)
-                          (launch-built-project! engine project-directory prefs web-server false))
-                        (when build-engine-exception
-                          (log/warn :exception build-engine-exception)
-                          (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context build-engine-exception))))))))
+    (build-handler project workspace prefs web-server build-errors-view console-view)))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view]
