@@ -203,6 +203,7 @@ Building the 64 bit version of Defold begins with building a set of 32 bit libra
 	- Update setuptools and pip - you might get errors running easy_install when running the install-ext command with build.py otherwise
 
 		python -m pip install --upgrade pip
+
 		pip install setuptools --upgrade
 
 - [MSYS/MinGW](http://www.mingw.org/download/installer) - [download](https://drive.google.com/open?id=0BxFxQdv6jzseZ1hKaGJRZE1pM1U)
