@@ -265,7 +265,7 @@
   [project evaluation-context platform build-server]
   (if-not (supported-platform? platform)
     (throw (engine-build-errors/unsupported-platform-error platform))
-    (let [project-path (workspace/project-path (project/workspace project evaluation-context))]
+    (let [project-path (workspace/project-path (project/workspace project evaluation-context) evaluation-context)]
       (unpack-dmengine (find-or-build-engine-archive (cache-dir project-path)
                                                      build-server
                                                      (get-in extender-platforms [platform :platform])

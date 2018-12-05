@@ -189,8 +189,8 @@
                                      (when (some? callback!)
                                        (callback! successful?)))
                                    (finally
-                                     (g/update-cache-from-evaluation-context! evaluation-context)
-                                     (disk-availability/pop-busy!)))))
+                                     (disk-availability/pop-busy!)
+                                     (g/update-cache-from-evaluation-context! evaluation-context)))))
                              (catch Throwable error
                                (disk-availability/pop-busy!)
                                (render-build-progress! progress/done)
