@@ -15,6 +15,9 @@
 
 (set! *warn-on-reflection* true)
 
+;; Set this to true to see the events that get sent when testing.
+(defonce ^:private log-events? false)
+
 (defonce ^:private batch-size 16)
 (defonce ^:private cid-regex #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 (defonce ^:private config-atom (atom nil))
@@ -263,7 +266,7 @@
     (let [line (event->line event config)]
       (when (enabled?)
         (swap! event-queue-atom conj line))
-      (when (sys/defold-dev?)
+      (when log-events?
         (log/info :msg line)))))
 
 ;; -----------------------------------------------------------------------------
