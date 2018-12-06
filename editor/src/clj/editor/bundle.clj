@@ -79,14 +79,16 @@
        (map (fn [[_ id name]] [id name]))))
 
 (g/defnk get-armv7-engine [project prefs]
-  (try {:armv7 (engine/get-engine project prefs "armv7-darwin")}
-       (catch Exception e
-         {:err e :message "Failed to get armv7 engine."})))
+  (g/with-auto-evaluation-context evaluation-context
+    (try {:armv7 (engine/get-engine project evaluation-context prefs "armv7-darwin")}
+         (catch Exception e
+           {:err e :message "Failed to get armv7 engine."}))))
 
 (g/defnk get-arm64-engine [project prefs]
-  (try {:arm64 (engine/get-engine project prefs "arm64-darwin")}
-       (catch Exception e
-         {:err e :message "Failed to get arm64 engine."})))
+  (g/with-auto-evaluation-context evaluation-context
+    (try {:arm64 (engine/get-engine evaluation-context project prefs "arm64-darwin")}
+         (catch Exception e
+           {:err e :message "Failed to get arm64 engine."}))))
 
 (g/defnk lipo-ios-engine [^File armv7 ^File arm64]
   (let [lipo (format "%s/%s/bin/lipo" (system/defold-unpack-path) (.getPair (Platform/getJavaPlatform)))
@@ -226,6 +228,7 @@
                             (.exists (io/file (ui/text (:provisioning-profile controls))))
                             (.isDirectory (io/file (ui/text (:build-dir controls))))))
   (run [workspace prefs ^Stage stage root controls project result]
+    ;; TODO: make all of this async, with progress bar & notification when done.
     (let [ipa-dir (ui/text (:build-dir controls))
           ipa (format "%s/%s.ipa" ipa-dir name)
           settings (g/node-value project :settings)
