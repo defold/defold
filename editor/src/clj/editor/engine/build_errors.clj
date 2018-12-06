@@ -106,7 +106,7 @@
   (filterv extension-manifest? (g/node-value project :resources evaluation-context)))
 
 (defn- extension-manifest-node-ids [project evaluation-context]
-  (keep #(project/get-resource-node project % evaluation-context) (extension-manifests project)))
+  (keep #(project/get-resource-node project % evaluation-context) (extension-manifests project evaluation-context)))
 
 (defn- get-manifest-ext-resources-by-name [project evaluation-context]
   (into {}
