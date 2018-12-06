@@ -7,7 +7,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <libunwind.h>
+extern "C" {
+    #define UNW_LOCAL_ONLY
+    #define _GNU_SOURCE
+    #define _XOPEN_SOURCE
+#ifdef ANDROID
+    #include <libunwind.h>
+#else
+    #include <libunwind_osx/libunwind.h>
+#endif
+}
 
 #include "crash.h"
 #include "crash_private.h"
@@ -27,40 +36,95 @@ namespace dmCrash
         g_AppState.m_Signum = signo;
         g_AppState.m_PtrCount = 0;
 
+#ifdef ANDROID
+        int umw_map_ret = unw_map_local_create();
+#endif
+
         unw_context_t context;
         unw_getcontext(&context);
         unw_cursor_t cursor;
         unw_init_local(&cursor, &context);
 
+        uint32_t stack_index = 0;
         uint32_t offset_extra = 0; // How much we've written to the extra field
         while (unw_step(&cursor) > 0 && g_AppState.m_PtrCount < AppState::PTRS_MAX)
         {
-            unw_word_t offset, pc;
+            unw_word_t offset, pc = 0;
             unw_get_reg(&cursor, UNW_REG_IP, &pc);
             if (pc == 0)
             {
                 break;
             }
+
+            // Store stack pointers as absolute values.
+            // They can be turned into offsets using `crash.get_modules`, but we also store
+            // them as offsets (if available) inside the extras field for convenience.
             g_AppState.m_Ptr[g_AppState.m_PtrCount] = (void*)(uintptr_t)pc;
             g_AppState.m_PtrCount++;
 
-            printf("0x%llx:", pc);
+            // Figure out the relative pc within the dylib
+#ifdef ANDROID
+            bool maps_found = false;
+            unw_map_t proc_map_item;
+            if (umw_map_ret == 0)
+            {
+                unw_map_cursor_t proc_map_cursor;
+                unw_map_local_cursor_get(&proc_map_cursor);
+                while (unw_map_cursor_get_next(&proc_map_cursor, &proc_map_item) > 0) {
+                    if (pc >= proc_map_item.start && pc < proc_map_item.end) {
+                        maps_found = true;
+                        pc -= proc_map_item.start;
+                        break;
+                    }
+                }
+            }
 
+            // If dylib path is too long, truncate it to the last 32 chars where the "<lib>.so" would be visible
+            char* proc_path = proc_map_item.path;
+            bool proc_path_truncated = false;
+            if (maps_found) {
+                int proc_path_len = strlen(proc_path);
+                if (proc_path_len > 32) {
+                    proc_path = proc_map_item.path + (proc_path_len-32);
+                    proc_path_truncated = true;
+                }
+            }
+#endif
+
+            // Try to get symbol name and offset inside procedure.
+            // NOTE: unw_get_proc_name should return 0 on success, but on OSX implementation
+            // of libunwind it does not! Instead we first write a \0 as first char in sym,
+            // and check if it was overwritten after the function call to determine of the
+            // symbol was found.
             char sym[256];
-            if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
-                printf(" (%s+0x%llx)\n", sym, offset);
-            }
-            else
-            {
-                strcpy(sym, "<unknown>");
-            }
+            sym[0] = 0;
+            unw_get_proc_name(&cursor, sym, sizeof(sym), &offset);
+            bool found_sym = (sym[0] != 0);
 
-            int sym_len = strlen(sym);
-            if ((offset_extra + sym_len) < (dmCrash::AppState::EXTRA_MAX - 1))
+            // Store extra data;
+            // frame index, pc (offset) in hex, [library name], [symbol name], [offset inside procedure in decimal]
+            // We try to keep a fairly "standard" formatting based on what FF write.
+            char extra[256];
+            snprintf(extra, sizeof(extra),
+                "#%d pc 0x%llx %s%s %s+%llu",
+                stack_index++,
+                pc,
+#ifdef ANDROID
+                proc_path_truncated ? "..." : "",
+                maps_found ? proc_path : "",
+#else
+                "",
+                "",
+#endif
+                found_sym ? sym : "<unknown>",
+                found_sym ? offset : 0);
+
+            int extra_len = strlen(extra);
+            if ((offset_extra + extra_len) < (dmCrash::AppState::EXTRA_MAX - 1))
             {
-                memcpy(g_AppState.m_Extra + offset_extra, sym, sym_len);
-                g_AppState.m_Extra[offset_extra + sym_len] = '\n';
-                offset_extra += sym_len + 1;
+                memcpy(g_AppState.m_Extra + offset_extra, extra, extra_len);
+                g_AppState.m_Extra[offset_extra + extra_len] = '\n';
+                offset_extra += extra_len + 1;
             }
             else
             {
@@ -68,6 +132,10 @@ namespace dmCrash
                 break;
             }
         }
+
+#ifdef ANDROID
+        unw_map_local_destroy();
+#endif
 
         WriteCrash(g_FilePath, &g_AppState);
     }

@@ -235,7 +235,7 @@ def default_flags(self):
         if 'osx' == build_util.get_target_os() and 'x86' == build_util.get_target_architecture():
             self.env.append_value('LINKFLAGS', ['-m32'])
         if 'osx' == build_util.get_target_os():
-            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION,'-lSystem','-framework', 'Carbon','-flto'])
+            self.env.append_value('LINKFLAGS', ['-stdlib=libstdc++', '-isysroot', '%s/MacOSX%s.sdk' % (build_util.get_dynamo_ext('SDKs'), OSX_SDK_VERSION), '-mmacosx-version-min=%s' % MIN_OSX_SDK_VERSION, '-framework', 'Carbon','-flto'])
 
     elif 'ios' == build_util.get_target_os() and ('armv7' == build_util.get_target_architecture() or 'arm64' == build_util.get_target_architecture()):
         #  NOTE: -lobjc was replaced with -fobjc-link-runtime in order to make facebook work with iOS 5 (dictionary subscription with [])
