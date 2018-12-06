@@ -550,15 +550,16 @@
                                    "If the engine is already running, shut down the process manually and retry."
                                    (.getMessage e))))))
 
-(defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true} :as opts} old-artifact-map render-build-progress! result-fn]
+(defn async-build! [project evaluation-context prefs {:keys [debug? engine? resource] :or {debug? false engine? true resource "/game.project"} :as _opts} old-artifact-map render-build-progress! result-fn]
   (assert (not @build-in-progress?))
   (reset! build-in-progress? true)
   (future
     (try
       (let [extra-build-targets (when debug?
                                   (debug-view/build-targets project evaluation-context))
+            resource-node (project/get-resource-node project resource evaluation-context)
             build-results (ui/with-progress [_ render-build-progress!]
-                            (project/build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))
+                            (project/build-resource-node! project resource-node evaluation-context extra-build-targets old-artifact-map render-build-progress!))
             [engine build-engine-exception] (when (and engine? (nil? (:error build-results)))
                                               (try
                                                 (ui/with-progress [_ render-build-progress!]
@@ -693,9 +694,9 @@ If you do not specifically require different script states, consider changing th
                     proj-path))))
         old-etags))
 
-(defn- updated-build-resources [evaluation-context project old-etags new-etags]
-  (let [game-project-node (project/get-resource-node project "/game.project" evaluation-context)
-        build-targets (g/node-value game-project-node :build-targets evaluation-context)
+(defn- updated-build-resources [evaluation-context project old-etags new-etags proj-path-or-resource]
+  (let [resource-node (project/get-resource-node project proj-path-or-resource evaluation-context)
+        build-targets (g/node-value resource-node :build-targets evaluation-context)
         updated-build-resource-proj-paths (updated-build-resource-proj-paths old-etags new-etags)]
     (into []
           (keep (fn [{build-resource :resource :as _build-target}]
@@ -706,36 +707,35 @@ If you do not specifically require different script states, consider changing th
 (defn- can-hot-reload? [debug-view prefs]
   (when-some [target (targets/selected-target prefs)]
     (and (targets/controllable-target? target)
-         (not (debug-view/suspended? debug-view)))))
+         (not (debug-view/suspended? debug-view))
+         (not @build-in-progress?))))
 
 (defn- hot-reload! [project prefs build-errors-view specific-resource]
   (let [evaluation-context (g/make-evaluation-context)
         target (targets/selected-target prefs)
-        workspace (project/workspace project)
+        workspace (project/workspace project evaluation-context)
         old-artifact-map (workspace/artifact-map workspace)
         old-etags (workspace/etags workspace)
-        {:keys [error artifact-map etags]} (project/build-project! project
-                                                                   evaluation-context
-                                                                   nil
-                                                                   old-artifact-map
-                                                                   (make-render-task-progress :build))]
-    (g/update-cache-from-evaluation-context! evaluation-context)
-    (if (some? error)
-      (build-errors-view/update-build-errors build-errors-view error)
-      (do
-        (workspace/artifact-map! workspace artifact-map)
-        (workspace/etags! workspace etags)
-        (build-errors-view/clear-build-errors build-errors-view)
-        (try
-          (if (some? specific-resource)
-            (engine/reload-source-resource! target specific-resource)
-            (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags))]
-              (engine/reload-build-resources! target updated-build-resources)))
-          (catch Exception e
-            (dialogs/make-error-dialog "Hot Reload Failed"
-                                       (format "Failed to reload resources on '%s'"
-                                               (targets/target-message-label (targets/selected-target prefs)))
-                                       (.getMessage e))))))))
+        render-build-progress! (make-render-task-progress :build)
+        reloaded-resource (or specific-resource "/game.project")
+        opts {:debug? false :engine? false :resource reloaded-resource}]
+    (async-build! project evaluation-context prefs opts old-artifact-map render-build-progress!
+                  (fn [{:keys [error artifact-map etags]} _ _]
+                    (g/update-cache-from-evaluation-context! evaluation-context)
+                    (if (some? error)
+                      (build-errors-view/update-build-errors build-errors-view error)
+                      (do
+                        (workspace/artifact-map! workspace artifact-map)
+                        (workspace/etags! workspace etags)
+                        (build-errors-view/clear-build-errors build-errors-view)
+                        (try
+                          (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags reloaded-resource))]
+                            (engine/reload-build-resources! target updated-build-resources))
+                          (catch Exception e
+                            (dialogs/make-error-dialog "Hot Reload Failed"
+                                                       (format "Failed to reload resources on '%s'"
+                                                               (targets/target-message-label (targets/selected-target prefs)))
+                                                       (.getMessage e))))))))))
 
 (handler/defhandler :hot-reload :global
   (enabled? [debug-view prefs]
