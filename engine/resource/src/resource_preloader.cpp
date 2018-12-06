@@ -102,6 +102,134 @@ namespace dmResource
         bool m_Destroy;
     };
 
+    static const uint32_t BLOCK_SIZE                    = 16384;
+    static const uint32_t BLOCK_ALLOCATION_THREADSHOLD  = BLOCK_SIZE / 2;
+    static const uint16_t MAX_BLOCK_COUNT               = 8;
+    static const uint32_t BLOCK_ALLOCATION_ALIGNEMENT   = sizeof(uint16_t);
+
+    struct Block
+    {
+        uint32_t m_AllocationCount;
+        uint32_t m_LowWaterMark;
+        uint32_t m_HighWaterMark;
+        uint8_t m_Data[BLOCK_SIZE];
+    };
+
+    struct BlockAllocator
+    {
+        BlockAllocator()
+        {
+            m_InitialBlock.m_AllocationCount = 0;
+            m_InitialBlock.m_LowWaterMark = 0;
+            m_InitialBlock.m_HighWaterMark = 0;
+            m_Blocks[0] = &m_InitialBlock;
+            for (uint16_t i = 1; i < MAX_BLOCK_COUNT; ++i)
+            {
+                m_Blocks[i] = 0x0;
+            }
+        }
+        ~BlockAllocator()
+        {
+            assert(m_Blocks[0]->m_AllocationCount == 0);
+            for (uint16_t i = 1; i < MAX_BLOCK_COUNT; ++i)
+            {
+                assert(m_Blocks[i] == 0x0);
+            }
+        }
+        Block* m_Blocks[MAX_BLOCK_COUNT];
+        Block m_InitialBlock;
+    };
+
+    void* Allocate(BlockAllocator* block_allocator, uint32_t size)
+    {
+        uint32_t allocation_size = DM_ALIGN(sizeof(uint16_t) + size, BLOCK_ALLOCATION_ALIGNEMENT);
+        if (allocation_size > BLOCK_ALLOCATION_THREADSHOLD)
+        {
+            uint16_t *res = (uint16_t*)malloc(sizeof(uint16_t) + size);
+            *res = MAX_BLOCK_COUNT;
+            return &res[1];
+        }
+        uint16_t first_free = MAX_BLOCK_COUNT;
+        for (uint16_t block_index = 0; block_index < MAX_BLOCK_COUNT; ++block_index)
+        {
+            Block* block = block_allocator->m_Blocks[block_index];
+            if (block == 0x0)
+            {
+                first_free = (first_free == MAX_BLOCK_COUNT) ? block_index : first_free;
+                continue;
+            }
+            if (block->m_LowWaterMark >= allocation_size)
+            {
+                block->m_LowWaterMark -= allocation_size;
+                block->m_AllocationCount++;
+                uint16_t* ptr = (uint16_t*)&block->m_Data[block->m_LowWaterMark];
+                *ptr = block_index;
+                return &ptr[1];
+            }
+            if (block->m_HighWaterMark + allocation_size <= BLOCK_SIZE)
+            {
+                block->m_AllocationCount++;
+                uint16_t* ptr = (uint16_t*)&block->m_Data[block->m_HighWaterMark];
+                block->m_HighWaterMark += allocation_size;
+                *ptr = block_index;
+                return &ptr[1];
+            }
+        }
+        if (first_free != MAX_BLOCK_COUNT)
+        {
+            Block* block = new Block;
+            block->m_AllocationCount = 1;
+            block->m_LowWaterMark = 0;
+            block->m_HighWaterMark = allocation_size;
+            uint16_t* ptr = (uint16_t*)&block->m_Data[0];
+            *ptr = first_free;
+            block_allocator->m_Blocks[first_free] = block;
+            return &ptr[1];
+        }
+        dmLogWarning("Scratch buffer is full when trying to allocate: %u bytes", size);
+        uint16_t *res = (uint16_t*)malloc(sizeof(uint16_t) + size);
+        *res = MAX_BLOCK_COUNT;
+        return &res[1];
+    }
+
+    void Free(BlockAllocator* block_allocator, void* data, uint32_t size)
+    {
+        uint16_t* ptr = (uint16_t*)data;
+        --ptr;
+        uint16_t block_index = *ptr;
+        if (block_index == MAX_BLOCK_COUNT)
+        {
+            free(ptr);
+            return;
+        }
+        assert(block_index < MAX_BLOCK_COUNT);
+        uint16_t allocation_size = DM_ALIGN(sizeof(uint16_t) + size, BLOCK_ALLOCATION_ALIGNEMENT);
+        Block* block = block_allocator->m_Blocks[block_index];
+        assert(block != 0x0);
+        assert(block->m_AllocationCount > 0);
+
+        block->m_AllocationCount--;
+        if (0 == block->m_AllocationCount)
+        {
+            if (block_index != 0)
+            {
+                delete block;
+                block_allocator->m_Blocks[block_index] = 0x0;
+            }
+            return;
+        }
+        if ((uint8_t*)ptr == &block->m_Data[block->m_LowWaterMark])
+        {
+            block->m_LowWaterMark += allocation_size;
+        }
+        else if ((uint8_t*)ptr == &block->m_Data[block->m_HighWaterMark - allocation_size])
+        {
+            block->m_HighWaterMark -= allocation_size;
+        }
+    }
+
+
+
     // The preloader will function even down to a value of 1 here (the root object)
     // and sets the limit of how large a dependencies tree can be stored. Since nodes
     // are always present with all their children inserted (unless there was not room)
@@ -109,8 +237,6 @@ namespace dmResource
     // the largest branch.
 
     static const uint32_t MAX_PRELOADER_REQUESTS        = 1024;
-    static const uint32_t SCRATCH_BUFFER_SIZE           = 65536;
-    static const uint32_t SCRATCH_BUFFER_THRESHOLD      = 5*1024;
 
     typedef dmHashTable<uint64_t, uint32_t> TPathHashTable;
     typedef dmHashTable<uint64_t, bool> TPathInProgressTable;
@@ -162,9 +288,7 @@ namespace dmResource
         uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
 
         // used instead of dynamic allocs as far as it lasts.
-        uint8_t m_ScratchBuffer[SCRATCH_BUFFER_SIZE];
-        uint32_t m_ScratchBufferBeginPos;
-        uint32_t m_ScratchBufferEndPos;
+        BlockAllocator m_BlockAllocator;
 
         // post create state
         bool m_LoadQueueFull;
@@ -389,8 +513,6 @@ namespace dmResource
             preloader->m_Freelist[i] = MAX_PRELOADER_REQUESTS-i-1;
 
         preloader->m_FreelistSize = MAX_PRELOADER_REQUESTS - 1;
-        preloader->m_ScratchBufferBeginPos = 0;
-        preloader->m_ScratchBufferEndPos = 0;
 
         preloader->m_Factory = factory;
         preloader->m_LoadQueue = dmLoadQueue::CreateQueue(factory);
@@ -509,29 +631,7 @@ namespace dmResource
                 params.m_BufferSize = req->m_BufferSize;
                 req->m_LoadResult = resource_type->m_CreateFunction(params);
 
-                // unless we took it from the scratch buffer it needs to be free:d
-                if (req->m_Buffer < preloader->m_ScratchBuffer || req->m_Buffer >= (preloader->m_ScratchBuffer + SCRATCH_BUFFER_SIZE))
-                {
-                    free(req->m_Buffer);
-                }
-                else
-                {
-                    uint32_t aligned_buffer_size = DM_ALIGN(req->m_BufferSize, 4);
-                    if (req->m_Buffer == &preloader->m_ScratchBuffer[preloader->m_ScratchBufferBeginPos])
-                    {
-                        preloader->m_ScratchBufferBeginPos += aligned_buffer_size;
-                    }
-                    else if (req->m_Buffer == &preloader->m_ScratchBuffer[preloader->m_ScratchBufferEndPos - aligned_buffer_size])
-                    {
-                        preloader->m_ScratchBufferEndPos -= aligned_buffer_size;
-                    }
-
-                    if (preloader->m_ScratchBufferBeginPos == preloader->m_ScratchBufferEndPos)
-                    {
-                        preloader->m_ScratchBufferBeginPos = 0;
-                        preloader->m_ScratchBufferEndPos = 0;
-                    }
-                }
+                Free(&preloader->m_BlockAllocator, req->m_Buffer, req->m_BufferSize);
 
                 req->m_Buffer = 0;
             }
@@ -720,30 +820,7 @@ namespace dmResource
             }
             else
             {
-                if (buffer_size > SCRATCH_BUFFER_THRESHOLD)
-                {
-                    req->m_Buffer = malloc(buffer_size);
-                }
-                else
-                {
-                    // We need to hold on to the data for a bit longer now.
-                    uint32_t aligned_size = DM_ALIGN(buffer_size, 4);
-                    if (preloader->m_ScratchBufferBeginPos >= aligned_size)
-                    {
-                        preloader->m_ScratchBufferBeginPos -= aligned_size;
-                        req->m_Buffer = &preloader->m_ScratchBuffer[preloader->m_ScratchBufferBeginPos];
-                    }
-                    else if (aligned_size <= (SCRATCH_BUFFER_SIZE - preloader->m_ScratchBufferEndPos))
-                    {
-                        req->m_Buffer = &preloader->m_ScratchBuffer[preloader->m_ScratchBufferEndPos];
-                        preloader->m_ScratchBufferEndPos += aligned_size;
-                    }
-                    else
-                    {
-//                        dmLogWarning("Scratch buffer is full size: %u, low: %u, high: %u", SCRATCH_BUFFER_SIZE, preloader->m_ScratchBufferBeginPos, preloader->m_ScratchBufferEndPos);
-                        req->m_Buffer = malloc(buffer_size);
-                    }
-                }
+                req->m_Buffer = Allocate(&preloader->m_BlockAllocator, buffer_size);
                 memcpy(req->m_Buffer, buffer, buffer_size);
                 req->m_BufferSize = buffer_size;
             }
