@@ -114,7 +114,7 @@
 (defn- make-meta-settings-for-unknown [meta-settings settings]
   (let [known-settings (set (map :path meta-settings))
         unknown-settings (remove known-settings (map :path settings))]
-    (map (fn [setting-path] {:path setting-path :type :string :help "unknown setting"}) unknown-settings)))
+    (map (fn [setting-path] {:path setting-path :type :string :help "unknown setting" :unknown-setting? true}) unknown-settings)))
 
 (defn add-meta-info-for-unknown-settings [meta-info settings]
   (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings))))
