@@ -9,8 +9,6 @@
 #include <assert.h>
 extern "C" {
     #define UNW_LOCAL_ONLY
-    #define _GNU_SOURCE
-    #define _XOPEN_SOURCE
 #ifdef ANDROID
     #include <libunwind.h>
 #else
@@ -63,8 +61,12 @@ namespace dmCrash
             g_AppState.m_PtrCount++;
 
             // Figure out the relative pc within the dylib
+            // Currently only available on Android due to unw_map_* functions being
+            // Android specific.
+            bool proc_path_found = false;
+            const char* proc_path = NULL;
+            bool proc_path_truncated = false;
 #ifdef ANDROID
-            bool maps_found = false;
             unw_map_t proc_map_item;
             if (umw_map_ret == 0)
             {
@@ -72,24 +74,43 @@ namespace dmCrash
                 unw_map_local_cursor_get(&proc_map_cursor);
                 while (unw_map_cursor_get_next(&proc_map_cursor, &proc_map_item) > 0) {
                     if (pc >= proc_map_item.start && pc < proc_map_item.end) {
-                        maps_found = true;
+                        proc_path_found = true;
+                        proc_path = proc_map_item.path;
                         pc -= proc_map_item.start;
                         break;
                     }
                 }
             }
+#else
+            void* best_match_addr = 0x0;
+            const char* best_match_name = 0x0;
+            for (uint32_t i=0; i < AppState::MODULES_MAX; i++)
+            {
+                void* addr = g_AppState.m_ModuleAddr[i];
+                if (!addr)
+                {
+                    break;
+                }
+                if ((void*)pc >= addr) {
+                    best_match_addr = addr;
+                    best_match_name = g_AppState.m_ModuleName[i];
+                }
+            }
+            if (best_match_addr && best_match_name) {
+                proc_path_found = true;
+                proc_path = best_match_name;
+                pc -= (unw_word_t)best_match_addr;
+            }
+#endif
 
-            // If dylib path is too long, truncate it to the last 32 chars where the "<lib>.so" would be visible
-            char* proc_path = proc_map_item.path;
-            bool proc_path_truncated = false;
-            if (maps_found) {
+            // If path is too long, truncate it to the last 32 chars where the "<lib>.so" would be visible
+            if (proc_path_found) {
                 int proc_path_len = strlen(proc_path);
                 if (proc_path_len > 32) {
-                    proc_path = proc_map_item.path + (proc_path_len-32);
+                    proc_path = proc_path + (proc_path_len-32);
                     proc_path_truncated = true;
                 }
             }
-#endif
 
             // Try to get symbol name and offset inside procedure.
             // NOTE: unw_get_proc_name should return 0 on success, but on OSX implementation
@@ -106,18 +127,13 @@ namespace dmCrash
             // We try to keep a fairly "standard" formatting based on what FF write.
             char extra[256];
             snprintf(extra, sizeof(extra),
-                "#%d pc 0x%llx %s%s %s+%llu",
+                "#%d pc %p %s%s %s+%u",
                 stack_index++,
-                pc,
-#ifdef ANDROID
+                (void*)(uintptr_t)pc,
                 proc_path_truncated ? "..." : "",
-                maps_found ? proc_path : "",
-#else
-                "",
-                "",
-#endif
+                proc_path_found && proc_path ? proc_path : "",
                 found_sym ? sym : "<unknown>",
-                found_sym ? offset : 0);
+                found_sym ? (uint32_t)offset : 0);
 
             int extra_len = strlen(extra);
             if ((offset_extra + extra_len) < (dmCrash::AppState::EXTRA_MAX - 1))
