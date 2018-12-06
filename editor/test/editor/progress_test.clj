@@ -9,9 +9,9 @@
   (is (= {:message "mess" :size 10 :pos 5}
          (make "mess" 10 5))))
 
-(deftest message-test
+(deftest with-message-test
   (is (= {:message "mess2" :size 1 :pos 0}
-         (message (make "mess") "mess2"))))
+         (with-message (make "mess") "mess2"))))
 
 (deftest advance-test
   (is (= {:message "mess" :size 1 :pos 1}
