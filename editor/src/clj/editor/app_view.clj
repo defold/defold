@@ -1585,8 +1585,9 @@ If you do not specifically require different script states, consider changing th
     (build-errors-view/clear-build-errors build-errors-view)
     (let [result (bundle/make-sign-dialog workspace prefs project)]
       (when-let [error (:error result)]
-        (if (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project error)
-          (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
-          (do (error-reporting/report-exception! error)
-              (when-let [message (:message result)]
-                (dialogs/make-alert-dialog message))))))))
+        (g/with-auto-evaluation-context evaluation-context
+          (if (engine-build-errors/handle-build-error! (make-render-build-error build-errors-view) project evaluation-context error)
+            (dialogs/make-alert-dialog "Failed to build ipa with Native Extensions. Please fix build errors and try again.")
+            (do (error-reporting/report-exception! error)
+                (when-let [message (:message result)]
+                  (dialogs/make-alert-dialog message)))))))))

@@ -42,7 +42,7 @@
              :height (.getHeight reader 0)}
             (finally
               (.dispose reader))))
-        (throw (ex-info "No matching ImageReader"))))))
+        (throw (ex-info "No matching ImageReader" {}))))))
 
 (defmacro with-graphics
   [binding & body]

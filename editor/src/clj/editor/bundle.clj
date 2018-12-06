@@ -86,7 +86,7 @@
 
 (g/defnk get-arm64-engine [project prefs]
   (g/with-auto-evaluation-context evaluation-context
-    (try {:arm64 (engine/get-engine evaluation-context project prefs "arm64-darwin")}
+    (try {:arm64 (engine/get-engine project evaluation-context prefs "arm64-darwin")}
          (catch Exception e
            {:err e :message "Failed to get arm64 engine."}))))
 
