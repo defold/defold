@@ -402,6 +402,25 @@
                       removed-paths)))
         added-paths))
 
+(defn- perform-case-changes! [^Git git case-changes]
+  ;; In case we fail to perform a case change, attempt to undo the successfully
+  ;; performed case changes before throwing.
+  (let [performed-case-changes-atom (atom [])]
+    (try
+      (doseq [[new-path old-path] case-changes]
+        (let [new-file (file git new-path)
+              old-file (file git old-path)]
+          (fs/move-file! old-file new-file)
+          (swap! performed-case-changes-atom conj [new-file old-file])))
+      (catch Throwable error
+        ;; Attempt to undo the performed case changes before throwing.
+        (doseq [[new-file old-file] (rseq @performed-case-changes-atom)]
+          (fs/move-file! new-file old-file {:fail :silently}))
+        (throw error)))))
+
+(defn- undo-case-changes! [^Git git case-changes]
+  (perform-case-changes! git (map reverse case-changes)))
+
 (defn revert-to-revision!
   "High-level revert. Resets the working directory to the state it would have
   after a clean checkout of the specified start-ref. Performs the equivalent of
@@ -411,9 +430,9 @@
   ;; On case-insensitive file systems, we must manually revert case changes.
   ;; Otherwise the new-cased files will be removed during the clean call.
   (when-not fs/case-sensitive?
-    (let [{:keys [missing untracked]} (status git)]
-      (doseq [[new-path old-path] (find-case-changes untracked missing)]
-        (fs/move-file! (file git new-path) (file git old-path)))))
+    (let [{:keys [missing untracked]} (status git)
+          case-changes (find-case-changes untracked missing)]
+      (undo-case-changes! git case-changes)))
   (-> (.reset git)
       (.setMode ResetCommand$ResetType/HARD)
       (.setRef (.name start-ref))
@@ -431,7 +450,7 @@
   (let [case-changes (find-case-changes (set/union added untracked)
                                         (set/union removed missing))]
     (when (seq case-changes)
-      ;; Unstage everything so that we can safely revert case changes.
+      ;; Unstage everything so that we can safely undo the case changes.
       ;; This is fine, because we will stage everything before stashing.
       (when-some [staged-paths (not-empty (set/union added changed removed))]
         (let [reset-command (.reset git)]
@@ -439,9 +458,8 @@
             (.addPath reset-command path))
           (.call reset-command)))
 
-      ;; Revert case-changes.
-      (doseq [[new-path old-path] case-changes]
-        (fs/move-file! (file git new-path) (file git old-path))))
+      ;; Undo case-changes.
+      (undo-case-changes! git case-changes))
 
     case-changes))
 
@@ -525,12 +543,11 @@
             (.addPath reset-command path))
           (.call reset-command)))
 
-      ;; Restore any reverted case changes.
-      (doseq [[new-path old-path] (:case-changes stash-info)]
-        (when (and (not (contains? paths-with-conflicts new-path))
-                   (not (contains? paths-with-conflicts old-path)))
-          (fs/move-file! (file git old-path)
-                         (file git new-path))))
+      ;; Restore any reverted case changes. Skip over case changes that involve
+      ;; conflicting paths just in case.
+      (let [case-changes (remove (partial some paths-with-conflicts)
+                                 (:case-changes stash-info))]
+        (perform-case-changes! git case-changes))
 
       ;; Restore staged files state from before the stash.
       (when (empty? paths-with-conflicts)
