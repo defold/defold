@@ -230,7 +230,7 @@
         ne-cache-info-map (make-cached-info-map ne-cache-info)]
     (with-open [form (FormDataMultiPart.)]
       ; upload the file to the server, basically telling it what we are sending (and what we aren't)
-      (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes (json/write-str {:files ne-cache-info})))))
+      (.bodyPart form (StreamDataBodyPart. "ne-cache-info.json" (io/input-stream (.getBytes ^String (json/write-str {:files ne-cache-info})))))
       (doseq [[upload-path node] (sort-by first resource-nodes-by-upload-path)]
         ; If the file is not cached on the server, then we upload it
         (if (not (get ne-cache-info-map upload-path))
