@@ -202,10 +202,10 @@
             items (get (json/read-str body) "files")]
         items))))
 
-;; Parse the json string into a mapping "path"->"cached"
+;; Parse the json doc into a mapping "path"->"cached"
 (defn- make-cached-info-map
-  [ne-cache-info-json]
-  (zipmap (map #(get % "path") ne-cache-info-json) (map #(get % "cached") ne-cache-info-json)))
+  [ne-cache-info]
+  (zipmap (map #(get % "path") ne-cache-info) (map #(get % "cached") ne-cache-info)))
 
 (defn- build-engine-archive ^File
   [server-url platform sdk-version resource-nodes-by-upload-path evaluation-context]
