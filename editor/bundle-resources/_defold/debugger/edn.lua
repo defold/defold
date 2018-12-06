@@ -48,9 +48,9 @@ local function str(val)
     if success then
       return res_or_error .. " " .. addr
     else
-      return "<foreign scene node>" .. " " .. addr
+      return "<foreign scene node> " .. addr
     end
-  elseif (type(val) == "table") and has_custom_tostring(val) then
+  elseif type(val) == "table" and has_custom_tostring(val) then
     return tostring(val) .. " " .. get_prefixed_addr("table: ", raw_tostring(val))
   else
     return tostring(val)
