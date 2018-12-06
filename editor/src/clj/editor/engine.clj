@@ -9,10 +9,8 @@
             [editor.system :as system])
   (:import [com.defold.editor Platform]
            [com.dynamo.resource.proto Resource$Reload]
-           [editor.workspace BuildResource]
            [java.io BufferedReader File InputStream IOException]
-           [java.net HttpURLConnection InetSocketAddress Socket URI]
-           [org.apache.commons.io FilenameUtils]))
+           [java.net HttpURLConnection InetSocketAddress Socket URI]))
 
 (set! *warn-on-reflection* true)
 
@@ -36,9 +34,10 @@
         ;; For instance socket closed because engine was killed
         nil))))
 
-(defn- reload-resources-proj-path! [target proj-paths]
+(defn reload-build-resources! [target build-resources]
   (let [uri (URI. (str (:url target) "/post/@resource/reload"))
-        conn ^HttpURLConnection (get-connection uri)]
+        conn ^HttpURLConnection (get-connection uri)
+        proj-paths (mapv resource/proj-path build-resources)]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -48,19 +47,6 @@
         (ignore-all-output is))
       (finally
         (.disconnect conn)))))
-
-(defn reload-build-resources! [target build-resources]
-  (let [build-resources-proj-path (into [] (keep (fn [resource]
-                                                   (resource/proj-path resource))
-                                                 build-resources))]
-    (reload-resources-proj-path! target build-resources-proj-path)))
-
-(defn reload-source-resource! [target resource]
-  (assert (not (instance? BuildResource resource)))
-  (let [build-ext (:build-ext (resource/resource-type resource))
-        proj-path (resource/proj-path resource)
-        build-resource-proj-path (str (FilenameUtils/removeExtension proj-path) "." build-ext)]
-    (reload-resources-proj-path! target [build-resource-proj-path])))
 
 (defn reboot! [target local-url debug?]
   (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))

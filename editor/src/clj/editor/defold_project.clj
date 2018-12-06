@@ -339,7 +339,7 @@
         step-count (count @steps)
         progress-tracer (make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
-        prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (reverse @steps))
+        prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (rseq @steps))
         _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
         node-build-targets (g/node-value node :build-targets evaluation-context)
         build-targets (cond-> node-build-targets
@@ -620,13 +620,12 @@
         resources        (resource/filter-resources (g/node-value project :resources) query)]
     (map (fn [r] [r (get resource-path-to-node (resource/proj-path r))]) resources)))
 
-(defn build-project!
-  [project evaluation-context extra-build-targets old-artifact-map render-progress!]
-  (let [game-project  (get-resource-node project "/game.project" evaluation-context)
-        render-progress! (progress/throttle-render-progress render-progress!)]
+(defn build-resource-node!
+  [project resource-node evaluation-context extra-build-targets old-artifact-map render-progress!]
+  (let [render-progress! (progress/throttle-render-progress render-progress!)]
     (try
       (ui/with-progress [render-progress! render-progress!]
-        (build! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
+        (build! project resource-node evaluation-context extra-build-targets old-artifact-map render-progress!))
       (catch Throwable error
         (error-reporting/report-exception! error)
         nil))))
