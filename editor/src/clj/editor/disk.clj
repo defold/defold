@@ -147,14 +147,14 @@
 ;; Bob build
 ;; -----------------------------------------------------------------------------
 
-(defn- handle-bob-error! [render-error! project {:keys [error exception] :as _result}]
+(defn- handle-bob-error! [render-error! project evaluation-context {:keys [error exception] :as _result}]
   (cond
     error
     (do (render-error! error)
         true)
 
     exception
-    (if (engine-build-errors/handle-build-error! render-error! project exception)
+    (if (engine-build-errors/handle-build-error! render-error! project evaluation-context exception)
       true
       (throw exception))))
 
@@ -172,21 +172,29 @@
                          (disk-availability/pop-busy!)))
                      (try
                        (render-build-progress! (progress/make "Building..."))
-                       (future
-                         (try
-                           (let [result (bob/bob-build! project bob-commands bob-args render-build-progress!)]
-                             (render-build-progress! progress/done)
-                             (ui/run-later
-                               (try
-                                 (let [successful? (not (handle-bob-error! render-build-error! project result))]
-                                   (when (some? callback!)
-                                     (callback! successful?)))
-                                 (finally
-                                   (disk-availability/pop-busy!)))))
-                           (catch Throwable error
-                             (disk-availability/pop-busy!)
-                             (render-build-progress! progress/done)
-                             (error-reporting/report-exception! error))))
+                       ;; evaluation-context below is used to map
+                       ;; project paths to resource node id:s. To be
+                       ;; strictly correct, we should probably re-use
+                       ;; the ec created when saving - so the graph
+                       ;; state in the ec corresponds with the state
+                       ;; bob sees on disk.
+                       (let [evaluation-context (g/make-evaluation-context)]
+                         (future
+                           (try
+                             (let [result (bob/bob-build! project evaluation-context bob-commands bob-args render-build-progress!)]
+                               (render-build-progress! progress/done)
+                               (ui/run-later
+                                 (try
+                                   (let [successful? (not (handle-bob-error! render-build-error! project evaluation-context result))]
+                                     (when (some? callback!)
+                                       (callback! successful?)))
+                                   (finally
+                                     (disk-availability/pop-busy!)
+                                     (g/update-cache-from-evaluation-context! evaluation-context)))))
+                             (catch Throwable error
+                               (disk-availability/pop-busy!)
+                               (render-build-progress! progress/done)
+                               (error-reporting/report-exception! error)))))
                        (catch Throwable error
                          (disk-availability/pop-busy!)
                          (throw error))))))
