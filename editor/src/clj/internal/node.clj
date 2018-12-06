@@ -305,7 +305,7 @@
     nil)
 
   (set-original [this original-id]
-    (throw (ex-info "Originals can't be changed for original nodes")))
+    (throw (ex-info "Originals can't be changed for original nodes" {})))
 
   (override-id [this]
     nil))
