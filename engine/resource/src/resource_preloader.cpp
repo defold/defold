@@ -273,7 +273,7 @@ namespace dmResource
         reqs[parent].m_FirstChild = index;
     }
 
-    static Result PreloadHashInternal(HPreloader preloader, int32_t parent, const PathDescriptor& path_descriptor)
+    static Result PreloadPathDescriptor(HPreloader preloader, int32_t parent, const PathDescriptor& path_descriptor)
     {
         if (!preloader->m_FreelistSize)
         {
@@ -333,7 +333,7 @@ namespace dmResource
             {
                 continue;
             }
-            if (PreloadHashInternal(preloader, hint->m_Parent, hint->m_PathDescriptor) == RESULT_OK)
+            if (PreloadPathDescriptor(preloader, hint->m_Parent, hint->m_PathDescriptor) == RESULT_OK)
             {
                 ++new_hint_count;
             }
@@ -349,7 +349,7 @@ namespace dmResource
         {
             return res;
         }
-        res = PreloadHashInternal(preloader, parent, path_descriptor);
+        res = PreloadPathDescriptor(preloader, parent, path_descriptor);
         return res;
     }
 
@@ -883,55 +883,37 @@ namespace dmResource
         return 0;
     }
 
-    static Result PostCreateUpdateOneItem(HPreloader preloader, bool& empty_run)
+    static Result PostCreateUpdateOneItem(HPreloader preloader)
     {
-        empty_run = true;
-        uint32_t post_create_size = preloader->m_PostCreateCallbacks.Size();
-        if(preloader->m_PostCreateCallbackIndex == post_create_size)
-        {
-            return RESULT_OK;
-        }
-        if (post_create_size == 0)
-        {
-            return RESULT_OK;
-        }
-
-        Result ret = RESULT_OK;
         ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
         ResourcePostCreateParams& params = ip.m_Params;
         params.m_Resource = &ip.m_ResourceDesc;
         SResourceType *resource_type = (SResourceType*) params.m_Resource->m_ResourceType;
-        if(resource_type->m_PostCreateFunction)
-        {
-            ret = resource_type->m_PostCreateFunction(params);
-            empty_run = false;
-        }
+        Result ret = resource_type->m_PostCreateFunction(params);
 
         if (ret == RESULT_PENDING)
-            return ret;
-        ++preloader->m_PostCreateCallbackIndex;
-        if (ret == RESULT_OK)
         {
-            // Resource has been marked for delayed destroy after PostCreate function has been run.
-            if (ip.m_Destroy)
-            {
-                ResourceDestroyParams params;
-                params.m_Factory = preloader->m_Factory;
-                params.m_Context = resource_type->m_Context;
-                params.m_Resource = &ip.m_ResourceDesc;
-                resource_type->m_DestroyFunction(params);
-                ip.m_Destroy = false;
-                empty_run = false;
-            }
+            return ret;
+        }
+        ++preloader->m_PostCreateCallbackIndex;
 
-            if(preloader->m_PostCreateCallbackIndex < post_create_size)
-            {
-                return RESULT_PENDING;
-            }
-            empty_run = false;
+        // Resource has been marked for delayed destroy after PostCreate function has been run.
+        if (ip.m_Destroy)
+        {
+            ResourceDestroyParams params;
+            params.m_Factory = preloader->m_Factory;
+            params.m_Context = resource_type->m_Context;
+            params.m_Resource = &ip.m_ResourceDesc;
+            resource_type->m_DestroyFunction(params);
+            ip.m_Destroy = false;
+        }
+
+        if(preloader->m_PostCreateCallbackIndex == preloader->m_PostCreateCallbacks.Size())
+        {
             preloader->m_PostCreateCallbacks.SetSize(0);
             preloader->m_PostCreateCallbackIndex = 0;
         }
+
         return ret;
     }
 
@@ -947,17 +929,24 @@ namespace dmResource
         do
         {
             Result root_result = preloader->m_Request[0].m_LoadResult;
-            bool empty_run;
-            Result post_create_result = PostCreateUpdateOneItem(preloader, empty_run);
-            if (!empty_run)
+            Result post_create_result = RESULT_OK;
+            if (preloader->m_PostCreateCallbackIndex < preloader->m_PostCreateCallbacks.Size())
             {
-                empty_runs = 0;
-                if (post_create_result != RESULT_PENDING && root_result == RESULT_OK)
+                post_create_result = PostCreateUpdateOneItem(preloader);
+                if (post_create_result != RESULT_PENDING)
                 {
-                    preloader->m_Request[0].m_LoadResult = post_create_result;
+                    empty_runs = 0;
+                    if (root_result == RESULT_OK)
+                    {
+                        // Just waiting for the post-create functions to complete
+                        // if main result is RESULT_OK pick up any errors from
+                        // post create function
+                        preloader->m_Request[0].m_LoadResult = post_create_result;
+                    }
+                    continue;
                 }
-                continue;
             }
+
             if (root_result == RESULT_PENDING)
             {
                 if (PreloaderUpdateOneItem(preloader, 0))
@@ -986,7 +975,7 @@ namespace dmResource
                     }
                 }
 
-                if (post_create_result == RESULT_OK)
+                if (post_create_result != RESULT_PENDING)
                 {
                     // All done!
                     uint64_t main_thread_elapsed_ns = dmTime::GetTime() - start;
