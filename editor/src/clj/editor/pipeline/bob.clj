@@ -106,7 +106,7 @@
              (not (native-extensions/supported-platform? (get bob-args "platform"))))
       {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
       (let [ws (project/workspace project evaluation-context)
-            proj-path (str (workspace/project-path ws) evaluation-context)
+            proj-path (str (workspace/project-path ws evaluation-context))
             bob-project (Project. (DefaultFileSystem.) proj-path "build/default")]
         (doseq [[key val] bob-args]
           (.setOption bob-project key val))
