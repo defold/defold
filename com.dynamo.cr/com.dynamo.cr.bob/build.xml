@@ -114,6 +114,14 @@
                     <globmapper from="x86_64-linux/luajit-2.0.5" to="x86_64-linux/luajit"/>
                     <globmapper from="win32/luajit.exe" to="x86-win32/luajit.exe"/>
 		            <globmapper from="x86_64-win32/luajit.exe" to="x86_64-win32/luajit.exe"/>
+		            <globmapper from="x86_64-darwin/glslc" to="x86_64-darwin/glslc"/>
+		            <globmapper from="x86_64-linux/glslc" to="x86_64-linux/glslc"/>
+		            <globmapper from="x86_64-win32/glslc.exe" to="x86_64-win32/glslc.exe"/>
+		            <globmapper from="win32/glslc.exe" to="x86-win32/glslc.exe"/>
+		            <globmapper from="x86_64-darwin/spirv-cross" to="x86_64-darwin/spirv-cross"/>
+		            <globmapper from="x86_64-linux/spirv-cross" to="x86_64-linux/spirv-cross"/>
+		            <globmapper from="x86_64-win32/spirv-cross.exe" to="x86_64-win32/spirv-cross.exe"/>
+		            <globmapper from="win32/spirv-cross.exe" to="x86-win32/spirv-cross.exe"/>
                 </compositemapper>
             </chainedmapper>
             <tarfileset includes="bin/linux/**">
