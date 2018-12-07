@@ -180,6 +180,7 @@ def dmsdk_add_files(bld, target, source):
 # I don't know if this is entirely correct
 @before('apply_core')
 def default_flags(self):
+    global MIN_IOS_SDK_VERSION
     build_util = create_build_utility(self.env)
 
     opt_level = Options.options.opt_level
