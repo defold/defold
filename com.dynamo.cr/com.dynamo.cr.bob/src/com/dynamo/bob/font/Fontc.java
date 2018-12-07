@@ -294,10 +294,10 @@ public class Fontc {
     private float calculateSdfEdgeLimit(float width, float spread)
     {
         // Normalize the incoming value to [-1,1]
-        float sdfEdgeLimit = width / spread;
+        float sdfLimitValue = width / spread;
 
         // Map the outgoing limit to the same 'space' as the face edge.
-        return sdfEdgeLimit * (1.0f - sdf_edge) + sdf_edge;
+        return sdfLimitValue * (1.0f - sdf_edge) + sdf_edge;
     }
 
     public BufferedImage generateGlyphData(boolean preview, final FontResourceResolver resourceResolver) throws FontFormatException {
