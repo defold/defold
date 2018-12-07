@@ -1021,37 +1021,60 @@
     {:basis new-basis
      :outputs-to-refresh (mapv (juxt :source-id :source-label) sarcs-diff)}))
 
+(defn- list-contains? [^java.util.List coll item]
+  (.contains coll item))
+
 (defn new-hydrate-after-undo [basis graph-state]
   (let [graph-id (:_graph-id graph-state)
-        other-graphs (vals (dissoc (:graphs basis) graph-id))
+        graphs (:graphs basis)
+        other-graphs (dissoc graphs graph-id)
         old-sarcs (get graph-state :sarcs)
-        old-arc? (fn [^Arc arc]
+        old-arc? (fn old-arc? [^Arc arc]
                    ;; The number of arcs from a specific source to a different
                    ;; graph will be small. A linear search should be fine.
                    (some (partial = arc)
                          (get-in old-sarcs [(.source-id arc) (.source-label arc)])))
-        new-arcs (into #{}
-                       (comp (mapcat :tarcs)
-                             (mapcat val)
-                             (mapcat val)
-                             (filter (fn [^Arc arc]
-                                       (and (= graph-id (gt/node-id->graph-id (.source-id arc)))
-                                            (not (old-arc? arc))))))
-                       other-graphs)
-        sarcs (if (empty? new-arcs)
-                old-sarcs
-                (persistent!
-                  (reduce (fn [sarcs ^Arc arc]
-                            (let [source-id (.source-id arc)
-                                  source-label (.source-label arc)]
-                              (assoc! sarcs source-id
-                                      (if-some [arcs-by-source-label (get sarcs source-id)]
-                                        (update arcs-by-source-label source-label conj arc)
-                                        {source-label [arc]}))))
-                          (transient old-sarcs)
-                          new-arcs)))
-        new-basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs sarcs))
-        outputs-to-refresh (mapv (juxt :source-id :source-label) new-arcs)]
+        added-arcs (into #{}
+                         (comp (mapcat :tarcs)
+                               (mapcat val)
+                               (mapcat val)
+                               (filter (fn [^Arc arc]
+                                         (and (= graph-id (gt/node-id->graph-id (.source-id arc)))
+                                              (not (old-arc? arc))))))
+                         (vals other-graphs))
+        added-sarcs (into {}
+                          (map (juxt key (comp (partial group-by :source-label) val)))
+                          (group-by :source-id added-arcs))
+        valid-arc? (fn valid-arc? [^Arc arc]
+                     (let [target-node-id (.target-id arc)
+                           target-graph-id (gt/node-id->graph-id target-node-id)]
+                       (or (= graph-id target-graph-id)
+                           (some-> (other-graphs target-graph-id)
+                                   :tarcs
+                                   (get target-node-id)
+                                   (get (.target-label arc))
+                                   (list-contains? arc)))))
+        new-sarcs (persistent!
+                    (reduce (fn [new-sarcs [source-id arcs-by-source-label]]
+                              (let [added-arcs-by-source-label (get added-sarcs source-id)]
+                                (assoc! new-sarcs source-id
+                                        (persistent!
+                                          (reduce (fn [new-arcs-by-source-label [source-label arcs]]
+                                                    (let [added-arcs (get added-arcs-by-source-label source-label)]
+                                                      (assoc! new-arcs-by-source-label source-label
+                                                              (into (filterv valid-arc? arcs)
+                                                                    added-arcs))))
+                                                  (transient arcs-by-source-label)
+                                                  arcs-by-source-label)))))
+                            (transient old-sarcs)
+                            old-sarcs))
+        new-basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs new-sarcs))
+        outputs-to-refresh (into []
+                                 (mapcat (fn [[source-id arcs-by-source-label]]
+                                           (map (fn [source-label]
+                                                  [source-id source-label])
+                                                (keys arcs-by-source-label))))
+                                 added-sarcs)]
     {:basis new-basis
      :outputs-to-refresh outputs-to-refresh}))
 
