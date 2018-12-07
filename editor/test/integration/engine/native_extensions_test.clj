@@ -1,6 +1,5 @@
 (ns integration.engine.native-extensions-test
   (:require
-   [clojure.java.shell :as shell]
    [clojure.string :as string]
    [clojure.test :refer :all]
    [integration.test-util :as test-util]
@@ -10,24 +9,13 @@
    [editor.defold-project :as project]
    [editor.engine.native-extensions :as native-extensions]
    [editor.fs :as fs]
-   [editor.system :as system]
-   [editor.resource :as resource])
+   [editor.resource :as resource]
+   [util.repo :as repo])
   (:import
-   [java.io File IOException]))
-
-(defn- try-shell-command! [command & args]
-  (try
-    (let [{:keys [out err]} (apply shell/sh command args)]
-      (when (empty? err)
-        (string/trim-newline out)))
-    (catch IOException _
-      ;; The specified command does not exist.
-      nil)))
+   [java.io File]))
 
 (defn fix-engine-sha1 [f]
-  (let [old-sha1 (system/defold-engine-sha1)
-        version (string/trim-newline (slurp "../VERSION"))
-        engine-sha1 (try-shell-command! "git" "rev-list" "-n" "1" version)]
+  (let [engine-sha1 (repo/detect-engine-sha1)]
     (with-redefs [editor.system/defold-engine-sha1 (constantly engine-sha1)]
       (f))))
 
