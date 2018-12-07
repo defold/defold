@@ -27,7 +27,6 @@
    [javafx.animation AnimationTimer Timeline KeyFrame KeyValue]
    [javafx.application Platform]
    [javafx.beans InvalidationListener]
-   [javafx.beans.binding Bindings]
    [javafx.beans.value ChangeListener ObservableValue]
    [javafx.collections FXCollections ListChangeListener ObservableList]
    [javafx.css Styleable]
@@ -1287,20 +1286,6 @@
                                                                   binding
                                                                   [binding {}])]
                                         (run-command node command user-data true #(.consume event))))))))
-
-(defn bind-presence!
-  "Make the nodes presence in the scene dependent on an ObservableValue.
-  If the ObservableValue evaluates to false, the node is both hidden and
-  collapsed so it won't take up any space in the layout pass."
-  [^Node node ^ObservableValue value]
-  (.bind (.visibleProperty node) value)
-  (.bind (.managedProperty node) (.visibleProperty node)))
-
-(defn bind-enabled-to-selection!
-  "Disables the node unless an item is selected in selection-owner."
-  [^Node node selection-owner]
-  (.bind (.disableProperty node)
-         (Bindings/isNull (.selectedItemProperty (selection-model selection-owner)))))
 
 (defn- ^KeyboardShortcutsHandler keyboard-shortcuts-handler
   [^Node node]
