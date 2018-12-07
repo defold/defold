@@ -189,6 +189,10 @@ def default_flags(self):
     elif opt_level == "0" and 'win' in build_util.get_target_os():
         opt_level = "d" # how to disable optimizations in windows
 
+    # For nicer better output (i.e. in CI logs), and still get some performance, let's default to -O1
+    if Options.options.with_asan and opt_level != '0':
+        opt_level = 1
+
     FLAG_ST = '/%s' if 'win' == build_util.get_target_os() else '-%s'
 
     # Common for all platforms
