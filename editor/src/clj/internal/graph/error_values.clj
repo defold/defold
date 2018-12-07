@@ -28,13 +28,16 @@
   ([node-id label severity value message]
     (->error node-id label severity value message nil))
   ([node-id label severity value message user-data]
-    (->ErrorValue node-id label severity value message nil user-data)))
+   (->ErrorValue node-id label severity value message nil user-data)))
+
+(defn error-value? [x]
+  (instance? ErrorValue x))
 
 (defn error?
   [x]
   (cond
     (sequential? x)          (some error? x)
-    (instance? ErrorValue x) x
+    (error-value? x)         x
     :else                    nil))
 
 (defn- sev? [level x] (< (or level 0) (or (severity-levels (error-severity x)) 0)))

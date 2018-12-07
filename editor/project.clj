@@ -98,7 +98,8 @@
                       :output-directory "resources/editor.css"
                       :source-maps false}
 
-  :aliases           {"benchmark"     ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]}
+  :aliases           {"benchmark"     ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
+                      "lint" ["with-profile" "+test" "eastwood"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"}
@@ -122,7 +123,9 @@
                                 :omit-source  true
                                 :source-paths ["sidecar"]}
                       :release {:jvm-opts          ["-Ddefold.build=release"]}
-                      :dev     {:dependencies      [[org.clojure/test.check   "0.9.0"]
+                      :dev     {;;:plugins           [[jonase/eastwood "0.3.5" :exclusions [org.clojure/clojure]]]
+                                :dependencies      [[org.clojure/test.check   "0.9.0"]
+                                                    [org.mockito/mockito-core "1.10.19"]
                                                     [org.clojure/tools.trace  "0.7.9"]
                                                     [com.clojure-goes-fast/clj-async-profiler "0.3.0"]
                                                     [criterium "0.4.3"]
@@ -135,12 +138,101 @@
                                                     "-Ddefold.log.dir="
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.texture.notexrect=true"
-                                                    ;"-XX:+UnlockCommercialFeatures"
-                                                    ;"-XX:+FlightRecorder"
-                                                    "-XX:-OmitStackTraceInFastThrow"
+                                                    ;;"-XX:+UnlockCommercialFeatures"
+                                                    ;;"-XX:+FlightRecorder"
+                                                    "-XX:-OmitStackTraceInFastThrow"]}}
 
-                                                    ;; Flags for async-profiler.
-                                                    ;; From https://github.com/clojure-goes-fast/clj-async-profiler/blob/master/README.md
-                                                    "-Djdk.attach.allowAttachSelf"   ; Required for attach to running process.
-                                                    "-XX:+UnlockDiagnosticVMOptions" ; Required for DebugNonSafepoints.
-                                                    "-XX:+DebugNonSafepoints"]}})    ; Without this, there is a high chance that simple inlined methods will not appear in the profile.
+  :eastwood {:continue-on-exception true
+             :exclude-namespaces [
+                                  editor.code.view ; causes Method code too large! transitively in namespaces below, typically via editor.app-view
+                                  editor.console
+                                  editor.debug-view
+                                  editor.app-view
+                                  editor.game-object
+                                  editor.curve-view
+                                  editor.atlas
+
+                                  editor.cubemap
+                                  editor.font
+                                  editor.particlefx
+                                  editor.gui
+                                  editor.collection
+                                  editor.collision-object
+                                  editor.tile-source
+                                  editor.tile-map
+                                  editor.resource-types
+                                  editor.asset-browser
+                                  editor.outline-view
+                                  editor.boot-open-project
+                                  editor.boot
+
+                                  dev
+
+                                  clojure.data.int-map-fixed
+
+                                  integration.test-util
+                                  integration.hot-reload-test
+                                  integration.collada-test
+                                  integration.build-test
+                                  integration.resource-watch-test
+                                  integration.spine-test
+                                  integration.undo-test
+                                  integration.collection-test
+                                  integration.scope-test
+                                  integration.collection-proxy-test
+                                  integration.game-object-test
+                                  integration.animation-set-test
+                                  integration.engine.native-extensions-test
+                                  integration.save-test
+                                  integration.sound-test
+                                  integration.scene-test
+                                  integration.particlefx-test
+                                  integration.subselection-test
+                                  integration.protobuf-types-test
+                                  integration.script-test
+                                  integration.collision-object-test
+                                  integration.atlas-test
+                                  integration.game-project-test
+                                  integration.sprite-test
+                                  integration.font-test
+                                  integration.tex-packing-test
+                                  integration.tile-map-test
+                                  integration.model-test
+                                  integration.collada-scene-test
+                                  integration.tile-source-test
+                                  integration.asset-browser-test
+                                  integration.library-test
+                                  integration.display-profiles-test
+                                  integration.reload-test
+                                  integration.material-test
+                                  integration.factory-test
+                                  integration.test-util-test
+                                  integration.label-test
+                                  integration.gui-clipping-test
+                                  integration.build-errors-test
+                                  integration.script-properties-test
+                                  integration.curve-view-test
+                                  integration.app-view-test
+                                  integration.gui-test
+                                  integration.outline-test
+                                  integration.perf-test
+
+                                  dynamo.integration.override-test
+
+
+                                  editor.console-test
+                                  editor.handler-test
+                                  editor.fs-test
+                                  editor.sync-test
+                                  editor.gviz-test
+                                  editor.defold-project-search-test
+                                  editor.targets-test
+                                  editor.defold-project-test
+                                  editor.pipeline-test
+                                  editor.code.util-test
+
+
+                                  benchmark.graph-benchmark
+
+                                  internal.util-test]})
+
