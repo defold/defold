@@ -709,17 +709,19 @@ If you do not specifically require different script states, consider changing th
          (not (debug-view/suspended? debug-view))
          (not @build-in-progress?))))
 
-(defn- hot-reload! [project prefs build-errors-view specific-resource]
+(defn- hot-reload! [project prefs build-errors-view]
   (let [evaluation-context (g/make-evaluation-context)
         target (targets/selected-target prefs)
         workspace (project/workspace project evaluation-context)
         old-artifact-map (workspace/artifact-map workspace)
         old-etags (workspace/etags workspace)
         render-build-progress! (make-render-task-progress :build)
-        reloaded-resource (or specific-resource "/game.project")
         opts {:debug? false :engine? false}]
     ;; NOTE: We must build the entire project even if we only want to reload a
     ;; subset of resources in order to maintain a functioning build cache.
+    ;; If we decide to support hot reload of a subset of resources, we must
+    ;; keep track of which resource versions have been loaded by the engine,
+    ;; or we might miss resources that were recompiled but never reloaded.
     (async-build! project evaluation-context prefs opts old-artifact-map render-build-progress!
                   (fn [{:keys [error artifact-map etags]} _ _]
                     (g/update-cache-from-evaluation-context! evaluation-context)
@@ -730,7 +732,7 @@ If you do not specifically require different script states, consider changing th
                         (workspace/etags! workspace etags)
                         (build-errors-view/clear-build-errors build-errors-view)
                         (try
-                          (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags reloaded-resource))]
+                          (when-some [updated-build-resources (not-empty (updated-build-resources evaluation-context project old-etags etags "/game.project"))]
                             (engine/reload-build-resources! target updated-build-resources))
                           (catch Exception e
                             (dialogs/make-error-dialog "Hot Reload Failed"
@@ -742,16 +744,7 @@ If you do not specifically require different script states, consider changing th
   (enabled? [debug-view prefs]
             (can-hot-reload? debug-view prefs))
   (run [project app-view prefs build-errors-view selection]
-       (hot-reload! project prefs build-errors-view nil)))
-
-(handler/defhandler :hot-reload-file :global
-  (enabled? [app-view debug-view selection prefs]
-            (when-some [resource (context-resource-file app-view selection)]
-              (and (resource/exists? resource)
-                   (can-hot-reload? debug-view prefs))))
-  (run [project app-view prefs build-errors-view selection]
-       (when-some [resource (context-resource-file app-view selection)]
-         (hot-reload! project prefs build-errors-view resource))))
+       (hot-reload! project prefs build-errors-view)))
 
 (handler/defhandler :close :global
   (enabled? [app-view] (not-empty (get-active-tabs app-view)))
@@ -1051,9 +1044,7 @@ If you do not specifically require different script states, consider changing th
                  {:label "Referencing Files..."
                   :command :referencing-files}
                  {:label "Dependencies..."
-                  :command :dependencies}
-                 {:label "Hot Reload File"
-                  :command :hot-reload-file}])
+                  :command :dependencies}])
 
 (defrecord SelectionProvider [app-view]
   handler/SelectionProvider
