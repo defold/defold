@@ -170,27 +170,23 @@
 (defn- make-cache-request
   [server-url payload]
   (let [parts (http/split-url server-url)]
-  {:request-method :post
-   :scheme         (get parts :protocol)
-   :server-name    (get parts :host)
-   :server-port    (get parts :port)
-   :uri            "/query"
-   :content-type   "application/json"
-   :headers        {"Accept" "application/json"}
-   :body           payload}))
+    {:request-method :post
+     :scheme         (get parts :protocol)
+     :server-name    (get parts :host)
+     :server-port    (get parts :port)
+     :uri            "/query"
+     :content-type   "application/json"
+     :headers        {"Accept" "application/json"}
+     :body           payload}))
 
-;; The server expects at least path+key
-;; The cached field is always written from server
-(defn- make-server-cache-item [path key cached]
-  {:path path :key key :cached cached})
-
-;; Asks the server what files it already has
-;; This is to avoid uploading big files that rarely change
 (defn- query-cached-files
-  [server-url resource-nodes-by-upload-path]
-  (let [paths (map first resource-nodes-by-upload-path)
-        keys (map #(g/node-value % :sha256) (map second resource-nodes-by-upload-path))
-        items (map #(make-server-cache-item (first %) (second %) false) (map vector paths keys))
+  [server-url resource-nodes-by-upload-path evaluation-context]
+  "Asks the server what files it already has.
+  This is to avoid uploading big files that rarely change"
+  (let [items (mapv (fn [[upload-path resource-node]]
+                      (let [key (g/node-value resource-node :sha256 evaluation-context)]
+                        {:path upload-path :key key}))
+                    resource-nodes-by-upload-path)
         json (json/write-str {:files items})
         request (make-cache-request server-url json)
         response (http/request request)]
@@ -202,10 +198,14 @@
             items (get (json/read-str body) "files")]
         items))))
 
-;; Parse the json doc into a mapping "path"->"cached"
 (defn- make-cached-info-map
   [ne-cache-info]
-  (zipmap (map #(get % "path") ne-cache-info) (map #(get % "cached") ne-cache-info)))
+  "Parse the json doc into a mapping 'path' -> 'cached'"
+  (into {}
+        (map (fn [info]
+               [(get info "path")
+                (get info "cached")]))
+        ne-cache-info))
 
 (defn- build-engine-archive ^File
   [server-url platform sdk-version resource-nodes-by-upload-path evaluation-context]
@@ -226,7 +226,7 @@
         api-root (.resource client (URI. server-url))
         build-resource (.path api-root (build-url platform sdk-version))
         builder (.accept build-resource #^"[Ljavax.ws.rs.core.MediaType;" (into-array MediaType []))
-        ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path)
+        ne-cache-info (query-cached-files server-url resource-nodes-by-upload-path evaluation-context)
         ne-cache-info-map (make-cached-info-map ne-cache-info)]
     (with-open [form (FormDataMultiPart.)]
       ; upload the file to the server, basically telling it what we are sending (and what we aren't)

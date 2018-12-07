@@ -47,12 +47,13 @@
 
 (defn split-url
   [url]
-  (let [u (URL. url)]
-       {:protocol (.getProtocol u)
-        :host     (.getHost u)
-        :port     (.getPort u)
-        :path     (.getPath u)
-        :query    (.getQuery u)}))
+  (let [u (URL. url)
+        port (.getPort u)]
+    (cond-> {:protocol (.getProtocol u)
+             :host     (.getHost u)
+             :path     (.getPath u)
+             :query    (.getQuery u)}
+      (not (neg? port)) (assoc :port port))))
 
 (defn request
   "Executes the HTTP request corresponding to the given Ring request map and
@@ -64,7 +65,7 @@
            conn-timeout multipart debug insecure? save-request? follow-redirects
            chunk-size] :as req}]
   (let [http-url (str (name scheme) "://" server-name
-                      (when server-port (when (> server-port -1)) (str ":" server-port))
+                      (when server-port (str ":" server-port))
                       uri
                       (when query-string (str "?" query-string)))
         ^HttpURLConnection conn (.openConnection ^URL (URL. http-url))]
