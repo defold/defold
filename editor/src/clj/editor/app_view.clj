@@ -550,16 +550,15 @@
                                    "If the engine is already running, shut down the process manually and retry."
                                    (.getMessage e))))))
 
-(defn async-build! [project evaluation-context prefs {:keys [debug? engine? resource] :or {debug? false engine? true resource "/game.project"} :as _opts} old-artifact-map render-build-progress! result-fn]
+(defn async-build! [project evaluation-context prefs {:keys [debug? engine?] :or {debug? false engine? true} :as opts} old-artifact-map render-build-progress! result-fn]
   (assert (not @build-in-progress?))
   (reset! build-in-progress? true)
   (future
     (try
       (let [extra-build-targets (when debug?
                                   (debug-view/build-targets project evaluation-context))
-            resource-node (project/get-resource-node project resource evaluation-context)
             build-results (ui/with-progress [_ render-build-progress!]
-                            (project/build-resource-node! project resource-node evaluation-context extra-build-targets old-artifact-map render-build-progress!))
+                            (project/build-project! project evaluation-context extra-build-targets old-artifact-map render-build-progress!))
             [engine build-engine-exception] (when (and engine? (nil? (:error build-results)))
                                               (try
                                                 (ui/with-progress [_ render-build-progress!]
@@ -718,7 +717,9 @@ If you do not specifically require different script states, consider changing th
         old-etags (workspace/etags workspace)
         render-build-progress! (make-render-task-progress :build)
         reloaded-resource (or specific-resource "/game.project")
-        opts {:debug? false :engine? false :resource reloaded-resource}]
+        opts {:debug? false :engine? false}]
+    ;; NOTE: We must build the entire project even if we only want to reload a
+    ;; subset of resources in order to maintain a functioning build cache.
     (async-build! project evaluation-context prefs opts old-artifact-map render-build-progress!
                   (fn [{:keys [error artifact-map etags]} _ _]
                     (g/update-cache-from-evaluation-context! evaluation-context)
