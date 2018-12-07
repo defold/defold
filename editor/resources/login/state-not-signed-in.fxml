@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<GridPane id="state-not-signed-in" styleClass="login-state" VBox.vgrow="ALWAYS" xmlns="http://javafx.com/javafx" xmlns:fx="http://javafx.com/fxml">
+    <columnConstraints>
+        <ColumnConstraints hgrow="ALWAYS" halignment="CENTER" />
+    </columnConstraints>
+    <rowConstraints>
+        <RowConstraints vgrow="ALWAYS" valignment="TOP" prefHeight="0" />
+        <RowConstraints vgrow="NEVER" valignment="TOP" />
+        <RowConstraints vgrow="ALWAYS" valignment="BOTTOM" prefHeight="0" />
+    </rowConstraints>
+    <VBox GridPane.rowIndex="1" styleClass="explanation-overlay">
+        <fx:include source="globe-icon.fxml" />
+        <Label id="sign-in-motivation-label" styleClass="hero-text" text="You need to sign in to access your&#10;projects in the Defold cloud." />
+        <Button id="sign-in-with-browser-button" styleClass="df-button" text="Sign in with Google">
+            <VBox.margin>
+                <Insets>
+                    <top>24</top>
+                    <bottom>16</bottom>
+                </Insets>
+            </VBox.margin>
+        </Button>
+        <Hyperlink id="sign-in-with-email-button" text="Sign in with e-mail" />
+    </VBox>
+    <HBox GridPane.rowIndex="2" styleClass="footer" maxWidth="-Infinity">
+        <Label text="Don't have an account? " />
+        <Hyperlink id="create-account-button" text="Create Account" />
+    </HBox>
+</GridPane>
