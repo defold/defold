@@ -9,11 +9,7 @@
 #include <assert.h>
 extern "C" {
     #define UNW_LOCAL_ONLY
-#ifdef ANDROID
     #include <libunwind.h>
-#else
-    #include <libunwind_osx/libunwind.h>
-#endif
 }
 
 #include "crash.h"

@@ -66,7 +66,7 @@ def build(bld):
         exported_symbols.extend(mobile_service_symbols)
         exported_symbols.append('FacebookExt')
 
-    if 'darwin' in bld.env['PLATFORM']:
+    if 'x86_64-darwin' == bld.env['PLATFORM']:
         additional_libs.append('UNWIND')
 
     if 'android' in bld.env['PLATFORM']:
@@ -163,7 +163,7 @@ def build(bld):
     if 'android' in bld.env['PLATFORM']:
         additional_libs = ['DMGLFW', 'UNWIND']
 
-    if 'darwin' in bld.env['PLATFORM']:
+    if 'x86_64-darwin' == bld.env['PLATFORM']:
         additional_libs = ['UNWIND']
 
     additional_libs = ' '.join(additional_libs)

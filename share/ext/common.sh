@@ -77,7 +77,11 @@ function cmi_cross() {
 
     local TGZ="$PRODUCT-$VERSION-$1.tar.gz"
     pushd $PREFIX  >/dev/null
-    tar cfz $TGZ lib
+    if [ -z ${TAR_INCLUDES+x} ]; then
+        tar cfz $TGZ lib
+    else
+        tar cfz $TGZ lib include
+    fi
     popd >/dev/null
     popd >/dev/null
 
@@ -238,7 +242,7 @@ function cmi() {
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
             export CPPFLAGS="-m32"
-            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libstdc++ "
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32 -stdlib=libc++ "
             export CFLAGS="${CFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -m32"
             export LDFLAGS="-m32"
             cmi_buildplatform $1
@@ -247,7 +251,7 @@ function cmi() {
         x86_64-darwin)
             # NOTE: Default libc++ changed from libstdc++ to libc++ on Maverick/iOS7.
             # Force libstdc++ for now
-            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libstdc++"
+            export CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${OSX_MIN_SDK_VERSION} -stdlib=libc++ "
             cmi_buildplatform $1
             ;;
 
