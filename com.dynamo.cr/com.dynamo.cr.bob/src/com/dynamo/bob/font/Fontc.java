@@ -313,16 +313,20 @@ public class Fontc {
         // Shadow_spread is the maximum distance to the glyph outline.
         float sdf_shadow_spread = 0.0f;
 
-        if (fontDesc.getAntialias() != 0)
-            padding = Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
-        if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            sdf_spread = getPaddedSdfSpread(fontDesc.getOutlineWidth());
-            sdf_shadow_spread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
+        if (fontDesc.getAntialias() != 0) {
+            if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
+                sdf_spread        = getPaddedSdfSpread(fontDesc.getOutlineWidth());
+                sdf_shadow_spread = getPaddedSdfSpread((float)fontDesc.getShadowBlur());
 
-            // The +1 is needed to give a little bit of extra padding since the spread
-            // always gets padded by the sqrt of a pixel diagonal
-            padding = fontDesc.getShadowBlur() + (int)(fontDesc.getOutlineWidth()) + 1;
+                // The +1 is needed to give a little bit of extra padding since the spread
+                // always gets padded by the sqrt of a pixel diagonal
+                padding = fontDesc.getShadowBlur() + (int)(fontDesc.getOutlineWidth()) + 1;
+            }
+            else {
+                padding = Math.min(4, fontDesc.getShadowBlur()) + (int)(fontDesc.getOutlineWidth());
+            }
         }
+
         Color faceColor = new Color(fontDesc.getAlpha(), 0.0f, 0.0f);
         Color outlineColor = new Color(0.0f, fontDesc.getOutlineAlpha(), 0.0f);
         ConvolveOp shadowConvolve = null;
@@ -340,14 +344,20 @@ public class Fontc {
             shadowConvolve = new ConvolveOp(kernel, ConvolveOp.EDGE_NO_OP, hints);
         }
         if (fontDesc.getOutputFormat() == FontTextureFormat.TYPE_DISTANCE_FIELD) {
-            // Normalize the edge pixel values into a 0..1 range. The negation is used to distinguish between
-            // what's considered outside and inside in relation to the glyph edge, where + is outside
-            // and - is inside.
-
             // Calculate edge values for both outline and shadow. We must treat them differently
             // so that we don't use the same precision range for both edges
             float outline_edge = calculateSdfEdgeLimit(-fontDesc.getOutlineWidth(), sdf_spread);
             float shadow_edge  = calculateSdfEdgeLimit(-(float)fontDesc.getShadowBlur(), sdf_shadow_spread);
+
+            // Special case!
+            // If there is no blur, the shadow should essentially work the same way as the outline.
+            // This enables effects like a hard drop shadow. In the shader, the pseudo code
+            // that does this looks something like this:
+            // shadow_alpha = mix(shadow_alpha,outline_alpha,floor(shadow_edge))
+            if (fontDesc.getShadowBlur() == 0)
+            {
+                shadow_edge = 1.0f;
+            }
 
             fontMapBuilder.setSdfSpread(sdf_spread);
             fontMapBuilder.setSdfOutline(outline_edge);
@@ -676,7 +686,7 @@ public class Fontc {
 
                 if (distance_to_edge_normalized > sdf_outline)
                 {
-                    distance_to_border = edge;
+                	distance_to_border = edge;
                 }
 
                 // Calculate shadow distribution separately in a different channel since we spread the
@@ -698,9 +708,14 @@ public class Fontc {
             setHighQuality(g);
             g.drawImage(image, 0, 0, null);
 
-            // Experimental approach to add a little bit of blur, but not that much so it breaks
-            // the blur values completely
-            int numBlurs = Math.min(2,fontDesc.getShadowBlur() / 4);
+            // This is an experimental approach to improve the visuals of the distance field shadow.
+            // The rationale to this approach is two-fold:
+            // 	1) The lower limit makes sure that the shadow distance values inside the glyph face
+            //     have a smooth edge. This is due to the "if (distance_to_edge_normalized > sdf_outline)"
+            //     condition in the bitmap generation pass above that otherwise introduces jaggies to the edge.
+            //  2) The upper limit adds a little bit of high frequency smoothing so that we can even out
+            //     a little bit of the valleys that occur due to sharp corners in the glyphs.
+            int numBlurs = Math.max(1,Math.min(2,fontDesc.getShadowBlur() / 4));
 
             if (numBlurs > 0)
             {
