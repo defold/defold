@@ -249,11 +249,11 @@
 (deftype Properties
     {:properties {s/Keyword {:node-id                              s/Int
                              (s/optional-key :validation-problems) s/Any
-                             :value                                (s/either s/Any ErrorValue)
+                             :value                                s/Any
                              :type                                 s/Any
                              s/Keyword                             s/Any}}
      (s/optional-key :node-id) s/Int
-     (s/optional-key :display-order) [(s/either s/Keyword [(s/one String "category") s/Keyword])]})
+     (s/optional-key :display-order) [(s/conditional vector? [(s/one String "category") s/Keyword] keyword? s/Keyword)]})
 (deftype Err ErrorValue)
 
 ;; ---------------------------------------------------------------------------
@@ -356,7 +356,7 @@
           fn-paths      (in/extract-functions node-type-def)
           fn-defs       (for [[path func] fn-paths]
                           (list `def (in/dollar-name symb path) func))
-          fwd-decls     (map (fn [d] (list `def (second d))) fn-defs)
+          fwd-decls     (map (fn [d] (list `declare (second d))) fn-defs)
           node-type-def (util/update-paths node-type-def fn-paths
                                            (fn [path func curr]
                                              (assoc curr :fn (var-it (in/dollar-name symb path)))))
