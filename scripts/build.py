@@ -1948,7 +1948,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
 
     parser.add_option('--platform', dest='target_platform',
                       default = None,
-                      choices = ['linux', 'x86_64-linux', 'darwin', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
+                      choices = ['linux', 'x86_64-linux', 'x86_64-darwin', 'win32', 'x86_64-win32', 'armv7-darwin', 'arm64-darwin', 'armv7-android', 'js-web', 'wasm-web'],
                       help = 'Target platform')
 
     parser.add_option('--skip-tests', dest='skip_tests',
