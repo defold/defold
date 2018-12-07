@@ -1,10 +1,10 @@
 (ns editor.dialogs
-  (:require [clojure.core.reducers :as r]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.ui :as ui]
-            [editor.util :as util]
+            [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
+            [editor.util :as util]
             [editor.handler :as handler]
             [editor.core :as core]
             [editor.fuzzy-text :as fuzzy-text]
@@ -13,15 +13,13 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.defold-project :as project]
-            [editor.github :as github]
-            [service.log :as log])
+            [editor.github :as github])
   (:import [java.io File]
            [java.util List Collection]
            [java.nio.file Path Paths]
-           [javafx.event ActionEvent]
            [javafx.geometry Pos]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control CheckBox Button Label ListView ProgressBar TextArea TextField Hyperlink]
+           [javafx.scene.control CheckBox Button Label ListView TextArea TextField Hyperlink]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.input KeyEvent]
            [javafx.scene.layout HBox VBox Region]
@@ -116,7 +114,7 @@
      (ui/with-controls root [^TextFlow message ^CheckBox toggle-details ^TextArea details ^Button ok]
        (if-not (str/blank? detail-text)
          (do
-           (ui/bind-presence! details (.selectedProperty toggle-details))
+           (b/bind-presence! details (.selectedProperty toggle-details))
            (ui/on-action! toggle-details (fn [_] (.sizeToScene stage)))
            (ui/text! details detail-text))
          (do
