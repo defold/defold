@@ -11,7 +11,7 @@
             [clojure.walk :as walk]
             [clojure.zip :as zip])
   (:import [internal.graph.error_values ErrorValue]
-           [schema.core Maybe Either]
+           [schema.core Maybe ConditionalSchema]
            [java.lang.ref WeakReference]))
 
 ;; TODO - replace use of 'transform' as a variable name with 'label'
@@ -474,7 +474,7 @@
         (and (= out-t-pl? in-t-pl? true) (check-single-type (first output-schema) (first input-schema)))
         (and (= out-t-pl? in-t-pl? false) (check-single-type output-schema input-schema))
         (and (instance? Maybe input-schema) (type-compatible? output-schema (:schema input-schema)))
-        (and (instance? Either input-schema) (some #(type-compatible? output-schema %) (:schemas input-schema)))))))
+        (and (instance? ConditionalSchema input-schema) (some #(type-compatible? output-schema %) (map second (:preds-and-schemas input-schema))))))))
 
 ;;; ----------------------------------------
 ;;; Node type implementation
@@ -1360,7 +1360,7 @@
         schema (if (get-in description [:output transform :flags :collection])
                  (vector schema)
                  schema)]
-    `(s/either (s/maybe ~schema) ErrorValue))) ; allow nil's and errors
+    `(s/maybe (s/conditional ie/error-value? ErrorValue :else ~schema)))) ; allow nil's and errors
 
 (defn report-schema-error
   [node-type-name transform nodeid-sym output-sym output-schema validation-error]
